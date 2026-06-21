@@ -1,3 +1,8 @@
+import {
+  createReadContract,
+  createWidthedConfidence,
+} from "../read-contract/index.js";
+
 /**
  * Cotality-shaped GIS fixture — dense Bastrop viewport mesh for dataviz QA.
  * Source: cc-agent-C cotalityFixtures.ts parcel geometry + assessor field shapes.
@@ -223,15 +228,41 @@ export function buildFixtureFemaCollection(center = FIXTURE_CENTER) {
   };
 }
 
-function fixtureEnvelope(layerKey, payload, center, reason, adapterKey) {
+function fixtureReadContract(intervalWidth = 0.12, stratum = "routine") {
+  return createReadContract({
+    calibratedConfidence: createWidthedConfidence({
+      estimate: 0.72,
+      n: 24,
+      intervalWidth,
+      provenance: "asserted",
+    }),
+    assertedConfidence: createWidthedConfidence({
+      estimate: 0.68,
+      n: 0,
+      intervalWidth: 0.35,
+      provenance: "asserted",
+    }),
+    consequence: {
+      derivation: {
+        source: "asce7-risk-category",
+        asce7RiskCategory: stratum === "essential" ? "IV" : "II",
+        ibcOccupancyGroup: "B",
+      },
+      stratum,
+      assertedAt: "2026-06-21T12:00:00.000Z",
+    },
+  });
+}
+
+function fixtureEnvelope(layerKey, payload, center, reason, adapterKey, intervalWidth = 0.12) {
   return {
     payload,
     source: {
       provider: "fixture/synthetic",
       adapterKey,
     },
-    confidence: { kind: "asserted", value: 0.42 },
-    dataVintage: "2026-06-19-fixture",
+    readContract: fixtureReadContract(intervalWidth),
+    dataVintage: "2026-06-21-fixture-wave2",
     coverage: {
       reason:
         reason ||
@@ -375,7 +406,142 @@ export function buildFixtureMotivatedSeller(center = FIXTURE_CENTER) {
   };
 }
 
-/** @param {{ latitude: number, longitude: number }} coords */
+function reasoningEnvelope(layerKey, payload, center, readContract, reason) {
+  return {
+    payload,
+    source: { provider: "fixture/synthetic", adapterKey: `fixture:${layerKey}` },
+    readContract,
+    dataVintage: "2026-06-21-fixture-wave2",
+    coverage: { reason: reason || `Fixture reasoning layer ${layerKey}` },
+  };
+}
+
+function consequenceStratumForCell(i, j) {
+  const gx = i / 15;
+  const gy = j / 11;
+  if (gauss(gx, gy, 0.55, 0.58, 0.1, 0.1) > 0.65) return "essential";
+  if (gauss(gx, gy, 0.3, 0.35, 0.12, 0.12) > 0.55) return "critical";
+  if (noise(i, j) > 0.82) return "elevated";
+  return "routine";
+}
+
+function readContractForParcel(stratum, intervalWidth = 0.12) {
+  const riskMap = { routine: "II", elevated: "II", critical: "III", essential: "IV" };
+  return createReadContract({
+    calibratedConfidence: createWidthedConfidence({
+      estimate: 0.72,
+      n: stratum === "routine" ? 24 : 8,
+      intervalWidth,
+      provenance: "asserted",
+    }),
+    assertedConfidence: createWidthedConfidence({
+      estimate: 0.68,
+      n: 0,
+      intervalWidth: 0.35,
+      provenance: "asserted",
+    }),
+    consequence: {
+      derivation: {
+        source: "asce7-risk-category",
+        asce7RiskCategory: riskMap[stratum] || "II",
+        ibcOccupancyGroup: stratum === "essential" ? "I-2" : "B",
+      },
+      stratum,
+      assertedAt: "2026-06-21T12:00:00.000Z",
+    },
+  });
+}
+
+export function buildConsequenceChoroplethCollection(center = FIXTURE_CENTER) {
+  const parcels = buildFixtureParcelCollection(center);
+  return {
+    type: "FeatureCollection",
+    features: parcels.features.map((f, idx) => {
+      const parts = String(f.id || idx).split("-");
+      const i = Number(parts[1] ?? idx);
+      const j = Number(parts[2] ?? 0);
+      const stratum = consequenceStratumForCell(i, j);
+      return {
+        ...f,
+        properties: {
+          ...f.properties,
+          layerKey: "consequence-choropleth",
+          consequenceStratum: stratum,
+          readContract: readContractForParcel(stratum, 0.1),
+        },
+      };
+    }),
+  };
+}
+
+export function buildContestedGroundCollection(center = FIXTURE_CENTER) {
+  const { halfLon, halfLat } = meshExtent();
+  const lo = center.longitude;
+  const la = center.latitude;
+  return {
+    type: "FeatureCollection",
+    features: [
+      {
+        type: "Feature",
+        id: "contested-d8-fema",
+        properties: {
+          layerKey: "contested-ground",
+          conflictType: "hydrology-d8-vs-fema",
+          sources: ["fixture:d8-flow", "fixture:fema-nfhl"],
+          readContract: readContractForParcel("elevated", 0.42),
+        },
+        geometry: {
+          type: "Polygon",
+          coordinates: [
+            [
+              [lo - halfLon * 0.35, la - halfLat * 0.55],
+              [lo + halfLon * 0.15, la - halfLat * 0.72],
+              [lo + halfLon * 0.42, la - halfLat * 0.48],
+              [lo + halfLon * 0.08, la - halfLat * 0.28],
+              [lo - halfLon * 0.35, la - halfLat * 0.55],
+            ],
+          ],
+        },
+      },
+    ],
+  };
+}
+
+export function buildTriageStateCollection(center = FIXTURE_CENTER) {
+  const parcels = buildFixtureParcelCollection(center);
+  return {
+    type: "FeatureCollection",
+    features: parcels.features
+      .map((f, idx) => {
+        const parts = String(f.id || idx).split("-");
+        const i = Number(parts[1] ?? idx);
+        const j = Number(parts[2] ?? 0);
+        const stratum = consequenceStratumForCell(i, j);
+        const width = 0.08 + noise(i, j) * 0.38;
+        let triageState = "ok";
+        if (["critical", "essential"].includes(stratum) && width > 0.28) {
+          triageState = width > 0.34 ? "human-required" : "verify";
+        } else if (stratum === "elevated" && width > 0.32) {
+          triageState = "verify";
+        }
+        if (triageState === "ok") return null;
+        return {
+          ...f,
+          properties: {
+            ...f.properties,
+            layerKey: "triage-state",
+            triageState,
+            intervalWidth: width,
+            consequenceStratum: stratum,
+            readContract: readContractForParcel(stratum, width),
+          },
+        };
+      })
+      .filter(Boolean),
+  };
+}
+
+/** @param {{ latitude: number, longitude: number }} [center] */
 export function getGisFixtureSlots(coords = FIXTURE_CENTER) {
   const center = {
     latitude: Number.isFinite(coords?.latitude) ? coords.latitude : FIXTURE_CENTER.latitude,
@@ -433,6 +599,51 @@ export function getGisFixtureSlots(coords = FIXTURE_CENTER) {
     fixtureSlot("rent-heat", "rent", rent, center, {
       adapterKey: "fixture:rent-avm",
     }),
+    {
+      layerKey: "consequence-choropleth",
+      proxyLayer: "consequence",
+      status: "ok",
+      meshMode: true,
+      featureCount: buildConsequenceChoroplethCollection(center).features.length,
+      fixture: true,
+      envelope: reasoningEnvelope(
+        "consequence-choropleth",
+        { geojson: buildConsequenceChoroplethCollection(center) },
+        center,
+        fixtureReadContract(0.1, "elevated"),
+        "Fixture F2 consequence stratum choropleth (demo until E enrichment lands)",
+      ),
+    },
+    {
+      layerKey: "contested-ground",
+      proxyLayer: "contested",
+      status: "ok",
+      meshMode: false,
+      featureCount: 1,
+      fixture: true,
+      envelope: reasoningEnvelope(
+        "contested-ground",
+        { geojson: buildContestedGroundCollection(center) },
+        center,
+        fixtureReadContract(0.42, "elevated"),
+        "Fixture F5 contested band — D8 flow vs FEMA NFHL disagreement",
+      ),
+    },
+    {
+      layerKey: "triage-state",
+      proxyLayer: "triage",
+      status: "ok",
+      meshMode: true,
+      featureCount: buildTriageStateCollection(center).features.length,
+      fixture: true,
+      envelope: reasoningEnvelope(
+        "triage-state",
+        { geojson: buildTriageStateCollection(center) },
+        center,
+        fixtureReadContract(0.32, "critical"),
+        "Fixture triage flags — thin width × high consequence parcels",
+      ),
+    },
   ];
 }
 

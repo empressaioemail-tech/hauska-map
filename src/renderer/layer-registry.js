@@ -1,6 +1,23 @@
 /**
- * V3 placeholder — static layer registry for Wave 1.
- * Per-app allocation lands in Wave 2 (V3).
+ * V3 — dynamic layer registry + per-app allocation metadata.
+ */
+
+import { resolveLayerAllocation, listAllocationKeys } from "./layer-allocation.js";
+import { reasoningLayerAwaitingReason } from "../lib/input-gates.js";
+
+/** @typedef {'live'|'awaiting-input'|'fuel-gated'|'fixture'|'pending'|'no-data'} LayerStatus */
+
+/**
+ * @typedef {Object} LayerRegistryEntry
+ * @property {string} key
+ * @property {string} label
+ * @property {string} group
+ * @property {boolean} fixture
+ * @property {boolean} live
+ * @property {boolean} fuelGated
+ * @property {boolean} [pending]
+ * @property {boolean} [reasoning]
+ * @property {{ input?: 'F2'|'F5'|'F2+F4', description: string }} [inputGate]
  */
 
 export const LAYER_REGISTRY = [
@@ -24,12 +41,57 @@ export const LAYER_REGISTRY = [
   { key: "opportunity-zone-tract", label: "Opportunity Zone tract", group: "regulatory", fixture: true, live: true, fuelGated: false },
   { key: "rent-heat", label: "Rent heat (AVM)", group: "investor", fixture: true, live: false, fuelGated: true },
   { key: "etj", label: "Extraterritorial jurisdiction", group: "regulatory", fixture: false, live: false, fuelGated: true, pending: true },
-  { key: "calibrated-accuracy", label: "Calibrated accuracy", group: "calibration", fixture: false, live: false, fuelGated: true, wave2: true },
-  { key: "contested-ground", label: "Contested ground overlay", group: "calibration", fixture: false, live: false, fuelGated: true, wave2: true },
-  { key: "triage-state", label: "Triage state", group: "calibration", fixture: false, live: false, fuelGated: true, wave2: true },
+  {
+    key: "consequence-choropleth",
+    label: "Consequence choropleth",
+    group: "reasoning",
+    fixture: true,
+    live: false,
+    fuelGated: false,
+    reasoning: true,
+    inputGate: { input: "F2", description: "ASCE 7 risk category + IBC occupancy/importance on code-section atoms" },
+  },
+  {
+    key: "contested-ground",
+    label: "Contested ground overlay",
+    group: "calibration",
+    fixture: true,
+    live: false,
+    fuelGated: false,
+    reasoning: true,
+    inputGate: { input: "F5", description: "Raw-conflict log — disagreeing inputs with provenance and vintage" },
+  },
+  {
+    key: "triage-state",
+    label: "Triage state",
+    group: "calibration",
+    fixture: true,
+    live: false,
+    fuelGated: false,
+    reasoning: true,
+    inputGate: { input: "F2+F4", description: "Consequence stratum × interval width — verify / human-required" },
+  },
+  {
+    key: "calibrated-accuracy",
+    label: "Calibrated accuracy",
+    group: "calibration",
+    fixture: false,
+    live: false,
+    fuelGated: true,
+    inputGate: { description: "Fuel-gated — awaits M1 + X (Wave 3+, not Wave 2)" },
+  },
+  {
+    key: "development-pulse",
+    label: "Development pulse",
+    group: "investor",
+    fixture: false,
+    live: false,
+    fuelGated: true,
+    inputGate: { description: "Fuel-gated — awaits X3 (not Wave 2)" },
+  },
 ];
 
-/** Wave 1 default visible layers */
+/** Spine console default — cortex site-context + reasoning when inputs live. */
 export const DEFAULT_VISIBLE_LAYERS = new Set([
   "parcel-polygon",
   "flood-zone",
@@ -40,19 +102,53 @@ export const DEFAULT_VISIBLE_LAYERS = new Set([
   "zoning",
 ]);
 
-export function legendEntriesForRegistry(visibleKeys = DEFAULT_VISIBLE_LAYERS) {
-  return LAYER_REGISTRY.filter((l) => visibleKeys.has(l.key) && !l.wave2).map((l) => ({
-    key: l.key,
-    label: l.label,
-    group: l.group,
-    status: l.pending ? "pending" : l.fixture ? "fixture/synthetic" : l.live ? "live" : "no-coverage",
-    encodes: legendEncodes(l.key),
-  }));
+export function registryEntry(key) {
+  return LAYER_REGISTRY.find((l) => l.key === key);
+}
+
+/**
+ * @param {import('../lib/input-gates.js').InputGateState} gates
+ * @param {string} key
+ * @returns {LayerStatus}
+ */
+export function layerStatusForGates(gates, key) {
+  const entry = registryEntry(key);
+  if (!entry) return "no-data";
+  if (entry.pending) return "pending";
+  if (entry.fuelGated && (key === "calibrated-accuracy" || key === "development-pulse")) {
+    return "fuel-gated";
+  }
+  if (entry.reasoning) {
+    const awaiting = reasoningLayerAwaitingReason(key, gates);
+    return awaiting ? "awaiting-input" : entry.fixture ? "fixture" : "live";
+  }
+  if (entry.fixture) return "fixture";
+  if (entry.live) return "live";
+  return "no-data";
+}
+
+export function visibleLayersForAllocation(appId, reportType, tier = "pro") {
+  const alloc = resolveLayerAllocation({ appId, reportType, tier });
+  return new Set(alloc.defaultOn);
+}
+
+export function legendEntriesForRegistry(visibleKeys = DEFAULT_VISIBLE_LAYERS, gates = null) {
+  return LAYER_REGISTRY.filter((l) => visibleKeys.has(l.key)).map((l) => {
+    const status = gates ? layerStatusForGates(gates, l.key) : l.pending ? "pending" : l.fixture ? "fixture/synthetic" : l.live ? "live" : "no-data";
+    return {
+      key: l.key,
+      label: l.label,
+      group: l.group,
+      status,
+      encodes: legendEncodes(l.key),
+      awaiting: gates ? reasoningLayerAwaitingReason(l.key, gates) : null,
+    };
+  });
 }
 
 function legendEncodes(key) {
   const map = {
-    "parcel-polygon": "Assessor parcel polygon; land-use choropleth fill",
+    "parcel-polygon": "Assessor parcel polygon; land-use choropleth with width-as-saturation",
     "flood-zone": "FEMA NFHL zone class",
     "rent-heat": "Rent AVM intensity (fixture fire ramp)",
     "dem-hillshade": "Synthetic DEM relief under data",
@@ -60,9 +156,13 @@ function legendEncodes(key) {
     "hydrology-flow": "D8-style flow channels (fixture)",
     "parcel-extrusion": "Allowed build height extrusion (ft)",
     zoning: "Municipal zoning / land-use code",
-    "calibrated-accuracy": "Wave 2 — width-as-uncertainty saturation (fuel-gated)",
-    "contested-ground": "Wave 2 — disagreeing layer inputs",
-    "triage-state": "Wave 2 — thin accuracy + high consequence",
+    "consequence-choropleth": "ASCE/IBC consequence stratum — routine / elevated / critical / essential",
+    "contested-ground": "Layers disagree — hydrology D8 vs FEMA headline case",
+    "triage-state": "Thin interval width × high consequence → verify or human-required",
+    "calibrated-accuracy": "Fuel-gated — asserted-with-provenance until M1 thickening (not Wave 2)",
+    "development-pulse": "Fuel-gated — permit/inspection pulse (not Wave 2)",
   };
-  return map[key] || "GIS layer from EngineEnvelope slot";
+  return map[key] || "GIS layer — read-contract required on envelope";
 }
+
+export { resolveLayerAllocation, listAllocationKeys };
