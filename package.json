@@ -10,6 +10,7 @@
     "preview": "vite preview"
   },
   "dependencies": {
+    "@hauska/atom-contract": "file:../hauska-atom-contract/hauska-atom-contract-1.5.0.tgz",
     "maplibre-gl": "^5.24.0"
   },
   "devDependencies": {

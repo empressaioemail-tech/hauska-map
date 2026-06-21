@@ -30,7 +30,7 @@ Query params:
 
 ### V4 read-contract
 
-`src/read-contract/index.js` mirrors atom-contract@1.4.0. Scalar-only envelope fills do not render.
+`src/read-contract/index.js` re-exports `@hauska/atom-contract@^1.5.0/read-contract`. Scalar-only envelope fills do not render.
 
 ### V1 renderer contract
 

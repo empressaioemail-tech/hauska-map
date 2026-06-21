@@ -523,7 +523,7 @@ export function listArtifactFiles() {
     { path: "src/window-manager/floating-window.js", kind: "window-manager", label: "V2 floating window FSM" },
     { path: "src/renderer/layer-registry.js", kind: "layer-config", label: "V3 dynamic layer registry" },
     { path: "src/renderer/layer-allocation.js", kind: "layer-config", label: "Per-app allocation config" },
-    { path: "src/read-contract/index.js", kind: "contract", label: "atom-contract@1.4.0 mirror (V4)" },
+    { path: "src/read-contract/index.js", kind: "contract", label: "@hauska/atom-contract read-contract pin" },
     { path: "src/map/reasoning-layers.js", kind: "layer-config", label: "V5 reasoning layer paints" },
     { path: "src/map/gis-fixture-data.js", kind: "acquisition-dataset", label: "Bastrop fixture mesh + reasoning" },
     { path: "src/api/spine-api.js", kind: "run-log", label: "Spine read API client" },

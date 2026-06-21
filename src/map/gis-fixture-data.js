@@ -1,6 +1,5 @@
 import {
   createReadContract,
-  createWidthedConfidence,
 } from "../read-contract/index.js";
 
 /**
@@ -230,27 +229,30 @@ export function buildFixtureFemaCollection(center = FIXTURE_CENTER) {
 
 function fixtureReadContract(intervalWidth = 0.12, stratum = "routine") {
   return createReadContract({
-    calibratedConfidence: createWidthedConfidence({
-      estimate: 0.72,
-      n: 24,
-      intervalWidth,
-      provenance: "asserted",
-    }),
-    assertedConfidence: createWidthedConfidence({
-      estimate: 0.68,
-      n: 0,
-      intervalWidth: 0.35,
-      provenance: "asserted",
-    }),
-    consequence: {
-      derivation: {
-        source: "asce7-risk-category",
-        asce7RiskCategory: stratum === "essential" ? "IV" : "II",
-        ibcOccupancyGroup: "B",
+    axes: {
+      calibratedConfidence: {
+        estimate: 0.72,
+        n: 24,
+        intervalWidth,
+        provenance: "asserted",
       },
-      stratum,
-      assertedAt: "2026-06-21T12:00:00.000Z",
+      assertedConfidence: {
+        estimate: 0.68,
+        n: 0,
+        intervalWidth: 0.35,
+        provenance: "asserted",
+      },
+      consequence: {
+        derivation: {
+          source: "asce7-risk-category",
+          asce7RiskCategory: stratum === "essential" ? "IV" : "II",
+          ibcOccupancyGroup: "B",
+        },
+        stratum,
+        assertedAt: "2026-06-21T12:00:00.000Z",
+      },
     },
+    assembledAt: new Date().toISOString(),
   });
 }
 
@@ -428,27 +430,30 @@ function consequenceStratumForCell(i, j) {
 function readContractForParcel(stratum, intervalWidth = 0.12) {
   const riskMap = { routine: "II", elevated: "II", critical: "III", essential: "IV" };
   return createReadContract({
-    calibratedConfidence: createWidthedConfidence({
-      estimate: 0.72,
-      n: stratum === "routine" ? 24 : 8,
-      intervalWidth,
-      provenance: "asserted",
-    }),
-    assertedConfidence: createWidthedConfidence({
-      estimate: 0.68,
-      n: 0,
-      intervalWidth: 0.35,
-      provenance: "asserted",
-    }),
-    consequence: {
-      derivation: {
-        source: "asce7-risk-category",
-        asce7RiskCategory: riskMap[stratum] || "II",
-        ibcOccupancyGroup: stratum === "essential" ? "I-2" : "B",
+    axes: {
+      calibratedConfidence: {
+        estimate: 0.72,
+        n: stratum === "routine" ? 24 : 8,
+        intervalWidth,
+        provenance: "asserted",
       },
-      stratum,
-      assertedAt: "2026-06-21T12:00:00.000Z",
+      assertedConfidence: {
+        estimate: 0.68,
+        n: 0,
+        intervalWidth: 0.35,
+        provenance: "asserted",
+      },
+      consequence: {
+        derivation: {
+          source: "asce7-risk-category",
+          asce7RiskCategory: riskMap[stratum] || "II",
+          ibcOccupancyGroup: stratum === "essential" ? "I-2" : "B",
+        },
+        stratum,
+        assertedAt: "2026-06-21T12:00:00.000Z",
+      },
     },
+    assembledAt: new Date().toISOString(),
   });
 }
 
