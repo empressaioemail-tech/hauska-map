@@ -34,6 +34,17 @@ import {
   FLOW_SOURCE_ID,
 } from "./gis-hydrology-flow.js";
 import { FIXTURE_CENTER } from "./gis-fixture-data.js";
+import {
+  isRenderableEnvelope,
+  envelopeSaturation,
+  extractEnvelopeReadContract,
+  formatReadContractSummary,
+} from "../read-contract/index.js";
+import {
+  consequenceFillColorExpr,
+  triageFillColorExpr,
+} from "./reasoning-layers.js";
+import { POSITIONING_FOOTER } from "../copy/positioning.js";
 
 /** Cached fixture DEM per session. */
 let cachedDemGrid = null;
@@ -264,11 +275,21 @@ function promoteIdField(fc) {
 export function upsertGisLayer(map, slot, meshMode = false) {
   const gj = geoJsonFromSlot(slot);
   if (!gj || slot.status !== "ok") return false;
+
+  if (!isRenderableEnvelope(slot?.envelope)) {
+    hideGisLayer(map, slot.layerKey);
+    slot.renderBlocked = true;
+    slot.renderBlockedReason = "scalar-only confidence — read-contract required (V4)";
+    return false;
+  }
+  slot.renderBlocked = false;
+
   const layerKey = slot.layerKey;
   const sourceId = gisSourceId(layerKey);
   const fc = normalizeGeoJson(gj, layerKey);
   const paint = paintForLayer(layerKey);
   const pid = promoteIdField(fc);
+  const saturation = envelopeSaturation(slot.envelope);
 
   if (map.getSource(sourceId)) {
     map.getSource(sourceId).setData(fc);
@@ -304,20 +325,34 @@ export function upsertGisLayer(map, slot, meshMode = false) {
 
   if (!map.getLayer(fillId)) {
     const fillColor = paint.fillExpr
-      ? paint.fillExpr()
+      ? typeof paint.fillExpr === "function"
+        ? paint.fillExpr()
+        : paint.fillExpr
       : paint.fill || "rgba(74,122,181,0.5)";
+    const baseOpacity = fillOpacityExpr(layerKey, meshMode);
+    const opacityExpr =
+      typeof baseOpacity === "number"
+        ? baseOpacity * saturation
+        : baseOpacity;
     map.addLayer({
       id: fillId,
       type: "fill",
       source: sourceId,
       paint: {
         "fill-color": fillColor,
-        "fill-opacity": fillOpacityExpr(layerKey, meshMode),
+        "fill-opacity": opacityExpr,
         "fill-opacity-transition": LAYER_TOGGLE_TRANSITION,
       },
     });
   } else if (meshMode && layerKey === "parcel-polygon") {
-    map.setPaintProperty(fillId, "fill-opacity", fillOpacityExpr(layerKey, true));
+    map.setPaintProperty(fillId, "fill-opacity", fillOpacityExpr(layerKey, true) * saturation);
+  } else if (saturation < 1) {
+    const baseOpacity = fillOpacityExpr(layerKey, meshMode);
+    map.setPaintProperty(
+      fillId,
+      "fill-opacity",
+      typeof baseOpacity === "number" ? baseOpacity * saturation : baseOpacity,
+    );
   }
 
   if (!map.getLayer(lineId)) {
@@ -511,14 +546,18 @@ export function selectionFromParcelFeature(feature, slot) {
     env?.source?.adapterKey ||
     env?.source?.provider ||
     "Cotality Spatial Tile + Property site-location";
+  const readContract =
+    extractEnvelopeReadContract(env) || p.readContract || null;
   return {
     kind: "parcel",
     label: addr || p.apn || p.APN || "Parcel",
     detail: `${land}${zoning ? ` · Zoning ${zoning}` : ""}. Assessor land-use codes on parcel — not municipal district boundaries.`,
     citation: cite,
-    confidence: env?.confidence,
+    readContract,
+    readContractSummary: readContract ? formatReadContractSummary(readContract) : null,
     envelope: env,
     timestamp: env?.dataVintage,
+    renderBlocked: slot?.renderBlocked,
   };
 }
 
@@ -599,13 +638,13 @@ export function floatLegendHtml(slots, meshEnabled) {
       `</div>`
     : "";
 
-  let note = "Subject parcel (pin-intersect)";
+  let note = POSITIONING_FOOTER;
   if (n > 1) {
-    note = `Parcel mesh · ${n} parcels · land-use + rent-AVM`;
+    note = `Parcel mesh · ${n} parcels · width-as-saturation choropleth. ${POSITIONING_FOOTER}`;
   } else if (meshEnabled) {
-    note = "Viewport mesh active — pan to load more parcels";
+    note = `Viewport mesh active. ${POSITIONING_FOOTER}`;
   } else if (n === 1) {
-    note = "Subject parcel — full mesh unlocks when bbox Cotality is live";
+    note = `Subject parcel. ${POSITIONING_FOOTER}`;
   }
 
   return (

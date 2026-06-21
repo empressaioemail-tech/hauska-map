@@ -1,24 +1,28 @@
 /**
- * End-state E — Spine console shell (Wave 1)
- * All-white, function-only localhost dashboard.
+ * End-state E — Spine console (Wave 2)
+ * V3 registry · V4 read-contract · V5 reasoning layers · live MCP + atom trace.
  */
 
 import { loadConfig } from "./config.js";
 import { createMapRenderer, RENDERER_CONTRACT } from "./renderer/map-renderer.js";
-import { DEFAULT_VISIBLE_LAYERS } from "./renderer/layer-registry.js";
+import { visibleLayersForAllocation } from "./renderer/layer-registry.js";
 import { createFloatingWindow } from "./window-manager/floating-window.js";
 import { renderFilesRail } from "./panels/files-rail.js";
-import { renderLegendRail } from "./panels/legend-rail.js";
+import { renderLegendRail, refreshLegendRail } from "./panels/legend-rail.js";
 import { renderMcpInspector } from "./panels/mcp-inspector.js";
 import { renderAtomBrowser } from "./panels/atom-browser.js";
 import { renderLayerRegistryView } from "./panels/layer-registry-view.js";
 import { renderCalibrationTracker } from "./panels/calibration-tracker.js";
 import { renderRunMonitor } from "./panels/run-monitor.js";
 import { renderParcelTrace, openParcelTrace } from "./panels/parcel-trace.js";
+import { renderAuthBar } from "./panels/auth-bar.js";
 import { resolveParcel } from "./api/spine-api.js";
+import { probeInputGates, reasoningLayerLive } from "./lib/input-gates.js";
+import { POSITIONING_FOOTER, POSITIONING_TAGLINE } from "./copy/positioning.js";
 
-const config = loadConfig();
-let visibleLayers = new Set(DEFAULT_VISIBLE_LAYERS);
+let config = loadConfig();
+let visibleLayers = visibleLayersForAllocation(config.appId, config.reportType, config.packageTier);
+let inputGates = probeInputGates(config);
 let parcelCtx = null;
 
 const app = document.getElementById("app");
@@ -26,7 +30,8 @@ app.innerHTML = `
   <div class="spine-console">
     <header class="spine-topbar">
       <h1>Hauska Spine Console</h1>
-      <span class="spine-tag">Wave 1 · function-only · fixture=${config.useFixture ? "1" : "0"}</span>
+      <span class="spine-tag">Wave 2 · ${POSITIONING_TAGLINE.slice(0, 48)}… · fixture=${config.useFixture ? "1" : "0"}</span>
+      <div id="auth-bar-host"></div>
       <nav class="spine-tabs" role="tablist">
         <button type="button" class="tab active" data-panel="e7">E7 Parcel</button>
         <button type="button" class="tab" data-panel="e1">E1 MCP</button>
@@ -46,6 +51,7 @@ app.innerHTML = `
       <section class="spine-panel hidden" id="panel-e5"></section>
     </main>
     <aside class="spine-rail spine-rail--right" id="rail-right"></aside>
+    <footer class="spine-footer" id="spine-footer">${POSITIONING_FOOTER}</footer>
     <div class="spine-map-host" id="map-window">
       <div class="fw-titlebar" id="map-titlebar">
         <span class="fw-title">E6 Floating map</span>
@@ -64,13 +70,43 @@ app.innerHTML = `
   </div>
 `;
 
+function applyReasoningVisibility() {
+  for (const key of ["consequence-choropleth", "contested-ground", "triage-state"]) {
+    if (reasoningLayerLive(key, inputGates)) {
+      visibleLayers.add(key);
+    } else {
+      visibleLayers.delete(key);
+    }
+  }
+}
+applyReasoningVisibility();
+
+function refreshAllPanels() {
+  config = loadConfig();
+  visibleLayers = visibleLayersForAllocation(config.appId, config.reportType, config.packageTier);
+  applyReasoningVisibility();
+  refreshLegendRail(document.getElementById("rail-right"), visibleLayers, inputGates);
+  renderer.setLayerVisibility(visibleLayers);
+  void renderMcpInspector(document.getElementById("panel-e1"), config);
+  void renderAtomBrowser(document.getElementById("panel-e2"), config, parcelCtx);
+  void renderLayerRegistryView(document.getElementById("panel-e3"), config, inputGates);
+  if (parcelCtx) void openParcelTrace(document.getElementById("panel-e7"), config, parcelCtx);
+}
+
+renderAuthBar(document.getElementById("auth-bar-host"), config, {
+  onSave: () => {
+    location.reload();
+  },
+});
+
 renderFilesRail(document.getElementById("rail-left"));
-renderLegendRail(document.getElementById("rail-right"), visibleLayers);
+renderLegendRail(document.getElementById("rail-right"), visibleLayers, inputGates);
 
 const renderer = createMapRenderer();
 const mapSlot = document.getElementById("map-slot");
 const mapContent = document.getElementById("map-content");
 renderer.mount(mapSlot);
+renderer.setLayerVisibility(visibleLayers);
 renderer.bindContext({
   center: config.defaultCenter,
   address: config.defaultAddress,
@@ -79,8 +115,16 @@ renderer.bindContext({
     parcelCtx = {
       ...sel,
       coords: config.defaultCenter,
+      address: sel.address || config.defaultAddress,
     };
-    void openParcelTrace(document.getElementById("panel-e7"), config, parcelCtx);
+    void openParcelTrace(document.getElementById("panel-e7"), config, parcelCtx).then((r) => {
+      if (r?.inputGates) {
+        inputGates = r.inputGates;
+        applyReasoningVisibility();
+        renderer.setLayerVisibility(visibleLayers);
+        refreshLegendRail(document.getElementById("rail-right"), visibleLayers, inputGates);
+      }
+    });
     void renderAtomBrowser(document.getElementById("panel-e2"), config, parcelCtx);
     showPanel("e7");
   },
@@ -122,11 +166,17 @@ document.querySelectorAll(".spine-tabs .tab").forEach((tab) => {
 renderParcelTrace(document.getElementById("panel-e7"));
 void renderMcpInspector(document.getElementById("panel-e1"), config);
 void renderAtomBrowser(document.getElementById("panel-e2"), config, null);
-void renderLayerRegistryView(document.getElementById("panel-e3"), config);
+void renderLayerRegistryView(document.getElementById("panel-e3"), config, inputGates);
 void renderCalibrationTracker(document.getElementById("panel-e4"), config);
 void renderRunMonitor(document.getElementById("panel-e5"), config);
 
 void resolveParcel(config, config.defaultCenter, config.defaultAddress).then((r) => {
+  if (r.inputGates) {
+    inputGates = r.inputGates;
+    applyReasoningVisibility();
+    renderer.setLayerVisibility(visibleLayers);
+    refreshLegendRail(document.getElementById("rail-right"), visibleLayers, inputGates);
+  }
   console.info("[spine-console] parcel resolve:", r);
 });
 
@@ -136,6 +186,9 @@ window.__HAUSKA_SPINE_CONSOLE__ = {
   mapWindow,
   RENDERER_CONTRACT,
   visibleLayers,
+  inputGates,
+  refreshAllPanels,
 };
 
 console.info("[spine-console] V1 contract:", RENDERER_CONTRACT);
+console.info("[spine-console] positioning:", POSITIONING_FOOTER);

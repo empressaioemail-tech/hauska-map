@@ -1,10 +1,9 @@
 /**
  * Hauska dataviz paints — dark editorial canvas, luminous land-use choropleth,
  * cool FEMA water overlay, and the fire-palette rent-heat surface.
- *
- * Tuned to read as award-winning dataviz (saturated, glowing, layered) on a
- * deep warm-dark canvas rather than a light utility GIS basemap.
  */
+
+import { consequenceFillColorExpr, triageFillColorExpr } from "./reasoning-layers.js";
 
 /** Deep warm-dark canvas — data glows on top, brown signature retained. */
 export const MAP_CANVAS_BROWN = "#16110c";
@@ -445,6 +444,22 @@ export const LAYER_PAINT = {
   "rent-heat": {
     heatmap: true,
   },
+  "consequence-choropleth": {
+    fillExpr: consequenceFillColorExpr,
+    lineExpr: () => "#111",
+    strokeWidth: 0.5,
+  },
+  "contested-ground": {
+    fill: "rgba(220,47,2,0.35)",
+    stroke: "#dc2f02",
+    strokeWidth: 2,
+    dash: [4, 2],
+  },
+  "triage-state": {
+    fillExpr: triageFillColorExpr,
+    lineExpr: () => "#111",
+    strokeWidth: 1.2,
+  },
 };
 
 /** Bloom / saturation boost for heat and glow layers (CSS + paint companions). */
@@ -525,6 +540,9 @@ export const GIS_LAYER_STACK = [
   "parcel-polygon",
   "parcel-extrusion",
   "zoning",
+  "consequence-choropleth",
+  "contested-ground",
+  "triage-state",
   "rent-heat",
 ];
 
@@ -553,6 +571,9 @@ export function fillOpacityExpr(layerKey, meshMode = false) {
   if (layerKey === "buildable-envelope") {
     return 0.38;
   }
+  if (layerKey === "consequence-choropleth") return 0.72;
+  if (layerKey === "contested-ground") return 0.45;
+  if (layerKey === "triage-state") return 0.78;
   return 0.85;
 }
 

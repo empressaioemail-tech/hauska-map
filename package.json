@@ -1,6 +1,6 @@
 {
   "name": "hauska-map",
-  "version": "0.1.0-wave1",
+  "version": "0.2.0-wave2",
   "private": true,
   "description": "Hauska white-label map renderer and spine console (Calibrated Spine program)",
   "type": "module",

@@ -19,7 +19,7 @@ body,
 .spine-console {
   display: grid;
   grid-template-columns: 240px 1fr 220px;
-  grid-template-rows: 40px 1fr;
+  grid-template-rows: auto 1fr auto;
   height: 100%;
   position: relative;
 }
@@ -27,9 +27,10 @@ body,
 .spine-topbar {
   grid-column: 1 / -1;
   display: flex;
+  flex-wrap: wrap;
   align-items: center;
-  gap: 16px;
-  padding: 0 12px;
+  gap: 8px 16px;
+  padding: 6px 12px;
   border-bottom: 1px solid #ccc;
   background: #fff;
 }
@@ -277,6 +278,76 @@ body,
 
 .status--no-data {
   background: #fce4ec;
+}
+
+.status--awaiting-input {
+  background: #fff3e0;
+  border-color: #ffb74d;
+}
+
+.status--fuel-gated {
+  background: #ede7f6;
+}
+
+.auth-bar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px;
+  margin-left: auto;
+  font-size: 11px;
+}
+
+.auth-bar--missing .auth-status {
+  color: #c62828;
+}
+
+.auth-bar--ok .auth-status {
+  color: #2e7d32;
+}
+
+.auth-input {
+  font: inherit;
+  width: 140px;
+  padding: 2px 6px;
+  border: 1px solid #ccc;
+}
+
+.auth-save,
+.auth-fixture {
+  font: inherit;
+  font-size: 11px;
+  padding: 2px 8px;
+  border: 1px solid #111;
+  background: #fff;
+  cursor: pointer;
+}
+
+.spine-footer {
+  grid-column: 1 / -1;
+  padding: 6px 12px;
+  border-top: 1px solid #ccc;
+  font-size: 10px;
+  color: #444;
+  background: #fafafa;
+}
+
+.legend-awaiting {
+  display: block;
+  font-size: 10px;
+  color: #e65100;
+  margin-top: 2px;
+}
+
+.alloc-details {
+  margin-top: 8px;
+  font-size: 11px;
+}
+
+.read-contract {
+  background: #f5f5f5;
+  padding: 4px 6px;
+  border-left: 2px solid #111;
 }
 
 .parcel-card h3 {
