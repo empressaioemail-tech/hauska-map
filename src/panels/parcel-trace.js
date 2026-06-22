@@ -8,6 +8,7 @@ import {
   resolvePlaceKey,
 } from "../api/spine-api.js";
 import { formatReadContractSummary } from "../read-contract/index.js";
+import { renderAtomInspector } from "./atom-inspector.js";
 
 export function renderParcelTrace(container) {
   container.innerHTML = `
@@ -77,23 +78,37 @@ export async function openParcelTrace(container, config, selection) {
     ${traceHtml}
     <section class="trace-section" id="xref-trace-pane">
       <header>Atom trace graph (E retrieval-api)</header>
-      <p class="hint">Click an atom id — GET /atoms/trace/:did then walk inbound/outbound/citations (no display limit)</p>
+      <p class="hint">Click an atom id — trace graph + atom inspector (downloadable-atom)</p>
       <pre class="trace-tree mono" id="xref-tree">—</pre>
     </section>
+    <section id="e7-atom-inspector" class="atom-inspector-host" hidden></section>
   `;
 
   body.querySelectorAll(".trace-link").forEach((btn) => {
     btn.addEventListener("click", async () => {
       const atomId = btn.dataset.atomId;
       const tree = body.querySelector("#xref-tree");
+      const inspectorEl = body.querySelector("#e7-atom-inspector");
       tree.textContent = `Tracing ${atomId}…`;
+      const atom = atomsResult.atoms?.find(
+        (a) => (a.atomDid || a.atomId || a.id || a.did) === atomId,
+      );
       const graph = await traverseAtomGraph(config, atomId);
+      let traceResult = null;
       if (graph.nodes.length === 1 && graph.nodes[0].status === "error" && !config.useFixture) {
-        const single = await fetchAtomTrace(config, atomId);
-        tree.textContent = formatSingleTrace(single);
-        return;
+        traceResult = await fetchAtomTrace(config, atomId);
+        tree.textContent = formatSingleTrace(traceResult);
+      } else {
+        tree.textContent = formatGraphTrace(graph);
+        traceResult = graph.nodes.find((n) => n.atomDid === atomId);
       }
-      tree.textContent = formatGraphTrace(graph);
+      if (atom || traceResult) {
+        await renderAtomInspector(inspectorEl, {
+          atom: atom || { atomDid: atomId, entityId: atomId },
+          trace: traceResult?.trace || traceResult,
+          config,
+        });
+      }
     });
   });
 

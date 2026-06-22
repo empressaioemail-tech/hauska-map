@@ -18,7 +18,7 @@ function parseSseMessages(text) {
 }
 
 export class HauskaMcpClient {
-  constructor(mcpUrl, apiKey = "", devProduct = "cortex") {
+  constructor(mcpUrl, apiKey = "", devProduct = "reporting") {
     this.mcpUrl = mcpUrl;
     this.apiKey = apiKey?.trim() || "";
     this.devProduct = devProduct;

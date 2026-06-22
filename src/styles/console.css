@@ -473,6 +473,134 @@ body,
   display: none;
 }
 
+/* Header-docked map chip in topbar */
+.map-dock-host {
+  display: flex;
+  align-items: center;
+  margin-left: 8px;
+  min-width: 0;
+  flex: 1 1 auto;
+}
+
+.spine-map-host.fw--header-docked {
+  position: relative;
+  z-index: auto;
+  box-shadow: none;
+  border: 1px solid #ccc;
+  min-width: 200px;
+  max-width: 420px;
+  flex: 0 1 360px;
+}
+
+.spine-map-host.fw--header-docked .fw-titlebar {
+  cursor: default;
+  border-bottom: none;
+}
+
+.spine-map-host.fw--header-docked .fw-resize-handle {
+  display: none;
+}
+
+.fw-dock-placeholder {
+  display: none;
+}
+
+/* Atom inspector */
+.atom-inspector-host {
+  margin-top: 12px;
+  border-top: 1px solid #ddd;
+  padding-top: 8px;
+}
+
+.inspector-section {
+  margin-bottom: 12px;
+}
+
+.inspector-section h4 {
+  margin: 0 0 6px;
+  font-size: 11px;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+}
+
+.verify-result {
+  font-weight: 600;
+  padding: 4px 8px;
+  border: 1px solid #ddd;
+}
+
+.verify--ok {
+  background: #e8f5e9;
+  border-color: #2e7d32;
+}
+
+.verify--fail {
+  background: #ffebee;
+  border-color: #c62828;
+}
+
+.btn-inline {
+  font: inherit;
+  font-size: 10px;
+  padding: 2px 8px;
+  border: 1px solid #111;
+  background: #fff;
+  cursor: pointer;
+  margin-left: 8px;
+}
+
+.atom-row {
+  cursor: pointer;
+}
+
+.atom-row:hover,
+.atom-row--selected {
+  background: #f0f7ff;
+}
+
+.agent-section {
+  margin-bottom: 16px;
+}
+
+.agent-section h4 {
+  margin: 0 0 8px;
+  font-size: 11px;
+  text-transform: uppercase;
+}
+
+.agent-filters {
+  display: flex;
+  gap: 12px;
+  margin-bottom: 8px;
+  font-size: 11px;
+}
+
+.agent-filters select {
+  font: inherit;
+  margin-left: 4px;
+}
+
+.harness-form {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin-bottom: 8px;
+  font-size: 11px;
+}
+
+.harness-form select,
+.harness-args {
+  font: inherit;
+  width: 100%;
+  max-width: 640px;
+  border: 1px solid #ccc;
+  padding: 4px 6px;
+}
+
+.muted {
+  color: #888;
+}
+
 /* MapLibre overrides for console context */
 .maplibregl-ctrl-attrib {
   font-size: 9px !important;

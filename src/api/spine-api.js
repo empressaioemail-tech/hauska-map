@@ -375,6 +375,99 @@ export async function traverseAtomCrossRefs(config, atomId, visited = new Set())
   }));
 }
 
+/** Gate atom-export tool (cc-agent-M) — returns downloadable-atom when live. */
+export async function fetchAtomExport(config, atom) {
+  const did = atom?.atomDid || atom?.atomId || atom?.id || atom?.did;
+  if (!config.mcpUrl || !did) {
+    return { ok: false, status: "empty", message: "No MCP URL or atom DID" };
+  }
+  const toolNames = ["export_atom", "atom_export", "get_atom_export"];
+  for (const name of toolNames) {
+    try {
+      const mcp = new HauskaMcpClient(config.mcpUrl, config.hauskaKey, "public");
+      const result = await mcp.callTool(name, { atomDid: did, atom_id: did });
+      if (result?.export) return { ok: true, export: result.export, source: `mcp:${name}` };
+      if (result?.identity && result?.readContract) return { ok: true, export: result, source: `mcp:${name}` };
+    } catch {
+      /* try next name */
+    }
+  }
+  return { ok: false, status: "unavailable", message: "atom-export tool not on gate yet (Track C)" };
+}
+
+/** Agent discoverability docs from MCP server (llms.txt + agents.txt). */
+export async function fetchAgentDiscoverabilityDocs(config) {
+  const base = mcpAdminBase(config);
+  const fallbackLlms = `# Hauska MCP Server
+> Texas building code MCP + property workspace read API.
+
+- MCP endpoint: ${config.mcpUrl || "http://127.0.0.1:3000/mcp"}
+- Public catalog: search_atoms, get_atom (anonymous OK)
+- Product reads: cortex_*, codex_* (API key required)
+- Attribution: Powered by Hauska Engine — hauska.dev
+`;
+  const fallbackAgents = `# Hauska agents discovery
+docs: ${base ? `${base}/docs/mcp.html` : "https://hauska.dev/mcp"}
+mcp: ${config.mcpUrl || "http://127.0.0.1:3000/mcp"}
+`;
+  if (!base) {
+    return { source: "fallback", llms: fallbackLlms, agents: fallbackAgents };
+  }
+  const out = { source: base };
+  try {
+    const llmsRes = await fetch(`${base}/llms.txt`);
+    out.llms = llmsRes.ok ? await llmsRes.text() : fallbackLlms;
+    if (!llmsRes.ok) out.llmsError = `HTTP ${llmsRes.status}`;
+  } catch (err) {
+    out.llms = fallbackLlms;
+    out.llmsError = err.message;
+  }
+  try {
+    const agentsRes = await fetch(`${base}/.well-known/agents.txt`);
+    out.agents = agentsRes.ok ? await agentsRes.text() : fallbackAgents;
+    if (!agentsRes.ok) out.agentsError = `HTTP ${agentsRes.status}`;
+  } catch (err) {
+    out.agents = fallbackAgents;
+    out.agentsError = err.message;
+  }
+  return out;
+}
+
+/** POST /admin/introspection/tools/:name/call — human test harness probe. */
+export async function callMcpIntrospectionTool(config, toolName, args = {}, auth = {}) {
+  const base = mcpAdminBase(config);
+  if (!base) {
+    return { status: "error", message: "No mcpUrl configured" };
+  }
+  const url = `${base}/admin/introspection/tools/${encodeURIComponent(toolName)}/call`;
+  try {
+    const res = await fetch(url, {
+      method: "POST",
+      headers: authHeaders(config),
+      body: JSON.stringify({
+        arguments: args,
+        auth: {
+          product: auth.product,
+          tier: auth.tier,
+          key_id: auth.key_id,
+        },
+      }),
+    });
+    const json = await res.json().catch(() => ({}));
+    if (!res.ok) {
+      return {
+        status: "error",
+        httpStatus: res.status,
+        message: json.error || json.message || `HTTP ${res.status}`,
+        details: json,
+      };
+    }
+    return { status: "ok", ...json, source: url };
+  } catch (err) {
+    return { status: "error", message: err.message, source: url };
+  }
+}
+
 /** E1 — M admin introspection (live tool count, product gating). */
 export async function fetchMcpIntrospection(config) {
   const adminBase = mcpAdminBase(config);
@@ -406,7 +499,9 @@ export async function fetchMcpIntrospection(config) {
     return {
       status: tools.length ? "ok" : "empty",
       tools,
-      count: tools.length,
+      count: json.total ?? tools.length,
+      by_product: json.by_product,
+      by_gate: json.by_gate,
       source: url,
       serverVersion: json.server_version || json.version,
     };
@@ -526,6 +621,8 @@ export function listArtifactFiles() {
     { path: "src/read-contract/index.js", kind: "contract", label: "@hauska/atom-contract read-contract pin" },
     { path: "src/map/reasoning-layers.js", kind: "layer-config", label: "V5 reasoning layer paints" },
     { path: "src/map/gis-fixture-data.js", kind: "acquisition-dataset", label: "Bastrop fixture mesh + reasoning" },
-    { path: "src/api/spine-api.js", kind: "run-log", label: "Spine read API client" },
+    { path: "src/renderer/report-layer-manifest.js", kind: "contract", label: "Report-to-manifest contract" },
+    { path: "src/panels/atom-inspector.js", kind: "audit", label: "Downloadable-atom inspector" },
+    { path: "src/panels/agent-view.js", kind: "audit", label: "E8 Agent View tab" },
   ];
 }

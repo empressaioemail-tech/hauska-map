@@ -16,14 +16,30 @@ import { renderCalibrationTracker } from "./panels/calibration-tracker.js";
 import { renderRunMonitor } from "./panels/run-monitor.js";
 import { renderParcelTrace, openParcelTrace } from "./panels/parcel-trace.js";
 import { renderAuthBar } from "./panels/auth-bar.js";
+import { renderAgentView } from "./panels/agent-view.js";
 import { resolveParcel } from "./api/spine-api.js";
 import { probeInputGates, reasoningLayerLive } from "./lib/input-gates.js";
 import { POSITIONING_FOOTER, POSITIONING_TAGLINE } from "./copy/positioning.js";
+import {
+  resolveReportLayerManifest,
+  visibleLayersFromManifest,
+} from "./renderer/report-layer-manifest.js";
 
 let config = loadConfig();
-let visibleLayers = visibleLayersForAllocation(config.appId, config.reportType, config.packageTier);
+let visibleLayers = resolveVisibleLayers(config);
 let inputGates = probeInputGates(config);
 let parcelCtx = null;
+
+function resolveVisibleLayers(cfg) {
+  const manifest = resolveReportLayerManifest({
+    appId: cfg.appId,
+    reportType: cfg.reportType,
+  });
+  if (manifest) {
+    return visibleLayersFromManifest(manifest);
+  }
+  return visibleLayersForAllocation(cfg.appId, cfg.reportType, cfg.packageTier);
+}
 
 const app = document.getElementById("app");
 app.innerHTML = `
@@ -39,7 +55,9 @@ app.innerHTML = `
         <button type="button" class="tab" data-panel="e3">E3 Layers</button>
         <button type="button" class="tab" data-panel="e4">E4 Calibration</button>
         <button type="button" class="tab" data-panel="e5">E5 Runs</button>
+        <button type="button" class="tab" data-panel="e8">E8 Agent</button>
       </nav>
+      <div id="map-dock-host" class="map-dock-host"></div>
     </header>
     <aside class="spine-rail spine-rail--left" id="rail-left"></aside>
     <main class="spine-center">
@@ -49,6 +67,7 @@ app.innerHTML = `
       <section class="spine-panel hidden" id="panel-e3"></section>
       <section class="spine-panel hidden" id="panel-e4"></section>
       <section class="spine-panel hidden" id="panel-e5"></section>
+      <section class="spine-panel hidden" id="panel-e8"></section>
     </main>
     <aside class="spine-rail spine-rail--right" id="rail-right"></aside>
     <footer class="spine-footer" id="spine-footer">${POSITIONING_FOOTER}</footer>
@@ -59,6 +78,8 @@ app.innerHTML = `
           <button type="button" data-fw="float" title="Float">□</button>
           <button type="button" data-fw="snap" title="Snap">▐</button>
           <button type="button" data-fw="min" title="Minimize">_</button>
+          <button type="button" data-fw="dock" title="Dock to header">⊟</button>
+          <button type="button" data-fw="restore" title="Restore map" hidden>↩</button>
           <button type="button" data-fw="max" title="Maximize">⛶</button>
           <button type="button" data-fw="close" title="Close">×</button>
         </div>
@@ -83,13 +104,14 @@ applyReasoningVisibility();
 
 function refreshAllPanels() {
   config = loadConfig();
-  visibleLayers = visibleLayersForAllocation(config.appId, config.reportType, config.packageTier);
+  visibleLayers = resolveVisibleLayers(config);
   applyReasoningVisibility();
   refreshLegendRail(document.getElementById("rail-right"), visibleLayers, inputGates);
   renderer.setLayerVisibility(visibleLayers);
   void renderMcpInspector(document.getElementById("panel-e1"), config);
   void renderAtomBrowser(document.getElementById("panel-e2"), config, parcelCtx);
   void renderLayerRegistryView(document.getElementById("panel-e3"), config, inputGates);
+  void renderAgentView(document.getElementById("panel-e8"), config);
   if (parcelCtx) void openParcelTrace(document.getElementById("panel-e7"), config, parcelCtx);
 }
 
@@ -134,6 +156,7 @@ const mapWindow = createFloatingWindow({
   host: document.getElementById("map-window"),
   titleBar: document.getElementById("map-titlebar"),
   content: mapContent,
+  headerDockHost: document.getElementById("map-dock-host"),
   captureViewState: () => renderer.getViewState(),
   restoreViewState: (vs) => renderer.setViewState(vs),
   onResize: () => renderer.resize(),
@@ -145,6 +168,8 @@ document.getElementById("map-titlebar").querySelectorAll("[data-fw]").forEach((b
     if (action === "float") mapWindow.float();
     else if (action === "snap") mapWindow.snap("right");
     else if (action === "min") mapWindow.minimize();
+    else if (action === "dock") mapWindow.dockToHeader();
+    else if (action === "restore") mapWindow.restoreFromHeader();
     else if (action === "max") mapWindow.maximize();
     else if (action === "close") mapWindow.close();
     renderer.resize();
@@ -169,6 +194,7 @@ void renderAtomBrowser(document.getElementById("panel-e2"), config, null);
 void renderLayerRegistryView(document.getElementById("panel-e3"), config, inputGates);
 void renderCalibrationTracker(document.getElementById("panel-e4"), config);
 void renderRunMonitor(document.getElementById("panel-e5"), config);
+void renderAgentView(document.getElementById("panel-e8"), config);
 
 void resolveParcel(config, config.defaultCenter, config.defaultAddress).then((r) => {
   if (r.inputGates) {
@@ -188,6 +214,8 @@ window.__HAUSKA_SPINE_CONSOLE__ = {
   visibleLayers,
   inputGates,
   refreshAllPanels,
+  resolveReportLayerManifest,
+  resolveVisibleLayers,
 };
 
 console.info("[spine-console] V1 contract:", RENDERER_CONTRACT);

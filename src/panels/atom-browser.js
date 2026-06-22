@@ -1,8 +1,9 @@
 /** E2 — Atom browser */
 
 import { fetchAtomsForParcel, formatAtomReadContract } from "../api/spine-api.js";
+import { renderAtomInspector } from "./atom-inspector.js";
 
-export async function renderAtomBrowser(container, config, parcelCtx = null) {
+export async function renderAtomBrowser(container, config, parcelCtx = null, inspectorHost = null) {
   container.innerHTML = `<div class="panel-loading">Loading atoms…</div>`;
   const result = await fetchAtomsForParcel(config, parcelCtx);
 
@@ -30,7 +31,7 @@ export async function renderAtomBrowser(container, config, parcelCtx = null) {
       const width = parts ? parts[1] : "—";
       const prov = rc.match(/provenance=(\w+)/);
       return (
-        `<tr data-atom-id="${escapeHtml(id)}">` +
+        `<tr data-atom-id="${escapeHtml(id)}" class="atom-row" tabindex="0">` +
         `<td><code>${escapeHtml(id)}</code></td>` +
         `<td>${escapeHtml(a.family || a.entityType || a.type || "—")}</td>` +
         `<td class="mono">${escapeHtml(rc.slice(0, 48))}</td>` +
@@ -51,7 +52,31 @@ export async function renderAtomBrowser(container, config, parcelCtx = null) {
         <tbody>${rows}</tbody>
       </table>
     </div>
+    <p class="hint">Click a row to open the atom inspector (downloadable-atom shape).</p>
+    <div id="e2-atom-inspector" class="atom-inspector-host" hidden></div>
   `;
+
+  const inspectorEl = container.querySelector("#e2-atom-inspector");
+  container.querySelectorAll(".atom-row").forEach((row) => {
+    const open = async () => {
+      const id = row.dataset.atomId;
+      const atom = result.atoms.find((a, i) => (a.atomDid || a.atomId || a.id || `atom-${i}`) === id);
+      if (!atom) return;
+      row.classList.add("atom-row--selected");
+      container.querySelectorAll(".atom-row").forEach((r) => {
+        if (r !== row) r.classList.remove("atom-row--selected");
+      });
+      await renderAtomInspector(inspectorHost || inspectorEl, { atom, config });
+    };
+    row.addEventListener("click", open);
+    row.addEventListener("keydown", (e) => {
+      if (e.key === "Enter" || e.key === " ") {
+        e.preventDefault();
+        void open();
+      }
+    });
+  });
+
   return result;
 }
 

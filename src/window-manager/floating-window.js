@@ -1,10 +1,10 @@
 /**
  * V2 — Floating window manager.
- * FSM: floating | snapped | minimized | maximized | closed
+ * FSM: floating | snapped | minimized | header-docked | maximized | closed
  * Preserves map view state across every transition.
  */
 
-const STATES = ["floating", "snapped", "minimized", "maximized", "closed"];
+const STATES = ["floating", "snapped", "minimized", "header-docked", "maximized", "closed"];
 
 /**
  * @param {object} opts
@@ -14,10 +14,12 @@ const STATES = ["floating", "snapped", "minimized", "maximized", "closed"];
  * @param {(state: string, prev: string) => void} [opts.onStateChange]
  * @param {() => object} [opts.captureViewState]
  * @param {(vs: object) => void} [opts.restoreViewState]
+ * @param {HTMLElement} [opts.headerDockHost] — topbar slot for header-docked state
  */
 export function createFloatingWindow(opts) {
-  const { host, titleBar, content } = opts;
+  const { host, titleBar, content, headerDockHost } = opts;
   let state = "floating";
+  let preDockState = "floating";
   let geometry = {
     floating: { x: 80, y: 60, w: 640, h: 480 },
     snapped: { edge: "right", w: 420 },
@@ -26,17 +28,58 @@ export function createFloatingWindow(opts) {
   };
   let savedViewState = null;
   let drag = null;
+  let dockPlaceholder = null;
+
+  function ensureDockPlaceholder() {
+    if (!headerDockHost || dockPlaceholder) return;
+    dockPlaceholder = document.createElement("div");
+    dockPlaceholder.className = "fw-dock-placeholder";
+    dockPlaceholder.hidden = true;
+    headerDockHost.appendChild(dockPlaceholder);
+  }
 
   function applyGeometry() {
     host.dataset.state = state;
-    host.classList.remove("fw--floating", "fw--snapped", "fw--minimized", "fw--maximized", "fw--closed");
+    host.classList.remove(
+      "fw--floating",
+      "fw--snapped",
+      "fw--minimized",
+      "fw--header-docked",
+      "fw--maximized",
+      "fw--closed",
+    );
     host.classList.add(`fw--${state}`);
+
+    const restoreBtn = titleBar.querySelector('[data-fw="restore"]');
+    if (restoreBtn) restoreBtn.hidden = state !== "header-docked";
 
     if (state === "closed") {
       host.style.display = "none";
       return;
     }
     host.style.display = "";
+
+    if (state === "header-docked") {
+      ensureDockPlaceholder();
+      if (headerDockHost && dockPlaceholder) {
+        dockPlaceholder.hidden = false;
+        headerDockHost.appendChild(host);
+      }
+      host.style.position = "";
+      host.style.left = "";
+      host.style.top = "";
+      host.style.right = "";
+      host.style.bottom = "";
+      host.style.width = "";
+      host.style.height = "";
+      content.style.display = "none";
+      return;
+    }
+
+    if (dockPlaceholder) dockPlaceholder.hidden = true;
+    if (host.parentElement === headerDockHost && document.body.contains(host)) {
+      document.body.appendChild(host);
+    }
 
     if (state === "floating") {
       const g = geometry.floating;
@@ -80,6 +123,7 @@ export function createFloatingWindow(opts) {
     if (!STATES.includes(next) || next === state) return;
     savedViewState = opts.captureViewState?.() || savedViewState;
     const prev = state;
+    if (next === "header-docked") preDockState = prev === "header-docked" ? "floating" : prev;
     state = next;
     applyGeometry();
     if (savedViewState) opts.restoreViewState?.(savedViewState);
@@ -158,6 +202,12 @@ export function createFloatingWindow(opts) {
     },
     minimize() {
       transition("minimized");
+    },
+    dockToHeader() {
+      transition("header-docked");
+    },
+    restoreFromHeader() {
+      transition(preDockState === "header-docked" ? "floating" : preDockState);
     },
     maximize() {
       transition("maximized");
