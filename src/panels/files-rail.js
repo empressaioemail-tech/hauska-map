@@ -1,7 +1,13 @@
-/** Left rail — files and artifacts browser (E layout) */
+/** Left rail — files and artifacts browser + dynamic operator sections (Tools, Atoms, Runs). */
 
 import { listArtifactFiles } from "../api/spine-api.js";
 
+const SECTION_IDS = ["tools", "atoms", "runs"];
+
+/**
+ * @param {HTMLElement} container
+ * @param {{ onSelect?: (meta: object) => void }} [opts]
+ */
 export function renderFilesRail(container, { onSelect } = {}) {
   const files = listArtifactFiles();
   container.innerHTML = `
@@ -18,6 +24,13 @@ export function renderFilesRail(container, { onSelect } = {}) {
         )
         .join("")}
     </ul>
+    ${SECTION_IDS.map(
+      (id) =>
+        `<section class="rail-section" id="rail-section-${id}">` +
+        `<header class="rail-subhead">${id.charAt(0).toUpperCase() + id.slice(1)}</header>` +
+        `<div class="rail-section-body" id="rail-body-${id}"><p class="muted">—</p></div>` +
+        `</section>`,
+    ).join("")}
     <section class="rail-section">
       <header class="rail-subhead">Inspect</header>
       <pre class="inspect-pane" id="file-inspect">Select an artifact</pre>
@@ -33,4 +46,10 @@ export function renderFilesRail(container, { onSelect } = {}) {
       onSelect?.(meta);
     });
   });
+}
+
+/** Update a dynamic left-rail section (tools | atoms | runs). */
+export function updateFilesRailSection(sectionId, html) {
+  const el = document.getElementById(`rail-body-${sectionId}`);
+  if (el) el.innerHTML = html;
 }

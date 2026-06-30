@@ -106,12 +106,59 @@ export function registryEntry(key) {
   return LAYER_REGISTRY.find((l) => l.key === key);
 }
 
+/** Operator toggles — sync legend when a layer is disabled in E3. */
+const disabledLayerKeys = new Set();
+
+export function setLayerDisabled(key, disabled) {
+  if (disabled) disabledLayerKeys.add(key);
+  else disabledLayerKeys.delete(key);
+}
+
+export function isLayerDisabled(key) {
+  return disabledLayerKeys.has(key);
+}
+
+export function productSurfaceForLayer(entry) {
+  const byGroup = {
+    parcel: "map",
+    regulatory: "map",
+    hazard: "map",
+    terrain: "map",
+    hydrology: "map",
+    subsurface: "map",
+    reasoning: "reporting",
+    calibration: "reporting",
+    investor: "reporting",
+  };
+  return byGroup[entry.group] || "map";
+}
+
+export function stylingForLayer(key) {
+  return {
+    encodes: legendEncodes(key),
+    colorScale: legendColorScale(key),
+  };
+}
+
+function legendColorScale(key) {
+  const scales = {
+    "parcel-polygon": "land-use choropleth (width → saturation)",
+    "flood-zone": "NFHL zone class ramp",
+    "rent-heat": "AVM intensity (fire ramp)",
+    "consequence-choropleth": "routine → essential stratum",
+    "contested-ground": "disagreement highlight",
+    "triage-state": "verify / human-required",
+  };
+  return scales[key] || "GIS default";
+}
+
 /**
  * @param {import('../lib/input-gates.js').InputGateState} gates
  * @param {string} key
  * @returns {LayerStatus}
  */
 export function layerStatusForGates(gates, key) {
+  if (isLayerDisabled(key)) return "disabled";
   const entry = registryEntry(key);
   if (!entry) return "no-data";
   if (entry.pending) return "pending";
@@ -132,15 +179,17 @@ export function visibleLayersForAllocation(appId, reportType, tier = "pro") {
   return new Set(alloc.defaultOn);
 }
 
-export function legendEntriesForRegistry(visibleKeys = DEFAULT_VISIBLE_LAYERS, gates = null) {
-  return LAYER_REGISTRY.filter((l) => visibleKeys.has(l.key)).map((l) => {
-    const status = gates ? layerStatusForGates(gates, l.key) : l.pending ? "pending" : l.fixture ? "fixture/synthetic" : l.live ? "live" : "no-data";
+export function legendEntriesForRegistry(_visibleKeys = null, gates = null) {
+  return LAYER_REGISTRY.map((l) => {
+    const status = gates ? layerStatusForGates(gates, l.key) : l.pending ? "pending" : l.fixture ? "fixture" : l.live ? "live" : l.fuelGated ? "fuel-gated" : "no-data";
     return {
       key: l.key,
       label: l.label,
       group: l.group,
+      productSurface: productSurfaceForLayer(l),
       status,
       encodes: legendEncodes(l.key),
+      colorScale: legendColorScale(l.key),
       awaiting: gates ? reasoningLayerAwaitingReason(l.key, gates) : null,
     };
   });

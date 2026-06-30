@@ -602,7 +602,188 @@ body,
 }
 
 /* MapLibre overrides for console context */
-.maplibregl-ctrl-attrib {
-  font-size: 9px !important;
-  background: rgba(255, 255, 255, 0.85) !important;
+.panel-meta.warn {
+  color: #b45309;
+  font-weight: 600;
+}
+
+.product-gate-summary {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-bottom: 12px;
+}
+
+.gate-chip {
+  border: 1px solid #ccc;
+  padding: 2px 8px;
+  font-size: 11px;
+}
+
+.e1-layout {
+  display: grid;
+  grid-template-columns: 1fr 320px;
+  gap: 16px;
+}
+
+.e1-product-section h4 {
+  margin: 12px 0 6px;
+  font-size: 11px;
+  text-transform: uppercase;
+}
+
+.e1-tool-row {
+  cursor: pointer;
+}
+
+.e1-tool-row:hover {
+  background: #f5f5f5;
+}
+
+.e1-call-panel h4 {
+  margin: 0 0 8px;
+  font-size: 11px;
+  text-transform: uppercase;
+}
+
+.e1-call-panel label {
+  display: block;
+  margin-bottom: 8px;
+  font-size: 11px;
+}
+
+.e1-call-panel select,
+.e1-call-panel textarea {
+  display: block;
+  width: 100%;
+  font: inherit;
+  border: 1px solid #ccc;
+  margin-top: 4px;
+  padding: 4px;
+}
+
+.e2-filters {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px;
+  align-items: flex-end;
+  margin-bottom: 12px;
+  font-size: 11px;
+}
+
+.e2-filters input,
+.e2-filters select {
+  font: inherit;
+  margin-left: 4px;
+  border: 1px solid #ccc;
+  padding: 2px 4px;
+}
+
+.rail-tool-list,
+.rail-facet-list,
+.rail-run-log {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  font-size: 11px;
+}
+
+.rail-facet,
+.rail-tool-list li {
+  margin-bottom: 4px;
+}
+
+.rail-facet {
+  font: inherit;
+  border: none;
+  background: none;
+  padding: 2px 0;
+  cursor: pointer;
+  text-align: left;
+  width: 100%;
+}
+
+.rail-facet:hover {
+  text-decoration: underline;
+}
+
+.legend-id {
+  display: block;
+  font-size: 10px;
+  color: #666;
+}
+
+.legend-scale {
+  display: block;
+  font-size: 10px;
+  color: #444;
+}
+
+.metric-list {
+  list-style: none;
+  padding: 0;
+  margin: 8px 0;
+}
+
+.metric-list li {
+  margin-bottom: 6px;
+  padding: 4px 0;
+  border-bottom: 1px solid #eee;
+}
+
+.metric-sub {
+  list-style: none;
+  padding-left: 12px;
+  margin: 4px 0;
+}
+
+.metric-sub--fail .fail-row {
+  color: #b91c1c;
+}
+
+.trace-breadcrumb {
+  padding: 6px 12px;
+  border-bottom: 1px solid #ddd;
+  background: #fafafa;
+}
+
+.crumb-link {
+  font: inherit;
+  border: none;
+  background: none;
+  cursor: pointer;
+  text-decoration: underline;
+  color: #111;
+}
+
+.trace-family {
+  margin: 8px 0 4px;
+  font-size: 11px;
+  text-transform: uppercase;
+}
+
+.xref-link-list {
+  list-style: none;
+  padding: 0;
+  margin: 8px 0;
+}
+
+.xref-follow {
+  font: inherit;
+  border: 1px solid #ccc;
+  background: #fff;
+  padding: 2px 6px;
+  cursor: pointer;
+  margin-bottom: 4px;
+}
+
+.xref-follow:hover {
+  background: #111;
+  color: #fff;
+}
+
+@media (max-width: 900px) {
+  .e1-layout {
+    grid-template-columns: 1fr;
+  }
 }

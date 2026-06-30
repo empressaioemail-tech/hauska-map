@@ -1,15 +1,20 @@
-/** E3 — Layer registry + per-app allocation (V3). */
+/** E3 — Layer registry + per-app allocation; legend sync via disabled toggles. */
 
 import {
   LAYER_REGISTRY,
   layerStatusForGates,
   resolveLayerAllocation,
   listAllocationKeys,
+  productSurfaceForLayer,
+  stylingForLayer,
+  setLayerDisabled,
+  isLayerDisabled,
 } from "../renderer/layer-registry.js";
 import { fetchLayerCatalog } from "../api/spine-api.js";
 import { probeInputGates, reasoningLayerAwaitingReason } from "../lib/input-gates.js";
+import { refreshLegendRail } from "./legend-rail.js";
 
-export async function renderLayerRegistryView(container, config, inputGates = null) {
+export async function renderLayerRegistryView(container, config, inputGates = null, onRegistryChange) {
   container.innerHTML = `<div class="panel-loading">Loading layer catalog…</div>`;
   const backend = await fetchLayerCatalog(config);
   const gates = inputGates || probeInputGates(config);
@@ -24,14 +29,20 @@ export async function renderLayerRegistryView(container, config, inputGates = nu
     const status = layerStatusForGates(gates, l.key);
     const inAlloc = alloc.visibleLayers.includes(l.key);
     const awaiting = reasoningLayerAwaitingReason(l.key, gates);
+    const style = stylingForLayer(l.key);
+    const surface = productSurfaceForLayer(l);
+    const disabled = isLayerDisabled(l.key);
     return (
-      `<tr>` +
+      `<tr data-layer-key="${l.key}">` +
       `<td><code>${l.key}</code></td>` +
-      `<td>${l.label}</td>` +
+      `<td>${surface}</td>` +
       `<td><span class="status-pill status--${status.replace(/[^a-z-]/gi, "")}">${status}</span></td>` +
+      `<td class="mono">${escapeHtml(style.colorScale)}</td>` +
+      `<td class="mono">${escapeHtml(style.encodes.slice(0, 72))}${style.encodes.length > 72 ? "…" : ""}</td>` +
       `<td>${inAlloc ? "yes" : "—"}</td>` +
-      `<td>${l.fuelGated ? "fuel" : "free"}</td>` +
-      `<td class="mono">${awaiting ? escapeHtml(awaiting.slice(0, 60)) + "…" : "—"}</td>` +
+      `<td>${l.fuelGated ? "fuel-gated" : l.fixture ? "fixture" : l.live ? "live" : "no-data"}</td>` +
+      `<td><label><input type="checkbox" class="layer-disable-toggle" data-key="${l.key}"${disabled ? " checked" : ""}/> off</label></td>` +
+      `<td class="mono">${awaiting ? escapeHtml(awaiting.slice(0, 48)) + "…" : "—"}</td>` +
       `</tr>`
     );
   }).join("");
@@ -40,10 +51,10 @@ export async function renderLayerRegistryView(container, config, inputGates = nu
     <header class="panel-head">E3 Layer registry</header>
     <p class="panel-meta">Allocation: <code>${config.appId}:${config.reportType}</code> → ${alloc.defaultOn.length} default-on layers</p>
     <p class="panel-meta">Backend catalog: ${backend.status} — ${backend.message || backend.packageTier || ""}</p>
-    <p class="panel-meta">Input gates: F2=${gates.F2_consequence ? "live" : "awaiting"} · F5=${gates.F5_conflictLog ? "live" : "awaiting"}</p>
+    <p class="panel-meta">Right-rail legend lists all ${LAYER_REGISTRY.length} registry layers — toggle off to mark disabled</p>
     <div class="table-wrap">
       <table class="data-table">
-        <thead><tr><th>key</th><th>label</th><th>status</th><th>alloc</th><th>tier</th><th>awaiting</th></tr></thead>
+        <thead><tr><th>id</th><th>surface</th><th>status</th><th>color scale</th><th>encodes</th><th>alloc</th><th>kind</th><th>disable</th><th>awaiting</th></tr></thead>
         <tbody>${rows}</tbody>
       </table>
     </div>
@@ -52,7 +63,20 @@ export async function renderLayerRegistryView(container, config, inputGates = nu
       <pre class="mono">${listAllocationKeys().join("\n")}</pre>
     </details>
   `;
+
+  container.querySelectorAll(".layer-disable-toggle").forEach((cb) => {
+    cb.addEventListener("change", () => {
+      setLayerDisabled(cb.dataset.key, cb.checked);
+      onRegistryChange?.();
+      void renderLayerRegistryView(container, config, gates, onRegistryChange);
+    });
+  });
+
   return { registry: LAYER_REGISTRY, backend, allocation: alloc, gates };
+}
+
+export function syncLegendFromRegistry(legendContainer, visibleLayers, inputGates) {
+  refreshLegendRail(legendContainer, visibleLayers, inputGates);
 }
 
 function escapeHtml(s) {

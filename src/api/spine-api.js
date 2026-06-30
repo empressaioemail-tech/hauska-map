@@ -320,8 +320,138 @@ export async function fetchAtomsForParcel(config, parcelCtx) {
   };
 }
 
+/** E1 — single tool detail (input schema + gating). */
+export async function fetchMcpToolDetail(config, toolName) {
+  const adminBase = mcpAdminBase(config);
+  if (!adminBase || !toolName) {
+    return { status: "empty", message: "No admin base or tool name" };
+  }
+  const url = `${adminBase}/admin/introspection/tools/${encodeURIComponent(toolName)}`;
+  try {
+    const res = await fetch(url, { headers: authHeaders(config) });
+    const json = await res.json().catch(() => ({}));
+    if (!res.ok) {
+      return {
+        status: "error",
+        httpStatus: res.status,
+        message: json.message || json.error || `HTTP ${res.status}`,
+        source: url,
+      };
+    }
+    return { status: "ok", tool: json, source: url };
+  } catch (err) {
+    return { status: "error", message: err.message, source: url };
+  }
+}
+
+/** Atom families for E2 browse facets. */
+export const ATOM_FAMILIES = [
+  "code-section",
+  "cross-reference",
+  "edition",
+  "amendment",
+  "encumbrances",
+  "workspace",
+  "reasoning",
+];
+
+function normalizeAtomFamily(atom) {
+  const raw = atom.family || atom.entityType || atom.type || atom.entity_type || "";
+  const slug = String(raw).toLowerCase().replace(/_/g, "-");
+  if (ATOM_FAMILIES.includes(slug)) return slug;
+  if (slug.includes("code")) return "code-section";
+  if (slug.includes("cross") || slug.includes("xref")) return "cross-reference";
+  if (slug.includes("edition")) return "edition";
+  if (slug.includes("amend")) return "amendment";
+  if (slug.includes("encumbr")) return "encumbrances";
+  if (slug.includes("workspace")) return "workspace";
+  if (slug.includes("reason")) return "reasoning";
+  return slug || "unknown";
+}
+
+function atomAccessPolicy(atom) {
+  return atom.accessPolicy || atom.policy || atom.access_policy || "—";
+}
+
+function atomJurisdiction(atom) {
+  return atom.jurisdictionTenant || atom.jurisdiction || atom.jurisdiction_tenant || "—";
+}
+
+/** E2 — browse atoms by family / jurisdiction / accessPolicy. */
+export async function fetchAtomBrowse(config, filters = {}, parcelCtx = null) {
+  const { family = "", jurisdiction = "", accessPolicy = "" } = filters;
+  const attempts = [];
+  let atoms = [];
+
+  if (parcelCtx || config.defaultAddress) {
+    const parcelResult = await fetchAtomsForParcel(config, parcelCtx || {
+      address: config.defaultAddress,
+      coords: config.defaultCenter,
+    });
+    attempts.push({ path: "parcel/atoms", count: parcelResult.atoms?.length ?? 0, status: parcelResult.status });
+    if (parcelResult.atoms?.length) atoms.push(...parcelResult.atoms);
+  }
+
+  if (config.mcpUrl) {
+    try {
+      const mcp = new HauskaMcpClient(config.mcpUrl, config.hauskaKey, "public");
+      const entityType = family ? family.replace(/-/g, "_") : undefined;
+      const result = await mcp.callTool("search_atoms", {
+        query: filters.query || "building code",
+        jurisdiction: jurisdiction || undefined,
+        entity_type: entityType,
+        limit: 100,
+      });
+      attempts.push({ path: "MCP search_atoms", ok: true });
+      const hits = result?.results || result?.atoms || result?.data?.results || [];
+      atoms.push(...hits);
+    } catch (err) {
+      attempts.push({ path: "MCP search_atoms", error: err.message });
+    }
+  }
+
+  const seen = new Set();
+  atoms = atoms.filter((a) => {
+    const id = a.atomDid || a.atomId || a.id || a.did;
+    if (!id || seen.has(id)) return false;
+    seen.add(id);
+    return true;
+  });
+
+  atoms = atoms.map((a) => ({
+    ...a,
+    _family: normalizeAtomFamily(a),
+    _accessPolicy: atomAccessPolicy(a),
+    _jurisdiction: atomJurisdiction(a),
+  }));
+
+  if (family) atoms = atoms.filter((a) => a._family === family);
+  if (jurisdiction) {
+    atoms = atoms.filter((a) => String(a._jurisdiction).toLowerCase().includes(jurisdiction.toLowerCase()));
+  }
+  if (accessPolicy) {
+    atoms = atoms.filter((a) => String(a._accessPolicy).toLowerCase() === accessPolicy.toLowerCase());
+  }
+
+  const byFamily = {};
+  for (const f of ATOM_FAMILIES) byFamily[f] = 0;
+  for (const a of atoms) {
+    const f = a._family;
+    byFamily[f] = (byFamily[f] || 0) + 1;
+  }
+
+  return {
+    status: atoms.length ? "ok" : "empty",
+    atoms,
+    byFamily,
+    attempts,
+    message: atoms.length ? undefined : "No atoms — set Hauska key, start MCP, or click a parcel on the map",
+    source: atoms.length ? "browse" : "none",
+  };
+}
+
 /** E7 — full graph trace via cc-agent-E retrieval-api (uncapped display). */
-export async function traverseAtomGraph(config, seedDid, maxNodes = 500) {
+export async function traverseAtomGraph(config, seedDid, maxNodes = 100) {
   const visited = new Set();
   const queue = [seedDid];
   const nodes = [];
@@ -563,16 +693,79 @@ export async function fetchCalibrationState(config) {
   };
 }
 
-/** E5 — run monitor */
+function normalizeRunMonitorPayload(json, source) {
+  const warmed = json.parcelsWarmed ?? json.parcels_warmed ?? json.warmed?.count;
+  const tracked = json.parcelsTracked ?? json.parcels_tracked ?? json.warmed?.total ?? json.universe?.total;
+  const pct =
+    json.parcelsWarmedPct ??
+    json.warmed_pct ??
+    (warmed != null && tracked ? Math.round((warmed / tracked) * 1000) / 10 : null);
+  const cost = json.computeCostUsd ?? json.compute_cost_usd ?? json.cost?.usd;
+  const budget = json.computeBudgetUsd ?? json.compute_budget_usd ?? json.cost?.budget_usd;
+  return {
+    status: "ok",
+    source,
+    runId: json.runId || json.run_id || json.id || "current",
+    startedAt: json.startedAt || json.started_at,
+    parcelsWarmed: warmed ?? null,
+    parcelsTracked: tracked ?? null,
+    parcelsWarmedPct: pct,
+    coverageHoles: json.coverageHoles ?? json.coverage_holes ?? json.holes ?? null,
+    adapterFailures: json.adapterFailures ?? json.adapter_failures ?? json.failures ?? null,
+    contestedGround: json.contestedGround ?? json.contested_ground ?? json.contested ?? null,
+    triageCounts: json.triageCounts ?? json.triage_counts ?? json.triage ?? null,
+    computeCostUsd: cost ?? null,
+    computeBudgetUsd: budget ?? null,
+    recentRuns: json.recentRuns ?? json.recent_runs ?? json.history ?? [],
+    raw: json,
+  };
+}
+
+/** E5 — run monitor (polls warming/QA run state when exposed). */
 export async function fetchRunMonitor(config) {
+  const attempts = [];
+  const api = apiBase(config);
+  const admin = mcpAdminBase(config);
+  const paths = [
+    api ? `${api}/api/brokerage/v1/operator/warming/status` : null,
+    api ? `${api}/api/internal/qa/run-state` : null,
+    admin ? `${admin}/admin/operator/run-state` : null,
+  ].filter(Boolean);
+
+  for (const url of paths) {
+    try {
+      const res = await fetch(url, { headers: authHeaders(config) });
+      const json = await res.json().catch(() => ({}));
+      attempts.push({ url, httpStatus: res.status, ok: res.ok });
+      if (res.ok && json && typeof json === "object") {
+        const normalized = normalizeRunMonitorPayload(json, url);
+        if (
+          normalized.parcelsWarmed != null ||
+          normalized.computeCostUsd != null ||
+          normalized.adapterFailures != null
+        ) {
+          return { ...normalized, attempts };
+        }
+      }
+    } catch (err) {
+      attempts.push({ url, error: err.message });
+    }
+  }
+
   return {
     status: "empty",
-    message: "W1 warming harness (W1-W5) not running",
-    parcelsWarmed: 0,
+    message: "W1 warming harness (W1–W5) not running — no run-state endpoint responded",
+    parcelsWarmed: null,
+    parcelsTracked: null,
+    parcelsWarmedPct: null,
     coverageHoles: null,
     adapterFailures: null,
     contestedGround: null,
     triageCounts: null,
+    computeCostUsd: null,
+    computeBudgetUsd: null,
+    recentRuns: [],
+    attempts,
     coverage: "no-coverage",
   };
 }

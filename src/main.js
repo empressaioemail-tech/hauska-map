@@ -13,7 +13,7 @@ import { renderMcpInspector } from "./panels/mcp-inspector.js";
 import { renderAtomBrowser } from "./panels/atom-browser.js";
 import { renderLayerRegistryView } from "./panels/layer-registry-view.js";
 import { renderCalibrationTracker } from "./panels/calibration-tracker.js";
-import { renderRunMonitor } from "./panels/run-monitor.js";
+import { renderRunMonitor, startRunMonitorPolling } from "./panels/run-monitor.js";
 import { renderParcelTrace, openParcelTrace } from "./panels/parcel-trace.js";
 import { renderAuthBar } from "./panels/auth-bar.js";
 import { renderAgentView } from "./panels/agent-view.js";
@@ -102,6 +102,10 @@ function applyReasoningVisibility() {
 }
 applyReasoningVisibility();
 
+function onRegistryChange() {
+  refreshLegendRail(document.getElementById("rail-right"), visibleLayers, inputGates);
+}
+
 function refreshAllPanels() {
   config = loadConfig();
   visibleLayers = resolveVisibleLayers(config);
@@ -110,7 +114,7 @@ function refreshAllPanels() {
   renderer.setLayerVisibility(visibleLayers);
   void renderMcpInspector(document.getElementById("panel-e1"), config);
   void renderAtomBrowser(document.getElementById("panel-e2"), config, parcelCtx);
-  void renderLayerRegistryView(document.getElementById("panel-e3"), config, inputGates);
+  void renderLayerRegistryView(document.getElementById("panel-e3"), config, inputGates, onRegistryChange);
   void renderAgentView(document.getElementById("panel-e8"), config);
   if (parcelCtx) void openParcelTrace(document.getElementById("panel-e7"), config, parcelCtx);
 }
@@ -191,9 +195,10 @@ document.querySelectorAll(".spine-tabs .tab").forEach((tab) => {
 renderParcelTrace(document.getElementById("panel-e7"));
 void renderMcpInspector(document.getElementById("panel-e1"), config);
 void renderAtomBrowser(document.getElementById("panel-e2"), config, null);
-void renderLayerRegistryView(document.getElementById("panel-e3"), config, inputGates);
+void renderLayerRegistryView(document.getElementById("panel-e3"), config, inputGates, onRegistryChange);
 void renderCalibrationTracker(document.getElementById("panel-e4"), config);
 void renderRunMonitor(document.getElementById("panel-e5"), config);
+startRunMonitorPolling(document.getElementById("panel-e5"), config);
 void renderAgentView(document.getElementById("panel-e8"), config);
 
 void resolveParcel(config, config.defaultCenter, config.defaultAddress).then((r) => {
