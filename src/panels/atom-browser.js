@@ -5,7 +5,7 @@ import {
   formatAtomReadContract,
   ATOM_FAMILIES,
 } from "../api/spine-api.js";
-import { formatWidthedConfidence } from "../read-contract/index.js";
+import { formatWidthedConfidence } from "@hauska/map-renderer";
 import { renderAtomInspector } from "./atom-inspector.js";
 import { updateFilesRailSection } from "./files-rail.js";
 

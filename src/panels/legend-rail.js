@@ -1,7 +1,7 @@
 /** Right rail — styling legend synced to live layer registry (E3 state). */
 
-import { legendEntriesForRegistry } from "../renderer/layer-registry.js";
-import { POSITIONING_MAP_NOTE } from "../copy/positioning.js";
+import { legendEntriesForRegistry } from "@hauska/map-renderer";
+import { POSITIONING_MAP_NOTE } from "@hauska/map-renderer";
 
 export function renderLegendRail(container, _visibleLayers, inputGates = null) {
   const entries = legendEntriesForRegistry(null, inputGates);

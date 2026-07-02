@@ -4,9 +4,9 @@
  */
 
 import { loadConfig } from "./config.js";
-import { createMapRenderer, RENDERER_CONTRACT } from "./renderer/map-renderer.js";
-import { visibleLayersForAllocation } from "./renderer/layer-registry.js";
-import { createFloatingWindow } from "./window-manager/floating-window.js";
+import { createMapRenderer, RENDERER_CONTRACT } from "@hauska/map-renderer";
+import { visibleLayersForAllocation } from "@hauska/map-renderer";
+import { createFloatingWindow } from "@hauska/map-renderer";
 import { renderFilesRail } from "./panels/files-rail.js";
 import { renderLegendRail, refreshLegendRail } from "./panels/legend-rail.js";
 import { renderMcpInspector } from "./panels/mcp-inspector.js";
@@ -18,12 +18,12 @@ import { renderParcelTrace, openParcelTrace } from "./panels/parcel-trace.js";
 import { renderAuthBar } from "./panels/auth-bar.js";
 import { renderAgentView } from "./panels/agent-view.js";
 import { resolveParcel } from "./api/spine-api.js";
-import { probeInputGates, reasoningLayerLive } from "./lib/input-gates.js";
-import { POSITIONING_FOOTER, POSITIONING_TAGLINE } from "./copy/positioning.js";
+import { probeInputGates, reasoningLayerLive } from "@hauska/map-renderer";
+import { POSITIONING_FOOTER, POSITIONING_TAGLINE } from "@hauska/map-renderer";
 import {
   resolveReportLayerManifest,
   visibleLayersFromManifest,
-} from "./renderer/report-layer-manifest.js";
+} from "@hauska/map-renderer";
 
 let config = loadConfig();
 let visibleLayers = resolveVisibleLayers(config);

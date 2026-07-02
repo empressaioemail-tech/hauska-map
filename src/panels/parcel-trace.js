@@ -7,7 +7,7 @@ import {
   formatAtomReadContract,
   resolvePlaceKey,
 } from "../api/spine-api.js";
-import { formatReadContractSummary, formatWidthedConfidence } from "../read-contract/index.js";
+import { formatReadContractSummary, formatWidthedConfidence } from "@hauska/map-renderer";
 import { renderAtomInspector } from "./atom-inspector.js";
 
 const MAX_TRACE_HOPS = 100;

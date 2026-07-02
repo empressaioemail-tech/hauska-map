@@ -5,8 +5,8 @@
  */
 
 import maplibregl from "maplibre-gl";
-import { HAUSKA_MAP_STYLE } from "../map/hauska-map-style.js";
-import { getGisFixtureSlots } from "../map/gis-fixture-data.js";
+import { HAUSKA_MAP_STYLE } from "./map/hauska-map-style.js";
+import { getGisFixtureSlots } from "./map/gis-fixture-data.js";
 import {
   upsertGisLayer,
   upsertVisualCeilingLayer,
@@ -14,7 +14,7 @@ import {
   fitToSlots,
   selectionFromParcelFeature,
   extractParcelAddress,
-} from "../map/gis-map-render.js";
+} from "./map/gis-map-render.js";
 import { DEFAULT_VISIBLE_LAYERS } from "./layer-registry.js";
 
 /**

@@ -2,15 +2,18 @@
   "name": "hauska-map",
   "version": "0.2.0-wave2",
   "private": true,
-  "description": "Hauska white-label map renderer and spine console (Calibrated Spine program)",
+  "description": "Hauska white-label map renderer and spine console (Calibrated Spine program) — pnpm workspace root",
   "type": "module",
   "scripts": {
     "dev": "vite",
     "build": "vite build",
-    "preview": "vite preview"
+    "preview": "vite preview",
+    "build:pkg": "pnpm --filter @hauska/map-renderer build",
+    "dev:cc": "pnpm --filter command-center dev"
   },
   "dependencies": {
-    "@hauska/atom-contract": "file:../hauska-atom-contract/hauska-atom-contract-1.5.0.tgz",
+    "@hauska/atom-contract": "^1.5.0",
+    "@hauska/map-renderer": "workspace:*",
     "maplibre-gl": "^5.24.0"
   },
   "devDependencies": {

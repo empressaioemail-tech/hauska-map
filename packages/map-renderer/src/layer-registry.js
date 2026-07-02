@@ -3,7 +3,7 @@
  */
 
 import { resolveLayerAllocation, listAllocationKeys } from "./layer-allocation.js";
-import { reasoningLayerAwaitingReason } from "../lib/input-gates.js";
+import { reasoningLayerAwaitingReason } from "./input-gates.js";
 
 /** @typedef {'live'|'awaiting-input'|'fuel-gated'|'fixture'|'pending'|'no-data'} LayerStatus */
 

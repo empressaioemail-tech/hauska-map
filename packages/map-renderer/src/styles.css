@@ -1,0 +1,100 @@
+/**
+ * @hauska/map-renderer styles.
+ *
+ * Consumers must ALSO import MapLibre's own stylesheet:
+ *   import "maplibre-gl/dist/maplibre-gl.css";
+ * (MapLibre ships its control CSS separately; we do not vendor it here to avoid
+ * version drift with the consumer's pinned maplibre-gl.)
+ */
+
+.hauska-fw {
+  position: fixed;
+  z-index: 1000;
+  background: #fff;
+  border: 1px solid #111;
+  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.12);
+  display: flex;
+  flex-direction: column;
+  min-width: 280px;
+  min-height: 200px;
+  left: 80px;
+  top: 60px;
+  width: 640px;
+  height: 480px;
+}
+
+.hauska-fw.fw--closed {
+  display: none;
+}
+
+.hauska-fw.fw--hover {
+  box-shadow: 0 12px 40px rgba(0, 0, 0, 0.18);
+}
+
+.hauska-fw .fw-titlebar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 4px 8px;
+  background: #f5f5f5;
+  border-bottom: 1px solid #ccc;
+  cursor: move;
+  user-select: none;
+  flex-shrink: 0;
+}
+
+.hauska-fw .fw-title {
+  font-size: 11px;
+  font-weight: 600;
+}
+
+.hauska-fw .fw-controls button {
+  font: inherit;
+  font-size: 12px;
+  width: 24px;
+  height: 22px;
+  border: 1px solid #ccc;
+  background: #fff;
+  cursor: pointer;
+  margin-left: 2px;
+}
+
+.hauska-fw .fw-controls button:hover {
+  background: #111;
+  color: #fff;
+}
+
+.hauska-fw .fw-content {
+  flex: 1;
+  min-height: 160px;
+  position: relative;
+}
+
+.hauska-fw .fw-resize-handle {
+  position: absolute;
+  right: 0;
+  bottom: 0;
+  width: 14px;
+  height: 14px;
+  cursor: nwse-resize;
+  background: linear-gradient(135deg, transparent 50%, #999 50%);
+}
+
+.hauska-fw .spine-map-canvas,
+.hauska-fw .spine-map-canvas-host {
+  width: 100%;
+  height: 100%;
+  min-height: 160px;
+}
+
+.hauska-fw.fw--snapped {
+  border-radius: 0;
+}
+
+.hauska-fw.fw--maximized .fw-resize-handle {
+  display: none;
+}
+
+.hauska-fw.fw--minimized .fw-content {
+  display: none;
+}

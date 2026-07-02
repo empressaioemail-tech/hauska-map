@@ -10,7 +10,7 @@ import {
   createConsequenceAxis,
   SAMPLE_READ_CONTRACT,
 } from "@hauska/atom-contract/read-contract";
-import { isReadContract } from "../read-contract/index.js";
+import { isReadContract } from "@hauska/map-renderer";
 import { verifyEventChainBrowser } from "./verify-event-chain-browser.js";
 
 export const DOWNLOADABLE_ATOM_EXPORT_VERSION = "1.5.0";
