@@ -22,6 +22,7 @@ export {
   legendEntriesForRegistry,
   layerStatusForGates,
   stylingForLayer,
+  productSurfaceForLayer,
   resolveLayerAllocation,
   listAllocationKeys,
 } from "./layer-registry.js";
@@ -72,6 +73,13 @@ export {
   POSITIONING_TAGLINE,
   POSITIONING_MAP_NOTE,
 } from "./positioning.js";
+
+// Fixture data (the E6 Bastrop demo corpus) for consumers that build their
+// own renderer on top of the registry.
+export {
+  getGisFixtureSlots,
+  FIXTURE_CENTER,
+} from "./map/gis-fixture-data.js";
 
 // postMessage / overlay contract types.
 export type {

@@ -4,7 +4,7 @@
  */
 
 import { HauskaMcpClient } from "./mcp-client.js";
-import { getGisFixtureSlots } from "../map/gis-fixture-data.js";
+import { getGisFixtureSlots } from "@hauska/map-renderer";
 import { mcpAdminBase } from "../config.js";
 import { probeInputGates } from "@hauska/map-renderer";
 import {
