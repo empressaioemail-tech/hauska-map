@@ -9,9 +9,9 @@ import {
   stylingForLayer,
   setLayerDisabled,
   isLayerDisabled,
-} from "../renderer/layer-registry.js";
+} from "@hauska/map-renderer";
 import { fetchLayerCatalog } from "../api/spine-api.js";
-import { probeInputGates, reasoningLayerAwaitingReason } from "../lib/input-gates.js";
+import { probeInputGates, reasoningLayerAwaitingReason } from "@hauska/map-renderer";
 import { refreshLegendRail } from "./legend-rail.js";
 
 export async function renderLayerRegistryView(container, config, inputGates = null, onRegistryChange) {

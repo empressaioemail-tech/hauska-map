@@ -1,7 +1,7 @@
 /** Atom inspector — renders cc-agent-AC downloadable-atom shape from E2/E7 selections. */
 
 import { assembleDownloadableAtom } from "../lib/assemble-downloadable-atom.js";
-import { formatReadContractSummary } from "../read-contract/index.js";
+import { formatReadContractSummary } from "@hauska/map-renderer";
 import { fetchAtomExport } from "../api/spine-api.js";
 
 let lastExport = null;

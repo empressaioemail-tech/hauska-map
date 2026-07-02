@@ -15,6 +15,7 @@ const STATES = ["floating", "snapped", "minimized", "header-docked", "maximized"
  * @param {() => object} [opts.captureViewState]
  * @param {(vs: object) => void} [opts.restoreViewState]
  * @param {HTMLElement} [opts.headerDockHost] — topbar slot for header-docked state
+ * @param {() => void} [opts.onResize] — fired after geometry changes so the renderer can resize
  */
 export function createFloatingWindow(opts) {
   const { host, titleBar, content, headerDockHost } = opts;

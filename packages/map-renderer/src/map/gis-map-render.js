@@ -44,7 +44,7 @@ import {
   consequenceFillColorExpr,
   triageFillColorExpr,
 } from "./reasoning-layers.js";
-import { POSITIONING_FOOTER } from "../copy/positioning.js";
+import { POSITIONING_FOOTER } from "../positioning.js";
 
 /** Cached fixture DEM per session. */
 let cachedDemGrid = null;
