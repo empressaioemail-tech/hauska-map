@@ -16,6 +16,7 @@ import {
   extractParcelAddress,
 } from "./map/gis-map-render.js";
 import { DEFAULT_VISIBLE_LAYERS } from "./layer-registry.js";
+import { reconcileOverlays } from "./map/overlay-render.js";
 
 /**
  * @typedef {Object} MapRendererContext
@@ -30,6 +31,7 @@ import { DEFAULT_VISIBLE_LAYERS } from "./layer-registry.js";
  *   mount: (slot: HTMLElement) => void,
  *   resize: (width?: number, height?: number) => void,
  *   setLayerVisibility: (visible: Set<string>) => void,
+ *   setOverlays: (specs: import('./postMessage').OverlaySpec[]) => void,
  *   bindContext: (ctx: MapRendererContext) => void,
  *   getViewState: () => { center: [number, number], zoom: number, pitch: number, bearing: number },
  *   setViewState: (vs: Partial<{ center: [number, number], zoom: number, pitch: number, bearing: number }>) => void,
@@ -47,6 +49,11 @@ export function createMapRenderer() {
   let visibleLayers = new Set(DEFAULT_VISIBLE_LAYERS);
   let gisSlots = [];
   let savedViewState = null;
+  // Live SpatialProvider overlays (the `overlays` prop). Kept separate from the
+  // fixture layer stack. `overlayKeys` tracks what is currently drawn so
+  // setOverlays can diff and remove idempotently.
+  let overlaySpecs = [];
+  let overlayKeys = new Set();
 
   function ensureMap() {
     if (!slotEl || map) return;
@@ -76,6 +83,7 @@ export function createMapRenderer() {
 
     map.on("load", () => {
       applyLayerVisibility();
+      applyOverlays();
       fitToSlots(map, gisSlots, { latitude: center.latitude, longitude: center.longitude }, 48);
     });
 
@@ -125,6 +133,11 @@ export function createMapRenderer() {
     reorderGisLayers(map);
   }
 
+  function applyOverlays() {
+    if (!map || !map.isStyleLoaded()) return;
+    reconcileOverlays(map, overlaySpecs, overlayKeys);
+  }
+
   function captureViewState() {
     if (!map) return savedViewState;
     const c = map.getCenter();
@@ -153,6 +166,23 @@ export function createMapRenderer() {
     setLayerVisibility(visible) {
       visibleLayers = new Set(visible);
       applyLayerVisibility();
+    },
+
+    /**
+     * Signal 5: live SpatialProvider overlays.
+     * Accepts an OverlaySpec[] and reconciles MapLibre sources+layers to exactly
+     * that set — adding new overlays, updating data/paint on existing ones, and
+     * removing overlays no longer present. Idempotent: repeated calls with the
+     * same specs neither leak sources nor duplicate layers. If the style is not
+     * yet loaded the specs are stashed and applied on `load`.
+     * @param {import('./postMessage').OverlaySpec[]} specs
+     */
+    setOverlays(specs) {
+      overlaySpecs = Array.isArray(specs) ? specs : [];
+      if (map && map.isStyleLoaded()) {
+        applyOverlays();
+      }
+      // else: applied by the map `load` handler once the style is ready.
     },
 
     /** Signal 4: context binding */
@@ -199,7 +229,7 @@ export function createMapRenderer() {
 
 /** Contract surface documentation for close notes */
 export const RENDERER_CONTRACT = {
-  signals: ["mount(slot: HTMLElement)", "resize(width?, height?)", "setLayerVisibility(Set<string>)", "bindContext(ctx)"],
+  signals: ["mount(slot: HTMLElement)", "resize(width?, height?)", "setLayerVisibility(Set<string>)", "setOverlays(OverlaySpec[])", "bindContext(ctx)"],
   contextFields: ["center", "address", "useFixture", "onParcelSelect"],
   preserves: ["center", "zoom", "pitch", "bearing", "visibleLayers"],
 };

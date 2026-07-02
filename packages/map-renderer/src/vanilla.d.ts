@@ -8,6 +8,7 @@ declare module "./map-renderer.js" {
     mount(slot: HTMLElement): void;
     resize(width?: number, height?: number): void;
     setLayerVisibility(visible: Set<string> | string[]): void;
+    setOverlays(specs: import("./postMessage").OverlaySpec[]): void;
     bindContext(ctx: {
       center?: { latitude: number; longitude: number };
       address?: string;
@@ -36,6 +37,17 @@ declare module "./map-renderer.js" {
     contextFields: string[];
     preserves: string[];
   };
+}
+
+declare module "./map/overlay-render.js" {
+  import type { OverlaySpec } from "./postMessage";
+  export const OVERLAY_PREFIX: string;
+  export function overlaySourceId(layerKey: string): string;
+  export function reconcileOverlays(
+    map: any,
+    specs: OverlaySpec[],
+    currentKeys: Set<string>,
+  ): Set<string>;
 }
 
 declare module "./window-manager/floating-window.js" {

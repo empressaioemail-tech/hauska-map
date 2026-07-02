@@ -33,6 +33,13 @@ export {
   RENDERER_CONTRACT,
 } from "./map-renderer.js";
 
+// Overlay renderer (the `overlays` prop wiring — SpatialProvider OverlaySpec[]).
+export {
+  reconcileOverlays,
+  overlaySourceId,
+  OVERLAY_PREFIX,
+} from "./map/overlay-render.js";
+
 // Floating-window FSM (for consumers wiring their own chrome).
 export {
   createFloatingWindow,

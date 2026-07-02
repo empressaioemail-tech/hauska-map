@@ -27,15 +27,42 @@ export interface LayerDef {
   inputGate?: { input?: "F2" | "F5" | "F2+F4"; description: string };
 }
 
-/** GeoJSON-ish overlay spec applied to the map as a source + layer. */
+/**
+ * A live SpatialProvider overlay applied to the map as a source + layer(s).
+ *
+ * The renderer picks layer type by geometry: Polygon/MultiPolygon -> fill+line,
+ * Point/MultiPoint -> circle, LineString/MultiLineString -> line. Provide
+ * `choropleth` for a data-driven fill (e.g. rent-heat, drainage risk).
+ */
 export interface OverlaySpec {
-  /** Registry layer key this overlay corresponds to. */
+  /** Stable key for this overlay; identifies its sources/layers for diffing. */
   layerKey: LayerKey;
-  /** GeoJSON FeatureCollection or Feature payload. */
+  /**
+   * Optional overlay-kind tag from the SpatialProvider contract
+   * (e.g. "fema-nfhl-flood-zone", "parcel-mesh", "rent-heat"). Informational;
+   * the renderer keys off geometry + `choropleth`, not this field.
+   */
+  layerKind?: string;
+  /** Optional provider tag (e.g. "cotality", "fema"). Informational. */
+  provider?: string;
+  /** GeoJSON FeatureCollection, Feature, or bare geometry payload. */
   geojson: unknown;
-  /** Optional MapLibre paint overrides. */
+  /**
+   * Data-driven choropleth fill. When set, the polygon fill (or point circle)
+   * color interpolates over `property` across `stops` ([value, color] pairs).
+   */
+  choropleth?: {
+    property: string;
+    stops: Array<[number, string]>;
+  };
+  /**
+   * Optional MapLibre paint overrides, keyed by the concrete paint property
+   * (`fill-color`, `fill-opacity`, `line-color`, `line-width`, `circle-color`,
+   * `circle-radius`, `circle-opacity`, `circle-stroke-color`,
+   * `circle-stroke-width`).
+   */
   paint?: Record<string, unknown>;
-  /** Whether the overlay starts visible. */
+  /** Whether the overlay starts visible (default true). */
   visible?: boolean;
 }
 

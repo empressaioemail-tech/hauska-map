@@ -32,7 +32,12 @@ export interface FloatingMapProps {
   useFixture?: boolean;
   /** Set of visible layer keys. Defaults to DEFAULT_VISIBLE_LAYERS. */
   visibleLayers?: Set<LayerKey> | LayerKey[];
-  /** Overlays to apply (reserved — worker/overlay transport contract). */
+  /**
+   * Live SpatialProvider overlays to draw (flood zones, topography, drainage,
+   * rent-heat, parcel meshes, choropleths). Each OverlaySpec carries a GeoJSON
+   * payload; the renderer diffs this set against what is drawn and adds/updates/
+   * removes MapLibre sources+layers idempotently. Pass `[]` or omit to clear.
+   */
   overlays?: OverlaySpec[];
   /** Parcel to fly to. */
   parcel?: ParcelSelection | null;
@@ -77,6 +82,7 @@ export const FloatingMap = forwardRef<FloatingMapHandle, FloatingMapProps>(
       address,
       useFixture = true,
       visibleLayers,
+      overlays,
       parcel,
       onParcelSelect,
       onWindowStateChange,
@@ -112,6 +118,8 @@ export const FloatingMap = forwardRef<FloatingMapHandle, FloatingMapProps>(
 
       renderer.mount(slot);
       renderer.setLayerVisibility(toVisibleSet(visibleLayers));
+      // Seed overlays at mount; the renderer stashes them until the style loads.
+      renderer.setOverlays(overlays ?? []);
       renderer.bindContext({
         center: center || { latitude: 30.1109, longitude: -97.3153 },
         address,
@@ -174,6 +182,13 @@ export const FloatingMap = forwardRef<FloatingMapHandle, FloatingMapProps>(
     useEffect(() => {
       rendererRef.current?.setLayerVisibility(toVisibleSet(visibleLayers));
     }, [visibleLayers]);
+
+    // Live SpatialProvider overlays. Re-runs on identity change of the array;
+    // the renderer reconciles idempotently (add/update/remove, no source leak).
+    // Empty/undefined clears every drawn overlay.
+    useEffect(() => {
+      rendererRef.current?.setOverlays(overlays ?? []);
+    }, [overlays]);
 
     // Context (center/address) changes.
     useEffect(() => {
