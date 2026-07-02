@@ -1,0 +1,54 @@
+/* apps/command-center/src/admin/tokens.css
+ *
+ * Dark operator theme for the Spine Command Center. The admin skeleton was
+ * ported from the trading app's Control Tower, which styles entirely with
+ * var(--color-*) / var(--font-*) tokens. The trading app inherited those tokens
+ * from a shell it does not carry here, so we define the full referenced set
+ * ourselves. Palette: a calm dark console (near-black grounds, hairline borders,
+ * a blue "info" accent, and the standard ok/warn/danger triad).
+ */
+
+:root {
+  /* fonts */
+  --font-ui: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+  --font-mono: "JetBrains Mono", "SF Mono", ui-monospace, "Cascadia Code", Menlo, Consolas, monospace;
+
+  /* backgrounds */
+  --color-background-primary: #0e1116;
+  --color-background-secondary: #161b22;
+  --color-background-accent: #21262d;
+  --color-background-info: rgba(56, 139, 253, 0.14);
+  --color-background-warning: rgba(210, 153, 34, 0.14);
+  --color-background-danger: rgba(248, 81, 73, 0.14);
+  --color-background-success: rgba(63, 185, 80, 0.14);
+
+  /* borders */
+  --color-border-secondary: #30363d;
+  --color-border-tertiary: #21262d;
+  --color-border-info: rgba(56, 139, 253, 0.5);
+  --color-border-warning: rgba(210, 153, 34, 0.5);
+  --color-border-danger: rgba(248, 81, 73, 0.5);
+  --color-border-success: rgba(63, 185, 80, 0.5);
+
+  /* text */
+  --color-text-primary: #e6edf3;
+  --color-text-secondary: #adbac7;
+  --color-text-tertiary: #768390;
+  --color-text-info: #6cb6ff;
+  --color-text-warning: #daaa3f;
+  --color-text-danger: #ff938a;
+  --color-text-success: #6bc46d;
+}
+
+html,
+body,
+#root {
+  height: 100%;
+}
+
+body {
+  margin: 0;
+  background: var(--color-background-primary);
+  color: var(--color-text-primary);
+  font-family: var(--font-ui);
+}
