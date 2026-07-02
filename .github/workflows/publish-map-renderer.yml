@@ -1,0 +1,43 @@
+name: Publish @hauska/map-renderer
+
+# Publishes @hauska/map-renderer to npm when a matching tag is pushed
+# (e.g. map-renderer-v0.1.1), or on manual dispatch. Requires the NPM_TOKEN
+# Actions secret (an npm automation token with publish rights to @hauska).
+on:
+  push:
+    tags:
+      - "map-renderer-v*"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          version: 9
+
+      - name: Setup Node + npm registry auth
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          registry-url: "https://registry.npmjs.org"
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Build @hauska/map-renderer
+        run: pnpm --filter @hauska/map-renderer build
+
+      - name: Publish to npm
+        working-directory: packages/map-renderer
+        run: npm publish --access public
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
