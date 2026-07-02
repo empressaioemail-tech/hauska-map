@@ -1,144 +1,123 @@
 /**
- * Command Center — the first React consumer of @hauska/map-renderer.
+ * Command Center — the Hauska Spine Command Center (operator/admin console).
  *
- * This is the in-repo rendering proof: it imports FloatingMap from the package
- * (not a relative path) and mounts it. Track C (cortex-tiles) will import the
- * same way.
+ * Phase 2: this app is now the operator console (the :5174 admin surface),
+ * distinct from the root JS spine console (:5173, E1-E7) and from the product
+ * cortex workspace. It lifts the trading app's Control Tower skeleton (3-column
+ * ControlCenterLayout + PanelRegistry + hash routing + primitives) and wires the
+ * highest-value panels against OUR live APIs (MCP search_atoms / admin
+ * introspection, cortex-api operator run-state). No Clerk — the token-getter
+ * seam is replaced by the Hauska API key held in localStorage (the same key the
+ * root console uses).
+ *
+ * The prior FloatingMap rendering demo is preserved (exported, not auto-mounted)
+ * in ./map-demo.tsx.
  */
 
-import { StrictMode, useRef, useState } from "react";
-import { createRoot } from "react-dom/client";
-import {
-  FloatingMap,
-  LAYER_REGISTRY,
-  DEFAULT_VISIBLE_LAYERS,
-  type FloatingMapHandle,
-  type OverlaySpec,
-  type ParcelSelection,
-} from "@hauska/map-renderer";
-import "@hauska/map-renderer/styles.css";
-import "maplibre-gl/dist/maplibre-gl.css";
+import { StrictMode, useState } from 'react'
+import { createRoot } from 'react-dom/client'
+import './admin/tokens.css'
+import { ControlCenterLayout } from './admin/control/center/ControlCenterLayout'
+import { loadConfig, saveConfig, hasAuthKey } from './admin/api/spineClient'
+import { Pill } from './admin/control/primitives'
 
-// Sample SpatialProvider-style overlays exercising all three geometry shapes:
-// a FEMA flood-zone polygon (fill+line), a drainage line, and a rent-heat point
-// choropleth. Toggled on/off to prove idempotent add + remove.
-const CENTER = { latitude: 30.1109, longitude: -97.3153 };
-const SAMPLE_OVERLAYS: OverlaySpec[] = [
-  {
-    layerKey: "ovl-flood-zone",
-    layerKind: "fema-nfhl-flood-zone",
-    provider: "fema",
-    paint: { "fill-color": "#3a7bd5", "fill-opacity": 0.35, "line-color": "#5aa0ff" },
-    geojson: {
-      type: "FeatureCollection",
-      features: [
-        {
-          type: "Feature",
-          properties: { FLD_ZONE: "AE" },
-          geometry: {
-            type: "Polygon",
-            coordinates: [
-              [
-                [-97.319, 30.108],
-                [-97.312, 30.108],
-                [-97.312, 30.114],
-                [-97.319, 30.114],
-                [-97.319, 30.108],
-              ],
-            ],
-          },
-        },
-      ],
-    },
-  },
-  {
-    layerKey: "ovl-drainage",
-    layerKind: "drainage",
-    paint: { "line-color": "#2ec4b6", "line-width": 2.2 },
-    geojson: {
-      type: "Feature",
-      properties: {},
-      geometry: {
-        type: "LineString",
-        coordinates: [
-          [-97.318, 30.109],
-          [-97.315, 30.111],
-          [-97.313, 30.113],
-        ],
-      },
-    },
-  },
-  {
-    layerKey: "ovl-rent-heat",
-    layerKind: "rent-heat",
-    choropleth: {
-      property: "rent",
-      stops: [
-        [1500, "#ffd166"],
-        [2500, "#f3722c"],
-        [3500, "#d00000"],
-      ],
-    },
-    geojson: {
-      type: "FeatureCollection",
-      features: [
-        { type: "Feature", properties: { rent: 1600 }, geometry: { type: "Point", coordinates: [-97.316, 30.11] } },
-        { type: "Feature", properties: { rent: 3200 }, geometry: { type: "Point", coordinates: [-97.314, 30.112] } },
-      ],
-    },
-  },
-];
+function ConfigBar() {
+  const config = loadConfig()
+  const [keyInput, setKeyInput] = useState('')
 
-function App() {
-  const mapRef = useRef<FloatingMapHandle>(null);
-  const [selected, setSelected] = useState<ParcelSelection | null>(null);
-  const [overlaysOn, setOverlaysOn] = useState(true);
+  const saveKey = () => {
+    saveConfig({ hauskaKey: keyInput.trim() })
+    window.location.reload()
+  }
+
+  const chip: React.CSSProperties = {
+    fontFamily: 'var(--font-mono)',
+    fontSize: 10.5,
+    color: 'var(--color-text-tertiary)',
+    padding: '3px 8px',
+    borderRadius: 6,
+    background: 'var(--color-background-secondary)',
+    border: '0.5px solid var(--color-border-tertiary)',
+    whiteSpace: 'nowrap',
+  }
 
   return (
-    <div
-      style={{
-        fontFamily: "system-ui, sans-serif",
-        padding: 16,
-        minHeight: "100vh",
-      }}
-    >
-      <h1 style={{ fontSize: 18 }}>Hauska Command Center (React)</h1>
-      <p style={{ fontSize: 13, color: "#555" }}>
-        Consumes <code>@hauska/map-renderer</code> as a workspace package.
-        Registry has {LAYER_REGISTRY.length} layers; {DEFAULT_VISIBLE_LAYERS.size}{" "}
-        visible by default. Drag the title bar; use the window controls.
-      </p>
-      {selected ? (
-        <p style={{ fontSize: 13 }}>
-          Selected parcel: <strong>{selected.address ?? selected.layerKey}</strong>
-        </p>
-      ) : (
-        <p style={{ fontSize: 13, color: "#999" }}>Click a parcel on the map.</p>
-      )}
-
+    <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
+      <span style={chip}>mcp: {config.mcpUrl}</span>
+      <span style={chip}>cortex: {config.cortexApiUrl.replace(/^https?:\/\//, '')}</span>
+      <input
+        type="password"
+        placeholder={hasAuthKey(config) ? 'key set — paste to replace' : 'X-Hauska-Key'}
+        value={keyInput}
+        onChange={(e) => setKeyInput(e.target.value)}
+        onKeyDown={(e) => {
+          if (e.key === 'Enter' && keyInput.trim()) saveKey()
+        }}
+        style={{
+          fontFamily: 'var(--font-ui)',
+          fontSize: 11,
+          padding: '4px 8px',
+          borderRadius: 6,
+          color: 'var(--color-text-primary)',
+          background: 'var(--color-background-secondary)',
+          border: '0.5px solid var(--color-border-tertiary)',
+          width: 180,
+        }}
+      />
       <button
         type="button"
-        onClick={() => setOverlaysOn((v) => !v)}
-        style={{ fontSize: 13, marginBottom: 8 }}
+        onClick={saveKey}
+        disabled={!keyInput.trim()}
+        style={{
+          fontFamily: 'var(--font-ui)',
+          fontSize: 11,
+          fontWeight: 600,
+          padding: '4px 10px',
+          borderRadius: 6,
+          cursor: keyInput.trim() ? 'pointer' : 'default',
+          opacity: keyInput.trim() ? 1 : 0.5,
+          color: 'var(--color-text-primary)',
+          background: 'var(--color-background-accent)',
+          border: '0.5px solid var(--color-border-secondary)',
+        }}
       >
-        {overlaysOn ? "Hide" : "Show"} SpatialProvider overlays
+        Save key
       </button>
-
-      <FloatingMap
-        ref={mapRef}
-        title="E6 Floating map — @hauska/map-renderer"
-        center={CENTER}
-        address="Bastrop, TX (fixture)"
-        useFixture
-        overlays={overlaysOn ? SAMPLE_OVERLAYS : []}
-        onParcelSelect={(sel) => setSelected(sel)}
-      />
+      <Pill sev={hasAuthKey(config) ? 'ok' : 'info'}>{hasAuthKey(config) ? 'keyed' : 'anonymous'}</Pill>
     </div>
-  );
+  )
 }
 
-createRoot(document.getElementById("root")!).render(
+function App() {
+  return (
+    <div style={{ height: '100vh', display: 'flex', flexDirection: 'column', background: 'var(--color-background-primary)', color: 'var(--color-text-primary)' }}>
+      <header
+        style={{
+          flex: 'none',
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'space-between',
+          gap: 16,
+          padding: '10px 16px',
+          borderBottom: '0.5px solid var(--color-border-tertiary)',
+          background: 'var(--color-background-secondary)',
+        }}
+      >
+        <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+          <span style={{ fontFamily: 'var(--font-ui)', fontSize: 13, fontWeight: 700, letterSpacing: '0.06em', color: 'var(--color-text-primary)' }}>
+            HAUSKA · SPINE COMMAND CENTER
+          </span>
+          <Pill sev="warn">Internal · operator</Pill>
+        </div>
+        <ConfigBar />
+      </header>
+      <ControlCenterLayout />
+    </div>
+  )
+}
+
+createRoot(document.getElementById('root')!).render(
   <StrictMode>
     <App />
   </StrictMode>,
-);
+)
