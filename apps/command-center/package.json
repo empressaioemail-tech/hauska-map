@@ -9,7 +9,12 @@
     "preview": "vite preview --port 5174"
   },
   "dependencies": {
+    "@hauska/cortex-client": "^0.1.0",
+    "@hauska/cortex-tiles": "^0.1.0",
+    "@hauska/design-tokens": "^0.1.0",
+    "@hauska/document-viewer": "^0.1.0",
     "@hauska/map-renderer": "workspace:*",
+    "@hauska/tile-shell": "^0.1.0",
     "maplibre-gl": "^5.24.0",
     "react": "^18.3.1",
     "react-dom": "^18.3.1"

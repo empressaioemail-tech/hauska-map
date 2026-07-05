@@ -1,6 +1,6 @@
 ﻿// api/spine.ts
 //
-// Vercel serverless proxy â€” same-origin gateway for the Command Center. The
+// Vercel serverless proxy â€" same-origin gateway for the Command Center. The
 // browser NEVER holds service keys; this function attaches auth from
 // server-side env vars and routes by the first path segment to one of three
 // upstreams. Requests arrive via the vercel.json rewrite
@@ -10,9 +10,9 @@
 //   /api/spine/mcp/*      -> MCP_URL with X-Hauska-Key: MCP_PRODUCT_KEY
 //   /api/spine/retrieval/* -> RETRIEVAL_API_URL (no auth)
 //
-// SECURITY: allowlist methods/paths â€” GET only, plus POST for /api/spine/mcp/mcp
-// (JSON-RPC). Reject /admin/* MCP paths (admin key stays out). Missing env var
-// -> 503 with {error, missing}.
+// SECURITY: allowlist methods/paths â€" GET only, plus POST for /api/spine/mcp/mcp
+// (JSON-RPC) and explicit cortex POST paths required by workspace tiles. Reject
+// /admin/* MCP paths (admin key stays out). Missing env var -> 503 with {error, missing}.
 
 import type { VercelRequest, VercelResponse } from '@vercel/node'
 
@@ -94,10 +94,42 @@ export default async function handler(req: VercelRequest, res: VercelResponse): 
   const upstreamPath = rest.join('/')
   const method = req.method || 'GET'
 
-  // SECURITY: allowlist methods/paths â€” GET only, plus POST for /api/spine/mcp/mcp
+  // SECURITY: allowlist methods/paths â€" GET only, plus POST for /api/spine/mcp/mcp
   const allowedMethods = ['GET', 'HEAD']
   if (path[0] === 'mcp' && upstreamPath === 'mcp') {
     allowedMethods.push('POST')
+  }
+  // Cortex POST allowlist: explicit paths required by workspace tiles.
+  // - engagements/:id/reports/:type/run → run compliance pass (FindingsLibrary tile)
+  // - engagements/:id/letter/generate → generate comment letter (future Deliverable tile)
+  // - engagements/:id/findings/:findingId → patch finding action (FindingsLibrary tile)
+  // - engagements → create engagement (Intake tile)
+  // - intake/parse → parse intake content (Intake tile)
+  // - place/geocode → forward/reverse geocode (Map tile, address search)
+  // - engagements/:id/submissions/:submissionId/compliance → run compliance pass (IntakeQueue tile)
+  // - engagements/:id/documents/request-upload-url → request GCS signed URL (future Dataroom tile)
+  // - engagements/:id/documents/complete-upload → complete document upload (future Dataroom tile)
+  // - engagements/:id/submissions → create submission (IntakeQueue tile)
+  // - engagements/:id/documents/:docId/ingest → ingest dataroom document (future Dataroom tile)
+  // - engagements/:id/sheets/extract → extract sheets (SheetExtraction tile)
+  // - saved-spaces (PUT/DELETE) → save/delete workspace (SpaceBar)
+  // - saved-spaces/:name/share → share workspace (SpaceBar)
+  if (path[0] === 'cortex') {
+    const cortexPostPaths = [
+      'engagements',
+      'intake/parse',
+      'place/geocode',
+      'saved-spaces',
+    ]
+    // Also allow POST/PUT/DELETE/PATCH to paths matching: engagements/:id/(reports|letter|findings|submissions|documents|sheets)/*
+    const engagementPostPattern = /^engagements\/[^/]+\/(reports|letter|findings|submissions|documents|sheets)/
+    if (
+      cortexPostPaths.includes(upstreamPath) ||
+      cortexPostPaths.some((p) => upstreamPath.startsWith(p + '/')) ||
+      engagementPostPattern.test(upstreamPath)
+    ) {
+      allowedMethods.push('POST', 'PUT', 'DELETE', 'PATCH')
+    }
   }
   if (!allowedMethods.includes(method)) {
     res.status(403).json({ error: 'method not allowed' })
