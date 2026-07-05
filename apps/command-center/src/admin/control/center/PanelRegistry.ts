@@ -13,6 +13,11 @@ import { AtomInspector } from '../panels/AtomInspector'
 import { RunMonitor } from '../panels/RunMonitor'
 import { SurfaceGateInspector } from '../panels/SurfaceGateInspector'
 import { CalibrationTracker } from '../panels/CalibrationTracker'
+import { McpInspector } from '../panels/McpInspector'
+import { AgentView } from '../panels/AgentView'
+import { LayerRegistryView } from '../panels/LayerRegistryView'
+import { ParcelTrace } from '../panels/ParcelTrace'
+import { Settings } from '../panels/Settings'
 import { makeStub } from '../panels/StubPanel'
 
 /** The three top-level groups of the substrate console, in display order. */
@@ -41,6 +46,9 @@ export const PANELS: PanelDef[] = [
   { id: 'node-graph', label: 'Node & Graph', group: 'Substrate', stub: true,
     Component: makeStub('Node & Graph', 'retrieval-api /atoms/trace/:did graph traversal (uncapped)') },
   { id: 'atom-inspector', label: 'Atoms', group: 'Substrate', live: true, Component: AtomInspector },
+  { id: 'parcel-trace', label: 'Parcel Trace', group: 'Substrate', live: true, Component: ParcelTrace },
+  { id: 'mcp-inspector', label: 'MCP Tools', group: 'Substrate', live: true, Component: McpInspector },
+  { id: 'layer-registry', label: 'GIS Layers', group: 'Substrate', live: true, Component: LayerRegistryView },
   { id: 'calibration', label: 'Calibration', group: 'Substrate', live: true, Component: CalibrationTracker },
   { id: 'lineage-audit', label: 'Lineage & Audit', group: 'Substrate', stub: true,
     Component: makeStub('Lineage & Audit', 'retrieval-api atom lineage / supersession chain') },
@@ -50,8 +58,10 @@ export const PANELS: PanelDef[] = [
   { id: 'engine-console', label: 'Autonomous Engines', group: 'Engines', stub: true,
     Component: makeStub('Autonomous Engines', 'engine action-atom log + autonomy tiers') },
   { id: 'run-monitor', label: 'Runs', group: 'Engines', live: true, Component: RunMonitor },
+  { id: 'agent-view', label: 'Agent Surface', group: 'Engines', live: true, Component: AgentView },
   // Governance
   { id: 'surface-gate', label: 'Surface & Gate', group: 'Governance', live: true, Component: SurfaceGateInspector },
+  { id: 'settings', label: 'Settings', group: 'Governance', live: true, Component: Settings },
   { id: 'license-access', label: 'License & Access', group: 'Governance', stub: true,
     Component: makeStub('License & Access', 'atom accessPolicy ∩ license (most-restrictive-wins)') },
 ]

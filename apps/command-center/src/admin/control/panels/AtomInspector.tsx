@@ -2,7 +2,7 @@
 //
 // Command Center · Atom Inspector (panel id: atom-inspector).  LIVE.
 //
-// Queries OUR spine atoms via the Hauska MCP server's `search_atoms` tool
+// Queries OUR spine atoms via the Empressa MCP server's `search_atoms` tool
 // (public catalog — anonymous works; a key widens scope). Selecting an atom
 // opens a detail view. The CONFIDENCE DISPLAY RULE from the trading Control
 // Tower is preserved verbatim in spirit: a confidence figure is NEVER shown as a
@@ -362,10 +362,10 @@ export const AtomInspector: React.FC = () => {
           {loading ? (
             <Loading />
           ) : err ? (
-            <ErrorState msg={`${err} — is the Hauska MCP server reachable at ${config.mcpUrl}?`} />
+            <ErrorState msg={`${err} — is the Empressa MCP server reachable at ${config.mcpUrl}?`} />
           ) : !rows || rows.length === 0 ? (
             <Empty>
-              No atoms — start the local MCP server ({config.mcpUrl}) or set a Hauska key in the header, then query.
+              No atoms — start the local MCP server ({config.mcpUrl}) or set an Empressa key in Settings, then query.
             </Empty>
           ) : (
             <>
