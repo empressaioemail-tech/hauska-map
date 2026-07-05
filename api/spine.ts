@@ -1,9 +1,11 @@
-// api/spine/[...path].ts
+// api/spine.ts
 //
 // Vercel serverless proxy — same-origin gateway for the Command Center. The
 // browser NEVER holds service keys; this function attaches auth from
 // server-side env vars and routes by the first path segment to one of three
-// upstreams:
+// upstreams. Requests arrive via the vercel.json rewrite
+// /api/spine/(.*) -> /api/spine?upath=$1 (the [...path] catch-all did not
+// match nested segments on the deployed alias, so routing is query-based):
 //   /api/spine/cortex/*   -> CORTEX_API_URL with Authorization: Bearer CORTEX_SERVICE_API_KEY
 //   /api/spine/mcp/*      -> MCP_URL with X-Hauska-Key: MCP_PRODUCT_KEY
 //   /api/spine/retrieval/* -> RETRIEVAL_API_URL (no auth)
@@ -64,8 +66,14 @@ function getUpstream(pathSegments: string[]): { upstream: Upstream | null; error
 }
 
 export default async function handler(req: VercelRequest, res: VercelResponse): Promise<void> {
-  const { path } = req.query
-  if (!Array.isArray(path)) {
+  const { upath } = req.query
+  const upathStr = Array.isArray(upath) ? upath.join('/') : upath
+  if (!upathStr) {
+    res.status(400).json({ error: 'invalid path' })
+    return
+  }
+  const path = upathStr.split('/').filter(Boolean)
+  if (path.some((p) => p === '..' || p === '.')) {
     res.status(400).json({ error: 'invalid path' })
     return
   }
@@ -96,7 +104,16 @@ export default async function handler(req: VercelRequest, res: VercelResponse): 
     return
   }
 
-  const targetUrl = `${upstream.baseUrl}/${upstreamPath}`
+  // forward the original query string (minus the rewrite's upath param)
+  const qs = new URLSearchParams()
+  for (const [k, v] of Object.entries(req.query)) {
+    if (k === 'upath') continue
+    for (const val of Array.isArray(v) ? v : [v]) {
+      if (val !== undefined) qs.append(k, val)
+    }
+  }
+  const qsStr = qs.toString()
+  const targetUrl = `${upstream.baseUrl}/${upstreamPath}${qsStr ? `?${qsStr}` : ''}`
   const headers: Record<string, string> = {
     ...upstream.headers,
     'Content-Type': req.headers['content-type'] || 'application/json',
