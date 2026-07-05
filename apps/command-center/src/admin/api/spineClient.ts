@@ -24,9 +24,9 @@ export interface SpineConfig {
 }
 
 const DEFAULTS: SpineConfig = {
-  cortexApiUrl: 'https://cortex-api-tds7av26va-uc.a.run.app',
-  mcpUrl: 'http://127.0.0.1:3000/mcp',
-  retrievalApiUrl: 'http://127.0.0.1:8080',
+  cortexApiUrl: import.meta.env.VITE_CORTEX_API_URL || 'https://cortex-api-tds7av26va-uc.a.run.app',
+  mcpUrl: import.meta.env.VITE_MCP_URL || 'https://mcp.hauska.dev/mcp',
+  retrievalApiUrl: import.meta.env.VITE_RETRIEVAL_API_URL || 'http://127.0.0.1:8080',
   hauskaKey: '',
   installId: 'spine-console-local',
 }
