@@ -110,10 +110,11 @@ export const Empty: React.FC<{ children?: React.ReactNode }> = ({ children }) =>
 )
 
 // Small status pill (used for service / feed / account health).
-export const Pill: React.FC<{ sev: Severity; children: React.ReactNode }> = ({ sev, children }) => {
+export const Pill: React.FC<{ sev: Severity; children: React.ReactNode; title?: string }> = ({ sev, children, title }) => {
   const c = sevColors(sev)
   return (
     <span
+      title={title}
       style={{
         ...mono,
         fontSize: 10,

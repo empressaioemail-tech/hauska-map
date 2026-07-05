@@ -1,6 +1,6 @@
 # Command Center
 
-Hauska Spine Command Center — the React/Vite operator/admin console for the Hauska map platform.
+Empressa Command Center — the React/Vite operator/admin console for the Empressa map platform.
 
 ## Architecture
 
