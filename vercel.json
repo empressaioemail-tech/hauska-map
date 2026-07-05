@@ -4,5 +4,8 @@
   "buildCommand": "pnpm --filter ./apps/command-center build",
   "outputDirectory": "apps/command-center/dist",
   "framework": null,
-  "rewrites": [{ "source": "/(.*)", "destination": "/index.html" }]
+  "rewrites": [
+    { "source": "/api/(.*)", "destination": "/api/$1" },
+    { "source": "/(.*)", "destination": "/index.html" }
+  ]
 }
