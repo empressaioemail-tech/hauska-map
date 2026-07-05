@@ -1,17 +1,17 @@
 // apps/command-center/src/admin/api/spineClient.ts
 //
-// The Spine Command Center's live API layer. Unlike the trading Control Tower's
-// single-base Bearer client, our operator surface talks to several live spine
-// services:
-//   - cortex-api (Cloud Run)      : place/atoms, operator run-state
-//   - Hauska MCP server (:3000)   : search_atoms, get_atom, admin introspection
-//   - retrieval-api (:8080)       : atom trace / lineage (stubbed panels)
+// The Command Center's live API layer. The browser NEVER holds service keys;
+// deployed builds proxy through same-origin /api/spine/* where auth is attached
+// server-side from Vercel env vars. Defaults to proxy; VITE_ env overrides
+// enable direct mode for local dev (then keys are sent from the browser).
 //
-// AUTH: the MCP gate keys off the `X-Hauska-Key` header (NOT Authorization
-// Bearer — a wrong/absent key silently falls through to product:"public"). We
-// send X-Hauska-Key AND Authorization: Bearer so both the MCP gate and any
-// Bearer-expecting cortex-api route are satisfied. Config is read from the SAME
-// localStorage key the root JS console uses, so a key set in either carries over.
+// Upstreams (via proxy):
+//   - /api/spine/cortex    -> cortex-api (Cloud Run)      : place/atoms, run-state
+//   - /api/spine/mcp       -> Hauska MCP server           : search_atoms, introspection
+//   - /api/spine/retrieval -> retrieval-api               : atom trace / lineage
+//
+// Config is read from localStorage + query params so local-dev keys set in the
+// root JS console carry over.
 
 const STORAGE_KEY = 'hauska-spine-console-config'
 
@@ -24,9 +24,9 @@ export interface SpineConfig {
 }
 
 const DEFAULTS: SpineConfig = {
-  cortexApiUrl: import.meta.env.VITE_CORTEX_API_URL || 'https://cortex-api-tds7av26va-uc.a.run.app',
-  mcpUrl: import.meta.env.VITE_MCP_URL || 'https://mcp.hauska.dev/mcp',
-  retrievalApiUrl: import.meta.env.VITE_RETRIEVAL_API_URL || 'http://127.0.0.1:8080',
+  cortexApiUrl: import.meta.env.VITE_CORTEX_API_URL || '/api/spine/cortex',
+  mcpUrl: import.meta.env.VITE_MCP_URL || '/api/spine/mcp',
+  retrievalApiUrl: import.meta.env.VITE_RETRIEVAL_API_URL || '/api/spine/retrieval',
   hauskaKey: '',
   installId: 'spine-console-local',
 }
@@ -70,13 +70,16 @@ export function apiBase(config: SpineConfig): string {
   return (config.cortexApiUrl || '').replace(/\/$/, '')
 }
 
-/** REST auth headers — X-Hauska-Key is the gate; Bearer added for Bearer routes. */
+/** REST auth headers — for proxy mode (same-origin /api/spine/*), no keys sent.
+ *  For direct mode (VITE_ env override), send X-Hauska-Key + Bearer. */
 export function authHeaders(config: SpineConfig): Record<string, string> {
   const h: Record<string, string> = {
     'Content-Type': 'application/json',
     'X-Hauska-Install-Id': config.installId || 'spine-console-local',
   }
-  if (config.hauskaKey) {
+  // Only send keys for direct mode (non-proxy URLs)
+  const isProxy = config.cortexApiUrl?.startsWith('/api/') || config.mcpUrl?.startsWith('/api/')
+  if (!isProxy && config.hauskaKey) {
     h['X-Hauska-Key'] = config.hauskaKey
     h.Authorization = `Bearer ${config.hauskaKey}`
   }
@@ -156,7 +159,9 @@ export class HauskaMcpClient {
       Accept: 'application/json, text/event-stream',
       'MCP-Protocol-Version': '2025-03-26',
     }
-    if (this.apiKey) h['X-Hauska-Key'] = this.apiKey
+    // Only send key for direct mode (non-proxy URLs)
+    const isProxy = this.mcpUrl?.startsWith('/api/')
+    if (!isProxy && this.apiKey) h['X-Hauska-Key'] = this.apiKey
     if (this.devProduct) h['X-Hauska-Dev-Product'] = this.devProduct
     if (this.sessionId) h['mcp-session-id'] = this.sessionId
     return h
