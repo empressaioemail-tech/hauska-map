@@ -19,11 +19,17 @@ import { LayerRegistryView } from '../panels/LayerRegistryView'
 import { ParcelTrace } from '../panels/ParcelTrace'
 import { Settings } from '../panels/Settings'
 import { makeStub } from '../panels/StubPanel'
+import {
+  PlanReviewSpace,
+  SiteAnalysisSpace,
+  PropertyIntelSpace,
+  DesignAcceleratorSpace,
+} from '../../workspace/spaces'
 
-/** The three top-level groups of the substrate console, in display order. */
-export type PanelGroup = 'Substrate' | 'Engines' | 'Governance'
+/** The four top-level groups of the command center, in display order. */
+export type PanelGroup = 'Workspace' | 'Substrate' | 'Engines' | 'Governance'
 
-export const PANEL_GROUPS: PanelGroup[] = ['Substrate', 'Engines', 'Governance']
+export const PANEL_GROUPS: PanelGroup[] = ['Workspace', 'Substrate', 'Engines', 'Governance']
 
 /** A registered panel. `Component` is the inspector rendered in the center column. */
 export interface PanelDef {
@@ -42,6 +48,11 @@ export interface PanelDef {
 }
 
 export const PANELS: PanelDef[] = [
+  // Workspace
+  { id: 'plan-review', label: 'Plan Review', group: 'Workspace', live: true, Component: PlanReviewSpace },
+  { id: 'site-analysis', label: 'Site Analysis', group: 'Workspace', live: true, Component: SiteAnalysisSpace },
+  { id: 'property-intel', label: 'Property Intel', group: 'Workspace', live: true, Component: PropertyIntelSpace },
+  { id: 'design-accelerator', label: 'Design Accelerator', group: 'Workspace', live: true, Component: DesignAcceleratorSpace },
   // Substrate
   { id: 'node-graph', label: 'Node & Graph', group: 'Substrate', stub: true,
     Component: makeStub('Node & Graph', 'retrieval-api /atoms/trace/:did graph traversal (uncapped)') },
@@ -66,8 +77,8 @@ export const PANELS: PanelDef[] = [
     Component: makeStub('License & Access', 'atom accessPolicy ∩ license (most-restrictive-wins)') },
 ]
 
-/** Default panel — open on a live panel, not a stub. */
-export const DEFAULT_PANEL_ID = 'atom-inspector'
+/** Default panel — open on a live workspace panel. */
+export const DEFAULT_PANEL_ID = 'plan-review'
 
 /** Lookup by id; falls back to the default panel. */
 export function panelById(id: string | null | undefined): PanelDef {

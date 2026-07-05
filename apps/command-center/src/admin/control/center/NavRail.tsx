@@ -70,7 +70,9 @@ export const NavRail: React.FC<{ active: string; onSelect: (id: string) => void 
     <div style={{ flex: 1, minHeight: 0, overflowY: 'auto', padding: '0 8px 14px', display: 'flex', flexDirection: 'column', gap: 14 }}>
       {PANEL_GROUPS.map((group) => (
         <div key={group} style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
-          <span style={{ ...sectionHeader, padding: '0 6px 2px' }}>{group}</span>
+          <span style={{ ...sectionHeader, padding: '0 6px 2px' }}>
+            {group === 'Workspace' ? 'Cortex Workspace' : group}
+          </span>
           <div style={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
             {panelsByGroup(group).map((panel) => (
               <NavItem key={panel.id} panel={panel} active={panel.id === active} onSelect={onSelect} />
