@@ -3,7 +3,7 @@
 // Command Center · Surface & Gate (panel id: surface-gate).  LIVE.
 //
 // The operator view of which tools are exposed on which product surface at the
-// MCP gate. Fetches the Hauska MCP server's admin introspection:
+// MCP gate. Fetches the Empressa MCP server's admin introspection:
 //   GET {mcpAdminBase}/admin/introspection/tools
 // Renders the total tool count, the by_product and by_gate breakdowns, and the
 // full tool inventory (name + product + gate). Honest error/empty when the MCP
@@ -107,7 +107,7 @@ export const SurfaceGateInspector: React.FC = () => {
       {loading ? (
         <Loading />
       ) : err ? (
-        <ErrorState msg={`${err} — is the Hauska MCP admin surface reachable?`} />
+        <ErrorState msg={`${err} — is the Empressa MCP admin surface reachable?`} />
       ) : !data ? (
         <Empty>No introspection data.</Empty>
       ) : (

@@ -229,3 +229,34 @@ export class HauskaMcpClient {
     }
   }
 }
+
+// ── Layer Catalog (from cortex-api) ──
+
+export interface LayerCatalogResult {
+  status: 'ok' | 'error' | 'local-only'
+  message?: string
+  backendLayers?: unknown[]
+  packageTier?: string
+  httpStatus?: number
+}
+
+export async function fetchLayerCatalog(config: SpineConfig): Promise<LayerCatalogResult> {
+  const base = apiBase(config)
+  if (!base) {
+    return { status: 'local-only', message: 'Using local LAYER_REGISTRY only' }
+  }
+  try {
+    const res = await fetch(`${base}/api/brokerage/v1/map-data/gis-layers`, { headers: authHeaders(config) })
+    const json = (await res.json().catch(() => ({}))) as { layers?: unknown[]; packageTier?: string; message?: string; error?: string }
+    if (!res.ok) {
+      return {
+        status: 'error',
+        httpStatus: res.status,
+        message: json.message || json.error,
+      }
+    }
+    return { status: 'ok', backendLayers: json.layers || (json as unknown as unknown[]), packageTier: json.packageTier }
+  } catch (err) {
+    return { status: 'error', message: (err as Error).message }
+  }
+}
