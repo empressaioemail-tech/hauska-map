@@ -68,13 +68,14 @@ const preStyle: React.CSSProperties = {
 
 export const ParcelTrace: React.FC = () => {
   const config = useMemo<SpineConfig>(() => loadConfig(), [])
-  const [address, setAddress] = useState('')
+  const [address, setAddress] = useState('1101 Colorado St, Austin, TX 78701')
   const [loading, setLoading] = useState(false)
   const [placeKey, setPlaceKey] = useState<string | null>(null)
   const [atoms, setAtoms] = useState<Atom[]>([])
   const [error, setError] = useState<string | null>(null)
   const [selectedAtomId, setSelectedAtomId] = useState<string | null>(null)
   const [traceResult, setTraceResult] = useState<string>('—')
+  const [autoRan, setAutoRan] = useState(false)
 
   const handleResolve = async () => {
     if (!address.trim()) {
@@ -150,6 +151,14 @@ export const ParcelTrace: React.FC = () => {
       setTraceResult(`Trace error: ${(err as Error).message}`)
     }
   }
+
+  React.useEffect(() => {
+    if (!autoRan && address.trim()) {
+      setAutoRan(true)
+      void handleResolve()
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
 
   const atomById = selectedAtomId ? atoms.find((a) => (a.atomDid || a.atomId || a.id) === selectedAtomId) : null
 

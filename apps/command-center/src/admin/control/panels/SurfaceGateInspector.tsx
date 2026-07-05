@@ -73,7 +73,14 @@ export const SurfaceGateInspector: React.FC = () => {
   const [err, setErr] = useState<string | null>(null)
   const url = `${mcpAdminBase(config)}/admin/introspection/tools`
 
+  const isProxyMode = config.mcpUrl?.startsWith('/api/')
+  const adminBlocked = isProxyMode
+
   useEffect(() => {
+    if (adminBlocked) {
+      setLoading(false)
+      return
+    }
     let cancelled = false
     setLoading(true)
     getJson<IntrospectionResponse>(url, config, 15_000)
@@ -93,10 +100,25 @@ export const SurfaceGateInspector: React.FC = () => {
     return () => {
       cancelled = true
     }
-  }, [url, config])
+  }, [url, config, adminBlocked])
 
   const tools = data?.tools || data?.items || []
   const total = data?.total ?? tools.length
+
+  if (adminBlocked) {
+    return (
+      <Panel title="Surface & Gate" subtitle="Requires direct operator access" right={<Pill sev="warn">blocked</Pill>}>
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+          <span style={sectionHeader}>Not wired in deployed mode</span>
+          <p style={{ fontSize: 12, color: 'var(--color-text-secondary)', fontFamily: 'var(--font-ui)', margin: 0 }}>
+            The MCP /admin/* paths are blocked at the same-origin /api/spine/* proxy by design (operator-only
+            introspection). This panel works in local-dev direct mode where an operator pastes a key. In deployed mode,
+            use the root vanilla console or connect directly.
+          </p>
+        </div>
+      </Panel>
+    )
+  }
 
   return (
     <Panel
