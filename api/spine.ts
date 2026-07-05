@@ -1,6 +1,6 @@
-// api/spine.ts
+﻿// api/spine.ts
 //
-// Vercel serverless proxy — same-origin gateway for the Command Center. The
+// Vercel serverless proxy â€” same-origin gateway for the Command Center. The
 // browser NEVER holds service keys; this function attaches auth from
 // server-side env vars and routes by the first path segment to one of three
 // upstreams. Requests arrive via the vercel.json rewrite
@@ -10,7 +10,7 @@
 //   /api/spine/mcp/*      -> MCP_URL with X-Hauska-Key: MCP_PRODUCT_KEY
 //   /api/spine/retrieval/* -> RETRIEVAL_API_URL (no auth)
 //
-// SECURITY: allowlist methods/paths — GET only, plus POST for /api/spine/mcp/mcp
+// SECURITY: allowlist methods/paths â€” GET only, plus POST for /api/spine/mcp/mcp
 // (JSON-RPC). Reject /admin/* MCP paths (admin key stays out). Missing env var
 // -> 503 with {error, missing}.
 
@@ -25,8 +25,8 @@ function getUpstream(pathSegments: string[]): { upstream: Upstream | null; error
   const [segment, ...rest] = pathSegments
 
   if (segment === 'cortex') {
-    const url = process.env.CORTEX_API_URL || 'https://cortex-api-tds7av26va-uc.a.run.app'
-    const key = process.env.CORTEX_SERVICE_API_KEY
+    const url = process.env.CORTEX_API_URL?.trim() || 'https://cortex-api-tds7av26va-uc.a.run.app'
+    const key = process.env.CORTEX_SERVICE_API_KEY?.trim()
     if (!key) return { upstream: null, error: 'proxy not configured', missing: 'CORTEX_SERVICE_API_KEY' }
     return {
       upstream: {
@@ -37,8 +37,8 @@ function getUpstream(pathSegments: string[]): { upstream: Upstream | null; error
   }
 
   if (segment === 'mcp') {
-    const url = process.env.MCP_URL || 'https://hauska-mcp-server-h7gvu7rgcq-uc.a.run.app'
-    const key = process.env.MCP_PRODUCT_KEY
+    const url = process.env.MCP_URL?.trim() || 'https://hauska-mcp-server-h7gvu7rgcq-uc.a.run.app'
+    const key = process.env.MCP_PRODUCT_KEY?.trim()
     if (!key) return { upstream: null, error: 'proxy not configured', missing: 'MCP_PRODUCT_KEY' }
     // SECURITY: reject /admin/* paths
     if (rest.some((p) => p === 'admin' || p.startsWith('admin/'))) {
@@ -53,7 +53,7 @@ function getUpstream(pathSegments: string[]): { upstream: Upstream | null; error
   }
 
   if (segment === 'retrieval') {
-    const url = process.env.RETRIEVAL_API_URL || 'https://hauska-retrieval-api-h7gvu7rgcq-uc.a.run.app'
+    const url = process.env.RETRIEVAL_API_URL?.trim() || 'https://hauska-retrieval-api-h7gvu7rgcq-uc.a.run.app'
     return {
       upstream: {
         baseUrl: url.replace(/\/$/, ''),
@@ -94,7 +94,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse): 
   const upstreamPath = rest.join('/')
   const method = req.method || 'GET'
 
-  // SECURITY: allowlist methods/paths — GET only, plus POST for /api/spine/mcp/mcp
+  // SECURITY: allowlist methods/paths â€” GET only, plus POST for /api/spine/mcp/mcp
   const allowedMethods = ['GET', 'HEAD']
   if (path[0] === 'mcp' && upstreamPath === 'mcp') {
     allowedMethods.push('POST')
