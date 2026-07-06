@@ -94,35 +94,37 @@ export default async function handler(req: VercelRequest, res: VercelResponse): 
   const upstreamPath = rest.join('/')
   const method = req.method || 'GET'
 
-  // SECURITY: allowlist methods/paths â€" GET only, plus POST for /api/spine/mcp/mcp
+  // SECURITY: allowlist methods/paths — GET only, plus POST for MCP JSON-RPC endpoint
   const allowedMethods = ['GET', 'HEAD']
-  if (path[0] === 'mcp' && upstreamPath === 'mcp') {
+  // MCP JSON-RPC: allow POST to /api/spine/mcp (upstreamPath empty) or /api/spine/mcp/mcp
+  if (path[0] === 'mcp' && (upstreamPath === 'mcp' || upstreamPath === '')) {
     allowedMethods.push('POST')
   }
   // Cortex POST allowlist: explicit paths required by workspace tiles.
-  // - engagements/:id/reports/:type/run → run compliance pass (FindingsLibrary tile)
-  // - engagements/:id/letter/generate → generate comment letter (future Deliverable tile)
-  // - engagements/:id/findings/:findingId → patch finding action (FindingsLibrary tile)
-  // - engagements → create engagement (Intake tile)
-  // - intake/parse → parse intake content (Intake tile)
-  // - place/geocode → forward/reverse geocode (Map tile, address search)
-  // - engagements/:id/submissions/:submissionId/compliance → run compliance pass (IntakeQueue tile)
-  // - engagements/:id/documents/request-upload-url → request GCS signed URL (future Dataroom tile)
-  // - engagements/:id/documents/complete-upload → complete document upload (future Dataroom tile)
-  // - engagements/:id/submissions → create submission (IntakeQueue tile)
-  // - engagements/:id/documents/:docId/ingest → ingest dataroom document (future Dataroom tile)
-  // - engagements/:id/sheets/extract → extract sheets (SheetExtraction tile)
-  // - saved-spaces (PUT/DELETE) → save/delete workspace (SpaceBar)
-  // - saved-spaces/:name/share → share workspace (SpaceBar)
+  // After baseUrl fix, upstreamPath arrives as api/engagements..., api/intake/parse, etc.
+  // - api/engagements/:id/reports/:type/run → run compliance pass (FindingsLibrary tile)
+  // - api/engagements/:id/letter/generate → generate comment letter (future Deliverable tile)
+  // - api/engagements/:id/findings/:findingId → patch finding action (FindingsLibrary tile)
+  // - api/engagements → create engagement (Intake tile)
+  // - api/intake/parse → parse intake content (Intake tile)
+  // - api/place/geocode → forward/reverse geocode (Map tile, address search)
+  // - api/engagements/:id/submissions/:submissionId/compliance → run compliance pass (IntakeQueue tile)
+  // - api/engagements/:id/documents/request-upload-url → request GCS signed URL (future Dataroom tile)
+  // - api/engagements/:id/documents/complete-upload → complete document upload (future Dataroom tile)
+  // - api/engagements/:id/submissions → create submission (IntakeQueue tile)
+  // - api/engagements/:id/documents/:docId/ingest → ingest dataroom document (future Dataroom tile)
+  // - api/engagements/:id/sheets/extract → extract sheets (SheetExtraction tile)
+  // - api/saved-spaces (PUT/DELETE) → save/delete workspace (SpaceBar)
+  // - api/saved-spaces/:name/share → share workspace (SpaceBar)
   if (path[0] === 'cortex') {
     const cortexPostPaths = [
-      'engagements',
-      'intake/parse',
-      'place/geocode',
-      'saved-spaces',
+      'api/engagements',
+      'api/intake/parse',
+      'api/place/geocode',
+      'api/saved-spaces',
     ]
-    // Also allow POST/PUT/DELETE/PATCH to paths matching: engagements/:id/(reports|letter|findings|submissions|documents|sheets)/*
-    const engagementPostPattern = /^engagements\/[^/]+\/(reports|letter|findings|submissions|documents|sheets)/
+    // Also allow POST/PUT/DELETE/PATCH to paths matching: api/engagements/:id/(reports|letter|findings|submissions|documents|sheets)/*
+    const engagementPostPattern = /^api\/engagements\/[^/]+\/(reports|letter|findings|submissions|documents|sheets)/
     if (
       cortexPostPaths.includes(upstreamPath) ||
       cortexPostPaths.some((p) => upstreamPath.startsWith(p + '/')) ||

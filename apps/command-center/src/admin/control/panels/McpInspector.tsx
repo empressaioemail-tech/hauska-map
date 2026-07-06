@@ -211,14 +211,19 @@ export const McpInspector: React.FC = () => {
 
   if (adminBlocked) {
     return (
-      <Panel title="MCP Inspector" subtitle="Requires direct operator access" right={<Pill sev="warn">blocked</Pill>}>
+      <Panel title="MCP Inspector" subtitle="Not available through proxy" right={<Pill sev="warn">excluded</Pill>}>
         <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
-          <span style={sectionHeader}>Not wired in deployed mode</span>
+          <span style={sectionHeader}>Proxy-excluded by design</span>
           <p style={{ fontSize: 12, color: 'var(--color-text-secondary)', fontFamily: 'var(--font-ui)', margin: 0 }}>
             The MCP /admin/* paths are blocked at the same-origin /api/spine/* proxy by design (operator-only
-            introspection). This panel works in local-dev direct mode where an operator pastes a key. In deployed mode,
-            use the root vanilla console or connect directly.
+            introspection, admin key stays out). This panel works in local-dev direct mode where an operator pastes
+            a key. In deployed mode, use the root vanilla console or connect directly to the MCP server.
           </p>
+          <div style={{ padding: '8px 10px', borderRadius: 6, background: 'var(--color-background-secondary)', border: '0.5px solid var(--color-border-tertiary)' }}>
+            <span style={{ ...mono, fontSize: 10, color: 'var(--color-text-tertiary)' }}>
+              Blocked paths: /api/spine/mcp/admin/*
+            </span>
+          </div>
         </div>
       </Panel>
     )
