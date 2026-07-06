@@ -60,6 +60,10 @@ vi.mock('@empressaio/cortex-tiles', () => ({
 
 vi.mock('@empressaio/tile-shell', () => ({
   EngagementProvider: ({ children }: any) => <div data-testid="engagement-provider">{children}</div>,
+  SpatialProvider: ({ children }: any) => <>{children}</>,
+  CodeProvider: ({ children }: any) => <>{children}</>,
+  AnnotationSelectionProvider: ({ children }: any) => <>{children}</>,
+  DocumentViewerNavigationProvider: ({ children }: any) => <>{children}</>,
 }))
 
 describe('SpacePanel', () => {
