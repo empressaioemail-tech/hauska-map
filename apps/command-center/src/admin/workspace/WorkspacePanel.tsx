@@ -6,14 +6,14 @@
 // this shell with `initialPresetId` set.
 
 import React from 'react'
-import { CortexShell, EngagementProvider } from '@hauska/tile-shell'
-import { CortexProvider } from '@hauska/cortex-tiles'
+import { CortexShell, EngagementProvider } from '@empressaio/tile-shell'
+import { CortexProvider } from '@empressaio/cortex-tiles'
 import { cortexClient } from './cortexClient'
 import { ALL_TILES, TILE_CATEGORIES, getTile } from './tileRegistry'
 import { PRESET_SPACES } from './presets'
 import { savedSpacesApi } from './savedSpaces'
-import '@hauska/tile-shell/index.css'
-import '@hauska/design-tokens/tokens.css'
+import '@empressaio/tile-shell/index.css'
+import '@empressaio/design-tokens/tokens.css'
 
 export function WorkspacePanel({ initialPresetId }: { initialPresetId: string }) {
   const fetchAdminFunctions = async () => {

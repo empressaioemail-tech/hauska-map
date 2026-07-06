@@ -4,7 +4,7 @@
 // contract is async so apps can back it with a server store; this localStorage
 // impl still satisfies it by returning resolved Promises.
 
-import type { SavedSpacesApi, SpaceSnapshot } from '@hauska/tile-shell'
+import type { SavedSpacesApi, SpaceSnapshot } from '@empressaio/tile-shell'
 
 const STORAGE_KEY = 'cortex-saved-spaces'
 

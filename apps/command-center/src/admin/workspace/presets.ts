@@ -4,7 +4,7 @@
 // Design Accelerator, and Print View. Restored to match the original ldt presets
 // exactly, with CONTRACT tile IDs (not the renamed versions).
 
-import type { PresetSpace } from '@hauska/tile-shell'
+import type { PresetSpace } from '@empressaio/tile-shell'
 
 export const PRESET_SPACES: PresetSpace[] = [
   {
