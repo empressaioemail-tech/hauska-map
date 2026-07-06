@@ -10,7 +10,7 @@
   },
   "dependencies": {
     "@hauska/cortex-client": "^0.1.0",
-    "@hauska/cortex-tiles": "^0.1.0",
+    "@hauska/cortex-tiles": "^0.1.1",
     "@hauska/design-tokens": "^0.1.0",
     "@hauska/document-viewer": "^0.1.0",
     "@hauska/map-renderer": "workspace:*",

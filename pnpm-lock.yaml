@@ -31,8 +31,8 @@ importers:
         specifier: ^0.1.0
         version: 0.1.0
       '@hauska/cortex-tiles':
-        specifier: ^0.1.0
-        version: 0.1.0(react-dom@18.3.1(react@18.3.1))(react@18.3.1)
+        specifier: ^0.1.1
+        version: 0.1.1(react-dom@18.3.1(react@18.3.1))(react@18.3.1)
       '@hauska/design-tokens':
         specifier: ^0.1.0
         version: 0.1.0
@@ -531,8 +531,8 @@ packages:
   '@hauska/cortex-client@0.1.0':
     resolution: {integrity: sha512-dcLibxRHhYQwtPfLkGpr91HaaEZlI1xL8TEVYqaohjahF6gQLuGNnRQBQYt0bSaqB8I5wdKipkFYtT4aVVyfiw==}
 
-  '@hauska/cortex-tiles@0.1.0':
-    resolution: {integrity: sha512-ZBIM5ckxKBubpGAToA5EfuJ9XSvUQBvWoEyyMdVkIsvNKTbzSE/hTh87m8bYx+B9XTK6mF+NtMw2/LVtxR7zuA==}
+  '@hauska/cortex-tiles@0.1.1':
+    resolution: {integrity: sha512-tEY8r/9s+0SFoeww0fG7K0ciHiNpBxVHRHlsQlie2N/4dZoaobzYzLG8bKZsHmnbW6OpUFoel7Hf7VywMG4ovA==}
     peerDependencies:
       react: '>=18'
       react-dom: '>=18'
@@ -2247,10 +2247,11 @@ snapshots:
 
   '@hauska/cortex-client@0.1.0': {}
 
-  '@hauska/cortex-tiles@0.1.0(react-dom@18.3.1(react@18.3.1))(react@18.3.1)':
+  '@hauska/cortex-tiles@0.1.1(react-dom@18.3.1(react@18.3.1))(react@18.3.1)':
     dependencies:
       '@hauska/cortex-client': 0.1.0
       '@hauska/design-tokens': 0.1.0
+      '@hauska/document-viewer': 0.1.0(react-dom@18.3.1(react@18.3.1))(react@18.3.1)
       '@hauska/map-renderer': 0.1.1(react-dom@18.3.1(react@18.3.1))(react@18.3.1)
       '@hauska/tile-shell': 0.1.0(react-dom@18.3.1(react@18.3.1))(react@18.3.1)
       maplibre-gl: 5.24.0

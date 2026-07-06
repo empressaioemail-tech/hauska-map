@@ -1,10 +1,8 @@
 // apps/command-center/src/admin/workspace/presets.ts
 //
-// The four preset workspace spaces ratified by the operator for the ICC
-// walkthrough: Plan Review (queue + case detail), Site Analysis (map + terrain
-// profiles), Property Intel (brief + hazards + encumbrances + setbacks), and
-// Design Accelerator (sheets + tasks + specs). Layout presets match the
-// reference implementation in legacy-design-tools.
+// The five preset workspace spaces: Plan Review, Site Analysis, Property Intel,
+// Design Accelerator, and Print View. Restored to match the original ldt presets
+// exactly, with CONTRACT tile IDs (not the renamed versions).
 
 import type { PresetSpace } from '@hauska/tile-shell'
 
@@ -12,8 +10,15 @@ export const PRESET_SPACES: PresetSpace[] = [
   {
     id: 'plan-review',
     label: 'Plan Review',
-    tiles: ['intake-queue', 'intake', 'findings-library', 'document-parsing'],
-    layoutId: '2x2',
+    tiles: [
+      'intake',
+      'intake-queue',
+      'document-viewer',
+      'compliance-run',
+      'letter',
+      'map',
+    ],
+    layoutId: '3x2',
   },
   {
     id: 'site-analysis',
@@ -24,13 +29,19 @@ export const PRESET_SPACES: PresetSpace[] = [
   {
     id: 'property-intel',
     label: 'Property Intel',
-    tiles: ['property-brief', 'hazard-profile', 'encumbrances', 'local-setbacks'],
+    tiles: ['property-brief', 'hazard', 'encumbrances', 'setbacks'],
     layoutId: '2x2',
   },
   {
     id: 'design-accelerator',
     label: 'Design Accelerator',
-    tiles: ['sheet-extraction', 'response-tasks', 'product-spec-reference'],
+    tiles: ['sheet-extraction', 'response-tasks', 'product-spec'],
     layoutId: '2x2',
+  },
+  {
+    id: 'print-view',
+    label: 'Print View',
+    tiles: ['compliance-run', 'letter'],
+    layoutId: '2x1',
   },
 ]
