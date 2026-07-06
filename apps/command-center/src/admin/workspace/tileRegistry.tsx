@@ -6,8 +6,8 @@
 // one exists, otherwise a status-aware stub (planned/partial/degraded banner).
 
 import React from 'react'
-import type { TileDef, TileCategory } from '@hauska/tile-shell'
-import { TILE_CAPABILITIES } from '@hauska/cortex-client'
+import type { TileDef, TileCategory } from '@empressaio/tile-shell'
+import { TILE_CAPABILITIES } from '@empressaio/cortex-client'
 import {
   IntakeQueueTile,
   IntakeTile,
@@ -29,7 +29,7 @@ import {
   DocumentParsingTile,
   ProductSpecReferenceTile,
   LetterTile,
-} from '@hauska/cortex-tiles'
+} from '@empressaio/cortex-tiles'
 
 /** Maps tile IDs to their React component implementations. */
 const TILE_COMPONENTS: Record<string, () => React.JSX.Element> = {

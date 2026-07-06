@@ -11,20 +11,23 @@
     "test:watch": "vitest"
   },
   "dependencies": {
-    "@hauska/cortex-client": "^0.1.0",
-    "@hauska/cortex-tiles": "^0.1.1",
-    "@hauska/design-tokens": "^0.1.0",
-    "@hauska/document-viewer": "^0.1.0",
+    "@empressaio/cortex-client": "0.1.0",
+    "@empressaio/cortex-tiles": "0.1.1",
+    "@empressaio/design-tokens": "0.1.0",
+    "@empressaio/document-viewer": "0.1.0",
+    "@empressaio/tile-shell": "0.1.0",
     "@hauska/map-renderer": "workspace:*",
-    "@hauska/tile-shell": "^0.1.0",
     "maplibre-gl": "^5.24.0",
     "react": "^18.3.1",
     "react-dom": "^18.3.1"
   },
   "devDependencies": {
+    "@testing-library/jest-dom": "^6.9.1",
+    "@testing-library/react": "^16.3.2",
     "@types/react": "^18.3.0",
     "@types/react-dom": "^18.3.0",
     "@vitejs/plugin-react": "^4.3.4",
+    "jsdom": "^29.1.1",
     "typescript": "^5.6.3",
     "vite": "^6.3.5",
     "vitest": "^4.1.10"
