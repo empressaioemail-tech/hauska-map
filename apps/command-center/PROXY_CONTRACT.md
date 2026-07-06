@@ -5,7 +5,7 @@ This document enumerates **every endpoint** called by Command Center panels and 
 ## Production Defects Fixed
 
 1. **Atom Inspector panel**: MCP HTTP 403 - POST to `/api/spine/mcp` was rejected (upstreamPath mismatch)
-2. **Reviewer Queue tile**: Getting HTML instead of JSON - cortex GET endpoints were not explicitly allowlisted
+2. **Reviewer Queue tile**: Getting HTML instead of JSON - upstream path mismatch (cortex API routes live under `/api/` prefix; fixed by updating baseUrl to `/api/spine/cortex/api` and re-prefixing mutation allowlist)
 
 ## Proxy Architecture
 
@@ -152,13 +152,13 @@ These endpoints are intentionally blocked at the proxy and panels show honest "n
 - **Retrieval API** all GET
 
 ### POST/PUT/PATCH/DELETE Allowlist (Cortex Only)
-The proxy explicitly allows mutating methods for these cortex paths:
-- `engagements` (POST to create)
-- `intake/parse` (POST)
-- `place/geocode` (POST)
-- `saved-spaces` (POST/PUT/DELETE)
-- `saved-spaces/:name/share` (POST)
-- **Engagement sub-resources** matching pattern: `/engagements/:id/(reports|letter|findings|submissions|documents|sheets)/*`
+The proxy explicitly allows mutating methods for these cortex paths (with `/api/` prefix):
+- `api/engagements` (POST to create)
+- `api/intake/parse` (POST)
+- `api/place/geocode` (POST)
+- `api/saved-spaces` (POST/PUT/DELETE)
+- `api/saved-spaces/:name/share` (POST)
+- **Engagement sub-resources** matching pattern: `api/engagements/:id/(reports|letter|findings|submissions|documents|sheets)/*`
   - Allows POST/PUT/PATCH/DELETE to:
     - reports (run passes)
     - letter (generate)
@@ -177,11 +177,11 @@ The proxy explicitly allows mutating methods for these cortex paths:
 
 ### Before (Defects)
 1. **MCP POST 403**: `api/spine.ts` line 99-101 required `upstreamPath === 'mcp'`, but when calling `/api/spine/mcp`, upstreamPath is empty string
-2. **Cortex GET fallthrough**: No explicit GET allowlist check caused some GET requests to fall through to SPA index.html
+2. **Cortex GET fallthrough**: Upstream path mismatch — cortex API routes live under `/api/` prefix, but baseUrl was `/api/spine/cortex`, causing requests like `/engagements` to hit upstream `/engagements` (cortex SPA fallthrough → HTML)
 
 ### After (Fixes)
 1. **MCP POST fixed**: Changed condition to `path[0] === 'mcp' && (upstreamPath === 'mcp' || upstreamPath === '')` to allow POST to the MCP JSON-RPC endpoint at `/api/spine/mcp`
-2. **Cortex GET explicit**: GET/HEAD allowed by default for all upstreams (already correct, but ensured no path causes fallthrough)
+2. **Cortex upstream path fixed**: Changed baseUrl from `/api/spine/cortex` to `/api/spine/cortex/api`, so tile-relative paths like `/engagements` reach upstream `/api/engagements`. Re-prefixed mutation allowlist to match `api/engagements`, `api/intake/parse`, etc.
 
 ## Testing Notes
 

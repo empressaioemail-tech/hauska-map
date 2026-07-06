@@ -31,66 +31,66 @@ const ENDPOINT_INVENTORY: EndpointSpec[] = [
   // ── Workspace Tile Endpoints (Cortex) ──
   
   // Intake & Submission Tiles
-  { panel: 'IntakeQueue', method: 'GET', path: '/engagements', proxiedRoute: '/api/spine/cortex/engagements', status: 'allowed' },
-  { panel: 'IntakeQueue', method: 'GET', path: '/engagements/:id', proxiedRoute: '/api/spine/cortex/engagements/:id', status: 'allowed' },
-  { panel: 'IntakeQueue', method: 'GET', path: '/engagements/:id/submissions', proxiedRoute: '/api/spine/cortex/engagements/:id/submissions', status: 'allowed' },
-  { panel: 'IntakeQueue', method: 'POST', path: '/engagements/:id/submissions', proxiedRoute: '/api/spine/cortex/engagements/:id/submissions', status: 'allowed' },
-  { panel: 'IntakeQueue', method: 'POST', path: '/engagements/:id/submissions/:sid/compliance', proxiedRoute: '/api/spine/cortex/engagements/:id/submissions/:sid/compliance', status: 'allowed' },
-  { panel: 'IntakeQueue', method: 'GET', path: '/engagements/:id/reports/:type', proxiedRoute: '/api/spine/cortex/engagements/:id/reports/:type', status: 'allowed' },
-  { panel: 'Intake', method: 'POST', path: '/engagements', proxiedRoute: '/api/spine/cortex/engagements', status: 'allowed' },
-  { panel: 'Intake', method: 'POST', path: '/intake/parse', proxiedRoute: '/api/spine/cortex/intake/parse', status: 'allowed' },
+  { panel: 'IntakeQueue', method: 'GET', path: '/engagements', proxiedRoute: '/api/spine/cortex/api/engagements', status: 'allowed' },
+  { panel: 'IntakeQueue', method: 'GET', path: '/engagements/:id', proxiedRoute: '/api/spine/cortex/api/engagements/:id', status: 'allowed' },
+  { panel: 'IntakeQueue', method: 'GET', path: '/engagements/:id/submissions', proxiedRoute: '/api/spine/cortex/api/engagements/:id/submissions', status: 'allowed' },
+  { panel: 'IntakeQueue', method: 'POST', path: '/engagements/:id/submissions', proxiedRoute: '/api/spine/cortex/api/engagements/:id/submissions', status: 'allowed' },
+  { panel: 'IntakeQueue', method: 'POST', path: '/engagements/:id/submissions/:sid/compliance', proxiedRoute: '/api/spine/cortex/api/engagements/:id/submissions/:sid/compliance', status: 'allowed' },
+  { panel: 'IntakeQueue', method: 'GET', path: '/engagements/:id/reports/:type', proxiedRoute: '/api/spine/cortex/api/engagements/:id/reports/:type', status: 'allowed' },
+  { panel: 'Intake', method: 'POST', path: '/engagements', proxiedRoute: '/api/spine/cortex/api/engagements', status: 'allowed' },
+  { panel: 'Intake', method: 'POST', path: '/intake/parse', proxiedRoute: '/api/spine/cortex/api/intake/parse', status: 'allowed' },
 
   // Compliance Tiles
-  { panel: 'FindingsLibrary', method: 'GET', path: '/engagements/:id/findings', proxiedRoute: '/api/spine/cortex/engagements/:id/findings', status: 'allowed' },
-  { panel: 'FindingsLibrary', method: 'PATCH', path: '/engagements/:id/findings/:fid', proxiedRoute: '/api/spine/cortex/engagements/:id/findings/:fid', status: 'allowed' },
-  { panel: 'FindingsLibrary', method: 'POST', path: '/engagements/:id/reports/:type/run', proxiedRoute: '/api/spine/cortex/engagements/:id/reports/:type/run', status: 'allowed' },
-  { panel: 'ComplianceRun', method: 'GET', path: '/engagements/:id/reports/:type', proxiedRoute: '/api/spine/cortex/engagements/:id/reports/:type', status: 'allowed' },
-  { panel: 'ComplianceRun', method: 'POST', path: '/engagements/:id/reports/:type/run', proxiedRoute: '/api/spine/cortex/engagements/:id/reports/:type/run', status: 'allowed' },
+  { panel: 'FindingsLibrary', method: 'GET', path: '/engagements/:id/findings', proxiedRoute: '/api/spine/cortex/api/engagements/:id/findings', status: 'allowed' },
+  { panel: 'FindingsLibrary', method: 'PATCH', path: '/engagements/:id/findings/:fid', proxiedRoute: '/api/spine/cortex/api/engagements/:id/findings/:fid', status: 'allowed' },
+  { panel: 'FindingsLibrary', method: 'POST', path: '/engagements/:id/reports/:type/run', proxiedRoute: '/api/spine/cortex/api/engagements/:id/reports/:type/run', status: 'allowed' },
+  { panel: 'ComplianceRun', method: 'GET', path: '/engagements/:id/reports/:type', proxiedRoute: '/api/spine/cortex/api/engagements/:id/reports/:type', status: 'allowed' },
+  { panel: 'ComplianceRun', method: 'POST', path: '/engagements/:id/reports/:type/run', proxiedRoute: '/api/spine/cortex/api/engagements/:id/reports/:type/run', status: 'allowed' },
 
   // Document & Dataroom Tiles
-  { panel: 'DocumentViewer', method: 'GET', path: '/engagements/:id/documents/:docId', proxiedRoute: '/api/spine/cortex/engagements/:id/documents/:docId', status: 'allowed' },
-  { panel: 'DocumentViewer', method: 'GET', path: '/engagements/:id/documents/:docId/download', proxiedRoute: '/api/spine/cortex/engagements/:id/documents/:docId/download', status: 'allowed' },
-  { panel: 'Dataroom', method: 'GET', path: '/engagements/:id/documents', proxiedRoute: '/api/spine/cortex/engagements/:id/documents', status: 'allowed' },
-  { panel: 'Dataroom', method: 'POST', path: '/engagements/:id/documents/request-upload-url', proxiedRoute: '/api/spine/cortex/engagements/:id/documents/request-upload-url', status: 'allowed' },
-  { panel: 'Dataroom', method: 'POST', path: '/engagements/:id/documents/complete-upload', proxiedRoute: '/api/spine/cortex/engagements/:id/documents/complete-upload', status: 'allowed' },
-  { panel: 'Dataroom', method: 'POST', path: '/engagements/:id/documents/:docId/ingest', proxiedRoute: '/api/spine/cortex/engagements/:id/documents/:docId/ingest', status: 'allowed' },
-  { panel: 'Dataroom', method: 'DELETE', path: '/engagements/:id/documents/:docId', proxiedRoute: '/api/spine/cortex/engagements/:id/documents/:docId', status: 'allowed' },
-  { panel: 'SheetExtraction', method: 'POST', path: '/engagements/:id/sheets/extract', proxiedRoute: '/api/spine/cortex/engagements/:id/sheets/extract', status: 'allowed' },
-  { panel: 'SheetExtraction', method: 'GET', path: '/engagements/:id/sheets', proxiedRoute: '/api/spine/cortex/engagements/:id/sheets', status: 'allowed' },
+  { panel: 'DocumentViewer', method: 'GET', path: '/engagements/:id/documents/:docId', proxiedRoute: '/api/spine/cortex/api/engagements/:id/documents/:docId', status: 'allowed' },
+  { panel: 'DocumentViewer', method: 'GET', path: '/engagements/:id/documents/:docId/download', proxiedRoute: '/api/spine/cortex/api/engagements/:id/documents/:docId/download', status: 'allowed' },
+  { panel: 'Dataroom', method: 'GET', path: '/engagements/:id/documents', proxiedRoute: '/api/spine/cortex/api/engagements/:id/documents', status: 'allowed' },
+  { panel: 'Dataroom', method: 'POST', path: '/engagements/:id/documents/request-upload-url', proxiedRoute: '/api/spine/cortex/api/engagements/:id/documents/request-upload-url', status: 'allowed' },
+  { panel: 'Dataroom', method: 'POST', path: '/engagements/:id/documents/complete-upload', proxiedRoute: '/api/spine/cortex/api/engagements/:id/documents/complete-upload', status: 'allowed' },
+  { panel: 'Dataroom', method: 'POST', path: '/engagements/:id/documents/:docId/ingest', proxiedRoute: '/api/spine/cortex/api/engagements/:id/documents/:docId/ingest', status: 'allowed' },
+  { panel: 'Dataroom', method: 'DELETE', path: '/engagements/:id/documents/:docId', proxiedRoute: '/api/spine/cortex/api/engagements/:id/documents/:docId', status: 'allowed' },
+  { panel: 'SheetExtraction', method: 'POST', path: '/engagements/:id/sheets/extract', proxiedRoute: '/api/spine/cortex/api/engagements/:id/sheets/extract', status: 'allowed' },
+  { panel: 'SheetExtraction', method: 'GET', path: '/engagements/:id/sheets', proxiedRoute: '/api/spine/cortex/api/engagements/:id/sheets', status: 'allowed' },
 
   // Site Analysis Tiles (GIS-backed)
-  { panel: 'Map', method: 'POST', path: '/place/geocode', proxiedRoute: '/api/spine/cortex/place/geocode', status: 'allowed' },
-  { panel: 'Map', method: 'GET', path: '/place/parcel', proxiedRoute: '/api/spine/cortex/place/parcel', status: 'allowed' },
+  { panel: 'Map', method: 'POST', path: '/place/geocode', proxiedRoute: '/api/spine/cortex/api/place/geocode', status: 'allowed' },
+  { panel: 'Map', method: 'GET', path: '/place/parcel', proxiedRoute: '/api/spine/cortex/api/place/parcel', status: 'allowed' },
   { panel: 'Map', method: 'GET', path: '/api/brokerage/v1/map-data/gis-layers', proxiedRoute: '/api/spine/cortex/api/brokerage/v1/map-data/gis-layers', status: 'allowed' },
-  { panel: 'Topography', method: 'GET', path: '/place/topography', proxiedRoute: '/api/spine/cortex/place/topography', status: 'allowed' },
-  { panel: 'Drainage', method: 'GET', path: '/place/drainage', proxiedRoute: '/api/spine/cortex/place/drainage', status: 'allowed' },
-  { panel: 'Hydrology', method: 'GET', path: '/place/hydrology', proxiedRoute: '/api/spine/cortex/place/hydrology', status: 'allowed' },
-  { panel: 'Subsurface', method: 'GET', path: '/place/subsurface', proxiedRoute: '/api/spine/cortex/place/subsurface', status: 'allowed' },
+  { panel: 'Topography', method: 'GET', path: '/place/topography', proxiedRoute: '/api/spine/cortex/api/place/topography', status: 'allowed' },
+  { panel: 'Drainage', method: 'GET', path: '/place/drainage', proxiedRoute: '/api/spine/cortex/api/place/drainage', status: 'allowed' },
+  { panel: 'Hydrology', method: 'GET', path: '/place/hydrology', proxiedRoute: '/api/spine/cortex/api/place/hydrology', status: 'allowed' },
+  { panel: 'Subsurface', method: 'GET', path: '/place/subsurface', proxiedRoute: '/api/spine/cortex/api/place/subsurface', status: 'allowed' },
 
   // Property Intel Tiles
-  { panel: 'PropertyBrief', method: 'GET', path: '/place/property-brief', proxiedRoute: '/api/spine/cortex/place/property-brief', status: 'allowed' },
-  { panel: 'HazardProfile', method: 'GET', path: '/place/hazards', proxiedRoute: '/api/spine/cortex/place/hazards', status: 'allowed' },
-  { panel: 'Encumbrance', method: 'GET', path: '/place/encumbrances', proxiedRoute: '/api/spine/cortex/place/encumbrances', status: 'allowed' },
-  { panel: 'LocalSetbacks', method: 'GET', path: '/place/setbacks', proxiedRoute: '/api/spine/cortex/place/setbacks', status: 'allowed' },
+  { panel: 'PropertyBrief', method: 'GET', path: '/place/property-brief', proxiedRoute: '/api/spine/cortex/api/place/property-brief', status: 'allowed' },
+  { panel: 'HazardProfile', method: 'GET', path: '/place/hazards', proxiedRoute: '/api/spine/cortex/api/place/hazards', status: 'allowed' },
+  { panel: 'Encumbrance', method: 'GET', path: '/place/encumbrances', proxiedRoute: '/api/spine/cortex/api/place/encumbrances', status: 'allowed' },
+  { panel: 'LocalSetbacks', method: 'GET', path: '/place/setbacks', proxiedRoute: '/api/spine/cortex/api/place/setbacks', status: 'allowed' },
 
   // Deliverable Tiles
-  { panel: 'Letter', method: 'POST', path: '/engagements/:id/letter/generate', proxiedRoute: '/api/spine/cortex/engagements/:id/letter/generate', status: 'allowed' },
-  { panel: 'Letter', method: 'GET', path: '/engagements/:id/letter', proxiedRoute: '/api/spine/cortex/engagements/:id/letter', status: 'allowed' },
-  { panel: 'ResponseTasks', method: 'GET', path: '/engagements/:id/response-tasks', proxiedRoute: '/api/spine/cortex/engagements/:id/response-tasks', status: 'allowed' },
-  { panel: 'ResponseTasks', method: 'PATCH', path: '/engagements/:id/response-tasks/:tid', proxiedRoute: '/api/spine/cortex/engagements/:id/response-tasks/:tid', status: 'allowed' },
+  { panel: 'Letter', method: 'POST', path: '/engagements/:id/letter/generate', proxiedRoute: '/api/spine/cortex/api/engagements/:id/letter/generate', status: 'allowed' },
+  { panel: 'Letter', method: 'GET', path: '/engagements/:id/letter', proxiedRoute: '/api/spine/cortex/api/engagements/:id/letter', status: 'allowed' },
+  { panel: 'ResponseTasks', method: 'GET', path: '/engagements/:id/response-tasks', proxiedRoute: '/api/spine/cortex/api/engagements/:id/response-tasks', status: 'allowed' },
+  { panel: 'ResponseTasks', method: 'PATCH', path: '/engagements/:id/response-tasks/:tid', proxiedRoute: '/api/spine/cortex/api/engagements/:id/response-tasks/:tid', status: 'allowed' },
 
   // Design Accelerator Tiles
-  { panel: 'DocumentParsing', method: 'POST', path: '/engagements/:id/documents/:docId/parse', proxiedRoute: '/api/spine/cortex/engagements/:id/documents/:docId/parse', status: 'allowed' },
-  { panel: 'DocumentParsing', method: 'GET', path: '/engagements/:id/parsed-sections', proxiedRoute: '/api/spine/cortex/engagements/:id/parsed-sections', status: 'allowed' },
-  { panel: 'ProductSpecReference', method: 'GET', path: '/product-specs', proxiedRoute: '/api/spine/cortex/product-specs', status: 'allowed' },
-  { panel: 'ProductSpecReference', method: 'GET', path: '/product-specs/:specId', proxiedRoute: '/api/spine/cortex/product-specs/:specId', status: 'allowed' },
+  { panel: 'DocumentParsing', method: 'POST', path: '/engagements/:id/documents/:docId/parse', proxiedRoute: '/api/spine/cortex/api/engagements/:id/documents/:docId/parse', status: 'allowed' },
+  { panel: 'DocumentParsing', method: 'GET', path: '/engagements/:id/parsed-sections', proxiedRoute: '/api/spine/cortex/api/engagements/:id/parsed-sections', status: 'allowed' },
+  { panel: 'ProductSpecReference', method: 'GET', path: '/product-specs', proxiedRoute: '/api/spine/cortex/api/product-specs', status: 'allowed' },
+  { panel: 'ProductSpecReference', method: 'GET', path: '/product-specs/:specId', proxiedRoute: '/api/spine/cortex/api/product-specs/:specId', status: 'allowed' },
 
   // Workspace Management
-  { panel: 'SpaceBar', method: 'POST', path: '/saved-spaces', proxiedRoute: '/api/spine/cortex/saved-spaces', status: 'allowed' },
-  { panel: 'SpaceBar', method: 'GET', path: '/saved-spaces', proxiedRoute: '/api/spine/cortex/saved-spaces', status: 'allowed' },
-  { panel: 'SpaceBar', method: 'GET', path: '/saved-spaces/:name', proxiedRoute: '/api/spine/cortex/saved-spaces/:name', status: 'allowed' },
-  { panel: 'SpaceBar', method: 'DELETE', path: '/saved-spaces/:name', proxiedRoute: '/api/spine/cortex/saved-spaces/:name', status: 'allowed' },
-  { panel: 'SpaceBar', method: 'POST', path: '/saved-spaces/:name/share', proxiedRoute: '/api/spine/cortex/saved-spaces/:name/share', status: 'allowed' },
+  { panel: 'SpaceBar', method: 'POST', path: '/saved-spaces', proxiedRoute: '/api/spine/cortex/api/saved-spaces', status: 'allowed' },
+  { panel: 'SpaceBar', method: 'GET', path: '/saved-spaces', proxiedRoute: '/api/spine/cortex/api/saved-spaces', status: 'allowed' },
+  { panel: 'SpaceBar', method: 'GET', path: '/saved-spaces/:name', proxiedRoute: '/api/spine/cortex/api/saved-spaces/:name', status: 'allowed' },
+  { panel: 'SpaceBar', method: 'DELETE', path: '/saved-spaces/:name', proxiedRoute: '/api/spine/cortex/api/saved-spaces/:name', status: 'allowed' },
+  { panel: 'SpaceBar', method: 'POST', path: '/saved-spaces/:name/share', proxiedRoute: '/api/spine/cortex/api/saved-spaces/:name/share', status: 'allowed' },
 ]
 
 // ── Proxy Allowlist Rules (from api/spine.ts) ──
@@ -104,10 +104,10 @@ function isMethodAllowed(method: string, upstreamSegment: string, upstreamPath: 
     return method === 'POST'
   }
 
-  // Cortex POST allowlist
+  // Cortex POST allowlist (with api/ prefix after baseUrl fix)
   if (upstreamSegment === 'cortex') {
-    const cortexPostPaths = ['engagements', 'intake/parse', 'place/geocode', 'saved-spaces']
-    const engagementPostPattern = /^engagements\/[^/]+\/(reports|letter|findings|submissions|documents|sheets)/
+    const cortexPostPaths = ['api/engagements', 'api/intake/parse', 'api/place/geocode', 'api/saved-spaces']
+    const engagementPostPattern = /^api\/engagements\/[^/]+\/(reports|letter|findings|submissions|documents|sheets)/
 
     if (
       cortexPostPaths.includes(upstreamPath) ||

@@ -7,6 +7,6 @@
 import { createCortexClient } from '@hauska/cortex-client'
 
 export const cortexClient = createCortexClient({
-  baseUrl: '/api/spine/cortex',
+  baseUrl: '/api/spine/cortex/api',
   getToken: () => '', // proxy attaches auth server-side
 })
