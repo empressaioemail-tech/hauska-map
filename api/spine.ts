@@ -94,9 +94,10 @@ export default async function handler(req: VercelRequest, res: VercelResponse): 
   const upstreamPath = rest.join('/')
   const method = req.method || 'GET'
 
-  // SECURITY: allowlist methods/paths â€" GET only, plus POST for /api/spine/mcp/mcp
+  // SECURITY: allowlist methods/paths — GET only, plus POST for MCP JSON-RPC endpoint
   const allowedMethods = ['GET', 'HEAD']
-  if (path[0] === 'mcp' && upstreamPath === 'mcp') {
+  // MCP JSON-RPC: allow POST to /api/spine/mcp (upstreamPath empty) or /api/spine/mcp/mcp
+  if (path[0] === 'mcp' && (upstreamPath === 'mcp' || upstreamPath === '')) {
     allowedMethods.push('POST')
   }
   // Cortex POST allowlist: explicit paths required by workspace tiles.

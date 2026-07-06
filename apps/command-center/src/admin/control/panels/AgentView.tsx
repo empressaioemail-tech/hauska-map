@@ -32,8 +32,17 @@ interface DiscoverabilityDocs {
 
 async function fetchDiscoverabilityDocs(config: SpineConfig): Promise<DiscoverabilityDocs> {
   const base = mcpAdminBase(config)
+  const isProxyMode = base.startsWith('/api/')
   const docs: DiscoverabilityDocs = { source: 'fallback static' }
   
+  // llms.txt and agents.txt are at the MCP server root (not under /mcp/*), so they're not proxied
+  if (isProxyMode) {
+    docs.llmsError = 'Not available through proxy — MCP server root paths are not routed'
+    docs.agentsError = 'Not available through proxy — MCP server root paths are not routed'
+    docs.source = 'proxy mode (root paths excluded)'
+    return docs
+  }
+
   try {
     const llmsRes = await fetch(`${base}/llms.txt`)
     if (llmsRes.ok) {
