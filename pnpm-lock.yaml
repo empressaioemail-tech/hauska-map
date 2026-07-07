@@ -28,11 +28,11 @@ importers:
   apps/command-center:
     dependencies:
       '@empressaio/cortex-client':
-        specifier: 0.1.0
-        version: 0.1.0
-      '@empressaio/cortex-tiles':
         specifier: 0.1.1
-        version: 0.1.1(react-dom@18.3.1(react@18.3.1))(react@18.3.1)
+        version: 0.1.1
+      '@empressaio/cortex-tiles':
+        specifier: 0.1.2
+        version: 0.1.2(react-dom@18.3.1(react@18.3.1))(react@18.3.1)
       '@empressaio/design-tokens':
         specifier: 0.1.0
         version: 0.1.0
@@ -282,11 +282,11 @@ packages:
     resolution: {integrity: sha512-0dEVyRLM/lG4gp1R/Ik5bfPl/1wX00xFwd5KcNH602tzBa09oF7pbTKETEhR1GjZ75K6OJnYFu8II2dyMhONMw==}
     engines: {node: '>=16'}
 
-  '@empressaio/cortex-client@0.1.0':
-    resolution: {integrity: sha512-CPdH2ynIxVCLUaIBFhZifoX/91iGGoAo3IF1asSRIlF7TY8/GRumyGCpN9CXv34fRIbbDEkP4lQWz9qt7ZCOSA==}
+  '@empressaio/cortex-client@0.1.1':
+    resolution: {integrity: sha512-gPzpYW2oNs3gjdhBXki2iHTP4uRsK5lb4zgPWfqTzYEwxxRpGMGV8lSPKbELXgcin+Kj5xVchmwmkk/ifE6xyQ==}
 
-  '@empressaio/cortex-tiles@0.1.1':
-    resolution: {integrity: sha512-scUIcYbZDgE/49qOHZ+wDbFSeAHV2bBaDafHmpfT/SmRfnzfdp31z0XXZZCtpUFNn1wlkEaTCtBI5XA5yn4FJA==}
+  '@empressaio/cortex-tiles@0.1.2':
+    resolution: {integrity: sha512-+ndXe1hzMpKOFPPYEr6oGYSLhGAo8SUiwHFJAfoQnoTJZbPaU7ySHaN6FtlFeG4D0UNU2cfh2ixjuHxKLHXlKQ==}
     peerDependencies:
       react: '>=18'
       react-dom: '>=18'
@@ -2483,11 +2483,11 @@ snapshots:
     dependencies:
       '@edge-runtime/primitives': 4.1.0
 
-  '@empressaio/cortex-client@0.1.0': {}
+  '@empressaio/cortex-client@0.1.1': {}
 
-  '@empressaio/cortex-tiles@0.1.1(react-dom@18.3.1(react@18.3.1))(react@18.3.1)':
+  '@empressaio/cortex-tiles@0.1.2(react-dom@18.3.1(react@18.3.1))(react@18.3.1)':
     dependencies:
-      '@empressaio/cortex-client': 0.1.0
+      '@empressaio/cortex-client': 0.1.1
       '@empressaio/design-tokens': 0.1.0
       '@empressaio/document-viewer': 0.1.0(react-dom@18.3.1(react@18.3.1))(react@18.3.1)
       '@empressaio/tile-shell': 0.1.0(react-dom@18.3.1(react@18.3.1))(react@18.3.1)
