@@ -27,6 +27,7 @@ const ENDPOINT_INVENTORY: EndpointSpec[] = [
   { panel: 'Agent View', method: 'GET', path: '/llms.txt', proxiedRoute: 'N/A', status: 'excluded', notes: 'MCP root path not under /mcp/*' },
   { panel: 'Agent View', method: 'GET', path: '/.well-known/agents.txt', proxiedRoute: 'N/A', status: 'excluded', notes: 'MCP root path not under /mcp/*' },
   { panel: 'Layer Registry View', method: 'GET', path: '/api/brokerage/v1/map-data/gis-layers', proxiedRoute: '/api/spine/cortex/api/brokerage/v1/map-data/gis-layers', status: 'allowed' },
+  { panel: 'Revenue Meter', method: 'GET', path: '/metering/summary?days=7', proxiedRoute: '/api/spine/mcp-metering/summary', status: 'allowed', notes: 'MCP metering API' },
 
   // ── Workspace Tile Endpoints (Cortex) ──
   
@@ -102,6 +103,11 @@ function isMethodAllowed(method: string, upstreamSegment: string, upstreamPath: 
   // MCP JSON-RPC: POST to /api/spine/mcp (upstreamPath empty or 'mcp')
   if (upstreamSegment === 'mcp' && (upstreamPath === '' || upstreamPath === 'mcp')) {
     return method === 'POST'
+  }
+
+  // MCP metering: GET to /api/spine/mcp-metering/summary
+  if (upstreamSegment === 'mcp-metering' && upstreamPath === 'summary') {
+    return method === 'GET'
   }
 
   // Cortex POST allowlist (with api/ prefix after baseUrl fix)
