@@ -28,3 +28,18 @@ export function DesignAcceleratorSpace() {
   const space = PRESET_SPACES.find((s) => s.id === 'design-accelerator')!
   return <SpacePanel space={space} />
 }
+
+export function LensReviewerSpace() {
+  const space = PRESET_SPACES.find((s) => s.id === 'lens-reviewer')!
+  return <SpacePanel space={space} />
+}
+
+export function LensInvestorSpace() {
+  const space = PRESET_SPACES.find((s) => s.id === 'lens-investor')!
+  return <SpacePanel space={space} />
+}
+
+export function LensArchitectSpace() {
+  const space = PRESET_SPACES.find((s) => s.id === 'lens-architect')!
+  return <SpacePanel space={space} />
+}

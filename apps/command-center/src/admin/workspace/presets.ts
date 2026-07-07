@@ -44,4 +44,30 @@ export const PRESET_SPACES: PresetSpace[] = [
     tiles: ['compliance-run', 'letter'],
     layoutId: '2x1',
   },
+  // Persona lenses (WP4)
+  {
+    id: 'lens-reviewer',
+    label: 'Plan Reviewer Lens',
+    tiles: [
+      'intake',
+      'intake-queue',
+      'document-viewer',
+      'compliance-run',
+      'letter',
+      'map',
+    ],
+    layoutId: '3x2',
+  },
+  {
+    id: 'lens-investor',
+    label: 'Property Investor Lens',
+    tiles: ['property-brief', 'hazard', 'encumbrances', 'map'],
+    layoutId: '2x2',
+  },
+  {
+    id: 'lens-architect',
+    label: 'Architect Lens',
+    tiles: ['setbacks', 'topography', 'sheet-extraction', 'product-spec', 'map'],
+    layoutId: '3x2',
+  },
 ]

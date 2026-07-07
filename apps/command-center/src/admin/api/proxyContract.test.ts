@@ -61,6 +61,7 @@ const ENDPOINT_INVENTORY: EndpointSpec[] = [
 
   // Site Analysis Tiles (GIS-backed)
   { panel: 'Map', method: 'POST', path: '/place/geocode', proxiedRoute: '/api/spine/cortex/api/place/geocode', status: 'allowed' },
+  { panel: 'HeaderSearchBar', method: 'POST', path: '/plan-review/geocode', proxiedRoute: '/api/spine/cortex/api/plan-review/geocode', status: 'allowed', notes: 'cortex-client v0.1.1' },
   { panel: 'Map', method: 'GET', path: '/place/parcel', proxiedRoute: '/api/spine/cortex/api/place/parcel', status: 'allowed' },
   { panel: 'Map', method: 'GET', path: '/api/brokerage/v1/map-data/gis-layers', proxiedRoute: '/api/spine/cortex/api/brokerage/v1/map-data/gis-layers', status: 'allowed' },
   { panel: 'Topography', method: 'GET', path: '/place/topography', proxiedRoute: '/api/spine/cortex/api/place/topography', status: 'allowed' },
@@ -88,10 +89,15 @@ const ENDPOINT_INVENTORY: EndpointSpec[] = [
 
   // Workspace Management
   { panel: 'SpaceBar', method: 'POST', path: '/saved-spaces', proxiedRoute: '/api/spine/cortex/api/saved-spaces', status: 'allowed' },
+  { panel: 'SpaceBar', method: 'POST', path: '/plan-review/spaces', proxiedRoute: '/api/spine/cortex/api/plan-review/spaces', status: 'allowed', notes: 'cortex-client v0.1.1' },
   { panel: 'SpaceBar', method: 'GET', path: '/saved-spaces', proxiedRoute: '/api/spine/cortex/api/saved-spaces', status: 'allowed' },
+  { panel: 'SpaceBar', method: 'GET', path: '/plan-review/spaces', proxiedRoute: '/api/spine/cortex/api/plan-review/spaces', status: 'allowed', notes: 'cortex-client v0.1.1' },
   { panel: 'SpaceBar', method: 'GET', path: '/saved-spaces/:name', proxiedRoute: '/api/spine/cortex/api/saved-spaces/:name', status: 'allowed' },
+  { panel: 'SpaceBar', method: 'GET', path: '/plan-review/spaces/by-name/:name', proxiedRoute: '/api/spine/cortex/api/plan-review/spaces/by-name/:name', status: 'allowed', notes: 'cortex-client v0.1.1' },
   { panel: 'SpaceBar', method: 'DELETE', path: '/saved-spaces/:name', proxiedRoute: '/api/spine/cortex/api/saved-spaces/:name', status: 'allowed' },
+  { panel: 'SpaceBar', method: 'DELETE', path: '/plan-review/spaces/by-name/:name', proxiedRoute: '/api/spine/cortex/api/plan-review/spaces/by-name/:name', status: 'allowed', notes: 'cortex-client v0.1.1' },
   { panel: 'SpaceBar', method: 'POST', path: '/saved-spaces/:name/share', proxiedRoute: '/api/spine/cortex/api/saved-spaces/:name/share', status: 'allowed' },
+  { panel: 'SpaceBar', method: 'POST', path: '/plan-review/spaces/by-name/:name/share', proxiedRoute: '/api/spine/cortex/api/plan-review/spaces/by-name/:name/share', status: 'allowed', notes: 'cortex-client v0.1.1' },
 ]
 
 // ── Proxy Allowlist Rules (from api/spine.ts) ──
@@ -112,7 +118,7 @@ function isMethodAllowed(method: string, upstreamSegment: string, upstreamPath: 
 
   // Cortex POST allowlist (with api/ prefix after baseUrl fix)
   if (upstreamSegment === 'cortex') {
-    const cortexPostPaths = ['api/engagements', 'api/intake/parse', 'api/place/geocode', 'api/saved-spaces']
+    const cortexPostPaths = ['api/engagements', 'api/intake/parse', 'api/place/geocode', 'api/plan-review/geocode', 'api/plan-review/spaces', 'api/saved-spaces']
     const engagementPostPattern = /^api\/engagements\/[^/]+\/(reports|letter|findings|submissions|documents|sheets)/
 
     if (

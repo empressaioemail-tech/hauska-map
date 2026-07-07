@@ -156,7 +156,9 @@ These endpoints are intentionally blocked at the proxy and panels show honest "n
 The proxy explicitly allows mutating methods for these cortex paths (with `/api/` prefix):
 - `api/engagements` (POST to create)
 - `api/intake/parse` (POST)
-- `api/place/geocode` (POST)
+- `api/plan-review/geocode` (POST, cortex-client v0.1.1)
+- `api/place/geocode` (POST, legacy)
+- `api/plan-review/spaces` (POST/PUT/DELETE, cortex-client v0.1.1 server-side spaces)
 - `api/saved-spaces` (POST/PUT/DELETE)
 - `api/saved-spaces/:name/share` (POST)
 - **Engagement sub-resources** matching pattern: `api/engagements/:id/(reports|letter|findings|submissions|documents|sheets)/*`
