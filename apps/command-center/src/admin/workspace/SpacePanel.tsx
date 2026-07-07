@@ -9,7 +9,6 @@
 import React, { useState } from 'react'
 import { CortexProvider } from '@empressaio/cortex-tiles'
 import {
-  EngagementProvider,
   SpatialProvider,
   CodeProvider,
   AnnotationSelectionProvider,
@@ -42,8 +41,8 @@ export function SpacePanel({ space }: SpacePanelProps) {
   return (
     <CortexProvider client={cortexClient}>
       {/* Full provider stack in CortexShell's order — tiles consume these contexts
-          (useSpatial etc.); the dissolved shell used to mount them. */}
-      <EngagementProvider>
+          (useSpatial etc.); the dissolved shell used to mount them.
+          NOTE: EngagementProvider is now mounted at the app root in main.tsx. */}
       <SpatialProvider>
       <CodeProvider>
       <AnnotationSelectionProvider>
@@ -205,7 +204,6 @@ export function SpacePanel({ space }: SpacePanelProps) {
       </AnnotationSelectionProvider>
       </CodeProvider>
       </SpatialProvider>
-      </EngagementProvider>
     </CortexProvider>
   )
 }

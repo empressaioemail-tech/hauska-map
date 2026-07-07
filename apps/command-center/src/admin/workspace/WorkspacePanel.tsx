@@ -6,7 +6,7 @@
 // this shell with `initialPresetId` set.
 
 import React from 'react'
-import { CortexShell, EngagementProvider } from '@empressaio/tile-shell'
+import { CortexShell } from '@empressaio/tile-shell'
 import { CortexProvider } from '@empressaio/cortex-tiles'
 import { cortexClient } from './cortexClient'
 import { ALL_TILES, TILE_CATEGORIES, getTile } from './tileRegistry'
@@ -25,17 +25,16 @@ export function WorkspacePanel({ initialPresetId }: { initialPresetId: string })
   return (
     <div style={{ flex: 1, minHeight: 0, display: 'flex', flexDirection: 'column' }}>
       <CortexProvider client={cortexClient}>
-        <EngagementProvider>
-          <CortexShell
-            initialPresetId={initialPresetId}
-            getTile={getTile}
-            allTiles={ALL_TILES}
-            categories={TILE_CATEGORIES}
-            presets={PRESET_SPACES}
-            fetchAdminFunctions={fetchAdminFunctions}
-            savedSpaces={savedSpacesApi}
-          />
-        </EngagementProvider>
+        {/* EngagementProvider is now mounted at the app root in main.tsx */}
+        <CortexShell
+          initialPresetId={initialPresetId}
+          getTile={getTile}
+          allTiles={ALL_TILES}
+          categories={TILE_CATEGORIES}
+          presets={PRESET_SPACES}
+          fetchAdminFunctions={fetchAdminFunctions}
+          savedSpaces={savedSpacesApi}
+        />
       </CortexProvider>
     </div>
   )

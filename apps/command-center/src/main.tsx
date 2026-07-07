@@ -14,12 +14,23 @@
  * in ./map-demo.tsx.
  */
 
-import { StrictMode, useState } from 'react'
+import { StrictMode, useState, useCallback, useEffect } from 'react'
 import { createRoot } from 'react-dom/client'
 import './admin/tokens.css'
 import { ControlCenterLayout } from './admin/control/center/ControlCenterLayout'
 import { loadConfig, saveConfig, hasAuthKey } from './admin/api/spineClient'
 import { Pill } from './admin/control/primitives'
+import { CortexProvider } from '@empressaio/cortex-tiles'
+import { EngagementProvider } from '@empressaio/tile-shell'
+import { cortexClient } from './admin/workspace/cortexClient'
+import { ActiveContextBar } from './admin/workspace/ActiveContextBar'
+import {
+  parseContextFromHash,
+  loadContextFromStorage,
+  saveContextToStorage,
+  updateHashWithContext,
+} from './admin/workspace/activeContext'
+import type { ActiveContext } from '@empressaio/tile-shell'
 
 function ConfigBar() {
   const config = loadConfig()
@@ -102,30 +113,49 @@ function ConfigBar() {
 }
 
 function App() {
+  // Hydrate initial context from URL hash (priority) or localStorage
+  const initialParcel = parseContextFromHash() || loadContextFromStorage() || undefined
+
+  // Persist active parcel changes to BOTH hash and localStorage
+  const handleActiveParcelChange = useCallback((parcel: Partial<ActiveContext> | null) => {
+    updateHashWithContext(parcel)
+    saveContextToStorage(parcel)
+  }, [])
+
   return (
-    <div style={{ height: '100vh', display: 'flex', flexDirection: 'column', background: 'var(--color-background-primary)', color: 'var(--color-text-primary)' }}>
-      <header
-        style={{
-          flex: 'none',
-          display: 'flex',
-          alignItems: 'center',
-          justifyContent: 'space-between',
-          gap: 16,
-          padding: '10px 16px',
-          borderBottom: '0.5px solid var(--color-border-tertiary)',
-          background: 'var(--color-background-secondary)',
-        }}
+    <CortexProvider client={cortexClient}>
+      <EngagementProvider
+        initialParcel={initialParcel}
+        onActiveParcelChange={handleActiveParcelChange}
       >
-        <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-          <span style={{ fontFamily: 'var(--font-ui)', fontSize: 13, fontWeight: 700, letterSpacing: '0.06em', color: 'var(--color-text-primary)' }}>
-            EMPRESSA · COMMAND CENTER
-          </span>
-          <Pill sev="warn">Internal · operator</Pill>
+        <div style={{ height: '100vh', display: 'flex', flexDirection: 'column', background: 'var(--color-background-primary)', color: 'var(--color-text-primary)' }}>
+          <header
+            style={{
+              flex: 'none',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'space-between',
+              gap: 16,
+              padding: '10px 16px',
+              borderBottom: '0.5px solid var(--color-border-tertiary)',
+              background: 'var(--color-background-secondary)',
+            }}
+          >
+            <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+              <span style={{ fontFamily: 'var(--font-ui)', fontSize: 13, fontWeight: 700, letterSpacing: '0.06em', color: 'var(--color-text-primary)' }}>
+                EMPRESSA · COMMAND CENTER
+              </span>
+              <Pill sev="warn">Internal · operator</Pill>
+            </div>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+              <ActiveContextBar />
+              <ConfigBar />
+            </div>
+          </header>
+          <ControlCenterLayout />
         </div>
-        <ConfigBar />
-      </header>
-      <ControlCenterLayout />
-    </div>
+      </EngagementProvider>
+    </CortexProvider>
   )
 }
 

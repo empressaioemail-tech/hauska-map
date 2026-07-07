@@ -25,6 +25,9 @@ import {
   SiteAnalysisSpace,
   PropertyIntelSpace,
   DesignAcceleratorSpace,
+  LensReviewerSpace,
+  LensInvestorSpace,
+  LensArchitectSpace,
 } from '../../workspace/spaces'
 
 /** The four top-level groups of the command center, in display order. */
@@ -54,6 +57,10 @@ export const PANELS: PanelDef[] = [
   { id: 'site-analysis', label: 'Site Analysis', group: 'Workspace', live: true, Component: SiteAnalysisSpace },
   { id: 'property-intel', label: 'Property Intel', group: 'Workspace', live: true, Component: PropertyIntelSpace },
   { id: 'design-accelerator', label: 'Design Accelerator', group: 'Workspace', live: true, Component: DesignAcceleratorSpace },
+  // Persona lenses
+  { id: 'lens-reviewer', label: 'Plan Reviewer', group: 'Workspace', live: true, Component: LensReviewerSpace },
+  { id: 'lens-investor', label: 'Property Investor', group: 'Workspace', live: true, Component: LensInvestorSpace },
+  { id: 'lens-architect', label: 'Architect', group: 'Workspace', live: true, Component: LensArchitectSpace },
   // Substrate
   { id: 'node-graph', label: 'Node & Graph', group: 'Substrate', stub: true,
     Component: makeStub('Node & Graph', 'retrieval-api /atoms/trace/:did graph traversal (uncapped)') },

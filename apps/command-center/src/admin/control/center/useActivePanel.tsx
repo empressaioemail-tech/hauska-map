@@ -12,6 +12,7 @@
 
 import React, { createContext, useCallback, useContext, useEffect, useMemo, useState } from 'react'
 import { DEFAULT_PANEL_ID, PANELS } from './PanelRegistry'
+import { CONTEXT_PARAM_KEYS } from '../../workspace/activeContext'
 
 const PREFIX = 'panel='
 
@@ -86,8 +87,20 @@ export const PanelProvider: React.FC<{ children: React.ReactNode }> = ({ childre
   }, [])
 
   const selectPanel = useCallback<SelectPanel>((id, nextParams) => {
-    const next = buildPanelHash(id, nextParams)
-    setHashState({ panelId: id, params: nextParams ?? {} })
+    // Preserve reserved context params when switching panels
+    const currentHash = parseHash()
+    const preservedContextParams: Record<string, string> = {}
+    for (const key of CONTEXT_PARAM_KEYS) {
+      if (currentHash.params[key]) {
+        preservedContextParams[key] = currentHash.params[key]
+      }
+    }
+    
+    // Merge preserved context params with new panel params
+    const mergedParams = { ...preservedContextParams, ...(nextParams ?? {}) }
+    
+    const next = buildPanelHash(id, mergedParams)
+    setHashState({ panelId: id, params: mergedParams })
     if (window.location.hash !== next) {
       window.location.hash = next
     }

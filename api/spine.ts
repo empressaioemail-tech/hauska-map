@@ -128,7 +128,9 @@ export default async function handler(req: VercelRequest, res: VercelResponse): 
   // - api/engagements/:id/findings/:findingId → patch finding action (FindingsLibrary tile)
   // - api/engagements → create engagement (Intake tile)
   // - api/intake/parse → parse intake content (Intake tile)
-  // - api/place/geocode → forward/reverse geocode (Map tile, address search)
+  // - api/plan-review/geocode → forward/reverse geocode (cortex-client v0.1.1, HeaderSearchBar)
+  // - api/place/geocode → forward/reverse geocode (legacy path, keep for backwards compat)
+  // - api/plan-review/spaces → list/create saved spaces (SpaceBar, future server-side persistence)
   // - api/engagements/:id/submissions/:submissionId/compliance → run compliance pass (IntakeQueue tile)
   // - api/engagements/:id/documents/request-upload-url → request GCS signed URL (future Dataroom tile)
   // - api/engagements/:id/documents/complete-upload → complete document upload (future Dataroom tile)
@@ -141,7 +143,9 @@ export default async function handler(req: VercelRequest, res: VercelResponse): 
     const cortexPostPaths = [
       'api/engagements',
       'api/intake/parse',
+      'api/plan-review/geocode',
       'api/place/geocode',
+      'api/plan-review/spaces',
       'api/saved-spaces',
     ]
     // Also allow POST/PUT/DELETE/PATCH to paths matching: api/engagements/:id/(reports|letter|findings|submissions|documents|sheets)/*

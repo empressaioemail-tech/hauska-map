@@ -155,11 +155,11 @@ describe('SpacePanel', () => {
     expect(style).toContain('repeat(2')
   })
 
-  it('should wrap tiles in CortexProvider and EngagementProvider', () => {
+  it('should wrap tiles in CortexProvider (EngagementProvider is at app root)', () => {
     render(<SpacePanel space={mockSpace} />)
 
-    // Providers should be present in the tree
+    // CortexProvider should be present in the tree
     expect(screen.getByTestId('cortex-provider')).toBeInTheDocument()
-    expect(screen.getByTestId('engagement-provider')).toBeInTheDocument()
+    // EngagementProvider is now mounted at the app root (main.tsx), not here
   })
 })

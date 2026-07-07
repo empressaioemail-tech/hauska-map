@@ -31,8 +31,8 @@ importers:
         specifier: 0.1.1
         version: 0.1.1
       '@empressaio/cortex-tiles':
-        specifier: 0.1.2
-        version: 0.1.2(react-dom@18.3.1(react@18.3.1))(react@18.3.1)
+        specifier: ^0.1.3
+        version: 0.1.3(react-dom@18.3.1(react@18.3.1))(react@18.3.1)
       '@empressaio/design-tokens':
         specifier: 0.1.0
         version: 0.1.0
@@ -40,8 +40,8 @@ importers:
         specifier: 0.1.0
         version: 0.1.0(react-dom@18.3.1(react@18.3.1))(react@18.3.1)
       '@empressaio/tile-shell':
-        specifier: 0.1.0
-        version: 0.1.0(react-dom@18.3.1(react@18.3.1))(react@18.3.1)
+        specifier: ^0.2.0
+        version: 0.2.0(react-dom@18.3.1(react@18.3.1))(react@18.3.1)
       '@hauska/map-renderer':
         specifier: workspace:*
         version: link:../../packages/map-renderer
@@ -285,8 +285,8 @@ packages:
   '@empressaio/cortex-client@0.1.1':
     resolution: {integrity: sha512-gPzpYW2oNs3gjdhBXki2iHTP4uRsK5lb4zgPWfqTzYEwxxRpGMGV8lSPKbELXgcin+Kj5xVchmwmkk/ifE6xyQ==}
 
-  '@empressaio/cortex-tiles@0.1.2':
-    resolution: {integrity: sha512-+ndXe1hzMpKOFPPYEr6oGYSLhGAo8SUiwHFJAfoQnoTJZbPaU7ySHaN6FtlFeG4D0UNU2cfh2ixjuHxKLHXlKQ==}
+  '@empressaio/cortex-tiles@0.1.3':
+    resolution: {integrity: sha512-TYIinkKobN8/WdcGBIjCa4+rq8jZBx8QaHS7Orx161nrftGE+308uXsnwfuPhoMCHa4cSbCRh4AW60X+MagHfQ==}
     peerDependencies:
       react: '>=18'
       react-dom: '>=18'
@@ -300,8 +300,8 @@ packages:
       react: '>=18'
       react-dom: '>=18'
 
-  '@empressaio/tile-shell@0.1.0':
-    resolution: {integrity: sha512-yKRqlBzQ+IMlOQ/MCRqmn4EeCN/cwcHxNfrJxFZj8NROUexzYtB4VsEaLa7450q64sToVLDWyf2iUDcMREVTkQ==}
+  '@empressaio/tile-shell@0.2.0':
+    resolution: {integrity: sha512-FtHRmvQLbTKWADDJM4JYCJETpxByxurO5fmxOaLNEnQjsdwPKQJleUYD/7DcA5RsJ0fQQIQisSwetNDOMKCNpQ==}
     peerDependencies:
       react: '>=18'
       react-dom: '>=18'
@@ -2485,12 +2485,12 @@ snapshots:
 
   '@empressaio/cortex-client@0.1.1': {}
 
-  '@empressaio/cortex-tiles@0.1.2(react-dom@18.3.1(react@18.3.1))(react@18.3.1)':
+  '@empressaio/cortex-tiles@0.1.3(react-dom@18.3.1(react@18.3.1))(react@18.3.1)':
     dependencies:
       '@empressaio/cortex-client': 0.1.1
       '@empressaio/design-tokens': 0.1.0
       '@empressaio/document-viewer': 0.1.0(react-dom@18.3.1(react@18.3.1))(react@18.3.1)
-      '@empressaio/tile-shell': 0.1.0(react-dom@18.3.1(react@18.3.1))(react@18.3.1)
+      '@empressaio/tile-shell': 0.2.0(react-dom@18.3.1(react@18.3.1))(react@18.3.1)
       '@hauska/map-renderer': 0.1.1(react-dom@18.3.1(react@18.3.1))(react@18.3.1)
       maplibre-gl: 5.24.0
       react: 18.3.1
@@ -2534,7 +2534,7 @@ snapshots:
       react: 18.3.1
       react-dom: 18.3.1(react@18.3.1)
 
-  '@empressaio/tile-shell@0.1.0(react-dom@18.3.1(react@18.3.1))(react@18.3.1)':
+  '@empressaio/tile-shell@0.2.0(react-dom@18.3.1(react@18.3.1))(react@18.3.1)':
     dependencies:
       '@empressaio/design-tokens': 0.1.0
       react: 18.3.1
