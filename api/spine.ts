@@ -146,10 +146,15 @@ export default async function handler(req: VercelRequest, res: VercelResponse): 
     ]
     // Also allow POST/PUT/DELETE/PATCH to paths matching: api/engagements/:id/(reports|letter|findings|submissions|documents|sheets)/*
     const engagementPostPattern = /^api\/engagements\/[^/]+\/(reports|letter|findings|submissions|documents|sheets)/
+    // Findings generation runs on SUBMISSIONS (the gate-fronted findings router):
+    // POST api/submissions/:submissionId/findings[/generate|/status] — the
+    // IntakeQueue compliance-run path the walkthrough drives.
+    const submissionFindingsPattern = /^api\/submissions\/[^/]+\/findings(\/|$)/
     if (
       cortexPostPaths.includes(upstreamPath) ||
       cortexPostPaths.some((p) => upstreamPath.startsWith(p + '/')) ||
-      engagementPostPattern.test(upstreamPath)
+      engagementPostPattern.test(upstreamPath) ||
+      submissionFindingsPattern.test(upstreamPath)
     ) {
       allowedMethods.push('POST', 'PUT', 'DELETE', 'PATCH')
     }
