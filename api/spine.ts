@@ -103,15 +103,22 @@ export default async function handler(req: VercelRequest, res: VercelResponse): 
   if (path[0] === 'mcp' && (upstreamPath === 'mcp' || upstreamPath === '')) {
     allowedMethods.push('POST')
   }
-  // MCP metering: allow GET to /api/spine/mcp-metering/summary
-  // Note: mcp-metering routes to the mcp upstream (not a separate segment)
-  if (path[0] === 'mcp-metering' && upstreamPath === 'summary') {
-    // Already allowed via GET above, but validate days param
-    const { days } = req.query
-    const daysNum = Number(days)
-    if (!days || !Number.isInteger(daysNum) || daysNum < 1 || daysNum > 31) {
-      res.status(400).json({ error: 'invalid days parameter (must be integer 1..31)' })
+  // MCP metering: the ONLY reachable path under mcp-metering is exactly
+  // 'summary' — anything else (including ../ traversal toward /admin with
+  // the key attached) is rejected outright.
+  if (path[0] === 'mcp-metering') {
+    if (upstreamPath !== 'summary') {
+      res.status(403).json({ error: 'forbidden' })
       return
+    }
+    // days is optional (endpoint defaults to 7); validate only when present
+    const { days } = req.query
+    if (days !== undefined) {
+      const daysNum = Number(days)
+      if (!/^\d+$/.test(String(days)) || !Number.isInteger(daysNum) || daysNum < 1 || daysNum > 31) {
+        res.status(400).json({ error: 'invalid days parameter (must be integer 1..31)' })
+        return
+      }
     }
   }
   // Cortex POST allowlist: explicit paths required by workspace tiles.
