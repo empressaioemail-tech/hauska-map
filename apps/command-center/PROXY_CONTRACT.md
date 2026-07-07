@@ -42,6 +42,7 @@ The Command Center is deployed on Vercel with a same-origin serverless proxy (`a
 | **Surface Gate Inspector** | Varies | (future stub) | N/A | N/A | Stub panel |
 | **Parcel Trace** | Varies | (future stub) | N/A | N/A | Stub panel |
 | **Calibration Tracker** | Varies | (future stub) | N/A | N/A | Stub panel |
+| **Revenue Meter** | GET | `/metering/summary?days=N` | `/api/spine/mcp-metering/summary?days=N` | ✅ ALLOWED | MCP metering API; days param validated (1..31) |
 
 ## Workspace Tile Endpoint Inventory
 

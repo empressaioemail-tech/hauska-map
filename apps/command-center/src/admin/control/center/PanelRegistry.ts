@@ -18,6 +18,7 @@ import { AgentView } from '../panels/AgentView'
 import { LayerRegistryView } from '../panels/LayerRegistryView'
 import { ParcelTrace } from '../panels/ParcelTrace'
 import { Settings } from '../panels/Settings'
+import { RevenueMeter } from '../panels/RevenueMeter'
 import { makeStub } from '../panels/StubPanel'
 import {
   PlanReviewSpace,
@@ -72,6 +73,7 @@ export const PANELS: PanelDef[] = [
   { id: 'agent-view', label: 'Agent Surface', group: 'Engines', live: true, Component: AgentView },
   // Governance
   { id: 'surface-gate', label: 'Surface & Gate', group: 'Governance', live: true, Component: SurfaceGateInspector },
+  { id: 'revenue-meter', label: 'Revenue Meter', group: 'Governance', live: true, Component: RevenueMeter },
   { id: 'settings', label: 'Settings', group: 'Governance', live: true, Component: Settings },
   { id: 'license-access', label: 'License & Access', group: 'Governance', stub: true,
     Component: makeStub('License & Access', 'atom accessPolicy ∩ license (most-restrictive-wins)') },

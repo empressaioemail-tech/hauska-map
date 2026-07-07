@@ -260,3 +260,46 @@ export async function fetchLayerCatalog(config: SpineConfig): Promise<LayerCatal
     return { status: 'error', message: (err as Error).message }
   }
 }
+
+// ── MCP Metering (revenue layer2_call summary) ──
+
+export interface MeteringSummary {
+  windowDays: number
+  totals: {
+    layer2Calls: number
+    billed: number
+    unbilled: number
+  }
+  days: Array<{
+    date: string
+    layer2Calls: number
+    byProduct: Record<string, number>
+    byTool: Record<string, number>
+  }>
+}
+
+export interface MeteringResult {
+  status: 'ok' | 'error'
+  summary?: MeteringSummary
+  message?: string
+  httpStatus?: number
+}
+
+export async function fetchMeteringSummary(config: SpineConfig, days: number): Promise<MeteringResult> {
+  const mcpBase = config.mcpUrl || '/api/spine/mcp-metering'
+  const url = `${mcpBase.replace(/\/mcp$/, '/mcp-metering')}/summary?days=${days}`
+  try {
+    const res = await fetch(url, { headers: authHeaders(config) })
+    const json = (await res.json().catch(() => ({}))) as MeteringSummary & { message?: string; error?: string }
+    if (!res.ok) {
+      return {
+        status: 'error',
+        httpStatus: res.status,
+        message: json.message || json.error || `HTTP ${res.status}`,
+      }
+    }
+    return { status: 'ok', summary: json }
+  } catch (err) {
+    return { status: 'error', message: (err as Error).message }
+  }
+}

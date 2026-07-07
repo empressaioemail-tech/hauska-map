@@ -2,13 +2,14 @@
 //
 // Vercel serverless proxy â€" same-origin gateway for the Command Center. The
 // browser NEVER holds service keys; this function attaches auth from
-// server-side env vars and routes by the first path segment to one of three
-// upstreams. Requests arrive via the vercel.json rewrite
+// server-side env vars and routes by the first path segment to upstreams.
+// Requests arrive via the vercel.json rewrite
 // /api/spine/(.*) -> /api/spine?upath=$1 (the [...path] catch-all did not
 // match nested segments on the deployed alias, so routing is query-based):
-//   /api/spine/cortex/*   -> CORTEX_API_URL with Authorization: Bearer CORTEX_SERVICE_API_KEY
-//   /api/spine/mcp/*      -> MCP_URL with X-Hauska-Key: MCP_PRODUCT_KEY
-//   /api/spine/retrieval/* -> RETRIEVAL_API_URL (no auth)
+//   /api/spine/cortex/*        -> CORTEX_API_URL with Authorization: Bearer CORTEX_SERVICE_API_KEY
+//   /api/spine/mcp/*           -> MCP_URL with X-Hauska-Key: MCP_PRODUCT_KEY
+//   /api/spine/mcp-metering/*  -> MCP_URL/metering/* with X-Hauska-Key: MCP_PRODUCT_KEY
+//   /api/spine/retrieval/*     -> RETRIEVAL_API_URL (no auth)
 //
 // SECURITY: allowlist methods/paths â€" GET only, plus POST for /api/spine/mcp/mcp
 // (JSON-RPC) and explicit cortex POST paths required by workspace tiles. Reject
@@ -36,17 +37,19 @@ function getUpstream(pathSegments: string[]): { upstream: Upstream | null; error
     }
   }
 
-  if (segment === 'mcp') {
+  if (segment === 'mcp' || segment === 'mcp-metering') {
     const url = process.env.MCP_URL?.trim() || 'https://hauska-mcp-server-h7gvu7rgcq-uc.a.run.app'
     const key = process.env.MCP_PRODUCT_KEY?.trim()
     if (!key) return { upstream: null, error: 'proxy not configured', missing: 'MCP_PRODUCT_KEY' }
-    // SECURITY: reject /admin/* paths
-    if (rest.some((p) => p === 'admin' || p.startsWith('admin/'))) {
+    // SECURITY: reject /admin/* paths (for mcp segment only; mcp-metering is allowlisted paths)
+    if (segment === 'mcp' && rest.some((p) => p === 'admin' || p.startsWith('admin/'))) {
       return { upstream: null, error: 'forbidden', missing: undefined }
     }
+    // mcp-metering segment routes to /metering/* on the MCP upstream
+    const pathPrefix = segment === 'mcp-metering' ? 'metering' : ''
     return {
       upstream: {
-        baseUrl: url.replace(/\/$/, ''),
+        baseUrl: url.replace(/\/$/, '') + (pathPrefix ? `/${pathPrefix}` : ''),
         headers: { 'X-Hauska-Key': key },
       },
     }
@@ -99,6 +102,24 @@ export default async function handler(req: VercelRequest, res: VercelResponse): 
   // MCP JSON-RPC: allow POST to /api/spine/mcp (upstreamPath empty) or /api/spine/mcp/mcp
   if (path[0] === 'mcp' && (upstreamPath === 'mcp' || upstreamPath === '')) {
     allowedMethods.push('POST')
+  }
+  // MCP metering: the ONLY reachable path under mcp-metering is exactly
+  // 'summary' — anything else (including ../ traversal toward /admin with
+  // the key attached) is rejected outright.
+  if (path[0] === 'mcp-metering') {
+    if (upstreamPath !== 'summary') {
+      res.status(403).json({ error: 'forbidden' })
+      return
+    }
+    // days is optional (endpoint defaults to 7); validate only when present
+    const { days } = req.query
+    if (days !== undefined) {
+      const daysNum = Number(days)
+      if (!/^\d+$/.test(String(days)) || !Number.isInteger(daysNum) || daysNum < 1 || daysNum > 31) {
+        res.status(400).json({ error: 'invalid days parameter (must be integer 1..31)' })
+        return
+      }
+    }
   }
   // Cortex POST allowlist: explicit paths required by workspace tiles.
   // After baseUrl fix, upstreamPath arrives as api/engagements..., api/intake/parse, etc.
