@@ -30,7 +30,9 @@ export function parseContextFromHash(): Partial<ActiveContext> | null {
     const eq = seg.indexOf('=')
     if (eq === -1) continue
     const k = decodeURIComponent(seg.slice(0, eq))
-    const v = decodeURIComponent(seg.slice(eq + 1))
+    // '+' is the URLSearchParams space form (the shape users copy from
+    // shared links); decodeURIComponent alone leaves it literal.
+    const v = decodeURIComponent(seg.slice(eq + 1).replace(/\+/g, ' '))
     
     switch (k) {
       case 'addr':
@@ -46,7 +48,7 @@ export function parseContextFromHash(): Partial<ActiveContext> | null {
         hasContext = true
         break
       case 'j':
-        ctx.jurisdictionId = v
+        ctx.jurisdiction = v
         hasContext = true
         break
       case 'lat':
@@ -80,7 +82,7 @@ export function serializeContextToHash(ctx: Partial<ActiveContext> | null): Reco
   if (ctx.address) params.addr = ctx.address
   if (ctx.apn) params.apn = ctx.apn
   if (ctx.engagementId) params.eng = ctx.engagementId
-  if (ctx.jurisdictionId) params.j = ctx.jurisdictionId
+  if (ctx.jurisdiction) params.j = ctx.jurisdiction
   if (ctx.lat !== undefined) params.lat = String(ctx.lat)
   if (ctx.lng !== undefined) params.lng = String(ctx.lng)
   
@@ -137,7 +139,9 @@ export function updateHashWithContext(ctx: Partial<ActiveContext> | null): void 
     const eq = seg.indexOf('=')
     if (eq === -1) continue
     const k = decodeURIComponent(seg.slice(0, eq))
-    const v = decodeURIComponent(seg.slice(eq + 1))
+    // '+' is the URLSearchParams space form (the shape users copy from
+    // shared links); decodeURIComponent alone leaves it literal.
+    const v = decodeURIComponent(seg.slice(eq + 1).replace(/\+/g, ' '))
     // Only keep non-context params
     if (!CONTEXT_PARAM_KEYS.includes(k as any)) {
       existingParams[k] = v
