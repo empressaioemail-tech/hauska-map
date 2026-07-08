@@ -147,6 +147,11 @@ export default async function handler(req: VercelRequest, res: VercelResponse): 
       'api/place/geocode',
       'api/plan-review/spaces',
       'api/saved-spaces',
+      // plan-review BFF engagement sub-resources (Dataroom upload-url/complete-upload/ingest,
+      // reports/:type/run, compliance-run, letter/generate, sheets/extract, annotations) —
+      // same trust level as the api/engagements/** blanket above; upstream still enforces
+      // requireServiceTokenOrSession per route.
+      'api/plan-review/engagements',
     ]
     // Also allow POST/PUT/DELETE/PATCH to paths matching: api/engagements/:id/(reports|letter|findings|submissions|documents|sheets)/*
     const engagementPostPattern = /^api\/engagements\/[^/]+\/(reports|letter|findings|submissions|documents|sheets)/
