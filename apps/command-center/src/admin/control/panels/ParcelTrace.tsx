@@ -137,8 +137,10 @@ export const ParcelTrace: React.FC = () => {
         setTraceResult('No retrieval API URL configured')
         return
       }
+      // retrieval-api routes are unprefixed: GET /atoms/trace/:did (there is
+      // no /v1 — verified against services/retrieval-api/src/server.ts).
       const traceRes = await getJson<{ trace?: unknown }>(
-        `${retrievalUrl}/v1/atoms/trace/${encodeURIComponent(atomId)}`,
+        `${retrievalUrl}/atoms/trace/${encodeURIComponent(atomId)}`,
         config,
         15000,
       )

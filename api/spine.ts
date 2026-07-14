@@ -6,14 +6,23 @@
 // Requests arrive via the vercel.json rewrite
 // /api/spine/(.*) -> /api/spine?upath=$1 (the [...path] catch-all did not
 // match nested segments on the deployed alias, so routing is query-based):
-//   /api/spine/cortex/*        -> CORTEX_API_URL with Authorization: Bearer CORTEX_SERVICE_API_KEY
-//   /api/spine/mcp/*           -> MCP_URL with X-Hauska-Key: MCP_PRODUCT_KEY
-//   /api/spine/mcp-metering/*  -> MCP_URL/metering/* with X-Hauska-Key: MCP_PRODUCT_KEY
-//   /api/spine/retrieval/*     -> RETRIEVAL_API_URL (no auth)
+//   /api/spine/cortex/*              -> CORTEX_API_URL with Authorization: Bearer CORTEX_SERVICE_API_KEY
+//   /api/spine/mcp/*                 -> MCP_URL with X-Hauska-Key: MCP_PRODUCT_KEY
+//                                       (key optional: unset -> anonymous, resolves to the public product)
+//   /api/spine/mcp-metering/*        -> MCP_URL/metering/* with X-Hauska-Key: MCP_PRODUCT_KEY
+//                                       (key REQUIRED: /metering/summary needs a platform_internal key)
+//   /api/spine/mcp-introspection/*   -> MCP_URL/admin/introspection/* with X-Hauska-Admin-Key: MCP_ADMIN_KEY
+//                                       (path-pinned GET-only: 'tools' and 'tools/:name'; the POST
+//                                       tools/:name/call probe stays blocked - operator-only)
+//   /api/spine/retrieval/*           -> RETRIEVAL_API_URL with Authorization: Bearer RETRIEVAL_API_KEY
+//                                       (key required except /health, /healthz, /ready - the retrieval
+//                                       API Bearer-gates every other route per its DEPLOY.md)
 //
 // SECURITY: allowlist methods/paths â€" GET only, plus POST for /api/spine/mcp/mcp
 // (JSON-RPC) and explicit cortex POST paths required by workspace tiles. Reject
-// /admin/* MCP paths (admin key stays out). Missing env var -> 503 with {error, missing}.
+// /admin/* MCP paths on the generic mcp segment (the introspection segment above is
+// the only, path-pinned exception and carries a read-only catalog GET; the admin key
+// never rides an operator-supplied path). Missing env var -> 503 with {error, missing}.
 
 import type { VercelRequest, VercelResponse } from '@vercel/node'
 
@@ -40,7 +49,11 @@ function getUpstream(pathSegments: string[]): { upstream: Upstream | null; error
   if (segment === 'mcp' || segment === 'mcp-metering') {
     const url = process.env.MCP_URL?.trim() || 'https://hauska-mcp-server-h7gvu7rgcq-uc.a.run.app'
     const key = process.env.MCP_PRODUCT_KEY?.trim()
-    if (!key) return { upstream: null, error: 'proxy not configured', missing: 'MCP_PRODUCT_KEY' }
+    // /metering/summary requires a platform_internal key upstream; anonymous can
+    // never succeed there, so a missing key is a config error worth surfacing.
+    if (!key && segment === 'mcp-metering') {
+      return { upstream: null, error: 'proxy not configured', missing: 'MCP_PRODUCT_KEY' }
+    }
     // SECURITY: reject /admin/* paths (for mcp segment only; mcp-metering is allowlisted paths)
     if (segment === 'mcp' && rest.some((p) => p === 'admin' || p.startsWith('admin/'))) {
       return { upstream: null, error: 'forbidden', missing: undefined }
@@ -50,17 +63,44 @@ function getUpstream(pathSegments: string[]): { upstream: Upstream | null; error
     return {
       upstream: {
         baseUrl: url.replace(/\/$/, '') + (pathPrefix ? `/${pathPrefix}` : ''),
-        headers: { 'X-Hauska-Key': key },
+        // MCP_PRODUCT_KEY unset -> send no X-Hauska-Key at all: the MCP server
+        // resolves the no-header anonymous path to product "public" (a malformed
+        // or unknown key would 401), so the console still serves the public
+        // catalog on an unconfigured deploy.
+        headers: key ? { 'X-Hauska-Key': key } : {},
+      },
+    }
+  }
+
+  if (segment === 'mcp-introspection') {
+    const url = process.env.MCP_URL?.trim() || 'https://hauska-mcp-server-h7gvu7rgcq-uc.a.run.app'
+    const key = process.env.MCP_ADMIN_KEY?.trim()
+    if (!key) return { upstream: null, error: 'proxy not configured', missing: 'MCP_ADMIN_KEY' }
+    return {
+      upstream: {
+        baseUrl: url.replace(/\/$/, '') + '/admin/introspection',
+        headers: { 'X-Hauska-Admin-Key': key },
       },
     }
   }
 
   if (segment === 'retrieval') {
     const url = process.env.RETRIEVAL_API_URL?.trim() || 'https://hauska-retrieval-api-h7gvu7rgcq-uc.a.run.app'
+    const key = process.env.RETRIEVAL_API_KEY?.trim()
+    const upstreamPath = rest.join('/')
+    const isHealthPath = upstreamPath === 'health' || upstreamPath === 'healthz' || upstreamPath === 'ready'
+    // The retrieval API requires Authorization: Bearer <RETRIEVAL_API_KEY> on
+    // every route except health probes (its Bearer gate is what keeps the
+    // internal data plane off the open internet). Without the env var, only
+    // the health paths can succeed - fail the rest loudly instead of letting
+    // panels show a bare upstream 401.
+    if (!key && !isHealthPath) {
+      return { upstream: null, error: 'proxy not configured', missing: 'RETRIEVAL_API_KEY' }
+    }
     return {
       upstream: {
         baseUrl: url.replace(/\/$/, ''),
-        headers: {},
+        headers: key && !isHealthPath ? { Authorization: `Bearer ${key}` } : {},
       },
     }
   }
@@ -120,6 +160,18 @@ export default async function handler(req: VercelRequest, res: VercelResponse): 
         return
       }
     }
+  }
+  // MCP admin introspection: read-only catalog ONLY. Reachable paths are
+  // exactly 'tools' (list) and 'tools/:name' (detail) via GET - anything else,
+  // including the POST tools/:name/call live probe and any traversal toward
+  // other /admin/* routes with the admin key attached, is rejected outright.
+  if (path[0] === 'mcp-introspection') {
+    if (!/^tools(\/[^/]+)?$/.test(upstreamPath)) {
+      res.status(403).json({ error: 'forbidden' })
+      return
+    }
+    // GET/HEAD only (allowedMethods already restricts this; make it explicit
+    // that no mutation is ever added for this segment).
   }
   // Cortex POST allowlist: explicit paths required by workspace tiles.
   // After baseUrl fix, upstreamPath arrives as api/engagements..., api/intake/parse, etc.

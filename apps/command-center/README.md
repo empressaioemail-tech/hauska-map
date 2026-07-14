@@ -26,7 +26,15 @@ npm run dev
 
 ## Environment Configuration
 
-Backend endpoints are configurable via environment variables. See `.env.example` for defaults.
+**Deployed (default) mode** — the browser defaults to the same-origin `/api/spine/*` proxy (`api/spine.ts` at the repo root); no `VITE_*` vars are needed and no key ever ships to the browser. The proxy attaches auth server-side from these Vercel env vars (see `PROXY_CONTRACT.md` for the full table):
+
+- `CORTEX_SERVICE_API_KEY` — Bearer for cortex-api (required for cortex panels/tiles)
+- `MCP_PRODUCT_KEY` — `X-Hauska-Key` for the MCP server (optional: unset falls back to the anonymous public product; must be a `platform_internal` key for the Revenue Meter's `/metering/summary`)
+- `MCP_ADMIN_KEY` — `X-Hauska-Admin-Key` for the path-pinned `/admin/introspection/tools` catalog (Surface & Gate, MCP Inspector)
+- `RETRIEVAL_API_KEY` — Bearer for the retrieval API (Parcel Trace atom trace)
+- `CORTEX_API_URL` / `MCP_URL` / `RETRIEVAL_API_URL` — upstream overrides (default to the Cloud Run URLs)
+
+**Local-dev direct mode** — point the browser straight at locally running services (keys are then sent from the browser; paste one in Settings):
 
 ```bash
 # .env.local (development overrides)
@@ -35,10 +43,7 @@ VITE_MCP_URL=http://localhost:3000/mcp
 VITE_RETRIEVAL_API_URL=http://localhost:8080
 ```
 
-Production defaults (set in Vercel):
-- `VITE_CORTEX_API_URL`: https://cortex-api-tds7av26va-uc.a.run.app
-- `VITE_MCP_URL`: https://mcp.hauska.dev/mcp
-- `VITE_RETRIEVAL_API_URL`: (stub, localhost fallback)
+The same overrides are reachable at runtime via query params (`?api=`, `?mcp=`, `?retrieval=`) or localStorage — see `Settings`.
 
 ## Deployment
 
@@ -50,7 +55,7 @@ Deploy from the monorepo root with `apps/command-center` as the project director
 2. **Root Directory**: `apps/command-center`
 3. **Build Command**: (auto from vercel.json) `cd ../.. && pnpm install && pnpm --filter command-center build`
 4. **Output Directory**: `dist`
-5. **Environment Variables**: Set `VITE_*` vars in Vercel project settings
+5. **Environment Variables**: Set the server-side proxy vars (`CORTEX_SERVICE_API_KEY`, `MCP_PRODUCT_KEY`, `MCP_ADMIN_KEY`, `RETRIEVAL_API_KEY`, optional `*_URL` overrides) in Vercel project settings. Do NOT set `VITE_*` vars in production — they bake direct upstream URLs into the bundle and bypass the proxy.
 
 The `vercel.json` configures:
 - Custom monorepo-aware build command
