@@ -95,6 +95,8 @@ export type {
   OverlaySpec,
   ParcelSelection,
   ViewState,
+  ViewportState,
+  GisBBox,
   Center,
   PostMessageContract,
   WindowState,
