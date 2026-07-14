@@ -2,14 +2,17 @@
 //
 // Command Center · MCP Inspector (panel id: mcp-inspector). LIVE.
 //
-// Product-gated tool catalog + live call probe. Queries the Empressa MCP server's
-// /admin/introspection/tools endpoint (requires auth in direct mode; blocked at
-// /api/spine/* proxy by design, so this panel degrades to an honest "requires
-// direct operator access" state in deployed mode while working in local-dev
-// direct mode where the operator pastes a key).
+// Product-gated tool catalog + live call probe. The read-only catalog rides
+// {mcpIntrospectionBase}/tools — in deployed (proxy) mode that is the
+// path-pinned /api/spine/mcp-introspection/tools route (X-Hauska-Admin-Key
+// attached server-side from MCP_ADMIN_KEY); in local-dev direct mode it is
+// {mcpAdminBase}/admin/introspection/tools. The LIVE CALL PROBE
+// (POST tools/:name/call) stays blocked at the proxy by design — it executes
+// tools under arbitrary simulated auth, so it remains direct-operator-only and
+// the probe shows an honest "requires direct mode" note when proxied.
 
 import React, { useEffect, useMemo, useState } from 'react'
-import { loadConfig, type SpineConfig, mcpAdminBase } from '../../api/spineClient'
+import { loadConfig, type SpineConfig, mcpAdminBase, mcpIntrospectionBase, isMcpProxyMode } from '../../api/spineClient'
 import { Panel, Pill, Loading, ErrorState, Empty, sectionHeader, mono } from '../primitives'
 
 const PRODUCTS = ['public', 'codex', 'reporting', 'map']
@@ -35,7 +38,7 @@ interface McpIntrospectionResult {
 }
 
 async function fetchMcpIntrospection(config: SpineConfig): Promise<McpIntrospectionResult> {
-  const adminUrl = `${mcpAdminBase(config)}/admin/introspection/tools`
+  const adminUrl = `${mcpIntrospectionBase(config)}/tools`
   try {
     const res = await fetch(adminUrl, {
       headers: {
@@ -80,6 +83,17 @@ async function callMcpTool(
   args: Record<string, unknown>,
   product: string,
 ): Promise<Record<string, unknown>> {
+  // The call probe executes tools under arbitrary simulated auth. It is NOT
+  // proxied (the /api/spine/mcp-introspection segment pins GET tools[/:name]
+  // only), so short-circuit with an honest note instead of a confusing 403.
+  if (isMcpProxyMode(config)) {
+    return {
+      status: 'error',
+      error:
+        'Live call probe is operator-only: blocked at the /api/spine proxy by design. ' +
+        'Use local-dev direct mode (VITE_MCP_URL / ?mcp= override) with an admin key to probe calls.',
+    }
+  }
   const adminUrl = `${mcpAdminBase(config)}/admin/introspection/tools/${encodeURIComponent(toolName)}/call`
   try {
     const res = await fetch(adminUrl, {
@@ -204,30 +218,7 @@ export const McpInspector: React.FC = () => {
     setCallResult(JSON.stringify(outcome, null, 2))
   }
 
-  const isProxyMode = config.mcpUrl?.startsWith('/api/')
-  const adminBlocked = isProxyMode
-
   if (loading) return <Panel title="MCP Inspector" subtitle="Live · tool catalog + call probe"><Loading /></Panel>
-
-  if (adminBlocked) {
-    return (
-      <Panel title="MCP Inspector" subtitle="Not available through proxy" right={<Pill sev="warn">excluded</Pill>}>
-        <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
-          <span style={sectionHeader}>Proxy-excluded by design</span>
-          <p style={{ fontSize: 12, color: 'var(--color-text-secondary)', fontFamily: 'var(--font-ui)', margin: 0 }}>
-            The MCP /admin/* paths are blocked at the same-origin /api/spine/* proxy by design (operator-only
-            introspection, admin key stays out). This panel works in local-dev direct mode where an operator pastes
-            a key. In deployed mode, use the root vanilla console or connect directly to the MCP server.
-          </p>
-          <div style={{ padding: '8px 10px', borderRadius: 6, background: 'var(--color-background-secondary)', border: '0.5px solid var(--color-border-tertiary)' }}>
-            <span style={{ ...mono, fontSize: 10, color: 'var(--color-text-tertiary)' }}>
-              Blocked paths: /api/spine/mcp/admin/*
-            </span>
-          </div>
-        </div>
-      </Panel>
-    )
-  }
 
   if (!result || result.status === 'error' || result.status === 'empty') {
     const msg = result?.message || 'No tools available'
@@ -235,10 +226,12 @@ export const McpInspector: React.FC = () => {
       <Panel title="MCP Inspector" subtitle="Introspection unavailable" right={<Pill sev="warn">{result?.status || 'error'}</Pill>}>
         <ErrorState msg={msg} />
         <p style={{ ...mono, fontSize: 11, color: 'var(--color-text-tertiary)', marginTop: 10 }}>
-          GET {result?.source || mcpAdminBase(config) + '/admin/introspection/tools'}
+          GET {result?.source || mcpIntrospectionBase(config) + '/tools'}
         </p>
         <p style={{ fontSize: 11, color: 'var(--color-text-tertiary)', fontFamily: 'var(--font-ui)' }}>
-          Start MCP server; set Empressa key if admin routes require bootstrap auth.
+          {isMcpProxyMode(config)
+            ? 'Proxy mode: a 503 here means the deployment is missing MCP_ADMIN_KEY.'
+            : 'Start MCP server; set Empressa key if admin routes require bootstrap auth.'}
         </p>
       </Panel>
     )

@@ -76,10 +76,15 @@ function normalize(json: Record<string, unknown>, source: string): Omit<RunState
 async function fetchRunState(config: SpineConfig): Promise<RunState> {
   const api = apiBase(config)
   const admin = mcpAdminBase(config)
+  // The MCP /admin/operator/run-state probe can never resolve through the
+  // /api/spine proxy (admin paths are not proxied and no such endpoint exists
+  // on the deployed MCP server yet) — skip it in proxy mode so the honest-empty
+  // state lists only endpoints that were genuinely attempted upstream.
+  const mcpAdminProbe = admin && !admin.startsWith('/api/') ? `${admin}/admin/operator/run-state` : null
   const urls = [
     api ? `${api}/api/brokerage/v1/operator/warming/status` : null,
     api ? `${api}/api/internal/qa/run-state` : null,
-    admin ? `${admin}/admin/operator/run-state` : null,
+    mcpAdminProbe,
   ].filter(Boolean) as string[]
 
   const attempts: RunState['attempts'] = []

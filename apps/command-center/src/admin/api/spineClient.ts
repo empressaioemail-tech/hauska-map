@@ -6,9 +6,12 @@
 // enable direct mode for local dev (then keys are sent from the browser).
 //
 // Upstreams (via proxy):
-//   - /api/spine/cortex    -> cortex-api (Cloud Run)      : place/atoms, run-state
-//   - /api/spine/mcp       -> Hauska MCP server           : search_atoms, introspection
-//   - /api/spine/retrieval -> retrieval-api               : atom trace / lineage
+//   - /api/spine/cortex            -> cortex-api (Cloud Run) : place/atoms, run-state
+//   - /api/spine/mcp               -> Hauska MCP server      : search_atoms (JSON-RPC)
+//   - /api/spine/mcp-introspection -> MCP /admin/introspection (read-only tool
+//                                     catalog; admin key attached server-side)
+//   - /api/spine/retrieval         -> retrieval-api          : atom trace / lineage
+//                                     (Bearer key attached server-side)
 //
 // Config is read from localStorage + query params so local-dev keys set in the
 // root JS console carry over.
@@ -64,6 +67,20 @@ export function hasAuthKey(config: SpineConfig): boolean {
 /** MCP admin base — strip the trailing /mcp so /admin/* paths resolve. */
 export function mcpAdminBase(config: SpineConfig): string {
   return (config.mcpUrl || '').replace(/\/mcp\/?$/, '')
+}
+
+/** True when the MCP config points at the same-origin /api/spine/* proxy. */
+export function isMcpProxyMode(config: SpineConfig): boolean {
+  return Boolean(config.mcpUrl?.startsWith('/api/'))
+}
+
+/** Base URL for the MCP admin introspection catalog (read-only).
+ *  Proxy mode rides the path-pinned /api/spine/mcp-introspection segment
+ *  (X-Hauska-Admin-Key attached server-side from MCP_ADMIN_KEY); direct mode
+ *  (local dev / VITE_MCP_URL override) hits {mcpAdminBase}/admin/introspection
+ *  where the operator's own admin key context applies. */
+export function mcpIntrospectionBase(config: SpineConfig): string {
+  return isMcpProxyMode(config) ? '/api/spine/mcp-introspection' : `${mcpAdminBase(config)}/admin/introspection`
 }
 
 export function apiBase(config: SpineConfig): string {

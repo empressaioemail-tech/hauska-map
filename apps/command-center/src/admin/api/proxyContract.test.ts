@@ -21,13 +21,19 @@ interface EndpointSpec {
 const ENDPOINT_INVENTORY: EndpointSpec[] = [
   // ── Panel Endpoints ──
   { panel: 'Atom Inspector', method: 'POST', path: '/mcp', proxiedRoute: '/api/spine/mcp', status: 'allowed', notes: 'MCP JSON-RPC: initialize, tools/list, tools/call' },
-  { panel: 'MCP Inspector', method: 'GET', path: '/admin/introspection/tools', proxiedRoute: 'N/A', status: 'excluded', notes: 'Admin path blocked by design' },
-  { panel: 'MCP Inspector', method: 'POST', path: '/admin/introspection/tools/:name/call', proxiedRoute: 'N/A', status: 'excluded', notes: 'Admin path blocked by design' },
+  { panel: 'MCP Inspector', method: 'GET', path: '/admin/introspection/tools', proxiedRoute: '/api/spine/mcp-introspection/tools', status: 'allowed', notes: 'Path-pinned read-only catalog; X-Hauska-Admin-Key attached server-side (MCP_ADMIN_KEY)' },
+  { panel: 'MCP Inspector', method: 'POST', path: '/admin/introspection/tools/:name/call', proxiedRoute: '/api/spine/mcp-introspection/tools/:name/call', status: 'excluded', notes: 'Live call probe executes tools under simulated auth — operator-only, blocked at the proxy' },
+  { panel: 'Surface & Gate', method: 'GET', path: '/admin/introspection/tools', proxiedRoute: '/api/spine/mcp-introspection/tools', status: 'allowed', notes: 'Same pinned catalog route as MCP Inspector' },
   { panel: 'Agent View', method: 'POST', path: '/mcp', proxiedRoute: '/api/spine/mcp', status: 'allowed', notes: 'MCP protocol' },
   { panel: 'Agent View', method: 'GET', path: '/llms.txt', proxiedRoute: 'N/A', status: 'excluded', notes: 'MCP root path not under /mcp/*' },
   { panel: 'Agent View', method: 'GET', path: '/.well-known/agents.txt', proxiedRoute: 'N/A', status: 'excluded', notes: 'MCP root path not under /mcp/*' },
   { panel: 'Layer Registry View', method: 'GET', path: '/api/brokerage/v1/map-data/gis-layers', proxiedRoute: '/api/spine/cortex/api/brokerage/v1/map-data/gis-layers', status: 'allowed' },
-  { panel: 'Revenue Meter', method: 'GET', path: '/metering/summary?days=7', proxiedRoute: '/api/spine/mcp-metering/summary', status: 'allowed', notes: 'MCP metering API' },
+  { panel: 'Revenue Meter', method: 'GET', path: '/metering/summary?days=7', proxiedRoute: '/api/spine/mcp-metering/summary', status: 'allowed', notes: 'MCP metering API (upstream requires a platform_internal key)' },
+  { panel: 'Parcel Trace', method: 'GET', path: '/atoms/trace/:did', proxiedRoute: '/api/spine/retrieval/atoms/trace/:did', status: 'allowed', notes: 'retrieval-api (unprefixed routes — no /v1); Bearer RETRIEVAL_API_KEY attached server-side' },
+  { panel: 'Parcel Trace', method: 'GET', path: '/api/brokerage/v1/place/resolve', proxiedRoute: '/api/spine/cortex/api/brokerage/v1/place/resolve', status: 'allowed', notes: 'Proxied, but the path does not exist on cortex-api (SPA fallthrough) — panel cannot populate until cortex ships it' },
+  { panel: 'Run Monitor', method: 'GET', path: '/api/brokerage/v1/operator/warming/status', proxiedRoute: '/api/spine/cortex/api/brokerage/v1/operator/warming/status', status: 'allowed', notes: 'Honest-empty until the warming harness runs' },
+  { panel: 'Run Monitor', method: 'GET', path: '/api/internal/qa/run-state', proxiedRoute: '/api/spine/cortex/api/internal/qa/run-state', status: 'allowed', notes: 'Honest-empty until the run-state endpoint ships' },
+  { panel: 'Run Monitor', method: 'GET', path: '/admin/operator/run-state', proxiedRoute: 'N/A', status: 'excluded', notes: 'MCP admin path; endpoint does not exist yet — probe skipped in proxy mode' },
 
   // ── Workspace Tile Endpoints (Cortex) ──
   
@@ -103,6 +109,11 @@ const ENDPOINT_INVENTORY: EndpointSpec[] = [
 // ── Proxy Allowlist Rules (from api/spine.ts) ──
 
 function isMethodAllowed(method: string, upstreamSegment: string, upstreamPath: string): boolean {
+  // MCP introspection: GET-only, path-pinned to 'tools' and 'tools/:name'
+  if (upstreamSegment === 'mcp-introspection') {
+    return ['GET', 'HEAD'].includes(method) && /^tools(\/[^/]+)?$/.test(upstreamPath)
+  }
+
   // GET/HEAD always allowed
   if (['GET', 'HEAD'].includes(method)) return true
 
@@ -134,8 +145,13 @@ function isMethodAllowed(method: string, upstreamSegment: string, upstreamPath: 
 }
 
 function isPathExcluded(upstreamSegment: string, upstreamPath: string): boolean {
-  // MCP /admin/* paths are blocked
+  // MCP /admin/* paths are blocked on the generic mcp segment
   if (upstreamSegment === 'mcp' && (upstreamPath.includes('admin') || upstreamPath.startsWith('admin/'))) {
+    return true
+  }
+  // mcp-introspection is pinned to the read-only catalog: 'tools' and 'tools/:name'.
+  // Anything else (including tools/:name/call) is rejected with the admin key attached.
+  if (upstreamSegment === 'mcp-introspection' && !/^tools(\/[^/]+)?$/.test(upstreamPath)) {
     return true
   }
   // MCP root paths (not under /mcp/*) are excluded: /llms.txt, /.well-known/agents.txt

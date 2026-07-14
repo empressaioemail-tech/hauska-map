@@ -3,14 +3,19 @@
 // Command Center · Surface & Gate (panel id: surface-gate).  LIVE.
 //
 // The operator view of which tools are exposed on which product surface at the
-// MCP gate. Fetches the Empressa MCP server's admin introspection:
-//   GET {mcpAdminBase}/admin/introspection/tools
-// Renders the total tool count, the by_product and by_gate breakdowns, and the
-// full tool inventory (name + product + gate). Honest error/empty when the MCP
-// admin surface is unreachable, showing the URL attempted. Never mock data.
+// MCP gate. Fetches the Empressa MCP server's admin introspection catalog:
+//   GET {mcpIntrospectionBase}/tools
+// In deployed (proxy) mode that is the path-pinned, read-only
+// /api/spine/mcp-introspection/tools route (X-Hauska-Admin-Key attached
+// server-side from MCP_ADMIN_KEY); in local-dev direct mode it is
+// {mcpAdminBase}/admin/introspection/tools. Renders the total tool count, the
+// by_product and by_gate breakdowns, and the full tool inventory (name +
+// product + gate). Honest error/empty when the MCP admin surface is
+// unreachable or the proxy lacks MCP_ADMIN_KEY, showing the URL attempted.
+// Never mock data.
 
 import React, { useEffect, useMemo, useState } from 'react'
-import { loadConfig, mcpAdminBase, getJson, type SpineConfig } from '../../api/spineClient'
+import { loadConfig, mcpIntrospectionBase, getJson, type SpineConfig } from '../../api/spineClient'
 import { Panel, Pill, Loading, ErrorState, Empty, sectionHeader, mono, fmtNum } from '../primitives'
 
 interface ToolRow {
@@ -71,16 +76,9 @@ export const SurfaceGateInspector: React.FC = () => {
   const [data, setData] = useState<IntrospectionResponse | null>(null)
   const [loading, setLoading] = useState(true)
   const [err, setErr] = useState<string | null>(null)
-  const url = `${mcpAdminBase(config)}/admin/introspection/tools`
-
-  const isProxyMode = config.mcpUrl?.startsWith('/api/')
-  const adminBlocked = isProxyMode
+  const url = `${mcpIntrospectionBase(config)}/tools`
 
   useEffect(() => {
-    if (adminBlocked) {
-      setLoading(false)
-      return
-    }
     let cancelled = false
     setLoading(true)
     getJson<IntrospectionResponse>(url, config, 15_000)
@@ -100,25 +98,10 @@ export const SurfaceGateInspector: React.FC = () => {
     return () => {
       cancelled = true
     }
-  }, [url, config, adminBlocked])
+  }, [url, config])
 
   const tools = data?.tools || data?.items || []
   const total = data?.total ?? tools.length
-
-  if (adminBlocked) {
-    return (
-      <Panel title="Surface & Gate" subtitle="Requires direct operator access" right={<Pill sev="warn">blocked</Pill>}>
-        <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
-          <span style={sectionHeader}>Not wired in deployed mode</span>
-          <p style={{ fontSize: 12, color: 'var(--color-text-secondary)', fontFamily: 'var(--font-ui)', margin: 0 }}>
-            The MCP /admin/* paths are blocked at the same-origin /api/spine/* proxy by design (operator-only
-            introspection). This panel works in local-dev direct mode where an operator pastes a key. In deployed mode,
-            use the root vanilla console or connect directly.
-          </p>
-        </div>
-      </Panel>
-    )
-  }
 
   return (
     <Panel
