@@ -31,11 +31,11 @@ importers:
   apps/command-center:
     dependencies:
       '@empressaio/cortex-client':
-        specifier: ^0.1.1
-        version: 0.1.1
+        specifier: ^0.1.2
+        version: 0.1.2
       '@empressaio/cortex-tiles':
-        specifier: ^0.1.3
-        version: 0.1.3(react-dom@18.3.1(react@18.3.1))(react@18.3.1)
+        specifier: ^0.1.4
+        version: 0.1.4(react-dom@18.3.1(react@18.3.1))(react@18.3.1)
       '@empressaio/design-tokens':
         specifier: 0.1.0
         version: 0.1.0
@@ -285,11 +285,11 @@ packages:
     resolution: {integrity: sha512-0dEVyRLM/lG4gp1R/Ik5bfPl/1wX00xFwd5KcNH602tzBa09oF7pbTKETEhR1GjZ75K6OJnYFu8II2dyMhONMw==}
     engines: {node: '>=16'}
 
-  '@empressaio/cortex-client@0.1.1':
-    resolution: {integrity: sha512-gPzpYW2oNs3gjdhBXki2iHTP4uRsK5lb4zgPWfqTzYEwxxRpGMGV8lSPKbELXgcin+Kj5xVchmwmkk/ifE6xyQ==}
+  '@empressaio/cortex-client@0.1.2':
+    resolution: {integrity: sha512-nYz+7z60kuzpRO1ube/QDkVrmxFyZEZSvm3Ra+x8MVTLMwP2E0diXLrrCBcC6KHZ43NBXbYylyt9Gps+s8FDKg==}
 
-  '@empressaio/cortex-tiles@0.1.3':
-    resolution: {integrity: sha512-TYIinkKobN8/WdcGBIjCa4+rq8jZBx8QaHS7Orx161nrftGE+308uXsnwfuPhoMCHa4cSbCRh4AW60X+MagHfQ==}
+  '@empressaio/cortex-tiles@0.1.4':
+    resolution: {integrity: sha512-+UAIaLL2mFBG4fFUlo2a5JVlfxCe+sNYWCkKIu1OCS5sB3tYuq0TZVCU0eVIFw3j/24YX0u0H+g3uVzI4wixXw==}
     peerDependencies:
       react: '>=18'
       react-dom: '>=18'
@@ -636,6 +636,10 @@ packages:
 
   '@hauska/atom-contract@1.5.0':
     resolution: {integrity: sha512-nW9QYAnjxrihmjU4iTEoDdFr6hEI0tnB2yD8KkzcIHDi6sUJVZukxSDXe1dctbAhYaq4eRFY4oFvRyDy9/Irew==}
+    engines: {node: '>=18.18.0'}
+
+  '@hauska/atom-contract@1.6.1':
+    resolution: {integrity: sha512-LNjfJuvI4p9XiobcOgn7KHJgsPBLkowel04V9TBhN2IJUyXdXF+gdKnx0pQAqhm1Dhdk7nQLsFuWflOUMI54oQ==}
     engines: {node: '>=18.18.0'}
 
   '@hauska/map-renderer@0.1.1':
@@ -2492,11 +2496,11 @@ snapshots:
     dependencies:
       '@edge-runtime/primitives': 4.1.0
 
-  '@empressaio/cortex-client@0.1.1': {}
+  '@empressaio/cortex-client@0.1.2': {}
 
-  '@empressaio/cortex-tiles@0.1.3(react-dom@18.3.1(react@18.3.1))(react@18.3.1)':
+  '@empressaio/cortex-tiles@0.1.4(react-dom@18.3.1(react@18.3.1))(react@18.3.1)':
     dependencies:
-      '@empressaio/cortex-client': 0.1.1
+      '@empressaio/cortex-client': 0.1.2
       '@empressaio/design-tokens': 0.1.0
       '@empressaio/document-viewer': 0.1.0(react-dom@18.3.1(react@18.3.1))(react@18.3.1)
       '@empressaio/tile-shell': 0.2.0(react-dom@18.3.1(react@18.3.1))(react@18.3.1)
@@ -2744,9 +2748,44 @@ snapshots:
       - sql.js
       - sqlite3
 
+  '@hauska/atom-contract@1.6.1':
+    dependencies:
+      drizzle-orm: 0.45.2
+      zod: 3.25.76
+    transitivePeerDependencies:
+      - '@aws-sdk/client-rds-data'
+      - '@cloudflare/workers-types'
+      - '@electric-sql/pglite'
+      - '@libsql/client'
+      - '@libsql/client-wasm'
+      - '@neondatabase/serverless'
+      - '@op-engineering/op-sqlite'
+      - '@opentelemetry/api'
+      - '@planetscale/database'
+      - '@prisma/client'
+      - '@tidbcloud/serverless'
+      - '@types/better-sqlite3'
+      - '@types/pg'
+      - '@types/sql.js'
+      - '@upstash/redis'
+      - '@vercel/postgres'
+      - '@xata.io/client'
+      - better-sqlite3
+      - bun-types
+      - expo-sqlite
+      - gel
+      - knex
+      - kysely
+      - mysql2
+      - pg
+      - postgres
+      - prisma
+      - sql.js
+      - sqlite3
+
   '@hauska/map-renderer@0.1.1(react-dom@18.3.1(react@18.3.1))(react@18.3.1)':
     dependencies:
-      '@hauska/atom-contract': 1.5.0
+      '@hauska/atom-contract': 1.6.1
       maplibre-gl: 5.24.0
       react: 18.3.1
       react-dom: 18.3.1(react@18.3.1)

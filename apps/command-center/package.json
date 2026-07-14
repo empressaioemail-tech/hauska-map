@@ -12,8 +12,8 @@
     "test:watch": "vitest"
   },
   "dependencies": {
-    "@empressaio/cortex-client": "^0.1.1",
-    "@empressaio/cortex-tiles": "^0.1.3",
+    "@empressaio/cortex-client": "^0.1.2",
+    "@empressaio/cortex-tiles": "^0.1.4",
     "@empressaio/design-tokens": "0.1.0",
     "@empressaio/document-viewer": "0.1.0",
     "@empressaio/tile-shell": "^0.2.0",
