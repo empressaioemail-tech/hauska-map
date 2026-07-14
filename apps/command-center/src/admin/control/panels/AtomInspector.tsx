@@ -19,6 +19,7 @@
 import React, { useEffect, useMemo, useState } from 'react'
 import { useActivePanel } from '../center/useActivePanel'
 import { loadConfig, HauskaMcpClient, type SpineConfig } from '../../api/spineClient'
+import { SEARCH_ATOMS_ENTITY_TYPES, normalizeJurisdiction } from '../../api/searchAtomsContract'
 import { Panel, Pill, Loading, ErrorState, Empty, sectionHeader, mono, fmtTime, fmtNum } from '../primitives'
 
 interface ConfidenceFigure {
@@ -301,6 +302,7 @@ export const AtomInspector: React.FC = () => {
   const [err, setErr] = useState<string | null>(null)
 
   const selected = hashParams.id ? rows?.find((r) => r.id === hashParams.id) ?? null : null
+  const normalizedJurisdiction = normalizeJurisdiction(jurisdiction)
 
   useEffect(() => {
     let cancelled = false
@@ -316,10 +318,14 @@ export const AtomInspector: React.FC = () => {
           return
         }
         const mcp = new HauskaMcpClient(config.mcpUrl, config.hauskaKey, 'public')
+        // entity_type passes through verbatim — the tool enum is hyphenated
+        // (e.g. code-section); converting to underscores gets rejected with
+        // -32602 invalid_enum_value. jurisdiction is normalized client-side
+        // to the underscored tenant-id shape the tool actually matches.
         const result = await mcp.callTool('search_atoms', {
           query: query || 'building code',
-          jurisdiction: jurisdiction || undefined,
-          entity_type: entityType ? entityType.replace(/-/g, '_') : undefined,
+          jurisdiction: normalizeJurisdiction(jurisdiction) || undefined,
+          entity_type: entityType || undefined,
           limit: 100,
         })
         if (cancelled) return
@@ -352,12 +358,39 @@ export const AtomInspector: React.FC = () => {
         <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
           <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', alignItems: 'center' }}>
             <input style={{ ...inputStyle, flex: 1 }} placeholder="query" value={query} onChange={(e) => setQuery(e.target.value)} />
-            <input style={inputStyle} placeholder="jurisdiction" value={jurisdiction} onChange={(e) => setJurisdiction(e.target.value)} />
-            <input style={inputStyle} placeholder="entity_type" value={entityType} onChange={(e) => setEntityType(e.target.value)} />
+            <input
+              style={inputStyle}
+              placeholder="jurisdiction (e.g. Bastrop, TX)"
+              value={jurisdiction}
+              onChange={(e) => setJurisdiction(e.target.value)}
+            />
+            <select
+              style={inputStyle}
+              aria-label="entity_type"
+              value={entityType}
+              onChange={(e) => setEntityType(e.target.value)}
+            >
+              <option value="">all entity types</option>
+              {SEARCH_ATOMS_ENTITY_TYPES.map((t) => (
+                <option key={t} value={t}>
+                  {t}
+                </option>
+              ))}
+            </select>
             <button style={btnStyle} onClick={() => setApplied((a) => a + 1)}>
               Query
             </button>
           </div>
+          {normalizedJurisdiction ? (
+            <div style={{ display: 'flex', gap: 6, alignItems: 'center', flexWrap: 'wrap' }}>
+              <Pill sev="info">jurisdiction sent: {normalizedJurisdiction}</Pill>
+              {normalizedJurisdiction !== jurisdiction.trim() ? (
+                <span style={{ fontSize: 10, color: 'var(--color-text-tertiary)', fontFamily: 'var(--font-ui)' }}>
+                  normalized from “{jurisdiction.trim()}” — search_atoms matches exact underscored tenant ids only
+                </span>
+              ) : null}
+            </div>
+          ) : null}
 
           {loading ? (
             <Loading />
