@@ -42,6 +42,7 @@ cortex-api mounts its API router at `/api` and THEN a root SPA with a GET catch-
 | Surface & Gate / MCP Inspector (catalog) | GET | MCP `/admin/introspection/tools` via `/api/spine/mcp-introspection/tools` (path-pinned) | X-Hauska-Admin-Key (server-side, MCP_ADMIN_KEY) | ✅ live (2026-07-13) |
 | MCP Inspector (live call probe) | POST | `/admin/introspection/tools/:name/call` | n/a | 🚫 blocked by design (executes tools under simulated auth; direct operator mode only) |
 | Layer Registry View | GET | `/api/brokerage/v1/map-data/gis-layers` | `requireBrokerageAuthOrServiceToken` + route-level tier gate | ⚠️ 403 `tier_required` under the service key — the tier resolution ignores the service caller; fix in flight (`fix/cc-setbacks-gis-service`) |
+| Map tile (live GIS viewport) | POST | `/api/brokerage/v1/map-data`, `/api/brokerage/v1/map-data/gis-layer`, `/api/brokerage/v1/map-data/composite-layer` (bbox bodies; upstream `brokerageMapData` router) | service Bearer + `packageTier === "max"` tier gate | ✅ allowlisted (2026-07-13) — exact-match POST only, no prefix rule; GET `gis-layers`/`composite-layers` list paths already pass via the GET default |
 | Revenue Meter | GET | MCP `/metering/summary?days=N` via `/api/spine/mcp-metering/summary` | internal (server-side platform_internal key) | ✅ live |
 | Parcel Trace (atom trace) | GET | retrieval `/atoms/trace/:did` via `/api/spine/retrieval/atoms/trace/:did` (routes are unprefixed — no `/v1`) | Bearer RETRIEVAL_API_KEY (server-side) | ✅ live (2026-07-13) |
 | Parcel Trace (place resolve) | GET | `/api/brokerage/v1/place/resolve` | — | 🚫 path does not exist on cortex-api (SPA fallthrough HTML 200, live-probed 2026-07-13); the resolve→atoms flow cannot populate until cortex ships it |
@@ -88,6 +89,7 @@ All engagement/report tiles ride the plan-review BFF (`/api/plan-review/...`), g
 - MCP `/mcp` POST for JSON-RPC; `/api/spine/mcp-metering/summary` pinned; `/api/spine/mcp-introspection/tools[/:name]` pinned GET-only (admin key attached server-side, everything else under the segment 403).
 - Retrieval paths GET/HEAD-only with server-side Bearer (health paths pass keyless).
 - Mutating methods allowed for: `api/engagements` (POST), `api/intake/parse`, `api/plan-review/geocode`, `api/place/geocode` (legacy), `api/plan-review/spaces*`, `api/saved-spaces*` (legacy), plan-review engagement sub-resources, and `api/engagements/:id/(reports|letter|findings|submissions|documents|sheets)/*`.
+- Map-data live GIS queries: POST allowed for exactly `api/brokerage/v1/map-data`, `api/brokerage/v1/map-data/gis-layer`, `api/brokerage/v1/map-data/composite-layer` (exact matches, POST only — deliberately outside the prefix rule so unlisted map-data sub-resources and PUT/DELETE/PATCH stay 403).
 - Blocked: any MCP `/admin/*` path outside the pinned introspection catalog GETs.
 
 ## Testing
