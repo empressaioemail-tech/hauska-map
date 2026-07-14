@@ -66,6 +66,10 @@ const ENDPOINT_INVENTORY: EndpointSpec[] = [
   { panel: 'SheetExtraction', method: 'GET', path: '/engagements/:id/sheets', proxiedRoute: '/api/spine/cortex/api/engagements/:id/sheets', status: 'allowed' },
 
   // Site Analysis Tiles (GIS-backed)
+  { panel: 'Map', method: 'POST', path: '/api/brokerage/v1/map-data', proxiedRoute: '/api/spine/cortex/api/brokerage/v1/map-data', status: 'allowed', notes: 'Live GIS root query (bbox body); exact-match POST' },
+  { panel: 'Map', method: 'POST', path: '/api/brokerage/v1/map-data/gis-layer', proxiedRoute: '/api/spine/cortex/api/brokerage/v1/map-data/gis-layer', status: 'allowed', notes: 'Live GIS viewport layer (bbox body); exact-match POST' },
+  { panel: 'Map', method: 'POST', path: '/api/brokerage/v1/map-data/composite-layer', proxiedRoute: '/api/spine/cortex/api/brokerage/v1/map-data/composite-layer', status: 'allowed', notes: 'Composite layer (bbox body); exact-match POST' },
+  { panel: 'Map', method: 'GET', path: '/api/brokerage/v1/map-data/composite-layers', proxiedRoute: '/api/spine/cortex/api/brokerage/v1/map-data/composite-layers', status: 'allowed', notes: 'Composite layer catalog list' },
   { panel: 'Map', method: 'POST', path: '/place/geocode', proxiedRoute: '/api/spine/cortex/api/place/geocode', status: 'allowed' },
   { panel: 'HeaderSearchBar', method: 'POST', path: '/plan-review/geocode', proxiedRoute: '/api/spine/cortex/api/plan-review/geocode', status: 'allowed', notes: 'cortex-client v0.1.1' },
   { panel: 'Map', method: 'GET', path: '/place/parcel', proxiedRoute: '/api/spine/cortex/api/place/parcel', status: 'allowed' },
@@ -129,6 +133,17 @@ function isMethodAllowed(method: string, upstreamSegment: string, upstreamPath: 
 
   // Cortex POST allowlist (with api/ prefix after baseUrl fix)
   if (upstreamSegment === 'cortex') {
+    // Map-data live GIS queries: EXACT matches, POST only (no prefix rule, no
+    // PUT/DELETE/PATCH) — mirrors cortexMapDataPostExact in api/spine.ts.
+    const cortexMapDataPostExact = [
+      'api/brokerage/v1/map-data',
+      'api/brokerage/v1/map-data/gis-layer',
+      'api/brokerage/v1/map-data/composite-layer',
+    ]
+    if (cortexMapDataPostExact.includes(upstreamPath) && method === 'POST') {
+      return true
+    }
+
     const cortexPostPaths = ['api/engagements', 'api/intake/parse', 'api/place/geocode', 'api/plan-review/geocode', 'api/plan-review/spaces', 'api/saved-spaces']
     const engagementPostPattern = /^api\/engagements\/[^/]+\/(reports|letter|findings|submissions|documents|sheets)/
 
@@ -211,6 +226,24 @@ describe('Proxy Contract', () => {
         }
       }
     }
+  })
+
+  it('should allow POST only on the exact map-data live-query paths', () => {
+    // Positive: the three exact paths the map tile sends
+    expect(isMethodAllowed('POST', 'cortex', 'api/brokerage/v1/map-data')).toBe(true)
+    expect(isMethodAllowed('POST', 'cortex', 'api/brokerage/v1/map-data/gis-layer')).toBe(true)
+    expect(isMethodAllowed('POST', 'cortex', 'api/brokerage/v1/map-data/composite-layer')).toBe(true)
+
+    // Negative: unrelated POSTs stay 403 — the exact-match list must not
+    // prefix-open siblings, sub-resources, or other brokerage routes
+    expect(isMethodAllowed('POST', 'cortex', 'api/brokerage/v1/map-data/gis-layers')).toBe(false)
+    expect(isMethodAllowed('POST', 'cortex', 'api/brokerage/v1/map-data/gis-layer/extra')).toBe(false)
+    expect(isMethodAllowed('POST', 'cortex', 'api/brokerage/v1/coverage')).toBe(false)
+
+    // Negative: no mutation verbs beyond POST on the map-data paths
+    expect(isMethodAllowed('PUT', 'cortex', 'api/brokerage/v1/map-data/gis-layer')).toBe(false)
+    expect(isMethodAllowed('DELETE', 'cortex', 'api/brokerage/v1/map-data/gis-layer')).toBe(false)
+    expect(isMethodAllowed('PATCH', 'cortex', 'api/brokerage/v1/map-data/gis-layer')).toBe(false)
   })
 
   it('should prevent new panels from shipping unallowlisted paths', () => {

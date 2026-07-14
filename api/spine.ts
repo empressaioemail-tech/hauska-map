@@ -191,7 +191,21 @@ export default async function handler(req: VercelRequest, res: VercelResponse): 
   // - api/engagements/:id/sheets/extract → extract sheets (SheetExtraction tile)
   // - api/saved-spaces (PUT/DELETE) → save/delete workspace (SpaceBar)
   // - api/saved-spaces/:name/share → share workspace (SpaceBar)
+  // - api/brokerage/v1/map-data[/gis-layer|/composite-layer] → live GIS viewport
+  //   queries for the Map tile (bbox POST bodies; upstream brokerageMapData
+  //   router: POST /, /gis-layer, /composite-layer — GET /gis-layers and
+  //   /composite-layers already pass via the GET/HEAD default). EXACT matches,
+  //   POST only — deliberately NOT in cortexPostPaths so the startsWith prefix
+  //   rule cannot open unlisted map-data sub-resources or mutation verbs.
   if (path[0] === 'cortex') {
+    const cortexMapDataPostExact = [
+      'api/brokerage/v1/map-data',
+      'api/brokerage/v1/map-data/gis-layer',
+      'api/brokerage/v1/map-data/composite-layer',
+    ]
+    if (cortexMapDataPostExact.includes(upstreamPath)) {
+      allowedMethods.push('POST')
+    }
     const cortexPostPaths = [
       'api/engagements',
       'api/intake/parse',
