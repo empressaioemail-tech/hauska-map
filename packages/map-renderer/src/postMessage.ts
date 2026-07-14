@@ -64,6 +64,31 @@ export interface OverlaySpec {
   paint?: Record<string, unknown>;
   /** Whether the overlay starts visible (default true). */
   visible?: boolean;
+  /**
+   * Interactive overlays get hover highlight + pointer cursor, and clicks on
+   * their features fire `onParcelSelect` with the feature's properties
+   * (apn / situsAddress / owner etc. pass through untouched). Live parcel
+   * layers set this; passive overlays (flood bands, heat) leave it unset.
+   */
+  interactive?: boolean;
+}
+
+/** A geographic bounding box in WGS84 degrees. */
+export interface GisBBox {
+  west: number;
+  south: number;
+  east: number;
+  north: number;
+}
+
+/**
+ * Viewport snapshot emitted by `onViewportChange` after map load and after
+ * every (debounced) moveend/zoomend — the hook live-data consumers use to
+ * fetch bbox-scoped GIS layers for the current view.
+ */
+export interface ViewportState {
+  bbox: GisBBox;
+  zoom: number;
 }
 
 /** A selected parcel context, emitted on parcel click and accepted as a prop. */

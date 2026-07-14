@@ -20,6 +20,7 @@ import type {
   OverlaySpec,
   ParcelSelection,
   ViewState,
+  ViewportState,
   WindowState,
 } from "./postMessage";
 
@@ -43,6 +44,11 @@ export interface FloatingMapProps {
   parcel?: ParcelSelection | null;
   /** Fired when the operator clicks a parcel/zoning feature. */
   onParcelSelect?: (selection: ParcelSelection) => void;
+  /**
+   * Fired after map load and after every (debounced) moveend/zoomend with the
+   * current bbox + zoom — the hook for viewport-scoped live GIS fetching.
+   */
+  onViewportChange?: (viewport: ViewportState) => void;
   /** Fired on FSM state change. */
   onWindowStateChange?: (state: WindowState, prev: WindowState) => void;
   /** Render as a floating draggable window (default) or a plain filled div. */
@@ -85,6 +91,7 @@ export const FloatingMap = forwardRef<FloatingMapHandle, FloatingMapProps>(
       overlays,
       parcel,
       onParcelSelect,
+      onViewportChange,
       onWindowStateChange,
       floating = true,
       title = "Floating map",
@@ -105,6 +112,8 @@ export const FloatingMap = forwardRef<FloatingMapHandle, FloatingMapProps>(
     // Keep latest callbacks without re-mounting the map.
     const onParcelSelectRef = useRef(onParcelSelect);
     onParcelSelectRef.current = onParcelSelect;
+    const onViewportChangeRef = useRef(onViewportChange);
+    onViewportChangeRef.current = onViewportChange;
     const onWindowStateChangeRef = useRef(onWindowStateChange);
     onWindowStateChangeRef.current = onWindowStateChange;
 
@@ -125,6 +134,7 @@ export const FloatingMap = forwardRef<FloatingMapHandle, FloatingMapProps>(
         address,
         useFixture,
         onParcelSelect: (sel: ParcelSelection) => onParcelSelectRef.current?.(sel),
+        onViewportChange: (vp: ViewportState) => onViewportChangeRef.current?.(vp),
       });
 
       // Wire the floating-window FSM only when floating and the DOM is present.

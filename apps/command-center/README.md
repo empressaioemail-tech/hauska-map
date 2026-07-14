@@ -34,6 +34,12 @@ npm run dev
 - `RETRIEVAL_API_KEY` — Bearer for the retrieval API (Parcel Trace atom trace)
 - `CORTEX_API_URL` / `MCP_URL` / `RETRIEVAL_API_URL` — upstream overrides (default to the Cloud Run URLs)
 
+**Local-dev proxy harness** — run the local console against a DEPLOYED console's `/api/spine/*` proxy (keys stay server-side on the deployed instance; exercises the exact production data plane with no local keys):
+
+```bash
+SPINE_PROXY_TARGET=https://cmdcenter-blush.vercel.app pnpm dev:cc
+```
+
 **Local-dev direct mode** — point the browser straight at locally running services (keys are then sent from the browser; paste one in Settings):
 
 ```bash
