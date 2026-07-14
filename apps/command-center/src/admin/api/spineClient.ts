@@ -130,6 +130,41 @@ export async function getJson<T = unknown>(
   }
 }
 
+/** POST a JSON body with a hard timeout; returns {ok, status, json, error}.
+ *  Same envelope as getJson so callers can branch on upstream error payloads
+ *  (e.g. cortex geocode_miss 422/404 bodies carry {error, message}). */
+export async function postJson<T = unknown>(
+  url: string,
+  config: SpineConfig,
+  body: unknown,
+  timeoutMs = 20_000,
+): Promise<{ ok: boolean; status: number; json: T | null; error?: string }> {
+  const controller = new AbortController()
+  const timer = setTimeout(() => controller.abort(), timeoutMs)
+  try {
+    const res = await fetch(url, {
+      method: 'POST',
+      headers: authHeaders(config),
+      body: JSON.stringify(body ?? {}),
+      signal: controller.signal,
+    })
+    const json = (await res.json().catch(() => null)) as T | null
+    if (!res.ok) {
+      const msg =
+        (json as { message?: string; error?: string } | null)?.message ||
+        (json as { message?: string; error?: string } | null)?.error ||
+        `HTTP ${res.status}`
+      return { ok: false, status: res.status, json, error: msg }
+    }
+    return { ok: true, status: res.status, json }
+  } catch (err) {
+    const isAbort = (err as { name?: string })?.name === 'AbortError'
+    return { ok: false, status: 0, json: null, error: isAbort ? `timed out after ${timeoutMs}ms` : (err as Error).message }
+  } finally {
+    clearTimeout(timer)
+  }
+}
+
 // ── MCP Streamable-HTTP client (ported from src/api/mcp-client.js to TS) ──
 
 interface JsonRpcMessage {

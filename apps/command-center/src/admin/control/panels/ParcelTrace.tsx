@@ -8,13 +8,20 @@
 // interface: enter an address → resolve place → show atoms → trace graph.
 
 import React, { useMemo, useState } from 'react'
-import { loadConfig, type SpineConfig, getJson } from '../../api/spineClient'
+import { loadConfig, type SpineConfig, getJson, postJson } from '../../api/spineClient'
 import { Panel, Pill, Loading, sectionHeader, mono, fmtTime } from '../primitives'
 
-interface PlaceResolveResult {
+// Response of POST cortex /api/plan-review/geocode (live-verified 2026-07-14):
+// { placeKey: "coord:29.88408:-97.93273", apn, jurisdiction, address, lat, lng,
+//   city, state, confidence: "high" } — 422 {error:"geocode_miss"} on a miss.
+interface GeocodeResult {
   placeKey?: string
-  place?: { placeKey?: string }
-  key?: string
+  address?: string
+  city?: string
+  state?: string
+  confidence?: string
+  error?: string
+  message?: string
 }
 
 interface Atom {
@@ -91,31 +98,46 @@ export const ParcelTrace: React.FC = () => {
 
     try {
       const base = config.cortexApiUrl?.replace(/\/$/, '') || ''
-      const resolveResult = await getJson<PlaceResolveResult>(
-        `${base}/api/brokerage/v1/place/resolve`,
+      // Resolve = POST /api/plan-review/geocode with the address in the body.
+      // (The old GET /api/brokerage/v1/place/resolve does not exist on deployed
+      // cortex — it fell through to the SPA's index.html — and never sent the
+      // address at all. Live-verified 2026-07-14 through the console proxy.)
+      const geocodeResult = await postJson<GeocodeResult>(
+        `${base}/api/plan-review/geocode`,
         config,
+        { address: address.trim() },
         10000,
       )
-      if (!resolveResult.ok) {
-        setError(resolveResult.error || 'Place resolve failed')
+      if (!geocodeResult.ok) {
+        setError(
+          geocodeResult.json?.error === 'geocode_miss'
+            ? `Geocode miss — could not geocode “${address.trim()}”. Check the address and try again.`
+            : geocodeResult.error || 'Geocode failed',
+        )
         setLoading(false)
         return
       }
-      const pk = resolveResult.json?.placeKey || resolveResult.json?.place?.placeKey || resolveResult.json?.key
+      const pk = geocodeResult.json?.placeKey
       if (!pk) {
-        setError('No placeKey returned')
+        setError('Geocode succeeded but returned no placeKey')
         setLoading(false)
         return
       }
       setPlaceKey(pk)
 
-      const atomsResult = await getJson<{ atoms?: Atom[] }>(
+      // Atoms composed at the place: GET /api/brokerage/v1/place/:placeKey/atoms
+      // (real route; 404 {error:"geocode_miss"} for an unknown place key).
+      const atomsResult = await getJson<{ atoms?: Atom[]; atomCount?: number; error?: string }>(
         `${base}/api/brokerage/v1/place/${encodeURIComponent(pk)}/atoms`,
         config,
         15000,
       )
       if (!atomsResult.ok) {
-        setError(atomsResult.error || 'Atoms fetch failed')
+        setError(
+          atomsResult.json?.error === 'geocode_miss'
+            ? `Place ${pk} is unknown to cortex (geocode_miss on atoms lookup)`
+            : atomsResult.error || 'Atoms fetch failed',
+        )
         setLoading(false)
         return
       }
@@ -299,7 +321,9 @@ export const ParcelTrace: React.FC = () => {
 
         {atoms.length === 0 && !loading && !error && (
           <div style={{ padding: 20, textAlign: 'center', color: 'var(--color-text-tertiary)', fontSize: 11 }}>
-            Enter an address above to resolve a place and view its composed atoms.
+            {placeKey
+              ? `Place resolved (${placeKey}) but no atoms are composed at this place yet — an honest 0, not an error.`
+              : 'Enter an address above to resolve a place and view its composed atoms.'}
           </div>
         )}
       </div>
