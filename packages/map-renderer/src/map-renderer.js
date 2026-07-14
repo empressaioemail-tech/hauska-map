@@ -96,6 +96,11 @@ export function createMapRenderer() {
       fadeDuration: 300,
     });
 
+    // Debug/verification seam: expose the Map instance on its container so
+    // operator tooling and headless checks can query style sources/layers
+    // programmatically (document.querySelector('.spine-map-canvas').__hauskaMap).
+    mapEl.__hauskaMap = map;
+
     map.addControl(new maplibregl.NavigationControl({ showCompass: true, visualizePitch: true }), "top-right");
 
     map.on("load", () => {
