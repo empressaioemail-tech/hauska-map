@@ -4,10 +4,11 @@
   "private": true,
   "type": "module",
   "scripts": {
-    "dev": "vite --port 5174",
-    "build": "vite build",
+    "build:renderer": "pnpm --filter @hauska/map-renderer build",
+    "dev": "pnpm run build:renderer && vite --port 5174",
+    "build": "pnpm run build:renderer && vite build",
     "preview": "vite preview --port 5174",
-    "test": "vitest run",
+    "test": "pnpm run build:renderer && vitest run",
     "test:watch": "vitest"
   },
   "dependencies": {
