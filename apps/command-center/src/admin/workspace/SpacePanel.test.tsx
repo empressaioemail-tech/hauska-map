@@ -4,7 +4,7 @@
 // CortexShell is GONE (no inner spaces bar, no View/Edit chrome, no "Cortex
 // Workspace" title row). Tiles mount directly in command center's own style.
 
-import { describe, it, expect, vi } from 'vitest'
+import { describe, it, expect, vi, beforeEach } from 'vitest'
 import { render, screen } from '@testing-library/react'
 import { SpacePanel } from './SpacePanel'
 import type { PresetSpace } from '@empressaio/tile-shell'
@@ -14,41 +14,50 @@ vi.mock('./cortexClient', () => ({
   cortexClient: { baseUrl: '/test', getToken: () => '' },
 }))
 
-vi.mock('./tileRegistry', () => ({
-  getTile: (id: string) => {
-    const tiles: Record<string, any> = {
-      'intake-queue': {
-        id: 'intake-queue',
-        label: 'Intake Queue',
-        category: 'Compliance',
-        status: 'live',
-        el: () => <div data-testid="tile-intake-queue">Intake Queue Tile</div>,
-      },
-      intake: {
-        id: 'intake',
-        label: 'Intake',
-        category: 'Compliance',
-        status: 'live',
-        el: () => <div data-testid="tile-intake">Intake Tile</div>,
-      },
-      'document-viewer': {
-        id: 'document-viewer',
-        label: 'Document Viewer',
-        category: 'Compliance',
-        status: 'live',
-        el: () => <div data-testid="tile-document-viewer">Document Viewer Tile</div>,
-      },
-      map: {
-        id: 'map',
-        label: 'Map',
-        category: 'Site Analysis',
-        status: 'partial',
-        el: () => <div data-testid="tile-map">Map Tile</div>,
-      },
-    }
-    return tiles[id]
-  },
-}))
+vi.mock('./tileRegistry', () => {
+  const tiles: Record<string, any> = {
+    'intake-queue': {
+      id: 'intake-queue',
+      label: 'Intake Queue',
+      category: 'Compliance',
+      status: 'live',
+      el: () => <div data-testid="tile-intake-queue">Intake Queue Tile</div>,
+    },
+    intake: {
+      id: 'intake',
+      label: 'Intake',
+      category: 'Compliance',
+      status: 'live',
+      el: () => <div data-testid="tile-intake">Intake Tile</div>,
+    },
+    'document-viewer': {
+      id: 'document-viewer',
+      label: 'Document Viewer',
+      category: 'Compliance',
+      status: 'live',
+      el: () => <div data-testid="tile-document-viewer">Document Viewer Tile</div>,
+    },
+    map: {
+      id: 'map',
+      label: 'Map',
+      category: 'Site Analysis',
+      status: 'partial',
+      el: () => <div data-testid="tile-map">Map Tile</div>,
+    },
+  }
+  return {
+    ALL_TILES: Object.values(tiles),
+    TILE_CATEGORIES: [
+      'Compliance',
+      'Site Analysis',
+      'Property Intel',
+      'Design Accelerator',
+      'Deliverable',
+      'Market',
+    ] as const,
+    getTile: (id: string) => tiles[id],
+  }
+})
 
 // Mock the design tokens CSS
 vi.mock('@empressaio/design-tokens/tokens.css', () => ({}))
@@ -67,6 +76,11 @@ vi.mock('@empressaio/tile-shell', () => ({
 }))
 
 describe('SpacePanel', () => {
+  beforeEach(() => {
+    localStorage.clear()
+    window.location.hash = ''
+  })
+
   const mockSpace: PresetSpace = {
     id: 'plan-review',
     label: 'Plan Review',
