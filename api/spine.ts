@@ -257,12 +257,19 @@ export default async function handler(req: VercelRequest, res: VercelResponse): 
     'Content-Type': req.headers['content-type'] || 'application/json',
   }
 
-  // Forward relevant headers
-  if (req.headers['accept']) headers['Accept'] = req.headers['accept']
-  if (req.headers['mcp-protocol-version']) headers['MCP-Protocol-Version'] = req.headers['mcp-protocol-version']
-  if (req.headers['mcp-session-id']) headers['mcp-session-id'] = req.headers['mcp-session-id']
-  if (req.headers['x-hauska-dev-product']) headers['X-Hauska-Dev-Product'] = req.headers['x-hauska-dev-product']
-  if (req.headers['x-hauska-install-id']) headers['X-Hauska-Install-Id'] = req.headers['x-hauska-install-id']
+  // Forward relevant headers. Node types custom headers as string | string[]
+  // (repeated headers arrive as arrays) — forward the first value only.
+  const headerStr = (v: string | string[] | undefined): string | undefined =>
+    Array.isArray(v) ? v[0] : v
+  const fwd = (name: string, target: string): void => {
+    const v = headerStr(req.headers[name])
+    if (v) headers[target] = v
+  }
+  fwd('accept', 'Accept')
+  fwd('mcp-protocol-version', 'MCP-Protocol-Version')
+  fwd('mcp-session-id', 'mcp-session-id')
+  fwd('x-hauska-dev-product', 'X-Hauska-Dev-Product')
+  fwd('x-hauska-install-id', 'X-Hauska-Install-Id')
 
   try {
     const fetchOptions: RequestInit = {
