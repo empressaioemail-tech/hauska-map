@@ -9,8 +9,11 @@ import type { PresetSpace } from '@empressaio/tile-shell'
 import {
   defaultLayoutFor,
   rowsFor,
+  instanceIdFor,
   layoutReducer,
   sanitizeLayout,
+  REPORT_TILE_KIND,
+  COMPONENT_TILE_KIND,
   listLayoutNames,
   loadLayoutByName,
   saveLayout,
@@ -218,6 +221,133 @@ describe('sanitizeLayout', () => {
     expect(sanitizeLayout(null)).toBeNull()
     expect(sanitizeLayout('x')).toBeNull()
     expect(sanitizeLayout({ columns: 2 })).toBeNull()
+  })
+})
+
+describe('parameterized tiles ({tileId, params})', () => {
+  const reportParams = { capabilityId: 'avm', label: 'AVM / Valuation', status: 'partial' }
+
+  it('derives instance ids from kind + params', () => {
+    expect(instanceIdFor('intake')).toBe('intake')
+    expect(instanceIdFor(REPORT_TILE_KIND, reportParams)).toBe('report:avm')
+    expect(instanceIdFor(COMPONENT_TILE_KIND, { component: 'MapTile' })).toBe(
+      'component:MapTile',
+    )
+    expect(instanceIdFor(REPORT_TILE_KIND, {})).toBeNull()
+    expect(instanceIdFor(COMPONENT_TILE_KIND)).toBeNull()
+  })
+
+  it('add-tile with params creates a deduped parameterized entry', () => {
+    let s = layoutReducer(freshState(), {
+      type: 'add-tile',
+      tileId: REPORT_TILE_KIND,
+      params: reportParams,
+    })
+    const entry = s.layout.tiles.find((t) => t.id === 'report:avm')
+    expect(entry).toEqual({
+      id: 'report:avm',
+      tileId: REPORT_TILE_KIND,
+      params: reportParams,
+      span: 1,
+      minimized: false,
+    })
+    // duplicate add of the same capability is a no-op
+    s = layoutReducer(s, { type: 'add-tile', tileId: REPORT_TILE_KIND, params: reportParams })
+    expect(s.layout.tiles.filter((t) => t.id === 'report:avm')).toHaveLength(1)
+    // unusable params are rejected
+    expect(layoutReducer(s, { type: 'add-tile', tileId: REPORT_TILE_KIND, params: {} })).toBe(s)
+  })
+
+  it('plain add-tile keeps the exact #25 entry shape (no tileId/params keys)', () => {
+    const s = layoutReducer(freshState(), { type: 'add-tile', tileId: 'letter' })
+    const entry = s.layout.tiles.find((t) => t.id === 'letter')!
+    expect(Object.keys(entry).sort()).toEqual(['id', 'minimized', 'span'])
+  })
+
+  it('round-trips {tileId, params} through save + load (localStorage JSON)', () => {
+    const layout = {
+      columns: 2,
+      tiles: [
+        { id: 'a', span: 1, minimized: false },
+        {
+          id: 'report:avm',
+          tileId: REPORT_TILE_KIND,
+          params: reportParams,
+          span: 2,
+          minimized: false,
+        },
+        {
+          id: 'component:MapTile',
+          tileId: COMPONENT_TILE_KIND,
+          params: { component: 'MapTile', label: 'MapTile' },
+          span: 1,
+          minimized: true,
+        },
+      ],
+    }
+    saveLayout(space.id, 'with-reports', layout)
+    expect(loadLayoutByName(space.id, 'with-reports')).toEqual(layout)
+    // and via the reload path
+    persistWorking(space.id, layout, 'with-reports')
+    expect(resolveInitialLayout(space, null).layout).toEqual(layout)
+    // and via the hash deep-link path
+    expect(resolveInitialLayout(space, 'with-reports').layout).toEqual(layout)
+  })
+
+  it('sanitize derives the instance id from {tileId, params} even without id', () => {
+    const raw = {
+      columns: 2,
+      tiles: [
+        { tileId: REPORT_TILE_KIND, params: reportParams, span: 1, minimized: false },
+      ],
+    }
+    expect(sanitizeLayout(raw)!.tiles[0]).toEqual({
+      id: 'report:avm',
+      tileId: REPORT_TILE_KIND,
+      params: reportParams,
+      span: 1,
+      minimized: false,
+    })
+  })
+
+  it('sanitize drops parameterized entries whose params cannot identify an instance', () => {
+    const raw = {
+      columns: 2,
+      tiles: [
+        { id: 'a', span: 1, minimized: false },
+        { tileId: REPORT_TILE_KIND, params: { label: 'no capability id' }, span: 1, minimized: false },
+        { tileId: COMPONENT_TILE_KIND, params: 'garbage', span: 1, minimized: false },
+      ],
+    }
+    expect(sanitizeLayout(raw)!.tiles).toEqual([{ id: 'a', span: 1, minimized: false }])
+  })
+
+  it('is backward compatible with #25-shaped stored layouts', () => {
+    // A layout persisted by the #25 code: entries have only {id, span, minimized}.
+    localStorage.setItem(
+      'cc-workspace-layouts',
+      JSON.stringify({
+        [space.id]: {
+          active: 'legacy',
+          working: null,
+          layouts: {
+            legacy: {
+              columns: 2,
+              tiles: [
+                { id: 'a', span: 2, minimized: true },
+                { id: 'b', span: 1, minimized: false },
+              ],
+            },
+          },
+        },
+      }),
+    )
+    const resolved = resolveInitialLayout(space, null)
+    expect(resolved.activeName).toBe('legacy')
+    expect(resolved.layout.tiles).toEqual([
+      { id: 'a', span: 2, minimized: true },
+      { id: 'b', span: 1, minimized: false },
+    ])
   })
 })
 

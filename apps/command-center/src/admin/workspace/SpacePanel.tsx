@@ -24,6 +24,15 @@ import {
 import { cortexClient } from './cortexClient'
 import { getTile, ALL_TILES, TILE_CATEGORIES } from './tileRegistry'
 import {
+  COMPONENT_LIBRARY,
+  componentParamsFor,
+  reportParamsFor,
+  resolveTile,
+} from './dynamicTiles'
+import { useReportRegistry } from './reportRegistry'
+import {
+  COMPONENT_TILE_KIND,
+  REPORT_TILE_KIND,
   MAX_COLUMNS,
   MIN_COLUMNS,
   clearWorking,
@@ -82,6 +91,62 @@ const toolbarInputStyle: React.CSSProperties = {
   background: 'var(--color-background-secondary)',
   border: '0.5px solid var(--color-border-secondary)',
   width: 140,
+}
+
+/** Grouped picker section with a heading (This panel's tiles / All console tiles / Report library / Components). */
+function PickerSection({ title, children }: { title: string; children: React.ReactNode }) {
+  return (
+    <div role="group" aria-label={title} style={{ marginBottom: 10 }}>
+      <div
+        style={{
+          fontSize: 10,
+          fontWeight: 700,
+          fontFamily: 'var(--font-ui)',
+          color: 'var(--color-text-secondary)',
+          textTransform: 'uppercase',
+          letterSpacing: '0.06em',
+          marginBottom: 6,
+          paddingBottom: 2,
+          borderBottom: '0.5px solid var(--color-border-tertiary)',
+        }}
+      >
+        {title}
+      </div>
+      {children}
+    </div>
+  )
+}
+
+function PickerCategoryLabel({ text }: { text: string }) {
+  return (
+    <div
+      style={{
+        fontSize: 9,
+        fontWeight: 600,
+        fontFamily: 'var(--font-ui)',
+        color: 'var(--color-text-tertiary)',
+        textTransform: 'uppercase',
+        letterSpacing: '0.05em',
+        marginBottom: 4,
+      }}
+    >
+      {text}
+    </div>
+  )
+}
+
+function PickerEmpty({ text }: { text: string }) {
+  return (
+    <span
+      style={{
+        fontSize: 11,
+        fontFamily: 'var(--font-ui)',
+        color: 'var(--color-text-tertiary)',
+      }}
+    >
+      {text}
+    </span>
+  )
 }
 
 /** Per-tile control cluster shown in tile headers while editing. */
@@ -174,6 +239,7 @@ export function SpacePanel({ space }: SpacePanelProps) {
   // Transient view state — never persisted.
   const [maximizedId, setMaximizedId] = useState<string | null>(null)
   const [pickerOpen, setPickerOpen] = useState(false)
+  const [pickerSearch, setPickerSearch] = useState('')
   const [layoutName, setLayoutName] = useState('')
   const [savedNames, setSavedNames] = useState<string[]>(() => listLayoutNames(space.id))
   const draggingId = useRef<string | null>(null)
@@ -245,10 +311,29 @@ export function SpacePanel({ space }: SpacePanelProps) {
   const maximizedEntry = maximizedId
     ? layout.tiles.find((t) => t.id === maximizedId)
     : undefined
-  const maximizedTile = maximizedEntry ? getTile(maximizedEntry.id) : undefined
+  const maximizedTile = maximizedEntry ? resolveTile(maximizedEntry) : undefined
 
-  const addableTiles = ALL_TILES.filter(
-    (t) => !layout.tiles.some((entry) => entry.id === t.id),
+  // ---- Add-tile picker data (grouped sections + search) ----
+  const registry = useReportRegistry(editMode && pickerOpen)
+  const inLayout = (id: string) => layout.tiles.some((entry) => entry.id === id)
+  const query = pickerSearch.trim().toLowerCase()
+  const matches = (label: string, id?: string) =>
+    query === '' ||
+    label.toLowerCase().includes(query) ||
+    (id !== undefined && id.toLowerCase().includes(query))
+
+  const panelTiles = space.tiles
+    .filter((id, idx) => space.tiles.indexOf(id) === idx && !inLayout(id))
+    .map((id) => getTile(id))
+    .filter((t): t is NonNullable<typeof t> => t !== undefined)
+    .filter((t) => matches(t.label, t.id))
+  const consoleTiles = ALL_TILES.filter((t) => !inLayout(t.id) && matches(t.label, t.id))
+  const reportEntries = (registry.entries ?? []).filter(
+    (e) => !inLayout(`report:${e.id}`) && matches(e.label, e.id),
+  )
+  const reportCategories = [...new Set(reportEntries.map((e) => e.category))]
+  const componentEntries = COMPONENT_LIBRARY.filter(
+    (c) => !inLayout(`component:${c.name}`) && matches(c.label, c.name),
   )
 
   return (
@@ -312,6 +397,7 @@ export function SpacePanel({ space }: SpacePanelProps) {
               onClick={() => {
                 setEditMode(!editMode)
                 setPickerOpen(false)
+                setPickerSearch('')
               }}
               style={editButtonStyle(editMode)}
             >
@@ -432,66 +518,172 @@ export function SpacePanel({ space }: SpacePanelProps) {
             </div>
           )}
 
-          {/* Add-tile picker — registry tiles not already in this layout */}
+          {/* Add-tile picker — grouped library sections, searchable by name */}
           {editMode && pickerOpen && (
             <div
               role="menu"
               aria-label="Add tile picker"
               style={{
                 flex: 'none',
-                maxHeight: 180,
+                maxHeight: 260,
                 overflow: 'auto',
                 padding: '8px 12px',
                 borderBottom: '0.5px solid var(--color-border-tertiary)',
                 background: 'var(--color-background-secondary)',
               }}
             >
-              {addableTiles.length === 0 && (
-                <span
-                  style={{
-                    fontSize: 11,
-                    fontFamily: 'var(--font-ui)',
-                    color: 'var(--color-text-tertiary)',
-                  }}
-                >
-                  All registry tiles are already in this layout.
-                </span>
-              )}
-              {TILE_CATEGORIES.map((category) => {
-                const tiles = addableTiles.filter((t) => t.category === category)
-                if (tiles.length === 0) return null
-                return (
-                  <div key={category} style={{ marginBottom: 8 }}>
-                    <div
-                      style={{
-                        fontSize: 9,
-                        fontWeight: 600,
-                        fontFamily: 'var(--font-ui)',
-                        color: 'var(--color-text-tertiary)',
-                        textTransform: 'uppercase',
-                        letterSpacing: '0.05em',
-                        marginBottom: 4,
-                      }}
-                    >
-                      {category}
-                    </div>
-                    <div style={{ display: 'flex', flexWrap: 'wrap', gap: 4 }}>
-                      {tiles.map((tile) => (
-                        <button
-                          key={tile.id}
-                          type="button"
-                          style={toolButtonStyle}
-                          aria-label={`Add ${tile.label}`}
-                          onClick={() => dispatch({ type: 'add-tile', tileId: tile.id })}
-                        >
-                          {tile.label}
-                          {tile.status !== 'live' ? ` (${tile.status})` : ''}
-                        </button>
-                      ))}
-                    </div>
+              <input
+                aria-label="Search tiles"
+                style={{ ...toolbarInputStyle, width: 220, marginBottom: 8 }}
+                placeholder="Search tiles, reports, components…"
+                value={pickerSearch}
+                onChange={(e) => setPickerSearch(e.target.value)}
+              />
+
+              {/* Section 1: this panel's preset tiles */}
+              <PickerSection title="This panel's tiles">
+                {panelTiles.length === 0 ? (
+                  <PickerEmpty text="All of this panel's preset tiles are in the layout." />
+                ) : (
+                  <div style={{ display: 'flex', flexWrap: 'wrap', gap: 4 }}>
+                    {panelTiles.map((tile) => (
+                      <button
+                        key={tile.id}
+                        type="button"
+                        style={toolButtonStyle}
+                        aria-label={`Add ${tile.label} (preset)`}
+                        onClick={() => dispatch({ type: 'add-tile', tileId: tile.id })}
+                      >
+                        {tile.label}
+                        {tile.status !== 'live' ? ` (${tile.status})` : ''}
+                      </button>
+                    ))}
                   </div>
-                )
-              })}
+                )}
+              </PickerSection>
+
+              {/* Section 2: every console registry tile */}
+              <PickerSection title="All console tiles">
+                {consoleTiles.length === 0 ? (
+                  <PickerEmpty text="All registry tiles are already in this layout." />
+                ) : (
+                  TILE_CATEGORIES.map((category) => {
+                    const tiles = consoleTiles.filter((t) => t.category === category)
+                    if (tiles.length === 0) return null
+                    return (
+                      <div key={category} style={{ marginBottom: 8 }}>
+                        <PickerCategoryLabel text={category} />
+                        <div style={{ display: 'flex', flexWrap: 'wrap', gap: 4 }}>
+                          {tiles.map((tile) => (
+                            <button
+                              key={tile.id}
+                              type="button"
+                              style={toolButtonStyle}
+                              aria-label={`Add ${tile.label}`}
+                              onClick={() =>
+                                dispatch({ type: 'add-tile', tileId: tile.id })
+                              }
+                            >
+                              {tile.label}
+                              {tile.status !== 'live' ? ` (${tile.status})` : ''}
+                            </button>
+                          ))}
+                        </div>
+                      </div>
+                    )
+                  })
+                )}
+              </PickerSection>
+
+              {/* Section 3: cortex report/capability registry (live-fetched) */}
+              <PickerSection title="Report library">
+                {registry.status === 'loading' || registry.status === 'idle' ? (
+                  <PickerEmpty text="Loading report library from cortex…" />
+                ) : registry.status === 'error' ? (
+                  <div
+                    role="alert"
+                    style={{
+                      display: 'flex',
+                      alignItems: 'center',
+                      gap: 8,
+                      fontSize: 11,
+                      fontFamily: 'var(--font-ui)',
+                      color: 'var(--color-text-warning, #f59e0b)',
+                    }}
+                  >
+                    <span>
+                      Report library unreachable — {registry.error ?? 'fetch failed'}
+                    </span>
+                    <button
+                      type="button"
+                      style={toolButtonStyle}
+                      aria-label="Retry report library"
+                      onClick={registry.retry}
+                    >
+                      Retry
+                    </button>
+                  </div>
+                ) : reportEntries.length === 0 ? (
+                  <PickerEmpty text="No matching report capabilities (or all are already in this layout)." />
+                ) : (
+                  reportCategories.map((category) => {
+                    const entries = reportEntries.filter((e) => e.category === category)
+                    return (
+                      <div key={category} style={{ marginBottom: 8 }}>
+                        <PickerCategoryLabel text={category} />
+                        <div style={{ display: 'flex', flexWrap: 'wrap', gap: 4 }}>
+                          {entries.map((cap) => (
+                            <button
+                              key={cap.id}
+                              type="button"
+                              style={toolButtonStyle}
+                              aria-label={`Add report ${cap.label}`}
+                              title={cap.degradedReason ?? cap.id}
+                              onClick={() =>
+                                dispatch({
+                                  type: 'add-tile',
+                                  tileId: REPORT_TILE_KIND,
+                                  params: reportParamsFor(cap),
+                                })
+                              }
+                            >
+                              {cap.label}
+                              {cap.status !== 'live' ? ` (${cap.status})` : ''}
+                            </button>
+                          ))}
+                        </div>
+                      </div>
+                    )
+                  })
+                )}
+              </PickerSection>
+
+              {/* Section 4: published @empressaio/cortex-tiles components */}
+              <PickerSection title="Components">
+                {componentEntries.length === 0 ? (
+                  <PickerEmpty text="No matching components (or all are already in this layout)." />
+                ) : (
+                  <div style={{ display: 'flex', flexWrap: 'wrap', gap: 4 }}>
+                    {componentEntries.map((c) => (
+                      <button
+                        key={c.name}
+                        type="button"
+                        style={toolButtonStyle}
+                        aria-label={`Add component ${c.name}`}
+                        onClick={() =>
+                          dispatch({
+                            type: 'add-tile',
+                            tileId: COMPONENT_TILE_KIND,
+                            params: componentParamsFor(c),
+                          })
+                        }
+                      >
+                        {c.label}
+                      </button>
+                    ))}
+                  </div>
+                )}
+              </PickerSection>
             </div>
           )}
 
@@ -569,7 +761,7 @@ export function SpacePanel({ space }: SpacePanelProps) {
               }}
             >
               {layout.tiles.map((entry) => {
-                const tile = getTile(entry.id)
+                const tile = resolveTile(entry)
                 if (!tile) return null
 
                 return (
