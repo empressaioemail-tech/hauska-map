@@ -26,7 +26,7 @@ Client base for cortex calls: `/api/spine/cortex/api` (`cortexClient.ts`), so a 
 | `CORTEX_API_URL` | — | optional | defaults to the Cloud Run cortex-api URL |
 | `CORTEX_SERVICE_API_KEY` | `Authorization: Bearer` | all cortex panels/tiles | 503 `{missing}` when unset |
 | `MCP_URL` | — | optional | defaults to the Cloud Run MCP URL |
-| `MCP_PRODUCT_KEY` | `X-Hauska-Key` | full tool surface + Revenue Meter | must resolve to a `platform_internal` key for `/metering/summary`; the deployed key resolves to the full 63-tool surface. Unset → anonymous → public product (6 tools, public-free atoms only) |
+| `MCP_PRODUCT_KEY` | `X-Hauska-Key` | Atoms panel results + Revenue Meter | must resolve to a `platform_internal` key for `/metering/summary`. Unset → anonymous → public product: `tools/list` still shows the full inventory (gating is call-time), but `search_atoms` returns public-free atoms only — verified 2026-07-13 to be 0 rows for typical queries against the deployed snapshot, so the Atoms panel needs a real key to populate |
 | `MCP_ADMIN_KEY` | `X-Hauska-Admin-Key` | Surface & Gate + MCP Inspector catalog | value of the MCP server's `HAUSKA_ADMIN_BOOTSTRAP_KEY`; only ever sent to the pinned introspection catalog paths. 503 `{missing}` when unset |
 | `RETRIEVAL_API_KEY` | `Authorization: Bearer` | Parcel Trace atom-trace (and any future retrieval panel) | value of the retrieval service's `RETRIEVAL_API_KEY` env. 503 `{missing}` for non-health retrieval paths when unset |
 

@@ -29,7 +29,7 @@ npm run dev
 **Deployed (default) mode** — the browser defaults to the same-origin `/api/spine/*` proxy (`api/spine.ts` at the repo root); no `VITE_*` vars are needed and no key ever ships to the browser. The proxy attaches auth server-side from these Vercel env vars (see `PROXY_CONTRACT.md` for the full table):
 
 - `CORTEX_SERVICE_API_KEY` — Bearer for cortex-api (required for cortex panels/tiles)
-- `MCP_PRODUCT_KEY` — `X-Hauska-Key` for the MCP server (optional: unset falls back to the anonymous public product; must be a `platform_internal` key for the Revenue Meter's `/metering/summary`)
+- `MCP_PRODUCT_KEY` — `X-Hauska-Key` for the MCP server (optional: unset falls back to the anonymous public product — wiring works but `search_atoms` results are effectively empty without a key; must be a `platform_internal` key for the Revenue Meter's `/metering/summary`)
 - `MCP_ADMIN_KEY` — `X-Hauska-Admin-Key` for the path-pinned `/admin/introspection/tools` catalog (Surface & Gate, MCP Inspector)
 - `RETRIEVAL_API_KEY` — Bearer for the retrieval API (Parcel Trace atom trace)
 - `CORTEX_API_URL` / `MCP_URL` / `RETRIEVAL_API_URL` — upstream overrides (default to the Cloud Run URLs)
