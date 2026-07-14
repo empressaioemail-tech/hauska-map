@@ -71,6 +71,14 @@ export function createMapRenderer() {
   let fixtureEnabled = true;
   let viewportTimer = null;
   let hoveredFeatureKey = null;
+  // True once the map `load` event fired. Style MUTATIONS (addSource/addLayer)
+  // are safe from that point on. Do NOT gate overlay writes on isStyleLoaded():
+  // MapLibre reports isStyleLoaded()===false whenever any source/tile is still
+  // loading (e.g. right after moveend or a live-parcels setData), so a one-shot
+  // overlay push (report tiles push exactly once per run) that lands in such a
+  // window would be stashed and never re-applied — the report overlays would
+  // silently never render.
+  let styleReady = false;
 
   function ensureMap() {
     if (!slotEl || map) return;
@@ -104,6 +112,7 @@ export function createMapRenderer() {
     map.addControl(new maplibregl.NavigationControl({ showCompass: true, visualizePitch: true }), "top-right");
 
     map.on("load", () => {
+      styleReady = true;
       applyLayerVisibility();
       applyOverlays();
       // Fit to the fixture corpus only when the fixture stack is actually in
@@ -320,7 +329,10 @@ export function createMapRenderer() {
   }
 
   function applyOverlays() {
-    if (!map || !map.isStyleLoaded()) return;
+    // Gate on the `load` event (styleReady), NOT isStyleLoaded(): the latter is
+    // false during any tile/source load in progress, which dropped one-shot
+    // overlay pushes (see styleReady declaration).
+    if (!map || !styleReady) return;
     reconcileOverlays(map, overlaySpecs, overlayKeys);
   }
 
@@ -365,10 +377,9 @@ export function createMapRenderer() {
      */
     setOverlays(specs) {
       overlaySpecs = Array.isArray(specs) ? specs : [];
-      if (map && map.isStyleLoaded()) {
-        applyOverlays();
-      }
-      // else: applied by the map `load` handler once the style is ready.
+      // applyOverlays self-gates on styleReady; pre-load pushes are stashed in
+      // overlaySpecs and applied by the map `load` handler.
+      applyOverlays();
     },
 
     /** Signal 4: context binding */
@@ -410,6 +421,7 @@ export function createMapRenderer() {
       resizeObs?.disconnect();
       map?.remove();
       map = null;
+      styleReady = false;
       slotEl = null;
     },
 

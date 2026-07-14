@@ -8,7 +8,8 @@
 import React from 'react'
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
 import { render, screen, waitFor, act, fireEvent } from '@testing-library/react'
-import { EngagementProvider, SpatialProvider } from '@empressaio/tile-shell'
+import { EngagementProvider, SpatialProvider, useSpatial } from '@empressaio/tile-shell'
+import type { OverlaySpec as SpatialOverlaySpec } from '@empressaio/tile-shell'
 import { PanelProvider } from '../../control/center/useActivePanel'
 import { LIVE_PARCELS_KEY, LIVE_FEMA_KEY } from './liveGis'
 
@@ -99,6 +100,93 @@ function renderTile() {
       </SpatialProvider>
     </EngagementProvider>,
   )
+}
+
+// Report-tile stand-in: pushes overlays into the SAME SpatialProvider the map
+// consumes — exactly what TopographyTile/DrainageTile/HydrologyTile do.
+function PushProbe({ overlays }: { overlays: SpatialOverlaySpec[] }) {
+  const { pushOverlay } = useSpatial()
+  return (
+    <button
+      type="button"
+      data-testid="push-probe"
+      onClick={() => overlays.forEach((o) => pushOverlay(o))}
+    />
+  )
+}
+
+function renderTileWithProbe(overlays: SpatialOverlaySpec[]) {
+  return render(
+    <EngagementProvider>
+      <SpatialProvider>
+        <PanelProvider>
+          <LiveMapTile />
+          <PushProbe overlays={overlays} />
+        </PanelProvider>
+      </SpatialProvider>
+    </EngagementProvider>,
+  )
+}
+
+const lineString = (coords: number[][]) => ({
+  type: 'Feature',
+  properties: {},
+  geometry: { type: 'LineString', coordinates: coords },
+})
+
+/** Real report shapes: contour + flow-line LineStrings as the tiles push them. */
+const TOPO_CONTOURS_OVERLAY: SpatialOverlaySpec = {
+  id: 'topo-contours',
+  kind: 'topography-contours',
+  label: 'Topography contours',
+  geojson: {
+    type: 'FeatureCollection',
+    features: [
+      lineString([
+        [-97.32, 30.11],
+        [-97.318, 30.112],
+        [-97.316, 30.111],
+      ]),
+      lineString([
+        [-97.321, 30.109],
+        [-97.319, 30.11],
+      ]),
+    ],
+  },
+}
+
+const DRAINAGE_FLOW_OVERLAY: SpatialOverlaySpec = {
+  id: 'drainage-flow',
+  kind: 'hydrology-flow',
+  label: 'Drainage flow lines',
+  geojson: {
+    type: 'FeatureCollection',
+    features: [
+      lineString([
+        [-97.315, 30.108],
+        [-97.313, 30.109],
+      ]),
+    ],
+  },
+}
+
+const HYDROLOGY_FLOW_OVERLAY: SpatialOverlaySpec = {
+  id: 'hydrology-flow',
+  kind: 'hydrology-flow',
+  label: 'Hydrology flow lines',
+  geojson: {
+    type: 'FeatureCollection',
+    features: [
+      lineString([
+        [-97.312, 30.107],
+        [-97.31, 30.108],
+      ]),
+      lineString([
+        [-97.309, 30.106],
+        [-97.308, 30.107],
+      ]),
+    ],
+  },
 }
 
 beforeEach(() => {
@@ -219,6 +307,96 @@ describe('fixture labeling rule', () => {
     fireEvent.click(screen.getByTestId('fixture-toggle'))
     await waitFor(() => expect(latestMapProps().useFixture).toBe(true))
     expect(screen.getByTestId('fixture-watermark').textContent).toBe('FIXTURE')
+  })
+})
+
+describe('report overlay stack', () => {
+  it('merges report overlays ON TOP of live layers, keyed by overlay id (drainage + hydrology flow lines both survive)', async () => {
+    mockFetchByLayer({
+      parcels: () => new Response(JSON.stringify(PARCELS_ENVELOPE), { status: 200 }),
+      fema: () => new Response(JSON.stringify(FEMA_ENVELOPE), { status: 200 }),
+    })
+    renderTileWithProbe([TOPO_CONTOURS_OVERLAY, DRAINAGE_FLOW_OVERLAY, HYDROLOGY_FLOW_OVERLAY])
+
+    act(() => latestMapProps().onViewportChange(SAN_MARCOS_VIEWPORT))
+    await waitFor(() => expect(latestMapProps().overlays).toHaveLength(2))
+
+    fireEvent.click(screen.getByTestId('push-probe'))
+
+    await waitFor(() => {
+      const overlays = latestMapProps().overlays
+      // Live layers first (below), report overlays after (on top).
+      expect(overlays.map((o: any) => o.layerKey)).toEqual([
+        LIVE_FEMA_KEY,
+        LIVE_PARCELS_KEY,
+        'topo-contours',
+        'drainage-flow',
+        'hydrology-flow',
+      ])
+    })
+
+    const overlays = latestMapProps().overlays
+    const byKey = Object.fromEntries(overlays.map((o: any) => [o.layerKey, o]))
+    // Both flow overlays share kind 'hydrology-flow'; keying by id keeps both.
+    expect(byKey['drainage-flow'].geojson.features).toHaveLength(1)
+    expect(byKey['hydrology-flow'].geojson.features).toHaveLength(2)
+    expect(byKey['drainage-flow'].visible).toBe(true)
+    // Kind-based paints: contours tan, flow lines hydrology blue.
+    expect(byKey['topo-contours'].paint['line-color']).toBe('#d4a373')
+    expect(byKey['drainage-flow'].paint['line-color']).toBe('#38bdf8')
+  })
+
+  it('renders a toggle chip per overlay; toggling flips the overlay visible flag without dropping it', async () => {
+    mockFetchByLayer({})
+    renderTileWithProbe([DRAINAGE_FLOW_OVERLAY])
+    fireEvent.click(screen.getByTestId('push-probe'))
+
+    const chip = await screen.findByTestId('overlay-chip-drainage-flow')
+    expect(chip).toHaveTextContent('Drainage flow lines · 1')
+    expect(chip).toHaveAttribute('aria-pressed', 'true')
+
+    fireEvent.click(chip)
+    await waitFor(() => {
+      const o = latestMapProps().overlays.find((s: any) => s.layerKey === 'drainage-flow')
+      expect(o.visible).toBe(false)
+    })
+    expect(screen.getByTestId('overlay-chip-drainage-flow')).toHaveAttribute(
+      'aria-pressed',
+      'false',
+    )
+
+    fireEvent.click(screen.getByTestId('overlay-chip-drainage-flow'))
+    await waitFor(() => {
+      const o = latestMapProps().overlays.find((s: any) => s.layerKey === 'drainage-flow')
+      expect(o.visible).toBe(true)
+    })
+  })
+
+  it('is honest about empty report payloads: warn chip, nothing passed to the map', async () => {
+    mockFetchByLayer({})
+    const EMPTY_ZONES: SpatialOverlaySpec = {
+      id: 'drainage-zones',
+      kind: 'drainage-zones',
+      label: 'Drainage zones',
+      geojson: { type: 'FeatureCollection', features: [] },
+    }
+    renderTileWithProbe([EMPTY_ZONES])
+    fireEvent.click(screen.getByTestId('push-probe'))
+
+    const chip = await screen.findByTestId('overlay-chip-drainage-zones')
+    expect(chip).toHaveTextContent('Drainage zones — empty (nothing to draw)')
+    // Not a toggle — nothing to toggle.
+    expect(chip.tagName).toBe('SPAN')
+    // And the map gets NO spec for it (no phantom source).
+    expect(
+      latestMapProps().overlays.find((s: any) => s.layerKey === 'drainage-zones'),
+    ).toBeUndefined()
+  })
+
+  it('does not render the chip rail when no report overlays are in the stack', () => {
+    mockFetchByLayer({})
+    renderTile()
+    expect(screen.queryByTestId('report-overlay-chips')).not.toBeInTheDocument()
   })
 })
 

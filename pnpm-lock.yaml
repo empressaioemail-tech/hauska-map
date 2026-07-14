@@ -31,7 +31,7 @@ importers:
   apps/command-center:
     dependencies:
       '@empressaio/cortex-client':
-        specifier: 0.1.1
+        specifier: ^0.1.1
         version: 0.1.1
       '@empressaio/cortex-tiles':
         specifier: ^0.1.3

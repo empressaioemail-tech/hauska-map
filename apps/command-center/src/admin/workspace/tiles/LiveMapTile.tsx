@@ -17,6 +17,12 @@
 //     brief" and "Site analysis" actions that thread the parcel through the
 //     shared EngagementProvider context (#addr/&lat/&lng hash params) and
 //     deep-link to the lens-investor / site-analysis panels.
+//   - Report overlay stack: overlays pushed by the report tiles (topography
+//     contours, drainage/hydrology flow lines, drainage zones) via
+//     useSpatial().pushOverlay draw ON TOP of the live parcel/FEMA layers,
+//     keyed by overlay id (kinds collide: drainage + hydrology both push kind
+//     'hydrology-flow'), with a per-overlay toggle chip and an honest "empty"
+//     chip when a report pushed zero features.
 
 import React, { useCallback, useMemo, useRef, useState } from 'react'
 import { FloatingMap } from '@hauska/map-renderer'
@@ -65,6 +71,56 @@ const chipStyle = (sev: 'info' | 'warn' | 'error'): React.CSSProperties => ({
   border: `0.5px solid ${sev === 'error' ? 'rgba(248,113,113,0.6)' : sev === 'warn' ? 'rgba(252,211,77,0.5)' : 'rgba(118,131,144,0.4)'}`,
 })
 
+/** Interactive per-overlay toggle chip (report overlay stack). */
+const overlayChipStyle = (on: boolean): React.CSSProperties => ({
+  fontSize: 10,
+  fontFamily: 'var(--font-ui)',
+  fontWeight: 600,
+  padding: '3px 8px',
+  borderRadius: 4,
+  whiteSpace: 'nowrap',
+  cursor: 'pointer',
+  color: on ? '#7dd3fc' : 'var(--h-text-muted, #768390)',
+  background: 'rgba(13,17,23,0.78)',
+  border: `0.5px solid ${on ? 'rgba(125,211,252,0.6)' : 'rgba(118,131,144,0.4)'}`,
+})
+
+/** A report overlay as pushed by the tiles: { id, kind, label, geojson, opacity? }. */
+interface ReportOverlayView {
+  id: string
+  kind: string
+  label: string
+  geojson: unknown
+  opacity: number | null
+  featureCount: number
+}
+
+/** Count drawable features in a GeoJSON payload (FeatureCollection / Feature / bare geometry). */
+function featureCountOf(geojson: unknown): number {
+  const g = geojson as { type?: string; features?: unknown[] } | null | undefined
+  if (!g || typeof g !== 'object' || !g.type) return 0
+  if (g.type === 'FeatureCollection') return Array.isArray(g.features) ? g.features.length : 0
+  return 1
+}
+
+/**
+ * Default paints per overlay kind so report geometry reads distinctly over the
+ * live layers: contours warm tan, flow lines hydrology blue, zone fills honor
+ * the pushed opacity.
+ */
+function reportOverlayPaint(kind: string, opacity: number | null): Record<string, unknown> {
+  const paint: Record<string, unknown> = {}
+  if (kind.includes('contour') || kind.includes('topo')) {
+    paint['line-color'] = '#d4a373'
+    paint['line-width'] = 1.2
+  } else if (kind.includes('flow')) {
+    paint['line-color'] = '#38bdf8'
+    paint['line-width'] = 2
+  }
+  if (opacity != null) paint['fill-opacity'] = opacity
+  return paint
+}
+
 function LiveMapTileInner() {
   const { activeParcel, setActiveParcel } = useEngagement()
   const { overlays: spatialOverlays } = useSpatial()
@@ -75,6 +131,9 @@ function LiveMapTileInner() {
   const [zoom, setZoom] = useState<number | null>(null)
   const [fixtureOn, setFixtureOn] = useState(false)
   const [card, setCard] = useState<ParcelCardData | null>(null)
+  const [hiddenOverlayIds, setHiddenOverlayIds] = useState<ReadonlySet<string>>(
+    () => new Set<string>(),
+  )
   const abortRef = useRef<AbortController | null>(null)
 
   const { apn, jurisdiction, lat, lng } = activeParcel
@@ -156,21 +215,50 @@ function LiveMapTileInner() {
     [card, setActiveParcel, selectPanel],
   )
 
+  // The report overlay stack (SpatialProvider) as pushed by the report tiles.
+  const reportOverlays = useMemo<ReportOverlayView[]>(
+    () =>
+      (spatialOverlays ?? [])
+        .filter((o) => o.geojson)
+        .map((o) => ({
+          id: String(o.id ?? o.kind),
+          kind: String(o.kind ?? o.id ?? ''),
+          label: o.label || String(o.id ?? o.kind),
+          geojson: o.geojson as unknown,
+          opacity: o.opacity ?? null,
+          featureCount: featureCountOf(o.geojson),
+        })),
+    [spatialOverlays],
+  )
+
+  const toggleOverlay = useCallback((id: string) => {
+    setHiddenOverlayIds((prev) => {
+      const next = new Set(prev)
+      if (next.has(id)) next.delete(id)
+      else next.add(id)
+      return next
+    })
+  }, [])
+
   const mapOverlays = useMemo<OverlaySpec[]>(() => {
     const live = toLiveOverlays(
       parcels.data ? { status: 'ok', response: parcels.data } : parcels.fetch,
       fema.data ? { status: 'ok', response: fema.data } : fema.fetch,
     )
-    const spatial: OverlaySpec[] = (spatialOverlays ?? [])
-      .filter((o) => o.geojson)
-      .map((o) => ({
-        layerKey: o.kind || o.id,
-        geojson: o.geojson as unknown,
-        visible: true,
-        ...(o.opacity != null ? { paint: { 'fill-opacity': o.opacity } } : {}),
+    // Report overlays draw AFTER (= on top of) the live parcel/FEMA layers.
+    // layerKey is the overlay id, not kind: drainage and hydrology both push
+    // kind 'hydrology-flow', and keying by kind made one clobber the other.
+    // Empty payloads are excluded (honest empty: chip says so, map draws nothing).
+    const report: OverlaySpec[] = reportOverlays
+      .filter((r) => r.featureCount > 0)
+      .map((r) => ({
+        layerKey: r.id,
+        geojson: r.geojson,
+        visible: !hiddenOverlayIds.has(r.id),
+        paint: reportOverlayPaint(r.kind, r.opacity),
       }))
-    return [...live, ...spatial]
-  }, [parcels, fema, spatialOverlays])
+    return [...live, ...report]
+  }, [parcels, fema, reportOverlays, hiddenOverlayIds])
 
   // ── honest state chips ──────────────────────────────────────────────
   const chips: Array<{ key: string; sev: 'info' | 'warn' | 'error'; text: string }> = []
@@ -280,6 +368,48 @@ function LiveMapTileInner() {
             </span>
           )}
         </div>
+
+        {/* Report overlay stack: one toggle chip per pushed overlay. Empty
+            payloads get an honest non-toggleable "empty" chip — the map draws
+            nothing for them and the chip says so. */}
+        {reportOverlays.length > 0 && (
+          <div
+            data-testid="report-overlay-chips"
+            style={{
+              position: 'absolute',
+              right: 8,
+              bottom: 8,
+              zIndex: 5,
+              display: 'flex',
+              flexDirection: 'column',
+              alignItems: 'flex-end',
+              gap: 4,
+            }}
+          >
+            {reportOverlays.map((r) =>
+              r.featureCount === 0 ? (
+                <span
+                  key={r.id}
+                  data-testid={`overlay-chip-${r.id}`}
+                  style={chipStyle('warn')}
+                >
+                  {r.label} — empty (nothing to draw)
+                </span>
+              ) : (
+                <button
+                  key={r.id}
+                  type="button"
+                  data-testid={`overlay-chip-${r.id}`}
+                  aria-pressed={!hiddenOverlayIds.has(r.id)}
+                  onClick={() => toggleOverlay(r.id)}
+                  style={overlayChipStyle(!hiddenOverlayIds.has(r.id))}
+                >
+                  {hiddenOverlayIds.has(r.id) ? '○' : '●'} {r.label} · {r.featureCount}
+                </button>
+              ),
+            )}
+          </div>
+        )}
 
         {/* Parcel info card (click-through). */}
         {card && (
