@@ -56,6 +56,7 @@ vi.mock('./tileRegistry', () => {
       'Market',
     ] as const,
     getTile: (id: string) => tiles[id],
+    TILE_COMPONENTS: {},
   }
 })
 
@@ -63,9 +64,37 @@ vi.mock('./tileRegistry', () => {
 vi.mock('@empressaio/design-tokens/tokens.css', () => ({}))
 
 // Mock the CortexProvider and EngagementProvider
-vi.mock('@empressaio/cortex-tiles', () => ({
-  CortexProvider: ({ children }: any) => <div data-testid="cortex-provider">{children}</div>,
-}))
+vi.mock('@empressaio/cortex-tiles', () => {
+  const stub = () => <div data-testid="published-tile" />
+  return {
+    CortexProvider: ({ children }: any) => <div data-testid="cortex-provider">{children}</div>,
+    useCortexClient: () => ({
+      getReport: async () => ({ status: 'not-run' }),
+      runReport: async () => ({ generationId: 'g' }),
+    }),
+    ReportTileShell: ({ label }: any) => <div data-testid="report-shell">{label}</div>,
+    ComplianceRunTile: stub,
+    DataroomTile: stub,
+    DocumentParsingTile: stub,
+    DocumentViewerTile: stub,
+    DrainageTile: stub,
+    EncumbranceTile: stub,
+    FindingsLibraryTile: stub,
+    HazardProfileTile: stub,
+    HydrologyTile: stub,
+    IntakeQueueTile: stub,
+    IntakeTile: stub,
+    LetterTile: stub,
+    LocalSetbacksTile: stub,
+    MapTile: stub,
+    ProductSpecReferenceTile: stub,
+    PropertyBriefTile: stub,
+    ResponseTasksTile: stub,
+    SheetExtractionTile: stub,
+    SubsurfaceTile: stub,
+    TopographyTile: stub,
+  }
+})
 
 vi.mock('@empressaio/tile-shell', () => ({
   EngagementProvider: ({ children }: any) => <div data-testid="engagement-provider">{children}</div>,
@@ -73,6 +102,17 @@ vi.mock('@empressaio/tile-shell', () => ({
   CodeProvider: ({ children }: any) => <>{children}</>,
   AnnotationSelectionProvider: ({ children }: any) => <>{children}</>,
   DocumentViewerNavigationProvider: ({ children }: any) => <>{children}</>,
+  useEngagement: () => ({
+    engagementId: null,
+    activeParcel: {
+      engagementId: null,
+      apn: null,
+      jurisdiction: null,
+      address: null,
+      lat: null,
+      lng: null,
+    },
+  }),
 }))
 
 describe('SpacePanel', () => {

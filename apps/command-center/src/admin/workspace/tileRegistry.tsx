@@ -35,7 +35,7 @@ import {
 import { LiveMapTile } from './tiles/LiveMapTile'
 
 /** Maps tile IDs to their React component implementations. */
-const TILE_COMPONENTS: Record<string, () => React.JSX.Element> = {
+export const TILE_COMPONENTS: Record<string, () => React.JSX.Element> = {
   'intake-queue': () => <IntakeQueueTile />,
   intake: () => <IntakeTile />,
   'findings-library': () => <FindingsLibraryTile />,

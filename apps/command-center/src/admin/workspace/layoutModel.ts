@@ -14,7 +14,16 @@
 //                   at mount (same pattern as the reserved context params).
 //
 // The model is registry-agnostic: unknown tile ids are preserved here and simply
-// skipped at render time by SpacePanel (getTile returns undefined).
+// skipped at render time by SpacePanel (resolveTile returns undefined).
+//
+// Parameterized tiles (component-library-picker): a tile entry may carry a
+// `tileId` (the generic tile kind, e.g. 'report' or 'component') plus `params`
+// (a JSON-serializable snapshot, e.g. the report capability descriptor). The
+// instance `id` is DERIVED from {tileId, params} so parameterized entries
+// dedupe and round-trip through save/load/reload/hash deep-link. Plain tiles
+// keep the exact {id, span, minimized} shape #25 shipped — layouts saved by
+// #25 load unchanged, and layouts saved here degrade gracefully under #25
+// (unknown ids are skipped at render, not dropped from the layout).
 
 import type { PresetSpace } from '@empressaio/tile-shell'
 
@@ -22,13 +31,42 @@ import type { PresetSpace } from '@empressaio/tile-shell'
 // Types + defaults
 // ---------------------------------------------------------------------------
 
+/** JSON-serializable params carried by a parameterized tile instance. */
+export type TileParams = Record<string, unknown>
+
+/** Generic tile kinds that require params to resolve to an instance. */
+export const REPORT_TILE_KIND = 'report'
+export const COMPONENT_TILE_KIND = 'component'
+
 export interface TileLayout {
-  /** Tile registry id. */
+  /** Tile instance id — the registry id for plain tiles, derived for parameterized ones. */
   id: string
+  /** Generic tile kind ('report' | 'component'); absent for plain registry tiles. */
+  tileId?: string
+  /** Parameter snapshot for parameterized tiles ({tileId, params} serialization). */
+  params?: TileParams
   /** Column span within the grid, clamped to [1, columns]. */
   span: number
   /** Header-only collapsed state. */
   minimized: boolean
+}
+
+/**
+ * Derive the layout instance id for a {tileId, params} pair. Plain registry
+ * tiles map to their own id; parameterized kinds embed their identifying param
+ * (report capability id / component export name). Returns null when the params
+ * cannot identify an instance (entry is unusable).
+ */
+export function instanceIdFor(tileId: string, params?: TileParams): string | null {
+  if (tileId === REPORT_TILE_KIND) {
+    const cap = params?.capabilityId
+    return typeof cap === 'string' && cap !== '' ? `report:${cap}` : null
+  }
+  if (tileId === COMPONENT_TILE_KIND) {
+    const name = params?.component
+    return typeof name === 'string' && name !== '' ? `component:${name}` : null
+  }
+  return tileId
 }
 
 export interface SpaceLayout {
@@ -76,7 +114,7 @@ export function rowsFor(layout: SpaceLayout): number {
 // ---------------------------------------------------------------------------
 
 export type LayoutAction =
-  | { type: 'add-tile'; tileId: string }
+  | { type: 'add-tile'; tileId: string; params?: TileParams }
   | { type: 'remove-tile'; tileId: string }
   | { type: 'toggle-minimize'; tileId: string }
   | { type: 'adjust-span'; tileId: string; delta: number }
@@ -93,12 +131,17 @@ export function layoutReducer(state: LayoutState, action: LayoutAction): LayoutS
   const { layout } = state
   switch (action.type) {
     case 'add-tile': {
-      if (layout.tiles.some((t) => t.id === action.tileId)) return state
+      const id = instanceIdFor(action.tileId, action.params)
+      if (!id || layout.tiles.some((t) => t.id === id)) return state
+      const entry: TileLayout =
+        id === action.tileId
+          ? { id, span: 1, minimized: false }
+          : { id, tileId: action.tileId, params: action.params, span: 1, minimized: false }
       return {
         ...state,
         layout: {
           ...layout,
-          tiles: [...layout.tiles, { id: action.tileId, span: 1, minimized: false }],
+          tiles: [...layout.tiles, entry],
         },
       }
     }
@@ -207,6 +250,12 @@ function spaceStore(storage: LayoutStorage, spaceId: string): SpaceLayoutStore {
   }
 }
 
+/** Validate params: must be a plain (JSON-shaped) object. */
+function sanitizeParams(raw: unknown): TileParams | undefined {
+  if (typeof raw !== 'object' || raw === null || Array.isArray(raw)) return undefined
+  return raw as TileParams
+}
+
 /** Validate + clamp a stored layout; returns null when structurally unusable. */
 export function sanitizeLayout(raw: unknown): SpaceLayout | null {
   if (typeof raw !== 'object' || raw === null) return null
@@ -219,17 +268,38 @@ export function sanitizeLayout(raw: unknown): SpaceLayout | null {
   const seen = new Set<string>()
   const tiles: TileLayout[] = []
   for (const t of candidate.tiles) {
-    const entry = t as { id?: unknown; span?: unknown; minimized?: unknown }
-    if (typeof entry?.id !== 'string' || entry.id === '' || seen.has(entry.id)) continue
-    seen.add(entry.id)
-    tiles.push({
-      id: entry.id,
+    const entry = t as {
+      id?: unknown
+      tileId?: unknown
+      params?: unknown
+      span?: unknown
+      minimized?: unknown
+    }
+    const params = sanitizeParams(entry?.params)
+    // Parameterized entries ({tileId, params}) derive their instance id; plain
+    // entries (#25 shape) use `id` directly. An entry with a tileId whose params
+    // cannot identify an instance is unusable and dropped.
+    const tileId = typeof entry?.tileId === 'string' && entry.tileId !== '' ? entry.tileId : null
+    const id = tileId
+      ? instanceIdFor(tileId, params)
+      : typeof entry?.id === 'string' && entry.id !== ''
+        ? entry.id
+        : null
+    if (!id || seen.has(id)) continue
+    seen.add(id)
+    const base: TileLayout = {
+      id,
       span:
         typeof entry.span === 'number' && Number.isFinite(entry.span)
           ? clampSpan(entry.span, columns)
           : 1,
       minimized: entry.minimized === true,
-    })
+    }
+    if (tileId && id !== tileId) {
+      base.tileId = tileId
+      base.params = params
+    }
+    tiles.push(base)
   }
   return { columns, tiles }
 }
