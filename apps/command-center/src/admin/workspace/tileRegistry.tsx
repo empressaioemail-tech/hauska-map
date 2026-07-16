@@ -33,6 +33,10 @@ import {
 // no live-fetch wiring (fixture-only). LiveMapTile wraps the workspace
 // @hauska/map-renderer with the viewport GIS loader + parcel click-through.
 import { LiveMapTile } from './tiles/LiveMapTile'
+// LOCAL-WORKSPACE TILE: the on-demand parcel 3D terrain mesh + IFC surface,
+// backed by the Hauska map-gate tool generate_parcel_terrain_model. No
+// published @empressaio/cortex-tiles component exists for it.
+import { ParcelTerrainTile } from './tiles/ParcelTerrainTile'
 
 /** Maps tile IDs to their React component implementations. */
 export const TILE_COMPONENTS: Record<string, () => React.JSX.Element> = {
@@ -43,6 +47,7 @@ export const TILE_COMPONENTS: Record<string, () => React.JSX.Element> = {
   'document-viewer': () => <DocumentViewerTile />,
   dataroom: () => <DataroomTile />,
   map: () => <LiveMapTile />,
+  'parcel-terrain-model': () => <ParcelTerrainTile />,
   topography: () => <TopographyTile />,
   drainage: () => <DrainageTile />,
   hydrology: () => <HydrologyTile />,
