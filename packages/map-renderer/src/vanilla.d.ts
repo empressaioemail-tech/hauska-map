@@ -9,11 +9,26 @@ declare module "./map-renderer.js" {
     resize(width?: number, height?: number): void;
     setLayerVisibility(visible: Set<string> | string[]): void;
     setOverlays(specs: import("./postMessage").OverlaySpec[]): void;
+    setParcelTiles(
+      cfg: import("./postMessage").ParcelTilesConfig | null,
+    ): void;
+    setParcelState(
+      parcelNodeId: string | number,
+      state: import("./postMessage").ParcelHighlightState,
+    ): void;
+    queryParcelAt(
+      point: { x: number; y: number } | [number, number],
+    ):
+      | { parcelNodeId?: string; countyFips?: string; feature: any }
+      | null;
     bindContext(ctx: {
       center?: { latitude: number; longitude: number };
       address?: string;
       useFixture?: boolean;
+      parcelTiles?: import("./postMessage").ParcelTilesConfig | null;
       onParcelSelect?: (selection: any) => void;
+      onParcelClick?: (parcelNodeId: string, feature: any) => void;
+      onViewportChange?: (viewport: any) => void;
     }): void;
     getViewState(): {
       center: [number, number];
@@ -48,6 +63,41 @@ declare module "./map/overlay-render.js" {
     specs: OverlaySpec[],
     currentKeys: Set<string>,
   ): Set<string>;
+}
+
+declare module "./map/parcel-tiles.js" {
+  export const PARCEL_TILES_SOURCE_ID: string;
+  export const PARCEL_TILES_FILL_ID: string;
+  export const PARCEL_TILES_LINE_ID: string;
+  export const PARCEL_TILES_GLOW_ID: string;
+  export const DEFAULT_PROMOTE_ID: string;
+  export function addParcelTiles(
+    map: any,
+    cfg: {
+      url: string;
+      sourceLayer: string;
+      promoteId?: string;
+      minzoom?: number;
+      maxzoom?: number;
+    },
+  ): void;
+  export function removeParcelTiles(map: any): void;
+  export function setParcelFeatureState(
+    map: any,
+    sourceLayer: string,
+    parcelNodeId: string | number,
+    state: { subject?: boolean; inspected?: boolean },
+  ): void;
+  export function clearParcelFeatureState(
+    map: any,
+    sourceLayer: string,
+    parcelNodeId: string | number,
+    keys: string[],
+  ): void;
+  export function parcelNodeIdFromFeature(
+    feature: any,
+    promoteId?: string,
+  ): { parcelNodeId: string | undefined; countyFips: string | undefined };
 }
 
 declare module "./window-manager/floating-window.js" {

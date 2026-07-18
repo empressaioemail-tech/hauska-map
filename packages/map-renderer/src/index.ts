@@ -40,6 +40,20 @@ export {
   OVERLAY_PREFIX,
 } from "./map/overlay-render.js";
 
+// PMTiles browse-parcel source + feature-state highlight (R1, `parcelTiles`).
+export {
+  addParcelTiles,
+  removeParcelTiles,
+  setParcelFeatureState,
+  clearParcelFeatureState,
+  parcelNodeIdFromFeature,
+  PARCEL_TILES_SOURCE_ID,
+  PARCEL_TILES_FILL_ID,
+  PARCEL_TILES_LINE_ID,
+  PARCEL_TILES_GLOW_ID,
+  DEFAULT_PROMOTE_ID,
+} from "./map/parcel-tiles.js";
+
 // Floating-window FSM (for consumers wiring their own chrome).
 export {
   createFloatingWindow,
@@ -93,7 +107,9 @@ export type {
   LayerKey,
   LayerDef,
   OverlaySpec,
+  ParcelHighlightState,
   ParcelSelection,
+  ParcelTilesConfig,
   ViewState,
   ViewportState,
   GisBBox,

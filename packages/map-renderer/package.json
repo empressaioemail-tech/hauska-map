@@ -1,12 +1,14 @@
 {
   "name": "@hauska/map-renderer",
-  "version": "0.1.2",
+  "version": "0.1.3",
   "private": false,
   "type": "module",
   "main": "./dist/index.cjs",
   "module": "./dist/index.js",
   "types": "./dist/index.d.ts",
-  "files": ["dist"],
+  "files": [
+    "dist"
+  ],
   "exports": {
     ".": {
       "types": "./dist/index.d.ts",
@@ -21,7 +23,8 @@
   },
   "dependencies": {
     "@hauska/atom-contract": "^1.5.0",
-    "maplibre-gl": "^5.24.0"
+    "maplibre-gl": "^5.24.0",
+    "pmtiles": "^4.4.1"
   },
   "devDependencies": {
     "@types/react": "^18.3.0",
@@ -34,6 +37,7 @@
   "scripts": {
     "build": "tsup",
     "dev": "tsup --watch",
-    "typecheck": "tsc --noEmit"
+    "typecheck": "tsc --noEmit",
+    "test": "node --test \"src/**/*.test.js\""
   }
 }
