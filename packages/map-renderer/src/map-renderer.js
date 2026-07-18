@@ -5,7 +5,17 @@
  */
 
 import maplibregl from "maplibre-gl";
+import { Protocol as PMTilesProtocol } from "pmtiles";
 import { HAUSKA_MAP_STYLE } from "./map/hauska-map-style.js";
+import {
+  addParcelTiles,
+  removeParcelTiles,
+  setParcelFeatureState,
+  clearParcelFeatureState,
+  parcelNodeIdFromFeature,
+  PARCEL_TILES_FILL_ID,
+  DEFAULT_PROMOTE_ID,
+} from "./map/parcel-tiles.js";
 import { getGisFixtureSlots } from "./map/gis-fixture-data.js";
 import {
   upsertGisLayer,
@@ -20,13 +30,40 @@ import { DEFAULT_VISIBLE_LAYERS } from "./layer-registry.js";
 import { reconcileOverlays, overlaySourceId } from "./map/overlay-render.js";
 
 /**
+ * @typedef {Object} ParcelTilesConfig
+ * @property {string} url           PMTiles archive URL (pmtiles:// prefix optional).
+ * @property {string} sourceLayer   Vector source layer id in the archive.
+ * @property {string} [promoteId]   Attribute promoted to feature id (default parcel_node_id).
+ */
+
+/**
  * @typedef {Object} MapRendererContext
  * @property {{ latitude: number, longitude: number }} [center]
  * @property {string} [address]
  * @property {boolean} [useFixture]
+ * @property {ParcelTilesConfig | null} [parcelTiles]
  * @property {(selection: object) => void} [onParcelSelect]
+ * @property {(parcelNodeId: string, feature: object) => void} [onParcelClick]
  * @property {(viewport: import('./postMessage').ViewportState) => void} [onViewportChange]
  */
+
+/**
+ * Register the PMTiles protocol on the maplibregl namespace exactly once per
+ * page. Guarded so repeated renderer mounts (and hot-reload) don't double-add.
+ * maplibregl v5 accepts the pmtiles v4 `Protocol.tile` as the AddProtocolAction.
+ */
+let pmtilesRegistered = false;
+function ensurePmtilesProtocol() {
+  if (pmtilesRegistered) return;
+  try {
+    const protocol = new PMTilesProtocol();
+    maplibregl.addProtocol("pmtiles", protocol.tile);
+    pmtilesRegistered = true;
+  } catch {
+    /* already registered by another instance — treat as done */
+    pmtilesRegistered = true;
+  }
+}
 
 /** Debounce (ms) for moveend/zoomend viewport emission. */
 const VIEWPORT_DEBOUNCE_MS = 350;
@@ -45,6 +82,9 @@ const EMPTY_FC = { type: "FeatureCollection", features: [] };
  *   bindContext: (ctx: MapRendererContext) => void,
  *   getViewState: () => { center: [number, number], zoom: number, pitch: number, bearing: number },
  *   setViewState: (vs: Partial<{ center: [number, number], zoom: number, pitch: number, bearing: number }>) => void,
+ *   setParcelTiles: (cfg: ParcelTilesConfig | null) => void,
+ *   setParcelState: (parcelNodeId: string|number, state: { subject?: boolean, inspected?: boolean }) => void,
+ *   queryParcelAt: (point: { x: number, y: number } | [number, number]) => { parcelNodeId?: string, countyFips?: string, feature: object } | null,
  *   destroy: () => void,
  *   getMap: () => import('maplibre-gl').Map | null,
  *   getSlots: () => object[],
@@ -71,6 +111,14 @@ export function createMapRenderer() {
   let fixtureEnabled = true;
   let viewportTimer = null;
   let hoveredFeatureKey = null;
+  // PMTiles browse-parcel layer (R1 additive). Null unless a consumer passes
+  // parcelTiles. `parcelTilesApplied` tracks whether the source+layers are on
+  // the map so config changes reconcile idempotently.
+  let parcelTilesCfg = null;
+  let parcelTilesApplied = false;
+  // Currently-lit subject/inspected node ids, so a new set clears the prior one.
+  let subjectNodeId = null;
+  let inspectedNodeId = null;
   // True once the map `load` event fired. Style MUTATIONS (addSource/addLayer)
   // are safe from that point on. Do NOT gate overlay writes on isStyleLoaded():
   // MapLibre reports isStyleLoaded()===false whenever any source/tile is still
@@ -88,6 +136,10 @@ export function createMapRenderer() {
     mapEl.style.height = "100%";
     slotEl.innerHTML = "";
     slotEl.appendChild(mapEl);
+
+    // Register the pmtiles:// protocol before the Map is constructed so a
+    // parcelTiles vector source resolves on the first style load.
+    ensurePmtilesProtocol();
 
     const center = context.center || { latitude: 30.1109, longitude: -97.3153 };
     gisSlots = getGisFixtureSlots(center);
@@ -115,6 +167,7 @@ export function createMapRenderer() {
       styleReady = true;
       applyLayerVisibility();
       applyOverlays();
+      applyParcelTiles();
       // Fit to the fixture corpus only when the fixture stack is actually in
       // play; live-data consumers keep the center/zoom they asked for.
       if (fixtureEnabled) {
@@ -127,6 +180,23 @@ export function createMapRenderer() {
     map.on("zoomend", scheduleViewportEmit);
 
     map.on("click", (e) => {
+      // PMTiles browse-parcel click wins first: emit the stable parcel_node_id
+      // (+ county_fips) so the consumer can resolve the node + set feature-state.
+      if (parcelTilesApplied && context.onParcelClick && map.getLayer(PARCEL_TILES_FILL_ID)) {
+        const parcelHits = map.queryRenderedFeatures(e.point, {
+          layers: [PARCEL_TILES_FILL_ID],
+        });
+        if (parcelHits.length) {
+          const hit = parcelHits[0];
+          const promoteId = parcelTilesCfg?.promoteId || DEFAULT_PROMOTE_ID;
+          const { parcelNodeId } = parcelNodeIdFromFeature(hit, promoteId);
+          if (parcelNodeId != null) {
+            context.onParcelClick(parcelNodeId, hit);
+            return;
+          }
+        }
+      }
+
       const features = map.queryRenderedFeatures(e.point).filter((f) =>
         String(f.layer?.id || "").includes("-fill"),
       );
@@ -336,6 +406,30 @@ export function createMapRenderer() {
     reconcileOverlays(map, overlaySpecs, overlayKeys);
   }
 
+  /**
+   * Reconcile the PMTiles browse-parcel layer to the current parcelTilesCfg.
+   * Same load-event gating as applyOverlays (styleReady, not isStyleLoaded).
+   * Additive: does nothing unless a consumer passed parcelTiles.
+   */
+  function applyParcelTiles() {
+    if (!map || !styleReady) return;
+    if (parcelTilesCfg && parcelTilesCfg.url && parcelTilesCfg.sourceLayer) {
+      addParcelTiles(map, parcelTilesCfg);
+      parcelTilesApplied = true;
+      // Re-assert any pending subject/inspected state now the source exists.
+      const sl = parcelTilesCfg.sourceLayer;
+      if (subjectNodeId != null) {
+        setParcelFeatureState(map, sl, subjectNodeId, { subject: true });
+      }
+      if (inspectedNodeId != null) {
+        setParcelFeatureState(map, sl, inspectedNodeId, { inspected: true });
+      }
+    } else if (parcelTilesApplied) {
+      removeParcelTiles(map);
+      parcelTilesApplied = false;
+    }
+  }
+
   function captureViewState() {
     if (!map) return savedViewState;
     const c = map.getCenter();
@@ -385,6 +479,19 @@ export function createMapRenderer() {
     /** Signal 4: context binding */
     bindContext(ctx) {
       context = { ...context, ...ctx };
+      // PMTiles browse-parcel config. Reconcile only when the config changed
+      // (url/sourceLayer/promoteId), so re-binds for center/address don't churn.
+      if ("parcelTiles" in ctx) {
+        const next = ctx.parcelTiles || null;
+        const changed =
+          (next?.url || null) !== (parcelTilesCfg?.url || null) ||
+          (next?.sourceLayer || null) !== (parcelTilesCfg?.sourceLayer || null) ||
+          (next?.promoteId || null) !== (parcelTilesCfg?.promoteId || null);
+        if (changed) {
+          parcelTilesCfg = next;
+          applyParcelTiles();
+        }
+      }
       if (typeof ctx.useFixture === "boolean" && ctx.useFixture !== fixtureEnabled) {
         fixtureEnabled = ctx.useFixture;
         if (map && map.isStyleLoaded()) applyLayerVisibility();
@@ -425,6 +532,73 @@ export function createMapRenderer() {
       slotEl = null;
     },
 
+    /**
+     * Imperatively set/replace the PMTiles browse-parcel config (alternative to
+     * bindContext({ parcelTiles })). Pass null to remove the layer.
+     * @param {ParcelTilesConfig | null} cfg
+     */
+    setParcelTiles(cfg) {
+      const next = cfg || null;
+      const changed =
+        (next?.url || null) !== (parcelTilesCfg?.url || null) ||
+        (next?.sourceLayer || null) !== (parcelTilesCfg?.sourceLayer || null) ||
+        (next?.promoteId || null) !== (parcelTilesCfg?.promoteId || null);
+      if (!changed) return;
+      parcelTilesCfg = next;
+      applyParcelTiles();
+    },
+
+    /**
+     * Set the subject/inspected feature-state for a parcel node id. Clears the
+     * prior subject/inspected node so exactly one of each is lit at a time.
+     * Keys on the promoted parcel_node_id via setFeatureState.
+     * @param {string|number} parcelNodeId
+     * @param {{ subject?: boolean, inspected?: boolean }} state
+     */
+    setParcelState(parcelNodeId, state) {
+      const sl = parcelTilesCfg?.sourceLayer;
+      if (!sl) return;
+      if (typeof state?.subject === "boolean") {
+        if (state.subject) {
+          if (subjectNodeId != null && subjectNodeId !== parcelNodeId) {
+            clearParcelFeatureState(map, sl, subjectNodeId, ["subject"]);
+          }
+          subjectNodeId = parcelNodeId;
+          setParcelFeatureState(map, sl, parcelNodeId, { subject: true });
+        } else {
+          clearParcelFeatureState(map, sl, parcelNodeId, ["subject"]);
+          if (subjectNodeId === parcelNodeId) subjectNodeId = null;
+        }
+      }
+      if (typeof state?.inspected === "boolean") {
+        if (state.inspected) {
+          if (inspectedNodeId != null && inspectedNodeId !== parcelNodeId) {
+            clearParcelFeatureState(map, sl, inspectedNodeId, ["inspected"]);
+          }
+          inspectedNodeId = parcelNodeId;
+          setParcelFeatureState(map, sl, parcelNodeId, { inspected: true });
+        } else {
+          clearParcelFeatureState(map, sl, parcelNodeId, ["inspected"]);
+          if (inspectedNodeId === parcelNodeId) inspectedNodeId = null;
+        }
+      }
+    },
+
+    /**
+     * Query the parcel_node_id (+ county_fips + feature) at a screen point.
+     * @param {{ x: number, y: number } | [number, number]} point
+     * @returns {{ parcelNodeId: string|undefined, countyFips: string|undefined, feature: object } | null}
+     */
+    queryParcelAt(point) {
+      if (!map || !parcelTilesApplied || !map.getLayer(PARCEL_TILES_FILL_ID)) return null;
+      const hits = map.queryRenderedFeatures(point, { layers: [PARCEL_TILES_FILL_ID] });
+      if (!hits.length) return null;
+      const hit = hits[0];
+      const promoteId = parcelTilesCfg?.promoteId || DEFAULT_PROMOTE_ID;
+      const { parcelNodeId, countyFips } = parcelNodeIdFromFeature(hit, promoteId);
+      return { parcelNodeId, countyFips, feature: hit };
+    },
+
     getMap() {
       return map;
     },
@@ -437,7 +611,16 @@ export function createMapRenderer() {
 
 /** Contract surface documentation for close notes */
 export const RENDERER_CONTRACT = {
-  signals: ["mount(slot: HTMLElement)", "resize(width?, height?)", "setLayerVisibility(Set<string>)", "setOverlays(OverlaySpec[])", "bindContext(ctx)"],
-  contextFields: ["center", "address", "useFixture", "onParcelSelect", "onViewportChange"],
+  signals: [
+    "mount(slot: HTMLElement)",
+    "resize(width?, height?)",
+    "setLayerVisibility(Set<string>)",
+    "setOverlays(OverlaySpec[])",
+    "setParcelTiles(ParcelTilesConfig | null)",
+    "setParcelState(parcelNodeId, { subject?, inspected? })",
+    "queryParcelAt(point)",
+    "bindContext(ctx)",
+  ],
+  contextFields: ["center", "address", "useFixture", "parcelTiles", "onParcelSelect", "onParcelClick", "onViewportChange"],
   preserves: ["center", "zoom", "pitch", "bearing", "visibleLayers"],
 };

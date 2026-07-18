@@ -73,6 +73,29 @@ export interface OverlaySpec {
   interactive?: boolean;
 }
 
+/**
+ * PMTiles browse-parcel tile config (R1). When present, the renderer adds a
+ * MapLibre `vector` source backed by a PMTiles archive of the whole Central-TX
+ * parcel corpus, plus a land-use choropleth fill + line, rendered at all zooms
+ * (no browse minzoom gate). The source is created with `promoteId` set to
+ * `promoteId` (default `parcel_node_id`) so feature-state keys on the stable
+ * baked id = "{county_fips}:{normalizeCadPropId(prop_id)}".
+ */
+export interface ParcelTilesConfig {
+  /** PMTiles archive URL. `pmtiles://` prefix optional (added if absent). */
+  url: string;
+  /** Vector source layer id inside the archive. */
+  sourceLayer: string;
+  /** Attribute promoted to the feature id. Default `parcel_node_id`. */
+  promoteId?: string;
+}
+
+/** Subject/inspected highlight flags a consumer sets per parcel node id. */
+export interface ParcelHighlightState {
+  subject?: boolean;
+  inspected?: boolean;
+}
+
 /** A geographic bounding box in WGS84 degrees. */
 export interface GisBBox {
   west: number;

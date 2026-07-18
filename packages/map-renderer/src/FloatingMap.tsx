@@ -18,7 +18,9 @@ import type {
   Center,
   LayerKey,
   OverlaySpec,
+  ParcelHighlightState,
   ParcelSelection,
+  ParcelTilesConfig,
   ViewState,
   ViewportState,
   WindowState,
@@ -40,10 +42,23 @@ export interface FloatingMapProps {
    * removes MapLibre sources+layers idempotently. Pass `[]` or omit to clear.
    */
   overlays?: OverlaySpec[];
+  /**
+   * PMTiles browse-parcel tile layer (R1). When present, adds a MapLibre vector
+   * source backed by a PMTiles archive of the Central-TX parcel corpus with a
+   * land-use choropleth, rendered at all zooms, keyed on `parcel_node_id` via
+   * promoteId for feature-state highlight. Omit for exactly today's behavior.
+   */
+  parcelTiles?: ParcelTilesConfig | null;
   /** Parcel to fly to. */
   parcel?: ParcelSelection | null;
   /** Fired when the operator clicks a parcel/zoning feature. */
   onParcelSelect?: (selection: ParcelSelection) => void;
+  /**
+   * Fired when the operator clicks a PMTiles browse parcel. Emits the stable
+   * `parcel_node_id` and the raw feature so the consumer can resolve the node
+   * and drive `setParcelState` for the subject/inspected highlight.
+   */
+  onParcelClick?: (parcelNodeId: string, feature: unknown) => void;
   /**
    * Fired after map load and after every (debounced) moveend/zoomend with the
    * current bbox + zoom — the hook for viewport-scoped live GIS fetching.
@@ -64,6 +79,16 @@ export interface FloatingMapHandle {
   getViewState: () => ViewState;
   setViewState: (vs: Partial<ViewState>) => void;
   getMap: () => unknown;
+  /**
+   * Set the subject/inspected feature-state on a PMTiles browse parcel by its
+   * stable `parcel_node_id`. Clears the prior subject/inspected so exactly one
+   * of each is lit. No-op unless `parcelTiles` was passed.
+   */
+  setParcelState: (parcelNodeId: string, state: ParcelHighlightState) => void;
+  /** Resolve the parcel_node_id (+ county_fips + feature) at a screen point. */
+  queryParcelAt: (
+    point: { x: number; y: number } | [number, number],
+  ) => { parcelNodeId?: string; countyFips?: string; feature: unknown } | null;
   /** FSM control (only meaningful when floating). */
   window: {
     float: () => void;
@@ -89,8 +114,10 @@ export const FloatingMap = forwardRef<FloatingMapHandle, FloatingMapProps>(
       useFixture = true,
       visibleLayers,
       overlays,
+      parcelTiles,
       parcel,
       onParcelSelect,
+      onParcelClick,
       onViewportChange,
       onWindowStateChange,
       floating = true,
@@ -112,6 +139,8 @@ export const FloatingMap = forwardRef<FloatingMapHandle, FloatingMapProps>(
     // Keep latest callbacks without re-mounting the map.
     const onParcelSelectRef = useRef(onParcelSelect);
     onParcelSelectRef.current = onParcelSelect;
+    const onParcelClickRef = useRef(onParcelClick);
+    onParcelClickRef.current = onParcelClick;
     const onViewportChangeRef = useRef(onViewportChange);
     onViewportChangeRef.current = onViewportChange;
     const onWindowStateChangeRef = useRef(onWindowStateChange);
@@ -133,7 +162,11 @@ export const FloatingMap = forwardRef<FloatingMapHandle, FloatingMapProps>(
         center: center || { latitude: 30.1109, longitude: -97.3153 },
         address,
         useFixture,
+        // Seed the PMTiles browse layer at mount; applied on style load.
+        parcelTiles: parcelTiles ?? null,
         onParcelSelect: (sel: ParcelSelection) => onParcelSelectRef.current?.(sel),
+        onParcelClick: (id: string, feature: unknown) =>
+          onParcelClickRef.current?.(id, feature),
         onViewportChange: (vp: ViewportState) => onViewportChangeRef.current?.(vp),
       });
 
@@ -200,6 +233,13 @@ export const FloatingMap = forwardRef<FloatingMapHandle, FloatingMapProps>(
       rendererRef.current?.setOverlays(overlays ?? []);
     }, [overlays]);
 
+    // PMTiles browse-parcel config. Re-runs on identity change; the renderer
+    // reconciles idempotently (only churns on url/sourceLayer/promoteId change)
+    // and re-asserts any pending subject/inspected feature-state.
+    useEffect(() => {
+      rendererRef.current?.setParcelTiles(parcelTiles ?? null);
+    }, [parcelTiles]);
+
     // Context (center/address) changes.
     useEffect(() => {
       if (!rendererRef.current) return;
@@ -228,6 +268,10 @@ export const FloatingMap = forwardRef<FloatingMapHandle, FloatingMapProps>(
           },
         setViewState: (vs) => rendererRef.current?.setViewState(vs),
         getMap: () => rendererRef.current?.getMap() ?? null,
+        setParcelState: (parcelNodeId, state) =>
+          rendererRef.current?.setParcelState(parcelNodeId, state),
+        queryParcelAt: (point) =>
+          rendererRef.current?.queryParcelAt(point) ?? null,
         window: windowRef.current
           ? {
               float: () => windowRef.current!.float(),

@@ -7,8 +7,9 @@ export default defineConfig({
   dts: true,
   sourcemap: true,
   clean: true,
-  // React and MapLibre are provided by the consuming app.
-  external: ["react", "react-dom", "react/jsx-runtime", "maplibre-gl"],
+  // React and MapLibre are provided by the consuming app. pmtiles is a runtime
+  // dependency resolved from node_modules (kept external so it isn't inlined).
+  external: ["react", "react-dom", "react/jsx-runtime", "maplibre-gl", "pmtiles"],
   // Bundle the ported vanilla .js modules into the output.
   loader: { ".js": "jsx" },
   onSuccess: async () => {
