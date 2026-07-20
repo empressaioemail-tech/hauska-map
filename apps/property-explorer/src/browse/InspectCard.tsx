@@ -35,15 +35,24 @@ interface EnvelopeState {
 
 export function InspectCard({
   card,
+  isSubject = false,
   onClose,
   onEnvelope,
+  onMakeSubject,
   onResearch,
 }: {
   card: ParcelCardData;
+  // True when this inspected parcel is ALSO the current subject.
+  isSubject?: boolean;
   onClose: () => void;
   // Fires when the envelope resolves so the parent can fold setbacks/envelope
   // into the ported node store (the subject/inspected source of truth).
   onEnvelope?: (result: unknown) => void;
+  // The DISTINCT, explicit make-subject action. Re-points the LIVE map to this
+  // parcel via the persistent-map API (rebindProperty + resolveSubjectAndFit) —
+  // no remount. Separate from inspect (which is passive/in-place) and from the
+  // stubbed ask/report path.
+  onMakeSubject: () => void;
   // STUB seam (Track D / AI): "Research this" — no-op until auth + ask/report.
   onResearch: () => void;
 }) {
@@ -200,6 +209,33 @@ export function InspectCard({
         </div>
       )}
 
+      {/* DISTINCT explicit action: make this inspected parcel the SUBJECT. Drives
+          the persistent-map re-point (rebindProperty + resolveSubjectAndFit) on
+          the LIVE map — never a remount. Separate from the stubbed ask/report. */}
+      <button
+        type="button"
+        data-testid="make-subject"
+        onClick={onMakeSubject}
+        disabled={isSubject}
+        aria-pressed={isSubject}
+        style={{
+          width: "100%",
+          marginTop: 11,
+          padding: "8px 12px",
+          fontSize: 12.5,
+          fontWeight: 600,
+          color: isSubject ? MUTED : "#0d1117",
+          background: isSubject ? "transparent" : ACCENT,
+          border: isSubject
+            ? "0.5px solid rgba(125,211,252,0.35)"
+            : "none",
+          borderRadius: 7,
+          cursor: isSubject ? "default" : "pointer",
+        }}
+      >
+        {isSubject ? "Subject property" : "Make subject"}
+      </button>
+
       {/* STUB seam (Track D / AI): the ask/report path is behind auth. */}
       <button
         type="button"
@@ -207,13 +243,13 @@ export function InspectCard({
         onClick={onResearch}
         style={{
           width: "100%",
-          marginTop: 11,
+          marginTop: 8,
           padding: "8px 12px",
           fontSize: 12.5,
           fontWeight: 600,
-          color: "#0d1117",
-          background: ACCENT,
-          border: "none",
+          color: ACCENT,
+          background: "transparent",
+          border: "0.5px solid rgba(125,211,252,0.35)",
           borderRadius: 7,
           cursor: "pointer",
         }}

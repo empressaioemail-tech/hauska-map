@@ -210,6 +210,22 @@ export interface ParcelCardData {
   lng: number | null
 }
 
+/**
+ * Best-effort baked `parcel_node_id` for a live-GIS selection. The PMTiles
+ * browse layer keys feature-state on the stable `parcel_node_id`
+ * ("{county_fips}:{normalizeCadPropId(prop_id)}"); a live-GIS overlay click
+ * only carries it if the upstream response folds it into feature properties.
+ * Returns null when absent — the caller then has no reliable feature-state key
+ * for that selection (the PMTiles `onParcelClick` path carries the real id).
+ */
+export function parcelNodeIdFromSelection(sel: ParcelSelection): string | null {
+  const p = (sel.properties ?? {}) as Record<string, unknown>
+  const raw = p.parcel_node_id ?? p.parcelNodeId
+  if (typeof raw === 'string' && raw.trim()) return raw
+  if (typeof raw === 'number') return String(raw)
+  return null
+}
+
 /** Map a live-parcel ParcelSelection onto the info-card payload. */
 export function selectionToCard(sel: ParcelSelection): ParcelCardData {
   const p = (sel.properties ?? {}) as Record<string, unknown>
