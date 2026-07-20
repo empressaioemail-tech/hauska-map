@@ -8,21 +8,28 @@
 //     against the anonymous cortex proxy,
 //   - parcel click -> INSPECT-IN-PLACE (InspectCard) with the clicked parcel
 //     folded into the PORTED parcel-node store as the `inspected` node, then
-//     patched with setbacks/envelope when the envelope resolves.
+//     patched with setbacks/envelope when the envelope resolves. The inspected
+//     parcel is lit ON THE LIVE MAP via feature-state (setParcelState inspected)
+//     — no remount, no subject change.
+//   - "Make subject" is a DISTINCT explicit action (a button on the inspect
+//     card). It re-points the LIVE map to that parcel via the persistent-map
+//     API (rebindProperty + resolveSubjectAndFit) — the map is NEVER remounted;
+//     the camera eases over and the subject glow lights when the tile paints.
 //
 // NO brief, NO AI on click. Anonymous — no auth needed to browse.
 //
-// SEAMS:
-//   Track A (persistent-map rebind): the map mounts ONCE and is stable. When
-//     the persistent-map API lands, rebind here. Fine as mount-once today.
-//   Track B (baked-node reads): PMTiles + live-GIS is the "read live like the
-//     extension does" path; rebind PARCEL_TILES / the read to the baked-node
-//     tileset when it ships.
+// PERSISTENT MAP (@hauska/map-renderer 0.1.5): the map mounts ONCE and stays
+// alive for the whole session. Subject/property changes re-point the LIVE
+// handle (rebindProperty), they do NOT remount FloatingMap. The `center` prop
+// is the mount-time seed only (DEFAULT_CENTER, stable identity) — it never
+// re-points on a subject change; the imperative handle owns re-pointing.
 
-import { useCallback, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { FloatingMap } from "@hauska/map-renderer";
 import type {
+  Center,
   FloatingMapHandle,
+  LayerKey,
   OverlaySpec,
   ParcelSelection,
   ViewportState,
@@ -33,6 +40,7 @@ import { DEFAULT_CENTER, PARCEL_TILES } from "../lib/config";
 import { cortexClient } from "../lib/cortexClient";
 import { parcelNodes } from "../lib/parcel-node-store.js";
 import { InspectCard } from "./InspectCard";
+import { LayersControl } from "./LayersControl";
 import {
   MIN_PARCEL_ZOOM,
   LIVE_PARCELS_KEY,
@@ -40,6 +48,7 @@ import {
   fetchGisLayer,
   toLiveOverlays,
   selectionToCard,
+  parcelNodeIdFromSelection,
   type GisLayerResponse,
   type LiveLayerKey,
   type LiveLayerState,
@@ -51,6 +60,18 @@ interface LayerSlot {
   data: GisLayerResponse | null;
 }
 const IDLE: LayerSlot = { fetch: { status: "idle" }, data: null };
+
+/** The inspected parcel we lit on the live map, so we can clear it on change. */
+interface InspectedTarget {
+  card: ParcelCardData;
+  parcelNodeId: string | null;
+}
+
+/** Center → the renderer's {latitude, longitude} Center contract, from lat/lng. */
+function toCenter(lat: number | null, lng: number | null): Center | undefined {
+  if (typeof lat !== "number" || typeof lng !== "number") return undefined;
+  return { latitude: lat, longitude: lng };
+}
 
 const chipStyle = (sev: "info" | "warn" | "error"): React.CSSProperties => ({
   fontSize: 10.5,
@@ -78,6 +99,36 @@ export function ExplorerMap() {
   const [zoom, setZoom] = useState<number | null>(null);
   const [card, setCard] = useState<ParcelCardData | null>(null);
   const abortRef = useRef<AbortController | null>(null);
+
+  // The currently-inspected target (card + its baked node id). Tracked in a ref
+  // so the click handler can clear the PRIOR inspected feature-state without a
+  // dependency churn — the map stays alive; only its feature-state changes.
+  const inspectedRef = useRef<InspectedTarget | null>(null);
+  // The baked node id of the current SUBJECT, so a new subject clears the prior
+  // subject glow. The subject is the ported store's source of truth; this ref
+  // only mirrors the id needed to clear the last-lit feature-state.
+  const subjectNodeIdRef = useRef<string | null>(null);
+
+  // Layer-visibility toggle set — SEEDED from the substrate (getVisibleLayers)
+  // and driven through the substrate via the `visibleLayers` prop. No local
+  // shadow paint state: the renderer's toggle set is the source of truth.
+  const [visibleLayers, setVisibleLayers] = useState<Set<LayerKey> | null>(null);
+  // The full known-layer set for this surface (the mount seed), so a toggled-off
+  // layer still renders as an unchecked row and can be re-enabled.
+  const [knownLayers, setKnownLayers] = useState<Set<LayerKey> | null>(null);
+
+  // Once the map has mounted, seed the layer control from the renderer's own
+  // toggle set (a copy — mutating it does not leak into renderer state).
+  useEffect(() => {
+    if (visibleLayers) return;
+    const h = mapRef.current;
+    if (!h) return;
+    const seed = h.getVisibleLayers();
+    if (seed && seed.size) {
+      setVisibleLayers(new Set(seed));
+      setKnownLayers(new Set(seed));
+    }
+  });
 
   // Viewport loader — bbox-scoped live-GIS fetch on load + debounced move/zoom.
   const handleViewportChange = useCallback((vp: ViewportState) => {
@@ -114,48 +165,161 @@ export function ExplorerMap() {
     run("fema", setFema);
   }, []);
 
-  // Parcel click -> inspect-in-place. Fold the clicked parcel into the ported
-  // node store as `inspected`, then draw the InspectCard.
-  const handleParcelSelect = useCallback((sel: ParcelSelection) => {
-    if (sel.layerKey === LIVE_PARCELS_KEY) {
-      const next = selectionToCard(sel);
+  // Light a parcel as INSPECTED on the LIVE map (feature-state glow) and fold it
+  // into the ported node store as the `inspected` node. Clears the prior
+  // inspected glow first so exactly one inspected parcel is lit. NEVER remounts
+  // and NEVER changes the subject — inspect is a distinct, in-place action.
+  const inspectInPlace = useCallback(
+    (next: ParcelCardData, parcelNodeId: string | null) => {
+      const handle = mapRef.current;
+      // Clear the prior inspected feature-state (if any and still lit).
+      const prior = inspectedRef.current;
+      if (handle && prior?.parcelNodeId && prior.parcelNodeId !== parcelNodeId) {
+        handle.setParcelState(prior.parcelNodeId, {});
+      }
+      // Light the new inspected parcel on the live map (no-op if no baked id or
+      // no PMTiles source, e.g. a live-GIS-only selection).
+      if (handle && parcelNodeId) {
+        handle.setParcelState(parcelNodeId, {
+          inspected: true,
+          // Preserve the subject flag if this parcel is also the subject.
+          subject: subjectNodeIdRef.current === parcelNodeId,
+        });
+      }
+      inspectedRef.current = { card: next, parcelNodeId };
       setCard(next);
       parcelNodes.setInspected(
         {
-          id: next.apn ?? (next.lat != null ? `coord:${next.lat}:${next.lng}` : null),
+          id:
+            parcelNodeId ??
+            next.apn ??
+            (next.lat != null ? `coord:${next.lat}:${next.lng}` : null),
           source: "map-click",
-          centroid: next.lat != null && next.lng != null ? { lat: next.lat, lng: next.lng } : null,
+          centroid:
+            next.lat != null && next.lng != null
+              ? { lat: next.lat, lng: next.lng }
+              : null,
           address: next.situsAddress,
-          attrs: { apn: next.apn, owner: next.owner, county: next.county },
+          attrs: {
+            apn: next.apn,
+            owner: next.owner,
+            county: next.county,
+            parcelNodeId,
+          },
         },
         "inspect-parcel",
       );
-      return;
+    },
+    [],
+  );
+
+  // Live-GIS overlay parcel click -> inspect-in-place. Fold the clicked parcel
+  // into the ported node store as `inspected` and draw the InspectCard.
+  const handleParcelSelect = useCallback(
+    (sel: ParcelSelection) => {
+      if (sel.layerKey === LIVE_PARCELS_KEY) {
+        inspectInPlace(selectionToCard(sel), parcelNodeIdFromSelection(sel));
+        return;
+      }
+      // A non-live overlay click carrying only coords — inspect what it carries.
+      if (sel.lat == null || sel.lng == null) return;
+      const bareCard: ParcelCardData = {
+        apn: sel.apn ?? null,
+        situsAddress: sel.address ?? null,
+        owner: null,
+        landUseDescription: null,
+        county: null,
+        provider: null,
+        notSurveyGrade: true,
+        retrievedAt: null,
+        lat: sel.lat,
+        lng: sel.lng,
+      };
+      inspectInPlace(bareCard, parcelNodeIdFromSelection(sel));
+    },
+    [inspectInPlace],
+  );
+
+  // PMTiles BROWSE-parcel click -> inspect-in-place. This path carries the
+  // stable baked `parcel_node_id`, so it can reliably light the inspected glow
+  // on the PMTiles source.
+  const handleParcelClick = useCallback(
+    (parcelNodeId: string, feature: unknown) => {
+      const props =
+        (feature as { properties?: Record<string, unknown> } | undefined)
+          ?.properties ?? {};
+      const str = (v: unknown): string | null =>
+        typeof v === "string" && v.trim()
+          ? v
+          : typeof v === "number"
+            ? String(v)
+            : null;
+      const bareCard: ParcelCardData = {
+        apn: str(props.apn) ?? str(props.prop_id),
+        situsAddress: str(props.situsAddress) ?? str(props.address),
+        owner: str(props.owner),
+        landUseDescription:
+          str(props.landUseDescription) ?? str(props.landUseCode),
+        county: str(props.countyName),
+        provider: null,
+        notSurveyGrade: true,
+        retrievedAt: null,
+        lat: typeof props.lat === "number" ? (props.lat as number) : null,
+        lng: typeof props.lng === "number" ? (props.lng as number) : null,
+      };
+      inspectInPlace(bareCard, parcelNodeId);
+    },
+    [inspectInPlace],
+  );
+
+  // MAKE SUBJECT — the distinct, explicit action. Re-point the LIVE map to the
+  // currently-inspected parcel via the persistent-map API: rebindProperty
+  // (never-unmount camera+glow re-point) + resolveSubjectAndFit (bounded
+  // subject-tile paint gate that fits + lights the subject glow once painted).
+  // NO remount. The ported store's `subject` becomes the new source of truth.
+  const handleMakeSubject = useCallback(() => {
+    const handle = mapRef.current;
+    const target = inspectedRef.current;
+    if (!handle || !target) return;
+    const { card: c, parcelNodeId } = target;
+    const center = toCenter(c.lat, c.lng);
+
+    // Clear the prior subject glow if it was a different parcel.
+    const priorSubject = subjectNodeIdRef.current;
+    if (priorSubject && priorSubject !== parcelNodeId) {
+      handle.setParcelState(priorSubject, {});
     }
-    // A PMTiles baked-parcel click (no live-GIS properties) — recenter/inspect
-    // with what the tile carries.
-    if (sel.lat == null || sel.lng == null) return;
-    const bareCard: ParcelCardData = {
-      apn: sel.apn ?? null,
-      situsAddress: sel.address ?? null,
-      owner: null,
-      landUseDescription: null,
-      county: null,
-      provider: null,
-      notSurveyGrade: true,
-      retrievedAt: null,
-      lat: sel.lat,
-      lng: sel.lng,
-    };
-    setCard(bareCard);
-    parcelNodes.setInspected(
+
+    // Re-point the LIVE map — camera eases over, subject glow lights. Never a
+    // remount. parcelState lights the subject immediately if the tile is painted;
+    // resolveSubjectAndFit then guards the paint race + fits to the parcel.
+    handle.rebindProperty({
+      center,
+      address: c.situsAddress ?? undefined,
+      parcelState: parcelNodeId
+        ? { parcelNodeId, subject: true, inspected: true }
+        : undefined,
+    });
+    if (parcelNodeId) {
+      handle.resolveSubjectAndFit({ parcelNodeId, center, fit: true });
+    }
+
+    subjectNodeIdRef.current = parcelNodeId;
+    parcelNodes.setSubject(
       {
-        id: sel.apn ?? `coord:${sel.lat}:${sel.lng}`,
-        source: "map-click",
-        centroid: { lat: sel.lat, lng: sel.lng },
-        address: sel.address ?? null,
+        id: parcelNodeId ?? c.apn ?? (c.lat != null ? `coord:${c.lat}:${c.lng}` : null),
+        source: "make-subject",
+        centroid:
+          c.lat != null && c.lng != null ? { lat: c.lat, lng: c.lng } : null,
+        address: c.situsAddress,
+        attrs: {
+          apn: c.apn,
+          owner: c.owner,
+          county: c.county,
+          parcelNodeId,
+        },
       },
-      "inspect-parcel",
+      "make-subject",
     );
   }, []);
 
@@ -174,6 +338,23 @@ export function ExplorerMap() {
       },
       "envelope-resolved",
     );
+  }, []);
+
+  const closeInspect = useCallback(() => {
+    const handle = mapRef.current;
+    const prior = inspectedRef.current;
+    // Clear the inspected glow, but keep the subject glow if this parcel is the
+    // subject (drop only the `inspected` flag by re-asserting subject-only).
+    if (handle && prior?.parcelNodeId) {
+      if (subjectNodeIdRef.current === prior.parcelNodeId) {
+        handle.setParcelState(prior.parcelNodeId, { subject: true });
+      } else {
+        handle.setParcelState(prior.parcelNodeId, {});
+      }
+    }
+    inspectedRef.current = null;
+    setCard(null);
+    parcelNodes.setInspected(null, "close-inspect");
   }, []);
 
   const mapOverlays = useMemo<OverlaySpec[]>(
@@ -205,19 +386,38 @@ export function ExplorerMap() {
         }`
       : null;
 
+  const isSubject =
+    !!card &&
+    inspectedRef.current?.parcelNodeId != null &&
+    inspectedRef.current.parcelNodeId === subjectNodeIdRef.current;
+
   return (
     <div style={{ position: "absolute", inset: 0, display: "flex" }}>
       <FloatingMap
         ref={mapRef}
         floating={false}
         useFixture={false}
+        // Mount-time seed ONLY (stable identity). Subject changes re-point the
+        // live handle via rebindProperty — the center prop never re-points.
         center={DEFAULT_CENTER}
         parcelTiles={PARCEL_TILES}
         overlays={mapOverlays}
+        visibleLayers={visibleLayers ?? undefined}
         onParcelSelect={handleParcelSelect}
+        onParcelClick={handleParcelClick}
         onViewportChange={handleViewportChange}
         style={{ flex: 1, minHeight: 0 }}
       />
+
+      {/* Layer toggles driven through the substrate (getVisibleLayers seed +
+          visibleLayers prop). No local shadow paint state. */}
+      {visibleLayers && knownLayers && (
+        <LayersControl
+          known={knownLayers}
+          visible={visibleLayers}
+          onChange={(next) => setVisibleLayers(new Set(next))}
+        />
+      )}
 
       {/* Honest live-layer state chips. */}
       <div
@@ -244,11 +444,10 @@ export function ExplorerMap() {
       {card && (
         <InspectCard
           card={card}
-          onClose={() => {
-            setCard(null);
-            parcelNodes.setInspected(null, "close-inspect");
-          }}
+          isSubject={isSubject}
+          onClose={closeInspect}
           onEnvelope={handleEnvelope}
+          onMakeSubject={handleMakeSubject}
           // STUB seam (Track D / AI): ask/report path is behind auth.
           onResearch={() => {
             // TODO(Track D + AI): open the authed ask/report flow. No-op today.
