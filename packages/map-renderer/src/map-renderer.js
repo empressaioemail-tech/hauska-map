@@ -72,6 +72,18 @@ const VIEWPORT_DEBOUNCE_MS = 350;
 /** Source + layer ids for the interactive-overlay hover highlight. */
 const HOVER_SOURCE_ID = "hauska-ovl-hover-highlight";
 
+/**
+ * Bounded attempt cap for the subject-resolve latch. Matches the consumer's
+ * SUBJECT_RESOLVE_MAX_ATTEMPTS=8 in spine-map.js: on a property re-point the
+ * subject parcel tile may still be streaming, so we re-schedule up to this many
+ * times before giving up quietly. NEVER unbounded — an unbounded idle/sourcedata
+ * re-schedule is the idle-loop regression this refactor exists to avoid.
+ */
+const SUBJECT_RESOLVE_MAX_ATTEMPTS = 8;
+
+/** Zoom used when fitting to the subject via a center fallback (no geometry). */
+const SUBJECT_FALLBACK_ZOOM = 16.5;
+
 const EMPTY_FC = { type: "FeatureCollection", features: [] };
 
 /**
@@ -88,6 +100,7 @@ const EMPTY_FC = { type: "FeatureCollection", features: [] };
  *   setViewState: (vs: Partial<{ center: [number, number], zoom: number, pitch: number, bearing: number }>) => void,
  *   setParcelTiles: (cfg: ParcelTilesConfig | null) => void,
  *   setParcelState: (parcelNodeId: string|number, state: { subject?: boolean, inspected?: boolean }) => void,
+ *   resolveSubjectAndFit: (opts: { parcelNodeId: string|number, center?: { latitude: number, longitude: number }, fit?: boolean, maxAttempts?: number }) => void,
  *   queryParcelAt: (point: { x: number, y: number } | [number, number]) => { parcelNodeId?: string, countyFips?: string, feature: object } | null,
  *   destroy: () => void,
  *   getMap: () => import('maplibre-gl').Map | null,
@@ -131,6 +144,15 @@ export function createMapRenderer() {
   // window would be stashed and never re-applied — the report overlays would
   // silently never render.
   let styleReady = false;
+  // Subject-resolve latch (W2). A monotonically incrementing generation token is
+  // captured at each resolveSubjectAndFit call; an in-flight re-schedule callback
+  // bails if its captured token != subjectResolveGen (a newer call superseded it),
+  // so a later property never gets clobbered by a stale resolve. subjectResolve-
+  // Cleanup tears down whatever listener/timer is pending (sourcedata/idle) and is
+  // invoked on supersession and in destroy() — this is what keeps the latch bounded
+  // and leak-free.
+  let subjectResolveGen = 0;
+  let subjectResolveCleanup = null;
 
   function ensureMap() {
     if (!slotEl || map) return;
@@ -479,6 +501,101 @@ export function createMapRenderer() {
     return savedViewState;
   }
 
+  /**
+   * Clear any pending subject-resolve listener/timer. Idempotent. Called when a
+   * newer resolveSubjectAndFit supersedes an in-flight one and from destroy().
+   */
+  function clearSubjectResolve() {
+    if (subjectResolveCleanup) {
+      try {
+        subjectResolveCleanup();
+      } catch {
+        /* ignore teardown errors */
+      }
+      subjectResolveCleanup = null;
+    }
+  }
+
+  /**
+   * Try to locate the subject parcel feature near `center` on the parcel fill
+   * layer. Returns the queryRenderedFeatures hit whose promoted parcel_node_id
+   * matches, or null if the tile has not painted it yet. Compose-only: reuses the
+   * live parcel fill layer + promoteId; holds no feature-state logic.
+   * @returns {object | null}
+   */
+  function findSubjectFeature(parcelNodeId, center) {
+    if (!map || !parcelTilesApplied || !map.getLayer(PARCEL_TILES_FILL_ID)) return null;
+    if (typeof map.project !== "function") return null;
+    const target = String(parcelNodeId);
+    const promoteId = parcelTilesCfg?.promoteId || DEFAULT_PROMOTE_ID;
+    // Query a small box around the projected center (the subject sits at center on
+    // a re-point); fall back to a full-viewport query if no center was supplied.
+    let hits = [];
+    try {
+      if (center && typeof center.longitude === "number" && typeof center.latitude === "number") {
+        const pt = map.project([center.longitude, center.latitude]);
+        const pad = 4;
+        hits = map.queryRenderedFeatures(
+          [
+            [pt.x - pad, pt.y - pad],
+            [pt.x + pad, pt.y + pad],
+          ],
+          { layers: [PARCEL_TILES_FILL_ID] },
+        );
+      } else {
+        hits = map.queryRenderedFeatures({ layers: [PARCEL_TILES_FILL_ID] });
+      }
+    } catch {
+      return null;
+    }
+    for (const hit of hits || []) {
+      const { parcelNodeId: nodeId } = parcelNodeIdFromFeature(hit, promoteId);
+      if (nodeId != null && String(nodeId) === target) return hit;
+    }
+    return null;
+  }
+
+  /** Extend a LngLatBounds with every coordinate in a GeoJSON geometry. */
+  function extendBoundsWithGeometry(bounds, geometry) {
+    if (!geometry) return false;
+    let has = false;
+    const walk = (coords) => {
+      if (!Array.isArray(coords)) return;
+      // A position is [lng, lat, ...]; otherwise recurse.
+      if (typeof coords[0] === "number" && typeof coords[1] === "number") {
+        bounds.extend([coords[0], coords[1]]);
+        has = true;
+        return;
+      }
+      for (const c of coords) walk(c);
+    };
+    walk(geometry.coordinates);
+    return has;
+  }
+
+  /**
+   * Fit/ease the camera to the subject feature's bounds, or (no usable geometry)
+   * fall back to easing to `center` at a subject zoom. Never fit-to-fixture.
+   */
+  function fitToSubject(feature, center) {
+    if (!map) return;
+    let fitted = false;
+    if (feature && feature.geometry) {
+      try {
+        const bounds = new maplibregl.LngLatBounds();
+        if (extendBoundsWithGeometry(bounds, feature.geometry) && !bounds.isEmpty?.()) {
+          map.fitBounds(bounds, { padding: 64, maxZoom: 17.5, duration: 600 });
+          fitted = true;
+        }
+      } catch {
+        /* fall through to center fallback */
+      }
+    }
+    if (!fitted && center && typeof center.longitude === "number" && typeof center.latitude === "number") {
+      map.easeTo({ center: [center.longitude, center.latitude], zoom: SUBJECT_FALLBACK_ZOOM, duration: 600 });
+    }
+  }
+
   return {
     /** Signal 1: mount into content slot */
     mount(slot) {
@@ -621,6 +738,11 @@ export function createMapRenderer() {
         clearTimeout(viewportTimer);
         viewportTimer = null;
       }
+      // Tear down any pending subject-resolve latch (idle listener) so destroy()
+      // never leaves a re-schedule pending. Bump the generation too, so any
+      // callback already queued for the current frame bails on the token check.
+      subjectResolveGen += 1;
+      clearSubjectResolve();
       resizeObs?.disconnect();
       map?.remove();
       map = null;
@@ -695,6 +817,92 @@ export function createMapRenderer() {
       return { parcelNodeId, countyFips, feature: hit };
     },
 
+    /**
+     * Subject-resolve / fit paint-gate primitive (W2). On a property re-point the
+     * subject parcel's vector tile may not be painted yet, so setting feature-state
+     * or fitting bounds immediately silently no-ops. This latch schedules, waits for
+     * the subject tile to paint (bounded), then lights the subject via setParcelState
+     * and fits the camera to it. Pushed down from the consumer (spine-map.js) so the
+     * web app and the extension both inherit the discipline.
+     *
+     * Re-entrant-safe: a newer call supersedes an older in-flight one via a
+     * generation token — the older callback bails without clobbering the newer
+     * subject. Bounded: gives up quietly after maxAttempts (default 8). Composes
+     * over setParcelState/getMap; adds no feature-state logic and no new paint.
+     *
+     * @param {{
+     *   parcelNodeId: string|number,
+     *   center?: { latitude: number, longitude: number },
+     *   fit?: boolean,
+     *   maxAttempts?: number,
+     * }} opts
+     */
+    resolveSubjectAndFit(opts) {
+      const o = opts || {};
+      const { parcelNodeId, center } = o;
+      const fit = o.fit !== false;
+      const maxAttempts =
+        Number.isInteger(o.maxAttempts) && o.maxAttempts > 0
+          ? o.maxAttempts
+          : SUBJECT_RESOLVE_MAX_ATTEMPTS;
+      if (parcelNodeId == null) return;
+
+      // A newer resolve supersedes any older in-flight one: bump the generation and
+      // tear down the prior latch so its pending callback bails on the token check.
+      subjectResolveGen += 1;
+      const myGen = subjectResolveGen;
+      clearSubjectResolve();
+
+      if (!map) return;
+
+      const tryResolve = (attempt) => {
+        // Superseded by a newer call (or destroyed) — bail without touching state.
+        if (myGen !== subjectResolveGen || !map) return;
+
+        const feature = findSubjectFeature(parcelNodeId, center);
+        if (feature) {
+          // Found: light the subject through the existing feature-state path, then
+          // fit. Re-check the token AFTER setParcelState in case a listener fired.
+          this.setParcelState(parcelNodeId, { subject: true });
+          if (myGen === subjectResolveGen && fit) fitToSubject(feature, center);
+          clearSubjectResolve();
+          return;
+        }
+
+        // Not painted yet. Give up quietly at the cap — never an unbounded loop.
+        if (attempt + 1 >= maxAttempts) {
+          clearSubjectResolve();
+          // Best-effort: still set feature-state (it re-asserts once the tile paints
+          // via applyParcelTiles) and, if fitting, ease to the requested center so a
+          // never-painting subject still frames the property rather than doing nothing.
+          this.setParcelState(parcelNodeId, { subject: true });
+          if (fit && center) fitToSubject(null, center);
+          return;
+        }
+
+        // Re-schedule on the next idle (tiles settled for this frame). One-shot
+        // listener, captured so clearSubjectResolve/destroy can remove it. `once`
+        // auto-removes on fire, but we also track an explicit remover so a
+        // supersession/destroy before it fires does not leak the listener.
+        const onIdle = () => {
+          subjectResolveCleanup = null;
+          tryResolve(attempt + 1);
+        };
+        subjectResolveCleanup = () => {
+          try {
+            map.off("idle", onIdle);
+          } catch {
+            /* ignore */
+          }
+        };
+        map.once("idle", onIdle);
+      };
+
+      // Defer nothing on the first attempt: if the tile is already painted this
+      // resolves synchronously (attempt 0), matching found-immediately behavior.
+      tryResolve(0);
+    },
+
     getMap() {
       return map;
     },
@@ -716,6 +924,7 @@ export const RENDERER_CONTRACT = {
     "setOverlays(OverlaySpec[])",
     "setParcelTiles(ParcelTilesConfig | null)",
     "setParcelState(parcelNodeId, { subject?, inspected? })",
+    "resolveSubjectAndFit({ parcelNodeId, center?, fit?, maxAttempts? })",
     "queryParcelAt(point)",
     "bindContext(ctx)",
     "rebindProperty({ center?, address?, parcelState?, zoom? })",

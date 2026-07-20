@@ -86,6 +86,20 @@ export interface FloatingMapHandle {
    */
   setParcelState: (parcelNodeId: string, state: ParcelHighlightState) => void;
   /**
+   * Subject-resolve / fit paint-gate primitive: on a property re-point the subject
+   * parcel tile may still be streaming, so setting feature-state or fitting bounds
+   * immediately no-ops. This schedules, waits (bounded, default 8 attempts) for the
+   * subject tile to paint, then lights the subject and fits the camera to it.
+   * Re-entrant-safe: a newer call supersedes an older in-flight one. No-op unless
+   * `parcelTiles` was passed.
+   */
+  resolveSubjectAndFit: (opts: {
+    parcelNodeId: string | number;
+    center?: Center;
+    fit?: boolean;
+    maxAttempts?: number;
+  }) => void;
+  /**
    * Re-point the LIVE map for a full property change WITHOUT unmounting or
    * rebuilding it. Updates center/address, moves the camera to the new center,
    * and (when parcelState is given) lights the subject/inspected parcel. This is
@@ -291,6 +305,8 @@ export const FloatingMap = forwardRef<FloatingMapHandle, FloatingMapProps>(
         getMap: () => rendererRef.current?.getMap() ?? null,
         setParcelState: (parcelNodeId, state) =>
           rendererRef.current?.setParcelState(parcelNodeId, state),
+        resolveSubjectAndFit: (opts) =>
+          rendererRef.current?.resolveSubjectAndFit(opts),
         rebindProperty: (opts) => rendererRef.current?.rebindProperty(opts),
         getVisibleLayers: () =>
           (rendererRef.current?.getVisibleLayers() as Set<LayerKey>) ??
