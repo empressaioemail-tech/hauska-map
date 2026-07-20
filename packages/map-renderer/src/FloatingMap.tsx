@@ -85,6 +85,27 @@ export interface FloatingMapHandle {
    * of each is lit. No-op unless `parcelTiles` was passed.
    */
   setParcelState: (parcelNodeId: string, state: ParcelHighlightState) => void;
+  /**
+   * Re-point the LIVE map for a full property change WITHOUT unmounting or
+   * rebuilding it. Updates center/address, moves the camera to the new center,
+   * and (when parcelState is given) lights the subject/inspected parcel. This is
+   * the never-unmount property swap: the mount-once effect is untouched.
+   */
+  rebindProperty: (opts: {
+    center?: Center;
+    address?: string;
+    parcelState?: {
+      parcelNodeId: string | number;
+      subject?: boolean;
+      inspected?: boolean;
+    };
+    zoom?: number;
+  }) => void;
+  /**
+   * Read the current layer-visibility toggle set (a COPY of the live set — the
+   * toggle set, not drawnKeys). Mutating the returned set does not affect state.
+   */
+  getVisibleLayers: () => Set<LayerKey>;
   /** Resolve the parcel_node_id (+ county_fips + feature) at a screen point. */
   queryParcelAt: (
     point: { x: number; y: number } | [number, number],
@@ -270,6 +291,10 @@ export const FloatingMap = forwardRef<FloatingMapHandle, FloatingMapProps>(
         getMap: () => rendererRef.current?.getMap() ?? null,
         setParcelState: (parcelNodeId, state) =>
           rendererRef.current?.setParcelState(parcelNodeId, state),
+        rebindProperty: (opts) => rendererRef.current?.rebindProperty(opts),
+        getVisibleLayers: () =>
+          (rendererRef.current?.getVisibleLayers() as Set<LayerKey>) ??
+          new Set<LayerKey>(),
         queryParcelAt: (point) =>
           rendererRef.current?.queryParcelAt(point) ?? null,
         window: windowRef.current
