@@ -90,7 +90,7 @@ function parcelLineWidthExpr() {
     3.2,
     ["boolean", ["feature-state", "inspected"], false],
     1.8,
-    0.7,
+    1.4,
   ];
 }
 
