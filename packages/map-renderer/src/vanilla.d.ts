@@ -8,6 +8,8 @@ declare module "./map-renderer.js" {
     mount(slot: HTMLElement): void;
     resize(width?: number, height?: number): void;
     setLayerVisibility(visible: Set<string> | string[]): void;
+    getVisibleLayers(): Set<string>;
+    getLayerVisibility(layerKey: string): boolean;
     setOverlays(specs: import("./postMessage").OverlaySpec[]): void;
     setParcelTiles(
       cfg: import("./postMessage").ParcelTilesConfig | null,
@@ -24,11 +26,22 @@ declare module "./map-renderer.js" {
     bindContext(ctx: {
       center?: { latitude: number; longitude: number };
       address?: string;
+      zoom?: number;
       useFixture?: boolean;
       parcelTiles?: import("./postMessage").ParcelTilesConfig | null;
       onParcelSelect?: (selection: any) => void;
       onParcelClick?: (parcelNodeId: string, feature: any) => void;
       onViewportChange?: (viewport: any) => void;
+    }): void;
+    rebindProperty(opts: {
+      center?: { latitude: number; longitude: number };
+      address?: string;
+      parcelState?: {
+        parcelNodeId: string | number;
+        subject?: boolean;
+        inspected?: boolean;
+      };
+      zoom?: number;
     }): void;
     getViewState(): {
       center: [number, number];

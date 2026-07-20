@@ -40,6 +40,7 @@ import { reconcileOverlays, overlaySourceId } from "./map/overlay-render.js";
  * @typedef {Object} MapRendererContext
  * @property {{ latitude: number, longitude: number }} [center]
  * @property {string} [address]
+ * @property {number} [zoom]
  * @property {boolean} [useFixture]
  * @property {ParcelTilesConfig | null} [parcelTiles]
  * @property {(selection: object) => void} [onParcelSelect]
@@ -78,8 +79,11 @@ const EMPTY_FC = { type: "FeatureCollection", features: [] };
  *   mount: (slot: HTMLElement) => void,
  *   resize: (width?: number, height?: number) => void,
  *   setLayerVisibility: (visible: Set<string>) => void,
+ *   getVisibleLayers: () => Set<string>,
+ *   getLayerVisibility: (layerKey: string) => boolean,
  *   setOverlays: (specs: import('./postMessage').OverlaySpec[]) => void,
  *   bindContext: (ctx: MapRendererContext) => void,
+ *   rebindProperty: (opts: { center?: { latitude: number, longitude: number }, address?: string, parcelState?: { parcelNodeId: string|number, subject?: boolean, inspected?: boolean }, zoom?: number }) => void,
  *   getViewState: () => { center: [number, number], zoom: number, pitch: number, bearing: number },
  *   setViewState: (vs: Partial<{ center: [number, number], zoom: number, pitch: number, bearing: number }>) => void,
  *   setParcelTiles: (cfg: ParcelTilesConfig | null) => void,
@@ -430,6 +434,39 @@ export function createMapRenderer() {
     }
   }
 
+  /**
+   * Re-point the LIVE map to a new center without unmounting/rebuilding it.
+   * Preserves the current zoom/pitch/bearing unless a new zoom is supplied, uses
+   * easeTo (animated re-point, not a hard cut), and keeps savedViewState coherent
+   * with where the camera is headed so a later capture/restore stays consistent.
+   * No-op (returns null) when there is no map yet or no center given.
+   * @param {{ latitude: number, longitude: number }} center
+   * @param {number} [zoom]
+   * @returns {import('./postMessage').ViewState | null}
+   */
+  function moveCameraTo(center, zoom) {
+    if (!map || !center || typeof center.longitude !== "number" || typeof center.latitude !== "number") {
+      return null;
+    }
+    const nextCenter = [center.longitude, center.latitude];
+    const nextZoom = typeof zoom === "number" ? zoom : map.getZoom();
+    const nextPitch = map.getPitch();
+    const nextBearing = map.getBearing();
+    map.easeTo({
+      center: nextCenter,
+      zoom: nextZoom,
+      pitch: nextPitch,
+      bearing: nextBearing,
+    });
+    savedViewState = {
+      center: nextCenter,
+      zoom: nextZoom,
+      pitch: nextPitch,
+      bearing: nextBearing,
+    };
+    return savedViewState;
+  }
+
   function captureViewState() {
     if (!map) return savedViewState;
     const c = map.getCenter();
@@ -458,6 +495,25 @@ export function createMapRenderer() {
     setLayerVisibility(visible) {
       visibleLayers = new Set(visible);
       applyLayerVisibility();
+    },
+
+    /**
+     * Read the current layer-visibility toggle set. Returns a COPY of the live
+     * `visibleLayers` Set (the toggle set — NOT drawnKeys), so callers can read
+     * or iterate it without mutating renderer state.
+     * @returns {Set<string>}
+     */
+    getVisibleLayers() {
+      return new Set(visibleLayers);
+    },
+
+    /**
+     * Whether a single layer key is currently toggled visible.
+     * @param {string} layerKey
+     * @returns {boolean}
+     */
+    getLayerVisibility(layerKey) {
+      return visibleLayers.has(layerKey);
     },
 
     /**
@@ -499,8 +555,48 @@ export function createMapRenderer() {
         fixtureEnabled = ctx.useFixture;
       }
       if (ctx.center && map) {
-        const vs = savedViewState || captureViewState();
-        if (vs) map.jumpTo(vs);
+        // Re-point the LIVE map to the incoming center. The prior code jumpTo'd
+        // captureViewState() — the map's CURRENT center — so ctx.center never
+        // moved the camera (the re-point no-op bug). Move to the NEW center,
+        // preserving the current zoom/pitch/bearing unless a new zoom is given.
+        // Never fit-to-fixture here: a live rebind keeps the requested framing.
+        moveCameraTo(
+          { longitude: ctx.center.longitude, latitude: ctx.center.latitude },
+          typeof ctx.zoom === "number" ? ctx.zoom : undefined,
+        );
+      }
+    },
+
+    /**
+     * Re-point the LIVE map for a full property change WITHOUT map.remove().
+     * Additive sugar composed over the (fixed) bindContext camera re-point and
+     * the existing setParcelState — this method holds no camera or feature-state
+     * logic of its own. Updates context (center/address), moves the camera to the
+     * new center (via bindContext's re-point), and, when parcelState is given,
+     * lights the subject/inspected parcel through setParcelState. The map is
+     * never unmounted; the mount-once contract in FloatingMap is preserved.
+     * @param {{
+     *   center?: { latitude: number, longitude: number },
+     *   address?: string,
+     *   parcelState?: { parcelNodeId: string|number, subject?: boolean, inspected?: boolean },
+     *   zoom?: number,
+     * }} opts
+     */
+    rebindProperty(opts) {
+      const o = opts || {};
+      // Compose: bindContext does the context merge + camera re-point (with the
+      // fixed center handling). Only pass fields that are present so we don't
+      // clobber address/center with undefined.
+      const ctx = {};
+      if (o.center) ctx.center = o.center;
+      if (typeof o.address === "string") ctx.address = o.address;
+      if (typeof o.zoom === "number") ctx.zoom = o.zoom;
+      this.bindContext(ctx);
+      // Compose: existing setParcelState lights subject/inspected. No-op unless
+      // parcelTiles is configured (setParcelState self-gates on sourceLayer).
+      if (o.parcelState && o.parcelState.parcelNodeId != null) {
+        const { parcelNodeId, subject, inspected } = o.parcelState;
+        this.setParcelState(parcelNodeId, { subject, inspected });
       }
     },
 
@@ -615,12 +711,15 @@ export const RENDERER_CONTRACT = {
     "mount(slot: HTMLElement)",
     "resize(width?, height?)",
     "setLayerVisibility(Set<string>)",
+    "getVisibleLayers(): Set<string>",
+    "getLayerVisibility(layerKey): boolean",
     "setOverlays(OverlaySpec[])",
     "setParcelTiles(ParcelTilesConfig | null)",
     "setParcelState(parcelNodeId, { subject?, inspected? })",
     "queryParcelAt(point)",
     "bindContext(ctx)",
+    "rebindProperty({ center?, address?, parcelState?, zoom? })",
   ],
-  contextFields: ["center", "address", "useFixture", "parcelTiles", "onParcelSelect", "onParcelClick", "onViewportChange"],
+  contextFields: ["center", "address", "zoom", "useFixture", "parcelTiles", "onParcelSelect", "onParcelClick", "onViewportChange"],
   preserves: ["center", "zoom", "pitch", "bearing", "visibleLayers"],
 };
