@@ -43,6 +43,12 @@ import { InspectCard } from "./InspectCard";
 import { LayersControl } from "./LayersControl";
 import { MapTools } from "./MapTools";
 import {
+  normalizeEnvelope,
+  envelopeInsetOverlay,
+  setbackConsumedOverlay,
+  insetParcelBySetbacks,
+} from "./envelope-overlay";
+import {
   MIN_PARCEL_ZOOM,
   LIVE_PARCELS_KEY,
   layersForZoom,
@@ -104,6 +110,16 @@ export function ExplorerMap() {
   // source). Null for a live-GIS-only selection with no baked id.
   const [cardNodeId, setCardNodeId] = useState<string | null>(null);
   const abortRef = useRef<AbortController | null>(null);
+
+  // The buildable-envelope wedge visual, drawn through the SUPPORTED overlays
+  // path (OverlaySpec + reconcileOverlays) on the LIVE map — never a remount.
+  // Holds 0..2 specs: the amber inset fill+dashed-edge (status "ok"), or a
+  // dashed full-parcel outline for the honest 0%/"entirely setback" case.
+  const [envelopeOverlays, setEnvelopeOverlays] = useState<OverlaySpec[]>([]);
+  // The clicked parcel's raw geometry (from the live-GIS overlay feature), kept
+  // so the 0% case can outline the whole lot and the client-side inset fallback
+  // can inset the parcel ring when the server returned setbacks but no polygon.
+  const clickedParcelGeomRef = useRef<unknown | null>(null);
 
   // The currently-inspected target (card + its baked node id). Tracked in a ref
   // so the click handler can clear the PRIOR inspected feature-state without a
@@ -175,8 +191,16 @@ export function ExplorerMap() {
   // inspected glow first so exactly one inspected parcel is lit. NEVER remounts
   // and NEVER changes the subject — inspect is a distinct, in-place action.
   const inspectInPlace = useCallback(
-    (next: ParcelCardData, parcelNodeId: string | null) => {
+    (
+      next: ParcelCardData,
+      parcelNodeId: string | null,
+      parcelGeometry: unknown = null,
+    ) => {
       const handle = mapRef.current;
+      // Clear any prior envelope wedge — a new parcel starts with no envelope
+      // drawn; handleEnvelope re-draws it when this parcel's envelope resolves.
+      setEnvelopeOverlays([]);
+      clickedParcelGeomRef.current = parcelGeometry;
       // Clear the prior inspected feature-state (if any and still lit).
       const prior = inspectedRef.current;
       if (handle && prior?.parcelNodeId && prior.parcelNodeId !== parcelNodeId) {
@@ -224,7 +248,15 @@ export function ExplorerMap() {
   const handleParcelSelect = useCallback(
     (sel: ParcelSelection) => {
       if (sel.layerKey === LIVE_PARCELS_KEY) {
-        inspectInPlace(selectionToCard(sel), parcelNodeIdFromSelection(sel));
+        // The live-parcel feature carries the parcel ring — thread it so the 0%
+        // case can outline the lot and the inset fallback can inset it.
+        const geom =
+          (sel.feature as { geometry?: unknown } | undefined)?.geometry ?? null;
+        inspectInPlace(
+          selectionToCard(sel),
+          parcelNodeIdFromSelection(sel),
+          geom,
+        );
         return;
       }
       // A non-live overlay click carrying only coords — inspect what it carries.
@@ -273,7 +305,13 @@ export function ExplorerMap() {
         lat: typeof props.lat === "number" ? (props.lat as number) : null,
         lng: typeof props.lng === "number" ? (props.lng as number) : null,
       };
-      inspectInPlace(bareCard, parcelNodeId);
+      // PMTiles feature geometry is clipped-per-tile (not a clean full ring), so
+      // it's unreliable for the 0% outline / inset fallback — pass null and let
+      // the baked "ok" envelope's own inset polygon (which IS complete) carry the
+      // draw. The 0% case on this path shows the honest card wording only.
+      const geom =
+        (feature as { geometry?: unknown } | undefined)?.geometry ?? null;
+      inspectInPlace(bareCard, parcelNodeId, geom);
     },
     [inspectInPlace],
   );
@@ -329,10 +367,38 @@ export function ExplorerMap() {
     );
   }, []);
 
-  // When the envelope resolves, patch setbacks/envelope onto the inspected node
-  // (the store is the subject/inspected source of truth — the ask/report path
-  // will read it via getSubjectAreaContext when auth lands).
+  // When the envelope resolves: (1) DRAW the wedge visual on the live map (the
+  // product deliverable — "what you can build, drawn"), and (2) patch
+  // setbacks/envelope onto the inspected node (the subject/inspected source of
+  // truth the ask/report path reads via getSubjectAreaContext when auth lands).
   const handleEnvelope = useCallback((result: any) => {
+    // --- (1) DRAW the buildable-envelope wedge through the overlays path. ---
+    const norm = normalizeEnvelope(result);
+    if (norm.kind === "ok" && norm.insetGeometry) {
+      // Real server-computed inset polygon (baked "ok" or live ok) -> amber
+      // inset fill + dashed setback edge. The primary wedge visual.
+      setEnvelopeOverlays([envelopeInsetOverlay(norm.insetGeometry)]);
+    } else if (norm.kind === "empty") {
+      // Honest 0%: setbacks consume the lot. No amber fill (that would fabricate
+      // buildable area). Outline the whole parcel in the dashed setback style
+      // when we have the ring; else draw nothing and let the card wording carry
+      // the honesty.
+      const outline = setbackConsumedOverlay(clickedParcelGeomRef.current);
+      setEnvelopeOverlays(outline ? [outline] : []);
+    } else {
+      // ok-but-no-server-geometry: try the client-side inset FALLBACK (parcel
+      // ring + setbacks). Only fires when the server gave setbacks but no
+      // polygon AND we have a real parcel ring; otherwise nothing is drawn.
+      const fallbackInset = insetParcelBySetbacks(
+        clickedParcelGeomRef.current,
+        result?.setbacks ?? null,
+      );
+      setEnvelopeOverlays(
+        fallbackInset ? [envelopeInsetOverlay(fallbackInset)] : [],
+      );
+    }
+
+    // --- (2) Patch the ported node store (unchanged seam). ---
     const inspected = parcelNodes.getInspected();
     if (!inspected?.id) return;
     parcelNodes.patchNode(
@@ -359,18 +425,23 @@ export function ExplorerMap() {
       }
     }
     inspectedRef.current = null;
+    clickedParcelGeomRef.current = null;
+    setEnvelopeOverlays([]); // clear the wedge visual when the card closes.
     setCard(null);
     setCardNodeId(null);
     parcelNodes.setInspected(null, "close-inspect");
   }, []);
 
   const mapOverlays = useMemo<OverlaySpec[]>(
-    () =>
-      toLiveOverlays(
+    () => [
+      ...toLiveOverlays(
         parcels.data ? { status: "ok", response: parcels.data } : parcels.fetch,
         fema.data ? { status: "ok", response: fema.data } : fema.fetch,
       ),
-    [parcels, fema],
+      // The buildable-envelope wedge, drawn last so it sits above the parcels.
+      ...envelopeOverlays,
+    ],
+    [parcels, fema, envelopeOverlays],
   );
 
   const chips: Array<{ key: string; sev: "info" | "warn" | "error"; text: string }> = [];
