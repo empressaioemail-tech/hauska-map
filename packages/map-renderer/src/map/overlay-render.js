@@ -163,6 +163,7 @@ function upsertOverlay(map, spec) {
 
     const lineId = `${sourceId}-line`;
     const lineColor = paint["line-color"] || DEFAULT_LINE;
+    const lineDash = staticDash(paint["line-dasharray"]);
     if (!map.getLayer(lineId)) {
       map.addLayer({
         id: lineId,
@@ -171,12 +172,17 @@ function upsertOverlay(map, spec) {
         paint: {
           "line-color": lineColor,
           "line-width": paint["line-width"] ?? 1.4,
+          // STATIC literal dash only (crash guard): a feature-state-driven
+          // line-dasharray is the setConstantDashPositions per-frame crash;
+          // a literal array is safe. staticDash() drops anything non-literal.
+          ...(lineDash ? { "line-dasharray": lineDash } : {}),
         },
       });
     } else {
       safeSetPaint(map, lineId, "line-color", lineColor);
       if (paint["line-width"] != null)
         safeSetPaint(map, lineId, "line-width", paint["line-width"]);
+      if (lineDash) safeSetPaint(map, lineId, "line-dasharray", lineDash);
     }
     map.setLayoutProperty(lineId, "visibility", vis);
   } else {
@@ -187,6 +193,7 @@ function upsertOverlay(map, spec) {
   if (fam.line && !fam.polygon) {
     const lineId = `${sourceId}-line`;
     const lineColor = paint["line-color"] || DEFAULT_LINE;
+    const lineDash = staticDash(paint["line-dasharray"]);
     if (!map.getLayer(lineId)) {
       map.addLayer({
         id: lineId,
@@ -195,10 +202,12 @@ function upsertOverlay(map, spec) {
         paint: {
           "line-color": lineColor,
           "line-width": paint["line-width"] ?? 1.6,
+          ...(lineDash ? { "line-dasharray": lineDash } : {}),
         },
       });
     } else {
       safeSetPaint(map, lineId, "line-color", lineColor);
+      if (lineDash) safeSetPaint(map, lineId, "line-dasharray", lineDash);
     }
     map.setLayoutProperty(lineId, "visibility", vis);
   } else if (!fam.polygon) {
@@ -229,6 +238,20 @@ function upsertOverlay(map, spec) {
   } else {
     removeLayerIfPresent(map, `${sourceId}-circle`);
   }
+}
+
+/**
+ * Accept a line-dasharray ONLY when it is a STATIC literal array of finite
+ * numbers (e.g. [3, 2]). Anything else — a MapLibre expression, a feature-state
+ * lookup, a non-array — is dropped. This is the crash guard: a feature-state
+ * -driven dasharray triggers the setConstantDashPositions per-frame crash; a
+ * literal array is safe.
+ * @returns {number[]|null} the literal dash, or null to omit it.
+ */
+function staticDash(value) {
+  if (!Array.isArray(value) || value.length === 0) return null;
+  if (!value.every((n) => typeof n === "number" && Number.isFinite(n))) return null;
+  return value.slice();
 }
 
 function safeSetPaint(map, layerId, prop, value) {

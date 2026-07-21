@@ -277,6 +277,21 @@ export function InspectCard({
         </div>
       )}
 
+      {/* BAKED honest 0% — an "ok"-shaped envelope whose setbacks consume the
+          whole lot (buildableAreaPct 0). This is HONEST, not missing data: state
+          it plainly rather than leaving a bare "0%". */}
+      {source === "baked" &&
+        baked &&
+        baked.envelopeStatus === "no-buildable-area" && (
+          <div
+            data-testid="no-buildable-area"
+            style={{ marginTop: 8, fontSize: 10.5, color: "#fcd34d" }}
+          >
+            {baked.envelopeEmptyReason ||
+              "No buildable area after setbacks — the setbacks consume the lot."}
+          </div>
+        )}
+
       {/* LIVE fallback coverage states (un-baked nodes only). */}
       {source === "live" && env.status === "loading" && (
         <div style={{ marginTop: 8, fontSize: 10.5, color: MUTED }}>

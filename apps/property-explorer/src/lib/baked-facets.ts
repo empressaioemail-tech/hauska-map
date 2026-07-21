@@ -53,6 +53,7 @@ export interface BakedFacetPayload {
     setbacks?: { front_ft: number; side_ft: number; rear_ft: number };
     buildableAreaPct?: number;
     disclosure?: string;
+    emptyReason?: string;
     citationUrl?: string;
     geojson?: unknown;
   } | null;
@@ -114,6 +115,12 @@ export interface BakedCardModel {
   /** True whenever an envelope facet is present — the card must then render the
    *  "approximate / not survey grade" treatment (honesty commitment #1). */
   envelopeApproximate: boolean;
+  /** The baked envelope status, when present: "ok" (a buildable area was drawn),
+   *  "no-buildable-area" (an HONEST 0% — setbacks consume the lot), or
+   *  "declined". Null when no envelope was baked. Drives the 0% card wording. */
+  envelopeStatus: "ok" | "no-buildable-area" | "declined" | null;
+  /** The 0%-case reason (setbacks exceed the lot), when the bake carried one. */
+  envelopeEmptyReason: string | null;
   /** The envelope's honest decline reason, when status === "declined". */
   envelopeDeclineReason: string | null;
   /** Envelope disclosure string when the bake carried one. */
@@ -211,6 +218,11 @@ export function deriveBakedCardModel(payload: BakedFacetPayload): BakedCardModel
     buildablePct,
     // Any present envelope is Tier-1 (shape-only, no roads) — always approximate.
     envelopeApproximate: hasEnvelope,
+    envelopeStatus: env?.status ?? null,
+    envelopeEmptyReason:
+      env?.status === "no-buildable-area"
+        ? env.emptyReason ?? env.disclosure ?? "Setbacks consume the lot — no buildable area remains."
+        : null,
     envelopeDeclineReason:
       env?.status === "declined" ? env.declineReason ?? null : null,
     disclosure: env?.disclosure ?? null,
