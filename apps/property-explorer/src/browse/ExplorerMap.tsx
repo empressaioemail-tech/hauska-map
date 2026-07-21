@@ -41,6 +41,7 @@ import { cortexClient } from "../lib/cortexClient";
 import { parcelNodes } from "../lib/parcel-node-store.js";
 import { InspectCard } from "./InspectCard";
 import { LayersControl } from "./LayersControl";
+import { MapTools } from "./MapTools";
 import {
   MIN_PARCEL_ZOOM,
   LIVE_PARCELS_KEY,
@@ -424,6 +425,10 @@ export function ExplorerMap() {
           onChange={(next) => setVisibleLayers(new Set(next))}
         />
       )}
+
+      {/* Satellite base toggle + measure/draw/marker/GPS tools. Operates on the
+          LIVE persistent map via the shared handle — never remounts the map. */}
+      <MapTools mapRef={mapRef} />
 
       {/* Honest live-layer state chips. */}
       <div
