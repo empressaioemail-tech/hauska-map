@@ -98,6 +98,10 @@ export function ExplorerMap() {
   const [fema, setFema] = useState<LayerSlot>(IDLE);
   const [zoom, setZoom] = useState<number | null>(null);
   const [card, setCard] = useState<ParcelCardData | null>(null);
+  // The clicked parcel's stable baked-node id, kept alongside `card` so the
+  // InspectCard can read its baked facet snapshot (the preferred pure-read
+  // source). Null for a live-GIS-only selection with no baked id.
+  const [cardNodeId, setCardNodeId] = useState<string | null>(null);
   const abortRef = useRef<AbortController | null>(null);
 
   // The currently-inspected target (card + its baked node id). Tracked in a ref
@@ -188,6 +192,7 @@ export function ExplorerMap() {
       }
       inspectedRef.current = { card: next, parcelNodeId };
       setCard(next);
+      setCardNodeId(parcelNodeId);
       parcelNodes.setInspected(
         {
           id:
@@ -354,6 +359,7 @@ export function ExplorerMap() {
     }
     inspectedRef.current = null;
     setCard(null);
+    setCardNodeId(null);
     parcelNodes.setInspected(null, "close-inspect");
   }, []);
 
@@ -444,6 +450,7 @@ export function ExplorerMap() {
       {card && (
         <InspectCard
           card={card}
+          parcelNodeId={cardNodeId}
           isSubject={isSubject}
           onClose={closeInspect}
           onEnvelope={handleEnvelope}
