@@ -12,15 +12,16 @@ const DEEP_GET_EXACT = new Set([
   'api/property-explorer/v1/entitlement',
 ])
 
-const DEEP_GET_PREFIX = ['api/property-explorer/v1/saved-properties']
+const DEEP_GET_PREFIX = [
+  'api/property-explorer/v1/saved-properties',
+  'api/property-explorer/v1/research/layer-manifest',
+]
 
 const DEEP_POST_EXACT = new Set([
   'api/property-explorer/v1/research/brief',
   'api/property-explorer/v1/research/hydrology',
   'api/property-explorer/v1/research/subsurface',
 ])
-
-const DEEP_POST_PREFIX = ['api/property-explorer/v1/research/layer-manifest']
 
 function isDeepPathAllowed(method: string, upstreamPath: string): boolean {
   if (method === 'GET' || method === 'HEAD') {
@@ -29,7 +30,7 @@ function isDeepPathAllowed(method: string, upstreamPath: string): boolean {
   }
   if (method === 'POST') {
     if (DEEP_POST_EXACT.has(upstreamPath)) return true
-    return DEEP_POST_PREFIX.some((p) => upstreamPath.startsWith(`${p}/`))
+    return false
   }
   if (method === 'PUT' || method === 'DELETE') {
     return upstreamPath.startsWith('api/property-explorer/v1/saved-properties/')
