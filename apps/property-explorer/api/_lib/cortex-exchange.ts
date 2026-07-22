@@ -2,7 +2,7 @@ import {
   cortexApiUrl,
   peSessionExchangeSecret,
   type OidcProvider,
-} from './oidc-config'
+} from './oidc-config.js'
 
 export interface ExchangeIdentity {
   provider: OidcProvider

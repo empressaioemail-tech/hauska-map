@@ -1,5 +1,5 @@
 import type { VercelResponse } from '@vercel/node'
-import { PE_SESSION_COOKIE } from './oidc-config'
+import { PE_SESSION_COOKIE } from './oidc-config.js'
 
 const SESSION_MAX_AGE_MS = 7 * 24 * 60 * 60 * 1000
 
