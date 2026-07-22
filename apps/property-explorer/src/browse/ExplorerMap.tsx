@@ -90,6 +90,14 @@ interface InspectedTarget {
   parcelNodeId: string | null;
 }
 
+type ResearchBrief = {
+  runId: string;
+  brief: {
+    sections: Array<{ id: string; title: string; data: unknown }>;
+    disclosure?: string[];
+  };
+};
+
 /** Center → the renderer's {latitude, longitude} Center contract, from lat/lng. */
 function toCenter(lat: number | null, lng: number | null): Center | undefined {
   if (typeof lat !== "number" || typeof lng !== "number") return undefined;
@@ -154,6 +162,7 @@ export function ExplorerMap() {
   // layer still renders as an unchecked row and can be re-enabled.
   const [knownLayers, setKnownLayers] = useState<Set<LayerKey> | null>(null);
   const [researchNotice, setResearchNotice] = useState<string | null>(null);
+  const [researchBrief, setResearchBrief] = useState<ResearchBrief | null>(null);
   const [persona, setPersona] = useState<Persona>("homeowner");
   const [paywallOpen, setPaywallOpen] = useState(false);
   const [checkoutBusy, setCheckoutBusy] = useState(false);
@@ -515,6 +524,7 @@ export function ExplorerMap() {
       return;
     }
 
+    setResearchBrief(null);
     setResearchNotice("Checking access…");
     try {
       const res = await postDeepResearch(
@@ -524,7 +534,7 @@ export function ExplorerMap() {
       const body = (await res.json().catch(() => ({}))) as {
         error?: string;
         message?: string;
-      };
+      } & Partial<ResearchBrief>;
       if (res.status === 401) {
         setResearchNotice("Sign in to unlock deep research on this parcel.");
         return;
@@ -544,6 +554,11 @@ export function ExplorerMap() {
         setResearchNotice(
           "Property brief path is wired; spine report_run integration pending.",
         );
+        return;
+      }
+      if (res.ok && body.runId && body.brief?.sections) {
+        setResearchBrief(body as ResearchBrief);
+        setResearchNotice("Cited Property Intel brief ready.");
         return;
       }
       setResearchNotice(body.message ?? `Research request returned ${res.status}.`);
@@ -634,6 +649,48 @@ export function ExplorerMap() {
           </span>
         )}
       </div>
+
+      {researchBrief && (
+        <aside
+          data-testid="research-brief"
+          style={{
+            position: "absolute",
+            top: 12,
+            right: 12,
+            zIndex: 9,
+            width: "min(360px, calc(100vw - 24px))",
+            maxHeight: "calc(100vh - 24px)",
+            overflowY: "auto",
+            padding: 14,
+            borderRadius: 8,
+            color: "#e5e7eb",
+            background: "rgba(13,17,23,0.94)",
+            border: "1px solid rgba(154,166,178,0.35)",
+            font: "12px/1.45 system-ui, -apple-system, Segoe UI, Roboto, sans-serif",
+          }}
+        >
+          <strong>Property Intel brief</strong>
+          {researchBrief.brief.sections.map((section) => (
+            <section key={section.id} style={{ marginTop: 10 }}>
+              <strong>{section.title}</strong>
+              <pre
+                style={{
+                  margin: "4px 0 0",
+                  whiteSpace: "pre-wrap",
+                  font: "11px/1.4 ui-monospace, SFMono-Regular, Menlo, monospace",
+                }}
+              >
+                {JSON.stringify(section.data, null, 2)}
+              </pre>
+            </section>
+          ))}
+          {researchBrief.brief.disclosure?.map((disclosure) => (
+            <p key={disclosure} style={{ color: "#fcd34d", margin: "10px 0 0" }}>
+              {disclosure}
+            </p>
+          ))}
+        </aside>
+      )}
 
       {card && (
         <InspectCard
