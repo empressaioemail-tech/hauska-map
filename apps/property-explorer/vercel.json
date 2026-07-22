@@ -5,6 +5,8 @@
   "outputDirectory": "dist",
   "framework": null,
   "rewrites": [
+    { "source": "/api/auth/(.*)", "destination": "/api/auth?upath=$1" },
+    { "source": "/api/spine-deep/(.*)", "destination": "/api/spine-deep?upath=$1" },
     { "source": "/api/spine/(.*)", "destination": "/api/spine?upath=$1" },
     { "source": "/((?!api/).*)", "destination": "/index.html" }
   ]
