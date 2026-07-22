@@ -180,8 +180,22 @@ async function handleCallback(
       email,
       displayName,
     })
-    setPeSessionCookie(res, session.token, isProduction())
-    res.redirect(302, '/?signed_in=1')
+    // Set cookie + Location explicitly so Set-Cookie survives the redirect
+    // (res.redirect alone has dropped cookies on some Vercel runtimes).
+    const secure = isProduction()
+    setPeSessionCookie(res, session.token, secure)
+    const clearOidc = `${oidcStateCookieName()}=; Path=/api/auth; HttpOnly; SameSite=Lax; Max-Age=0`
+    const existing = res.getHeader('Set-Cookie')
+    if (typeof existing === 'string') {
+      res.setHeader('Set-Cookie', [existing, clearOidc])
+    } else if (Array.isArray(existing)) {
+      res.setHeader('Set-Cookie', [...existing, clearOidc])
+    } else {
+      res.setHeader('Set-Cookie', clearOidc)
+    }
+    res.statusCode = 302
+    res.setHeader('Location', '/?signed_in=1')
+    res.end()
   } catch (err) {
     res.status(502).json({
       error: 'auth_callback_failed',
