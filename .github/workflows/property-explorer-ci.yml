@@ -40,4 +40,5 @@ jobs:
           node-version: 20
           cache: pnpm
       - run: pnpm install --frozen-lockfile
+      - run: pnpm --filter @hauska/map-renderer build
       - run: pnpm --filter property-explorer exec tsc --noEmit
