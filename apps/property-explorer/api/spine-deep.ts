@@ -5,8 +5,8 @@
 // Only property-explorer deep paths are allowlisted.
 
 import type { VercelRequest, VercelResponse } from '@vercel/node'
-import { cortexApiUrl } from './_lib/oidc-config'
-import { readPeSessionCookie } from './_lib/session-cookie'
+import { cortexApiUrl } from './_lib/oidc-config.js'
+import { readPeSessionCookie } from './_lib/session-cookie.js'
 
 const DEEP_GET_EXACT = new Set([
   'api/property-explorer/v1/entitlement',

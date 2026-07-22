@@ -19,26 +19,26 @@ import {
   providerConfig,
   redirectUri,
   type OidcProvider,
-} from './_lib/oidc-config'
+} from './_lib/oidc-config.js'
 import {
   generatePkcePair,
   oidcStateCookieName,
   oidcStateCookieOpts,
   sealOidcState,
   unsealPayload,
-} from './_lib/pkce'
+} from './_lib/pkce.js'
 import {
   clearPeSessionCookie,
   isProduction,
   readPeSessionCookie,
   setPeSessionCookie,
-} from './_lib/session-cookie'
+} from './_lib/session-cookie.js'
 import {
   exchangeCodeForTokens,
   exchangeSessionWithCortex,
   fetchIdTokenClaims,
   fetchMicrosoftProfile,
-} from './_lib/cortex-exchange'
+} from './_lib/cortex-exchange.js'
 
 function parseCookies(req: VercelRequest): Record<string, string> {
   const header = req.headers.cookie ?? ''
