@@ -9,14 +9,17 @@
 //
 // Empressa brand only — zero "Hauska" strings in user-facing text.
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { ExplorerMap } from "./browse/ExplorerMap";
 import { SignUpCard } from "./coldopen/SignUpCard";
+import { recordPeGtmEvent } from "./lib/gtmClient";
 
 export function App() {
-  // Cold-open scrim + card up until the user dismisses. Browse is anonymous,
-  // so dismissing is the only gate — no auth required to explore.
   const [coldOpen, setColdOpen] = useState(true);
+
+  useEffect(() => {
+    void recordPeGtmEvent({ eventType: "pe_browse_started" });
+  }, []);
 
   return (
     <div

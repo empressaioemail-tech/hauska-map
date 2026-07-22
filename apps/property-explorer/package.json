@@ -8,7 +8,8 @@
     "dev": "pnpm run build:renderer && vite --port 5175",
     "build": "pnpm run build:renderer && tsc --noEmit && vite build",
     "preview": "vite preview --port 5175",
-    "test": "vitest run"
+    "test": "vitest run",
+    "smoke:extension-handoff": "node scripts/extension-handoff-smoke.mjs"
   },
   "dependencies": {
     "@empressaio/cortex-client": "^0.1.2",

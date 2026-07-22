@@ -4,41 +4,49 @@
 // when env is configured; honest "sign-in not configured" when secrets missing.
 // "Just browse" stays anonymous — no auth required.
 
-import { useEffect, useState } from 'react'
+import { useEffect, useState } from "react";
 import {
   fetchAuthStatus,
   googleSignInUrl,
   microsoftSignInUrl,
   type AuthStatus,
-} from '../lib/auth'
+} from "../lib/auth";
+import { recordPeGtmEvent } from "../lib/gtmClient";
 
-const CARD_BG = 'rgba(17, 21, 28, 0.92)'
-const ACCENT = '#7dd3fc'
+const CARD_BG = "rgba(17, 21, 28, 0.92)";
+const ACCENT = "#7dd3fc";
 
 export function SignUpCard({ onDismiss }: { onDismiss: () => void }) {
-  const [busy, setBusy] = useState<'google' | 'microsoft' | null>(null)
-  const [authStatus, setAuthStatus] = useState<AuthStatus | null>(null)
-  const [loadError, setLoadError] = useState<string | null>(null)
+  const [busy, setBusy] = useState<"google" | "microsoft" | null>(null);
+  const [authStatus, setAuthStatus] = useState<AuthStatus | null>(null);
+  const [loadError, setLoadError] = useState<string | null>(null);
 
   useEffect(() => {
     fetchAuthStatus()
       .then(setAuthStatus)
-      .catch(() => setLoadError('Could not reach auth status'))
-  }, [])
+      .catch(() => setLoadError("Could not reach auth status"));
+  }, []);
+
+  const dismissBrowse = () => {
+    void recordPeGtmEvent({ eventType: "pe_cold_open_dismissed" });
+    onDismiss();
+  };
 
   const startGoogle = () => {
-    if (!authStatus?.configured.google) return
-    setBusy('google')
-    window.location.href = googleSignInUrl()
-  }
+    if (!authStatus?.configured.google) return;
+    setBusy("google");
+    void recordPeGtmEvent({ eventType: "pe_signup_intent" });
+    window.location.href = googleSignInUrl();
+  };
 
   const startMicrosoft = () => {
-    if (!authStatus?.configured.microsoft) return
-    setBusy('microsoft')
-    window.location.href = microsoftSignInUrl()
-  }
+    if (!authStatus?.configured.microsoft) return;
+    setBusy("microsoft");
+    void recordPeGtmEvent({ eventType: "pe_signup_intent" });
+    window.location.href = microsoftSignInUrl();
+  };
 
-  const signInConfigured = authStatus?.anyProvider ?? false
+  const signInConfigured = authStatus?.anyProvider ?? false;
 
   return (
     <div
@@ -46,36 +54,36 @@ export function SignUpCard({ onDismiss }: { onDismiss: () => void }) {
       aria-modal="false"
       aria-label="Get started"
       style={{
-        position: 'absolute',
+        position: "absolute",
         inset: 0,
         zIndex: 20,
-        display: 'flex',
-        alignItems: 'center',
-        justifyContent: 'center',
-        pointerEvents: 'none',
+        display: "flex",
+        alignItems: "center",
+        justifyContent: "center",
+        pointerEvents: "none",
       }}
     >
       <div
         data-testid="signup-card"
         style={{
-          pointerEvents: 'auto',
-          width: 'min(420px, calc(100vw - 32px))',
-          padding: '28px 28px 24px',
+          pointerEvents: "auto",
+          width: "min(420px, calc(100vw - 32px))",
+          padding: "28px 28px 24px",
           borderRadius: 16,
           background: CARD_BG,
-          border: '0.5px solid rgba(125,211,252,0.35)',
-          boxShadow: '0 24px 80px rgba(0,0,0,0.55)',
-          color: '#e9eef5',
+          border: "0.5px solid rgba(125,211,252,0.35)",
+          boxShadow: "0 24px 80px rgba(0,0,0,0.55)",
+          color: "#e9eef5",
           fontFamily:
-            'system-ui, -apple-system, Segoe UI, Roboto, Helvetica, Arial, sans-serif',
-          backdropFilter: 'blur(2px)',
+            "system-ui, -apple-system, Segoe UI, Roboto, Helvetica, Arial, sans-serif",
+          backdropFilter: "blur(2px)",
         }}
       >
         <div
           style={{
             fontSize: 12,
             fontWeight: 700,
-            letterSpacing: '0.16em',
+            letterSpacing: "0.16em",
             color: ACCENT,
             marginBottom: 14,
           }}
@@ -85,38 +93,38 @@ export function SignUpCard({ onDismiss }: { onDismiss: () => void }) {
 
         <h1
           style={{
-            margin: '0 0 14px',
+            margin: "0 0 14px",
             fontSize: 24,
             lineHeight: 1.22,
             fontWeight: 700,
-            letterSpacing: '-0.01em',
+            letterSpacing: "-0.01em",
           }}
         >
-          See what you can build on any lot in Central Texas.
+          See what you can build on Central Texas parcels — where data is verified.
         </h1>
 
         <ul
           style={{
-            listStyle: 'none',
-            margin: '0 0 22px',
+            listStyle: "none",
+            margin: "0 0 22px",
             padding: 0,
-            display: 'grid',
+            display: "grid",
             gap: 10,
           }}
         >
           {[
-            'Tap any parcel for zoning, setbacks, and your buildable envelope.',
-            'Real records, cited and dated — never a guess dressed up as fact.',
-            'Free to explore. No account needed to look around.',
+            "Tap a parcel for zoning, setbacks, and buildable envelope when gate-verified.",
+            "Real records, cited and dated — gaps show as not verified, never fabricated.",
+            "Free to browse. Deep research and reports require an account.",
           ].map((t) => (
             <li
               key={t}
               style={{
-                display: 'flex',
+                display: "flex",
                 gap: 10,
                 fontSize: 14,
                 lineHeight: 1.4,
-                color: '#c6d0dc',
+                color: "#c6d0dc",
               }}
             >
               <span aria-hidden style={{ color: ACCENT, marginTop: 1 }}>
@@ -128,7 +136,7 @@ export function SignUpCard({ onDismiss }: { onDismiss: () => void }) {
         </ul>
 
         {loadError && (
-          <p data-testid="auth-load-error" style={{ color: '#c98b3a', fontSize: 13, marginBottom: 12 }}>
+          <p data-testid="auth-load-error" style={{ color: "#c98b3a", fontSize: 13, marginBottom: 12 }}>
             {loadError}
           </p>
         )}
@@ -138,12 +146,12 @@ export function SignUpCard({ onDismiss }: { onDismiss: () => void }) {
             data-testid="sign-in-not-configured"
             style={{
               fontSize: 13,
-              color: '#aeb8c4',
+              color: "#aeb8c4",
               marginBottom: 14,
-              padding: '10px 12px',
+              padding: "10px 12px",
               borderRadius: 8,
-              border: '0.5px solid rgba(174,184,196,0.28)',
-              background: 'rgba(0,0,0,0.2)',
+              border: "0.5px solid rgba(174,184,196,0.28)",
+              background: "rgba(0,0,0,0.2)",
             }}
           >
             Sign-in is not configured on this deploy yet. You can browse the map anonymously.
@@ -156,10 +164,10 @@ export function SignUpCard({ onDismiss }: { onDismiss: () => void }) {
             data-testid="continue-google"
             onClick={startGoogle}
             disabled={busy !== null}
-            style={primaryBtnStyle(busy === 'google')}
+            style={primaryBtnStyle(busy === "google")}
           >
             <GoogleGlyph />
-            {busy === 'google' ? 'Redirecting…' : 'Continue with Google'}
+            {busy === "google" ? "Redirecting…" : "Continue with Google"}
           </button>
         )}
 
@@ -169,54 +177,69 @@ export function SignUpCard({ onDismiss }: { onDismiss: () => void }) {
             data-testid="continue-microsoft"
             onClick={startMicrosoft}
             disabled={busy !== null}
-            style={{ ...primaryBtnStyle(busy === 'microsoft'), marginTop: authStatus?.configured.google ? 10 : 0 }}
+            style={{
+              ...primaryBtnStyle(busy === "microsoft"),
+              marginTop: authStatus?.configured.google ? 10 : 0,
+            }}
           >
             <MicrosoftGlyph />
-            {busy === 'microsoft' ? 'Redirecting…' : 'Continue with Microsoft'}
+            {busy === "microsoft" ? "Redirecting…" : "Continue with Microsoft"}
           </button>
         )}
 
         <button
           type="button"
           data-testid="browse-instead"
-          onClick={onDismiss}
+          onClick={dismissBrowse}
           style={{
-            width: '100%',
+            width: "100%",
             marginTop: 10,
-            padding: '10px 16px',
+            padding: "10px 16px",
             fontSize: 13,
             fontWeight: 500,
-            color: '#aeb8c4',
-            background: 'transparent',
-            border: '0.5px solid rgba(174,184,196,0.28)',
+            color: "#aeb8c4",
+            background: "transparent",
+            border: "0.5px solid rgba(174,184,196,0.28)",
             borderRadius: 10,
-            cursor: 'pointer',
+            cursor: "pointer",
           }}
         >
           Just browse the map
         </button>
+
+        <p
+          style={{
+            margin: "14px 0 0",
+            fontSize: 10.5,
+            lineHeight: 1.45,
+            color: "#8b97a5",
+          }}
+        >
+          Coverage varies by county and city. Comal countywide land-use remains an
+          honest gap on browse.
+        </p>
       </div>
     </div>
-  )
+  );
 }
 
 function primaryBtnStyle(busy: boolean) {
   return {
-    width: '100%',
-    display: 'flex',
-    alignItems: 'center',
-    justifyContent: 'center',
+    width: "100%",
+    display: "flex",
+    alignItems: "center",
+    justifyContent: "center",
     gap: 10,
-    padding: '12px 16px',
+    padding: "12px 16px",
     fontSize: 15,
     fontWeight: 600,
-    color: '#11151c',
-    background: '#ffffff',
-    border: 'none',
+    color: "#11151c",
+    background: "#ffffff",
+    border: "none",
     borderRadius: 10,
-    cursor: busy ? 'default' : 'pointer',
+    cursor: busy ? "default" : "pointer",
     opacity: busy ? 0.7 : 1,
-  } as const
+  } as const;
 }
 
 function GoogleGlyph() {
@@ -227,7 +250,7 @@ function GoogleGlyph() {
       <path fill="#FBBC05" d="M10.53 28.59c-.48-1.45-.76-2.99-.76-4.59s.27-3.14.76-4.59l-7.98-6.19C.92 16.46 0 20.12 0 24c0 3.88.92 7.54 2.56 10.78l7.97-6.19z" />
       <path fill="#34A853" d="M24 48c6.48 0 11.93-2.13 15.89-5.81l-7.73-6c-2.15 1.45-4.92 2.3-8.16 2.3-6.26 0-11.57-4.22-13.47-9.91l-7.98 6.19C6.51 42.62 14.62 48 24 48z" />
     </svg>
-  )
+  );
 }
 
 function MicrosoftGlyph() {
@@ -238,5 +261,5 @@ function MicrosoftGlyph() {
       <rect x="1" y="11" width="9" height="9" fill="#00a4ef" />
       <rect x="11" y="11" width="9" height="9" fill="#ffb900" />
     </svg>
-  )
+  );
 }

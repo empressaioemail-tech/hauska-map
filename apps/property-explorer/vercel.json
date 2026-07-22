@@ -8,6 +8,8 @@
     { "source": "/api/auth/(.*)", "destination": "/api/auth?upath=$1" },
     { "source": "/api/spine-deep/(.*)", "destination": "/api/spine-deep?upath=$1" },
     { "source": "/api/spine/(.*)", "destination": "/api/spine?upath=$1" },
+    { "source": "/api/pe-gtm", "destination": "/api/pe-gtm" },
+    { "source": "/api/pe-billing", "destination": "/api/pe-billing" },
     { "source": "/((?!api/).*)", "destination": "/index.html" }
   ]
 }

@@ -40,9 +40,13 @@ import { DEFAULT_CENTER, PARCEL_TILES } from "../lib/config";
 import { postDeepResearch } from "../lib/auth";
 import { cortexClient } from "../lib/cortexClient";
 import { parcelNodes } from "../lib/parcel-node-store.js";
+import { startPeCheckout } from "../lib/billingClient";
+import { recordPeGtmEvent, type Persona } from "../lib/gtmClient";
+import { iccCitationStatus } from "../lib/iccCitation";
 import { InspectCard } from "./InspectCard";
 import { LayersControl } from "./LayersControl";
 import { MapTools } from "./MapTools";
+import { PaywallGate } from "./PaywallGate";
 import {
   normalizeEnvelope,
   envelopeInsetOverlay,
@@ -68,6 +72,17 @@ interface LayerSlot {
   data: GisLayerResponse | null;
 }
 const IDLE: LayerSlot = { fetch: { status: "idle" }, data: null };
+
+/** Consumer-honest layer filter — no AVM/valuation layers on browse (WDLL 27). */
+const CONSUMER_EXCLUDED_LAYERS = new Set<LayerKey>(["rent-heat"]);
+
+function filterConsumerLayers(seed: Set<LayerKey>): Set<LayerKey> {
+  const next = new Set<LayerKey>();
+  for (const key of seed) {
+    if (!CONSUMER_EXCLUDED_LAYERS.has(key)) next.add(key);
+  }
+  return next;
+}
 
 /** The inspected parcel we lit on the live map, so we can clear it on change. */
 interface InspectedTarget {
@@ -139,8 +154,23 @@ export function ExplorerMap() {
   // layer still renders as an unchecked row and can be re-enabled.
   const [knownLayers, setKnownLayers] = useState<Set<LayerKey> | null>(null);
   const [researchNotice, setResearchNotice] = useState<string | null>(null);
+  const [persona, setPersona] = useState<Persona>("homeowner");
+  const [paywallOpen, setPaywallOpen] = useState(false);
+  const [checkoutBusy, setCheckoutBusy] = useState(false);
+  const [checkoutNote, setCheckoutNote] = useState<string | null>(null);
 
-  // Once the map has mounted, seed the layer control from the renderer's own
+  // Extension #34 handoff: ?parcelNodeId=48453:907247 (WDLL 30)
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    const params = new URLSearchParams(window.location.search);
+    const handoff =
+      params.get("parcelNodeId")?.trim() || params.get("parcel")?.trim();
+    if (!handoff) return;
+    void recordPeGtmEvent({
+      eventType: "pe_browse_started",
+      payload: { extensionHandoff: handoff },
+    });
+  }, []);
   // toggle set (a copy — mutating it does not leak into renderer state).
   useEffect(() => {
     if (visibleLayers) return;
@@ -148,8 +178,9 @@ export function ExplorerMap() {
     if (!h) return;
     const seed = h.getVisibleLayers();
     if (seed && seed.size) {
-      setVisibleLayers(new Set(seed));
-      setKnownLayers(new Set(seed));
+      const filtered = filterConsumerLayers(new Set(seed));
+      setVisibleLayers(filtered);
+      setKnownLayers(filtered);
     }
   });
 
@@ -471,6 +502,80 @@ export function ExplorerMap() {
     inspectedRef.current?.parcelNodeId != null &&
     inspectedRef.current.parcelNodeId === subjectNodeIdRef.current;
 
+  const handleResearch = useCallback(async () => {
+    const nodeId = cardNodeId ?? inspectedRef.current?.parcelNodeId ?? null;
+    void recordPeGtmEvent({
+      eventType: "pe_research_clicked",
+      persona,
+      parcelNodeId: nodeId,
+    });
+
+    if (!nodeId) {
+      setResearchNotice("Select a parcel with a baked node id to research.");
+      return;
+    }
+
+    setResearchNotice("Checking access…");
+    try {
+      const res = await postDeepResearch(
+        "api/property-explorer/v1/research/brief",
+        { parcelNodeId: nodeId },
+      );
+      const body = (await res.json().catch(() => ({}))) as {
+        error?: string;
+        message?: string;
+      };
+      if (res.status === 401) {
+        setResearchNotice("Sign in to unlock deep research on this parcel.");
+        return;
+      }
+      if (res.status === 402) {
+        void recordPeGtmEvent({
+          eventType: "pe_paywall_hit",
+          persona,
+          parcelNodeId: nodeId,
+        });
+        setResearchNotice(null);
+        setCheckoutNote(null);
+        setPaywallOpen(true);
+        return;
+      }
+      if (res.status === 503 && body.error === "report_not_ready") {
+        setResearchNotice(
+          "Property brief path is wired; spine report_run integration pending.",
+        );
+        return;
+      }
+      setResearchNotice(body.message ?? `Research request returned ${res.status}.`);
+    } catch {
+      setResearchNotice("Could not reach the research service.");
+    }
+  }, [cardNodeId, persona]);
+
+  const handleSaveProperty = useCallback(() => {
+    const nodeId = cardNodeId ?? inspectedRef.current?.parcelNodeId ?? null;
+    void recordPeGtmEvent({
+      eventType: "pe_save_property",
+      persona,
+      parcelNodeId: nodeId,
+    });
+  }, [cardNodeId, persona]);
+
+  const handleUpgrade = useCallback(async () => {
+    setCheckoutBusy(true);
+    const nodeId = cardNodeId ?? inspectedRef.current?.parcelNodeId ?? null;
+    const result = await startPeCheckout({ parcelNodeId: nodeId });
+    setCheckoutBusy(false);
+    if (!result.ok) {
+      setCheckoutNote(result.message ?? "Checkout unavailable");
+      return;
+    }
+    setCheckoutNote(result.honestNote ?? null);
+    if (result.checkoutUrl) {
+      window.location.assign(result.checkoutUrl);
+    }
+  }, [cardNodeId]);
+
   return (
     <div style={{ position: "absolute", inset: 0, display: "flex" }}>
       <FloatingMap
@@ -538,38 +643,20 @@ export function ExplorerMap() {
           onClose={closeInspect}
           onEnvelope={handleEnvelope}
           onMakeSubject={handleMakeSubject}
-          onResearch={async () => {
-            if (!cardNodeId) {
-              setResearchNotice("Select a parcel with a baked node id to research.");
-              return;
-            }
-            setResearchNotice("Checking access…");
-            try {
-              const res = await postDeepResearch(
-                "api/property-explorer/v1/research/brief",
-                { parcelNodeId: cardNodeId },
-              );
-              const body = (await res.json().catch(() => ({}))) as {
-                error?: string;
-                message?: string;
-              };
-              if (res.status === 401) {
-                setResearchNotice("Sign in to unlock deep research on this parcel.");
-                return;
-              }
-              if (res.status === 402) {
-                setResearchNotice("Deep research requires a paid plan (test mode coming soon).");
-                return;
-              }
-              if (res.status === 503 && body.error === "report_not_ready") {
-                setResearchNotice("Property brief path is wired; spine report_run integration pending.");
-                return;
-              }
-              setResearchNotice(body.message ?? `Research request returned ${res.status}.`);
-            } catch {
-              setResearchNotice("Could not reach the research service.");
-            }
-          }}
+          onResearch={() => void handleResearch()}
+          onSaveProperty={handleSaveProperty}
+          persona={persona}
+          onPersonaChange={setPersona}
+        />
+      )}
+
+      {paywallOpen && (
+        <PaywallGate
+          message={`Deep research and cited property reports (R1–R10) require sign-in and Pro entitlement. Checkout runs in test or live mode depending on cortex Stripe config — browse stays free. ${iccCitationStatus().live ? "" : iccCitationStatus().message}`}
+          checkoutNote={checkoutNote}
+          onUpgrade={() => void handleUpgrade()}
+          onClose={() => setPaywallOpen(false)}
+          busy={checkoutBusy}
         />
       )}
     </div>

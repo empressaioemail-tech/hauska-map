@@ -250,6 +250,8 @@ export default async function handler(req: VercelRequest, res: VercelResponse): 
       'api/place/geocode',
       'api/plan-review/spaces',
       'api/saved-spaces',
+      'api/brokerage/v1/gtm/property-explorer',
+      'api/brokerage/v1/property-explorer/billing',
       // plan-review BFF engagement sub-resources (Dataroom upload-url/complete-upload/ingest,
       // reports/:type/run, compliance-run, letter/generate, sheets/extract, annotations) —
       // same trust level as the api/engagements/** blanket above; upstream still enforces
