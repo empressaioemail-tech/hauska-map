@@ -7,7 +7,8 @@
     "build:renderer": "pnpm --filter @hauska/map-renderer build",
     "dev": "pnpm run build:renderer && vite --port 5175",
     "build": "pnpm run build:renderer && tsc --noEmit && vite build",
-    "preview": "vite preview --port 5175"
+    "preview": "vite preview --port 5175",
+    "test": "vitest run"
   },
   "dependencies": {
     "@empressaio/cortex-client": "^0.1.2",
@@ -22,6 +23,7 @@
     "@types/react-dom": "^18.3.0",
     "@vitejs/plugin-react": "^4.3.4",
     "typescript": "^5.6.3",
-    "vite": "^6.3.5"
+    "vite": "^6.3.5",
+    "vitest": "^3.2.4"
   }
 }

@@ -108,6 +108,25 @@ function getUpstream(pathSegments: string[]): { upstream: Upstream | null; error
   return { upstream: null, error: 'unknown spine segment', missing: undefined }
 }
 
+/** Anonymous browse allowlist — deep routes must use spine-deep with user session. */
+function isCortexBrowsePathAllowed(method: string, upstreamPath: string): boolean {
+  if (method === 'GET' || method === 'HEAD') {
+    if (upstreamPath === 'api/brokerage/v1/coverage') return true
+    if (/^api\/brokerage\/v1\/place\/node\/[^/]+\/facets$/.test(upstreamPath)) return true
+    return false
+  }
+  if (method === 'POST') {
+    const exact = [
+      'api/brokerage/v1/place/buildable-envelope',
+      'api/brokerage/v1/map-data',
+      'api/brokerage/v1/map-data/gis-layer',
+      'api/brokerage/v1/map-data/composite-layer',
+    ]
+    return exact.includes(upstreamPath)
+  }
+  return false
+}
+
 export default async function handler(req: VercelRequest, res: VercelResponse): Promise<void> {
   const { upath } = req.query
   const upathStr = Array.isArray(upath) ? upath.join('/') : upath
@@ -198,6 +217,24 @@ export default async function handler(req: VercelRequest, res: VercelResponse): 
   //   POST only — deliberately NOT in cortexPostPaths so the startsWith prefix
   //   rule cannot open unlisted map-data sub-resources or mutation verbs.
   if (path[0] === 'cortex') {
+    if (!isCortexBrowsePathAllowed(method, upstreamPath)) {
+      res.status(403).json({
+        error: 'forbidden',
+        message: 'Anonymous browse proxy allows facet/envelope/map-data paths only. Use /api/spine-deep for authenticated deep routes.',
+      })
+      return
+    }
+    const cortexBrowsePostExact = [
+      'api/brokerage/v1/place/buildable-envelope',
+      'api/brokerage/v1/map-data',
+      'api/brokerage/v1/map-data/gis-layer',
+      'api/brokerage/v1/map-data/composite-layer',
+    ]
+    if (cortexBrowsePostExact.includes(upstreamPath)) {
+      allowedMethods.push('POST')
+    }
+    // Legacy command-center cortex paths retained for shared spine.ts deploy;
+    // property-explorer browse gate above blocks them on this surface.
     const cortexMapDataPostExact = [
       'api/brokerage/v1/map-data',
       'api/brokerage/v1/map-data/gis-layer',

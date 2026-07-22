@@ -37,6 +37,7 @@ import type {
 import "@hauska/map-renderer/styles.css";
 import "maplibre-gl/dist/maplibre-gl.css";
 import { DEFAULT_CENTER, PARCEL_TILES } from "../lib/config";
+import { postDeepResearch } from "../lib/auth";
 import { cortexClient } from "../lib/cortexClient";
 import { parcelNodes } from "../lib/parcel-node-store.js";
 import { InspectCard } from "./InspectCard";
@@ -137,6 +138,7 @@ export function ExplorerMap() {
   // The full known-layer set for this surface (the mount seed), so a toggled-off
   // layer still renders as an unchecked row and can be re-enabled.
   const [knownLayers, setKnownLayers] = useState<Set<LayerKey> | null>(null);
+  const [researchNotice, setResearchNotice] = useState<string | null>(null);
 
   // Once the map has mounted, seed the layer control from the renderer's own
   // toggle set (a copy — mutating it does not leak into renderer state).
@@ -521,6 +523,11 @@ export function ExplorerMap() {
           </span>
         ))}
         {attribution && <span style={chipStyle("info")}>{attribution}</span>}
+        {researchNotice && (
+          <span data-testid="research-notice" style={chipStyle("info")}>
+            {researchNotice}
+          </span>
+        )}
       </div>
 
       {card && (
@@ -531,11 +538,37 @@ export function ExplorerMap() {
           onClose={closeInspect}
           onEnvelope={handleEnvelope}
           onMakeSubject={handleMakeSubject}
-          // STUB seam (Track D / AI): ask/report path is behind auth.
-          onResearch={() => {
-            // TODO(Track D + AI): open the authed ask/report flow. No-op today.
-            // eslint-disable-next-line no-console
-            console.info("[explorer] Research this — stubbed (auth + ask/report track)");
+          onResearch={async () => {
+            if (!cardNodeId) {
+              setResearchNotice("Select a parcel with a baked node id to research.");
+              return;
+            }
+            setResearchNotice("Checking access…");
+            try {
+              const res = await postDeepResearch(
+                "api/property-explorer/v1/research/brief",
+                { parcelNodeId: cardNodeId },
+              );
+              const body = (await res.json().catch(() => ({}))) as {
+                error?: string;
+                message?: string;
+              };
+              if (res.status === 401) {
+                setResearchNotice("Sign in to unlock deep research on this parcel.");
+                return;
+              }
+              if (res.status === 402) {
+                setResearchNotice("Deep research requires a paid plan (test mode coming soon).");
+                return;
+              }
+              if (res.status === 503 && body.error === "report_not_ready") {
+                setResearchNotice("Property brief path is wired; spine report_run integration pending.");
+                return;
+              }
+              setResearchNotice(body.message ?? `Research request returned ${res.status}.`);
+            } catch {
+              setResearchNotice("Could not reach the research service.");
+            }
           }}
         />
       )}
