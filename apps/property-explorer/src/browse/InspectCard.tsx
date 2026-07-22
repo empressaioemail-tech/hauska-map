@@ -24,7 +24,7 @@
 // bake never wrote it, the endpoint strips it), and this card does not read an
 // owner field.
 
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import type { ParcelCardData } from "./liveGis";
 import { fetchBuildableEnvelope } from "../lib/buildable-envelope.js";
 import {
@@ -34,6 +34,12 @@ import {
   type CardFacet,
 } from "../lib/baked-facets";
 import { CORTEX_PROXY_BASE } from "../lib/config";
+import type { Persona } from "../lib/gtmClient";
+import {
+  extractPersonaFacts,
+  personaHeadline,
+  PERSONA_OPTIONS,
+} from "../lib/personaRegister";
 
 const CARD_BG = "rgba(13,17,23,0.94)";
 const MUTED = "#8b97a5";
@@ -64,6 +70,9 @@ export function InspectCard({
   onEnvelope,
   onMakeSubject,
   onResearch,
+  onSaveProperty,
+  persona: personaProp,
+  onPersonaChange,
 }: {
   card: ParcelCardData;
   // The clicked parcel's stable baked-node id ("{fips}:{propId}"), the read key
@@ -81,9 +90,18 @@ export function InspectCard({
   // no remount. Separate from inspect (which is passive/in-place) and from the
   // stubbed ask/report path.
   onMakeSubject: () => void;
-  // STUB seam (Track D / AI): "Research this" — no-op until auth + ask/report.
   onResearch: () => void;
+  onSaveProperty?: () => void;
+  persona?: Persona;
+  onPersonaChange?: (persona: Persona) => void;
 }) {
+  const [localPersona, setLocalPersona] = useState<Persona>("homeowner");
+  const persona = personaProp ?? localPersona;
+  const setPersona = (next: Persona) => {
+    if (onPersonaChange) onPersonaChange(next);
+    else setLocalPersona(next);
+  };
+
   // Baked-first source state. `source` is "loading" until we know whether a
   // baked snapshot exists; then "baked" (pure read) or "live" (fallback).
   const [source, setSource] = useState<Source>("loading");
@@ -167,6 +185,19 @@ export function InspectCard({
       ? baked.situsAddress.value
       : card.situsAddress) ||
     (card.apn ? `Parcel ${card.apn}` : "Parcel");
+
+  const personaLine = useMemo(() => {
+    const facts = extractPersonaFacts(baked);
+    if (source === "live" && env.status === "ok") {
+      return personaHeadline(persona, {
+        ...facts,
+        setbacks: liveSetbackLine(env),
+        buildable: liveBuildablePct(env),
+        zoning: env.district,
+      });
+    }
+    return personaHeadline(persona, facts);
+  }, [baked, persona, source, env]);
 
   return (
     <div
@@ -259,6 +290,50 @@ export function InspectCard({
         )}
       </dl>
 
+      <div
+        data-testid="persona-register"
+        style={{
+          marginTop: 10,
+          paddingTop: 10,
+          borderTop: "0.5px solid rgba(154,166,178,0.22)",
+        }}
+      >
+        <div style={{ fontSize: 10, color: MUTED, marginBottom: 6 }}>View as</div>
+        <div style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>
+          {PERSONA_OPTIONS.map((opt) => (
+            <button
+              key={opt.id}
+              type="button"
+              data-testid={`persona-${opt.id}`}
+              aria-pressed={persona === opt.id}
+              onClick={() => setPersona(opt.id)}
+              style={{
+                padding: "4px 8px",
+                borderRadius: 6,
+                border:
+                  persona === opt.id
+                    ? `0.5px solid ${ACCENT}`
+                    : "0.5px solid rgba(154,166,178,0.28)",
+                background:
+                  persona === opt.id ? "rgba(125,211,252,0.15)" : "transparent",
+                color: persona === opt.id ? ACCENT : MUTED,
+                fontSize: 11,
+                fontWeight: 600,
+                cursor: "pointer",
+              }}
+            >
+              {opt.label}
+            </button>
+          ))}
+        </div>
+        <div
+          data-testid="persona-headline"
+          style={{ marginTop: 8, fontSize: 11.5, lineHeight: 1.45, color: "#c6d0dc" }}
+        >
+          {personaLine}
+        </div>
+      </div>
+
       {/* Honest coverage / disclosure states. */}
       {source === "loading" && (
         <div style={{ marginTop: 8, fontSize: 10.5, color: MUTED }}>
@@ -338,6 +413,14 @@ export function InspectCard({
         )
       )}
 
+      <div
+        data-testid="icc-hold"
+        style={{ marginTop: 8, fontSize: 10, color: MUTED, lineHeight: 1.45 }}
+      >
+        I-Code building citations on deep research when ICC ingest is live — operator
+        credentials pending (WDLL 31 hold).
+      </div>
+
       {/* DISTINCT explicit action: make this inspected parcel the SUBJECT. */}
       <button
         type="button"
@@ -361,7 +444,29 @@ export function InspectCard({
         {isSubject ? "Subject property" : "Make subject"}
       </button>
 
-      {/* STUB seam (Track D / AI): the ask/report path is behind auth. */}
+      {onSaveProperty && (
+        <button
+          type="button"
+          data-testid="save-property"
+          onClick={onSaveProperty}
+          style={{
+            width: "100%",
+            marginTop: 8,
+            padding: "8px 12px",
+            fontSize: 12.5,
+            fontWeight: 600,
+            color: "#e6edf3",
+            background: "transparent",
+            border: "0.5px solid rgba(154,166,178,0.35)",
+            borderRadius: 7,
+            cursor: "pointer",
+          }}
+        >
+          Save property
+        </button>
+      )}
+
+      {/* Paywalled deep research seam (auth + spine reports). */}
       <button
         type="button"
         data-testid="research-this"

@@ -1,0 +1,5 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 192 192" role="img" aria-label="Empressa">
+  <rect width="192" height="192" rx="32" fill="#0b0e13"/>
+  <path d="M48 128V64h24c22 0 36 12 36 32s-14 32-36 32H48zm24-20h8c10 0 16-5 16-12s-6-12-16-12h-8v24z" fill="#7dd3fc"/>
+  <path d="M120 128V64h16v48h32v16H120z" fill="#e9eef5"/>
+</svg>
