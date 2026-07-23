@@ -35,7 +35,7 @@
 // never rides an operator-supplied path). Missing env var -> 503 with {error, missing}.
 
 import type { VercelRequest, VercelResponse } from '@vercel/node'
-import { handlePropertyAtomsFacets } from './_lib/pe-property-atoms'
+import { handlePropertyAtomsFacets } from './_lib/pe-property-atoms.js'
 
 interface Upstream {
   baseUrl: string
