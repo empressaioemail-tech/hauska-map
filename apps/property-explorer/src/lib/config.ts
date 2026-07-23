@@ -9,6 +9,13 @@
 export const CORTEX_PROXY_BASE = "/api/spine/cortex/api";
 
 /**
+ * Unified PE facets BFF (dual-serve). Browser always hits this path; the
+ * serverless handler decides atom-chain vs cortex via PROPERTY_ATOM_PATH and
+ * attaches retrieval/cortex keys server-side. Instant rollback: unset the flag.
+ */
+export const PE_FACETS_PROXY_BASE = "/api/spine/property-atoms";
+
+/**
  * DEFAULT_CENTER — Central Texas (Bastrop, the pioneer network city). The map
  * cold-opens here so the user sees a live, recognizable region before doing
  * anything. {latitude, longitude} per the renderer's Center contract.

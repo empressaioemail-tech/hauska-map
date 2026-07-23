@@ -77,7 +77,7 @@ export interface BakedFacetPayload {
 export interface BakedFacetsResponse {
   parcelNodeId: string;
   adapterKey: string;
-  source: "baked-snapshot";
+  source: "baked-snapshot" | "atom-chain";
   snapshotAt: string | null;
   facets: BakedFacetPayload;
 }
@@ -237,24 +237,31 @@ export function deriveBakedCardModel(payload: BakedFacetPayload): BakedCardModel
 }
 
 /**
- * Fetch a parcel node's baked facets through the same-origin spine proxy,
- * ANONYMOUSLY (no key — the proxy attaches auth server-side). Returns the
- * parsed response on 200, or null when the node has no baked snapshot (404) so
- * the caller can fall back to the live-envelope path. Any other failure also
- * returns null (the card degrades to the live fallback rather than erroring).
+ * Fetch a parcel node's facets through the same-origin dual-serve BFF,
+ * ANONYMOUSLY (no key — the proxy attaches auth server-side).
+ *
+ * Preferred URL: `/api/spine/property-atoms/:id/facets` (BFF chooses atom-chain
+ * vs cortex via PROPERTY_ATOM_PATH). Legacy callers may still pass a cortex
+ * proxy base (`…/cortex/api`); those keep the old cortex-only path.
+ *
+ * Returns the parsed response on 200, or null when the node has no snapshot
+ * (404) so the caller can fall back to the live-envelope path. Any other
+ * failure also returns null (the card degrades to the live fallback).
  *
  * @param parcelNodeId the stable "{fips}:{propId}" id from the parcel click.
- * @param cortexBase   the same-origin cortex proxy base (e.g. /api/spine/cortex/api).
+ * @param facetsBase   PE facets BFF base (`/api/spine/property-atoms`) or legacy
+ *                     cortex proxy base (`/api/spine/cortex/api`).
  */
 export async function fetchBakedNodeFacets(
   parcelNodeId: string,
-  cortexBase: string,
+  facetsBase: string,
 ): Promise<BakedFacetsResponse | null> {
   const id = parcelNodeId.trim();
   if (!id) return null;
-  const url = `${cortexBase.replace(/\/$/, "")}/brokerage/v1/place/node/${encodeURIComponent(
-    id,
-  )}/facets`;
+  const base = facetsBase.replace(/\/$/, "");
+  const url = base.includes("/property-atoms")
+    ? `${base}/${encodeURIComponent(id)}/facets`
+    : `${base}/brokerage/v1/place/node/${encodeURIComponent(id)}/facets`;
   let res: Response;
   try {
     res = await fetch(url, { method: "GET", headers: { Accept: "application/json" } });
