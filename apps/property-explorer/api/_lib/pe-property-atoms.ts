@@ -16,7 +16,7 @@ import {
   isPropertyAtomPathEnabled,
   parsePropertyAtomsPath,
   type PropertyAtomChain,
-} from "./atom-chain-to-facets";
+} from "./atom-chain-to-facets.js";
 
 export { parsePropertyAtomsPath, isPropertyAtomPathEnabled };
 
