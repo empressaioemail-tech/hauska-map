@@ -26,6 +26,14 @@ function readInitialColdOpen(): boolean {
   }
   const params = new URLSearchParams(window.location.search);
   if (params.get("signed_in") === "1") return false;
+  // Deep-link / share URLs open inspect immediately — don't bury under cold-open.
+  if (
+    params.get("parcelNodeId")?.trim() ||
+    params.get("parcel")?.trim() ||
+    params.get("address")?.trim()
+  ) {
+    return false;
+  }
   return true;
 }
 

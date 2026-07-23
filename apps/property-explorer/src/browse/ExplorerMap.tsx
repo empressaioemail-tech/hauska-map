@@ -46,7 +46,12 @@ import { iccCitationStatus } from "../lib/iccCitation";
 import { InspectCard } from "./InspectCard";
 import { LayersControl } from "./LayersControl";
 import { MapTools } from "./MapTools";
+import { ParcelLookupBar } from "./ParcelLookupBar";
 import { PaywallGate } from "./PaywallGate";
+import {
+  deepLinkLookupQuery,
+  resolveParcelLookup,
+} from "../lib/parcel-lookup";
 import {
   normalizeEnvelope,
   envelopeInsetOverlay,
@@ -133,7 +138,10 @@ export function ExplorerMap() {
   // InspectCard can read its baked facet snapshot (the preferred pure-read
   // source). Null for a live-GIS-only selection with no baked id.
   const [cardNodeId, setCardNodeId] = useState<string | null>(null);
+  const [lookupBusy, setLookupBusy] = useState(false);
+  const [lookupError, setLookupError] = useState<string | null>(null);
   const abortRef = useRef<AbortController | null>(null);
+  const deepLinkDoneRef = useRef(false);
 
   // The buildable-envelope wedge visual, drawn through the SUPPORTED overlays
   // path (OverlaySpec + reconcileOverlays) on the LIVE map — never a remount.
@@ -168,18 +176,6 @@ export function ExplorerMap() {
   const [checkoutBusy, setCheckoutBusy] = useState(false);
   const [checkoutNote, setCheckoutNote] = useState<string | null>(null);
 
-  // Extension #34 handoff: ?parcelNodeId=48453:907247 (WDLL 30)
-  useEffect(() => {
-    if (typeof window === "undefined") return;
-    const params = new URLSearchParams(window.location.search);
-    const handoff =
-      params.get("parcelNodeId")?.trim() || params.get("parcel")?.trim();
-    if (!handoff) return;
-    void recordPeGtmEvent({
-      eventType: "pe_browse_started",
-      payload: { extensionHandoff: handoff },
-    });
-  }, []);
   // toggle set (a copy — mutating it does not leak into renderer state).
   useEffect(() => {
     if (visibleLayers) return;
@@ -284,6 +280,78 @@ export function ExplorerMap() {
     },
     [],
   );
+
+  // Reachability: lookup bar + deep-link (?parcelNodeId= | ?parcel= | ?address=)
+  // resolve → inspectInPlace (same path as map click). GTM still recorded.
+  const runParcelLookup = useCallback(
+    async (query: string, opts?: { fromDeepLink?: boolean }) => {
+      const q = query.trim();
+      if (!q) return;
+      setLookupBusy(true);
+      setLookupError(null);
+      try {
+        const result = await resolveParcelLookup(q);
+        if (!result.ok) {
+          setLookupError(result.reason);
+          return;
+        }
+        const { target } = result;
+        if (opts?.fromDeepLink) {
+          void recordPeGtmEvent({
+            eventType: "pe_browse_started",
+            payload: {
+              extensionHandoff: target.parcelNodeId,
+              lookupSource: target.source,
+            },
+          });
+        } else {
+          void recordPeGtmEvent({
+            eventType: "pe_browse_started",
+            payload: {
+              lookupQuery: q,
+              lookupSource: target.source,
+              parcelNodeId: target.parcelNodeId,
+            },
+          });
+        }
+        inspectInPlace(target.card, target.parcelNodeId, target.geometry ?? null);
+        const handle = mapRef.current;
+        const center = toCenter(target.card.lat, target.card.lng);
+        if (handle && center) {
+          handle.rebindProperty({
+            center,
+            address: target.card.situsAddress ?? undefined,
+            parcelState: {
+              parcelNodeId: target.parcelNodeId,
+              inspected: true,
+            },
+          });
+          handle.resolveSubjectAndFit({
+            parcelNodeId: target.parcelNodeId,
+            center,
+            fit: true,
+          });
+        }
+      } catch (err) {
+        setLookupError(
+          err instanceof Error ? err.message : "Lookup failed — try again.",
+        );
+      } finally {
+        setLookupBusy(false);
+      }
+    },
+    [inspectInPlace],
+  );
+
+  // Extension / share deep-link: open inspect (not GTM-only).
+  useEffect(() => {
+    if (typeof window === "undefined" || deepLinkDoneRef.current) return;
+    const params = new URLSearchParams(window.location.search);
+    const handoff = deepLinkLookupQuery(params);
+    if (!handoff) return;
+    deepLinkDoneRef.current = true;
+    void runParcelLookup(handoff, { fromDeepLink: true });
+  }, [runParcelLookup]);
 
   // Live-GIS overlay parcel click -> inspect-in-place. Fold the clicked parcel
   // into the ported node store as `inspected` and draw the InspectCard.
@@ -691,6 +759,12 @@ export function ExplorerMap() {
           ))}
         </aside>
       )}
+
+      <ParcelLookupBar
+        busy={lookupBusy}
+        error={lookupError}
+        onSubmit={(q) => void runParcelLookup(q)}
+      />
 
       {card && (
         <InspectCard
