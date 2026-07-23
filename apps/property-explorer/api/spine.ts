@@ -14,9 +14,19 @@
 //   /api/spine/mcp-introspection/*   -> MCP_URL/admin/introspection/* with X-Hauska-Admin-Key: MCP_ADMIN_KEY
 //                                       (path-pinned GET-only: 'tools' and 'tools/:name'; the POST
 //                                       tools/:name/call probe stays blocked - operator-only)
-//   /api/spine/retrieval/*           -> RETRIEVAL_API_URL with Authorization: Bearer RETRIEVAL_API_KEY
-//                                       (key required except /health, /healthz, /ready - the retrieval
-//                                       API Bearer-gates every other route per its DEPLOY.md)
+//   /api/spine/retrieval/*           -> RETRIEVAL_API_URL (or HAUSKA_RETRIEVAL_API_URL)
+//                                       with Authorization: Bearer RETRIEVAL_API_KEY
+//                                       (or HAUSKA_RETRIEVAL_API_KEY). Key required except
+//                                       /health, /healthz, /ready - the retrieval API
+//                                       Bearer-gates every other route per its DEPLOY.md.
+//                                       Browse allowlist: health probes,
+//                                       property-nodes/:id/atom-chain, atoms/:did.
+//   /api/spine/property-atoms/:id/facets
+//                                    -> dual-serve PE facets BFF (PROPERTY_ATOM_PATH flag):
+//                                       flag=1 prefer retrieval atom-chain (adapt to PE
+//                                       facets); on empty/error fall back to cortex.
+//                                       flag unset/0 -> cortex-only (instant rollback).
+//                                       Sets X-PE-Read-Path: atom-chain|cortex|cortex-fallback.
 //
 // SECURITY: allowlist methods/paths â€" GET only, plus POST for /api/spine/mcp/mcp
 // (JSON-RPC) and explicit cortex POST paths required by workspace tiles. Reject
@@ -25,6 +35,7 @@
 // never rides an operator-supplied path). Missing env var -> 503 with {error, missing}.
 
 import type { VercelRequest, VercelResponse } from '@vercel/node'
+import { handlePropertyAtomsFacets } from './_lib/pe-property-atoms'
 
 interface Upstream {
   baseUrl: string
@@ -85,8 +96,13 @@ function getUpstream(pathSegments: string[]): { upstream: Upstream | null; error
   }
 
   if (segment === 'retrieval') {
-    const url = process.env.RETRIEVAL_API_URL?.trim() || 'https://hauska-retrieval-api-h7gvu7rgcq-uc.a.run.app'
-    const key = process.env.RETRIEVAL_API_KEY?.trim()
+    const url =
+      process.env.HAUSKA_RETRIEVAL_API_URL?.trim() ||
+      process.env.RETRIEVAL_API_URL?.trim() ||
+      'https://hauska-retrieval-api-h7gvu7rgcq-uc.a.run.app'
+    const key =
+      process.env.HAUSKA_RETRIEVAL_API_KEY?.trim() ||
+      process.env.RETRIEVAL_API_KEY?.trim()
     const upstreamPath = rest.join('/')
     const isHealthPath = upstreamPath === 'health' || upstreamPath === 'healthz' || upstreamPath === 'ready'
     // The retrieval API requires Authorization: Bearer <RETRIEVAL_API_KEY> on
@@ -95,7 +111,11 @@ function getUpstream(pathSegments: string[]): { upstream: Upstream | null; error
     // the health paths can succeed - fail the rest loudly instead of letting
     // panels show a bare upstream 401.
     if (!key && !isHealthPath) {
-      return { upstream: null, error: 'proxy not configured', missing: 'RETRIEVAL_API_KEY' }
+      return {
+        upstream: null,
+        error: 'proxy not configured',
+        missing: 'HAUSKA_RETRIEVAL_API_KEY|RETRIEVAL_API_KEY',
+      }
     }
     return {
       upstream: {
@@ -127,6 +147,19 @@ function isCortexBrowsePathAllowed(method: string, upstreamPath: string): boolea
   return false
 }
 
+/** Retrieval browse allowlist — atom-chain + atom DID read + health only. */
+function isRetrievalBrowsePathAllowed(method: string, upstreamPath: string): boolean {
+  if (method !== 'GET' && method !== 'HEAD') return false
+  if (upstreamPath === 'health' || upstreamPath === 'healthz' || upstreamPath === 'ready') {
+    return true
+  }
+  // GET /property-nodes/:id/atom-chain (colon in id is a single path segment)
+  if (/^property-nodes\/[^/]+\/atom-chain$/.test(upstreamPath)) return true
+  // GET /atoms/:did (DID may be URL-encoded and contain colons as one segment)
+  if (/^atoms\/[^/]+$/.test(upstreamPath)) return true
+  return false
+}
+
 export default async function handler(req: VercelRequest, res: VercelResponse): Promise<void> {
   const { upath } = req.query
   const upathStr = Array.isArray(upath) ? upath.join('/') : upath
@@ -137,6 +170,13 @@ export default async function handler(req: VercelRequest, res: VercelResponse): 
   const path = upathStr.split('/').filter(Boolean)
   if (path.some((p) => p === '..' || p === '.')) {
     res.status(400).json({ error: 'invalid path' })
+    return
+  }
+
+  // Dual-serve PE facets BFF — handled before generic upstream routing so the
+  // browser never holds the retrieval key and cortex stays warm for rollback.
+  if (path[0] === 'property-atoms') {
+    await handlePropertyAtomsFacets(req, res, path)
     return
   }
 
@@ -155,6 +195,15 @@ export default async function handler(req: VercelRequest, res: VercelResponse): 
   const [_segment, ...rest] = path
   const upstreamPath = rest.join('/')
   const method = req.method || 'GET'
+
+  if (path[0] === 'retrieval' && !isRetrievalBrowsePathAllowed(method, upstreamPath)) {
+    res.status(403).json({
+      error: 'forbidden',
+      message:
+        'Anonymous retrieval proxy allows health, property-nodes/:id/atom-chain, and atoms/:did only.',
+    })
+    return
+  }
 
   // SECURITY: allowlist methods/paths — GET only, plus POST for MCP JSON-RPC endpoint
   const allowedMethods = ['GET', 'HEAD']

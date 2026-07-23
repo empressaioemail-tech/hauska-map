@@ -33,7 +33,7 @@ import {
   type BakedCardModel,
   type CardFacet,
 } from "../lib/baked-facets";
-import { CORTEX_PROXY_BASE } from "../lib/config";
+import { CORTEX_PROXY_BASE, PE_FACETS_PROXY_BASE } from "../lib/config";
 import type { Persona } from "../lib/gtmClient";
 import {
   extractPersonaFacts,
@@ -152,7 +152,7 @@ export function InspectCard({
 
       // 1. Try the baked snapshot when we have a node id.
       if (parcelNodeId) {
-        const resp = await fetchBakedNodeFacets(parcelNodeId, CORTEX_PROXY_BASE);
+        const resp = await fetchBakedNodeFacets(parcelNodeId, PE_FACETS_PROXY_BASE);
         if (cancelled) return;
         if (resp) {
           const model = deriveBakedCardModel(resp.facets);

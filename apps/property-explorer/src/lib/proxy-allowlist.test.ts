@@ -47,6 +47,17 @@ function isDeepPathAllowed(method: string, upstreamPath: string): boolean {
   return false
 }
 
+/** Mirrors spine.ts retrieval browse allowlist (Gate C dual-serve). */
+function isRetrievalBrowsePathAllowed(method: string, upstreamPath: string): boolean {
+  if (method !== 'GET' && method !== 'HEAD') return false
+  if (upstreamPath === 'health' || upstreamPath === 'healthz' || upstreamPath === 'ready') {
+    return true
+  }
+  if (/^property-nodes\/[^/]+\/atom-chain$/.test(upstreamPath)) return true
+  if (/^atoms\/[^/]+$/.test(upstreamPath)) return true
+  return false
+}
+
 describe('proxy allowlists', () => {
   it('allows anonymous facet read', () => {
     expect(
@@ -74,5 +85,22 @@ describe('proxy allowlists', () => {
     expect(
       isDeepPathAllowed('PUT', 'api/property-explorer/v1/saved-properties/48055:10068'),
     ).toBe(true)
+  })
+
+  it('allows retrieval atom-chain and atoms/:did', () => {
+    expect(
+      isRetrievalBrowsePathAllowed('GET', 'property-nodes/48209:156346/atom-chain'),
+    ).toBe(true)
+    expect(
+      isRetrievalBrowsePathAllowed(
+        'GET',
+        'atoms/did:hauska:zoning-fact:48209:156346',
+      ),
+    ).toBe(true)
+  })
+
+  it('blocks unlisted retrieval paths', () => {
+    expect(isRetrievalBrowsePathAllowed('GET', 'search')).toBe(false)
+    expect(isRetrievalBrowsePathAllowed('POST', 'property-nodes/x/atom-chain')).toBe(false)
   })
 })
