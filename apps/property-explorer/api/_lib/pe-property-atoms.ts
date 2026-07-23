@@ -1,11 +1,15 @@
 // api/_lib/pe-property-atoms.ts
 //
-// Dual-serve BFF for Property Explorer inspect-card facets:
+// Property Explorer inspect-card facets BFF (anti-zombie cut, Master WDLL 3.7):
 //   GET /api/spine/property-atoms/:parcelNodeId/facets
 //
-// PROPERTY_ATOM_PATH=1 → prefer retrieval atom-chain (adapted); on empty/error
-// fall back to cortex facets with X-PE-Read-Path: cortex-fallback.
-// Flag unset/0 → cortex-only (instant rollback) with X-PE-Read-Path: cortex.
+// PROPERTY_ATOM_PATH=1 → atom-chain only for envelope/zoning product truth.
+// When the atom-chain is empty/unusable, optionally merge cortex baseFacts /
+// landUse / flood (landUse may remain on cortex temporarily) but NEVER serve
+// cortex envelope as product truth — honest atom_path_pending instead.
+// Flag unset/0 → cortex-only rollback (envelope still stripped on that path
+// for product honesty once dual-serve retires; rollback keeps prior behavior
+// for emergency only via ATOM_PATH_CORTEX_ENVELOPE_ROLLBACK=1).
 //
 // Bearer key stays server-side (never exposed to the browser).
 
@@ -15,6 +19,7 @@ import {
   atomChainIsUsable,
   isPropertyAtomPathEnabled,
   parsePropertyAtomsPath,
+  type PeBakedFacetsResponse,
   type PropertyAtomChain,
 } from "./atom-chain-to-facets.js";
 
@@ -26,6 +31,7 @@ const DEFAULT_CORTEX = "https://cortex-api-tds7av26va-uc.a.run.app";
 
 export type PeReadPathHeader =
   | "atom-chain"
+  | "atom-pending"
   | "cortex"
   | "cortex-fallback";
 
@@ -47,6 +53,10 @@ function cortexConfig(): { baseUrl: string; key: string | undefined } {
   ).replace(/\/$/, "");
   const key = process.env.CORTEX_SERVICE_API_KEY?.trim();
   return { baseUrl, key };
+}
+
+function cortexEnvelopeRollbackEnabled(): boolean {
+  return process.env.ATOM_PATH_CORTEX_ENVELOPE_ROLLBACK?.trim() === "1";
 }
 
 async function fetchCortexFacets(
@@ -120,6 +130,78 @@ async function fetchAtomChain(
   return { ok: true, chain };
 }
 
+/** Strip cortex envelope / tier2.envelope so zombie multiply cannot be product truth. */
+export function stripCortexEnvelopeProductTruth(body: unknown): unknown {
+  if (!body || typeof body !== "object") return body;
+  const root = body as Record<string, unknown>;
+  const facets =
+    root.facets && typeof root.facets === "object"
+      ? {
+          ...(root.facets as Record<string, unknown>),
+          envelope: {
+            status: "declined",
+            declineReason: "atom_path_pending",
+            approximate: true,
+            provisional: true,
+            disclosure:
+              "Envelope product path is the property atom chain. Cortex multiply path retired (anti-zombie).",
+          },
+          facetCoverage: {
+            ...((root.facets as Record<string, unknown>).facetCoverage as
+              | Record<string, unknown>
+              | undefined),
+            envelope: false,
+          },
+        }
+      : root.facets;
+  const tier2 =
+    root.tier2 && typeof root.tier2 === "object"
+      ? { ...(root.tier2 as Record<string, unknown>), envelope: null }
+      : root.tier2;
+  return { ...root, facets, tier2, cortexEnvelopeRetired: true };
+}
+
+function honestAtomPendingResponse(parcelNodeId: string): PeBakedFacetsResponse {
+  const fips = parcelNodeId.split(":")[0];
+  const apn = parcelNodeId.split(":")[1];
+  return {
+    parcelNodeId,
+    adapterKey: "property-atom-chain",
+    source: "atom-chain",
+    snapshotAt: null,
+    readPath: "atom-chain",
+    facets: {
+      parcelNodeId,
+      countyFips: fips && /^\d{5}$/.test(fips) ? fips : undefined,
+      baseFacts: apn
+        ? { apn, landUse: null, acreage: null, situsAddress: null }
+        : undefined,
+      zoning: null,
+      envelope: {
+        status: "declined",
+        declineReason: "atom_path_pending",
+        approximate: true,
+        provisional: true,
+        disclosure:
+          "No property atom chain for this parcel yet — honest decline (not invented).",
+      },
+      facetCoverage: {
+        baseFacts: !!apn,
+        landUse: false,
+        acreage: false,
+        zoning: false,
+        envelope: false,
+      },
+      provenance: {
+        parcelSource: "property-atom-chain",
+        parcelVintage: null,
+        landUseSource: null,
+        landUseGateBlocked: false,
+      },
+    },
+  };
+}
+
 export async function handlePropertyAtomsFacets(
   req: VercelRequest,
   res: VercelResponse,
@@ -146,6 +228,16 @@ export async function handlePropertyAtomsFacets(
       res.setHeader("X-PE-Read-Path", "cortex" satisfies PeReadPathHeader);
       if (cortex.contentType) res.setHeader("Content-Type", cortex.contentType);
       else res.setHeader("Content-Type", "application/json");
+      if (cortex.status >= 200 && cortex.status < 300 && !cortexEnvelopeRollbackEnabled()) {
+        let parsedBody: unknown = cortex.body;
+        try {
+          parsedBody = JSON.parse(cortex.body);
+        } catch {
+          parsedBody = cortex.body;
+        }
+        res.status(cortex.status).json(stripCortexEnvelopeProductTruth(parsedBody));
+        return;
+      }
       res.status(cortex.status).send(cortex.body);
     } catch (err) {
       res.status(502).json({
@@ -156,7 +248,7 @@ export async function handlePropertyAtomsFacets(
     return;
   }
 
-  // Flag ON: prefer atom-chain; fall back to cortex on failure/empty.
+  // Flag ON: atom-chain is the envelope product path. No cortex envelope fallback.
   const atom = await fetchAtomChain(parcelNodeId);
   if (atom.ok) {
     const adapted = adaptAtomChainToBakedFacets(atom.chain);
@@ -168,17 +260,38 @@ export async function handlePropertyAtomsFacets(
     }
   }
 
+  // Merge cortex baseFacts/landUse/flood when available, but never cortex envelope.
   try {
     const cortex = await fetchCortexFacets(parcelNodeId);
-    res.setHeader("X-PE-Read-Path", "cortex-fallback" satisfies PeReadPathHeader);
-    if (cortex.contentType) res.setHeader("Content-Type", cortex.contentType);
-    else res.setHeader("Content-Type", "application/json");
-    res.status(cortex.status).send(cortex.body);
-  } catch (err) {
-    res.status(502).json({
-      error: "upstream error",
-      message: err instanceof Error ? err.message : String(err),
-      atomPathReason: atom.ok ? "adapt-failed" : atom.reason,
-    });
+    if (cortex.status >= 200 && cortex.status < 300) {
+      let parsedBody: unknown;
+      try {
+        parsedBody = JSON.parse(cortex.body);
+      } catch {
+        parsedBody = null;
+      }
+      if (parsedBody && typeof parsedBody === "object") {
+        const stripped = stripCortexEnvelopeProductTruth(parsedBody) as Record<
+          string,
+          unknown
+        >;
+        res.setHeader("X-PE-Read-Path", "atom-pending" satisfies PeReadPathHeader);
+        res.setHeader("Content-Type", "application/json");
+        res.status(200).json({
+          ...stripped,
+          atomPathReason: atom.ok ? "adapt-failed" : atom.reason,
+        });
+        return;
+      }
+    }
+  } catch {
+    // fall through to honest atom-pending shell
   }
+
+  res.setHeader("X-PE-Read-Path", "atom-pending" satisfies PeReadPathHeader);
+  res.setHeader("Content-Type", "application/json");
+  res.status(200).json({
+    ...honestAtomPendingResponse(parcelNodeId),
+    atomPathReason: atom.ok ? "adapt-failed" : atom.reason,
+  });
 }
