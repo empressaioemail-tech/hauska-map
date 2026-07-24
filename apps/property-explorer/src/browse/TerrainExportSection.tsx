@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState } from "react";
+﻿import { useCallback, useEffect, useMemo, useState } from "react";
 import {
   requestTerrainExport,
   TERRAIN_FORMAT_OPTIONS,
@@ -45,7 +45,7 @@ export function TerrainExportSection({
 
   const handleExport = useCallback(async () => {
     setBusy(true);
-    setNotice("Exporting terrain…");
+    setNotice("Exporting terrainâ€¦");
     setResult(null);
     const resp = await requestTerrainExport(parcelNodeId, format);
     setBusy(false);
@@ -65,7 +65,7 @@ export function TerrainExportSection({
     }
 
     setResult(resp.data);
-    setNotice("Terrain export ready — download below.");
+    setNotice("Terrain export ready â€” download below.");
   }, [format, onPaymentRequired, parcelNodeId]);
 
   const inline = result?.inlineDownload;
@@ -107,7 +107,7 @@ export function TerrainExportSection({
       }}
     >
       <div style={{ fontSize: 10, color: MUTED, marginBottom: 6 }}>
-        Terrain export · public-paid
+        Terrain export Â· public-paid
       </div>
 
       <label style={{ display: "block", fontSize: 10.5, color: MUTED, marginBottom: 4 }}>
@@ -157,7 +157,7 @@ export function TerrainExportSection({
           opacity: busy ? 0.7 : 1,
         }}
       >
-        {busy ? "Exporting…" : "Export terrain"}
+        {busy ? "Exportingâ€¦" : "Export terrain"}
       </button>
 
       {notice && (
@@ -188,7 +188,7 @@ export function TerrainExportSection({
             style={{ fontSize: 10.5, color: "#c6d0dc", lineHeight: 1.45 }}
           >
             Source: {result.atom.sourceCitation ?? "USGS 3DEP"}
-            {result.atom.fetchedAt ? ` · ${result.atom.fetchedAt.slice(0, 10)}` : ""}
+            {result.atom.fetchedAt ? ` Â· ${result.atom.fetchedAt.slice(0, 10)}` : ""}
           </div>
           <div
             data-testid="terrain-confidence"
@@ -197,10 +197,10 @@ export function TerrainExportSection({
             Confidence{" "}
             {typeof result.atom.confidence?.value === "number"
               ? result.atom.confidence.value.toFixed(2)
-              : "—"}
+              : "â€”"}
             {result.atom.confidence?.kind ? ` (${result.atom.confidence.kind})` : ""}
             {result.atom.confidence?.provenance
-              ? ` · ${result.atom.confidence.provenance}`
+              ? ` Â· ${result.atom.confidence.provenance}`
               : ""}
           </div>
 
@@ -239,7 +239,7 @@ export function TerrainExportSection({
               data-testid="terrain-landxml-deferred"
               style={{ marginTop: 6, fontSize: 10, color: MUTED, lineHeight: 1.4 }}
             >
-              LandXML TIN deferred — {landxml.deferredReason ?? "writer not shipped this phase."}
+              LandXML TIN deferred - {landxml.deferredReason ?? "writer not shipped this phase."}
             </div>
           )}
 
@@ -248,8 +248,8 @@ export function TerrainExportSection({
               data-testid="terrain-revit-hint"
               style={{ marginTop: 6, fontSize: 10, color: MUTED, lineHeight: 1.4 }}
             >
-              Revit: Link CAD into a floor/site plan (not Drafting View). Units are
-              meters. Prefer Link over Import.
+              Revit: Link CAD (not Import) into a floor/site plan. Units meters.
+              After link, Zoom to Fit - geometry is local meters near the origin.
             </div>
           )}
         </div>
