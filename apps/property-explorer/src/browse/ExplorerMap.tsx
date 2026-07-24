@@ -173,6 +173,7 @@ export function ExplorerMap() {
   const [researchBrief, setResearchBrief] = useState<ResearchBrief | null>(null);
   const [persona, setPersona] = useState<Persona>("homeowner");
   const [paywallOpen, setPaywallOpen] = useState(false);
+  const [paywallMessage, setPaywallMessage] = useState<string | null>(null);
   const [checkoutBusy, setCheckoutBusy] = useState(false);
   const [checkoutNote, setCheckoutNote] = useState<string | null>(null);
 
@@ -615,6 +616,9 @@ export function ExplorerMap() {
         });
         setResearchNotice(null);
         setCheckoutNote(null);
+        setPaywallMessage(
+          "Deep research and cited property reports (R1–R10) require sign-in and Pro entitlement.",
+        );
         setPaywallOpen(true);
         return;
       }
@@ -633,6 +637,20 @@ export function ExplorerMap() {
     } catch {
       setResearchNotice("Could not reach the research service.");
     }
+  }, [cardNodeId, persona]);
+
+  const handleTerrainPaymentRequired = useCallback(() => {
+    const nodeId = cardNodeId ?? inspectedRef.current?.parcelNodeId ?? null;
+    void recordPeGtmEvent({
+      eventType: "pe_paywall_hit",
+      persona,
+      parcelNodeId: nodeId,
+    });
+    setPaywallMessage(
+      "Multi-format terrain export (GLB, IFC, DXF) is a paid public-paid spine atom. Sign in and upgrade to Pro to export.",
+    );
+    setCheckoutNote(null);
+    setPaywallOpen(true);
   }, [cardNodeId, persona]);
 
   const handleSaveProperty = useCallback(() => {
@@ -775,6 +793,7 @@ export function ExplorerMap() {
           onEnvelope={handleEnvelope}
           onMakeSubject={handleMakeSubject}
           onResearch={() => void handleResearch()}
+          onTerrainPaymentRequired={handleTerrainPaymentRequired}
           onSaveProperty={handleSaveProperty}
           persona={persona}
           onPersonaChange={setPersona}
@@ -783,7 +802,7 @@ export function ExplorerMap() {
 
       {paywallOpen && (
         <PaywallGate
-          message={`Deep research and cited property reports (R1–R10) require sign-in and Pro entitlement. Checkout runs in test or live mode depending on cortex Stripe config — browse stays free. ${iccCitationStatus().live ? "" : iccCitationStatus().message}`}
+          message={`${paywallMessage ?? "Deep research and cited property reports (R1–R10) require sign-in and Pro entitlement."} Checkout runs in test or live mode depending on cortex Stripe config — browse stays free. ${iccCitationStatus().live ? "" : iccCitationStatus().message}`}
           checkoutNote={checkoutNote}
           onUpgrade={() => void handleUpgrade()}
           onClose={() => setPaywallOpen(false)}
