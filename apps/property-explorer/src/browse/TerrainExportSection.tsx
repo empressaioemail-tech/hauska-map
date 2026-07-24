@@ -242,6 +242,16 @@ export function TerrainExportSection({
               LandXML TIN deferred — {landxml.deferredReason ?? "writer not shipped this phase."}
             </div>
           )}
+
+          {(format === "dxf-contour" || format === "dxf-3dface") && (
+            <div
+              data-testid="terrain-revit-hint"
+              style={{ marginTop: 6, fontSize: 10, color: MUTED, lineHeight: 1.4 }}
+            >
+              Revit: Link CAD into a floor/site plan (not Drafting View). Units are
+              meters. Prefer Link over Import.
+            </div>
+          )}
         </div>
       )}
     </div>
