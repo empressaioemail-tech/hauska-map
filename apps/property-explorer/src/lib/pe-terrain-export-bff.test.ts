@@ -5,6 +5,8 @@
 import { describe, expect, it } from 'vitest'
 import {
   buildDownloadPath,
+  buildTerrainEngineGateHeaders,
+  extractInlineDownload,
   isValidParcelNodeId,
   mapMcpTerrainPayload,
   parseTerrainFormat,
@@ -95,5 +97,71 @@ describe('terrain export core', () => {
       expect(mapped.downloads['landxml-tin']).toBeUndefined()
       expect(mapped.atom.artifacts['landxml-tin']?.deferred).toBe(true)
     }
+  })
+
+  it('extracts MCP inline download from data envelope', () => {
+    const inline = extractInlineDownload({
+      data: {
+        parcelNodeId: '48021:27303',
+        download: {
+          format: 'dxf-contour',
+          contentType: 'application/dxf',
+          base64: 'QUJD',
+          byteCount: 3,
+        },
+      },
+    })
+    expect(inline?.format).toBe('dxf-contour')
+    expect(inline?.base64).toBe('QUJD')
+    expect(inline?.byteCount).toBe(3)
+  })
+
+  it('maps inline download onto BFF response', () => {
+    const mapped = mapMcpTerrainPayload(
+      {
+        data: {
+          parcelNodeId: '48021:27303',
+          atom: {
+            parcelNodeId: '48021:27303',
+            sourceCitation: 'USGS 3DEP',
+            accessPolicy: 'public-paid',
+            artifacts: {
+              'dxf-contour': {
+                format: 'dxf-contour',
+                ref: 'gcs://bucket/x',
+                byteCount: 31776,
+              },
+            },
+          },
+          download: {
+            format: 'dxf-contour',
+            contentType: 'application/dxf',
+            base64: 'QUJD',
+            byteCount: 3,
+          },
+        },
+      },
+      'dxf-contour',
+    )
+    expect(mapped.ok).toBe(true)
+    if (mapped.ok) {
+      expect(mapped.inlineDownload?.base64).toBe('QUJD')
+      expect(mapped.inlineDownload?.format).toBe('dxf-contour')
+    }
+  })
+
+  it('builds engine gate-front headers with required seam fields', () => {
+    const headers = buildTerrainEngineGateHeaders({
+      requestId: 'req-test-1',
+      credentialId: 'pe-bff',
+      tenantId: 'public-catalog',
+    })
+    expect(headers['x-hauska-product']).toBe('cortex')
+    expect(headers['x-hauska-package-id']).toBe('terrain-export')
+    expect(headers['x-hauska-access-tier']).toBe('public-paid')
+    expect(headers['x-hauska-tenant-id']).toBe('public-catalog')
+    expect(headers['x-hauska-gate-credential-id']).toBe('pe-bff')
+    expect(headers['x-hauska-request-id']).toBe('req-test-1')
+    expect(headers['X-Hauska-Package']).toBeUndefined()
   })
 })

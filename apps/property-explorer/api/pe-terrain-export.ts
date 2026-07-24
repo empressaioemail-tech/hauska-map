@@ -6,19 +6,23 @@
 //   with server-side MCP_PRODUCT_KEY (one SDK meter per request at MCP).
 //
 // GET /api/pe-terrain-export?parcelNodeId=...&format=glb&action=download
-//   Streams artifact bytes from engine-api (service credentials). Same auth gate.
+//   Streams artifact bytes from engine-api with full gate-front headers
+//   (service token + x-hauska-* seam). Same auth gate. Prefer MCP inline
+//   base64 from POST when available (no second hop).
 
 import type { VercelRequest, VercelResponse } from '@vercel/node'
 import { callMcpTool, mcpProductKey } from './_lib/mcp-server-client.js'
 import { fetchPeEntitlement } from './_lib/pe-entitlement.js'
 import { readPeSessionCookie } from './_lib/session-cookie.js'
 import {
+  buildTerrainEngineGateHeaders,
   engineApiBaseUrl,
   engineApiGateToken,
   isValidParcelNodeId,
   mapMcpTerrainPayload,
   parseTerrainFormat,
   resolveTerrainExportAuth,
+  terrainFilename,
   type TerrainExportFormat,
 } from './_lib/pe-terrain-export-core.js'
 
@@ -142,9 +146,7 @@ async function handleDownload(
       headers: {
         Authorization: `Bearer ${gateToken}`,
         Accept: '*/*',
-        'X-Hauska-Product': 'public',
-        'X-Hauska-Access-Tier': 'public-paid',
-        'X-Hauska-Package': 'terrain-export',
+        ...buildTerrainEngineGateHeaders(),
       },
     })
 
@@ -164,7 +166,7 @@ async function handleDownload(
     else {
       res.setHeader(
         'Content-Disposition',
-        `attachment; filename="${parcelNodeId.replace(':', '_')}.${format.replace('dxf-', '')}"`,
+        `attachment; filename="${terrainFilename(parcelNodeId, format)}"`,
       )
     }
 

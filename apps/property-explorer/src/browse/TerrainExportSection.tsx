@@ -1,4 +1,4 @@
-import { useCallback, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import {
   requestTerrainExport,
   TERRAIN_FORMAT_OPTIONS,
@@ -10,6 +10,26 @@ import { googleSignInUrl } from "../lib/auth";
 const MUTED = "#8b97a5";
 const ACCENT = "#7dd3fc";
 const WARN = "#c98b3a";
+
+function filenameFor(parcelNodeId: string, format: string): string {
+  const stem = parcelNodeId.replace(":", "_");
+  if (format === "glb") return `${stem}.glb`;
+  if (format === "ifc") return `${stem}.ifc`;
+  if (format === "dxf-3dface") return `${stem}_3dface.dxf`;
+  if (format === "dxf-contour") return `${stem}_contour.dxf`;
+  return `${stem}.bin`;
+}
+
+function blobHrefFromBase64(base64: string, contentType: string): string | null {
+  try {
+    const binary = atob(base64);
+    const bytes = new Uint8Array(binary.length);
+    for (let i = 0; i < binary.length; i++) bytes[i] = binary.charCodeAt(i);
+    return URL.createObjectURL(new Blob([bytes], { type: contentType || "application/octet-stream" }));
+  } catch {
+    return null;
+  }
+}
 
 export function TerrainExportSection({
   parcelNodeId,
@@ -48,9 +68,34 @@ export function TerrainExportSection({
     setNotice("Terrain export ready — download below.");
   }, [format, onPaymentRequired, parcelNodeId]);
 
-  const selectedDownload = result?.downloads?.[format] ?? result?.downloadUrl ?? null;
+  const inline = result?.inlineDownload;
+  const inlineMatches =
+    !!inline &&
+    inline.format === format &&
+    typeof inline.base64 === "string" &&
+    inline.base64.length > 0;
+
+  const blobHref = useMemo(() => {
+    if (!inlineMatches || !inline) return null;
+    return blobHrefFromBase64(inline.base64, inline.contentType);
+  }, [inline, inlineMatches]);
+
+  useEffect(() => {
+    return () => {
+      if (blobHref) URL.revokeObjectURL(blobHref);
+    };
+  }, [blobHref]);
+
+  // Prefer MCP-inlined bytes (already gate-proxied). Fall back to BFF GET
+  // which now stamps full gate-front headers for engine-api.
+  const selectedDownload =
+    blobHref ??
+    (result?.selectedFormat === format
+      ? (result.downloads?.[format] ?? result.downloadUrl ?? null)
+      : (result?.downloads?.[format] ?? null));
   const selectedMeta = result?.atom.artifacts?.[format];
   const landxml = result?.atom.artifacts?.["landxml-tin"];
+  const downloadName = filenameFor(parcelNodeId, format);
 
   return (
     <div
@@ -162,6 +207,7 @@ export function TerrainExportSection({
           {selectedDownload ? (
             <a
               href={selectedDownload}
+              download={downloadName}
               data-testid="terrain-download-link"
               style={{
                 display: "inline-block",
@@ -174,8 +220,14 @@ export function TerrainExportSection({
               Download {format}
               {selectedMeta?.byteCount
                 ? ` (${Math.round(selectedMeta.byteCount / 1024)} KB)`
-                : ""}
+                : inlineMatches && inline?.byteCount
+                  ? ` (${Math.round(inline.byteCount / 1024)} KB)`
+                  : ""}
             </a>
+          ) : result && result.selectedFormat !== format ? (
+            <div style={{ marginTop: 8, fontSize: 10.5, color: WARN }}>
+              Click Export terrain again for {format}.
+            </div>
           ) : (
             <div style={{ marginTop: 8, fontSize: 10.5, color: WARN }}>
               Selected format unavailable in this export.
