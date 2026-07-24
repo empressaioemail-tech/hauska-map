@@ -27,6 +27,18 @@ export default defineConfig({
               target: spineProxyTarget,
               changeOrigin: true,
             },
+            "/api/pe-terrain-export": {
+              target: spineProxyTarget,
+              changeOrigin: true,
+            },
+            "/api/auth": {
+              target: spineProxyTarget,
+              changeOrigin: true,
+            },
+            "/api/spine-deep": {
+              target: spineProxyTarget,
+              changeOrigin: true,
+            },
           },
         }
       : {}),

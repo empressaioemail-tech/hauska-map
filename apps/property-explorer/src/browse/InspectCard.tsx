@@ -40,6 +40,7 @@ import {
   personaHeadline,
   PERSONA_OPTIONS,
 } from "../lib/personaRegister";
+import { TerrainExportSection } from "./TerrainExportSection";
 
 const CARD_BG = "rgba(13,17,23,0.94)";
 const MUTED = "#8b97a5";
@@ -70,6 +71,7 @@ export function InspectCard({
   onEnvelope,
   onMakeSubject,
   onResearch,
+  onTerrainPaymentRequired,
   onSaveProperty,
   persona: personaProp,
   onPersonaChange,
@@ -91,6 +93,7 @@ export function InspectCard({
   // stubbed ask/report path.
   onMakeSubject: () => void;
   onResearch: () => void;
+  onTerrainPaymentRequired: () => void;
   onSaveProperty?: () => void;
   persona?: Persona;
   onPersonaChange?: (persona: Persona) => void;
@@ -420,6 +423,13 @@ export function InspectCard({
         I-Code building citations on deep research when ICC ingest is live — operator
         credentials pending (WDLL 31 hold).
       </div>
+
+      {parcelNodeId && (
+        <TerrainExportSection
+          parcelNodeId={parcelNodeId}
+          onPaymentRequired={onTerrainPaymentRequired}
+        />
+      )}
 
       {/* DISTINCT explicit action: make this inspected parcel the SUBJECT. */}
       <button
