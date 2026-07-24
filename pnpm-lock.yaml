@@ -31,8 +31,8 @@ importers:
   apps/command-center:
     dependencies:
       '@empressaio/cortex-client':
-        specifier: ^0.1.2
-        version: 0.1.2
+        specifier: ^0.1.3
+        version: 0.1.3
       '@empressaio/cortex-tiles':
         specifier: ^0.1.4
         version: 0.1.4(react-dom@18.3.1(react@18.3.1))(react@18.3.1)
@@ -330,6 +330,9 @@ packages:
 
   '@empressaio/cortex-client@0.1.2':
     resolution: {integrity: sha512-nYz+7z60kuzpRO1ube/QDkVrmxFyZEZSvm3Ra+x8MVTLMwP2E0diXLrrCBcC6KHZ43NBXbYylyt9Gps+s8FDKg==}
+
+  '@empressaio/cortex-client@0.1.3':
+    resolution: {integrity: sha512-w/sinsGLo5LTQ+14gwP/4axrewF4YqUoApUtmi2yf5DRWzeIdgLCTNdcFsEADPyHdWfQBED1RKt+b7RbAVrWTA==}
 
   '@empressaio/cortex-tiles@0.1.4':
     resolution: {integrity: sha512-+UAIaLL2mFBG4fFUlo2a5JVlfxCe+sNYWCkKIu1OCS5sB3tYuq0TZVCU0eVIFw3j/24YX0u0H+g3uVzI4wixXw==}
@@ -2651,6 +2654,8 @@ snapshots:
       '@edge-runtime/primitives': 4.1.0
 
   '@empressaio/cortex-client@0.1.2': {}
+
+  '@empressaio/cortex-client@0.1.3': {}
 
   '@empressaio/cortex-tiles@0.1.4(react-dom@18.3.1(react@18.3.1))(react@18.3.1)':
     dependencies:

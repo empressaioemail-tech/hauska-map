@@ -1,20 +1,15 @@
 // apps/command-center/src/admin/workspace/tiles/ParcelTerrainTile.test.tsx
 //
-// Component tests for the Parcel Terrain Model tile:
-//   - it calls generate_parcel_terrain_model with the active engagement id,
-//   - it renders the quality-gate signals (source citation, confidence +
-//     provenance, coverage, DEM resolution) when data is present,
-//   - it shows the generate-prompt (not an error) on a not-yet-generated
-//     response,
-//   - it asks for a case when no engagement is selected,
-//   - it surfaces a named error on tool failure.
-// The spine client is mocked so no network is touched.
+// Component tests for the Parcel Terrain Model tile (WDLL item 8):
+//   - calls refresh_parcel_terrain_export with parcel_node_id + format,
+//   - works without an engagement when parcel id is entered,
+//   - renders quality-gate signals and download links,
+//   - shows honest unknown-parcel and error states.
 
 import React from 'react'
 import { describe, it, expect, vi, beforeEach } from 'vitest'
-import { render, screen, waitFor } from '@testing-library/react'
+import { render, screen, waitFor, fireEvent } from '@testing-library/react'
 
-// ── mocks ──────────────────────────────────────────────────────────────
 const callTool = vi.fn()
 
 vi.mock('../../api/spineClient', () => ({
@@ -30,7 +25,6 @@ vi.mock('../../api/spineClient', () => ({
   },
 }))
 
-// TileErrorBoundary is a passthrough in tests (same as LiveMapTile.test).
 vi.mock('@empressaio/cortex-tiles', () => ({
   TileErrorBoundary: ({ children }: { children: React.ReactNode }) => <>{children}</>,
 }))
@@ -40,159 +34,189 @@ vi.mock('@empressaio/tile-shell', () => ({
   useEngagement: () => engagement,
 }))
 
-import { ParcelTerrainTile } from './ParcelTerrainTile'
+import { ParcelTerrainTile, defaultParcelNodeId } from './ParcelTerrainTile'
 
-const ENGAGEMENT_ID = '11111111-1111-4111-8111-111111111111'
+const PARCEL_ID = '48021:27303'
 
 const READY_ENVELOPE = {
   data: {
-    status: 'ok',
-    engagementId: ENGAGEMENT_ID,
-    materializableElementId: 'mat-123',
-    mesh: {
-      available: true,
-      ref: 'gs://hauska-terrain/mat-123/terrain.glb',
-      metadata: {
-        vertexCount: 4096,
-        triangleCount: 8100,
-        georefOrigin: { epsg: 32614, x: 621000, y: 3350000 },
-        byteCount: 254000,
+    parcelNodeId: PARCEL_ID,
+    atom: {
+      sourceCitation: 'USGS 3DEP',
+      accessPolicy: 'public-paid',
+      coverage: { coverageFraction: 1, resolutionMetersRequested: 1 },
+      confidence: {
+        value: 0.6,
+        kind: 'asserted',
+        provenance: 'USGS 3DEP DEM field; calibration pending',
+        n: 0,
+        intervalWidth: 1,
       },
     },
-    ifc: {
-      available: true,
-      ref: 'gs://hauska-terrain/mat-123/terrain.ifc',
-      metadata: { ifcSchemaVersion: 'IFC4', byteCount: 512000 },
+    artifacts: {
+      glb: {
+        format: 'glb',
+        ref: 'gcs://hauska-prod-497015-terrain-exports/terrain/48021_27303/glb/e6fe2195',
+        byteCount: 35528,
+        vertexCount: 1012,
+        triangleCount: 1890,
+      },
+      ifc: {
+        format: 'ifc',
+        ref: 'gcs://hauska-prod-497015-terrain-exports/terrain/48021_27303/ifc/e6fe2195',
+        byteCount: 85193,
+        vertexCount: 1012,
+        triangleCount: 1890,
+      },
+      'dxf-3dface': {
+        format: 'dxf-3dface',
+        ref: 'gcs://hauska-prod-497015-terrain-exports/terrain/48021_27303/dxf-3dface/e6fe2195',
+        byteCount: 520057,
+        vertexCount: 1012,
+        triangleCount: 1890,
+      },
+      'dxf-contour': {
+        format: 'dxf-contour',
+        ref: 'gcs://hauska-prod-497015-terrain-exports/terrain/48021_27303/dxf-contour/e6fe2195',
+        byteCount: 63959,
+        contourPolylineCount: 26,
+      },
+      'landxml-tin': {
+        format: 'landxml-tin',
+        ref: 'deferred:landxml-tin',
+        deferred: true,
+        deferredReason:
+          'LandXML TIN writer is deferred; this phase ships the shared mesh and required GLB/IFC/DXF emitters without inventing a second TIN triangulation.',
+      },
     },
-    coverage: { fraction: 0.92 },
-    confidence: { estimate: 0.74, provenance: 'asserted', n: 0, intervalWidth: 1 },
-    demResolutionMeters: 1,
-    sourceCitation: 'USGS 3DEP (1m lidar)',
+    download: {
+      format: 'glb',
+      contentType: 'model/gltf-binary',
+      base64: btoa('glTF'),
+      byteCount: 4,
+    },
   },
-  atoms: [{ did: `did:hauska:parcel-terrain-model:mat-123` }],
-  meta: {},
-}
-
-// Bare-number guard fixture: the tool normalizes a bare upstream number into
-// an asserted WidthedConfidence before it reaches the tile, so the confidence
-// the surface receives ALWAYS carries a provenance. This fixture is the shape
-// the tool's normalizeTerrainConfidence produces from a raw 0.74, and the
-// test below asserts the tile never renders a bare "0.74" without a qualifier.
-const BARE_NUMBER_NORMALIZED_ENVELOPE = {
-  data: {
-    ...READY_ENVELOPE.data,
-    confidence: { estimate: 0.74, provenance: 'asserted', n: 0, intervalWidth: 1 },
+  meta: {
+    note: 'Source: USGS 3DEP. One SDK meter consumed per export request.',
   },
-  atoms: READY_ENVELOPE.atoms,
-  meta: {},
-}
-
-const NOT_GENERATED_ENVELOPE = {
-  data: {
-    status: 'not-yet-generated',
-    engagementId: ENGAGEMENT_ID,
-    reason: 'No parcel terrain model materialized for this engagement yet.',
-    nextStep:
-      'Run site-topography refresh (get_site_topography with refresh=true) to generate the mesh and IFC, then call again.',
-  },
-  atoms: [],
-  meta: { note: 'Run site-topography refresh first.' },
 }
 
 beforeEach(() => {
   callTool.mockReset()
-  engagement = { engagementId: ENGAGEMENT_ID, activeParcel: {} }
+  engagement = { engagementId: null, activeParcel: {} }
+})
+
+describe('defaultParcelNodeId', () => {
+  it('reads parcel_node_id from active context', () => {
+    expect(defaultParcelNodeId({ parcel_node_id: '48021:27303' })).toBe('48021:27303')
+  })
+
+  it('derives county_fips:prop_id from fips + apn', () => {
+    expect(defaultParcelNodeId({ county_fips: '48021', apn: '27303' })).toBe('48021:27303')
+  })
 })
 
 describe('ParcelTerrainTile', () => {
-  it('calls generate_parcel_terrain_model with the active engagement id', async () => {
-    callTool.mockResolvedValue(READY_ENVELOPE)
+  async function refreshWith(id = PARCEL_ID) {
     render(<ParcelTerrainTile />)
+    fireEvent.change(screen.getByTestId('terrain-parcel-id-input'), { target: { value: id } })
+    fireEvent.click(screen.getByTestId('terrain-refresh'))
+  }
+
+  it('calls refresh_parcel_terrain_export with parcel_node_id and format (no engagement)', async () => {
+    callTool.mockResolvedValue(READY_ENVELOPE)
+    await refreshWith()
 
     await waitFor(() => expect(callTool).toHaveBeenCalledTimes(1))
-    expect(callTool).toHaveBeenCalledWith('generate_parcel_terrain_model', {
-      engagementId: ENGAGEMENT_ID,
+    expect(callTool).toHaveBeenCalledWith('refresh_parcel_terrain_export', {
+      parcel_node_id: PARCEL_ID,
+      format: 'glb',
     })
   })
 
-  it('renders mesh + IFC availability, metadata, and download refs when present', async () => {
+  it('defaults parcel id from active context when available', async () => {
+    engagement = {
+      engagementId: 'eng-1',
+      activeParcel: { parcel_node_id: '48021:27303' },
+    }
     callTool.mockResolvedValue(READY_ENVELOPE)
     render(<ParcelTerrainTile />)
 
-    await screen.findByTestId('parcel-terrain-tile')
-    expect(screen.getByTestId('terrain-mesh-availability')).toHaveTextContent('available')
-    expect(screen.getByTestId('terrain-ifc-availability')).toHaveTextContent('available')
-    expect(screen.getByTestId('terrain-mesh-download')).toHaveAttribute(
-      'href',
-      'gs://hauska-terrain/mat-123/terrain.glb',
-    )
-    expect(screen.getByTestId('terrain-ifc-download')).toHaveAttribute(
-      'href',
-      'gs://hauska-terrain/mat-123/terrain.ifc',
-    )
-    // Mesh geometry metadata is surfaced.
-    expect(screen.getByTestId('terrain-mesh-row')).toHaveTextContent('4096')
-    expect(screen.getByTestId('terrain-mesh-row')).toHaveTextContent('8100')
-    // IFC schema version is surfaced.
-    expect(screen.getByTestId('terrain-ifc-row')).toHaveTextContent('IFC4')
+    expect(screen.getByTestId('terrain-parcel-id-input')).toHaveValue('48021:27303')
   })
 
-  it('surfaces the quality-gate signals (source, confidence + provenance, coverage, DEM resolution)', async () => {
+  it('renders artifact availability, download link, and quality-gate signals', async () => {
     callTool.mockResolvedValue(READY_ENVELOPE)
-    render(<ParcelTerrainTile />)
+    await refreshWith()
 
     await screen.findByTestId('terrain-quality-signals')
-    expect(screen.getByTestId('terrain-source-citation')).toHaveTextContent('USGS 3DEP (1m lidar)')
-    // Confidence estimate AND provenance, never a bare number presented as earned.
-    expect(screen.getByTestId('terrain-confidence')).toHaveTextContent('0.74')
-    expect(screen.getByTestId('terrain-confidence')).toHaveTextContent('asserted')
-    // Coverage fraction rendered as a percentage.
-    expect(screen.getByTestId('terrain-coverage')).toHaveTextContent('92.0%')
-    // DEM resolution surfaced.
+    expect(screen.getByTestId('terrain-format-glb-availability')).toHaveTextContent('available')
+    expect(screen.getByTestId('terrain-format-landxml-tin-availability')).toHaveTextContent('deferred')
+    expect(screen.getByTestId('terrain-source-citation')).toHaveTextContent('USGS 3DEP')
+    expect(screen.getByTestId('terrain-confidence')).toHaveTextContent('0.60')
+    expect(screen.getByTestId('terrain-confidence')).toHaveTextContent('USGS 3DEP DEM field')
+    expect(screen.getByTestId('terrain-coverage')).toHaveTextContent('100.0%')
     expect(screen.getByTestId('terrain-dem-resolution')).toHaveTextContent('1 m')
+    expect(screen.getByTestId('terrain-download')).toBeInTheDocument()
   })
 
-  it('never renders a bare confidence number without a provenance qualifier (commitment 2 guard)', async () => {
-    callTool.mockResolvedValue(BARE_NUMBER_NORMALIZED_ENVELOPE)
-    render(<ParcelTerrainTile />)
+  it('never renders a bare confidence number without a provenance qualifier', async () => {
+    callTool.mockResolvedValue(READY_ENVELOPE)
+    await refreshWith()
 
     const conf = await screen.findByTestId('terrain-confidence')
-    // The estimate is shown WITH its provenance, never as a bare "0.74".
-    expect(conf).toHaveTextContent('0.74')
-    expect(conf).toHaveTextContent('asserted')
-    expect(conf.textContent).toContain('(asserted)')
-    // Guard the exact bad output: the confidence cell must not be a bare number.
-    expect(conf.textContent?.trim()).not.toBe('0.74')
-    expect(conf.textContent).toMatch(/0\.74\s*\(asserted\)/)
+    expect(conf.textContent?.trim()).not.toBe('0.60')
+    expect(conf.textContent).toMatch(/0\.60\s*\(/)
   })
 
-  it('shows the generate-prompt (not an error) on a not-yet-generated response', async () => {
-    callTool.mockResolvedValue(NOT_GENERATED_ENVELOPE)
-    render(<ParcelTerrainTile />)
-
-    const prompt = await screen.findByTestId('terrain-not-generated')
-    expect(prompt).toHaveTextContent('Terrain model not generated yet')
-    expect(prompt).toHaveTextContent('site-topography refresh')
-    // It is a status prompt, not an error.
-    expect(prompt).toHaveAttribute('role', 'status')
-    expect(screen.queryByTestId('terrain-error')).not.toBeInTheDocument()
-  })
-
-  it('asks for a case when no engagement is selected, and does not call the tool', async () => {
-    engagement = { engagementId: null, activeParcel: {} }
+  it('forwards the selected format to the MCP tool', async () => {
     callTool.mockResolvedValue(READY_ENVELOPE)
     render(<ParcelTerrainTile />)
+    fireEvent.change(screen.getByTestId('terrain-parcel-id-input'), { target: { value: PARCEL_ID } })
+    fireEvent.click(screen.getByLabelText('IFC4'))
+    fireEvent.click(screen.getByTestId('terrain-refresh'))
 
-    expect(screen.getByText('Select a case')).toBeInTheDocument()
+    await waitFor(() => expect(callTool).toHaveBeenCalledTimes(1))
+    expect(callTool).toHaveBeenCalledWith('refresh_parcel_terrain_export', {
+      parcel_node_id: PARCEL_ID,
+      format: 'ifc',
+    })
+  })
+
+  it('shows landxml-tin as disabled with honest defer reason', () => {
+    render(<ParcelTerrainTile />)
+    const landxml = screen.getByTestId('terrain-format-option-landxml-tin').querySelector('input')
+    expect(landxml).toBeDisabled()
+    expect(screen.getByTestId('terrain-format-option-landxml-tin')).toHaveAttribute('title')
+  })
+
+  it('shows honest unknown-parcel state for missing ids', async () => {
+    callTool.mockRejectedValue(new Error('HTTP 404: parcel not found for 99999:1'))
+    await refreshWith('99999:1')
+
+    const miss = await screen.findByTestId('terrain-unknown-parcel')
+    expect(miss).toHaveTextContent('Parcel not found')
+    expect(miss).toHaveTextContent('99999:1')
+  })
+
+  it('does not auto-call the tool before refresh is clicked', async () => {
+    callTool.mockResolvedValue(READY_ENVELOPE)
+    engagement = {
+      engagementId: null,
+      activeParcel: { parcel_node_id: PARCEL_ID },
+    }
+    render(<ParcelTerrainTile />)
+
+    expect(screen.getByTestId('terrain-parcel-id-input')).toHaveValue(PARCEL_ID)
     expect(callTool).not.toHaveBeenCalled()
   })
 
   it('surfaces a named error when the tool call fails', async () => {
     callTool.mockRejectedValue(new Error('MCP HTTP 401: unauthorized'))
-    render(<ParcelTerrainTile />)
+    await refreshWith()
 
     const err = await screen.findByTestId('terrain-error')
-    expect(err).toHaveTextContent('Terrain model failed')
+    expect(err).toHaveTextContent('Terrain export failed')
     expect(err).toHaveTextContent('MCP HTTP 401: unauthorized')
     expect(err).toHaveAttribute('role', 'alert')
   })
