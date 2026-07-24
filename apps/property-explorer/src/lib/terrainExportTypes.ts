@@ -37,6 +37,13 @@ export interface TerrainExportAtomView {
   artifacts: Record<string, TerrainArtifactMeta>
 }
 
+export interface TerrainExportInlineDownload {
+  format: TerrainExportFormat | string
+  contentType: string
+  base64: string
+  byteCount: number
+}
+
 export interface TerrainExportBffResponse {
   ok: true
   parcelNodeId: string
@@ -44,4 +51,5 @@ export interface TerrainExportBffResponse {
   selectedFormat: TerrainExportFormat
   downloadUrl: string
   downloads: Record<string, string | null>
+  inlineDownload?: TerrainExportInlineDownload
 }

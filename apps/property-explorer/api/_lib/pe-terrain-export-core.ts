@@ -51,6 +51,14 @@ export interface TerrainExportAtomView {
   artifacts: Record<string, TerrainArtifactMeta>
 }
 
+/** Inline bytes from MCP refresh (preferred — already gate-proxied + metered). */
+export interface TerrainExportInlineDownload {
+  format: TerrainExportFormat | string
+  contentType: string
+  base64: string
+  byteCount: number
+}
+
 export interface TerrainExportBffResponse {
   ok: true
   parcelNodeId: string
@@ -58,6 +66,8 @@ export interface TerrainExportBffResponse {
   selectedFormat: TerrainExportFormat
   downloadUrl: string
   downloads: Record<string, string | null>
+  /** Present when MCP inlined artifact bytes (under 256 KiB). Prefer over downloadUrl. */
+  inlineDownload?: TerrainExportInlineDownload
 }
 
 export function buildDownloadPath(parcelNodeId: string, format: TerrainExportFormat): string {
@@ -69,6 +79,31 @@ export function buildDownloadPath(parcelNodeId: string, format: TerrainExportFor
   return `/api/pe-terrain-export?${qs.toString()}`
 }
 
+export function extractInlineDownload(
+  payload: Record<string, unknown>,
+): TerrainExportInlineDownload | undefined {
+  const dataBlock = payload.data as Record<string, unknown> | undefined
+  const download = (dataBlock?.download ?? payload.download) as
+    | Record<string, unknown>
+    | undefined
+  if (!download || typeof download !== 'object') return undefined
+  const base64 = typeof download.base64 === 'string' ? download.base64 : null
+  const format = typeof download.format === 'string' ? download.format : null
+  const contentType =
+    typeof download.contentType === 'string'
+      ? download.contentType
+      : 'application/octet-stream'
+  const byteCount =
+    typeof download.byteCount === 'number' ? download.byteCount : undefined
+  if (!base64 || !format || base64.length === 0) return undefined
+  return {
+    format,
+    contentType,
+    base64,
+    byteCount: byteCount ?? Math.floor((base64.length * 3) / 4),
+  }
+}
+
 export function mapMcpTerrainPayload(
   payload: Record<string, unknown>,
   selectedFormat: TerrainExportFormat,
@@ -77,6 +112,7 @@ export function mapMcpTerrainPayload(
   const atom = (payload.atom ?? dataBlock?.atom ?? payload) as Record<string, unknown>
   const parcelNodeId =
     (typeof payload.parcelNodeId === 'string' && payload.parcelNodeId) ||
+    (typeof dataBlock?.parcelNodeId === 'string' && dataBlock.parcelNodeId) ||
     (typeof atom.parcelNodeId === 'string' && atom.parcelNodeId) ||
     (typeof atom.entityId === 'string' && atom.entityId) ||
     null
@@ -87,6 +123,7 @@ export function mapMcpTerrainPayload(
 
   const rawArtifacts =
     (atom.artifacts as Record<string, TerrainArtifactMeta> | undefined) ??
+    (dataBlock?.artifacts as Record<string, TerrainArtifactMeta> | undefined) ??
     (payload.artifacts as Record<string, TerrainArtifactMeta> | undefined) ??
     {}
 
@@ -100,6 +137,7 @@ export function mapMcpTerrainPayload(
   }
 
   const confidence = atom.confidence as TerrainExportAtomView['confidence']
+  const inlineDownload = extractInlineDownload(payload)
 
   return {
     ok: true,
@@ -107,6 +145,7 @@ export function mapMcpTerrainPayload(
     selectedFormat,
     downloadUrl: downloads[selectedFormat] ?? buildDownloadPath(parcelNodeId, selectedFormat),
     downloads,
+    ...(inlineDownload ? { inlineDownload } : {}),
     atom: {
       atomDid: typeof atom.atomDid === 'string' ? atom.atomDid : undefined,
       parcelNodeId,
@@ -133,6 +172,49 @@ export function engineApiGateToken(): string | null {
     process.env.HAUSKA_ENGINE_API_KEY?.trim() ||
     process.env.ENGINE_API_GATE_TOKEN?.trim()
   return key && key.length > 0 ? key : null
+}
+
+/**
+ * Gate-front headers engine-api requires on every non-health call.
+ * Header names/values mirror hauska-mcp-server gate-front seam
+ * (`x-hauska-package-id`, product enum, etc.). PE BFF holds the
+ * service token and only reaches engine after session+paid entitlement.
+ */
+export function buildTerrainEngineGateHeaders(opts?: {
+  requestId?: string
+  credentialId?: string
+  tenantId?: string
+}): Record<string, string> {
+  const requestId =
+    opts?.requestId?.trim() ||
+    (typeof crypto !== 'undefined' && 'randomUUID' in crypto
+      ? crypto.randomUUID()
+      : `pe-terrain-${Date.now()}`)
+  return {
+    'x-hauska-product': 'cortex',
+    'x-hauska-tenant-id': opts?.tenantId?.trim() || 'public-catalog',
+    'x-hauska-package-id': 'terrain-export',
+    'x-hauska-access-tier': 'public-paid',
+    'x-hauska-gate-credential-id':
+      opts?.credentialId?.trim() || 'property-explorer-terrain-bff',
+    'x-hauska-request-id': requestId,
+  }
+}
+
+export function terrainFilename(parcelNodeId: string, format: TerrainExportFormat): string {
+  const stem = parcelNodeId.replace(':', '_')
+  switch (format) {
+    case 'glb':
+      return `${stem}.glb`
+    case 'ifc':
+      return `${stem}.ifc`
+    case 'dxf-3dface':
+      return `${stem}_3dface.dxf`
+    case 'dxf-contour':
+      return `${stem}_contour.dxf`
+    default:
+      return `${stem}.bin`
+  }
 }
 
 export type TerrainExportAuthResult =
