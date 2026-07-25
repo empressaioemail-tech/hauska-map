@@ -137,6 +137,25 @@ describe("deriveBakedCardModel — honest absence", () => {
     expect(m.buildablePct.value).toMatch(/pending/i);
   });
 
+  it("Gate C: atom_path_pending is pending/loading — never not-verified", () => {
+    const model = deriveBakedCardModel({
+      parcelNodeId: "48021:141209",
+      zoning: null,
+      envelope: {
+        status: "declined",
+        declineReason: "atom_path_pending",
+      },
+      facetCoverage: {
+        zoning: false,
+        envelope: false,
+      },
+    });
+    expect(model.zoning.state).toBe("pending");
+    expect(model.setbacks.state).toBe("pending");
+    expect(model.zoning.value).toMatch(/Loading/i);
+    expect(String(model.zoning.value)).not.toMatch(/not verified/i);
+  });
+
   it("QA-3: no-zoning-stamp surfaces honest-absence label on zoning", () => {
     const none: BakedFacetPayload = {
       parcelNodeId: "48029:1",

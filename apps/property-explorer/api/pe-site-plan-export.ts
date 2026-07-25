@@ -17,6 +17,10 @@
 import type { VercelRequest, VercelResponse } from '@vercel/node'
 import { callMcpTool, mcpProductKey } from './_lib/mcp-server-client.js'
 import { fetchPeEntitlement } from './_lib/pe-entitlement.js'
+import {
+  isPeExportDevBypassArmed,
+  PE_EXPORT_DEV_BYPASS_HEADER,
+} from './_lib/pe-export-dev-bypass.js'
 import { readPeSessionCookie } from './_lib/session-cookie.js'
 import {
   buildSitePlanEngineGateHeaders,
@@ -36,13 +40,23 @@ async function requirePaidSession(
 ): Promise<string | null> {
   const token = readPeSessionCookie(req.headers.cookie)
   const entitlement = token ? await fetchPeEntitlement(token) : { ok: false as const, status: 401 as const }
-  const gate = resolveSitePlanExportAuth({ sessionToken: token, entitlement })
+  const gate = resolveSitePlanExportAuth({
+    sessionToken: token,
+    entitlement,
+    // Same operator/dev bypass as terrain export (session required; skip paid).
+    devBypass: isPeExportDevBypassArmed({
+      headerValue: req.headers[PE_EXPORT_DEV_BYPASS_HEADER],
+    }),
+  })
   if (!gate.ok) {
     res.status(gate.status).json({
       error: gate.error,
       message: gate.message,
     })
     return null
+  }
+  if (gate.devBypass) {
+    res.setHeader('X-PE-Export-Dev-Bypass', '1')
   }
   return token
 }

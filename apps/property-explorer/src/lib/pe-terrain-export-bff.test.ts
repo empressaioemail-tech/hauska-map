@@ -50,6 +50,26 @@ describe('terrain export core', () => {
     }
   })
 
+  it('allows signed-in free tier when operator/dev bypass is armed', () => {
+    const gate = resolveTerrainExportAuth({
+      sessionToken: 'session-token',
+      entitlement: { ok: true, tier: 'free' },
+      devBypass: true,
+    })
+    expect(gate.ok).toBe(true)
+    if (gate.ok) expect(gate.devBypass).toBe(true)
+  })
+
+  it('still requires session even with bypass armed', () => {
+    const gate = resolveTerrainExportAuth({
+      sessionToken: null,
+      entitlement: { ok: false, status: 401 },
+      devBypass: true,
+    })
+    expect(gate.ok).toBe(false)
+    if (!gate.ok) expect(gate.status).toBe(401)
+  })
+
   it('maps MCP refresh payload to BFF response with download links', () => {
     const mapped = mapMcpTerrainPayload(
       {

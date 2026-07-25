@@ -226,7 +226,7 @@ export function terrainFilename(parcelNodeId: string, format: TerrainExportForma
 }
 
 export type TerrainExportAuthResult =
-  | { ok: true }
+  | { ok: true; devBypass?: boolean }
   | { ok: false; status: 401 | 402 | 503; error: string; message?: string }
 
 /** Mirrors BFF session + entitlement gate (testable without Vercel). */
@@ -235,6 +235,8 @@ export function resolveTerrainExportAuth(input: {
   entitlement:
     | { ok: true; tier: 'free' | 'paid' }
     | { ok: false; status: 401 | 402 | 503; message?: string }
+  /** Operator/dev bypass — session still required; skips paid check. */
+  devBypass?: boolean
 }): TerrainExportAuthResult {
   if (!input.sessionToken) {
     return {
@@ -243,6 +245,9 @@ export function resolveTerrainExportAuth(input: {
       error: 'authentication_required',
       message: 'Sign in to export parcel terrain.',
     }
+  }
+  if (input.devBypass) {
+    return { ok: true, devBypass: true }
   }
   if (!input.entitlement.ok) {
     return {

@@ -46,7 +46,6 @@ import { iccCitationStatus } from "../lib/iccCitation";
 import { InspectCard } from "./InspectCard";
 import { LayersControl } from "./LayersControl";
 import { MapTools } from "./MapTools";
-import { ParcelLedger } from "./ParcelLedger";
 import { ParcelLookupBar } from "./ParcelLookupBar";
 import { PaywallGate } from "./PaywallGate";
 import {
@@ -692,148 +691,141 @@ export function ExplorerMap() {
     }
   }, [cardNodeId]);
 
+  // Two-products: PE is map + inspect card + exports only. County ledger /
+  // node-graph balance sheet stays in Command Center (operator), never here.
   return (
-    <div style={{ position: "absolute", inset: 0, display: "flex" }}>
-      {/* WDLL 5 — Map | Ledger: map stays the primary surface; ledger is a
-          customer-safe dock (no engines/governance). */}
-      <div style={{ flex: 1, position: "relative", minWidth: 0, minHeight: 0 }}>
-        <FloatingMap
-          ref={mapRef}
-          floating={false}
-          useFixture={false}
-          // Mount-time seed ONLY (stable identity). Subject changes re-point the
-          // live handle via rebindProperty — the center prop never re-points.
-          center={DEFAULT_CENTER}
-          parcelTiles={PARCEL_TILES}
-          overlays={mapOverlays}
-          visibleLayers={visibleLayers ?? undefined}
-          onParcelSelect={handleParcelSelect}
-          onParcelClick={handleParcelClick}
-          onViewportChange={handleViewportChange}
-          style={{ position: "absolute", inset: 0 }}
+    <div style={{ position: "absolute", inset: 0 }}>
+      <FloatingMap
+        ref={mapRef}
+        floating={false}
+        useFixture={false}
+        // Mount-time seed ONLY (stable identity). Subject changes re-point the
+        // live handle via rebindProperty — the center prop never re-points.
+        center={DEFAULT_CENTER}
+        parcelTiles={PARCEL_TILES}
+        overlays={mapOverlays}
+        visibleLayers={visibleLayers ?? undefined}
+        onParcelSelect={handleParcelSelect}
+        onParcelClick={handleParcelClick}
+        onViewportChange={handleViewportChange}
+        style={{ position: "absolute", inset: 0 }}
+      />
+
+      {/* Layer toggles driven through the substrate (getVisibleLayers seed +
+          visibleLayers prop). No local shadow paint state. */}
+      {visibleLayers && knownLayers && (
+        <LayersControl
+          known={knownLayers}
+          visible={visibleLayers}
+          onChange={(next) => setVisibleLayers(new Set(next))}
         />
+      )}
 
-        {/* Layer toggles driven through the substrate (getVisibleLayers seed +
-            visibleLayers prop). No local shadow paint state. */}
-        {visibleLayers && knownLayers && (
-          <LayersControl
-            known={knownLayers}
-            visible={visibleLayers}
-            onChange={(next) => setVisibleLayers(new Set(next))}
-          />
-        )}
+      {/* Satellite base toggle + measure/draw/marker/GPS tools. Operates on the
+          LIVE persistent map via the shared handle — never remounts the map. */}
+      <MapTools mapRef={mapRef} />
 
-        {/* Satellite base toggle + measure/draw/marker/GPS tools. Operates on the
-            LIVE persistent map via the shared handle — never remounts the map. */}
-        <MapTools mapRef={mapRef} />
-
-        {/* Honest live-layer state chips. */}
-        <div
-          data-testid="live-chips"
-          style={{
-            position: "absolute",
-            left: 12,
-            bottom: 12,
-            zIndex: 8,
-            display: "flex",
-            flexDirection: "column",
-            alignItems: "flex-start",
-            gap: 5,
-          }}
-        >
-          {chips.map((c) => (
-            <span key={c.key} style={chipStyle(c.sev)}>
-              {c.text}
-            </span>
-          ))}
-          {attribution && <span style={chipStyle("info")}>{attribution}</span>}
-          {researchNotice && (
-            <span data-testid="research-notice" style={chipStyle("info")}>
-              {researchNotice}
-            </span>
-          )}
-        </div>
-
-        {researchBrief && (
-          <aside
-            data-testid="research-brief"
-            style={{
-              position: "absolute",
-              top: 12,
-              right: 12,
-              zIndex: 9,
-              width: "min(360px, calc(100vw - 24px))",
-              maxHeight: "calc(100vh - 24px)",
-              overflowY: "auto",
-              padding: 14,
-              borderRadius: 8,
-              color: "#e5e7eb",
-              background: "rgba(13,17,23,0.94)",
-              border: "1px solid rgba(154,166,178,0.35)",
-              font: "12px/1.45 system-ui, -apple-system, Segoe UI, Roboto, sans-serif",
-            }}
-          >
-            <strong>Property Intel brief</strong>
-            {researchBrief.brief.sections.map((section) => (
-              <section key={section.id} style={{ marginTop: 10 }}>
-                <strong>{section.title}</strong>
-                <pre
-                  style={{
-                    margin: "4px 0 0",
-                    whiteSpace: "pre-wrap",
-                    font: "11px/1.4 ui-monospace, SFMono-Regular, Menlo, monospace",
-                  }}
-                >
-                  {JSON.stringify(section.data, null, 2)}
-                </pre>
-              </section>
-            ))}
-            {researchBrief.brief.disclosure?.map((disclosure) => (
-              <p key={disclosure} style={{ color: "#fcd34d", margin: "10px 0 0" }}>
-                {disclosure}
-              </p>
-            ))}
-          </aside>
-        )}
-
-        <ParcelLookupBar
-          busy={lookupBusy}
-          error={lookupError}
-          onSubmit={(q) => void runParcelLookup(q)}
-        />
-
-        {card && (
-          <InspectCard
-            card={card}
-            parcelNodeId={cardNodeId}
-            isSubject={isSubject}
-            onClose={closeInspect}
-            onEnvelope={handleEnvelope}
-            onMakeSubject={handleMakeSubject}
-            onResearch={() => void handleResearch()}
-            onTerrainPaymentRequired={handleTerrainPaymentRequired}
-            onSitePlanPaymentRequired={handleSitePlanPaymentRequired}
-            onSaveProperty={handleSaveProperty}
-            persona={persona}
-            onPersonaChange={setPersona}
-          />
-        )}
-
-        {paywallOpen && (
-          <PaywallGate
-            message={`${paywallMessage ?? "Deep research and cited property reports (R1–R10) require sign-in and Pro entitlement."} Checkout runs in test or live mode depending on cortex Stripe config — browse stays free. ${iccCitationStatus().live ? "" : iccCitationStatus().message}`}
-            checkoutNote={checkoutNote}
-            onUpgrade={() => void handleUpgrade()}
-            onClose={() => setPaywallOpen(false)}
-            busy={checkoutBusy}
-          />
+      {/* Honest live-layer state chips. */}
+      <div
+        data-testid="live-chips"
+        style={{
+          position: "absolute",
+          left: 12,
+          bottom: 12,
+          zIndex: 8,
+          display: "flex",
+          flexDirection: "column",
+          alignItems: "flex-start",
+          gap: 5,
+        }}
+      >
+        {chips.map((c) => (
+          <span key={c.key} style={chipStyle(c.sev)}>
+            {c.text}
+          </span>
+        ))}
+        {attribution && <span style={chipStyle("info")}>{attribution}</span>}
+        {researchNotice && (
+          <span data-testid="research-notice" style={chipStyle("info")}>
+            {researchNotice}
+          </span>
         )}
       </div>
 
-      <ParcelLedger
-        parcelNodeId={cardNodeId}
-        onInspectNode={(id) => void runParcelLookup(id)}
+      {researchBrief && (
+        <aside
+          data-testid="research-brief"
+          style={{
+            position: "absolute",
+            top: 12,
+            right: 12,
+            zIndex: 9,
+            width: "min(360px, calc(100vw - 24px))",
+            maxHeight: "calc(100vh - 24px)",
+            overflowY: "auto",
+            padding: 14,
+            borderRadius: 8,
+            color: "#e5e7eb",
+            background: "rgba(13,17,23,0.94)",
+            border: "1px solid rgba(154,166,178,0.35)",
+            font: "12px/1.45 system-ui, -apple-system, Segoe UI, Roboto, sans-serif",
+          }}
+        >
+          <strong>Property Intel brief</strong>
+          {researchBrief.brief.sections.map((section) => (
+            <section key={section.id} style={{ marginTop: 10 }}>
+              <strong>{section.title}</strong>
+              <pre
+                style={{
+                  margin: "4px 0 0",
+                  whiteSpace: "pre-wrap",
+                  font: "11px/1.4 ui-monospace, SFMono-Regular, Menlo, monospace",
+                }}
+              >
+                {JSON.stringify(section.data, null, 2)}
+              </pre>
+            </section>
+          ))}
+          {researchBrief.brief.disclosure?.map((disclosure) => (
+            <p key={disclosure} style={{ color: "#fcd34d", margin: "10px 0 0" }}>
+              {disclosure}
+            </p>
+          ))}
+        </aside>
+      )}
+
+      <ParcelLookupBar
+        busy={lookupBusy}
+        error={lookupError}
+        onSubmit={(q) => void runParcelLookup(q)}
       />
+
+      {card && (
+        <InspectCard
+          card={card}
+          parcelNodeId={cardNodeId}
+          isSubject={isSubject}
+          onClose={closeInspect}
+          onEnvelope={handleEnvelope}
+          onMakeSubject={handleMakeSubject}
+          onResearch={() => void handleResearch()}
+          onTerrainPaymentRequired={handleTerrainPaymentRequired}
+          onSitePlanPaymentRequired={handleSitePlanPaymentRequired}
+          onSaveProperty={handleSaveProperty}
+          persona={persona}
+          onPersonaChange={setPersona}
+        />
+      )}
+
+      {paywallOpen && (
+        <PaywallGate
+          message={`${paywallMessage ?? "Deep research and cited property reports (R1–R10) require sign-in and Pro entitlement."} Checkout runs in test or live mode depending on cortex Stripe config — browse stays free. ${iccCitationStatus().live ? "" : iccCitationStatus().message}`}
+          checkoutNote={checkoutNote}
+          onUpgrade={() => void handleUpgrade()}
+          onClose={() => setPaywallOpen(false)}
+          busy={checkoutBusy}
+        />
+      )}
     </div>
   );
 }

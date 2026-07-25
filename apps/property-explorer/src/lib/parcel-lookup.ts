@@ -133,17 +133,26 @@ export async function resolveParcelLookup(
 
   if (classified.kind === "parcel-node-id") {
     const resp = await fetchBakedNodeFacets(classified.value, facetsBase);
-    if (!resp) {
+    if (resp.kind === "not_found") {
       return {
         ok: false,
         reason: `No parcel found for ${classified.value}.`,
+      };
+    }
+    if (resp.kind !== "ok") {
+      return {
+        ok: false,
+        reason:
+          resp.kind === "transient"
+            ? `Parcel facts temporarily unreachable for ${classified.value} — retry.`
+            : `Could not load parcel ${classified.value}.`,
       };
     }
     return {
       ok: true,
       target: {
         parcelNodeId: classified.value,
-        card: cardFromFacets(resp, classified.value),
+        card: cardFromFacets(resp.data, classified.value),
         source: "parcel-node-id",
       },
     };
@@ -168,7 +177,8 @@ export async function resolveParcelLookup(
   }
 
   // Prefer atom/cortex facets card once we have the id (zoning + honest absence).
-  const facets = await fetchBakedNodeFacets(parcelNodeId, facetsBase);
+  const facetsResult = await fetchBakedNodeFacets(parcelNodeId, facetsBase);
+  const facets = facetsResult.kind === "ok" ? facetsResult.data : null;
   const card = facets
     ? {
         ...cardFromFacets(facets, parcelNodeId),

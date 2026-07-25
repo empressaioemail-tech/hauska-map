@@ -251,7 +251,7 @@ export function sitePlanFilename(parcelNodeId: string, format: SitePlanExportFor
 }
 
 export type SitePlanExportAuthResult =
-  | { ok: true }
+  | { ok: true; devBypass?: boolean }
   | { ok: false; status: 401 | 402 | 503; error: string; message?: string }
 
 /** Mirrors BFF session + entitlement gate (testable without Vercel). Same
@@ -261,6 +261,8 @@ export function resolveSitePlanExportAuth(input: {
   entitlement:
     | { ok: true; tier: 'free' | 'paid' }
     | { ok: false; status: 401 | 402 | 503; message?: string }
+  /** Operator/dev bypass — session still required; skips paid check. */
+  devBypass?: boolean
 }): SitePlanExportAuthResult {
   if (!input.sessionToken) {
     return {
@@ -269,6 +271,9 @@ export function resolveSitePlanExportAuth(input: {
       error: 'authentication_required',
       message: 'Sign in to export the site plan.',
     }
+  }
+  if (input.devBypass) {
+    return { ok: true, devBypass: true }
   }
   if (!input.entitlement.ok) {
     return {
