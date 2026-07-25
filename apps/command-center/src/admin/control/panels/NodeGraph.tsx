@@ -104,7 +104,11 @@ export const NodeGraph: React.FC = () => {
           if (!cancelled) setTallyError(`Tally artifact HTTP ${res.status}`)
           return
         }
-        const json = (await res.json()) as GateATally
+        // Gate C: artifact must be UTF-8 JSON. Strip a leading BOM if a bad
+        // encoding ever ships again (UTF-16 BOM made res.json() throw).
+        const raw = await res.text()
+        const text = raw.replace(/^\uFEFF/, '')
+        const json = JSON.parse(text) as GateATally
         if (!cancelled) {
           setTally(json)
           setTallyError(null)
