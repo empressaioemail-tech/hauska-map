@@ -6,7 +6,10 @@ import {
   adaptAtomChainToBakedFacets,
   atomChainIsUsable,
   isPropertyAtomPathEnabled,
+  isDepthWarmPromoted,
   parsePropertyAtomsPath,
+  shouldSkipColdDerive,
+  DEPTH_WARM_PROMOTION_MARKER,
   type PropertyAtomChain,
 } from "../../api/_lib/atom-chain-to-facets";
 
@@ -160,5 +163,51 @@ describe("adaptAtomChainToBakedFacets — Bastrop P-3 not_specified", () => {
     expect(resp!.facets.envelope?.disclosure).toMatch(/build-to-line/i);
     const wire = JSON.stringify(resp);
     expect(wire).not.toMatch(/consume the lot/i);
+  });
+});
+
+/** 714 Spring depth-warm promoted fixture (27c R3 WDLL 8). */
+const bastropWarm714Chain: PropertyAtomChain = {
+  parcelNodeId: "48021:33512",
+  zoningFact: {
+    district: "P-5",
+    extractedAt: "2026-07-25T22:00:00.000Z",
+  },
+  setbackRule: {
+    front: 15,
+    side: 5,
+    rear: 5,
+    districtCode: "P-5",
+  },
+  buildableEnvelope: {
+    outcome: { kind: "buildable", areaSqFt: 17051 },
+    sourceCitation: "depth-warm-verified mechanical promote (27c R3 WDLL 6)",
+    depthWarmPromotion: DEPTH_WARM_PROMOTION_MARKER,
+    geojson: {
+      type: "FeatureCollection",
+      features: [{ type: "Feature", geometry: { type: "Polygon", coordinates: [] } }],
+    },
+    extractedAt: "2026-07-25T22:00:00.000Z",
+  },
+  atoms: [{}, {}, {}],
+};
+
+describe("depth-warm read path (WDLL 8)", () => {
+  it("detects depth-warm promoted chain", () => {
+    expect(isDepthWarmPromoted(bastropWarm714Chain)).toBe(true);
+    expect(shouldSkipColdDerive(bastropWarm714Chain)).toBe(true);
+    expect(isDepthWarmPromoted(haysChain)).toBe(false);
+  });
+
+  it("adaptAtomChainToBakedFacets serves atom-chain-warm readPath with geojson", () => {
+    const resp = adaptAtomChainToBakedFacets(bastropWarm714Chain);
+    expect(resp).not.toBeNull();
+    expect(resp!.readPath).toBe("atom-chain-warm");
+    expect(resp!.facets.envelope?.status).toBe("ok");
+    expect(resp!.facets.envelope?.geojson).toBeDefined();
+    expect(resp!.facets.envelope?.disclosure).toMatch(/no live re-derive/i);
+    expect(
+      (resp!.facets.provenance as { depthWarmPromoted?: boolean }).depthWarmPromoted,
+    ).toBe(true);
   });
 });

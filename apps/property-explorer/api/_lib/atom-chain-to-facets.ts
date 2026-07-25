@@ -52,6 +52,33 @@ export interface AtomChainBuildableEnvelope {
   geojson?: unknown;
   fetchedAt?: string;
   extractedAt?: string;
+  sourceCitation?: string;
+  depthWarmPromotion?: string;
+}
+
+/** Depth-warm promotion marker from engine R3 (27c WDLL 6/8). */
+export const DEPTH_WARM_PROMOTION_MARKER = "depth-warm-promoted-v1";
+
+export function isDepthWarmPromoted(
+  chain: PropertyAtomChain | null | undefined,
+): boolean {
+  const env = chain?.buildableEnvelope;
+  if (!env || typeof env !== "object") return false;
+  if (env.depthWarmPromotion === DEPTH_WARM_PROMOTION_MARKER) return true;
+  const citation = env.sourceCitation;
+  return (
+    typeof citation === "string" &&
+    citation.includes("depth-warm-verified")
+  );
+}
+
+/**
+ * WDLL 8: warmed parcel read must not cold-rederive envelope — atom-chain only.
+ */
+export function shouldSkipColdDerive(
+  chain: PropertyAtomChain | null | undefined,
+): boolean {
+  return isDepthWarmPromoted(chain) && atomChainIsUsable(chain);
 }
 
 /** Minimal retrieval GET /property-nodes/:id/atom-chain body. */
@@ -119,7 +146,7 @@ export interface PeBakedFacetsResponse {
   source: "atom-chain";
   snapshotAt: string | null;
   facets: PeBakedFacetPayload;
-  readPath: "atom-chain";
+  readPath: "atom-chain" | "atom-chain-warm";
 }
 
 export function isPropertyAtomPathEnabled(
@@ -354,13 +381,14 @@ export function adaptAtomChainToBakedFacets(
     null;
 
   const apn = apnFromNodeId(parcelNodeId);
+  const depthWarm = isDepthWarmPromoted(c);
 
   return {
     parcelNodeId,
     adapterKey: "property-atom-chain",
     source: "atom-chain",
     snapshotAt: bakedAt,
-    readPath: "atom-chain",
+    readPath: depthWarm ? "atom-chain-warm" : "atom-chain",
     facets: {
       parcelNodeId,
       countyFips: countyFipsFromNodeId(parcelNodeId),
@@ -373,7 +401,14 @@ export function adaptAtomChainToBakedFacets(
           }
         : undefined,
       zoning: district ? { district } : null,
-      envelope,
+      envelope:
+        envelope && depthWarm
+          ? {
+              ...envelope,
+              disclosure:
+                "Depth-warm verified envelope from promoted ledger — no live re-derive (27c WDLL 8).",
+            }
+          : envelope,
       facetCoverage: {
         baseFacts: !!apn,
         landUse: false,
@@ -386,6 +421,7 @@ export function adaptAtomChainToBakedFacets(
         parcelVintage: null,
         landUseSource: null,
         landUseGateBlocked: false,
+        ...(depthWarm ? { depthWarmPromoted: true as const } : {}),
       },
       bakedAt: bakedAt ?? undefined,
     },
