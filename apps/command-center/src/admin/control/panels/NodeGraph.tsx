@@ -89,6 +89,7 @@ export const NodeGraph: React.FC = () => {
   const [inputId, setInputId] = useState(parcelNodeId ?? '48209:156346')
   const [tally, setTally] = useState<GateATally | null>(null)
   const [tallyError, setTallyError] = useState<string | null>(null)
+  const [tallySource, setTallySource] = useState<'live' | 'artifact' | null>(null)
   const [slotStatus, setSlotStatus] = useState<Record<string, SlotStatus>>({})
   const [traceJson, setTraceJson] = useState<string>('—')
   const [loadingNode, setLoadingNode] = useState(false)
@@ -102,21 +103,42 @@ export const NodeGraph: React.FC = () => {
     let cancelled = false
     ;(async () => {
       try {
+        // WDLL 9: prefer live re-SELECT via retrieval; static artifact is last-resort only.
+        const liveUrl = `${(config.retrievalApiUrl || '').replace(/\/$/, '')}/stats/central-tx-node-graph`
+        const live = await fetch(liveUrl, { headers: { Accept: 'application/json' } })
+        if (live.ok) {
+          const ct = (live.headers.get('content-type') || '').toLowerCase()
+          const raw = await live.text()
+          if (!ct.includes('text/html') && !/^\s*<(!doctype|html)/i.test(raw)) {
+            const json = JSON.parse(raw.replace(/^\uFEFF/, '')) as GateATally
+            if (!cancelled) {
+              setTally(json)
+              setTallyError(null)
+              setTallySource('live')
+            }
+            return
+          }
+        }
         const res = await fetch('/central_tx_node_graph_tally.json', {
           headers: { Accept: 'application/json' },
         })
         if (!res.ok) {
-          if (!cancelled) setTallyError(`Tally artifact HTTP ${res.status}`)
+          if (!cancelled) {
+            setTallyError(
+              `Live tally HTTP ${live.status}; artifact HTTP ${res.status}`,
+            )
+          }
           return
         }
-        // Gate C: artifact must be UTF-8 JSON. Strip a leading BOM if a bad
-        // encoding ever ships again (UTF-16 BOM made res.json() throw).
         const raw = await res.text()
         const text = raw.replace(/^\uFEFF/, '')
         const json = JSON.parse(text) as GateATally
         if (!cancelled) {
           setTally(json)
-          setTallyError(null)
+          setTallyError(
+            `Live tally unavailable (HTTP ${live.status}) — showing committed artifact (STALE).`,
+          )
+          setTallySource('artifact')
         }
       } catch (err) {
         if (!cancelled) setTallyError((err as Error).message)
@@ -125,7 +147,7 @@ export const NodeGraph: React.FC = () => {
     return () => {
       cancelled = true
     }
-  }, [])
+  }, [config.retrievalApiUrl])
 
   const inspectNode = async (id: string) => {
     const nodeId = id.trim()
@@ -173,12 +195,16 @@ export const NodeGraph: React.FC = () => {
   return (
     <Panel
       title="Node & Graph"
-      subtitle="Live ledger · Gate A SELECT shape + retrieval property atom-chain"
-      right={<Pill sev="ok">live</Pill>}
+      subtitle="Live ledger · live SELECT tally + retrieval property atom-chain"
+      right={
+        <Pill sev={tallySource === 'live' ? 'ok' : tallySource === 'artifact' ? 'warn' : 'info'}>
+          {tallySource === 'live' ? 'tally live' : tallySource === 'artifact' ? 'tally stale' : '…'}
+        </Pill>
+      }
     >
       <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
         <div>
-          <span style={sectionHeader}>Central-TX tally (G1 shape)</span>
+          <span style={sectionHeader}>Central-TX tally (G1 / WDLL 9 — live re-SELECT)</span>
           <p
             style={{
               fontSize: 11,
@@ -188,9 +214,11 @@ export const NodeGraph: React.FC = () => {
               marginBottom: 8,
             }}
           >
-            Same columns as the Gate A live SELECT ({tally?.generatedAt ?? '…'}). Provenance:{' '}
-            {tally?.source ?? 'loading…'}. Coverage numbers shown here must match this ledger — never a
-            second prose figure (WDLL 9).
+            Source:{' '}
+            {tallySource === 'live'
+              ? `live GET /stats/central-tx-node-graph (${tally?.generatedAt ?? '…'})`
+              : tally?.source ?? 'loading…'}
+            . Coverage numbers shown here must match this ledger — never a second prose figure.
           </p>
           {tallyError && (
             <div style={{ fontSize: 11, color: 'var(--color-text-danger)', marginBottom: 8 }}>
