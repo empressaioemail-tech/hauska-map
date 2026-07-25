@@ -12,17 +12,18 @@ import {
   type BuildableEnvelopeResult,
 } from "./buildable-envelope.js";
 import { CORTEX_PROXY_BASE, PE_FACETS_PROXY_BASE } from "./config";
-
-/** Stable "{fips}:{propId}" — prop id may include letters (e.g. Williamson R062578). */
-const PARCEL_NODE_ID_RE = /^(\d{5}):([A-Za-z0-9_-]+)$/;
+import { isValidParcelNodeId, normalizeParcelNodeId } from "./parcel-node-id";
 
 export type LookupKind = "parcel-node-id" | "address";
 
 export function classifyLookupQuery(raw: string): { kind: LookupKind; value: string } | null {
   const value = raw.trim();
   if (!value) return null;
-  const m = value.match(PARCEL_NODE_ID_RE);
-  if (m) return { kind: "parcel-node-id", value: `${m[1]}:${m[2]}` };
+  // G6 — same contract as BFF/MCP (F1b).
+  const nodeId = normalizeParcelNodeId(value);
+  if (nodeId && isValidParcelNodeId(nodeId)) {
+    return { kind: "parcel-node-id", value: nodeId };
+  }
   return { kind: "address", value };
 }
 

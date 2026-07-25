@@ -33,6 +33,7 @@ import { useEngagement, useSpatial, TileStatusBanner } from '@empressaio/tile-sh
 import { PropertyBriefTile, TileErrorBoundary } from '@empressaio/cortex-tiles'
 import { cortexClient } from '../cortexClient'
 import { useActivePanel } from '../../control/center/useActivePanel'
+import { useParcelNodeBinding } from '../../control/center/parcelNodeBinding'
 import {
   MIN_PARCEL_ZOOM,
   LIVE_PARCELS_KEY,
@@ -40,6 +41,7 @@ import {
   fetchGisLayer,
   toLiveOverlays,
   selectionToCard,
+  parcelNodeIdFromSelection,
   type GisLayerResponse,
   type LiveLayerKey,
   type LiveLayerState,
@@ -125,6 +127,7 @@ function LiveMapTileInner() {
   const { activeParcel, setActiveParcel } = useEngagement()
   const { overlays: spatialOverlays } = useSpatial()
   const [, selectPanel] = useActivePanel()
+  const { lockParcelNode } = useParcelNodeBinding()
 
   const [parcels, setParcels] = useState<LayerSlot>(IDLE)
   const [fema, setFema] = useState<LayerSlot>(IDLE)
@@ -186,6 +189,9 @@ function LiveMapTileInner() {
           lat: next.lat,
           lng: next.lng,
         })
+        // WDLL 4: map → ledger on the ONE canonical id when present on the feature.
+        const nodeId = parcelNodeIdFromSelection(sel)
+        if (nodeId) lockParcelNode(nodeId)
         return
       }
       // Fixture / zoning click — legacy behavior: recenter shared context.
@@ -197,7 +203,7 @@ function LiveMapTileInner() {
         lng: sel.lng,
       })
     },
-    [setActiveParcel],
+    [setActiveParcel, lockParcelNode],
   )
 
   const openPanelWithParcel = useCallback(

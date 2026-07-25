@@ -102,7 +102,7 @@ async function handleRefresh(
       return
     }
 
-    const mapped = mapMcpSitePlanPayload(payload, format)
+    const mapped = mapMcpSitePlanPayload(payload, format, parcelNodeId)
     if (!mapped.ok) {
       res.status(502).json({ error: 'upstream_error', message: mapped.message })
       return

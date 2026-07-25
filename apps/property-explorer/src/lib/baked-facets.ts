@@ -83,19 +83,21 @@ export interface BakedFacetsResponse {
 }
 
 /**
- * The single, load-bearing distinction for the card's honest-absence design:
+ * Card facet verification vocabulary (QA-3 / F1b):
  *
  *   - "present":  a real, verified value the card renders.
- *   - "absent":   the facet is HONESTLY not available for this parcel — a
- *                 gate-passed "not verified in this area" state. This is a
- *                 FEATURE (service-elevation thesis): render it as a legible
- *                 signal, never a blank cell and never a fabricated value.
+ *   - "absent":   honestly not available here (e.g. no zoning stamp). Value
+ *                 may carry a specific label ("no zoning stamp here"); the
+ *                 default UI string is "not verified here" when value is null.
+ *   - "pending":  upstream facts are present but a derived field is not yet
+ *                 on the atom (e.g. setbacks live, buildable % not computed).
+ *                 NEVER say "not verified" for this — the data path is live.
  *   - "unknown":  no baked snapshot at all (pre-read / fell back to live), so
  *                 the card should not assert either presence or absence yet.
  */
-export type FacetState = "present" | "absent" | "unknown";
+export type FacetState = "present" | "absent" | "pending" | "unknown";
 
-/** A card facet: its verification state plus its value when present. */
+/** A card facet: its verification state plus its value when present/pending. */
 export interface CardFacet<T> {
   state: FacetState;
   value: T | null;
@@ -139,8 +141,11 @@ export interface BakedCardModel {
 function present<T>(value: T): CardFacet<T> {
   return { state: "present", value };
 }
-function absent<T>(): CardFacet<T> {
-  return { state: "absent", value: null };
+function absent<T>(message?: T): CardFacet<T> {
+  return { state: "absent", value: message ?? null };
+}
+function pending<T>(message: T): CardFacet<T> {
+  return { state: "pending", value: message };
 }
 
 /**
@@ -182,10 +187,16 @@ export function deriveBakedCardModel(payload: BakedFacetPayload): BakedCardModel
       ? present(bf.landUse.description || bf.landUse.code)
       : absent<string>();
 
+  const zoningDecline =
+    env?.status === "declined" ? env.declineReason ?? null : null;
   const zoning =
     cov.zoning === true && payload.zoning
       ? present(payload.zoning.district)
-      : absent<string>();
+      : zoningDecline === "no-zoning-stamp"
+        ? absent("no zoning stamp here")
+        : zoningDecline === "zoning-absent" || zoningDecline === "no-setback-table"
+          ? absent("no zoning here")
+          : absent<string>();
 
   const acreage =
     cov.acreage === true && bf.acreage && typeof bf.acreage.value === "number"
@@ -194,17 +205,24 @@ export function deriveBakedCardModel(payload: BakedFacetPayload): BakedCardModel
 
   // Envelope-derived facets. Present only when the bake derived an envelope
   // (status ok / no-buildable-area with setbacks); a declined envelope is an
-  // honest absence.
+  // honest absence. Buildable % is a DERIVED field — when setbacks are present
+  // but pct is missing, say pending (not "not verified").
   const hasEnvelope = cov.envelope === true && !!env && env.status !== "declined";
   const s = env?.setbacks;
   const setbacks =
     hasEnvelope && s
       ? present(`F ${s.front_ft}′ · S ${s.side_ft}′ · R ${s.rear_ft}′`)
       : absent<string>();
-  const buildablePct =
-    hasEnvelope && typeof env?.buildableAreaPct === "number"
-      ? present(`${Math.round(env.buildableAreaPct)}%`)
-      : absent<string>();
+  let buildablePct: CardFacet<string>;
+  if (hasEnvelope && env?.status === "no-buildable-area") {
+    buildablePct = present("0% — setbacks consume lot");
+  } else if (hasEnvelope && typeof env?.buildableAreaPct === "number") {
+    buildablePct = present(`${Math.round(env.buildableAreaPct)}%`);
+  } else if (hasEnvelope && s) {
+    buildablePct = pending("setbacks present · buildable % pending");
+  } else {
+    buildablePct = absent<string>();
+  }
 
   return {
     parcelNodeId: payload.parcelNodeId ?? null,

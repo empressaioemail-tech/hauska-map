@@ -24,61 +24,65 @@ export type PersonaFactInput = {
   landUse?: string | null;
 };
 
+function facetOrNull(
+  facet: { state: string; value: string | null } | undefined,
+): string | null | undefined {
+  if (!facet) return undefined;
+  if (facet.state === "present" || facet.state === "pending") return facet.value;
+  if (facet.state === "absent") return facet.value; // may carry honest-absence label
+  return undefined;
+}
+
 export function extractPersonaFacts(
   baked: BakedCardModel | null,
 ): PersonaFactInput {
   if (!baked) return {};
   return {
-    zoning:
-      baked.zoning.state === "present"
-        ? baked.zoning.value
-        : baked.zoning.state === "absent"
-          ? null
-          : undefined,
-    setbacks:
-      baked.setbacks.state === "present"
-        ? baked.setbacks.value
-        : baked.setbacks.state === "absent"
-          ? null
-          : undefined,
-    buildable:
-      baked.buildablePct.state === "present"
-        ? baked.buildablePct.value
-        : baked.buildablePct.state === "absent"
-          ? null
-          : undefined,
-    landUse:
-      baked.landUse.state === "present"
-        ? baked.landUse.value
-        : baked.landUse.state === "absent"
-          ? null
-          : undefined,
+    zoning: facetOrNull(baked.zoning),
+    setbacks: facetOrNull(baked.setbacks),
+    buildable: facetOrNull(baked.buildablePct),
+    landUse: facetOrNull(baked.landUse),
   };
 }
 
-/** Single-line persona register — same facts, different framing. */
+/** Single-line persona register — same facts, different framing (QA-3). */
 export function personaHeadline(
   persona: PersonaId,
   facts: PersonaFactInput,
 ): string {
   const zoning = facts.zoning ?? "zoning not verified here";
-  const setbacks = facts.setbacks ?? "setbacks not verified here";
+  const setbacksPresent = facts.setbacks != null && facts.setbacks.length > 0;
+  const setbacks = setbacksPresent ? facts.setbacks! : "setbacks not verified here";
   const buildable = facts.buildable ?? null;
+  const buildablePending =
+    !!buildable && /pending/i.test(buildable) && setbacksPresent;
 
   switch (persona) {
     case "investor":
-      return buildable
-        ? `Constraints: ~${buildable} buildable · ${zoning} · ${setbacks}`
-        : `Constraints: envelope not verified · ${zoning}`;
+      if (buildable && !buildablePending) {
+        return `Constraints: ~${buildable} buildable · ${zoning} · ${setbacks}`;
+      }
+      if (setbacksPresent) {
+        return `Constraints: ${setbacks} · ${zoning} · buildable % pending`;
+      }
+      return `Constraints: envelope not verified · ${zoning}`;
     case "architect":
-      return buildable
-        ? `${zoning} — ${setbacks}; buildable ${buildable} (Tier-1 approximate, verify with AHJ)`
-        : `${zoning} — ${setbacks}; envelope not verified`;
+      if (buildable && !buildablePending) {
+        return `${zoning} — ${setbacks}; buildable ${buildable} (Tier-1 approximate, verify with AHJ)`;
+      }
+      if (setbacksPresent) {
+        return `${zoning} — ${setbacks}; buildable % pending (setbacks present)`;
+      }
+      return `${zoning} — ${setbacks}; envelope not verified`;
     case "homeowner":
     default:
-      return buildable
-        ? `Likely buildable area ~${buildable} after setbacks (${zoning}).`
-        : `Setbacks and buildable area not verified here yet (${zoning}).`;
+      if (buildable && !buildablePending) {
+        return `Likely buildable area ~${buildable} after setbacks (${zoning}).`;
+      }
+      if (setbacksPresent) {
+        return `Setbacks are on file (${setbacks}); buildable % pending (${zoning}).`;
+      }
+      return `Setbacks and buildable area not verified here yet (${zoning}).`;
   }
 }
 

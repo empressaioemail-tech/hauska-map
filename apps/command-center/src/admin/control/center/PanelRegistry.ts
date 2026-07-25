@@ -17,6 +17,7 @@ import { McpInspector } from '../panels/McpInspector'
 import { AgentView } from '../panels/AgentView'
 import { LayerRegistryView } from '../panels/LayerRegistryView'
 import { ParcelTrace } from '../panels/ParcelTrace'
+import { NodeGraph } from '../panels/NodeGraph'
 import { Settings } from '../panels/Settings'
 import { RevenueMeter } from '../panels/RevenueMeter'
 import { makeStub } from '../panels/StubPanel'
@@ -62,13 +63,13 @@ export const PANELS: PanelDef[] = [
   { id: 'lens-investor', label: 'Property Investor', group: 'Workspace', live: true, Component: LensInvestorSpace },
   { id: 'lens-architect', label: 'Architect', group: 'Workspace', live: true, Component: LensArchitectSpace },
   // Substrate
-  { id: 'node-graph', label: 'Node & Graph', group: 'Substrate', stub: true,
-    Component: makeStub('Node & Graph', 'retrieval-api /atoms/trace/:did graph traversal (uncapped)') },
+  { id: 'node-graph', label: 'Node & Graph', group: 'Substrate', live: true, Component: NodeGraph },
   { id: 'atom-inspector', label: 'Atoms', group: 'Substrate', live: true, Component: AtomInspector },
   { id: 'parcel-trace', label: 'Parcel Trace', group: 'Substrate', live: true, Component: ParcelTrace },
   { id: 'mcp-inspector', label: 'MCP Tools', group: 'Substrate', live: true, Component: McpInspector },
   { id: 'layer-registry', label: 'GIS Layers', group: 'Substrate', live: true, Component: LayerRegistryView },
-  { id: 'calibration', label: 'Calibration', group: 'Substrate', live: true, Component: CalibrationTracker },
+  // Fixture zeros are not a live probe — honest STUB until a real calibration endpoint (F1b).
+  { id: 'calibration', label: 'Calibration', group: 'Substrate', stub: true, Component: CalibrationTracker },
   { id: 'lineage-audit', label: 'Lineage & Audit', group: 'Substrate', stub: true,
     Component: makeStub('Lineage & Audit', 'retrieval-api atom lineage / supersession chain') },
   // Engines

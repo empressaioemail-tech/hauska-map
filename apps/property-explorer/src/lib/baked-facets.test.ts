@@ -112,6 +112,39 @@ describe("deriveBakedCardModel — honest absence", () => {
     };
     const m = deriveBakedCardModel(empty);
     expect(m.setbacks.state).toBe("present");
+    expect(m.buildablePct).toEqual({ state: "present", value: "0% — setbacks consume lot" });
     expect(m.envelopeApproximate).toBe(true);
+  });
+
+  it("QA-3: setbacks present without buildableAreaPct is pending, not absent", () => {
+    const partial: BakedFacetPayload = {
+      parcelNodeId: "48021:34169",
+      countyName: "Bastrop",
+      baseFacts: { apn: "34169" },
+      zoning: { district: "SF-2" },
+      envelope: {
+        status: "ok",
+        setbacks: { front_ft: 25, side_ft: 5, rear_ft: 10 },
+        // intentionally omit buildableAreaPct
+      },
+      facetCoverage: { baseFacts: true, landUse: false, acreage: false, zoning: true, envelope: true },
+      provenance: { parcelSource: "property-atom-chain" },
+    };
+    const m = deriveBakedCardModel(partial);
+    expect(m.zoning.state).toBe("present");
+    expect(m.setbacks.state).toBe("present");
+    expect(m.buildablePct.state).toBe("pending");
+    expect(m.buildablePct.value).toMatch(/pending/i);
+  });
+
+  it("QA-3: no-zoning-stamp surfaces honest-absence label on zoning", () => {
+    const none: BakedFacetPayload = {
+      parcelNodeId: "48029:1",
+      envelope: { status: "declined", declineReason: "no-zoning-stamp" },
+      facetCoverage: { zoning: false, envelope: false },
+    };
+    const m = deriveBakedCardModel(none);
+    expect(m.zoning.state).toBe("absent");
+    expect(m.zoning.value).toBe("no zoning stamp here");
   });
 });

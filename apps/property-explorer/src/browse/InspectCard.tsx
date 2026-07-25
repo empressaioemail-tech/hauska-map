@@ -549,8 +549,9 @@ function liveBuildablePct(env: EnvelopeState): string | null {
     : null;
 }
 
-/** A baked-facet row: present -> value; absent -> an explicit "not verified"
- *  cell (a legible trust signal, never a blank); unknown -> hidden. */
+/** A baked-facet row (QA-3): present → value; absent → specific honest-absence
+ *  label or "not verified here"; pending → derived-field-pending copy (never
+ *  "not verified"); unknown → hidden. */
 function FacetRow({
   label,
   facet,
@@ -562,15 +563,27 @@ function FacetRow({
 }) {
   if (facet.state === "unknown") return null;
   const isAbsent = facet.state === "absent";
+  const isPending = facet.state === "pending";
+  const display =
+    isPending
+      ? (facet.value ?? "pending")
+      : isAbsent
+        ? (facet.value ?? "not verified here")
+        : facet.value;
   return (
     <>
       <dt style={{ color: MUTED }}>{label}</dt>
       <dd
-        style={{ margin: 0, color: isAbsent ? ABSENT : undefined, fontStyle: isAbsent ? "italic" : undefined }}
+        style={{
+          margin: 0,
+          color: isAbsent || isPending ? ABSENT : undefined,
+          fontStyle: isAbsent || isPending ? "italic" : undefined,
+        }}
         data-testid={testid}
         data-absent={isAbsent ? "true" : undefined}
+        data-pending={isPending ? "true" : undefined}
       >
-        {isAbsent ? "not verified here" : facet.value}
+        {display}
       </dd>
     </>
   );

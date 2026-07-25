@@ -9,7 +9,8 @@ import type { ActiveContext } from '@empressaio/tile-shell'
 const STORAGE_KEY = 'cc-active-context'
 
 // Reserved context param keys (MUST NOT collide with existing panel params like `id`)
-export const CONTEXT_PARAM_KEYS = ['addr', 'apn', 'eng', 'j', 'lat', 'lng'] as const
+// `node` = canonical parcelNodeId (WDLL 4 / G6 binding). Survives panel switches.
+export const CONTEXT_PARAM_KEYS = ['addr', 'apn', 'eng', 'j', 'lat', 'lng', 'node'] as const
 
 /**
  * Parse active context from URL hash params.
