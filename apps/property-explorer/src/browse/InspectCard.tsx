@@ -156,21 +156,41 @@ export function InspectCard({
       setBaked(null);
       setEnv({ status: "idle" });
 
-      // 1. Try the baked snapshot when we have a node id.
+      // 1. Atom-chain / baked facets when we have a node id. Transient failures
+      // stay on "loading" (fetchBakedNodeFacets retries) — NEVER "not verified".
       if (parcelNodeId) {
-        const resp = await fetchBakedNodeFacets(parcelNodeId, PE_FACETS_PROXY_BASE);
+        const result = await fetchBakedNodeFacets(parcelNodeId, PE_FACETS_PROXY_BASE);
         if (cancelled) return;
-        if (resp) {
-          const model = deriveBakedCardModel(resp.facets);
+        if (result.kind === "ok") {
+          const model = deriveBakedCardModel(result.data.facets);
           setBaked(model);
           setSource("baked");
-          // Fold the baked envelope (if present) into the ported node store so
-          // the map draws it — same seam the live path uses via onEnvelope.
-          if (resp.facets.envelope && resp.facets.envelope.status !== "declined") {
-            onEnvelope?.(resp.facets.envelope);
+          if (
+            result.data.facets.envelope &&
+            result.data.facets.envelope.status !== "declined"
+          ) {
+            onEnvelope?.(result.data.facets.envelope);
           }
           return; // PURE READ — no live fetch.
         }
+        if (result.kind === "transient") {
+          // Exhausted client retries — keep loading vocabulary, offer live as last resort.
+          setSource("live");
+          setEnv({
+            status: "error",
+            reason: "Parcel facts temporarily unreachable — retry by reselecting the parcel.",
+          });
+          return;
+        }
+        if (result.kind === "error") {
+          setSource("live");
+          setEnv({
+            status: "error",
+            reason: result.message || "Could not load parcel facts.",
+          });
+          return;
+        }
+        // not_found → live envelope compose for un-baked nodes.
       }
 
       // 2. Fallback: node not baked -> live envelope compose.
@@ -385,8 +405,14 @@ export function InspectCard({
         </div>
       )}
       {source === "live" && env.status === "error" && (
-        <div style={{ marginTop: 8, fontSize: 10.5, color: MUTED }}>
-          Zoning &amp; setbacks not verified for this parcel yet.
+        <div
+          data-testid="facets-load-error"
+          style={{ marginTop: 8, fontSize: 10.5, color: MUTED }}
+        >
+          {env.reason?.includes("unreachable") || env.reason?.includes("temporarily")
+            ? env.reason
+            : env.reason ||
+              "Could not load parcel facts. Reselect the parcel to retry — this is not an honest absence."}
         </div>
       )}
 

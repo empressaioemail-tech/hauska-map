@@ -189,14 +189,18 @@ export function deriveBakedCardModel(payload: BakedFacetPayload): BakedCardModel
 
   const zoningDecline =
     env?.status === "declined" ? env.declineReason ?? null : null;
+  // atom_path_pending is a FAILED/INCOMPLETE READ shell, not honest absence —
+  // never render it as "not verified here" (Gate C bounce bug).
   const zoning =
     cov.zoning === true && payload.zoning
       ? present(payload.zoning.district)
-      : zoningDecline === "no-zoning-stamp"
-        ? absent("no zoning stamp here")
-        : zoningDecline === "zoning-absent" || zoningDecline === "no-setback-table"
-          ? absent("no zoning here")
-          : absent<string>();
+      : zoningDecline === "atom_path_pending"
+        ? pending("Loading zoning…")
+        : zoningDecline === "no-zoning-stamp"
+          ? absent("no zoning stamp here")
+          : zoningDecline === "zoning-absent" || zoningDecline === "no-setback-table"
+            ? absent("no zoning here")
+            : absent<string>();
 
   const acreage =
     cov.acreage === true && bf.acreage && typeof bf.acreage.value === "number"
@@ -212,7 +216,9 @@ export function deriveBakedCardModel(payload: BakedFacetPayload): BakedCardModel
   const setbacks =
     hasEnvelope && s
       ? present(`F ${s.front_ft}′ · S ${s.side_ft}′ · R ${s.rear_ft}′`)
-      : absent<string>();
+      : zoningDecline === "atom_path_pending"
+        ? pending("Loading setbacks…")
+        : absent<string>();
   let buildablePct: CardFacet<string>;
   if (hasEnvelope && env?.status === "no-buildable-area") {
     buildablePct = present("0% — setbacks consume lot");
@@ -220,6 +226,8 @@ export function deriveBakedCardModel(payload: BakedFacetPayload): BakedCardModel
     buildablePct = present(`${Math.round(env.buildableAreaPct)}%`);
   } else if (hasEnvelope && s) {
     buildablePct = pending("setbacks present · buildable % pending");
+  } else if (zoningDecline === "atom_path_pending") {
+    buildablePct = pending("Loading buildable area…");
   } else {
     buildablePct = absent<string>();
   }
@@ -254,28 +262,26 @@ export function deriveBakedCardModel(payload: BakedFacetPayload): BakedCardModel
   };
 }
 
-/**
- * Fetch a parcel node's facets through the same-origin dual-serve BFF,
- * ANONYMOUSLY (no key — the proxy attaches auth server-side).
- *
- * Preferred URL: `/api/spine/property-atoms/:id/facets` (BFF chooses atom-chain
- * vs cortex via PROPERTY_ATOM_PATH). Legacy callers may still pass a cortex
- * proxy base (`…/cortex/api`); those keep the old cortex-only path.
- *
- * Returns the parsed response on 200, or null when the node has no snapshot
- * (404) so the caller can fall back to the live-envelope path. Any other
- * failure also returns null (the card degrades to the live fallback).
- *
- * @param parcelNodeId the stable "{fips}:{propId}" id from the parcel click.
- * @param facetsBase   PE facets BFF base (`/api/spine/property-atoms`) or legacy
- *                     cortex proxy base (`/api/spine/cortex/api`).
- */
-export async function fetchBakedNodeFacets(
+/** Discriminated facets fetch — never conflate transient failure with absence. */
+export type BakedFacetsFetchResult =
+  | { kind: "ok"; data: BakedFacetsResponse }
+  | { kind: "not_found" }
+  | { kind: "transient"; message: string; status: number }
+  | { kind: "error"; message: string; status: number };
+
+const CLIENT_FACETS_ATTEMPTS = 4;
+const CLIENT_FACETS_BACKOFF_MS = [500, 1_200, 2_000, 3_000];
+
+function sleep(ms: number): Promise<void> {
+  return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
+async function fetchBakedNodeFacetsOnce(
   parcelNodeId: string,
   facetsBase: string,
-): Promise<BakedFacetsResponse | null> {
+): Promise<BakedFacetsFetchResult> {
   const id = parcelNodeId.trim();
-  if (!id) return null;
+  if (!id) return { kind: "error", message: "parcelNodeId required", status: 0 };
   const base = facetsBase.replace(/\/$/, "");
   const url = base.includes("/property-atoms")
     ? `${base}/${encodeURIComponent(id)}/facets`
@@ -283,21 +289,86 @@ export async function fetchBakedNodeFacets(
   let res: Response;
   try {
     res = await fetch(url, { method: "GET", headers: { Accept: "application/json" } });
-  } catch {
-    return null;
+  } catch (err) {
+    return {
+      kind: "transient",
+      message: err instanceof Error ? err.message : String(err),
+      status: 0,
+    };
+  }
+  if (res.status === 404) return { kind: "not_found" };
+  if (res.status === 503 || res.status === 502 || res.status === 504 || res.status === 429) {
+    let message = `HTTP ${res.status}`;
+    try {
+      const body = (await res.json()) as { message?: string; retryable?: boolean };
+      if (body?.message) message = body.message;
+    } catch {
+      /* ignore */
+    }
+    return { kind: "transient", message, status: res.status };
   }
   if (!res.ok) {
-    // 404 == not baked -> caller falls back to live. Any other status also
-    // degrades to the live path rather than surfacing an error.
-    return null;
+    return { kind: "error", message: `HTTP ${res.status}`, status: res.status };
   }
   let body: unknown;
   try {
     body = await res.json();
   } catch {
-    return null;
+    return { kind: "transient", message: "facets response was not JSON", status: res.status };
   }
-  const b = body as Partial<BakedFacetsResponse>;
-  if (!b || typeof b !== "object" || !b.facets) return null;
-  return b as BakedFacetsResponse;
+  const b = body as Partial<BakedFacetsResponse> & {
+    error?: string;
+    retryable?: boolean;
+  };
+  // Belt: some proxies may 200 a retryable envelope — treat as transient.
+  if (b && typeof b === "object" && b.retryable === true) {
+    return {
+      kind: "transient",
+      message: typeof b.error === "string" ? b.error : "retryable facets response",
+      status: res.status,
+    };
+  }
+  if (!b || typeof b !== "object" || !b.facets) {
+    return { kind: "error", message: "facets payload missing", status: res.status };
+  }
+  return { kind: "ok", data: b as BakedFacetsResponse };
+}
+
+/**
+ * Fetch a parcel node's facets through the same-origin dual-serve BFF,
+ * ANONYMOUSLY (no key — the proxy attaches auth server-side).
+ *
+ * Retries transient upstream failures. Callers MUST keep a loading UI while
+ * `kind === "transient"` — never render that as "not verified" / honest-absence.
+ */
+export async function fetchBakedNodeFacets(
+  parcelNodeId: string,
+  facetsBase: string,
+): Promise<BakedFacetsFetchResult> {
+  let last: BakedFacetsFetchResult = {
+    kind: "error",
+    message: "facets unset",
+    status: 0,
+  };
+  for (let i = 0; i < CLIENT_FACETS_ATTEMPTS; i++) {
+    const result = await fetchBakedNodeFacetsOnce(parcelNodeId, facetsBase);
+    if (result.kind === "ok" || result.kind === "not_found" || result.kind === "error") {
+      return result;
+    }
+    last = result;
+    await sleep(CLIENT_FACETS_BACKOFF_MS[i] ?? 3_000);
+  }
+  return last;
+}
+
+/**
+ * Legacy helper: ok → data, everything else → null.
+ * Prefer the discriminated `fetchBakedNodeFacets` for inspect UI.
+ */
+export async function fetchBakedNodeFacetsOrNull(
+  parcelNodeId: string,
+  facetsBase: string,
+): Promise<BakedFacetsResponse | null> {
+  const result = await fetchBakedNodeFacets(parcelNodeId, facetsBase);
+  return result.kind === "ok" ? result.data : null;
 }

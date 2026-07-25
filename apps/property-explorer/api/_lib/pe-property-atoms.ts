@@ -91,11 +91,18 @@ async function fetchCortexFacets(
   };
 }
 
-const COLD_START_RETRY_MS = 1_200;
-const COLD_START_RETRYABLE = /unreachable|ECONNRESET|ETIMEDOUT|fetch failed|HTTP 502|HTTP 503|HTTP 504/i;
+/** Transient upstream failures — NEVER surface these as honest-absence. */
+const TRANSIENT_ATOM_CHAIN =
+  /unreachable|ECONNRESET|ETIMEDOUT|fetch failed|HTTP 5\d\d|HTTP 429|aborted|network|invalid JSON/i;
+const ATOM_CHAIN_ATTEMPTS = 5;
+const ATOM_CHAIN_BACKOFF_MS = [400, 900, 1_600, 2_400, 3_200];
 
 function sleep(ms: number): Promise<void> {
   return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
+export function isTransientAtomChainReason(reason: string): boolean {
+  return TRANSIENT_ATOM_CHAIN.test(reason);
 }
 
 async function fetchAtomChainOnce(
@@ -132,20 +139,29 @@ async function fetchAtomChainOnce(
   }
   const chain = body as PropertyAtomChain;
   if (!atomChainIsUsable(chain)) {
+    // Definitive empty — not a cold-start. Caller may serve honest absence.
     return { ok: false, reason: "atom-chain empty" };
   }
   return { ok: true, chain };
 }
 
-/** One cold-start retry so a customer's first click never shows unreachable. */
+/**
+ * Retry-until-resolved for cold-start / transient retrieval failures.
+ * Definitive outcomes (empty chain, missing key, 4xx other than 429) stop early.
+ */
 async function fetchAtomChain(
   parcelNodeId: string,
 ): Promise<{ ok: true; chain: PropertyAtomChain } | { ok: false; reason: string }> {
-  const first = await fetchAtomChainOnce(parcelNodeId);
-  if (first.ok) return first;
-  if (!COLD_START_RETRYABLE.test(first.reason)) return first;
-  await sleep(COLD_START_RETRY_MS);
-  return fetchAtomChainOnce(parcelNodeId);
+  let last: { ok: false; reason: string } = { ok: false, reason: "atom-chain unset" };
+  for (let i = 0; i < ATOM_CHAIN_ATTEMPTS; i++) {
+    const result = await fetchAtomChainOnce(parcelNodeId);
+    if (result.ok) return result;
+    last = result;
+    if (!isTransientAtomChainReason(result.reason)) return result;
+    const wait = ATOM_CHAIN_BACKOFF_MS[i] ?? 3_000;
+    await sleep(wait);
+  }
+  return last;
 }
 
 /** Strip cortex envelope / tier2.envelope so zombie multiply cannot be product truth. */
@@ -278,7 +294,23 @@ export async function handlePropertyAtomsFacets(
     }
   }
 
-  // Merge cortex baseFacts/landUse/flood when available, but never cortex envelope.
+  // BLOCKING: a transient retrieval failure must NOT become "not verified"
+  // (honest-absence is a DATA state). Tell the client to keep loading / retry.
+  if (!atom.ok && isTransientAtomChainReason(atom.reason)) {
+    res.setHeader("X-PE-Read-Path", "atom-pending" satisfies PeReadPathHeader);
+    res.setHeader("Retry-After", "2");
+    res.setHeader("Content-Type", "application/json");
+    res.status(503).json({
+      error: "upstream_transient",
+      retryable: true,
+      message: "Property atom chain temporarily unreachable — retrying.",
+      atomPathReason: atom.reason,
+      parcelNodeId,
+    });
+    return;
+  }
+
+  // Definitive empty / adapt-failed: merge cortex baseFacts only (never envelope).
   try {
     const cortex = await fetchCortexFacets(parcelNodeId);
     if (cortex.status >= 200 && cortex.status < 300) {

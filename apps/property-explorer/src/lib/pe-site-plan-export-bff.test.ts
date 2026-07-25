@@ -60,6 +60,26 @@ describe('site-plan export core', () => {
     expect(gate.ok).toBe(true)
   })
 
+  it('mirrors terrain: signed-in free tier allowed when operator/dev bypass armed', () => {
+    const gate = resolveSitePlanExportAuth({
+      sessionToken: 'session-token',
+      entitlement: { ok: true, tier: 'free' },
+      devBypass: true,
+    })
+    expect(gate.ok).toBe(true)
+    if (gate.ok) expect(gate.devBypass).toBe(true)
+  })
+
+  it('mirrors terrain: bypass still requires a session', () => {
+    const gate = resolveSitePlanExportAuth({
+      sessionToken: null,
+      entitlement: { ok: false, status: 401 },
+      devBypass: true,
+    })
+    expect(gate.ok).toBe(false)
+    if (!gate.ok) expect(gate.status).toBe(401)
+  })
+
   it('maps MCP refresh payload to BFF response with download links', () => {
     const mapped = mapMcpSitePlanPayload(
       {
