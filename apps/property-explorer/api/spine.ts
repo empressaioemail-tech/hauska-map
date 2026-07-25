@@ -269,7 +269,8 @@ export default async function handler(req: VercelRequest, res: VercelResponse): 
     if (!isCortexBrowsePathAllowed(method, upstreamPath)) {
       res.status(403).json({
         error: 'forbidden',
-        message: 'Anonymous browse proxy allows facet/envelope/map-data paths only. Use /api/spine-deep for authenticated deep routes.',
+        message:
+          'Anonymous browse proxy allows facet/envelope/map-data paths only. GTM consent/events use /api/pe-gtm; authenticated deep routes use /api/spine-deep.',
       })
       return
     }
