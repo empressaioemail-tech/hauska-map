@@ -4,13 +4,18 @@
 //
 // Balance-sheet ledger of the physical-world node graph:
 //   - County tally in the Gate A live-SELECT shape (G1)
-//   - Node inspect by canonical parcelNodeId → property-chain DIDs + shared
-//     retrieval /atoms/trace/:did client (SAME as Parcel Trace — no second tracer)
+//   - Node inspect by canonical parcelNodeId → property atom-chain
+//     (same retrieval path as PE / Gate C — NOT /atoms/trace, which 404s for
+//     property atoms that exist without a composition graph)
 //   - Bidirectional binding via hash `node=` (WDLL 4)
 
 import React, { useEffect, useMemo, useState } from 'react'
 import { loadConfig, type SpineConfig } from '../../api/spineClient'
-import { fetchAtomTrace, propertyChainDids } from '../../api/atomTrace'
+import {
+  fetchPropertyAtomChain,
+  propertyChainSlotStatuses,
+  type PropertyAtomChainBody,
+} from '../../api/atomTrace'
 import { Panel, Pill, Loading, sectionHeader, mono } from '../primitives'
 import { useParcelNodeBinding, isCanonicalParcelNodeId } from '../center/parcelNodeBinding'
 
@@ -131,49 +136,44 @@ export const NodeGraph: React.FC = () => {
     setLoadingNode(true)
     setNodeError(null)
     lockParcelNode(nodeId)
-    const dids = propertyChainDids(nodeId)
-    const slots: Array<{ key: string; did: string }> = [
-      { key: 'zoning-fact', did: dids.zoningFact },
-      { key: 'setback-rule', did: dids.setbackRule },
-      { key: 'buildable-envelope', did: dids.buildableEnvelope },
-    ]
-    setSlotStatus(Object.fromEntries(slots.map((s) => [s.key, 'loading' as SlotStatus])))
+    setSlotStatus({
+      'zoning-fact': 'loading',
+      'setback-rule': 'loading',
+      'buildable-envelope': 'loading',
+    })
 
-    const next: Record<string, SlotStatus> = {}
-    let firstTrace: unknown = null
-    for (const slot of slots) {
-      const result = await fetchAtomTrace(slot.did, config)
-      if (!result.ok) {
-        // 404 / not found → honest empty for that slot (G1), not a panel error.
-        if (result.status === 404) next[slot.key] = 'honest-empty'
-        else next[slot.key] = 'error'
-        continue
-      }
-      const body = result.json as { nodes?: unknown[]; atoms?: unknown[]; trace?: unknown } | null
-      const hasGraph =
-        (Array.isArray(body?.nodes) && body!.nodes!.length > 0) ||
-        (Array.isArray(body?.atoms) && body!.atoms!.length > 0) ||
-        body?.trace != null ||
-        (body != null && Object.keys(body).length > 0)
-      next[slot.key] = hasGraph ? 'present' : 'honest-empty'
-      if (hasGraph && firstTrace == null) firstTrace = result.json
+    const result = await fetchPropertyAtomChain(nodeId, config)
+    if (!result.ok) {
+      setSlotStatus({
+        'zoning-fact': 'error',
+        'setback-rule': 'error',
+        'buildable-envelope': 'error',
+      })
+      setTraceJson('—')
+      setNodeError(result.error || `atom-chain HTTP ${result.status}`)
+      setLoadingNode(false)
+      return
     }
+
+    const chain = result.json as PropertyAtomChainBody
+    const next = propertyChainSlotStatuses(chain)
     setSlotStatus(next)
-    setTraceJson(firstTrace ? JSON.stringify(firstTrace, null, 2) : 'Honest empty — no graph edges for this node.')
+    setTraceJson(JSON.stringify(chain, null, 2))
     setLoadingNode(false)
   }
 
+  // Map → ledger: when LiveMapTile locks `node=`, re-inspect that id (WDLL 4).
   useEffect(() => {
     if (parcelNodeId) void inspectNode(parcelNodeId)
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [])
+  }, [parcelNodeId])
 
   const counties = tally?.centralTx?.counties ?? []
 
   return (
     <Panel
       title="Node & Graph"
-      subtitle="Live ledger · Gate A SELECT shape + retrieval /atoms/trace/:did"
+      subtitle="Live ledger · Gate A SELECT shape + retrieval property atom-chain"
       right={<Pill sev="ok">live</Pill>}
     >
       <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
@@ -254,8 +254,9 @@ export const NodeGraph: React.FC = () => {
               marginBottom: 8,
             }}
           >
-            Locks hash <code>node=</code> (WDLL 4 binding). Traces via the shared{' '}
-            <code>fetchAtomTrace</code> client — same path as Parcel Trace.
+            Locks hash <code>node=</code> (WDLL 4 binding). Slot pills from the
+            shared <code>fetchPropertyAtomChain</code> client — same retrieval
+            path as PE facets / Gate C.
           </p>
           <div style={{ display: 'flex', gap: 6, alignItems: 'center' }}>
             <input
@@ -274,7 +275,7 @@ export const NodeGraph: React.FC = () => {
               disabled={loadingNode}
               data-testid="node-graph-inspect"
             >
-              {loadingNode ? 'Tracing…' : 'Inspect'}
+              {loadingNode ? 'Loading…' : 'Inspect'}
             </button>
             <button
               style={btnStyle}
@@ -306,7 +307,7 @@ export const NodeGraph: React.FC = () => {
             })}
           </div>
           <div style={{ marginTop: 10 }}>
-            <span style={sectionHeader}>Trace (shared client)</span>
+            <span style={sectionHeader}>Atom chain (shared client)</span>
             <pre style={preStyle} data-testid="node-graph-trace">
               {traceJson}
             </pre>

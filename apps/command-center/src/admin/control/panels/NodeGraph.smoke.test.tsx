@@ -1,6 +1,7 @@
 /**
  * WDLL 8 dogfood smoke — Node & Graph ledger renders Gate A tally shape and
- * uses the shared trace client. Network is mocked; fails loudly on contract drift.
+ * inspects via the shared property atom-chain client. Network is mocked;
+ * fails loudly on contract drift.
  *
  * Avoids PanelProvider (pulls PanelRegistry → workspace → map-renderer CSS).
  */
@@ -27,15 +28,27 @@ vi.mock('../../api/atomTrace', async () => {
   const actual = await vi.importActual<typeof import('../../api/atomTrace')>('../../api/atomTrace')
   return {
     ...actual,
-    fetchAtomTrace: vi.fn(async (did: string) => {
-      if (did.includes('zoning-fact')) {
+    fetchPropertyAtomChain: vi.fn(async (parcelNodeId: string) => {
+      if (parcelNodeId === '48209:156346') {
         return {
           ok: true,
           status: 200,
-          json: { nodes: [{ id: did }], edges: [] },
+          json: {
+            parcelNodeId,
+            zoningFact: {
+              status: 'active',
+              atomDid: `did:hauska:zoning-fact:${parcelNodeId}`,
+              district: 'HC',
+            },
+            setbackRule: null,
+            buildableEnvelope: {
+              status: 'active',
+              atomDid: `did:hauska:buildable-envelope:${parcelNodeId}`,
+            },
+          },
         }
       }
-      return { ok: false, status: 404, json: null, error: 'not found' }
+      return { ok: false, status: 502, json: null, error: 'unreachable' }
     }),
   }
 })
@@ -74,15 +87,16 @@ describe('NodeGraph smoke (WDLL 8)', () => {
         if (String(url).includes('central_tx_node_graph_tally.json')) {
           return {
             ok: true,
+            text: async () => JSON.stringify(TALLY),
             json: async () => TALLY,
           }
         }
-        return { ok: false, status: 404, json: async () => null }
+        return { ok: false, status: 404, text: async () => '', json: async () => null }
       }),
     )
   })
 
-  it('renders Gate A tally columns and inspects a named node', async () => {
+  it('renders Gate A tally columns and inspects a named node via atom-chain', async () => {
     render(<NodeGraph />)
 
     await waitFor(() => {
@@ -97,7 +111,8 @@ describe('NodeGraph smoke (WDLL 8)', () => {
     await waitFor(() => {
       expect(lockParcelNode).toHaveBeenCalledWith('48209:156346')
       expect(screen.getByText(/zoning-fact: present/i)).toBeTruthy()
-      expect(screen.getByText(/setback-rule: honest-empty/i)).toBeTruthy()
+      expect(screen.getByText(/setback-rule: missing/i)).toBeTruthy()
+      expect(screen.getByText(/buildable-envelope: present/i)).toBeTruthy()
     })
   })
 })

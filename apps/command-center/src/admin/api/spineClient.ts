@@ -113,13 +113,32 @@ export async function getJson<T = unknown>(
   const timer = setTimeout(() => controller.abort(), timeoutMs)
   try {
     const res = await fetch(url, { headers: authHeaders(config), signal: controller.signal })
-    const json = (await res.json().catch(() => null)) as T | null
+    const ct = (res.headers.get('content-type') || '').toLowerCase()
+    const text = await res.text()
+    // SPA fallthrough (misconfigured rewrite) returns 200 text/html — never treat as JSON ok.
+    if (ct.includes('text/html') || /^\s*<(!doctype|html)/i.test(text)) {
+      return {
+        ok: false,
+        status: res.status,
+        json: null,
+        error: 'proxy returned HTML (spine rewrite missing /api/spine → serverless)',
+      }
+    }
+    let json: T | null = null
+    try {
+      json = text.trim() ? (JSON.parse(text) as T) : null
+    } catch {
+      json = null
+    }
     if (!res.ok) {
       const msg =
         (json as { message?: string; error?: string } | null)?.message ||
         (json as { message?: string; error?: string } | null)?.error ||
         `HTTP ${res.status}`
       return { ok: false, status: res.status, json, error: msg }
+    }
+    if (json == null) {
+      return { ok: false, status: res.status, json: null, error: 'response was not valid JSON' }
     }
     return { ok: true, status: res.status, json }
   } catch (err) {

@@ -91,7 +91,14 @@ async function fetchCortexFacets(
   };
 }
 
-async function fetchAtomChain(
+const COLD_START_RETRY_MS = 1_200;
+const COLD_START_RETRYABLE = /unreachable|ECONNRESET|ETIMEDOUT|fetch failed|HTTP 502|HTTP 503|HTTP 504/i;
+
+function sleep(ms: number): Promise<void> {
+  return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
+async function fetchAtomChainOnce(
   parcelNodeId: string,
 ): Promise<{ ok: true; chain: PropertyAtomChain } | { ok: false; reason: string }> {
   const { baseUrl, key } = retrievalConfig();
@@ -128,6 +135,17 @@ async function fetchAtomChain(
     return { ok: false, reason: "atom-chain empty" };
   }
   return { ok: true, chain };
+}
+
+/** One cold-start retry so a customer's first click never shows unreachable. */
+async function fetchAtomChain(
+  parcelNodeId: string,
+): Promise<{ ok: true; chain: PropertyAtomChain } | { ok: false; reason: string }> {
+  const first = await fetchAtomChainOnce(parcelNodeId);
+  if (first.ok) return first;
+  if (!COLD_START_RETRYABLE.test(first.reason)) return first;
+  await sleep(COLD_START_RETRY_MS);
+  return fetchAtomChainOnce(parcelNodeId);
 }
 
 /** Strip cortex envelope / tier2.envelope so zombie multiply cannot be product truth. */

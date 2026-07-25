@@ -1,11 +1,16 @@
 /**
- * WDLL 6 / G6 dogfood — one parcel-node read path + one trace client.
- * Fails if a second tracer or a forked liveGis body reappears.
+ * WDLL 6 / G6 dogfood — one parcel-node read path + shared retrieval clients.
+ * Fails if a second tracer/chain client or a forked liveGis body reappears.
  */
 import { describe, it, expect } from 'vitest'
 import { readFileSync, existsSync } from 'node:fs'
 import { resolve } from 'node:path'
-import { fetchAtomTrace, propertyChainDids } from './atomTrace'
+import {
+  fetchAtomTrace,
+  fetchPropertyAtomChain,
+  propertyChainDids,
+  propertyChainSlotStatuses,
+} from './atomTrace'
 
 const adminRoot = resolve(__dirname, '..')
 const mapRoot = resolve(__dirname, '../../../../..')
@@ -18,7 +23,7 @@ describe('one-read-path guardrails (F1b dogfood)', () => {
     expect(d.buildableEnvelope).toBe('did:hauska:buildable-envelope:48209:156346')
   })
 
-  it('Parcel Trace and Node Graph both import fetchAtomTrace (no second tracer)', () => {
+  it('Parcel Trace uses fetchAtomTrace; Node Graph uses fetchPropertyAtomChain (one module)', () => {
     const parcelTrace = readFileSync(
       resolve(adminRoot, 'control/panels/ParcelTrace.tsx'),
       'utf8',
@@ -30,9 +35,22 @@ describe('one-read-path guardrails (F1b dogfood)', () => {
     expect(parcelTrace).toMatch(/from ['"].*atomTrace['"]/)
     expect(parcelTrace).toMatch(/fetchAtomTrace/)
     expect(nodeGraph).toMatch(/from ['"].*atomTrace['"]/)
-    expect(nodeGraph).toMatch(/fetchAtomTrace/)
+    expect(nodeGraph).toMatch(/fetchPropertyAtomChain/)
+    expect(nodeGraph).not.toMatch(/fetchAtomTrace/)
     expect(parcelTrace).not.toMatch(/\$\{retrievalUrl\}\/atoms\/trace/)
     expect(nodeGraph).not.toMatch(/\$\{retrievalUrl\}\/atoms\/trace/)
+    expect(nodeGraph).not.toMatch(/\$\{retrievalUrl\}\/property-nodes/)
+  })
+
+  it('propertyChainSlotStatuses maps active atoms to present', () => {
+    const slots = propertyChainSlotStatuses({
+      zoningFact: { status: 'active', atomDid: 'did:hauska:zoning-fact:x' },
+      setbackRule: { absence: { kind: 'no-setback-table' } },
+      buildableEnvelope: null,
+    })
+    expect(slots['zoning-fact']).toBe('present')
+    expect(slots['setback-rule']).toBe('honest-empty')
+    expect(slots['buildable-envelope']).toBe('missing')
   })
 
   it('liveGis.ts in PE and CC are thin re-exports of @hauska/map-renderer (WDLL 6)', () => {
@@ -51,7 +69,8 @@ describe('one-read-path guardrails (F1b dogfood)', () => {
     expect(existsSync(resolve(mapRoot, 'packages/map-renderer/src/live-gis.ts'))).toBe(true)
   })
 
-  it('fetchAtomTrace is exported for reuse', () => {
+  it('shared retrieval clients are exported', () => {
     expect(typeof fetchAtomTrace).toBe('function')
+    expect(typeof fetchPropertyAtomChain).toBe('function')
   })
 })
