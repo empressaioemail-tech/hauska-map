@@ -123,6 +123,7 @@ describe('WDLL 8 live smoke — GREEN path (gated)', () => {
         assertParcelAvailable(result)
       }
     },
+    60_000,
   )
 })
 
