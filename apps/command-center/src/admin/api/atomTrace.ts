@@ -16,6 +16,13 @@ export interface AtomTraceResult {
   error?: string
 }
 
+/** Minimal road-node chain body (retrieval GET /road-nodes/:id/atom-chain). */
+export interface RoadAtomChainBody {
+  roadNodeId?: string
+  roadNode?: Record<string, unknown> | null
+  atoms?: unknown[] | null
+}
+
 export type PropertyChainSlotKey = 'zoning-fact' | 'setback-rule' | 'buildable-envelope'
 
 /** Minimal atom-chain body (retrieval GET /property-nodes/:id/atom-chain). */
@@ -87,6 +94,33 @@ export async function fetchPropertyAtomChain(
   const reason = first.error || `HTTP ${first.status}`
   if (!COLD_START_RETRYABLE.test(reason)) return first
   await sleep(COLD_START_RETRY_MS)
+  return getJson<unknown>(url, config, timeoutMs)
+}
+
+/** G6 road id — {fips}:road:{osm_way_id} (27c WDLL 3 / R1). */
+const ROAD_NODE_ID_RE = /^\d{5}:road:\d+$/
+
+export function isCanonicalRoadNodeId(value: unknown): value is string {
+  return typeof value === 'string' && ROAD_NODE_ID_RE.test(value.trim())
+}
+
+/**
+ * Road spine node chain — same retrieval substrate as property ledger (R1).
+ */
+export async function fetchRoadAtomChain(
+  roadNodeId: string,
+  config: SpineConfig,
+  timeoutMs = 20_000,
+): Promise<AtomTraceResult> {
+  const retrievalUrl = config.retrievalApiUrl?.replace(/\/$/, '') || ''
+  if (!retrievalUrl) {
+    return { ok: false, status: 0, json: null, error: 'No retrieval API URL configured' }
+  }
+  const id = roadNodeId.trim()
+  if (!id) {
+    return { ok: false, status: 0, json: null, error: 'roadNodeId is required' }
+  }
+  const url = `${retrievalUrl}/road-nodes/${encodeURIComponent(id)}/atom-chain`
   return getJson<unknown>(url, config, timeoutMs)
 }
 

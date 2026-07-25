@@ -14,6 +14,15 @@ export function isCanonicalParcelNodeId(value: unknown): value is string {
   return typeof value === 'string' && PARCEL_NODE_ID_RE.test(value.trim())
 }
 
+/** R1 — road spine node id on the same substrate. */
+export function isCanonicalRoadNodeId(value: unknown): value is string {
+  return typeof value === 'string' && /^\d{5}:road:\d+$/.test(value.trim())
+}
+
+export function isCanonicalSpineNodeId(value: unknown): value is string {
+  return isCanonicalParcelNodeId(value) || isCanonicalRoadNodeId(value)
+}
+
 /**
  * Read/write the locked parcel node id from the shared panel hash.
  * Map → ledger: lockParcelNode(id) after a parcel click.
