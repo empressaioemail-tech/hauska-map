@@ -41,6 +41,7 @@ import {
   PERSONA_OPTIONS,
 } from "../lib/personaRegister";
 import { TerrainExportSection } from "./TerrainExportSection";
+import { SitePlanExportSection } from "./SitePlanExportSection";
 
 const CARD_BG = "rgba(13,17,23,0.94)";
 const MUTED = "#8b97a5";
@@ -72,6 +73,7 @@ export function InspectCard({
   onMakeSubject,
   onResearch,
   onTerrainPaymentRequired,
+  onSitePlanPaymentRequired,
   onSaveProperty,
   persona: personaProp,
   onPersonaChange,
@@ -94,6 +96,7 @@ export function InspectCard({
   onMakeSubject: () => void;
   onResearch: () => void;
   onTerrainPaymentRequired: () => void;
+  onSitePlanPaymentRequired?: () => void;
   onSaveProperty?: () => void;
   persona?: Persona;
   onPersonaChange?: (persona: Persona) => void;
@@ -428,6 +431,13 @@ export function InspectCard({
         <TerrainExportSection
           parcelNodeId={parcelNodeId}
           onPaymentRequired={onTerrainPaymentRequired}
+        />
+      )}
+
+      {parcelNodeId && (
+        <SitePlanExportSection
+          parcelNodeId={parcelNodeId}
+          onPaymentRequired={onSitePlanPaymentRequired ?? onTerrainPaymentRequired}
         />
       )}
 

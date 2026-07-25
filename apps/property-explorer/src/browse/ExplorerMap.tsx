@@ -653,6 +653,20 @@ export function ExplorerMap() {
     setPaywallOpen(true);
   }, [cardNodeId, persona]);
 
+  const handleSitePlanPaymentRequired = useCallback(() => {
+    const nodeId = cardNodeId ?? inspectedRef.current?.parcelNodeId ?? null;
+    void recordPeGtmEvent({
+      eventType: "pe_paywall_hit",
+      persona,
+      parcelNodeId: nodeId,
+    });
+    setPaywallMessage(
+      "Cited site-plan export (layered DXF/IFC + PDF sheet with setbacks, contours, and provenance) is a paid public-paid spine atom. Sign in and upgrade to Pro to export.",
+    );
+    setCheckoutNote(null);
+    setPaywallOpen(true);
+  }, [cardNodeId, persona]);
+
   const handleSaveProperty = useCallback(() => {
     const nodeId = cardNodeId ?? inspectedRef.current?.parcelNodeId ?? null;
     void recordPeGtmEvent({
@@ -794,6 +808,7 @@ export function ExplorerMap() {
           onMakeSubject={handleMakeSubject}
           onResearch={() => void handleResearch()}
           onTerrainPaymentRequired={handleTerrainPaymentRequired}
+          onSitePlanPaymentRequired={handleSitePlanPaymentRequired}
           onSaveProperty={handleSaveProperty}
           persona={persona}
           onPersonaChange={setPersona}
