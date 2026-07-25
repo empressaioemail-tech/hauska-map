@@ -1,8 +1,11 @@
 /**
- * Property Explorer GTM client — consent + funnel events via cortex BFF (WDLL 25).
+ * Property Explorer GTM client — consent + funnel events via pe-gtm BFF (WDLL 25).
+ *
+ * Must NOT call /api/spine/cortex/... — the anonymous browse gate returns 403 for
+ * GTM paths (facets/envelope/map-data only). /api/pe-gtm attaches CORTEX_SERVICE_API_KEY
+ * server-side and proxies to cortex /api/brokerage/v1/gtm/property-explorer/*.
  */
 
-import { CORTEX_PROXY_BASE } from "./config";
 import { getInstallId } from "./installId";
 import type { PersonaId } from "./personaRegister";
 
@@ -17,12 +20,13 @@ export type PeFunnelEventType =
   | "pe_paywall_hit"
   | "pe_upgrade_started";
 
-const GTM_BASE = `${CORTEX_PROXY_BASE}/brokerage/v1/gtm/property-explorer`;
-
 let consentPromise: Promise<boolean> | null = null;
 
-async function postJson<T>(path: string, body: unknown): Promise<T> {
-  const res = await fetch(`${GTM_BASE}${path}`, {
+async function postGtm<T>(
+  path: "consent" | "events",
+  body: unknown,
+): Promise<T> {
+  const res = await fetch(`/api/pe-gtm?path=${encodeURIComponent(path)}`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify(body),
@@ -45,7 +49,7 @@ export async function ensurePeGtmConsent(): Promise<boolean> {
   if (consentPromise) return consentPromise;
   consentPromise = (async () => {
     try {
-      await postJson("/consent", { installId: getInstallId() });
+      await postGtm("consent", { installId: getInstallId() });
       return true;
     } catch {
       consentPromise = null;
@@ -64,7 +68,7 @@ export async function recordPeGtmEvent(input: {
   const ok = await ensurePeGtmConsent();
   if (!ok) return;
   try {
-    await postJson("/events", {
+    await postGtm("events", {
       installId: getInstallId(),
       eventType: input.eventType,
       personaInferred: input.persona,
