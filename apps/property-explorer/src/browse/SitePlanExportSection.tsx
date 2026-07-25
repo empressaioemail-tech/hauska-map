@@ -70,10 +70,8 @@ export function SitePlanExportSection({
         return;
       }
       if (resp.status === 422) {
-        setNotice(
-          resp.message ??
-            "No setback rule on file for this parcel — site-plan export refuses to guess front/side/rear.",
-        );
+        // Anti-fabrication stays (422); only the customer copy is soft.
+        setNotice("Setbacks not available for this parcel yet.");
         return;
       }
       // 502/503: real upstream/config errors — never open the Stripe paywall.

@@ -123,7 +123,12 @@ async function handleRefresh(
       // Do NOT map every MCP isError to 402 — that opened the customer paywall
       // for engine/setback/upstream failures (operator saw Stripe with bypass on).
       if (/422|setback/i.test(message)) {
-        res.status(422).json({ error: 'setback_rule_missing', message })
+        // Keep anti-fabrication 422; soft customer copy (setback correctness is post-F1).
+        res.status(422).json({
+          error: 'setback_rule_missing',
+          message: 'Setbacks not available for this parcel yet.',
+          detail: message,
+        })
         return
       }
       if (isMcpPaymentMessage(message)) {
@@ -168,7 +173,11 @@ async function handleRefresh(
       return
     }
     if (/422|setback/i.test(message)) {
-      res.status(422).json({ error: 'setback_rule_missing', message })
+      res.status(422).json({
+        error: 'setback_rule_missing',
+        message: 'Setbacks not available for this parcel yet.',
+        detail: message,
+      })
       return
     }
     res.status(502).json({ error: 'upstream_error', message })
