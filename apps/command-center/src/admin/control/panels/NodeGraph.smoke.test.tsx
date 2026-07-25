@@ -15,6 +15,11 @@ let lockedId: string | null = null
 vi.mock('../center/parcelNodeBinding', () => ({
   isCanonicalParcelNodeId: (v: unknown) =>
     typeof v === 'string' && /^\d{5}:[^/\s]+$/.test(v.trim()),
+  isCanonicalRoadNodeId: (v: unknown) =>
+    typeof v === 'string' && /^\d{5}:road:\d+$/.test(v.trim()),
+  isCanonicalSpineNodeId: (v: unknown) =>
+    typeof v === 'string' &&
+    (/^\d{5}:[^/\s]+$/.test(v.trim()) || /^\d{5}:road:\d+$/.test(v.trim())),
   useParcelNodeBinding: () => ({
     parcelNodeId: lockedId,
     lockParcelNode: (id: string | null) => {

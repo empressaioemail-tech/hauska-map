@@ -13,11 +13,13 @@ import React, { useEffect, useMemo, useState } from 'react'
 import { loadConfig, type SpineConfig } from '../../api/spineClient'
 import {
   fetchPropertyAtomChain,
+  fetchRoadAtomChain,
   propertyChainSlotStatuses,
   type PropertyAtomChainBody,
+  type RoadAtomChainBody,
 } from '../../api/atomTrace'
 import { Panel, Pill, Loading, sectionHeader, mono } from '../primitives'
-import { useParcelNodeBinding, isCanonicalParcelNodeId } from '../center/parcelNodeBinding'
+import { useParcelNodeBinding, isCanonicalParcelNodeId, isCanonicalRoadNodeId } from '../center/parcelNodeBinding'
 
 interface CountyTallyRow {
   fips: string
@@ -38,6 +40,12 @@ interface GateATally {
   source?: string
   servingRevisionNote?: string
   totals?: Record<string, unknown>
+  roadRollup?: {
+    road_nodes?: number
+    named_roads?: number
+    byCounty?: Array<{ fips: string; county: string; road_nodes: number; named_roads: number }>
+    sampleNamed?: Array<{ roadNodeId: string; displayName: string | null }>
+  }
   centralTx?: { counties?: CountyTallyRow[] }
 }
 
@@ -151,8 +159,27 @@ export const NodeGraph: React.FC = () => {
 
   const inspectNode = async (id: string) => {
     const nodeId = id.trim()
+    if (isCanonicalRoadNodeId(nodeId)) {
+      setLoadingNode(true)
+      setNodeError(null)
+      setSlotStatus({ 'road-node': 'loading' })
+      const result = await fetchRoadAtomChain(nodeId, config)
+      if (!result.ok) {
+        setSlotStatus({ 'road-node': 'error' })
+        setTraceJson('—')
+        setNodeError(result.error || `road atom-chain HTTP ${result.status}`)
+        setLoadingNode(false)
+        return
+      }
+      const chain = result.json as RoadAtomChainBody
+      const present = chain.roadNode != null ? 'present' : 'missing'
+      setSlotStatus({ 'road-node': present as SlotStatus })
+      setTraceJson(JSON.stringify(chain, null, 2))
+      setLoadingNode(false)
+      return
+    }
     if (!isCanonicalParcelNodeId(nodeId)) {
-      setNodeError('parcelNodeId must match {fips}:{propId} (G6)')
+      setNodeError('node id must match {fips}:{propId} or {fips}:road:{osm_way_id} (G6 / R1)')
       return
     }
     setLoadingNode(true)
@@ -191,6 +218,7 @@ export const NodeGraph: React.FC = () => {
   }, [parcelNodeId])
 
   const counties = tally?.centralTx?.counties ?? []
+  const roadRollup = tally?.roadRollup
 
   return (
     <Panel
@@ -271,6 +299,48 @@ export const NodeGraph: React.FC = () => {
           )}
         </div>
 
+        {roadRollup != null && (
+          <div>
+            <span style={sectionHeader}>Road nodes (27c WDLL 3 / R1)</span>
+            <p
+              style={{
+                fontSize: 11,
+                color: 'var(--color-text-tertiary)',
+                fontFamily: 'var(--font-ui)',
+                marginTop: 4,
+                marginBottom: 8,
+              }}
+            >
+              Live tally from <code>entity_type=road-node</code> on the same substrate.
+              Inspect with <code>{'{fips}'}:road:{'{osm_way_id}'}</code>.
+            </p>
+            <div style={{ fontSize: 11, fontFamily: 'var(--font-ui)', marginBottom: 8 }}>
+              Total road nodes: <code>{roadRollup.road_nodes ?? 0}</code> · Named:{' '}
+              <code>{roadRollup.named_roads ?? 0}</code>
+            </div>
+            {(roadRollup.sampleNamed?.length ?? 0) > 0 && (
+              <ul style={{ fontSize: 11, fontFamily: 'var(--font-ui)', margin: 0, paddingLeft: 18 }}>
+                {roadRollup.sampleNamed!.map((r) => (
+                  <li key={r.roadNodeId}>
+                    <button
+                      type="button"
+                      style={{ ...btnStyle, padding: '2px 8px', fontSize: 10 }}
+                      onClick={() => {
+                        setInputId(r.roadNodeId)
+                        void inspectNode(r.roadNodeId)
+                      }}
+                    >
+                      Inspect
+                    </button>{' '}
+                    <code>{r.roadNodeId}</code>
+                    {r.displayName ? ` — ${r.displayName}` : ''}
+                  </li>
+                ))}
+              </ul>
+            )}
+          </div>
+        )}
+
         <div>
           <span style={sectionHeader}>Node inspect (canonical id)</span>
           <p
@@ -294,7 +364,7 @@ export const NodeGraph: React.FC = () => {
               onKeyDown={(e) => {
                 if (e.key === 'Enter') void inspectNode(inputId)
               }}
-              placeholder="48209:156346"
+              placeholder="48209:156346 or 48021:road:123456789"
               data-testid="node-graph-input"
             />
             <button
