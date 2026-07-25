@@ -15,11 +15,8 @@ export const SITE_PLAN_EXPORT_FORMATS = [
 
 export type SitePlanExportFormat = (typeof SITE_PLAN_EXPORT_FORMATS)[number]
 
-const PARCEL_NODE_ID_RE = /^\d{5}:[^/]+$/
-
-export function isValidParcelNodeId(value: unknown): value is string {
-  return typeof value === 'string' && PARCEL_NODE_ID_RE.test(value.trim())
-}
+export { isValidParcelNodeId, PARCEL_NODE_ID_RE } from './parcel-node-id'
+import { isValidParcelNodeId } from './parcel-node-id'
 
 export function parseSitePlanFormat(value: unknown): SitePlanExportFormat | null {
   if (typeof value !== 'string') return null
@@ -118,7 +115,16 @@ export function extractInlineDownload(
 export function mapMcpSitePlanPayload(
   payload: Record<string, unknown>,
   selectedFormat: SitePlanExportFormat,
+  /** Request-path fallback when engine omits top-level id (QA-2 belt). */
+  requestParcelNodeId?: string | null,
 ): SitePlanExportBffResponse | { ok: false; message: string } {
+  if (payload.isError === true) {
+    const msg =
+      (typeof payload.message === 'string' && payload.message) ||
+      (typeof payload.error === 'string' && payload.error) ||
+      'MCP site-plan tool returned isError.'
+    return { ok: false, message: msg }
+  }
   const dataBlock = payload.data as Record<string, unknown> | undefined
   const atom = (payload.atom ?? dataBlock?.atom ?? payload) as Record<string, unknown>
   const parcelNodeId =
@@ -126,6 +132,7 @@ export function mapMcpSitePlanPayload(
     (typeof dataBlock?.parcelNodeId === 'string' && dataBlock.parcelNodeId) ||
     (typeof atom.parcelNodeId === 'string' && atom.parcelNodeId) ||
     (typeof atom.entityId === 'string' && atom.entityId) ||
+    (typeof requestParcelNodeId === 'string' && requestParcelNodeId) ||
     null
 
   if (!parcelNodeId || !isValidParcelNodeId(parcelNodeId)) {

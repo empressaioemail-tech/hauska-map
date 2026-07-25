@@ -26,6 +26,17 @@ describe("personaRegister", () => {
     expect(personaHeadline("homeowner", facts)).toMatch(/62%/);
   });
 
+  it("QA-3: setbacks present + buildable pending does not claim setbacks unverified", () => {
+    const line = personaHeadline("homeowner", {
+      zoning: "SF-2",
+      setbacks: "F 25′ · S 5′ · R 10′",
+      buildable: "setbacks present · buildable % pending",
+    });
+    expect(line).toMatch(/Setbacks are on file/i);
+    expect(line).toMatch(/buildable % pending/i);
+    expect(line).not.toMatch(/Setbacks and buildable area not verified/i);
+  });
+
   it("investor register emphasizes constraints", () => {
     expect(personaHeadline("investor", facts)).toMatch(/Constraints/);
     expect(personaHeadline("investor", facts)).toMatch(/SF-R/);

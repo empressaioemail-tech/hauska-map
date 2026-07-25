@@ -11,6 +11,8 @@ interface JsonRpcMessage {
   result?: {
     tools?: unknown[]
     content?: { type: string; text?: string }[]
+    /** MCP tool-level error flag — must be forwarded (QA-2). */
+    isError?: boolean
   } & Record<string, unknown>
   error?: { message?: string; code?: number }
 }
@@ -119,11 +121,18 @@ export class ServerMcpClient {
     await this.initialize()
     const result = await this.rpc('tools/call', { name, arguments: args })
     const text = result?.content?.find((c) => c.type === 'text')?.text ?? '{}'
+    let parsed: Record<string, unknown>
     try {
-      return JSON.parse(text) as Record<string, unknown>
+      parsed = JSON.parse(text) as Record<string, unknown>
     } catch {
-      return { raw: text, meta: result }
+      parsed = { raw: text, meta: result }
     }
+    // Forward MCP isError so BFF mappers do not treat tool failures as
+    // "missing parcelNodeId" (QA-2 / site-plan id-flow).
+    if (result?.isError === true) {
+      return { ...parsed, isError: true }
+    }
+    return parsed
   }
 }
 

@@ -242,6 +242,8 @@ export function adaptAtomChainToBakedFacets(
       status: "no-buildable-area",
       district: district ?? undefined,
       setbacks,
+      // Honest zero — setbacks consume the lot (QA-3: not "not verified").
+      buildableAreaPct: 0,
       approximate: true,
       provisional: true,
       emptyReason: "Setbacks consume the lot — no buildable area remains.",
@@ -250,7 +252,12 @@ export function adaptAtomChainToBakedFacets(
     };
     envelopeCovered = true;
   } else if (outcomeKind === "buildable" || setbacks) {
-    // Proof atoms may omit geojson — honest partial OK; do not fabricate geometry.
+    // Proof atoms may omit geojson / pct — honest partial OK; do not fabricate.
+    // When pct is absent, baked-facets marks buildable as pending (QA-3).
+    const pctFromAtom =
+      envAtom?.outcome && typeof (envAtom.outcome as { buildableAreaPct?: unknown }).buildableAreaPct === "number"
+        ? (envAtom.outcome as { buildableAreaPct: number }).buildableAreaPct
+        : undefined;
     envelope = {
       status: "ok",
       district: district ?? undefined,
@@ -261,6 +268,7 @@ export function adaptAtomChainToBakedFacets(
         geojson === undefined || geojson === null
           ? "Atom-chain envelope (setbacks present; geometry absent on proof atom — not fabricated)."
           : "Atom-chain buildable envelope.",
+      ...(typeof pctFromAtom === "number" ? { buildableAreaPct: pctFromAtom } : {}),
       ...(typeof areaSqFt === "number" ? { buildableAreaSqFt: areaSqFt } : {}),
       ...(geojson !== undefined && geojson !== null ? { geojson } : {}),
     };

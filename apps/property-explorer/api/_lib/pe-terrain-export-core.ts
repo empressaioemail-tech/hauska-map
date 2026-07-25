@@ -11,11 +11,8 @@ export type TerrainExportFormat = (typeof TERRAIN_EXPORT_FORMATS)[number]
 
 export const DEFERRED_TERRAIN_FORMAT = 'landxml-tin' as const
 
-const PARCEL_NODE_ID_RE = /^\d{5}:[^/]+$/
-
-export function isValidParcelNodeId(value: unknown): value is string {
-  return typeof value === 'string' && PARCEL_NODE_ID_RE.test(value.trim())
-}
+export { isValidParcelNodeId, PARCEL_NODE_ID_RE } from './parcel-node-id'
+import { isValidParcelNodeId } from './parcel-node-id'
 
 export function parseTerrainFormat(value: unknown): TerrainExportFormat | null {
   if (typeof value !== 'string') return null
@@ -107,7 +104,15 @@ export function extractInlineDownload(
 export function mapMcpTerrainPayload(
   payload: Record<string, unknown>,
   selectedFormat: TerrainExportFormat,
+  requestParcelNodeId?: string | null,
 ): TerrainExportBffResponse | { ok: false; message: string } {
+  if (payload.isError === true) {
+    const msg =
+      (typeof payload.message === 'string' && payload.message) ||
+      (typeof payload.error === 'string' && payload.error) ||
+      'MCP terrain tool returned isError.'
+    return { ok: false, message: msg }
+  }
   const dataBlock = payload.data as Record<string, unknown> | undefined
   const atom = (payload.atom ?? dataBlock?.atom ?? payload) as Record<string, unknown>
   const parcelNodeId =
@@ -115,6 +120,7 @@ export function mapMcpTerrainPayload(
     (typeof dataBlock?.parcelNodeId === 'string' && dataBlock.parcelNodeId) ||
     (typeof atom.parcelNodeId === 'string' && atom.parcelNodeId) ||
     (typeof atom.entityId === 'string' && atom.entityId) ||
+    (typeof requestParcelNodeId === 'string' && requestParcelNodeId) ||
     null
 
   if (!parcelNodeId || !isValidParcelNodeId(parcelNodeId)) {

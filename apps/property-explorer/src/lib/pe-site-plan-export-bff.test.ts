@@ -164,6 +164,39 @@ describe('site-plan export core', () => {
     }
   })
 
+  it('QA-2: falls back to request parcelNodeId when MCP omits id', () => {
+    const mapped = mapMcpSitePlanPayload(
+      {
+        data: {
+          atom: {
+            accessPolicy: 'public-paid',
+            artifacts: {
+              'pdf-site-plan': {
+                format: 'pdf-site-plan',
+                ref: 'gcs://bucket/x',
+                byteCount: 100,
+              },
+            },
+          },
+        },
+      },
+      'pdf-site-plan',
+      '48029:105129',
+    )
+    expect(mapped.ok).toBe(true)
+    if (mapped.ok) expect(mapped.parcelNodeId).toBe('48029:105129')
+  })
+
+  it('QA-2: surfaces isError instead of missing-id false negative', () => {
+    const mapped = mapMcpSitePlanPayload(
+      { isError: true, message: 'setback rule missing' },
+      'pdf-site-plan',
+      '48029:105129',
+    )
+    expect(mapped.ok).toBe(false)
+    if (!mapped.ok) expect(mapped.message).toMatch(/setback/i)
+  })
+
   it('builds engine gate-front headers with site-plan-export packageId', () => {
     const headers = buildSitePlanEngineGateHeaders({
       requestId: 'req-test-1',

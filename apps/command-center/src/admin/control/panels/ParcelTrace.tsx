@@ -9,6 +9,7 @@
 
 import React, { useMemo, useState } from 'react'
 import { loadConfig, type SpineConfig, getJson, postJson } from '../../api/spineClient'
+import { fetchAtomTrace } from '../../api/atomTrace'
 import { Panel, Pill, Loading, sectionHeader, mono, fmtTime } from '../primitives'
 
 // Response of POST cortex /api/plan-review/geocode (live-verified 2026-07-14):
@@ -154,18 +155,8 @@ export const ParcelTrace: React.FC = () => {
     setTraceResult(`Tracing ${atomId}…`)
 
     try {
-      const retrievalUrl = config.retrievalApiUrl?.replace(/\/$/, '') || ''
-      if (!retrievalUrl) {
-        setTraceResult('No retrieval API URL configured')
-        return
-      }
-      // retrieval-api routes are unprefixed: GET /atoms/trace/:did (there is
-      // no /v1 — verified against services/retrieval-api/src/server.ts).
-      const traceRes = await getJson<{ trace?: unknown }>(
-        `${retrievalUrl}/atoms/trace/${encodeURIComponent(atomId)}`,
-        config,
-        15000,
-      )
+      // Shared client with Node & Graph (WDLL 3) — do not invent a second tracer.
+      const traceRes = await fetchAtomTrace(atomId, config, 15000)
       if (!traceRes.ok) {
         setTraceResult(`Trace error: ${traceRes.error || 'unknown error'}`)
         return

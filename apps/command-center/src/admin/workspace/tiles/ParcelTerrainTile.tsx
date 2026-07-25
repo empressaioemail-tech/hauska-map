@@ -63,7 +63,8 @@ type LoadState =
   | { kind: 'unknown-parcel'; parcelNodeId: string; message: string }
   | { kind: 'error'; message: string }
 
-const PARCEL_ID_PATTERN = /^\d{5}:\d+$/
+/** G6 — same shape as PE/MCP PARCEL_NODE_ID_SOURCE (F1b). */
+const PARCEL_ID_PATTERN = /^\d{5}:[^/\s]+$/
 
 const FORMAT_OPTIONS: Array<{
   id: TerrainExportFormat

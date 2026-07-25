@@ -117,3 +117,25 @@ export type {
   PostMessageContract,
   WindowState,
 } from "./postMessage";
+
+// Live GIS client (shared PE + CC — WDLL 6 / F1b de-fork).
+export {
+  LIVE_PARCELS_KEY,
+  LIVE_FEMA_KEY,
+  MIN_PARCEL_ZOOM,
+  MIN_FEMA_ZOOM,
+  layersForZoom,
+  fetchGisLayer,
+  parcelFillColor,
+  toLiveOverlays,
+  parcelNodeIdFromSelection,
+  selectionToCard,
+} from "./live-gis";
+export type {
+  LiveLayerKey,
+  GeoJsonFeature,
+  FeatureCollectionLike,
+  GisLayerResponse,
+  LiveLayerState,
+  ParcelCardData,
+} from "./live-gis";
