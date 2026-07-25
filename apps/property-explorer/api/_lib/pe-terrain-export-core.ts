@@ -11,8 +11,10 @@ export type TerrainExportFormat = (typeof TERRAIN_EXPORT_FORMATS)[number]
 
 export const DEFERRED_TERRAIN_FORMAT = 'landxml-tin' as const
 
-export { isValidParcelNodeId, PARCEL_NODE_ID_RE } from './parcel-node-id'
-import { isValidParcelNodeId } from './parcel-node-id'
+// Vercel serverless ESM requires the .js extension (F1b Gate C: FUNCTION_INVOCATION_FAILED
+// without it — ERR_MODULE_NOT_FOUND for parcel-node-id).
+import { isValidParcelNodeId, PARCEL_NODE_ID_RE } from './parcel-node-id.js'
+export { isValidParcelNodeId, PARCEL_NODE_ID_RE }
 
 export function parseTerrainFormat(value: unknown): TerrainExportFormat | null {
   if (typeof value !== 'string') return null
