@@ -21,9 +21,10 @@ import {
   parsePropertyAtomsPath,
   type PeBakedFacetsResponse,
   type PropertyAtomChain,
+  shouldSkipColdDerive,
 } from "./atom-chain-to-facets.js";
 
-export { parsePropertyAtomsPath, isPropertyAtomPathEnabled };
+export { parsePropertyAtomsPath, isPropertyAtomPathEnabled, shouldSkipColdDerive };
 
 const DEFAULT_RETRIEVAL =
   "https://hauska-retrieval-api-h7gvu7rgcq-uc.a.run.app";
@@ -31,6 +32,7 @@ const DEFAULT_CORTEX = "https://cortex-api-tds7av26va-uc.a.run.app";
 
 export type PeReadPathHeader =
   | "atom-chain"
+  | "atom-chain-warm"
   | "atom-pending"
   | "cortex"
   | "cortex-fallback";
@@ -287,7 +289,12 @@ export async function handlePropertyAtomsFacets(
   if (atom.ok) {
     const adapted = adaptAtomChainToBakedFacets(atom.chain);
     if (adapted) {
-      res.setHeader("X-PE-Read-Path", "atom-chain" satisfies PeReadPathHeader);
+      const readHeader: PeReadPathHeader =
+        adapted.readPath === "atom-chain-warm" ? "atom-chain-warm" : "atom-chain";
+      res.setHeader("X-PE-Read-Path", readHeader);
+      if (shouldSkipColdDerive(atom.chain)) {
+        res.setHeader("X-PE-Cold-Derive", "skipped");
+      }
       res.setHeader("Content-Type", "application/json");
       res.status(200).json(adapted);
       return;
