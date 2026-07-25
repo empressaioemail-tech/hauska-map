@@ -35,9 +35,13 @@ function blobHrefFromBase64(base64: string, contentType: string): string | null 
 
 export function SitePlanExportSection({
   parcelNodeId,
+  address,
+  countyName,
   onPaymentRequired,
 }: {
   parcelNodeId: string;
+  address?: string | null;
+  countyName?: string | null;
   onPaymentRequired: () => void;
 }) {
   const [format, setFormat] = useState<SitePlanExportFormat>("pdf-site-plan");
@@ -49,7 +53,10 @@ export function SitePlanExportSection({
     setBusy(true);
     setNotice("Building site plan…");
     setResult(null);
-    const resp = await requestSitePlanExport(parcelNodeId, format);
+    const resp = await requestSitePlanExport(parcelNodeId, format, {
+      address,
+      countyName,
+    });
     setBusy(false);
 
     if (!resp.ok) {
@@ -69,13 +76,14 @@ export function SitePlanExportSection({
         );
         return;
       }
+      // 502/503: real upstream/config errors — never open the Stripe paywall.
       setNotice(resp.message ?? `Export failed (${resp.status || "network"}).`);
       return;
     }
 
     setResult(resp.data);
     setNotice("Site plan ready — download below.");
-  }, [format, onPaymentRequired, parcelNodeId]);
+  }, [address, countyName, format, onPaymentRequired, parcelNodeId]);
 
   const inline = result?.inlineDownload;
   const inlineMatches =

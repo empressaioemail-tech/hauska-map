@@ -37,7 +37,7 @@ import {
 async function requirePaidSession(
   req: VercelRequest,
   res: VercelResponse,
-): Promise<string | null> {
+): Promise<{ token: string; devBypass: boolean } | null> {
   const token = readPeSessionCookie(req.headers.cookie)
   const entitlement = token ? await fetchPeEntitlement(token) : { ok: false as const, status: 401 as const }
   const gate = resolveSitePlanExportAuth({
@@ -58,14 +58,29 @@ async function requirePaidSession(
   if (gate.devBypass) {
     res.setHeader('X-PE-Export-Dev-Bypass', '1')
   }
-  return token
+  return { token: token!, devBypass: gate.devBypass === true }
+}
+
+function mcpToolErrorMessage(payload: Record<string, unknown>): string {
+  for (const key of ['message', 'reason', 'error', 'raw'] as const) {
+    const v = payload[key]
+    if (typeof v === 'string' && v.trim()) return v.trim()
+  }
+  return 'Site-plan export declined.'
+}
+
+function isMcpPaymentMessage(message: string): boolean {
+  return /paid X-Hauska-Key|public-paid|anonymous and free|payment_required|upgrade or retry after quota|metering denied/i.test(
+    message,
+  )
 }
 
 async function handleRefresh(
   req: VercelRequest,
   res: VercelResponse,
 ): Promise<void> {
-  if (!(await requirePaidSession(req, res))) return
+  const session = await requirePaidSession(req, res)
+  if (!session) return
 
   if (!mcpProductKey()) {
     res.status(503).json({
@@ -104,15 +119,27 @@ async function handleRefresh(
     })
 
     if (payload.isError === true) {
-      const message =
-        (typeof payload.message === 'string' && payload.message) ||
-        (typeof payload.reason === 'string' && payload.reason) ||
-        'Site-plan export declined.'
+      const message = mcpToolErrorMessage(payload)
+      // Do NOT map every MCP isError to 402 — that opened the customer paywall
+      // for engine/setback/upstream failures (operator saw Stripe with bypass on).
       if (/422|setback/i.test(message)) {
         res.status(422).json({ error: 'setback_rule_missing', message })
         return
       }
-      res.status(402).json({ error: 'payment_required', message })
+      if (isMcpPaymentMessage(message)) {
+        if (session.devBypass) {
+          res.status(503).json({
+            error: 'mcp_paid_key_required',
+            message:
+              'Operator bypass cleared the PE paywall, but MCP_PRODUCT_KEY is not paid-tier. ' +
+              message,
+          })
+          return
+        }
+        res.status(402).json({ error: 'payment_required', message })
+        return
+      }
+      res.status(502).json({ error: 'upstream_error', message })
       return
     }
 
@@ -125,7 +152,15 @@ async function handleRefresh(
     res.status(200).json(mapped)
   } catch (err) {
     const message = err instanceof Error ? err.message : String(err)
-    if (/401|402|paid|anonymous|withheld/i.test(message)) {
+    if (isMcpPaymentMessage(message)) {
+      if (session.devBypass) {
+        res.status(503).json({
+          error: 'mcp_paid_key_required',
+          message:
+            'Operator bypass cleared the PE paywall, but MCP rejected the call. ' + message,
+        })
+        return
+      }
       res.status(402).json({
         error: 'payment_required',
         message,

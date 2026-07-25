@@ -463,6 +463,14 @@ export function InspectCard({
       {parcelNodeId && (
         <SitePlanExportSection
           parcelNodeId={parcelNodeId}
+          address={
+            (baked?.situsAddress.state === "present"
+              ? baked.situsAddress.value
+              : card.situsAddress) ?? null
+          }
+          countyName={
+            (baked?.county.state === "present" ? baked.county.value : null) ?? null
+          }
           onPaymentRequired={onSitePlanPaymentRequired ?? onTerrainPaymentRequired}
         />
       )}
