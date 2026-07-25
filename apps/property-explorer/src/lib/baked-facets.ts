@@ -24,6 +24,8 @@
 // Owner is NEVER present (the bake never wrote it and the endpoint strips it
 // defense-in-depth); this client never reads or surfaces an owner field.
 
+import { formatSetbackDisplay } from "../../api/_lib/setback-not-specified";
+
 /** The baked Tier-1 facet payload, mirrored from the backend contract. */
 export interface BakedFacetPayload {
   parcelNodeId?: string;
@@ -50,7 +52,17 @@ export interface BakedFacetPayload {
     provisional?: boolean;
     declineReason?: string;
     district?: string;
-    setbacks?: { front_ft: number; side_ft: number; rear_ft: number };
+    setbacks?: {
+      front_ft: number;
+      side_ft: number;
+      rear_ft: number;
+      not_specified?: {
+        front?: boolean;
+        side?: boolean;
+        rear?: boolean;
+        sideCorner?: boolean;
+      };
+    };
     buildableAreaPct?: number;
     disclosure?: string;
     emptyReason?: string;
@@ -213,17 +225,28 @@ export function deriveBakedCardModel(payload: BakedFacetPayload): BakedCardModel
   // but pct is missing, say pending (not "not verified").
   const hasEnvelope = cov.envelope === true && !!env && env.status !== "declined";
   const s = env?.setbacks;
+  const silentAxes = !!(
+    s?.not_specified?.front ||
+    s?.not_specified?.side ||
+    s?.not_specified?.rear
+  );
   const setbacks =
     hasEnvelope && s
-      ? present(`F ${s.front_ft}′ · S ${s.side_ft}′ · R ${s.rear_ft}′`)
+      ? present(formatSetbackDisplay(s))
       : zoningDecline === "atom_path_pending"
         ? pending("Loading setbacks…")
         : absent<string>();
   let buildablePct: CardFacet<string>;
-  if (hasEnvelope && env?.status === "no-buildable-area") {
+  if (hasEnvelope && env?.status === "no-buildable-area" && !silentAxes) {
     buildablePct = present("0% — setbacks consume lot");
-  } else if (hasEnvelope && typeof env?.buildableAreaPct === "number") {
+  } else if (
+    hasEnvelope &&
+    typeof env?.buildableAreaPct === "number" &&
+    !silentAxes
+  ) {
     buildablePct = present(`${Math.round(env.buildableAreaPct)}%`);
+  } else if (hasEnvelope && s && silentAxes) {
+    buildablePct = pending("build-to-line · buildable % pending");
   } else if (hasEnvelope && s) {
     buildablePct = pending("setbacks present · buildable % pending");
   } else if (zoningDecline === "atom_path_pending") {

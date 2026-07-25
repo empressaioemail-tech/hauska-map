@@ -116,6 +116,33 @@ describe("deriveBakedCardModel — honest absence", () => {
     expect(m.envelopeApproximate).toBe(true);
   });
 
+  it("not_specified axes never render as S 0′ / consume-lot", () => {
+    const p3: BakedFacetPayload = {
+      parcelNodeId: "48021:141209",
+      countyName: "Bastrop",
+      baseFacts: { apn: "141209" },
+      zoning: { district: "P-3" },
+      envelope: {
+        status: "ok",
+        setbacks: {
+          front_ft: 25,
+          side_ft: 0,
+          rear_ft: 0,
+          not_specified: { side: true, rear: true, sideCorner: true },
+        },
+        disclosure: "build-to-line governs",
+      },
+      facetCoverage: { baseFacts: true, landUse: false, acreage: false, zoning: true, envelope: true },
+    };
+    const m = deriveBakedCardModel(p3);
+    expect(m.setbacks.state).toBe("present");
+    expect(m.setbacks.value).toMatch(/not specified/i);
+    expect(m.setbacks.value).toMatch(/build-to-line/i);
+    expect(m.setbacks.value).not.toMatch(/S 0/);
+    expect(m.buildablePct.state).toBe("pending");
+    expect(m.buildablePct.value).toMatch(/build-to-line/i);
+  });
+
   it("QA-3: setbacks present without buildableAreaPct is pending, not absent", () => {
     const partial: BakedFacetPayload = {
       parcelNodeId: "48021:34169",
