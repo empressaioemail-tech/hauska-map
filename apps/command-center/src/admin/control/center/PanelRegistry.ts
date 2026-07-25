@@ -4,9 +4,9 @@
 // NavRail / useActivePanel) is driven entirely by PANELS — adding a panel here
 // makes it appear in the nav rail and become routable via #panel=<id>.
 //
-// Phase 2 scope: the skeleton plus 3 live panels wired to OUR APIs (atom-inspector,
-// run-monitor, surface-gate) and a live honest-empty calibration panel. The rest
-// are registered as honest stubs for a later pass.
+// F1c / WDLL 7: LIVE/STUB badges are COMPUTED from panelProbes at runtime.
+// `stub` / `local` / `probe` declare intent; NavRail never trusts a bare
+// `live: true` flag alone (fixture-LIVE is forbidden).
 
 import React from 'react'
 import { AtomInspector } from '../panels/AtomInspector'
@@ -30,45 +30,32 @@ import {
   LensInvestorSpace,
   LensArchitectSpace,
 } from '../../workspace/spaces'
+import {
+  assertPanelLivenessContract,
+  type PanelDef,
+  type PanelGroup,
+} from './PanelRegistry.contract'
 
-/** The four top-level groups of the command center, in display order. */
-export type PanelGroup = 'Workspace' | 'Substrate' | 'Engines' | 'Governance'
-
+export type { PanelDef, PanelGroup }
+export { assertPanelLivenessContract }
 export const PANEL_GROUPS: PanelGroup[] = ['Workspace', 'Substrate', 'Engines', 'Governance']
 
-/** A registered panel. `Component` is the inspector rendered in the center column. */
-export interface PanelDef {
-  /** Stable id; also the hash-route value (#panel=<id>). Used for links + persistence. */
-  id: string
-  /** Human label shown in the nav rail and inspector header. */
-  label: string
-  /** Which nav group this panel sits under. */
-  group: PanelGroup
-  /** The inspector component rendered in the center column. */
-  Component: React.FC
-  /** Wired to a live API. */
-  live?: boolean
-  /** Registered placeholder, not yet wired. */
-  stub?: boolean
-}
-
 export const PANELS: PanelDef[] = [
-  // Workspace
-  { id: 'plan-review', label: 'Plan Review', group: 'Workspace', live: true, Component: PlanReviewSpace },
-  { id: 'site-analysis', label: 'Site Analysis', group: 'Workspace', live: true, Component: SiteAnalysisSpace },
-  { id: 'property-intel', label: 'Property Intel', group: 'Workspace', live: true, Component: PropertyIntelSpace },
-  { id: 'design-accelerator', label: 'Design Accelerator', group: 'Workspace', live: true, Component: DesignAcceleratorSpace },
-  // Persona lenses
-  { id: 'lens-reviewer', label: 'Plan Reviewer', group: 'Workspace', live: true, Component: LensReviewerSpace },
-  { id: 'lens-investor', label: 'Property Investor', group: 'Workspace', live: true, Component: LensInvestorSpace },
-  { id: 'lens-architect', label: 'Architect', group: 'Workspace', live: true, Component: LensArchitectSpace },
+  // Workspace — cortex coverage is the shared browse signal
+  { id: 'plan-review', label: 'Plan Review', group: 'Workspace', probe: 'cortex-coverage', Component: PlanReviewSpace },
+  { id: 'site-analysis', label: 'Site Analysis', group: 'Workspace', probe: 'cortex-coverage', Component: SiteAnalysisSpace },
+  { id: 'property-intel', label: 'Property Intel', group: 'Workspace', probe: 'cortex-coverage', Component: PropertyIntelSpace },
+  { id: 'design-accelerator', label: 'Design Accelerator', group: 'Workspace', probe: 'cortex-coverage', Component: DesignAcceleratorSpace },
+  { id: 'lens-reviewer', label: 'Plan Reviewer', group: 'Workspace', probe: 'cortex-coverage', Component: LensReviewerSpace },
+  { id: 'lens-investor', label: 'Property Investor', group: 'Workspace', probe: 'cortex-coverage', Component: LensInvestorSpace },
+  { id: 'lens-architect', label: 'Architect', group: 'Workspace', probe: 'cortex-coverage', Component: LensArchitectSpace },
   // Substrate
-  { id: 'node-graph', label: 'Node & Graph', group: 'Substrate', live: true, Component: NodeGraph },
-  { id: 'atom-inspector', label: 'Atoms', group: 'Substrate', live: true, Component: AtomInspector },
-  { id: 'parcel-trace', label: 'Parcel Trace', group: 'Substrate', live: true, Component: ParcelTrace },
-  { id: 'mcp-inspector', label: 'MCP Tools', group: 'Substrate', live: true, Component: McpInspector },
-  { id: 'layer-registry', label: 'GIS Layers', group: 'Substrate', live: true, Component: LayerRegistryView },
-  // Fixture zeros are not a live probe — honest STUB until a real calibration endpoint (F1b).
+  { id: 'node-graph', label: 'Node & Graph', group: 'Substrate', probe: 'retrieval-atom-chain', Component: NodeGraph },
+  { id: 'atom-inspector', label: 'Atoms', group: 'Substrate', probe: 'mcp-introspection', Component: AtomInspector },
+  { id: 'parcel-trace', label: 'Parcel Trace', group: 'Substrate', probe: 'retrieval-healthz', Component: ParcelTrace },
+  { id: 'mcp-inspector', label: 'MCP Tools', group: 'Substrate', probe: 'mcp-introspection', Component: McpInspector },
+  { id: 'layer-registry', label: 'GIS Layers', group: 'Substrate', probe: 'cortex-coverage', Component: LayerRegistryView },
+  // Fixture zeros are not a live probe — honest STUB until a real calibration endpoint.
   { id: 'calibration', label: 'Calibration', group: 'Substrate', stub: true, Component: CalibrationTracker },
   { id: 'lineage-audit', label: 'Lineage & Audit', group: 'Substrate', stub: true,
     Component: makeStub('Lineage & Audit', 'retrieval-api atom lineage / supersession chain') },
@@ -77,17 +64,16 @@ export const PANELS: PanelDef[] = [
     Component: makeStub('Resolver', 'place/resolve + node resolution status') },
   { id: 'engine-console', label: 'Autonomous Engines', group: 'Engines', stub: true,
     Component: makeStub('Autonomous Engines', 'engine action-atom log + autonomy tiers') },
-  { id: 'run-monitor', label: 'Runs', group: 'Engines', live: true, Component: RunMonitor },
-  { id: 'agent-view', label: 'Agent Surface', group: 'Engines', live: true, Component: AgentView },
+  { id: 'run-monitor', label: 'Runs', group: 'Engines', probe: 'cortex-coverage', Component: RunMonitor },
+  { id: 'agent-view', label: 'Agent Surface', group: 'Engines', probe: 'mcp-introspection', Component: AgentView },
   // Governance
-  { id: 'surface-gate', label: 'Surface & Gate', group: 'Governance', live: true, Component: SurfaceGateInspector },
-  { id: 'revenue-meter', label: 'Revenue Meter', group: 'Governance', live: true, Component: RevenueMeter },
-  { id: 'settings', label: 'Settings', group: 'Governance', live: true, Component: Settings },
+  { id: 'surface-gate', label: 'Surface & Gate', group: 'Governance', probe: 'mcp-introspection', Component: SurfaceGateInspector },
+  { id: 'revenue-meter', label: 'Revenue Meter', group: 'Governance', probe: 'mcp-metering', Component: RevenueMeter },
+  { id: 'settings', label: 'Settings', group: 'Governance', local: true, Component: Settings },
   { id: 'license-access', label: 'License & Access', group: 'Governance', stub: true,
     Component: makeStub('License & Access', 'atom accessPolicy ∩ license (most-restrictive-wins)') },
 ]
 
-/** Default panel — open on a live workspace panel. */
 export const DEFAULT_PANEL_ID = 'plan-review'
 
 /** Lookup by id; falls back to the default panel. */

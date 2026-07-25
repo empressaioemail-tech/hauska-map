@@ -1,0 +1,44 @@
+name: Command Center CI
+
+on:
+  pull_request:
+    paths:
+      - "apps/command-center/**"
+      - "packages/map-renderer/**"
+      - ".github/workflows/command-center-ci.yml"
+  push:
+    branches: [main]
+    paths:
+      - "apps/command-center/**"
+      - "packages/map-renderer/**"
+      - ".github/workflows/command-center-ci.yml"
+  workflow_dispatch:
+    inputs:
+      live_smoke:
+        description: "Run WDLL 8 live GREEN smoke against production retrieval"
+        type: boolean
+        default: true
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 10
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - name: Unit + RED smoke (WDLL 7–8)
+        run: pnpm --filter command-center test
+      - name: Live GREEN smoke (WDLL 8)
+        if: ${{ github.event_name == 'workflow_dispatch' && inputs.live_smoke || github.event_name == 'push' }}
+        env:
+          RUN_LIVE_SMOKE: "1"
+          SMOKE_RETRIEVAL_API_KEY: ${{ secrets.RETRIEVAL_API_KEY }}
+        run: pnpm --filter command-center exec vitest run src/admin/api/liveSmoke.test.ts
+      - name: Typecheck
+        run: pnpm --filter command-center exec tsc --noEmit
