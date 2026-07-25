@@ -122,3 +122,43 @@ describe("parsePropertyAtomsPath", () => {
     expect(parsePropertyAtomsPath(["property-atoms", "48209:156346", "atoms"])).toBeNull();
   });
 });
+
+/** Live-shaped P-3: breadth bake said consume-lot; B3 side/rear are not_specified. */
+const bastropP3Chain: PropertyAtomChain = {
+  parcelNodeId: "48021:141209",
+  zoningFact: {
+    district: "P-3",
+    fetchedAt: "2026-07-24T01:04:06.641Z",
+    extractedAt: "2026-07-24T01:04:06.641Z",
+  },
+  setbackRule: {
+    front: 25,
+    side: 0,
+    rear: 0,
+    sideCornerFt: 0,
+    districtCode: "P-3",
+  },
+  buildableEnvelope: {
+    outcome: { kind: "no-buildable-area", areaSqFt: 0 },
+    extractedAt: "2026-07-24T01:04:06.641Z",
+  },
+  atoms: [{}, {}, {}],
+};
+
+describe("adaptAtomChainToBakedFacets — Bastrop P-3 not_specified", () => {
+  it("does not claim setbacks consume the lot when side/rear are not_specified", () => {
+    const resp = adaptAtomChainToBakedFacets(bastropP3Chain);
+    expect(resp).not.toBeNull();
+    expect(resp!.facets.envelope?.status).toBe("ok");
+    expect(resp!.facets.envelope?.buildableAreaPct).toBeUndefined();
+    expect(resp!.facets.envelope?.emptyReason).toBeUndefined();
+    expect(resp!.facets.envelope?.setbacks?.not_specified).toEqual({
+      side: true,
+      rear: true,
+      sideCorner: true,
+    });
+    expect(resp!.facets.envelope?.disclosure).toMatch(/build-to-line/i);
+    const wire = JSON.stringify(resp);
+    expect(wire).not.toMatch(/consume the lot/i);
+  });
+});
