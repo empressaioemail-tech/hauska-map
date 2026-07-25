@@ -26,12 +26,18 @@ export type SitePlanExportClientResult =
 export async function requestSitePlanExport(
   parcelNodeId: string,
   format: SitePlanExportFormat,
+  opts?: { address?: string | null; countyName?: string | null },
 ): Promise<SitePlanExportClientResult> {
   try {
     const res = await fetch('/api/pe-site-plan-export', {
       method: 'POST',
       credentials: 'include',
-      body: JSON.stringify({ parcelNodeId, format }),
+      body: JSON.stringify({
+        parcelNodeId,
+        format,
+        ...(opts?.address ? { address: opts.address } : {}),
+        ...(opts?.countyName ? { countyName: opts.countyName } : {}),
+      }),
       headers: { 'Content-Type': 'application/json' },
     })
     const body = (await res.json().catch(() => ({}))) as {
