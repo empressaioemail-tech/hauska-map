@@ -33,6 +33,12 @@ vi.mock('../../api/atomTrace', async () => {
   const actual = await vi.importActual<typeof import('../../api/atomTrace')>('../../api/atomTrace')
   return {
     ...actual,
+    fetchCentralTxNodeGraphTally: vi.fn(async () => ({
+      ok: false,
+      status: 401,
+      json: null,
+      error: 'unauthorized',
+    })),
     fetchPropertyAtomChain: vi.fn(async (parcelNodeId: string) => {
       if (parcelNodeId === '48209:156346') {
         return {
@@ -76,6 +82,9 @@ const TALLY = {
         envelope_present: 50,
         full_chain_nodes: 50,
         references: 0,
+        depth_warm_promoted: 2345,
+        zoning_place_type: 3657,
+        depth_ratio_place_type: 64.12,
         zoning_present_pct: 61,
       },
     ],
@@ -107,6 +116,7 @@ describe('NodeGraph smoke (WDLL 8)', () => {
     await waitFor(() => {
       expect(screen.getByText(/Travis/)).toBeTruthy()
       expect(screen.getByText('61%')).toBeTruthy()
+      expect(screen.getByText('64.12%')).toBeTruthy()
     })
 
     const input = screen.getByTestId('node-graph-input') as HTMLInputElement

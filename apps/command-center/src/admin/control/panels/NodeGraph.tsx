@@ -14,40 +14,19 @@ import { loadConfig, type SpineConfig } from '../../api/spineClient'
 import {
   fetchPropertyAtomChain,
   fetchRoadAtomChain,
+  fetchCentralTxNodeGraphTally,
   propertyChainSlotStatuses,
   type PropertyAtomChainBody,
   type RoadAtomChainBody,
+  type CentralTxNodeGraphTally,
+  type CentralTxCountyTallyRow,
 } from '../../api/atomTrace'
 import { Panel, Pill, Loading, sectionHeader, mono } from '../primitives'
 import { useParcelNodeBinding, isCanonicalParcelNodeId, isCanonicalRoadNodeId } from '../center/parcelNodeBinding'
 
-interface CountyTallyRow {
-  fips: string
-  county: string
-  nodes: number
-  zoning_present: number
-  zoning_honest_absent_or_empty: number
-  zoning_slot_missing: number
-  setback_present: number
-  envelope_present: number
-  full_chain_nodes: number
-  references: number
-  zoning_present_pct: number
-}
+interface CountyTallyRow extends CentralTxCountyTallyRow {}
 
-interface GateATally {
-  generatedAt?: string
-  source?: string
-  servingRevisionNote?: string
-  totals?: Record<string, unknown>
-  roadRollup?: {
-    road_nodes?: number
-    named_roads?: number
-    byCounty?: Array<{ fips: string; county: string; road_nodes: number; named_roads: number }>
-    sampleNamed?: Array<{ roadNodeId: string; displayName: string | null }>
-  }
-  centralTx?: { counties?: CountyTallyRow[] }
-}
+interface GateATally extends CentralTxNodeGraphTally {}
 
 const inputStyle: React.CSSProperties = {
   fontFamily: 'var(--font-ui)',
@@ -111,21 +90,15 @@ export const NodeGraph: React.FC = () => {
     let cancelled = false
     ;(async () => {
       try {
-        // WDLL 9: prefer live re-SELECT via retrieval; static artifact is last-resort only.
-        const liveUrl = `${(config.retrievalApiUrl || '').replace(/\/$/, '')}/stats/central-tx-node-graph`
-        const live = await fetch(liveUrl, { headers: { Accept: 'application/json' } })
-        if (live.ok) {
-          const ct = (live.headers.get('content-type') || '').toLowerCase()
-          const raw = await live.text()
-          if (!ct.includes('text/html') && !/^\s*<(!doctype|html)/i.test(raw)) {
-            const json = JSON.parse(raw.replace(/^\uFEFF/, '')) as GateATally
-            if (!cancelled) {
-              setTally(json)
-              setTallyError(null)
-              setTallySource('live')
-            }
-            return
+        // WDLL 9 / FIX 3: shared retrieval client → /api/spine/retrieval proxy Bearer.
+        const live = await fetchCentralTxNodeGraphTally(config)
+        if (live.ok && live.json) {
+          if (!cancelled) {
+            setTally(live.json)
+            setTallyError(null)
+            setTallySource('live')
           }
+          return
         }
         const res = await fetch('/central_tx_node_graph_tally.json', {
           headers: { Accept: 'application/json' },
@@ -144,7 +117,7 @@ export const NodeGraph: React.FC = () => {
         if (!cancelled) {
           setTally(json)
           setTallyError(
-            `Live tally unavailable (HTTP ${live.status}) — showing committed artifact (STALE).`,
+            `Live tally unavailable (${live.error || `HTTP ${live.status}`}) — showing committed artifact (STALE).`,
           )
           setTallySource('artifact')
         }
@@ -155,7 +128,7 @@ export const NodeGraph: React.FC = () => {
     return () => {
       cancelled = true
     }
-  }, [config.retrievalApiUrl])
+  }, [config])
 
   const inspectNode = async (id: string) => {
     const nodeId = id.trim()
@@ -246,7 +219,10 @@ export const NodeGraph: React.FC = () => {
             {tallySource === 'live'
               ? `live GET /stats/central-tx-node-graph (${tally?.generatedAt ?? '…'})`
               : tally?.source ?? 'loading…'}
-            . Coverage numbers shown here must match this ledger — never a second prose figure.
+            .             Coverage numbers shown here must match this ledger — never a second prose figure.
+            Envelope counts any buildable-envelope atom; depth-warm counts only{' '}
+            <code>depthWarmPromotion=depth-warm-promoted-v1</code>. Place-type depth % uses P-1..P-5
+            zoning denominator.
           </p>
           {tallyError && (
             <div style={{ fontSize: 11, color: 'var(--color-text-danger)', marginBottom: 8 }}>
@@ -271,10 +247,19 @@ export const NodeGraph: React.FC = () => {
                     <th style={{ padding: '4px 6px' }}>Zoning+</th>
                     <th style={{ padding: '4px 6px' }}>Honest∅</th>
                     <th style={{ padding: '4px 6px' }}>Setback</th>
-                    <th style={{ padding: '4px 6px' }}>Envelope</th>
+                    <th style={{ padding: '4px 6px' }} title="Any buildable-envelope atom (not depth-warm filtered)">
+                      Env (any)
+                    </th>
                     <th style={{ padding: '4px 6px' }}>Full chain</th>
+                    <th style={{ padding: '4px 6px' }}>Depth warm</th>
+                    <th style={{ padding: '4px 6px' }}>Place-type</th>
                     <th style={{ padding: '4px 6px' }}>Refs</th>
-                    <th style={{ padding: '4px 6px' }}>%</th>
+                    <th style={{ padding: '4px 6px' }} title="zoning_present / nodes — breadth, not depth">
+                      Zoning breadth %
+                    </th>
+                    <th style={{ padding: '4px 6px' }} title="depth_warm / P-1..P-5 zoning">
+                      Depth place-type %
+                    </th>
                   </tr>
                 </thead>
                 <tbody>
@@ -289,8 +274,13 @@ export const NodeGraph: React.FC = () => {
                       <td style={{ padding: '4px 6px', ...mono }}>{c.setback_present}</td>
                       <td style={{ padding: '4px 6px', ...mono }}>{c.envelope_present}</td>
                       <td style={{ padding: '4px 6px', ...mono }}>{c.full_chain_nodes}</td>
+                      <td style={{ padding: '4px 6px', ...mono }}>{c.depth_warm_promoted ?? '—'}</td>
+                      <td style={{ padding: '4px 6px', ...mono }}>{c.zoning_place_type ?? '—'}</td>
                       <td style={{ padding: '4px 6px', ...mono }}>{c.references}</td>
                       <td style={{ padding: '4px 6px', ...mono }}>{c.zoning_present_pct}%</td>
+                      <td style={{ padding: '4px 6px', ...mono }}>
+                        {c.depth_ratio_place_type != null ? `${c.depth_ratio_place_type}%` : '—'}
+                      </td>
                     </tr>
                   ))}
                 </tbody>

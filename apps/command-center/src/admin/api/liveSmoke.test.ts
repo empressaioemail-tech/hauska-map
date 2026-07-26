@@ -128,11 +128,12 @@ describe('WDLL 8 live smoke — GREEN path (gated)', () => {
 })
 
 describe('WDLL 8 source guard (always on)', () => {
-  it('NodeGraph prefers live tally endpoint (not only static artifact)', () => {
+  it('NodeGraph prefers live tally via shared retrieval client (not raw fetch)', () => {
     const path = resolve(import.meta.dirname, '../control/panels/NodeGraph.tsx')
     const src = readFileSync(path, 'utf8')
-    expect(src).toContain('stats/central-tx-node-graph')
+    expect(src).toContain('fetchCentralTxNodeGraphTally')
     expect(src).toContain("setTallySource('live')")
+    expect(src).not.toMatch(/fetch\(.*stats\/central-tx-node-graph/)
   })
 
   it('NavRail uses computed badges (not hand-set live flags)', () => {

@@ -8,6 +8,7 @@ import { resolve } from 'node:path'
 import {
   fetchAtomTrace,
   fetchPropertyAtomChain,
+  fetchCentralTxNodeGraphTally,
   propertyChainDids,
   propertyChainSlotStatuses,
 } from './atomTrace'
@@ -36,10 +37,12 @@ describe('one-read-path guardrails (F1b dogfood)', () => {
     expect(parcelTrace).toMatch(/fetchAtomTrace/)
     expect(nodeGraph).toMatch(/from ['"].*atomTrace['"]/)
     expect(nodeGraph).toMatch(/fetchPropertyAtomChain/)
+    expect(nodeGraph).toMatch(/fetchCentralTxNodeGraphTally/)
     expect(nodeGraph).not.toMatch(/fetchAtomTrace/)
     expect(parcelTrace).not.toMatch(/\$\{retrievalUrl\}\/atoms\/trace/)
     expect(nodeGraph).not.toMatch(/\$\{retrievalUrl\}\/atoms\/trace/)
     expect(nodeGraph).not.toMatch(/\$\{retrievalUrl\}\/property-nodes/)
+    expect(nodeGraph).not.toMatch(/\$\{retrievalUrl\}\/stats\//)
   })
 
   it('propertyChainSlotStatuses maps active atoms to present', () => {
@@ -72,5 +75,6 @@ describe('one-read-path guardrails (F1b dogfood)', () => {
   it('shared retrieval clients are exported', () => {
     expect(typeof fetchAtomTrace).toBe('function')
     expect(typeof fetchPropertyAtomChain).toBe('function')
+    expect(typeof fetchCentralTxNodeGraphTally).toBe('function')
   })
 })
