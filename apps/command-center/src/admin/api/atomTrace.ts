@@ -5,6 +5,7 @@
 //   - Property ledger slots: GET {retrieval}/property-nodes/:id/atom-chain
 //     (same path PE / Gate C use; /atoms/trace 404s for property atoms that
 //     exist as StoragePort rows but have no composition graph)
+//   - Node & Graph tally: GET {retrieval}/stats/central-tx-node-graph
 // Bearer attached by the /api/spine/retrieval proxy.
 
 import { getJson, type SpineConfig } from './spineClient'
@@ -14,6 +15,59 @@ export interface AtomTraceResult {
   status: number
   json: unknown | null
   error?: string
+}
+
+/** Per-county row from GET /stats/central-tx-node-graph (G1 / FIX 3 depth columns). */
+export interface CentralTxCountyTallyRow {
+  fips: string
+  county: string
+  nodes: number
+  zoning_present: number
+  zoning_honest_absent_or_empty: number
+  zoning_slot_missing: number
+  setback_present: number
+  envelope_present: number
+  full_chain_nodes: number
+  references: number
+  depth_warm_promoted: number
+  zoning_place_type: number
+  depth_ratio_place_type: number
+  zoning_present_pct: number
+  full_chain_pct?: number
+}
+
+/** Live Central-TX node-graph tally (G1 / WDLL 9 / FIX 3). */
+export interface CentralTxNodeGraphTally {
+  generatedAt?: string
+  source?: string
+  servingRevisionNote?: string
+  totals?: Record<string, unknown>
+  roadRollup?: {
+    road_nodes?: number
+    named_roads?: number
+    byCounty?: Array<{ fips: string; county: string; road_nodes: number; named_roads: number }>
+    sampleNamed?: Array<{ roadNodeId: string; displayName: string | null }>
+  }
+  centralTx?: { counties?: CentralTxCountyTallyRow[] }
+}
+
+/**
+ * Live Central-TX ledger tally — same retrieval path as atom-chain (proxy Bearer).
+ * Prefer this over raw fetch so /api/spine/retrieval attaches RETRIEVAL_API_KEY.
+ */
+export async function fetchCentralTxNodeGraphTally(
+  config: SpineConfig,
+  timeoutMs = 30_000,
+): Promise<AtomTraceResult & { json: CentralTxNodeGraphTally | null }> {
+  const retrievalUrl = config.retrievalApiUrl?.replace(/\/$/, '') || ''
+  if (!retrievalUrl) {
+    return { ok: false, status: 0, json: null, error: 'No retrieval API URL configured' }
+  }
+  return getJson<CentralTxNodeGraphTally>(
+    `${retrievalUrl}/stats/central-tx-node-graph`,
+    config,
+    timeoutMs,
+  )
 }
 
 /** Minimal road-node chain body (retrieval GET /road-nodes/:id/atom-chain). */
