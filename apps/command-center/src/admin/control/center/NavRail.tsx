@@ -1,9 +1,9 @@
 // apps/command-center/src/admin/control/center/NavRail.tsx
 //
 // The persistent LEFT nav rail of the Command Center. Lists every registered
-// panel grouped Substrate / Engines / Governance, highlights the active panel,
-// and stays fixed (its own scroll) so it is never scrolled away with the
-// inspector. F1c: badges are COMPUTED from usePanelHealth (WDLL 7).
+// panel grouped Workspace / Substrate / Engines / Governance, highlights the
+// active panel, and stays fixed (its own scroll) so it is never scrolled away
+// with the inspector. F1c: badges are COMPUTED from usePanelHealth (WDLL 7).
 
 import React from 'react'
 import { PANELS, PANEL_GROUPS, type PanelGroup, type PanelDef } from './PanelRegistry'
@@ -47,7 +47,7 @@ const NavItem: React.FC<{
       background: active ? 'var(--color-background-info)' : 'transparent',
       color: active ? 'var(--color-text-info)' : 'var(--color-text-secondary)',
       fontFamily: 'var(--font-ui)',
-      fontSize: 12,
+      fontSize: 'var(--type-body)',
       fontWeight: active ? 600 : 500,
       letterSpacing: '0.01em',
       whiteSpace: 'nowrap',
@@ -78,7 +78,7 @@ export const NavRail: React.FC<{ active: string; onSelect: (id: string) => void 
       }}
     >
       <div style={{ flex: 'none', padding: '12px 12px 8px' }}>
-        <span style={{ ...sectionHeader, fontSize: 10, color: 'var(--color-text-tertiary)' }}>Command Center</span>
+        <span style={{ ...sectionHeader, fontSize: 'var(--type-caption)', color: 'var(--color-text-tertiary)' }}>Command Center</span>
       </div>
       <div style={{ flex: 1, minHeight: 0, overflowY: 'auto', padding: '0 8px 14px', display: 'flex', flexDirection: 'column', gap: 14 }}>
         {PANEL_GROUPS.map((group) => (

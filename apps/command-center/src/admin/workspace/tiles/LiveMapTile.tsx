@@ -80,7 +80,7 @@ const chipStyle = (sev: 'info' | 'warn' | 'error'): React.CSSProperties => ({
   borderRadius: 4,
   pointerEvents: 'none',
   whiteSpace: 'nowrap',
-  color: sev === 'error' ? '#fca5a5' : sev === 'warn' ? '#fcd34d' : 'var(--h-text-muted, #768390)',
+  color: sev === 'error' ? '#fca5a5' : sev === 'warn' ? '#fcd34d' : 'var(--color-text-tertiary)',
   background: 'rgba(13,17,23,0.78)',
   border: `0.5px solid ${sev === 'error' ? 'rgba(248,113,113,0.6)' : sev === 'warn' ? 'rgba(252,211,77,0.5)' : 'rgba(118,131,144,0.4)'}`,
 })
@@ -94,7 +94,7 @@ const overlayChipStyle = (on: boolean): React.CSSProperties => ({
   borderRadius: 4,
   whiteSpace: 'nowrap',
   cursor: 'pointer',
-  color: on ? '#7dd3fc' : 'var(--h-text-muted, #768390)',
+  color: on ? '#7dd3fc' : 'var(--color-text-tertiary)',
   background: 'rgba(13,17,23,0.78)',
   border: `0.5px solid ${on ? 'rgba(125,211,252,0.6)' : 'rgba(118,131,144,0.4)'}`,
 })
@@ -473,8 +473,8 @@ function LiveMapTileInner() {
               padding: '10px 12px',
               borderRadius: 6,
               background: 'rgba(13,17,23,0.92)',
-              border: '0.5px solid var(--h-border-subtle, #30363d)',
-              color: 'var(--h-text-primary, #e6edf3)',
+              border: '0.5px solid var(--color-border-secondary)',
+              color: 'var(--color-text-primary)',
               fontFamily: 'var(--font-ui)',
               fontSize: 11,
               lineHeight: 1.45,
@@ -491,7 +491,7 @@ function LiveMapTileInner() {
                 style={{
                   background: 'transparent',
                   border: 'none',
-                  color: 'var(--h-text-muted, #768390)',
+                  color: 'var(--color-text-tertiary)',
                   cursor: 'pointer',
                   fontSize: 13,
                   lineHeight: 1,
@@ -504,31 +504,31 @@ function LiveMapTileInner() {
             <dl style={{ margin: '6px 0 0', display: 'grid', gridTemplateColumns: 'auto 1fr', gap: '2px 8px' }}>
               {card.apn && (
                 <>
-                  <dt style={{ color: 'var(--h-text-muted, #768390)' }}>APN</dt>
+                  <dt style={{ color: 'var(--color-text-tertiary)' }}>APN</dt>
                   <dd style={{ margin: 0 }} data-testid="parcel-card-apn">{card.apn}</dd>
                 </>
               )}
               {card.owner && (
                 <>
-                  <dt style={{ color: 'var(--h-text-muted, #768390)' }}>Owner</dt>
+                  <dt style={{ color: 'var(--color-text-tertiary)' }}>Owner</dt>
                   <dd style={{ margin: 0 }}>{card.owner}</dd>
                 </>
               )}
               {card.landUseDescription && (
                 <>
-                  <dt style={{ color: 'var(--h-text-muted, #768390)' }}>Land use</dt>
+                  <dt style={{ color: 'var(--color-text-tertiary)' }}>Land use</dt>
                   <dd style={{ margin: 0 }}>{card.landUseDescription}</dd>
                 </>
               )}
               {card.county && (
                 <>
-                  <dt style={{ color: 'var(--h-text-muted, #768390)' }}>County</dt>
+                  <dt style={{ color: 'var(--color-text-tertiary)' }}>County</dt>
                   <dd style={{ margin: 0 }}>{card.county}</dd>
                 </>
               )}
             </dl>
             {(card.provider || card.notSurveyGrade) && (
-              <div style={{ marginTop: 6, fontSize: 10, color: 'var(--h-text-muted, #768390)' }}>
+              <div style={{ marginTop: 6, fontSize: 10, color: 'var(--color-text-tertiary)' }}>
                 {card.provider ? `Source: ${card.provider}` : null}
                 {card.notSurveyGrade ? `${card.provider ? ' · ' : ''}not survey grade` : null}
               </div>
@@ -561,9 +561,9 @@ function LiveMapTileInner() {
                   fontSize: 11,
                   fontWeight: 600,
                   fontFamily: 'var(--font-ui)',
-                  color: 'var(--h-text-primary, #e6edf3)',
+                  color: 'var(--color-text-primary)',
                   background: 'transparent',
-                  border: '0.5px solid var(--h-border-subtle, #30363d)',
+                  border: '0.5px solid var(--color-border-secondary)',
                   borderRadius: 4,
                   cursor: 'pointer',
                 }}
@@ -576,17 +576,17 @@ function LiveMapTileInner() {
       </div>
 
       {/* Footer: fixture toggle + context readout + in-tile brief card. */}
-      <div style={{ flexShrink: 0, borderTop: '1px solid var(--h-border-subtle, #30363d)' }}>
+      <div style={{ flexShrink: 0, borderTop: '1px solid var(--color-border-secondary)' }}>
         <div
           style={{
             display: 'flex',
             alignItems: 'center',
             justifyContent: 'space-between',
             gap: 8,
-            padding: 'var(--h-space-xs, 4px) var(--h-space-sm, 8px)',
+            padding: 'var(--space-xs) var(--space-sm)',
           }}
         >
-          <p style={{ fontSize: 10, color: 'var(--h-text-muted, #768390)', margin: 0 }}>
+          <p style={{ fontSize: 10, color: 'var(--color-text-tertiary)', margin: 0 }}>
             {hasParcelContext
               ? `Center: ${lat!.toFixed(5)}, ${lng!.toFixed(5)}${apn ? ` · APN ${apn}` : ''}`
               : 'Click a parcel for info, or search an address in the top bar.'}
@@ -598,7 +598,7 @@ function LiveMapTileInner() {
               gap: 4,
               fontSize: 10,
               fontFamily: 'var(--font-ui)',
-              color: 'var(--h-text-muted, #768390)',
+              color: 'var(--color-text-tertiary)',
               cursor: 'pointer',
               whiteSpace: 'nowrap',
             }}

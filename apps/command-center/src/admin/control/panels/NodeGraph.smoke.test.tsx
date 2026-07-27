@@ -320,6 +320,14 @@ describe('NodeGraph smoke (WDLL 8 / CC-A U1+U2)', () => {
   it('renders tally + structured NodeInspect with walkable edge (not JSON-primary)', async () => {
     render(<NodeGraph />)
 
+    // Tally is collapsed below the walk — expand to assert county rows.
+    await waitFor(() => {
+      expect(screen.getByTestId('central-tx-tally')).toBeTruthy()
+    })
+    const tallyToggle = screen.getByTestId('central-tx-tally').querySelector('button[aria-expanded]')
+    expect(tallyToggle).toBeTruthy()
+    fireEvent.click(tallyToggle!)
+
     await waitFor(() => {
       expect(screen.getByText(/Travis/)).toBeTruthy()
       expect(screen.getByText('61%')).toBeTruthy()

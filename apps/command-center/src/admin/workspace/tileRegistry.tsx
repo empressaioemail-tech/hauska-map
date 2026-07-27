@@ -83,7 +83,7 @@ function stubFor(cap: typeof TILE_CAPABILITIES[number]) {
         alignItems: 'center',
         justifyContent: 'center',
         gap: 8,
-        color: 'var(--h-text-muted, #768390)',
+        color: 'var(--color-text-tertiary)',
         fontSize: 12,
         fontFamily: 'var(--font-ui)',
         textAlign: 'center',
@@ -97,8 +97,8 @@ function stubFor(cap: typeof TILE_CAPABILITIES[number]) {
           letterSpacing: '0.05em',
           color:
             cap.status === 'degraded'
-              ? 'var(--h-warn, #f59e0b)'
-              : 'var(--h-text-muted, #768390)',
+              ? 'var(--color-text-warning)'
+              : 'var(--color-text-tertiary)',
         }}
       >
         {statusLabel}

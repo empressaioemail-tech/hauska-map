@@ -1,11 +1,13 @@
 /* apps/command-center/src/admin/tokens.css
  *
- * Dark operator theme for the Spine Command Center. The admin skeleton was
- * ported from the trading app's Control Tower, which styles entirely with
- * var(--color-*) / var(--font-*) tokens. The trading app inherited those tokens
- * from a shell it does not carry here, so we define the full referenced set
- * ourselves. Palette: a calm dark console (near-black grounds, hairline borders,
- * a blue "info" accent, and the standard ok/warn/danger triad).
+ * Single design-token namespace for the Spine Command Center (`--color-*`,
+ * `--font-*`, `--type-*`, `--space-*`). Imported once at the shell root
+ * (main.tsx). Do not import a parallel palette (@empressaio/design-tokens
+ * `--h-*`) from child panels — map those names onto this file if a legacy
+ * reference remains.
+ *
+ * Palette: calm dark console (near-black grounds, hairline borders, blue
+ * info accent, ok/warn/danger triad).
  */
 
 :root {
@@ -13,9 +15,25 @@
   --font-ui: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
   --font-mono: "JetBrains Mono", "SF Mono", ui-monospace, "Cascadia Code", Menlo, Consolas, monospace;
 
+  /* type scale — floor lifted off 9.5px; use these, not ad-hoc px */
+  --type-caption: 11px;
+  --type-body: 12px;
+  --type-body-strong: 13px;
+  --type-title: 15px;
+  --type-display: 18px;
+  --type-section: 11px;
+
+  /* spacing */
+  --space-xs: 4px;
+  --space-sm: 8px;
+  --space-md: 16px;
+  --space-lg: 24px;
+  --space-xl: 40px;
+
   /* backgrounds */
   --color-background-primary: #0e1116;
   --color-background-secondary: #161b22;
+  --color-background-tertiary: #1c2128;
   --color-background-accent: #21262d;
   --color-background-info: rgba(56, 139, 253, 0.14);
   --color-background-warning: rgba(210, 153, 34, 0.14);
@@ -38,6 +56,35 @@
   --color-text-warning: #daaa3f;
   --color-text-danger: #ff938a;
   --color-text-success: #6bc46d;
+
+  /* Legacy --h-* aliases → same namespace (no parallel hex palette).
+   * Prefer --color-* / --space-* / --type-* in new code. */
+  --h-surface-0: var(--color-background-primary);
+  --h-surface-1: var(--color-background-secondary);
+  --h-surface-2: var(--color-background-tertiary);
+  --h-surface-3: var(--color-background-accent);
+  --h-text-primary: var(--color-text-primary);
+  --h-text-muted: var(--color-text-tertiary);
+  --h-text-link: var(--color-text-info);
+  --h-border-subtle: var(--color-border-secondary);
+  --h-border-strong: var(--color-border-secondary);
+  --h-accent: var(--color-text-info);
+  --h-accent-hover: var(--color-text-info);
+  --h-success: var(--color-text-success);
+  --h-warning: var(--color-text-warning);
+  --h-warn: var(--color-text-warning);
+  --h-error: var(--color-text-danger);
+  --h-degraded: var(--color-text-tertiary);
+  --h-space-xs: var(--space-xs);
+  --h-space-sm: var(--space-sm);
+  --h-space-md: var(--space-md);
+  --h-space-lg: var(--space-lg);
+  --h-space-xl: var(--space-xl);
+  --h-font-sans: var(--font-ui);
+  --h-font-mono: var(--font-mono);
+  --h-text-sm: var(--type-body);
+  --h-text-md: var(--type-title);
+  --h-text-lg: var(--type-display);
 }
 
 html,
@@ -51,4 +98,5 @@ body {
   background: var(--color-background-primary);
   color: var(--color-text-primary);
   font-family: var(--font-ui);
+  font-size: var(--type-body);
 }

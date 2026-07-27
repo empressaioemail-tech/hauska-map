@@ -13,7 +13,6 @@ import { ALL_TILES, TILE_CATEGORIES, getTile } from './tileRegistry'
 import { PRESET_SPACES } from './presets'
 import { savedSpacesApi } from './savedSpaces'
 import '@empressaio/tile-shell/index.css'
-import '@empressaio/design-tokens/tokens.css'
 
 export function WorkspacePanel({ initialPresetId }: { initialPresetId: string }) {
   const fetchAdminFunctions = async () => {
