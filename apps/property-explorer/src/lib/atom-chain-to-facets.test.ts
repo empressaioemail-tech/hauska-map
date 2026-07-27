@@ -211,3 +211,60 @@ describe("depth-warm read path (WDLL 8)", () => {
     ).toBe(true);
   });
 });
+
+/** Live gold 34785: P-5 build-to-line silent side/rear + warm buildable area. */
+const bastropGold34785Chain: PropertyAtomChain = {
+  parcelNodeId: "48021:34785",
+  zoningFact: {
+    district: "P-5",
+    extractedAt: "2026-07-23T11:58:59.441Z",
+  },
+  setbackRule: {
+    front: 15,
+    side: 0,
+    rear: 0,
+    sideCornerFt: 0,
+    districtCode: "P-5",
+  },
+  buildableEnvelope: {
+    outcome: { kind: "buildable", areaSqFt: 13641 },
+    sourceCitation: "depth-warm-verified mechanical promote (27c R3 WDLL 6)",
+    depthWarmPromotion: DEPTH_WARM_PROMOTION_MARKER,
+    geojson: {
+      type: "FeatureCollection",
+      features: [
+        {
+          type: "Feature",
+          geometry: {
+            type: "Polygon",
+            coordinates: [
+              [
+                [-97.3156, 30.1105],
+                [-97.3156, 30.1101],
+                [-97.3153, 30.1101],
+                [-97.3156, 30.1105],
+              ],
+            ],
+          },
+          properties: { kind: "buildable-envelope" },
+        },
+      ],
+    },
+    extractedAt: "2026-07-26T17:43:49.044Z",
+  },
+  atoms: [{}, {}, {}],
+};
+
+describe("adaptAtomChainToBakedFacets — P-5 silent axes keep warm area (Track B3)", () => {
+  it("publishes buildableAreaSqFt when outcome is buildable even if side/rear not_specified", () => {
+    const resp = adaptAtomChainToBakedFacets(bastropGold34785Chain);
+    expect(resp).not.toBeNull();
+    expect(resp!.readPath).toBe("atom-chain-warm");
+    expect(resp!.facets.envelope?.status).toBe("ok");
+    expect(resp!.facets.envelope?.setbacks?.not_specified?.side).toBe(true);
+    expect(resp!.facets.envelope?.setbacks?.not_specified?.rear).toBe(true);
+    expect(resp!.facets.envelope?.buildableAreaPct).toBeUndefined();
+    expect(resp!.facets.envelope?.buildableAreaSqFt).toBe(13641);
+    expect(resp!.facets.envelope?.geojson).toBeDefined();
+  });
+});

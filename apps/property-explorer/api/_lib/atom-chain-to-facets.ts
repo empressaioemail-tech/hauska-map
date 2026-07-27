@@ -365,7 +365,10 @@ export function adaptAtomChainToBakedFacets(
       provisional: true,
       disclosure: baseDisclosure,
       ...(typeof pctFromAtom === "number" ? { buildableAreaPct: pctFromAtom } : {}),
-      ...(!silentAxes && typeof areaSqFt === "number"
+      // Warm/buildable areaSqFt is honest even when side/rear are build-to-line
+      // silent — do NOT strip it. SilentAxes only blocks pct that treated
+      // not_specified axes as 0 ft (the false consume-lot class).
+      ...(typeof areaSqFt === "number" && areaSqFt > 0
         ? { buildableAreaSqFt: areaSqFt }
         : {}),
       ...(geojson !== undefined && geojson !== null ? { geojson } : {}),
