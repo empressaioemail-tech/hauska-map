@@ -7,7 +7,7 @@
 //   (3) no hard ROW-edge strokes — the feathered band IS the ROW
 // Crash guard: line-blur only (never feature-state line-gradient).
 
-import { PARCEL_TILES_FILL_ID, type OverlaySpec } from "@hauska/map-renderer";
+import type { OverlaySpec } from "@hauska/map-renderer";
 
 export const ROAD_CENTERLINE_LAYER_KEY = "road-node-centerline";
 /** Soft feathered ROW corridor (replaces hard left/right edge strokes). */
@@ -19,10 +19,10 @@ export const ROAD_EDGE_LAYER_KEY = ROAD_ROW_BAND_LAYER_KEY;
 export const ROAD_GREY = "#c4c4c4";
 
 /**
- * Parcel fill sits above roads. Inserting with this beforeId keeps the
- * feathered corridor under parcels across reconcileOverlays pan/zoom re-runs.
+ * Parcel fill sits above roads. Must match map-renderer PARCEL_TILES_FILL_ID.
+ * Literal (not a runtime import) so PE vitest does not require renderer dist.
  */
-export const ROAD_BEFORE_PARCEL_FILL_ID = PARCEL_TILES_FILL_ID;
+export const ROAD_BEFORE_PARCEL_FILL_ID = "hauska-parcel-tiles-fill";
 
 export interface AttachingRoadWire {
   roadNodeId?: string;
