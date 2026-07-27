@@ -66,12 +66,17 @@ import { countyFipsForViewportCenter } from "./county-fips-viewport";
 import {
   MIN_PARCEL_ZOOM,
   MIN_TOPO_ZOOM,
+  MIN_HYDRO_ZOOM,
   LIVE_PARCELS_KEY,
   layersForZoom,
   fetchGisLayer,
   fetchTopographyLayer,
+  fetchHydrologyLayer,
+  contourTierLabel,
+  hydrologyHonestReason,
   toLiveOverlays,
   toTopoOverlay,
+  toHydroOverlay,
   selectionToCard,
   parcelNodeIdFromSelection,
   type GisLayerResponse,
@@ -79,14 +84,21 @@ import {
   type LiveLayerState,
   type TopoLayerResponse,
   type TopoLayerState,
+  type HydroLayerResponse,
+  type HydroLayerState,
   type ParcelCardData,
 } from "./liveGis";
 
-/** The FIXTURE registry key whose LAYERS-panel toggle now controls the LIVE
- *  contour overlay. Toggling this row shows/hides the real engine contours. */
+/** The registry key whose LAYERS-panel toggle now controls the LIVE contour
+ *  overlay. Toggling this row shows/hides the real engine contours. */
 const TOPO_TOGGLE_KEY = "topography-contours" as LayerKey;
-/** PE topography BFF — free browse contour layer (engine map-layers slot). */
+/** The registry key whose LAYERS-panel toggle controls the LIVE D8 hydrology
+ *  flow-channel overlay. Toggling this row shows/hides the real engine flow. */
+const HYDRO_TOGGLE_KEY = "hydrology-flow" as LayerKey;
+/** PE topography BFF — free browse contour layer (engine topography-1ft slot). */
 const PE_TOPOGRAPHY_URL = "/api/pe-topography";
+/** PE hydrology BFF — free browse D8 flow layer (engine hydrology-flow slot). */
+const PE_HYDROLOGY_URL = "/api/pe-hydrology";
 
 /** Zoom gate for viewport road-node layer (same altitude as parcels). */
 const MIN_ROAD_ZOOM = MIN_PARCEL_ZOOM;
@@ -123,21 +135,26 @@ interface TopoSlot {
 }
 const TOPO_IDLE: TopoSlot = { fetch: { status: "idle" }, data: null };
 
+interface HydroSlot {
+  fetch: HydroLayerState;
+  data: HydroLayerResponse | null;
+}
+const HYDRO_IDLE: HydroSlot = { fetch: { status: "idle" }, data: null };
+
 /**
  * Consumer-honest layer filter for the browse panel. Drops:
  *  - AVM/valuation layers (no `rent-heat` on browse — WDLL 27).
- *  - Fixture-only terrain/hydrology layers that are NOT wired to live engine
- *    data on this surface. PE runs `useFixture={false}`, so the fixture stack
- *    never draws — a `dem-hillshade` / `hydrology-flow` toggle here would do
- *    nothing (that is the "panel doesn't work" report). We only surface toggles
- *    that control a REAL layer: live parcels, live FEMA, and live contours
- *    (`topography-contours`, now bound to the engine contour overlay). Hillshade
- *    and D8 hydrology return when they are actually served live (honest follow-up).
+ *  - Fixture-only terrain layers that are NOT wired to live engine data on this
+ *    surface. PE runs `useFixture={false}`, so the fixture stack never draws — a
+ *    toggle for an unwired layer would do nothing (the "panel doesn't work"
+ *    report). We surface ONLY toggles that control a REAL layer: live parcels,
+ *    live FEMA, live contours (`topography-contours` -> engine topography-1ft),
+ *    and live D8 hydrology (`hydrology-flow` -> engine hydrology-flow slot).
+ *    `dem-hillshade` stays excluded — no live hillshade endpoint yet (honest).
  */
 const CONSUMER_EXCLUDED_LAYERS = new Set<LayerKey>([
   "rent-heat",
   "dem-hillshade",
-  "hydrology-flow",
 ]);
 
 function filterConsumerLayers(seed: Set<LayerKey>): Set<LayerKey> {
@@ -193,6 +210,8 @@ export function ExplorerMap() {
   const [fema, setFema] = useState<LayerSlot>(IDLE);
   const [topo, setTopo] = useState<TopoSlot>(TOPO_IDLE);
   const topoAbortRef = useRef<AbortController | null>(null);
+  const [hydro, setHydro] = useState<HydroSlot>(HYDRO_IDLE);
+  const hydroAbortRef = useRef<AbortController | null>(null);
   const [zoom, setZoom] = useState<number | null>(null);
   const [card, setCard] = useState<ParcelCardData | null>(null);
   // The clicked parcel's stable baked-node id, kept alongside `card` so the
@@ -314,6 +333,36 @@ export function ExplorerMap() {
           if (topoCtrl.signal.aborted || (err as Error)?.name === "AbortError") return;
           setTopo({
             fetch: { status: "error", message: `topography: ${(err as Error)?.message}` },
+            data: null,
+          });
+        });
+    }
+
+    // Live D8 hydrology flow channels (engine hydrology-flow slot). Zoom-gated at
+    // parcel altitude so the per-view DEM + D8 compute stays bounded. Own abort
+    // controller so a hydrology fetch in flight doesn't cancel the parcel/FEMA/
+    // topo batches (separate BFF, separate latency). An ok honest-empty response
+    // (no channels) is kept as ok data — the chip surfaces the honest reason.
+    hydroAbortRef.current?.abort();
+    const hydroCtrl = new AbortController();
+    hydroAbortRef.current = hydroCtrl;
+    if (vp.zoom < MIN_HYDRO_ZOOM) {
+      setHydro({ fetch: { status: "zoom-gated" }, data: null });
+    } else {
+      setHydro((s) => ({ ...s, fetch: { status: "loading" } }));
+      const hcenter = {
+        lat: (vp.bbox.south + vp.bbox.north) / 2,
+        lng: (vp.bbox.west + vp.bbox.east) / 2,
+      };
+      fetchHydrologyLayer(PE_HYDROLOGY_URL, vp.bbox, hcenter, hydroCtrl.signal)
+        .then((state) => {
+          if (hydroCtrl.signal.aborted) return;
+          setHydro({ fetch: state, data: state.status === "ok" ? state.response : null });
+        })
+        .catch((err) => {
+          if (hydroCtrl.signal.aborted || (err as Error)?.name === "AbortError") return;
+          setHydro({
+            fetch: { status: "error", message: `hydrology: ${(err as Error)?.message}` },
             data: null,
           });
         });
@@ -674,6 +723,13 @@ export function ExplorerMap() {
         topo.data ? { status: "ok", response: topo.data } : topo.fetch,
         visibleLayers ? visibleLayers.has(TOPO_TOGGLE_KEY) : true,
       ),
+      // Live D8 hydrology flow channels beneath the parcel lines / wedge. The
+      // LAYERS-panel `hydrology-flow` toggle controls their visibility. An
+      // honest-empty response (no channels) draws nothing (never a fake meander).
+      ...toHydroOverlay(
+        hydro.data ? { status: "ok", response: hydro.data } : hydro.fetch,
+        visibleLayers ? visibleLayers.has(HYDRO_TOGGLE_KEY) : true,
+      ),
       ...toLiveOverlays(
         parcels.data ? { status: "ok", response: parcels.data } : parcels.fetch,
         fema.data ? { status: "ok", response: fema.data } : fema.fetch,
@@ -689,7 +745,7 @@ export function ExplorerMap() {
       // The buildable-envelope wedge, drawn last so it sits above the parcels.
       ...envelopeOverlays,
     ],
-    [parcels, fema, topo, roadOverlays, envelopeOverlays, visibleLayers],
+    [parcels, fema, topo, hydro, roadOverlays, envelopeOverlays, visibleLayers],
   );
 
   const chips: Array<{ key: string; sev: "info" | "warn" | "error"; text: string }> = [];
@@ -706,6 +762,8 @@ export function ExplorerMap() {
     chips.push({ key: "err", sev: "error", text: `Parcels failed — ${parcels.fetch.message}` });
   }
   // Honest contour state — only when the topo toggle is on (don't nag when off).
+  // The label FOLLOWS the served tier per viewport: 1-ft in Bastrop, 3DEP
+  // elsewhere (contourTierLabel reads topo.data.tier). Never a static claim.
   const topoToggledOn = visibleLayers ? visibleLayers.has(TOPO_TOGGLE_KEY) : true;
   if (topoToggledOn) {
     if (topo.fetch.status === "error") {
@@ -717,8 +775,31 @@ export function ExplorerMap() {
       chips.push({
         key: "topo-ok",
         sev: "info",
-        text: `Contours — ${topo.data.intervalLabel ?? "3DEP-derived"}${dz}`,
+        text: `${contourTierLabel(topo.data)}${dz}`,
       });
+    }
+  }
+  // Honest hydrology state — only when the hydrology toggle is on. Live D8 flow
+  // where it computes; honest-empty (with the served reason) where it doesn't.
+  const hydroToggledOn = visibleLayers ? visibleLayers.has(HYDRO_TOGGLE_KEY) : true;
+  if (hydroToggledOn) {
+    if (hydro.fetch.status === "error") {
+      chips.push({ key: "hydro-err", sev: "warn", text: `Flow lines degraded — ${hydro.fetch.message}` });
+    } else if (hydro.fetch.status === "no-coverage") {
+      chips.push({ key: "hydro-nc", sev: "warn", text: "No hydrology coverage here" });
+    } else if (hydro.fetch.status === "ok" && hydro.data) {
+      const emptyReason = hydrologyHonestReason(hydro.fetch);
+      if (emptyReason) {
+        // Honest-empty: no channels — surface the real reason, draw nothing.
+        chips.push({ key: "hydro-empty", sev: "info", text: `Flow lines — none: ${emptyReason}` });
+      } else {
+        const dz = hydro.data.degraded ? " · degraded" : "";
+        chips.push({
+          key: "hydro-ok",
+          sev: "info",
+          text: `Flow lines — ${hydro.data.channelCount ?? hydro.data.featureCount ?? 0} D8 channels${dz}`,
+        });
+      }
     }
   }
   const attribution =

@@ -1,20 +1,19 @@
-// Property Explorer topography (contours) BFF — qa/topo-panel-1ft-hydro.
+// Property Explorer hydrology (D8 flow) BFF — qa/topo-panel-1ft-hydro.
 //
-// POST /api/pe-topography
+// POST /api/pe-hydrology
 //   Body: { bbox: {westLng,southLat,eastLng,northLat}, centerLat?, centerLng? }
-//   Returns: { geojson, provider, tier, intervalLabel, source, vintage,
-//              fallbackReason, degraded, featureCount, status }
+//   Returns: { geojson, provider, channelCount, accumulationThreshold, routing,
+//              library, honestEmptyReason, degraded, featureCount, status }
 //
-// A FREE browse layer (peer to FEMA flood on the browse map) — no paid PE
-// session required. Fetches the engine map-layers `topography-1ft` slot for the
-// viewport with server-side gate-front headers (the browser never holds the
-// engine service token).
+// A FREE browse layer (peer to contours + FEMA flood on the browse map) — no
+// paid PE session required. Fetches the engine map-layers `hydrology-flow` slot
+// (LIVE D8 flow accumulation over the viewport 3DEP DEM) with server-side
+// gate-front headers (the browser never holds the engine service token).
 //
-// HONESTY: the `topography-1ft` slot serves AUTHORITATIVE 1-ft LiDAR contours
-// inside the Bastrop County footprint and an HONEST 3DEP-derived fallback
-// everywhere else. The `tier` in the response is read straight from the served
-// `contourSource.tier` per viewport — the client labels 1-ft in Bastrop and
-// 3DEP elsewhere. This BFF NEVER hardcodes either tier.
+// HONESTY: an ok slot with zero channels is HONEST-EMPTY (empty FeatureCollection
+// + a real `honestEmptyReason` like "no flow channels above accumulation
+// threshold in this bbox"), NOT a fabricated meander. This BFF passes that reason
+// through so the client can show the honest-empty chip.
 
 import type { VercelRequest, VercelResponse } from '@vercel/node'
 import {
@@ -23,13 +22,13 @@ import {
   ENGINE_GATE_TOKEN_MISSING_MESSAGE,
 } from './_lib/pe-site-plan-export-core.js'
 import {
-  buildAssembleBody,
-  buildTopographyGateHeaders,
+  buildHydrologyAssembleBody,
+  buildHydrologyGateHeaders,
   engineApiBaseUrl,
   engineApiGateToken,
-  mapAssemblePayload,
-  parseTopoRequest,
-} from './_lib/pe-topography-core.js'
+  mapHydrologyPayload,
+  parseHydrologyRequest,
+} from './_lib/pe-hydrology-core.js'
 
 export default async function handler(
   req: VercelRequest,
@@ -40,7 +39,7 @@ export default async function handler(
     return
   }
 
-  const parsed = parseTopoRequest(req.body)
+  const parsed = parseHydrologyRequest(req.body)
   if (!parsed.ok) {
     res.status(400).json({ error: 'invalid_request', message: parsed.message })
     return
@@ -65,9 +64,9 @@ export default async function handler(
         Authorization: `Bearer ${gateToken}`,
         'Content-Type': 'application/json',
         Accept: 'application/json',
-        ...buildTopographyGateHeaders(),
+        ...buildHydrologyGateHeaders(),
       },
-      body: JSON.stringify(buildAssembleBody(parsed.request)),
+      body: JSON.stringify(buildHydrologyAssembleBody(parsed.request)),
     })
 
     if (!upstream.ok) {
@@ -89,13 +88,13 @@ export default async function handler(
     }
 
     const payload = (await upstream.json().catch(() => null)) as unknown
-    const mapped = mapAssemblePayload(payload)
+    const mapped = mapHydrologyPayload(payload)
     res.status(200).json(mapped)
   } catch (err) {
     const message = err instanceof Error ? err.message : String(err)
     res.status(502).json({
       error: 'engine_unreachable',
-      message: `Engine API unreachable while assembling topography (${message}).`,
+      message: `Engine API unreachable while assembling hydrology flow (${message}).`,
     })
   }
 }

@@ -6,7 +6,9 @@
   "framework": null,
   "functions": {
     "api/pe-site-plan-export.ts": { "maxDuration": 60 },
-    "api/pe-terrain-export.ts": { "maxDuration": 60 }
+    "api/pe-terrain-export.ts": { "maxDuration": 60 },
+    "api/pe-topography.ts": { "maxDuration": 60 },
+    "api/pe-hydrology.ts": { "maxDuration": 60 }
   },
   "rewrites": [
     { "source": "/api/auth/(.*)", "destination": "/api/auth?upath=$1" },
@@ -17,6 +19,7 @@
     { "source": "/api/pe-terrain-export", "destination": "/api/pe-terrain-export" },
     { "source": "/api/pe-site-plan-export", "destination": "/api/pe-site-plan-export" },
     { "source": "/api/pe-topography", "destination": "/api/pe-topography" },
+    { "source": "/api/pe-hydrology", "destination": "/api/pe-hydrology" },
     { "source": "/((?!api/).*)", "destination": "/index.html" }
   ]
 }
