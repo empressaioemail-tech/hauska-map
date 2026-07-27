@@ -185,7 +185,7 @@ function sleep(ms: number): Promise<void> {
 export async function fetchPropertyAtomChain(
   parcelNodeId: string,
   config: SpineConfig,
-  timeoutMs = 20_000,
+  timeoutMs = 25_000,
 ): Promise<AtomTraceResult> {
   const retrievalUrl = config.retrievalApiUrl?.replace(/\/$/, '') || ''
   if (!retrievalUrl) {
@@ -334,11 +334,16 @@ export interface BoundaryEdgesListBody {
 /**
  * Control-Tower-shaped node detail (parcel / road / boundary-edge).
  * GET {retrieval}/nodes/:id — WDLL 1+2+6.
+ *
+ * Retries once on cold-start / transient upstream failures (Cloud Run
+ * scale-to-zero: a first-hit node-detail assembly can exceed a tight abort).
+ * Previously this had NO retry while fetchPropertyAtomChain did — so a cold
+ * node-inspect on a gold parcel hit a hard 20s timeout wall. (Timeout fix.)
  */
 export async function fetchPropertyNodeDetail(
   nodeId: string,
   config: SpineConfig,
-  timeoutMs = 20_000,
+  timeoutMs = 25_000,
 ): Promise<AtomTraceResult & { json: PropertyNodeDetailBody | null }> {
   const retrievalUrl = config.retrievalApiUrl?.replace(/\/$/, '') || ''
   if (!retrievalUrl) {
@@ -348,11 +353,13 @@ export async function fetchPropertyNodeDetail(
   if (!id) {
     return { ok: false, status: 0, json: null, error: 'nodeId is required' }
   }
-  return getJson<PropertyNodeDetailBody>(
-    `${retrievalUrl}/nodes/${encodeURIComponent(id)}`,
-    config,
-    timeoutMs,
-  )
+  const url = `${retrievalUrl}/nodes/${encodeURIComponent(id)}`
+  const first = await getJson<PropertyNodeDetailBody>(url, config, timeoutMs)
+  if (first.ok) return first
+  const reason = first.error || `HTTP ${first.status}`
+  if (!COLD_START_RETRYABLE.test(reason)) return first
+  await sleep(COLD_START_RETRY_MS)
+  return getJson<PropertyNodeDetailBody>(url, config, timeoutMs)
 }
 
 /**
