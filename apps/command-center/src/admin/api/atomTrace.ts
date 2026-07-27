@@ -70,6 +70,59 @@ export async function fetchCentralTxNodeGraphTally(
   )
 }
 
+/** COMPLETE-BASTROP B1 — spine source+engine health board row. */
+export interface SpineHealthProbeRow {
+  probeId: string
+  kind: 'source' | 'engine'
+  pack: string
+  status: 'firing' | 'degraded' | 'dead' | 'dead-expected'
+  alert: boolean
+  signal?: Record<string, unknown>
+  baselineValue?: number | null
+  currentValue?: number | null
+  error?: string | null
+  lastSuccessAt?: string | null
+  probedAt?: string
+}
+
+export interface SpineHealthSummary {
+  generatedAt?: string
+  pack?: string
+  source?: string
+  alertCount?: number
+  rows?: SpineHealthProbeRow[]
+  notes?: string[]
+}
+
+/**
+ * Latest persisted Bastrop spine health board (WDLL 6–7).
+ * GET {retrieval}/health/spine — Bearer via BFF.
+ */
+export async function fetchSpineHealthSummary(
+  config: SpineConfig,
+  timeoutMs = 30_000,
+): Promise<AtomTraceResult & { json: SpineHealthSummary | null }> {
+  const retrievalUrl = config.retrievalApiUrl?.replace(/\/$/, '') || ''
+  if (!retrievalUrl) {
+    return { ok: false, status: 0, json: null, error: 'No retrieval API URL configured' }
+  }
+  return getJson<SpineHealthSummary>(`${retrievalUrl}/health/spine`, config, timeoutMs)
+}
+
+/**
+ * Run Bastrop probe pack (persist + return). GET {retrieval}/health/spine/run.
+ */
+export async function runSpineHealthPack(
+  config: SpineConfig,
+  timeoutMs = 120_000,
+): Promise<AtomTraceResult & { json: SpineHealthSummary | null }> {
+  const retrievalUrl = config.retrievalApiUrl?.replace(/\/$/, '') || ''
+  if (!retrievalUrl) {
+    return { ok: false, status: 0, json: null, error: 'No retrieval API URL configured' }
+  }
+  return getJson<SpineHealthSummary>(`${retrievalUrl}/health/spine/run`, config, timeoutMs)
+}
+
 /** Minimal road-node chain body (retrieval GET /road-nodes/:id/atom-chain). */
 export interface RoadAtomChainBody {
   roadNodeId?: string

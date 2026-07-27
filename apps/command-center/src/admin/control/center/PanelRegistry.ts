@@ -20,6 +20,7 @@ import { ParcelTrace } from '../panels/ParcelTrace'
 import { NodeGraph } from '../panels/NodeGraph'
 import { Settings } from '../panels/Settings'
 import { RevenueMeter } from '../panels/RevenueMeter'
+import { SpineHealth } from '../panels/SpineHealth'
 import { makeStub } from '../panels/StubPanel'
 import {
   PlanReviewSpace,
@@ -51,6 +52,7 @@ export const PANELS: PanelDef[] = [
   { id: 'lens-architect', label: 'Architect', group: 'Workspace', probe: 'cortex-coverage', Component: LensArchitectSpace },
   // Substrate
   { id: 'node-graph', label: 'Node & Graph', group: 'Substrate', probe: 'retrieval-atom-chain', Component: NodeGraph },
+  { id: 'spine-health', label: 'Spine Health', group: 'Substrate', probe: 'retrieval-spine-health', Component: SpineHealth },
   { id: 'atom-inspector', label: 'Atoms', group: 'Substrate', probe: 'mcp-introspection', Component: AtomInspector },
   { id: 'parcel-trace', label: 'Parcel Trace', group: 'Substrate', probe: 'retrieval-healthz', Component: ParcelTrace },
   { id: 'mcp-inspector', label: 'MCP Tools', group: 'Substrate', probe: 'mcp-introspection', Component: McpInspector },
