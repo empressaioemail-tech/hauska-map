@@ -25,10 +25,16 @@ export interface AttachingRoadWire {
   sourceCitation?: string;
 }
 
+type LineFeature = {
+  type: "Feature";
+  properties: Record<string, unknown>;
+  geometry: { type: "LineString"; coordinates: Array<[number, number]> };
+};
+
 function lineFeature(
   coordinates: Array<[number, number]>,
   properties: Record<string, unknown>,
-): GeoJSON.Feature {
+): LineFeature {
   return {
     type: "Feature",
     properties,
@@ -40,8 +46,8 @@ function lineFeature(
 export function roadOverlaysFromAttachingRoads(
   roads: ReadonlyArray<AttachingRoadWire>,
 ): OverlaySpec[] {
-  const centerlineFeatures: GeoJSON.Feature[] = [];
-  const edgeFeatures: GeoJSON.Feature[] = [];
+  const centerlineFeatures: LineFeature[] = [];
+  const edgeFeatures: LineFeature[] = [];
 
   for (const road of roads) {
     const center = road.centerline?.coordinates;

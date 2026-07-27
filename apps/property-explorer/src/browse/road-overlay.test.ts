@@ -45,8 +45,14 @@ describe("roadOverlaysFromAttachingRoads (Track B1)", () => {
     ]);
     const edges = specs.find((s) => s.layerKey === ROAD_EDGE_LAYER_KEY)!;
     const center = specs.find((s) => s.layerKey === ROAD_CENTERLINE_LAYER_KEY)!;
-    const edgeFc = edges.geojson as GeoJSON.FeatureCollection;
-    const centerFc = center.geojson as GeoJSON.FeatureCollection;
+    const edgeFc = edges.geojson as {
+      type: string;
+      features: Array<{ properties?: Record<string, unknown> }>;
+    };
+    const centerFc = center.geojson as {
+      type: string;
+      features: Array<{ properties?: Record<string, unknown> }>;
+    };
     expect(edgeFc.features).toHaveLength(2);
     expect(centerFc.features).toHaveLength(1);
     expect(edgeFc.features[0]!.properties?.rowProvenanceKind).toBe(
