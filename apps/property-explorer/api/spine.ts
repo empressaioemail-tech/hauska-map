@@ -147,16 +147,26 @@ function isCortexBrowsePathAllowed(method: string, upstreamPath: string): boolea
   return false
 }
 
-/** Retrieval browse allowlist — atom-chain + atom DID read + health only. */
+/** Retrieval browse allowlist — atom-chain + attaching-roads + atom DID + health. */
 function isRetrievalBrowsePathAllowed(method: string, upstreamPath: string): boolean {
-  if (method !== 'GET' && method !== 'HEAD') return false
   if (upstreamPath === 'health' || upstreamPath === 'healthz' || upstreamPath === 'ready') {
-    return true
+    return method === 'GET' || method === 'HEAD'
   }
   // GET /property-nodes/:id/atom-chain (colon in id is a single path segment)
-  if (/^property-nodes\/[^/]+\/atom-chain$/.test(upstreamPath)) return true
+  if (
+    (method === 'GET' || method === 'HEAD') &&
+    /^property-nodes\/[^/]+\/atom-chain$/.test(upstreamPath)
+  ) {
+    return true
+  }
+  // POST /property-nodes/:id/attaching-roads (Track B1 road render; optional ring body)
+  if (method === 'POST' && /^property-nodes\/[^/]+\/attaching-roads$/.test(upstreamPath)) {
+    return true
+  }
   // GET /atoms/:did (DID may be URL-encoded and contain colons as one segment)
-  if (/^atoms\/[^/]+$/.test(upstreamPath)) return true
+  if ((method === 'GET' || method === 'HEAD') && /^atoms\/[^/]+$/.test(upstreamPath)) {
+    return true
+  }
   return false
 }
 
@@ -200,15 +210,24 @@ export default async function handler(req: VercelRequest, res: VercelResponse): 
     res.status(403).json({
       error: 'forbidden',
       message:
-        'Anonymous retrieval proxy allows health, property-nodes/:id/atom-chain, and atoms/:did only.',
+        'Anonymous retrieval proxy allows health, property-nodes/:id/atom-chain, property-nodes/:id/attaching-roads (POST), and atoms/:did only.',
     })
     return
   }
 
   // SECURITY: allowlist methods/paths — GET only, plus POST for MCP JSON-RPC endpoint
+  // and Track B1 attaching-roads (retrieval).
   const allowedMethods = ['GET', 'HEAD']
   // MCP JSON-RPC: allow POST to /api/spine/mcp (upstreamPath empty) or /api/spine/mcp/mcp
   if (path[0] === 'mcp' && (upstreamPath === 'mcp' || upstreamPath === '')) {
+    allowedMethods.push('POST')
+  }
+  // Track B1: PE map fetches attaching road-nodes with optional ring body.
+  if (
+    path[0] === 'retrieval' &&
+    method === 'POST' &&
+    /^property-nodes\/[^/]+\/attaching-roads$/.test(upstreamPath)
+  ) {
     allowedMethods.push('POST')
   }
   // MCP metering: the ONLY reachable path under mcp-metering is exactly
