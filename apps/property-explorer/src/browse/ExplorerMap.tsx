@@ -65,17 +65,28 @@ import {
 import { countyFipsForViewportCenter } from "./county-fips-viewport";
 import {
   MIN_PARCEL_ZOOM,
+  MIN_TOPO_ZOOM,
   LIVE_PARCELS_KEY,
   layersForZoom,
   fetchGisLayer,
+  fetchTopographyLayer,
   toLiveOverlays,
+  toTopoOverlay,
   selectionToCard,
   parcelNodeIdFromSelection,
   type GisLayerResponse,
   type LiveLayerKey,
   type LiveLayerState,
+  type TopoLayerResponse,
+  type TopoLayerState,
   type ParcelCardData,
 } from "./liveGis";
+
+/** The FIXTURE registry key whose LAYERS-panel toggle now controls the LIVE
+ *  contour overlay. Toggling this row shows/hides the real engine contours. */
+const TOPO_TOGGLE_KEY = "topography-contours" as LayerKey;
+/** PE topography BFF — free browse contour layer (engine map-layers slot). */
+const PE_TOPOGRAPHY_URL = "/api/pe-topography";
 
 /** Zoom gate for viewport road-node layer (same altitude as parcels). */
 const MIN_ROAD_ZOOM = MIN_PARCEL_ZOOM;
@@ -106,8 +117,28 @@ interface LayerSlot {
 }
 const IDLE: LayerSlot = { fetch: { status: "idle" }, data: null };
 
-/** Consumer-honest layer filter — no AVM/valuation layers on browse (WDLL 27). */
-const CONSUMER_EXCLUDED_LAYERS = new Set<LayerKey>(["rent-heat"]);
+interface TopoSlot {
+  fetch: TopoLayerState;
+  data: TopoLayerResponse | null;
+}
+const TOPO_IDLE: TopoSlot = { fetch: { status: "idle" }, data: null };
+
+/**
+ * Consumer-honest layer filter for the browse panel. Drops:
+ *  - AVM/valuation layers (no `rent-heat` on browse — WDLL 27).
+ *  - Fixture-only terrain/hydrology layers that are NOT wired to live engine
+ *    data on this surface. PE runs `useFixture={false}`, so the fixture stack
+ *    never draws — a `dem-hillshade` / `hydrology-flow` toggle here would do
+ *    nothing (that is the "panel doesn't work" report). We only surface toggles
+ *    that control a REAL layer: live parcels, live FEMA, and live contours
+ *    (`topography-contours`, now bound to the engine contour overlay). Hillshade
+ *    and D8 hydrology return when they are actually served live (honest follow-up).
+ */
+const CONSUMER_EXCLUDED_LAYERS = new Set<LayerKey>([
+  "rent-heat",
+  "dem-hillshade",
+  "hydrology-flow",
+]);
 
 function filterConsumerLayers(seed: Set<LayerKey>): Set<LayerKey> {
   const next = new Set<LayerKey>();
@@ -160,6 +191,8 @@ export function ExplorerMap() {
   const mapRef = useRef<FloatingMapHandle>(null);
   const [parcels, setParcels] = useState<LayerSlot>(IDLE);
   const [fema, setFema] = useState<LayerSlot>(IDLE);
+  const [topo, setTopo] = useState<TopoSlot>(TOPO_IDLE);
+  const topoAbortRef = useRef<AbortController | null>(null);
   const [zoom, setZoom] = useState<number | null>(null);
   const [card, setCard] = useState<ParcelCardData | null>(null);
   // The clicked parcel's stable baked-node id, kept alongside `card` so the
@@ -256,6 +289,35 @@ export function ExplorerMap() {
     };
     run("parcels", setParcels);
     run("fema", setFema);
+
+    // Live contours (engine map-layers topography slot — 3DEP-derived, NOT the
+    // export-only Bastrop 1-ft). Zoom-gated at parcel altitude so the per-view
+    // DEM stays small. Its own abort controller so a contour fetch in flight
+    // doesn't cancel the parcel/FEMA batch (separate BFF, separate latency).
+    topoAbortRef.current?.abort();
+    const topoCtrl = new AbortController();
+    topoAbortRef.current = topoCtrl;
+    if (vp.zoom < MIN_TOPO_ZOOM) {
+      setTopo({ fetch: { status: "zoom-gated" }, data: null });
+    } else {
+      setTopo((s) => ({ ...s, fetch: { status: "loading" } }));
+      const center = {
+        lat: (vp.bbox.south + vp.bbox.north) / 2,
+        lng: (vp.bbox.west + vp.bbox.east) / 2,
+      };
+      fetchTopographyLayer(PE_TOPOGRAPHY_URL, vp.bbox, center, topoCtrl.signal)
+        .then((state) => {
+          if (topoCtrl.signal.aborted) return;
+          setTopo({ fetch: state, data: state.status === "ok" ? state.response : null });
+        })
+        .catch((err) => {
+          if (topoCtrl.signal.aborted || (err as Error)?.name === "AbortError") return;
+          setTopo({
+            fetch: { status: "error", message: `topography: ${(err as Error)?.message}` },
+            data: null,
+          });
+        });
+    }
 
     // Road NETWORK in view (Track B1-map reopen) — not per-parcel attaching.
     roadAbortRef.current?.abort();
@@ -605,16 +667,29 @@ export function ExplorerMap() {
 
   const mapOverlays = useMemo<OverlaySpec[]>(
     () => [
+      // Live contours FIRST so they draw beneath parcel lines / the wedge. The
+      // LAYERS-panel `topography-contours` toggle controls their visibility
+      // (visible flag), so unchecking that row now hides a REAL layer.
+      ...toTopoOverlay(
+        topo.data ? { status: "ok", response: topo.data } : topo.fetch,
+        visibleLayers ? visibleLayers.has(TOPO_TOGGLE_KEY) : true,
+      ),
       ...toLiveOverlays(
         parcels.data ? { status: "ok", response: parcels.data } : parcels.fetch,
         fema.data ? { status: "ok", response: fema.data } : fema.fetch,
+        // Bind the live parcel/FEMA overlays to their LAYERS-panel toggles so
+        // the panel actually controls them (was: always-on regardless of toggle).
+        {
+          parcels: visibleLayers ? visibleLayers.has("parcel-polygon" as LayerKey) : true,
+          fema: visibleLayers ? visibleLayers.has("flood-zone" as LayerKey) : true,
+        },
       ),
       // Track B1 road object under the envelope wedge.
       ...roadOverlays,
       // The buildable-envelope wedge, drawn last so it sits above the parcels.
       ...envelopeOverlays,
     ],
-    [parcels, fema, roadOverlays, envelopeOverlays],
+    [parcels, fema, topo, roadOverlays, envelopeOverlays, visibleLayers],
   );
 
   const chips: Array<{ key: string; sev: "info" | "warn" | "error"; text: string }> = [];
@@ -629,6 +704,22 @@ export function ExplorerMap() {
   }
   if (parcels.fetch.status === "error") {
     chips.push({ key: "err", sev: "error", text: `Parcels failed — ${parcels.fetch.message}` });
+  }
+  // Honest contour state — only when the topo toggle is on (don't nag when off).
+  const topoToggledOn = visibleLayers ? visibleLayers.has(TOPO_TOGGLE_KEY) : true;
+  if (topoToggledOn) {
+    if (topo.fetch.status === "error") {
+      chips.push({ key: "topo-err", sev: "warn", text: `Contours degraded — ${topo.fetch.message}` });
+    } else if (topo.fetch.status === "no-coverage") {
+      chips.push({ key: "topo-nc", sev: "warn", text: "No contour coverage here" });
+    } else if (topo.fetch.status === "ok" && topo.data) {
+      const dz = topo.data.degraded ? " · degraded" : "";
+      chips.push({
+        key: "topo-ok",
+        sev: "info",
+        text: `Contours — ${topo.data.intervalLabel ?? "3DEP-derived"}${dz}`,
+      });
+    }
   }
   const attribution =
     parcels.fetch.status === "ok" && parcels.fetch.response.provider

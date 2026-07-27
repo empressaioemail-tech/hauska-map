@@ -23,12 +23,18 @@ export type LiveLayerKey = 'parcels' | 'fema'
 /** Overlay layerKeys the live loader owns on the map. */
 export const LIVE_PARCELS_KEY = 'live-parcels'
 export const LIVE_FEMA_KEY = 'live-fema'
+/** Live contour overlay key (topography). Distinct from the FIXTURE
+ *  `topography-contours` layer — this one is drawn from real engine data. */
+export const LIVE_TOPO_KEY = 'live-topography'
 
 /** Parcels are bbox-capped (~200 features upstream); below this zoom we show
  *  a "zoom in" hint instead of hammering the API with huge viewports. */
 export const MIN_PARCEL_ZOOM = 14
 /** FEMA flood polygons are coarser; fetchable a bit wider out. */
 export const MIN_FEMA_ZOOM = 11
+/** Contours derive from a per-viewport DEM fetch; keep them at parcel altitude
+ *  so the DEM extent stays small and the contour lines stay legible. */
+export const MIN_TOPO_ZOOM = 14
 
 export interface GeoJsonFeature {
   type: 'Feature'
@@ -117,6 +123,123 @@ export async function fetchGisLayer(
   return { status: 'ok', response: rec as unknown as GisLayerResponse }
 }
 
+// --- Live topography (contours) -------------------------------------------
+//
+// Contours are fetched from the PE topography BFF (POST /api/pe-topography),
+// which proxies the engine map-layers `topography` slot (3DEP-derived, 1 m
+// interval). HONEST: this is NOT the Bastrop 1-ft LiDAR (that tier is
+// export-only). The response carries the true provider/interval so the map
+// never over-claims fidelity.
+
+export interface TopoLayerResponse {
+  geojson?: FeatureCollectionLike
+  provider?: string
+  tier?: string
+  intervalLabel?: string
+  degraded?: boolean
+  featureCount?: number
+  status?: string
+  detail?: string
+}
+
+export type TopoLayerState =
+  | { status: 'idle' }
+  | { status: 'zoom-gated' }
+  | { status: 'loading' }
+  | { status: 'ok'; response: TopoLayerResponse }
+  | { status: 'no-coverage'; detail?: string }
+  | { status: 'error'; message: string }
+
+/**
+ * POST the viewport bbox+center to the topography BFF. Maps HTTP + envelope
+ * outcomes onto honest tile states — NEVER a silent fixture fallback. A 503
+ * (engine key missing on a preview deploy) surfaces as a named error the chip
+ * layer can render as DEGRADED.
+ */
+export async function fetchTopographyLayer(
+  bboxUrl: string,
+  bbox: GisBBox,
+  center: { lat: number; lng: number },
+  signal?: AbortSignal,
+): Promise<TopoLayerState> {
+  let res: Response
+  try {
+    res = await fetch(bboxUrl, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        bbox: {
+          westLng: bbox.west,
+          southLat: bbox.south,
+          eastLng: bbox.east,
+          northLat: bbox.north,
+        },
+        centerLat: center.lat,
+        centerLng: center.lng,
+      }),
+      signal,
+    })
+  } catch (err) {
+    if ((err as Error)?.name === 'AbortError') throw err
+    return { status: 'error', message: `topography: ${(err as Error)?.message || 'network error'}` }
+  }
+
+  let body: unknown = null
+  try {
+    body = await res.json()
+  } catch {
+    /* non-JSON — handled by status below */
+  }
+  const rec = (body ?? {}) as Record<string, unknown>
+
+  if (res.status === 404) {
+    return { status: 'no-coverage', detail: typeof rec.message === 'string' ? rec.message : undefined }
+  }
+  if (!res.ok) {
+    const detail =
+      (typeof rec.message === 'string' && rec.message) ||
+      (typeof rec.error === 'string' && rec.error) ||
+      `HTTP ${res.status}`
+    return { status: 'error', message: `topography: ${detail}` }
+  }
+  const response = rec as unknown as TopoLayerResponse
+  if (response.status && response.status !== 'ok') {
+    if (response.status === 'no-coverage') {
+      return { status: 'no-coverage', detail: response.detail }
+    }
+    return { status: 'error', message: `topography: ${response.detail || response.status}` }
+  }
+  return { status: 'ok', response }
+}
+
+/**
+ * Compose the live contour OverlaySpec (or none). `visible` binds the overlay to
+ * the LAYERS-panel toggle for the FIXTURE registry key `topography-contours`, so
+ * unchecking that row hides the real contour overlay (the toggle now controls a
+ * real layer). Empty feature collections draw nothing but keep the state honest.
+ */
+export function toTopoOverlay(
+  topo: TopoLayerState,
+  visible: boolean,
+): OverlaySpec[] {
+  if (topo.status !== 'ok' || !topo.response.geojson) return []
+  const fc = topo.response.geojson
+  if (!fc.features || fc.features.length === 0) return []
+  return [
+    {
+      layerKey: LIVE_TOPO_KEY,
+      provider: topo.response.provider,
+      geojson: fc,
+      visible,
+      paint: {
+        'line-color': 'rgba(180,120,60,0.72)',
+        'line-width': 0.8,
+        'line-opacity': 0.85,
+      },
+    },
+  ]
+}
+
 /** Neutral parcel fill when no landUseCode is present in the viewport. */
 const NEUTRAL_PARCEL_FILL = '#8aa2b8'
 
@@ -156,10 +279,16 @@ export function parcelFillColor(fc: FeatureCollectionLike | undefined): unknown 
  * Compose the live OverlaySpec[] for the renderer. FEMA first so its fill
  * draws BELOW the parcel lines (reconcileOverlays adds layers in array
  * order); parcels are the interactive click/hover surface.
+ *
+ * `visibility` binds each live overlay to its LAYERS-panel registry toggle
+ * (`flood-zone` -> FEMA, `parcel-polygon` -> parcels). Omitted flags default to
+ * visible=true (backward-compatible for callers that do not thread the toggle
+ * set, e.g. the Command Center LiveMapTile).
  */
 export function toLiveOverlays(
   parcels: LiveLayerState,
   fema: LiveLayerState,
+  visibility?: { parcels?: boolean; fema?: boolean },
 ): OverlaySpec[] {
   const specs: OverlaySpec[] = []
   if (fema.status === 'ok' && fema.response.geojson) {
@@ -167,6 +296,7 @@ export function toLiveOverlays(
       layerKey: LIVE_FEMA_KEY,
       provider: fema.response.provider,
       geojson: fema.response.geojson,
+      visible: visibility?.fema !== false,
       paint: {
         'fill-color': [
           'match',
@@ -186,6 +316,7 @@ export function toLiveOverlays(
       provider: parcels.response.provider,
       geojson: parcels.response.geojson,
       interactive: true,
+      visible: visibility?.parcels !== false,
       paint: {
         'fill-color': parcelFillColor(parcels.response.geojson),
         'fill-opacity': 0.14,
