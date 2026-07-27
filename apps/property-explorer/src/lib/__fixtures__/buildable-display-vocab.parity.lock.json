@@ -1,0 +1,7 @@
+{
+  "peerRepo": "hauska-engine",
+  "peerPath": "packages/engine-core/src/site-plan/buildable-display-vocab.ts",
+  "localPath": "apps/property-explorer/src/lib/buildable-display-vocab.ts",
+  "sha256": "284DE527FE2D4AF90650EA528F114A4DD5B5DBC327091E9C9DB9A281ABBF8CFB",
+  "note": "M0 dual-copy handshake. sha256 must match hauska-engine lock. Refresh peer.fixture from peer source when either copy changes."
+}

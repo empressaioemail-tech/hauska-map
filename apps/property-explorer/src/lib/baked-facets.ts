@@ -25,6 +25,7 @@
 // defense-in-depth); this client never reads or surfaces an owner field.
 
 import { formatSetbackDisplay } from "../../api/_lib/setback-not-specified";
+import { mapBuildableDisplay } from "./buildable-display-vocab";
 
 /** The baked Tier-1 facet payload, mirrored from the backend contract. */
 export interface BakedFacetPayload {
@@ -64,6 +65,7 @@ export interface BakedFacetPayload {
       };
     };
     buildableAreaPct?: number;
+    buildableAreaSqFt?: number;
     disclosure?: string;
     emptyReason?: string;
     citationUrl?: string;
@@ -139,6 +141,20 @@ export interface BakedCardModel {
   envelopeDeclineReason: string | null;
   /** Envelope disclosure string when the bake carried one. */
   disclosure: string | null;
+  /**
+   * Shared B3 vocabulary kind — same enum PDF SUMMARY uses for this parcel's
+   * envelope inputs (pending | provisional | buildable-with-area | …).
+   */
+  buildableDisplayKind:
+    | "absent"
+    | "loading"
+    | "pending"
+    | "provisional"
+    | "buildable-with-area"
+    | "declined-consume"
+    | "not_specified";
+  /** Stable cross-surface probe token (map card ↔ inspect ↔ PDF). */
+  buildableAgreementToken: string;
   /** Provenance: parcel + land-use source and vintage for the citation line. */
   provenance: {
     parcelSource: string | null;
@@ -236,24 +252,32 @@ export function deriveBakedCardModel(payload: BakedFacetPayload): BakedCardModel
       : zoningDecline === "atom_path_pending"
         ? pending("Loading setbacks…")
         : absent<string>();
-  let buildablePct: CardFacet<string>;
-  if (hasEnvelope && env?.status === "no-buildable-area" && !silentAxes) {
-    buildablePct = present("0% — setbacks consume lot");
-  } else if (
-    hasEnvelope &&
-    typeof env?.buildableAreaPct === "number" &&
-    !silentAxes
-  ) {
-    buildablePct = present(`${Math.round(env.buildableAreaPct)}%`);
-  } else if (hasEnvelope && s && silentAxes) {
-    buildablePct = pending("build-to-line · buildable % pending");
-  } else if (hasEnvelope && s) {
-    buildablePct = pending("setbacks present · buildable % pending");
-  } else if (zoningDecline === "atom_path_pending") {
-    buildablePct = pending("Loading buildable area…");
-  } else {
-    buildablePct = absent<string>();
-  }
+  // B3: one shared mapper for map card / inspect (PDF uses the same module).
+  const buildableVocab = mapBuildableDisplay({
+    envelopeStatus:
+      zoningDecline === "atom_path_pending"
+        ? "declined"
+        : env?.status ?? (hasEnvelope ? "ok" : null),
+    declineReason:
+      zoningDecline === "atom_path_pending"
+        ? "atom_path_pending"
+        : env?.status === "declined"
+          ? env.declineReason ?? null
+          : null,
+    notSpecifiedAxes: silentAxes,
+    buildableAreaPct:
+      typeof env?.buildableAreaPct === "number" ? env.buildableAreaPct : null,
+    buildableAreaSqFt:
+      typeof env?.buildableAreaSqFt === "number" ? env.buildableAreaSqFt : null,
+    hasGeometry: env?.geojson != null,
+    provisional: env?.provisional === true,
+  });
+  const buildablePct: CardFacet<string> =
+    buildableVocab.cardState === "present"
+      ? present(buildableVocab.cardLabel ?? "")
+      : buildableVocab.cardState === "pending"
+        ? pending(buildableVocab.cardLabel ?? "pending")
+        : absent<string>();
 
   return {
     parcelNodeId: payload.parcelNodeId ?? null,
@@ -275,6 +299,8 @@ export function deriveBakedCardModel(payload: BakedFacetPayload): BakedCardModel
     envelopeDeclineReason:
       env?.status === "declined" ? env.declineReason ?? null : null,
     disclosure: env?.disclosure ?? null,
+    buildableDisplayKind: buildableVocab.kind,
+    buildableAgreementToken: buildableVocab.agreementToken,
     provenance: {
       parcelSource: payload.provenance?.parcelSource ?? null,
       landUseSource: payload.provenance?.landUseSource ?? null,
