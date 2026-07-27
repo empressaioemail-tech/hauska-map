@@ -123,7 +123,6 @@ export function mapBuildableDisplay(input: BuildableDisplayInput): BuildableDisp
   const decline = input.declineReason ?? null;
   const silent = input.notSpecifiedAxes === true;
   const areaSqFt = resolveBuildableAreaSqFt(input);
-  const hasArea = areaPresent(input);
   const hasDrawable = drawableOrAreaPresent(input);
   const provisional =
     input.provisional === true ||
