@@ -23,12 +23,9 @@ import {
 } from './_lib/pe-export-dev-bypass.js'
 import { readPeSessionCookie } from './_lib/session-cookie.js'
 import {
-  buildSitePlanEngineGateHeaders,
   classifyEngineFailure,
   ENGINE_GATE_TOKEN_MESSAGE,
-  ENGINE_GATE_TOKEN_MISSING_MESSAGE,
-  engineApiBaseUrl,
-  engineApiGateToken,
+  extractInlineDownload,
   isValidParcelNodeId,
   mapMcpSitePlanPayload,
   parseSitePlanFormat,
@@ -233,70 +230,87 @@ async function handleDownload(
     return
   }
 
-  const gateToken = engineApiGateToken()
-  if (!gateToken) {
-    // FIX 1: fail fast with the SPECIFIC cause rather than making a tokenless
-    // call that 401s and then gets mislabelled "unreachable".
+  // Download through the MCP gate, NOT directly to engine-api.
+  //
+  // engine-api accepts ONLY gate-signed calls (X-Hauska-Gate-Context +
+  // X-Hauska-Gate-Signature, produced from GATE_CONTEXT_SIGNING_KEY which
+  // lives only in the MCP gate). A direct PE->engine call with a Bearer
+  // token and plain gate-front headers is rejected with
+  // gate_front_context_required — that was the honest-but-dead-end
+  // "needs an engine-api gate token" the operator hit. The site-plan PDF
+  // is ~430 KiB, over the MCP inline cap, so the refresh POST returns a
+  // ref and the download flows here; it must be gate-signed too. MCP's
+  // download_parcel_site_plan_export signs the gate and returns the bytes
+  // as base64. One SDK meter is consumed at refresh, not here.
+  if (!mcpProductKey()) {
     res.status(503).json({
-      error: 'engine_gate_config',
-      message: ENGINE_GATE_TOKEN_MISSING_MESSAGE,
-      missing: 'HAUSKA_ENGINE_API_KEY|ENGINE_API_GATE_TOKEN',
+      error: 'proxy not configured',
+      missing: 'MCP_PRODUCT_KEY',
     })
     return
   }
 
-  const target = `${engineApiBaseUrl()}/v1/property-nodes/${encodeURIComponent(parcelNodeId)}/site-plan-export/download?format=${encodeURIComponent(format)}`
-
   try {
-    const upstream = await fetch(target, {
-      headers: {
-        Authorization: `Bearer ${gateToken}`,
-        Accept: '*/*',
-        ...buildSitePlanEngineGateHeaders(),
-      },
+    const payload = await callMcpTool('download_parcel_site_plan_export', {
+      parcel_node_id: parcelNodeId,
+      format,
     })
 
-    if (!upstream.ok) {
-      const text = await upstream.text()
-      // FIX 1: distinguish a gate/auth rejection (engine up, call refused) from
-      // a real failure. A 401/403 here means the gate token / gate-front
-      // context is wrong or missing server-side — say so, don't say "unreachable".
-      const kind = classifyEngineFailure({ status: upstream.status, message: text })
+    if (payload.isError === true) {
+      const message = mcpToolErrorMessage(payload)
+      if (isMcpPaymentMessage(message)) {
+        res.status(402).json({ error: 'payment_required', message })
+        return
+      }
+      const kind = classifyEngineFailure({ message })
       if (kind === 'gate') {
         res.status(503).json({
           error: 'engine_gate_config',
           message: ENGINE_GATE_TOKEN_MESSAGE,
-          detail: text.slice(0, 300),
+          detail: message,
         })
         return
       }
-      res.status(upstream.status).json({
+      res.status(502).json({ error: 'download_failed', message })
+      return
+    }
+
+    const inline = extractInlineDownload(payload)
+    if (!inline) {
+      res.status(502).json({
         error: 'download_failed',
-        message: text.slice(0, 300),
+        message: 'MCP site-plan download returned no artifact bytes.',
       })
       return
     }
 
-    const contentType = upstream.headers.get('content-type')
-    const disposition = upstream.headers.get('content-disposition')
-    if (contentType) res.setHeader('Content-Type', contentType)
-    if (disposition) res.setHeader('Content-Disposition', disposition)
-    else {
-      res.setHeader(
-        'Content-Disposition',
-        `attachment; filename="${sitePlanFilename(parcelNodeId, format)}"`,
-      )
-    }
-
-    const buffer = Buffer.from(await upstream.arrayBuffer())
+    const buffer = Buffer.from(inline.base64, 'base64')
+    res.setHeader('Content-Type', inline.contentType || 'application/octet-stream')
+    res.setHeader(
+      'Content-Disposition',
+      `attachment; filename="${sitePlanFilename(parcelNodeId, format)}"`,
+    )
     res.status(200).send(buffer)
   } catch (err) {
-    // FIX 1: a thrown fetch error here IS a genuine connect/timeout failure —
-    // this is the only branch that may honestly say the engine is unreachable.
     const message = err instanceof Error ? err.message : String(err)
+    if (isMcpPaymentMessage(message)) {
+      res.status(402).json({ error: 'payment_required', message })
+      return
+    }
+    // A thrown MCP/engine error: classify honestly. Only genuine
+    // connect/timeout failures say "unreachable".
+    const kind = classifyEngineFailure({ message })
+    if (kind === 'gate') {
+      res.status(503).json({
+        error: 'engine_gate_config',
+        message: ENGINE_GATE_TOKEN_MESSAGE,
+        detail: message,
+      })
+      return
+    }
     res.status(502).json({
-      error: 'engine_unreachable',
-      message: `Engine API unreachable while downloading the site plan (${message}).`,
+      error: 'download_failed',
+      message: `Site-plan download failed (${message}).`,
     })
   }
 }
