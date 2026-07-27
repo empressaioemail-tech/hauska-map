@@ -140,49 +140,53 @@ function upsertOverlay(map, spec) {
 
   const choroExpr = spec.choropleth ? choroplethFillColor(spec.choropleth) : null;
 
+  const beforeId = resolveBeforeId(map, spec.beforeId);
+
   // Polygon -> fill + line.
   if (fam.polygon) {
     const fillId = `${sourceId}-fill`;
     const fillColor = choroExpr || paint["fill-color"] || DEFAULT_FILL;
     if (!map.getLayer(fillId)) {
-      map.addLayer({
-        id: fillId,
-        type: "fill",
-        source: sourceId,
-        paint: {
-          "fill-color": fillColor,
-          "fill-opacity": paint["fill-opacity"] ?? 0.45,
+      map.addLayer(
+        {
+          id: fillId,
+          type: "fill",
+          source: sourceId,
+          paint: {
+            "fill-color": fillColor,
+            "fill-opacity": paint["fill-opacity"] ?? 0.45,
+          },
         },
-      });
+        beforeId,
+      );
     } else {
       safeSetPaint(map, fillId, "fill-color", fillColor);
       if (paint["fill-opacity"] != null)
         safeSetPaint(map, fillId, "fill-opacity", paint["fill-opacity"]);
+      ensureLayerOrder(map, fillId, beforeId);
     }
     map.setLayoutProperty(fillId, "visibility", vis);
 
     const lineId = `${sourceId}-line`;
     const lineColor = paint["line-color"] || DEFAULT_LINE;
     const lineDash = staticDash(paint["line-dasharray"]);
+    const linePaint = buildLinePaint(paint, lineColor, 1.4, lineDash);
     if (!map.getLayer(lineId)) {
-      map.addLayer({
-        id: lineId,
-        type: "line",
-        source: sourceId,
-        paint: {
-          "line-color": lineColor,
-          "line-width": paint["line-width"] ?? 1.4,
+      map.addLayer(
+        {
+          id: lineId,
+          type: "line",
+          source: sourceId,
           // STATIC literal dash only (crash guard): a feature-state-driven
           // line-dasharray is the setConstantDashPositions per-frame crash;
           // a literal array is safe. staticDash() drops anything non-literal.
-          ...(lineDash ? { "line-dasharray": lineDash } : {}),
+          paint: linePaint,
         },
-      });
+        beforeId,
+      );
     } else {
-      safeSetPaint(map, lineId, "line-color", lineColor);
-      if (paint["line-width"] != null)
-        safeSetPaint(map, lineId, "line-width", paint["line-width"]);
-      if (lineDash) safeSetPaint(map, lineId, "line-dasharray", lineDash);
+      applyLinePaint(map, lineId, linePaint);
+      ensureLayerOrder(map, lineId, beforeId);
     }
     map.setLayoutProperty(lineId, "visibility", vis);
   } else {
@@ -194,20 +198,20 @@ function upsertOverlay(map, spec) {
     const lineId = `${sourceId}-line`;
     const lineColor = paint["line-color"] || DEFAULT_LINE;
     const lineDash = staticDash(paint["line-dasharray"]);
+    const linePaint = buildLinePaint(paint, lineColor, 1.6, lineDash);
     if (!map.getLayer(lineId)) {
-      map.addLayer({
-        id: lineId,
-        type: "line",
-        source: sourceId,
-        paint: {
-          "line-color": lineColor,
-          "line-width": paint["line-width"] ?? 1.6,
-          ...(lineDash ? { "line-dasharray": lineDash } : {}),
+      map.addLayer(
+        {
+          id: lineId,
+          type: "line",
+          source: sourceId,
+          paint: linePaint,
         },
-      });
+        beforeId,
+      );
     } else {
-      safeSetPaint(map, lineId, "line-color", lineColor);
-      if (lineDash) safeSetPaint(map, lineId, "line-dasharray", lineDash);
+      applyLinePaint(map, lineId, linePaint);
+      ensureLayerOrder(map, lineId, beforeId);
     }
     map.setLayoutProperty(lineId, "visibility", vis);
   } else if (!fam.polygon) {
@@ -219,24 +223,67 @@ function upsertOverlay(map, spec) {
     const circleId = `${sourceId}-circle`;
     const circleColor = choroExpr || paint["circle-color"] || DEFAULT_CIRCLE;
     if (!map.getLayer(circleId)) {
-      map.addLayer({
-        id: circleId,
-        type: "circle",
-        source: sourceId,
-        paint: {
-          "circle-color": circleColor,
-          "circle-radius": paint["circle-radius"] ?? 5,
-          "circle-opacity": paint["circle-opacity"] ?? 0.85,
-          "circle-stroke-color": paint["circle-stroke-color"] ?? "#ffffff",
-          "circle-stroke-width": paint["circle-stroke-width"] ?? 0.8,
+      map.addLayer(
+        {
+          id: circleId,
+          type: "circle",
+          source: sourceId,
+          paint: {
+            "circle-color": circleColor,
+            "circle-radius": paint["circle-radius"] ?? 5,
+            "circle-opacity": paint["circle-opacity"] ?? 0.85,
+            "circle-stroke-color": paint["circle-stroke-color"] ?? "#ffffff",
+            "circle-stroke-width": paint["circle-stroke-width"] ?? 0.8,
+          },
         },
-      });
+        beforeId,
+      );
     } else {
       safeSetPaint(map, circleId, "circle-color", circleColor);
+      ensureLayerOrder(map, circleId, beforeId);
     }
     map.setLayoutProperty(circleId, "visibility", vis);
   } else {
     removeLayerIfPresent(map, `${sourceId}-circle`);
+  }
+}
+
+/**
+ * Build line paint, passing through zoom expressions + line-blur (safe feather).
+ * Never invents feature-state line-gradient (crash guard).
+ */
+function buildLinePaint(paint, lineColor, defaultWidth, lineDash) {
+  const out = {
+    "line-color": lineColor,
+    "line-width": paint["line-width"] ?? defaultWidth,
+  };
+  if (paint["line-opacity"] != null) out["line-opacity"] = paint["line-opacity"];
+  // line-blur is the SAFE feather channel (see gis-hydrology-flow + crash-guard).
+  if (paint["line-blur"] != null) out["line-blur"] = paint["line-blur"];
+  if (lineDash) out["line-dasharray"] = lineDash;
+  return out;
+}
+
+function applyLinePaint(map, lineId, linePaint) {
+  for (const [prop, value] of Object.entries(linePaint)) {
+    safeSetPaint(map, lineId, prop, value);
+  }
+}
+
+/** Prefer a live beforeId; drop silently if the anchor layer is not mounted yet. */
+function resolveBeforeId(map, beforeId) {
+  if (typeof beforeId !== "string" || !beforeId) return undefined;
+  return map.getLayer(beforeId) ? beforeId : undefined;
+}
+
+/** Re-assert z-order on every upsert so pan/zoom reconcile cannot float overlays. */
+function ensureLayerOrder(map, layerId, beforeId) {
+  if (!beforeId || !map.getLayer(layerId) || !map.getLayer(beforeId)) return;
+  if (typeof map.moveLayer !== "function") return;
+  try {
+    map.moveLayer(layerId, beforeId);
+  } catch {
+    /* ignore — beforeId may have been removed mid-reconcile */
   }
 }
 

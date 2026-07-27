@@ -57,11 +57,19 @@ export interface OverlaySpec {
   };
   /**
    * Optional MapLibre paint overrides, keyed by the concrete paint property
-   * (`fill-color`, `fill-opacity`, `line-color`, `line-width`, `circle-color`,
-   * `circle-radius`, `circle-opacity`, `circle-stroke-color`,
-   * `circle-stroke-width`).
+   * (`fill-color`, `fill-opacity`, `line-color`, `line-width`, `line-opacity`,
+   * `line-blur`, `circle-color`, `circle-radius`, `circle-opacity`,
+   * `circle-stroke-color`, `circle-stroke-width`). Zoom interpolate expressions
+   * and literal `line-blur` are passed through (safe — not feature-state
+   * line-gradient).
    */
   paint?: Record<string, unknown>;
+  /**
+   * Optional MapLibre `beforeId` — insert / keep this overlay's layers beneath
+   * the named sibling (e.g. parcel fill). Re-asserted on every reconcile so
+   * pan/zoom upserts cannot float roads above parcels.
+   */
+  beforeId?: string;
   /** Whether the overlay starts visible (default true). */
   visible?: boolean;
   /**

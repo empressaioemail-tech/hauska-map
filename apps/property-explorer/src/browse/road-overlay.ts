@@ -1,16 +1,28 @@
 // apps/property-explorer/src/browse/road-overlay.ts
 //
-// Track B1: draw attaching road-node centerline + ROW edges on the PE map.
-// Reuses road-node atom geometry (centerline + baked leftEdge/rightEdge).
-// No second road model. Edges carry approximate-assumed-per-class provenance.
+// Track B1 / QA1: soft feathered light-grey ROW corridor under parcels.
+// Data path unchanged (road-node centerline). Art direction only:
+//   (1) wide low-opacity grey band with line-blur (the ROW)
+//   (2) super-faint hairline centerline
+//   (3) no hard ROW-edge strokes — the feathered band IS the ROW
+// Crash guard: line-blur only (never feature-state line-gradient).
 
-import type { OverlaySpec } from "@hauska/map-renderer";
+import { PARCEL_TILES_FILL_ID, type OverlaySpec } from "@hauska/map-renderer";
 
 export const ROAD_CENTERLINE_LAYER_KEY = "road-node-centerline";
-export const ROAD_EDGE_LAYER_KEY = "road-node-row-edges";
+/** Soft feathered ROW corridor (replaces hard left/right edge strokes). */
+export const ROAD_ROW_BAND_LAYER_KEY = "road-node-row-band";
+/** @deprecated Use ROAD_ROW_BAND_LAYER_KEY — hard edge strokes retired. */
+export const ROAD_EDGE_LAYER_KEY = ROAD_ROW_BAND_LAYER_KEY;
 
-const ROAD_LINE = "#1a5f9e";
-const ROAD_EDGE = "#3b82b0";
+/** Single light-grey for band + hairline (not blue). */
+export const ROAD_GREY = "#c4c4c4";
+
+/**
+ * Parcel fill sits above roads. Inserting with this beforeId keeps the
+ * feathered corridor under parcels across reconcileOverlays pan/zoom re-runs.
+ */
+export const ROAD_BEFORE_PARCEL_FILL_ID = PARCEL_TILES_FILL_ID;
 
 export interface AttachingRoadWire {
   roadNodeId?: string;
@@ -42,12 +54,88 @@ function lineFeature(
   };
 }
 
-/** Build OverlaySpec[] for attaching road-nodes (centerline + ROW edges). */
+/** Zoom-scaled width / blur / opacity — not fixed pixels. */
+const ROW_BAND_PAINT = {
+  "line-color": ROAD_GREY,
+  "line-width": [
+    "interpolate",
+    ["linear"],
+    ["zoom"],
+    12,
+    10,
+    14,
+    18,
+    16,
+    28,
+    18,
+    40,
+  ],
+  "line-opacity": [
+    "interpolate",
+    ["linear"],
+    ["zoom"],
+    12,
+    0.1,
+    14,
+    0.16,
+    16,
+    0.22,
+    18,
+    0.28,
+  ],
+  "line-blur": [
+    "interpolate",
+    ["linear"],
+    ["zoom"],
+    12,
+    3,
+    14,
+    5,
+    16,
+    8,
+    18,
+    12,
+  ],
+} as const;
+
+const CENTERLINE_PAINT = {
+  "line-color": ROAD_GREY,
+  "line-width": [
+    "interpolate",
+    ["linear"],
+    ["zoom"],
+    12,
+    0.35,
+    14,
+    0.55,
+    16,
+    0.8,
+    18,
+    1.1,
+  ],
+  "line-opacity": [
+    "interpolate",
+    ["linear"],
+    ["zoom"],
+    12,
+    0.12,
+    14,
+    0.18,
+    16,
+    0.24,
+    18,
+    0.3,
+  ],
+} as const;
+
+/**
+ * Build OverlaySpec[] for attaching / near-bbox road-nodes.
+ * ROW is a feathered grey band on the centerline; edge geometries are not drawn.
+ */
 export function roadOverlaysFromAttachingRoads(
   roads: ReadonlyArray<AttachingRoadWire>,
 ): OverlaySpec[] {
   const centerlineFeatures: LineFeature[] = [];
-  const edgeFeatures: LineFeature[] = [];
 
   for (const road of roads) {
     const center = road.centerline?.coordinates;
@@ -61,50 +149,34 @@ export function roadOverlaysFromAttachingRoads(
       assumedWidthFt: road.row?.assumedWidthFt ?? null,
       sourceCitation: road.sourceCitation ?? null,
     };
-    centerlineFeatures.push(lineFeature(center, { ...baseProps, role: "centerline" }));
-
-    const left = road.row?.leftEdge?.coordinates;
-    const right = road.row?.rightEdge?.coordinates;
-    if (Array.isArray(left) && left.length >= 2) {
-      edgeFeatures.push(
-        lineFeature(left, { ...baseProps, role: "leftEdge", rowProvenanceKind: provenanceKind }),
-      );
-    }
-    if (Array.isArray(right) && right.length >= 2) {
-      edgeFeatures.push(
-        lineFeature(right, { ...baseProps, role: "rightEdge", rowProvenanceKind: provenanceKind }),
-      );
-    }
+    centerlineFeatures.push(
+      lineFeature(center, { ...baseProps, role: "centerline" }),
+    );
   }
 
-  const specs: OverlaySpec[] = [];
-  if (edgeFeatures.length > 0) {
-    specs.push({
-      layerKey: ROAD_EDGE_LAYER_KEY,
-      layerKind: "road-node-row-edges",
+  if (centerlineFeatures.length === 0) return [];
+
+  const fc = { type: "FeatureCollection" as const, features: centerlineFeatures };
+
+  // Band first (under), hairline second — both beneath parcels via beforeId.
+  return [
+    {
+      layerKey: ROAD_ROW_BAND_LAYER_KEY,
+      layerKind: "road-node-row-band",
       provider: "hauska-road-node",
-      geojson: { type: "FeatureCollection", features: edgeFeatures },
-      paint: {
-        "line-color": ROAD_EDGE,
-        "line-width": 1.5,
-        "line-opacity": 0.85,
-      },
+      geojson: fc,
+      paint: { ...ROW_BAND_PAINT },
+      beforeId: ROAD_BEFORE_PARCEL_FILL_ID,
       visible: true,
-    });
-  }
-  if (centerlineFeatures.length > 0) {
-    specs.push({
+    },
+    {
       layerKey: ROAD_CENTERLINE_LAYER_KEY,
       layerKind: "road-node-centerline",
       provider: "hauska-road-node",
-      geojson: { type: "FeatureCollection", features: centerlineFeatures },
-      paint: {
-        "line-color": ROAD_LINE,
-        "line-width": 2.5,
-        "line-opacity": 0.95,
-      },
+      geojson: fc,
+      paint: { ...CENTERLINE_PAINT },
+      beforeId: ROAD_BEFORE_PARCEL_FILL_ID,
       visible: true,
-    });
-  }
-  return specs;
+    },
+  ];
 }
