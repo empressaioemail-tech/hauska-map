@@ -59,6 +59,10 @@ import {
   insetParcelBySetbacks,
 } from "./envelope-overlay";
 import {
+  roadOverlaysFromAttachingRoads,
+  type AttachingRoadWire,
+} from "./road-overlay";
+import {
   MIN_PARCEL_ZOOM,
   LIVE_PARCELS_KEY,
   layersForZoom,
@@ -71,6 +75,47 @@ import {
   type LiveLayerState,
   type ParcelCardData,
 } from "./liveGis";
+
+/** Extract exterior ring [lng,lat][] from a parcel GeoJSON geometry if present. */
+function ringFromParcelGeometry(geom: unknown): Array<[number, number]> | null {
+  if (!geom || typeof geom !== "object") return null;
+  const g = geom as {
+    type?: string;
+    coordinates?: unknown;
+    geometry?: { type?: string; coordinates?: unknown };
+  };
+  const target = g.type === "Feature" ? g.geometry : g;
+  if (!target || typeof target !== "object") return null;
+  const coords = (target as { type?: string; coordinates?: unknown }).coordinates;
+  if ((target as { type?: string }).type === "Polygon" && Array.isArray(coords)) {
+    const ring = coords[0];
+    if (!Array.isArray(ring) || ring.length < 3) return null;
+    return ring.map((p) => [Number(p[0]), Number(p[1])] as [number, number]);
+  }
+  if ((target as { type?: string }).type === "MultiPolygon" && Array.isArray(coords)) {
+    const ring = (coords[0] as unknown[])?.[0];
+    if (!Array.isArray(ring) || ring.length < 3) return null;
+    return ring.map((p) => [Number((p as number[])[0]), Number((p as number[])[1])] as [number, number]);
+  }
+  return null;
+}
+
+async function fetchAttachingRoads(
+  parcelNodeId: string,
+  ringWgs84: Array<[number, number]> | null,
+  signal?: AbortSignal,
+): Promise<AttachingRoadWire[]> {
+  const url = `/api/spine/retrieval/property-nodes/${encodeURIComponent(parcelNodeId)}/attaching-roads`;
+  const res = await fetch(url, {
+    method: "POST",
+    headers: { "content-type": "application/json" },
+    body: JSON.stringify(ringWgs84 ? { ringWgs84 } : {}),
+    signal,
+  });
+  if (!res.ok) return [];
+  const json = (await res.json()) as { attachingRoads?: AttachingRoadWire[] };
+  return Array.isArray(json.attachingRoads) ? json.attachingRoads : [];
+}
 
 interface LayerSlot {
   fetch: LiveLayerState;
@@ -148,6 +193,9 @@ export function ExplorerMap() {
   // Holds 0..2 specs: the amber inset fill+dashed-edge (status "ok"), or a
   // dashed full-parcel outline for the honest 0%/"entirely setback" case.
   const [envelopeOverlays, setEnvelopeOverlays] = useState<OverlaySpec[]>([]);
+  // Track B1: attaching road-node centerline + ROW edges for the inspected parcel.
+  const [roadOverlays, setRoadOverlays] = useState<OverlaySpec[]>([]);
+  const roadAbortRef = useRef<AbortController | null>(null);
   // The clicked parcel's raw geometry (from the live-GIS overlay feature), kept
   // so the 0% case can outline the whole lot and the client-side inset fallback
   // can inset the parcel ring when the server returned setbacks but no polygon.
@@ -239,6 +287,8 @@ export function ExplorerMap() {
       // Clear any prior envelope wedge — a new parcel starts with no envelope
       // drawn; handleEnvelope re-draws it when this parcel's envelope resolves.
       setEnvelopeOverlays([]);
+      setRoadOverlays([]);
+      roadAbortRef.current?.abort();
       clickedParcelGeomRef.current = parcelGeometry;
       // Clear the prior inspected feature-state (if any and still lit).
       const prior = inspectedRef.current;
@@ -278,6 +328,22 @@ export function ExplorerMap() {
         },
         "inspect-parcel",
       );
+
+      // Track B1: draw attaching road centerline + ROW edges from road-node atoms.
+      if (parcelNodeId) {
+        const ctrl = new AbortController();
+        roadAbortRef.current = ctrl;
+        const ring = ringFromParcelGeometry(parcelGeometry);
+        void fetchAttachingRoads(parcelNodeId, ring, ctrl.signal)
+          .then((roads) => {
+            if (ctrl.signal.aborted) return;
+            setRoadOverlays(roadOverlaysFromAttachingRoads(roads));
+          })
+          .catch((err) => {
+            if (ctrl.signal.aborted || (err as Error)?.name === "AbortError") return;
+            setRoadOverlays([]);
+          });
+      }
     },
     [],
   );
@@ -538,6 +604,8 @@ export function ExplorerMap() {
     inspectedRef.current = null;
     clickedParcelGeomRef.current = null;
     setEnvelopeOverlays([]); // clear the wedge visual when the card closes.
+    setRoadOverlays([]);
+    roadAbortRef.current?.abort();
     setCard(null);
     setCardNodeId(null);
     parcelNodes.setInspected(null, "close-inspect");
@@ -549,10 +617,12 @@ export function ExplorerMap() {
         parcels.data ? { status: "ok", response: parcels.data } : parcels.fetch,
         fema.data ? { status: "ok", response: fema.data } : fema.fetch,
       ),
+      // Track B1 road object under the envelope wedge.
+      ...roadOverlays,
       // The buildable-envelope wedge, drawn last so it sits above the parcels.
       ...envelopeOverlays,
     ],
-    [parcels, fema, envelopeOverlays],
+    [parcels, fema, roadOverlays, envelopeOverlays],
   );
 
   const chips: Array<{ key: string; sev: "info" | "warn" | "error"; text: string }> = [];

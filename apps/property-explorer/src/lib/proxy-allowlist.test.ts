@@ -47,14 +47,23 @@ function isDeepPathAllowed(method: string, upstreamPath: string): boolean {
   return false
 }
 
-/** Mirrors spine.ts retrieval browse allowlist (Gate C dual-serve). */
+/** Mirrors spine.ts retrieval browse allowlist (Gate C dual-serve + Track B1). */
 function isRetrievalBrowsePathAllowed(method: string, upstreamPath: string): boolean {
-  if (method !== 'GET' && method !== 'HEAD') return false
   if (upstreamPath === 'health' || upstreamPath === 'healthz' || upstreamPath === 'ready') {
+    return method === 'GET' || method === 'HEAD'
+  }
+  if (
+    (method === 'GET' || method === 'HEAD') &&
+    /^property-nodes\/[^/]+\/atom-chain$/.test(upstreamPath)
+  ) {
     return true
   }
-  if (/^property-nodes\/[^/]+\/atom-chain$/.test(upstreamPath)) return true
-  if (/^atoms\/[^/]+$/.test(upstreamPath)) return true
+  if (method === 'POST' && /^property-nodes\/[^/]+\/attaching-roads$/.test(upstreamPath)) {
+    return true
+  }
+  if ((method === 'GET' || method === 'HEAD') && /^atoms\/[^/]+$/.test(upstreamPath)) {
+    return true
+  }
   return false
 }
 
@@ -87,9 +96,12 @@ describe('proxy allowlists', () => {
     ).toBe(true)
   })
 
-  it('allows retrieval atom-chain and atoms/:did', () => {
+  it('allows retrieval atom-chain, attaching-roads POST, and atoms/:did', () => {
     expect(
       isRetrievalBrowsePathAllowed('GET', 'property-nodes/48209:156346/atom-chain'),
+    ).toBe(true)
+    expect(
+      isRetrievalBrowsePathAllowed('POST', 'property-nodes/48021:34785/attaching-roads'),
     ).toBe(true)
     expect(
       isRetrievalBrowsePathAllowed(
