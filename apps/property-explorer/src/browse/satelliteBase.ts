@@ -3,4 +3,4 @@ export {
   asMaplibreMap,
   setSatelliteBase,
   SATELLITE_ATTRIBUTION,
-} from "@hauska/map-renderer";
+} from "../../../../packages/map-renderer/src/chrome/satelliteBase";

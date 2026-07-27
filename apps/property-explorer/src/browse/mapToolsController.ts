@@ -1,8 +1,8 @@
 // Thin re-export — layered chrome lives in @hauska/map-renderer (CC-A WDLL 7).
-export { installMapTools } from "@hauska/map-renderer";
+export { installMapTools } from "../../../../packages/map-renderer/src/chrome/mapToolsController";
 export type {
   MapToolsController,
   ToolsSnapshot,
   ToolKind,
   MeasureMode,
-} from "@hauska/map-renderer";
+} from "../../../../packages/map-renderer/src/chrome/mapToolsController";

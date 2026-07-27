@@ -5,5 +5,5 @@ export {
   ringAreaSqMeters,
   formatDistance,
   formatArea,
-} from "@hauska/map-renderer";
-export type { LngLat } from "@hauska/map-renderer";
+} from "../../../../packages/map-renderer/src/chrome/geoMeasure";
+export type { LngLat } from "../../../../packages/map-renderer/src/chrome/geoMeasure";

@@ -93,7 +93,7 @@ describe('one-read-path guardrails (F1b dogfood)', () => {
     expect(liveMap).toMatch(/from ['"]@hauska\/map-renderer['"]/)
     expect(explorer).toMatch(/LayersControl/)
     expect(explorer).toMatch(/MapTools/)
-    expect(peLayers).toMatch(/from ['"]@hauska\/map-renderer['"]/)
+    expect(peLayers).toMatch(/packages\/map-renderer\/src\/chrome\/LayersControl/)
     expect(peLayers).not.toMatch(/export function LayersControl/)
     expect(existsSync(resolve(mapRoot, 'packages/map-renderer/src/chrome/LayersControl.tsx'))).toBe(true)
     expect(existsSync(resolve(mapRoot, 'packages/map-renderer/src/chrome/MapTools.tsx'))).toBe(true)

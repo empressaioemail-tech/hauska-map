@@ -1,2 +1,3 @@
 // Thin re-export — layered chrome lives in @hauska/map-renderer (CC-A WDLL 7).
-export { LayersControl } from "@hauska/map-renderer";
+// Relative source path (not package barrel) so PE vitest resolves without a build.
+export { LayersControl } from "../../../../packages/map-renderer/src/chrome/LayersControl";
