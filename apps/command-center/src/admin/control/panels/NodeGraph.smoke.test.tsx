@@ -1,33 +1,39 @@
 /**
- * WDLL 8 dogfood smoke — Node & Graph ledger renders Gate A tally shape and
- * inspects via the shared property atom-chain client. Network is mocked;
- * fails loudly on contract drift.
- *
- * Avoids PanelProvider (pulls PanelRegistry → workspace → map-renderer CSS).
+ * WDLL 8 / CC-A U1 smoke — Node & Graph ledger renders Gate A tally +
+ * Control-Tower NodeInspect with clickable edges (mocked network).
  */
 import { describe, it, expect, vi, beforeEach } from 'vitest'
 import { render, screen, waitFor, fireEvent } from '@testing-library/react'
 import React from 'react'
 
+const lockInspectNode = vi.fn()
 const lockParcelNode = vi.fn()
 let lockedId: string | null = null
 
-vi.mock('../center/parcelNodeBinding', () => ({
-  isCanonicalParcelNodeId: (v: unknown) =>
-    typeof v === 'string' && /^\d{5}:[^/\s]+$/.test(v.trim()),
-  isCanonicalRoadNodeId: (v: unknown) =>
-    typeof v === 'string' && /^\d{5}:road:\d+$/.test(v.trim()),
-  isCanonicalSpineNodeId: (v: unknown) =>
-    typeof v === 'string' &&
-    (/^\d{5}:[^/\s]+$/.test(v.trim()) || /^\d{5}:road:\d+$/.test(v.trim())),
-  useParcelNodeBinding: () => ({
-    parcelNodeId: lockedId,
-    lockParcelNode: (id: string | null) => {
-      lockedId = id
-      lockParcelNode(id)
-    },
-  }),
-}))
+vi.mock('../center/parcelNodeBinding', async () => {
+  const atomTrace = await import('../../api/atomTrace')
+  return {
+    isCanonicalParcelNodeId: atomTrace.isStrictParcelNodeId,
+    isCanonicalRoadNodeId: atomTrace.isCanonicalRoadNodeId,
+    isCanonicalBoundaryEdgeNodeId: atomTrace.isCanonicalBoundaryEdgeNodeId,
+    isCanonicalSpineNodeId: (v: unknown) =>
+      atomTrace.isStrictParcelNodeId(v) ||
+      atomTrace.isCanonicalRoadNodeId(v) ||
+      atomTrace.isCanonicalBoundaryEdgeNodeId(v),
+    useParcelNodeBinding: () => ({
+      parcelNodeId: lockedId && atomTrace.isStrictParcelNodeId(lockedId) ? lockedId : null,
+      inspectNodeId: lockedId,
+      lockParcelNode: (id: string | null) => {
+        lockedId = id
+        lockParcelNode(id)
+      },
+      lockInspectNode: (id: string | null) => {
+        lockedId = id
+        lockInspectNode(id)
+      },
+    }),
+  }
+})
 
 vi.mock('../../api/atomTrace', async () => {
   const actual = await vi.importActual<typeof import('../../api/atomTrace')>('../../api/atomTrace')
@@ -40,7 +46,7 @@ vi.mock('../../api/atomTrace', async () => {
       error: 'unauthorized',
     })),
     fetchPropertyAtomChain: vi.fn(async (parcelNodeId: string) => {
-      if (parcelNodeId === '48209:156346') {
+      if (parcelNodeId === '48209:156346' || parcelNodeId === '48021:28286') {
         return {
           ok: true,
           status: 200,
@@ -60,6 +66,101 @@ vi.mock('../../api/atomTrace', async () => {
         }
       }
       return { ok: false, status: 502, json: null, error: 'unreachable' }
+    }),
+    fetchPropertyNodeDetail: vi.fn(async (nodeId: string) => {
+      if (nodeId === '48021:28286' || nodeId === '48209:156346') {
+        return {
+          ok: true,
+          status: 200,
+          json: {
+            available: true,
+            requested_node_id: nodeId,
+            canonical_node_id: nodeId,
+            node: {
+              node_id: nodeId,
+              node_type: 'parcel',
+              resolution_status: 'resolved',
+              status: 'active',
+              name: `parcel ${nodeId.split(':')[1]}`,
+              summary: { boundaryEdgeCount: nodeId === '48021:28286' ? 1 : 0 },
+            },
+            identifiers: [
+              { identifier_type: 'parcelNodeId', identifier_value: nodeId, node_id: nodeId },
+            ],
+            edges_out:
+              nodeId === '48021:28286'
+                ? [
+                    {
+                      id: '48021:28286->48021:28286:boundary:2',
+                      from_node: '48021:28286',
+                      type: 'has-boundary-edge',
+                      to_node: '48021:28286:boundary:2',
+                      label: 'e2 · front · ROW · 15ft',
+                    },
+                  ]
+                : [],
+            edges_in: [],
+            atom_counts_by_family: {
+              'zoning-fact': 1,
+              'buildable-envelope': 1,
+              ...(nodeId === '48021:28286' ? { 'property-boundary-edge': 1 } : {}),
+            },
+          },
+        }
+      }
+      if (nodeId === '48021:28286:boundary:2') {
+        return {
+          ok: true,
+          status: 200,
+          json: {
+            available: true,
+            requested_node_id: nodeId,
+            canonical_node_id: nodeId,
+            node: {
+              node_id: nodeId,
+              node_type: 'property-boundary-edge',
+              resolution_status: 'resolved',
+              status: 'active',
+              name: 'edge 2 · front',
+              summary: {
+                role: 'front',
+                adjacencyKind: 'ROW',
+                setback: { feet: 15, provenance: 'test' },
+                parcelNeighborPropId: '35671',
+                facingRoad: { roadNodeId: '48021:road:999' },
+              },
+            },
+            identifiers: [],
+            edges_out: [
+              {
+                id: 'b->road',
+                from_node: nodeId,
+                type: 'faces-road',
+                to_node: '48021:road:999',
+                label: 'residential',
+              },
+              {
+                id: 'b->nbr',
+                from_node: nodeId,
+                type: 'adjacent-parcel',
+                to_node: '48021:35671',
+                label: 'neighbor 35671',
+              },
+            ],
+            edges_in: [
+              {
+                id: 'p->b',
+                from_node: '48021:28286',
+                type: 'has-boundary-edge',
+                to_node: nodeId,
+              },
+            ],
+            atom_counts_by_family: { 'property-boundary-edge': 1 },
+            boundary_edge: { role: 'front', adjacencyKind: 'ROW' },
+          },
+        }
+      }
+      return { ok: false, status: 404, json: null, error: 'not found' }
     }),
   }
 })
@@ -91,9 +192,10 @@ const TALLY = {
   },
 }
 
-describe('NodeGraph smoke (WDLL 8)', () => {
+describe('NodeGraph smoke (WDLL 8 / CC-A U1)', () => {
   beforeEach(() => {
     lockedId = null
+    lockInspectNode.mockClear()
     lockParcelNode.mockClear()
     vi.stubGlobal(
       'fetch',
@@ -110,7 +212,7 @@ describe('NodeGraph smoke (WDLL 8)', () => {
     )
   })
 
-  it('renders Gate A tally columns and inspects a named node via atom-chain', async () => {
+  it('renders tally + structured NodeInspect with walkable edge (not JSON-primary)', async () => {
     render(<NodeGraph />)
 
     await waitFor(() => {
@@ -120,14 +222,27 @@ describe('NodeGraph smoke (WDLL 8)', () => {
     })
 
     const input = screen.getByTestId('node-graph-input') as HTMLInputElement
-    fireEvent.change(input, { target: { value: '48209:156346' } })
+    fireEvent.change(input, { target: { value: '48021:28286' } })
     fireEvent.click(screen.getByTestId('node-graph-inspect'))
 
     await waitFor(() => {
-      expect(lockParcelNode).toHaveBeenCalledWith('48209:156346')
+      expect(lockInspectNode).toHaveBeenCalledWith('48021:28286')
+      expect(screen.getByTestId('node-inspect')).toBeTruthy()
       expect(screen.getByText(/zoning-fact: present/i)).toBeTruthy()
-      expect(screen.getByText(/setback-rule: missing/i)).toBeTruthy()
-      expect(screen.getByText(/buildable-envelope: present/i)).toBeTruthy()
+      expect(screen.getByText(/Edges · out 1/i)).toBeTruthy()
+    })
+
+    // Raw JSON is demoted — not visible until debug toggle.
+    expect(screen.queryByTestId('node-graph-trace')).toBeNull()
+
+    fireEvent.click(screen.getByTestId('edge-out-48021:28286->48021:28286:boundary:2'))
+
+    await waitFor(() => {
+      expect(lockInspectNode).toHaveBeenCalledWith('48021:28286:boundary:2')
+      expect(screen.getByText(/Boundary primitive/i)).toBeTruthy()
+      expect(screen.getByText(/^front$/)).toBeTruthy()
+      expect(screen.getByText(/faces-road/i)).toBeTruthy()
+      expect(screen.getByText(/adjacent-parcel/i)).toBeTruthy()
     })
   })
 })
