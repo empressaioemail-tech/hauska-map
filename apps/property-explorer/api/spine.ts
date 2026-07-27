@@ -147,7 +147,7 @@ function isCortexBrowsePathAllowed(method: string, upstreamPath: string): boolea
   return false
 }
 
-/** Retrieval browse allowlist — atom-chain + attaching-roads + atom DID + health. */
+/** Retrieval browse allowlist — atom-chain + attaching-roads + near-bbox + atom DID + health. */
 function isRetrievalBrowsePathAllowed(method: string, upstreamPath: string): boolean {
   if (upstreamPath === 'health' || upstreamPath === 'healthz' || upstreamPath === 'ready') {
     return method === 'GET' || method === 'HEAD'
@@ -159,8 +159,12 @@ function isRetrievalBrowsePathAllowed(method: string, upstreamPath: string): boo
   ) {
     return true
   }
-  // POST /property-nodes/:id/attaching-roads (Track B1 road render; optional ring body)
+  // POST /property-nodes/:id/attaching-roads (Track B1 site-plan / parcel frontage)
   if (method === 'POST' && /^property-nodes\/[^/]+\/attaching-roads$/.test(upstreamPath)) {
+    return true
+  }
+  // GET /road-nodes/near-bbox (Track B1-map viewport road network)
+  if ((method === 'GET' || method === 'HEAD') && upstreamPath === 'road-nodes/near-bbox') {
     return true
   }
   // GET /atoms/:did (DID may be URL-encoded and contain colons as one segment)
@@ -210,7 +214,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse): 
     res.status(403).json({
       error: 'forbidden',
       message:
-        'Anonymous retrieval proxy allows health, property-nodes/:id/atom-chain, property-nodes/:id/attaching-roads (POST), and atoms/:did only.',
+        'Anonymous retrieval proxy allows health, property-nodes/:id/atom-chain, property-nodes/:id/attaching-roads (POST), road-nodes/near-bbox (GET), and atoms/:did only.',
     })
     return
   }

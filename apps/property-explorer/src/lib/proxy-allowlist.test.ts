@@ -61,6 +61,9 @@ function isRetrievalBrowsePathAllowed(method: string, upstreamPath: string): boo
   if (method === 'POST' && /^property-nodes\/[^/]+\/attaching-roads$/.test(upstreamPath)) {
     return true
   }
+  if ((method === 'GET' || method === 'HEAD') && upstreamPath === 'road-nodes/near-bbox') {
+    return true
+  }
   if ((method === 'GET' || method === 'HEAD') && /^atoms\/[^/]+$/.test(upstreamPath)) {
     return true
   }
@@ -96,13 +99,14 @@ describe('proxy allowlists', () => {
     ).toBe(true)
   })
 
-  it('allows retrieval atom-chain, attaching-roads POST, and atoms/:did', () => {
+  it('allows retrieval atom-chain, attaching-roads POST, near-bbox, and atoms/:did', () => {
     expect(
       isRetrievalBrowsePathAllowed('GET', 'property-nodes/48209:156346/atom-chain'),
     ).toBe(true)
     expect(
       isRetrievalBrowsePathAllowed('POST', 'property-nodes/48021:34785/attaching-roads'),
     ).toBe(true)
+    expect(isRetrievalBrowsePathAllowed('GET', 'road-nodes/near-bbox')).toBe(true)
     expect(
       isRetrievalBrowsePathAllowed(
         'GET',
