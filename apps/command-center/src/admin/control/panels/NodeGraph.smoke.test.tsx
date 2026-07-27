@@ -3,7 +3,7 @@
  * Control-Tower NodeInspect with clickable edges + family→atoms (mocked network).
  */
 import { describe, it, expect, vi, beforeEach } from 'vitest'
-import { render, screen, waitFor, fireEvent } from '@testing-library/react'
+import { render, screen, waitFor, fireEvent, within } from '@testing-library/react'
 import React from 'react'
 
 const lockInspectNode = vi.fn()
@@ -324,14 +324,19 @@ describe('NodeGraph smoke (WDLL 8 / CC-A U1+U2)', () => {
     await waitFor(() => {
       expect(screen.getByTestId('central-tx-tally')).toBeTruthy()
     })
-    const tallyToggle = screen.getByTestId('central-tx-tally').querySelector('button[aria-expanded]')
+    const tallyEl = screen.getByTestId('central-tx-tally')
+    const tallyToggle = tallyEl.querySelector('button[aria-expanded]')
     expect(tallyToggle).toBeTruthy()
     fireEvent.click(tallyToggle!)
 
+    // Scope tally assertions to the tally container — the browse-view county
+    // roster now also renders county names/percentages, so a global getByText
+    // would match two nodes. The tally-only cells (64.12%) stay global-unique.
     await waitFor(() => {
-      expect(screen.getByText(/Travis/)).toBeTruthy()
-      expect(screen.getByText('61%')).toBeTruthy()
-      expect(screen.getByText('64.12%')).toBeTruthy()
+      const { getByText } = within(tallyEl)
+      expect(getByText(/Travis/)).toBeTruthy()
+      expect(getByText('61%')).toBeTruthy()
+      expect(getByText('64.12%')).toBeTruthy()
     })
 
     const input = screen.getByTestId('node-graph-input') as HTMLInputElement

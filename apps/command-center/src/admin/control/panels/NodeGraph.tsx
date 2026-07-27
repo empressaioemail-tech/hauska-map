@@ -464,6 +464,175 @@ const NodeInspect: React.FC<{
   )
 }
 
+/**
+ * NodeBrowser — PORT of the Control Tower NodeGraphBrowser LIST shell.
+ *
+ * The reference opens on a filterable, paginated node LIST served by the trading
+ * backend's GET /admin/nodes. The property spine has NO parcel-list endpoint
+ * (GET /nodes and /property-nodes without an id 404), so a faithful node list
+ * cannot be served here. Instead of faking one, this renders the reference's
+ * structured browse SHELL wired to what the spine DOES serve:
+ *   - a filter/id-entry row (the entry affordance the spine can honor),
+ *   - a COUNTY ROSTER from the live Central-TX tally (real node counts per
+ *     county, filterable by name/fips) — the browsable substrate index,
+ *   - NAMED-ROAD samples from the tally (clickable straight into inspect).
+ * The parcel-node list itself is marked honest-empty with the reason, and the
+ * operator browses by id / county / road sample. No fabricated rows.
+ */
+const NodeBrowser: React.FC<{
+  counties: CountyTallyRow[]
+  sampleRoads: Array<{ roadNodeId: string; displayName: string | null }>
+  inputId: string
+  loadingNode: boolean
+  tallyLoading: boolean
+  onInputChange: (v: string) => void
+  onInspect: (id: string) => void
+  onLockMap: (id: string) => void
+  canLockMap: boolean
+}> = ({
+  counties,
+  sampleRoads,
+  inputId,
+  loadingNode,
+  tallyLoading,
+  onInputChange,
+  onInspect,
+  onLockMap,
+  canLockMap,
+}) => {
+  const [filter, setFilter] = useState('')
+  const f = filter.trim().toLowerCase()
+  const filteredCounties = f
+    ? counties.filter((c) => `${c.county} ${c.fips}`.toLowerCase().includes(f))
+    : counties
+  const filteredRoads = f
+    ? sampleRoads.filter((r) => `${r.roadNodeId} ${r.displayName ?? ''}`.toLowerCase().includes(f))
+    : sampleRoads
+
+  return (
+    <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }} data-testid="node-browser">
+      {/* id-entry affordance — the browse the spine CAN honor */}
+      <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+        <span style={sectionHeader}>Browse the substrate — inspect by id</span>
+        <div style={{ display: 'flex', gap: 6, alignItems: 'center' }}>
+          <input
+            style={inputStyle}
+            value={inputId}
+            onChange={(e) => onInputChange(e.target.value)}
+            onKeyDown={(e) => {
+              if (e.key === 'Enter') onInspect(inputId)
+            }}
+            placeholder="48021:28286 or …:boundary:2 or …:road:…"
+            data-testid="node-graph-input"
+          />
+          <Button onClick={() => onInspect(inputId)} disabled={loadingNode} testId="node-graph-inspect">
+            {loadingNode ? 'Loading…' : 'Inspect'}
+          </Button>
+          <Button
+            variant="secondary"
+            onClick={() => onLockMap(inputId.trim())}
+            disabled={!canLockMap}
+            title="Lock parcel and open map workspace (ledger → map)"
+          >
+            Lock on map
+          </Button>
+        </div>
+        <span style={{ ...typeCaption }} data-testid="node-browse-honest-empty">
+          Spine serves no parcel-list endpoint (GET /nodes, /property-nodes 404) — a filterable node
+          list is honest-empty here. Browse by id, by county, or from a named-road sample below.
+        </span>
+      </div>
+
+      {/* filter for the roster + road samples */}
+      <input
+        style={inputStyle}
+        value={filter}
+        onChange={(e) => setFilter(e.target.value)}
+        placeholder="filter county / road…"
+        data-testid="node-browse-filter"
+      />
+
+      {/* county roster — the browsable substrate index (from live tally) */}
+      <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+        <span style={sectionHeader}>
+          County roster{counties.length ? ` · ${counties.length}` : ''}
+        </span>
+        {tallyLoading && counties.length === 0 ? (
+          <Loading />
+        ) : filteredCounties.length === 0 ? (
+          <Empty>No county matches the filter.</Empty>
+        ) : (
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 5 }}>
+            {filteredCounties.map((c) => (
+              <Card
+                key={c.fips}
+                asButton
+                onClick={() => onInputChange(`${c.fips}:`)}
+                title={`Seed ${c.county} (${c.fips}) into the id box — append a propId to inspect`}
+                testId={`county-row-${c.fips}`}
+                padding="8px 10px"
+              >
+                <div style={{ display: 'flex', justifyContent: 'space-between', gap: 8, alignItems: 'center' }}>
+                  <span style={{ ...typeTitle, fontSize: 'var(--type-body)' }}>
+                    {c.county} <span style={{ ...mono, color: 'var(--color-text-tertiary)' }}>({c.fips})</span>
+                  </span>
+                  <Pill sev={c.zoning_present_pct > 0 ? 'ok' : 'info'}>{c.zoning_present_pct}% zoned</Pill>
+                </div>
+                <div
+                  style={{
+                    display: 'flex',
+                    gap: 12,
+                    flexWrap: 'wrap',
+                    ...mono,
+                    fontSize: 'var(--type-caption)',
+                    color: 'var(--color-text-secondary)',
+                  }}
+                >
+                  <span>nodes: {fmtNum(c.nodes)}</span>
+                  <span>full-chain: {fmtNum(c.full_chain_nodes)}</span>
+                  <span>setback: {fmtNum(c.setback_present)}</span>
+                  <span>envelope: {fmtNum(c.envelope_present)}</span>
+                </div>
+              </Card>
+            ))}
+          </div>
+        )}
+      </div>
+
+      {/* named-road samples — clickable straight into inspect */}
+      {sampleRoads.length > 0 && (
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+          <span style={sectionHeader}>Named-road samples · {sampleRoads.length}</span>
+          {filteredRoads.length === 0 ? (
+            <Empty>No road matches the filter.</Empty>
+          ) : (
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 5 }}>
+              {filteredRoads.map((r) => (
+                <Card
+                  key={r.roadNodeId}
+                  asButton
+                  onClick={() => onInspect(r.roadNodeId)}
+                  title={`Inspect ${r.roadNodeId}`}
+                  testId={`road-sample-${r.roadNodeId}`}
+                  padding="7px 10px"
+                  style={{ ...mono, fontSize: 'var(--type-caption)' }}
+                >
+                  <div style={{ display: 'flex', justifyContent: 'space-between', gap: 8 }}>
+                    <span style={{ color: 'var(--color-text-primary)', fontWeight: 700 }}>
+                      {r.displayName || 'unnamed road'}
+                    </span>
+                    <span style={{ color: 'var(--color-text-tertiary)' }}>{r.roadNodeId}</span>
+                  </div>
+                </Card>
+              ))}
+            </div>
+          )}
+        </div>
+      )}
+    </div>
+  )
+}
+
 export const NodeGraph: React.FC = () => {
   const config = useMemo<SpineConfig>(() => loadConfig(), [])
   const [, selectPanel, hashParams] = useActivePanel()
@@ -477,6 +646,8 @@ export const NodeGraph: React.FC = () => {
   const [chainJson, setChainJson] = useState<string | null>(null)
   const [loadingNode, setLoadingNode] = useState(false)
   const [nodeError, setNodeError] = useState<string | null>(null)
+  // Honest partial: node-detail resolved but atom-chain slow/failed (timeout fix).
+  const [degraded, setDegraded] = useState<string | null>(null)
 
   // atomFamily === null → atoms panel closed; '' → all families; 'zoning-fact' etc → filtered.
   const [atomFamily, setAtomFamily] = useState<string | null>(() => {
@@ -544,9 +715,32 @@ export const NodeGraph: React.FC = () => {
     }
     setLoadingNode(true)
     setNodeError(null)
+    setDegraded(null)
     lockInspectNode(nodeId)
 
-    const detailResult = await fetchPropertyNodeDetail(nodeId, config)
+    const isParcel = isCanonicalParcelNodeId(nodeId)
+    if (isParcel) {
+      setSlotStatus({
+        'zoning-fact': 'loading',
+        'setback-rule': 'loading',
+        'buildable-envelope': 'loading',
+      })
+    } else {
+      setSlotStatus({})
+    }
+
+    // Timeout fix: fan node-detail and atom-chain IN PARALLEL, not sequentially.
+    // They are independent reads; awaiting them one-after-another doubled the
+    // wall time (each ~3-6s warm, each 20-30s+ on a cold Cloud Run start), which
+    // is what tripped the 20s hard abort on gold-parcel inspect. The node card
+    // is gated only on node-detail; a slow/failed atom-chain degrades the slot
+    // pills to an honest partial instead of failing the whole inspect.
+    const detailPromise = fetchPropertyNodeDetail(nodeId, config)
+    const chainPromise = isParcel
+      ? fetchPropertyAtomChain(nodeId, config)
+      : Promise.resolve(null)
+
+    const detailResult = await detailPromise
     if (!detailResult.ok || !detailResult.json) {
       setDetail(null)
       setChainJson(null)
@@ -558,25 +752,27 @@ export const NodeGraph: React.FC = () => {
 
     setDetail(detailResult.json)
 
-    // Parcel: also load atom-chain for slot pills (F1b path preserved).
-    if (isCanonicalParcelNodeId(nodeId)) {
-      setSlotStatus({
-        'zoning-fact': 'loading',
-        'setback-rule': 'loading',
-        'buildable-envelope': 'loading',
-      })
-      const chainResult = await fetchPropertyAtomChain(nodeId, config)
-      if (chainResult.ok && chainResult.json) {
+    if (isParcel) {
+      const chainResult = await chainPromise
+      if (chainResult && chainResult.ok && chainResult.json) {
         const chain = chainResult.json as PropertyAtomChainBody
         setSlotStatus(propertyChainSlotStatuses(chain))
         setChainJson(JSON.stringify(chain, null, 2))
       } else {
+        // Honest partial: the node resolved but its reasoning chain did not.
+        // Do NOT throw the whole inspect away — show the node with degraded
+        // slots and a re-run affordance (timeout fix: no hard 20s wall).
         setSlotStatus({
           'zoning-fact': 'error',
           'setback-rule': 'error',
           'buildable-envelope': 'error',
         })
         setChainJson(null)
+        setDegraded(
+          `Node resolved, but its atom-chain ${
+            chainResult?.error || 'did not load'
+          } — slot pills below are degraded (partial state, not a hard failure). Re-run to retry.`,
+        )
       }
     } else {
       setSlotStatus({})
@@ -632,79 +828,129 @@ export const NodeGraph: React.FC = () => {
       }
     >
       <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
-        <div>
-          <span style={sectionHeader}>Node inspect (Control-Tower organism)</span>
-          <p style={{ ...typeCaption, marginTop: 4, marginBottom: 8 }}>
-            Locks hash <code>node=</code>. Family pills open atoms; atom click opens inspector with{' '}
-            <code>return=node-graph</code> trail (WDLL 3/4/5). Walk edges on gold <code>48021:28286</code>.
-          </p>
-          <div style={{ display: 'flex', gap: 6, alignItems: 'center' }}>
-            <input
-              style={inputStyle}
-              value={inputId}
-              onChange={(e) => setInputId(e.target.value)}
-              onKeyDown={(e) => {
-                if (e.key === 'Enter') void inspectNode(inputId)
-              }}
-              placeholder="48021:28286 or …:boundary:2 or …:road:…"
-              data-testid="node-graph-input"
-            />
-            <Button
-              onClick={() => void inspectNode(inputId)}
-              disabled={loadingNode}
-              testId="node-graph-inspect"
-            >
-              {loadingNode ? 'Loading…' : 'Inspect'}
-            </Button>
-            <Button
-              variant="secondary"
-              onClick={() => lockParcelNode(inputId.trim(), { panelId: 'site-analysis' })}
-              disabled={!isCanonicalParcelNodeId(inputId)}
-              title="Lock parcel and open map workspace (ledger → map)"
-            >
-              Lock on map
-            </Button>
-          </div>
-          {inspectNodeId && (
-            <div style={{ marginTop: 8, ...typeCaption, color: 'var(--color-text-secondary)' }}>
-              Locked: <code data-testid="node-graph-locked">{inspectNodeId}</code>
-              {isCanonicalBoundaryEdgeNodeId(inspectNodeId) && ' (boundary-edge)'}
-              {isCanonicalRoadNodeId(inspectNodeId) && ' (road)'}
-            </div>
-          )}
-          {nodeError && (
-            <div style={{ marginTop: 8, ...typeCaption, color: 'var(--color-text-danger)' }}>{nodeError}</div>
-          )}
-          <div style={{ marginTop: 12 }}>
-            {loadingNode && <Loading />}
-            {!loadingNode && detail?.available && detail.node && (
-              <NodeInspect
-                nodeId={inspectNodeId ?? inputId}
-                detail={detail}
-                slotStatus={slotStatus}
-                chainJson={chainJson}
-                config={config}
-                atomFamily={atomFamily}
-                onPickFamily={pickAtomFamily}
-                onClearAtoms={clearAtoms}
-                onOpenAtom={openAtomInspector}
-                onWalk={(nextId) => {
-                  setInputId(nextId)
-                  void inspectNode(nextId)
-                }}
-                onClose={() => {
+        {/* List ↔ detail toggle — the reference opens on a browse LIST, then
+            swaps the center for the node detail on selection. */}
+        {!inspectNodeId && !detail ? (
+          <NodeBrowser
+            counties={counties}
+            sampleRoads={roadRollup?.sampleNamed ?? []}
+            inputId={inputId}
+            loadingNode={loadingNode}
+            tallyLoading={!tally && !tallyError}
+            onInputChange={setInputId}
+            onInspect={(id) => void inspectNode(id)}
+            onLockMap={(id) => lockParcelNode(id, { panelId: 'site-analysis' })}
+            canLockMap={isCanonicalParcelNodeId(inputId)}
+          />
+        ) : (
+          <div>
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8 }}>
+              <span style={sectionHeader}>Node inspect (Control-Tower organism)</span>
+              <Button
+                variant="secondary"
+                testId="node-graph-back-to-browse"
+                onClick={() => {
                   setDetail(null)
                   setChainJson(null)
                   setAtomFamily(null)
+                  setNodeError(null)
+                  setDegraded(null)
                   lockInspectNode(null)
                 }}
+              >
+                ← back to browse
+              </Button>
+            </div>
+            <p style={{ ...typeCaption, marginTop: 4, marginBottom: 8 }}>
+              Locks hash <code>node=</code>. Family pills open atoms; atom click opens inspector with{' '}
+              <code>return=node-graph</code> trail (WDLL 3/4/5). Walk edges on gold <code>48021:28286</code>.
+            </p>
+            <div style={{ display: 'flex', gap: 6, alignItems: 'center' }}>
+              <input
+                style={inputStyle}
+                value={inputId}
+                onChange={(e) => setInputId(e.target.value)}
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter') void inspectNode(inputId)
+                }}
+                placeholder="48021:28286 or …:boundary:2 or …:road:…"
+                data-testid="node-graph-input"
               />
+              <Button
+                onClick={() => void inspectNode(inputId)}
+                disabled={loadingNode}
+                testId="node-graph-inspect"
+              >
+                {loadingNode ? 'Loading…' : 'Inspect'}
+              </Button>
+              <Button
+                variant="secondary"
+                onClick={() => lockParcelNode(inputId.trim(), { panelId: 'site-analysis' })}
+                disabled={!isCanonicalParcelNodeId(inputId)}
+                title="Lock parcel and open map workspace (ledger → map)"
+              >
+                Lock on map
+              </Button>
+            </div>
+            {inspectNodeId && (
+              <div style={{ marginTop: 8, ...typeCaption, color: 'var(--color-text-secondary)' }}>
+                Locked: <code data-testid="node-graph-locked">{inspectNodeId}</code>
+                {isCanonicalBoundaryEdgeNodeId(inspectNodeId) && ' (boundary-edge)'}
+                {isCanonicalRoadNodeId(inspectNodeId) && ' (road)'}
+              </div>
             )}
-            {!loadingNode && detail && !detail.available && (
-              <Empty>{detail.reason || 'Node not available.'}</Empty>
+            {nodeError && (
+              <div style={{ marginTop: 8, ...typeCaption, color: 'var(--color-text-danger)' }}>{nodeError}</div>
             )}
+            {degraded && !nodeError && (
+              <div
+                data-testid="node-inspect-degraded"
+                style={{
+                  marginTop: 8,
+                  padding: '6px 10px',
+                  borderRadius: 6,
+                  background: 'var(--color-background-warning)',
+                  border: '0.5px solid var(--color-border-warning)',
+                  ...typeCaption,
+                  color: 'var(--color-text-warning)',
+                }}
+              >
+                {degraded}
+              </div>
+            )}
+            <div style={{ marginTop: 12 }}>
+              {loadingNode && <Loading />}
+              {!loadingNode && detail?.available && detail.node && (
+                <NodeInspect
+                  nodeId={inspectNodeId ?? inputId}
+                  detail={detail}
+                  slotStatus={slotStatus}
+                  chainJson={chainJson}
+                  config={config}
+                  atomFamily={atomFamily}
+                  onPickFamily={pickAtomFamily}
+                  onClearAtoms={clearAtoms}
+                  onOpenAtom={openAtomInspector}
+                  onWalk={(nextId) => {
+                    setInputId(nextId)
+                    void inspectNode(nextId)
+                  }}
+                  onClose={() => {
+                    setDetail(null)
+                    setChainJson(null)
+                    setAtomFamily(null)
+                    setNodeError(null)
+                    setDegraded(null)
+                    lockInspectNode(null)
+                  }}
+                />
+              )}
+              {!loadingNode && detail && !detail.available && (
+                <Empty>{detail.reason || 'Node not available.'}</Empty>
+              )}
+            </div>
           </div>
-        </div>
+        )}
 
         {roadRollup != null && (
           <CollapsibleSection title="Road nodes (27c WDLL 3 / R1)" defaultOpen={false}>

@@ -3,8 +3,10 @@
 // RIGHT column of the Command Center: a compact reference for the substrate's
 // shared vocabulary so an operator never has to guess what a pill or status
 // means. Reference-only — it reads nothing from the backend (it explains state;
-// it does not show it). QA3: collapsible drawer — default collapsed so the
-// center inspector gets the width; reachable via toggle, not always-on chrome.
+// it does not show it). Collapsible drawer, but default OPEN to match the
+// Control Tower reference (the operator wants the decoder rail visible, not the
+// 40px collapsed rail a prior QA pass shipped); the operator's own collapse
+// choice is remembered in localStorage.
 
 import React, { useEffect, useState } from 'react'
 import { Pill, sectionHeader, Button, typeCaption } from '../primitives'
@@ -91,9 +93,11 @@ const TermRow: React.FC<{ term: Term }> = ({ term }) => (
 
 function readStoredOpen(): boolean {
   try {
-    return localStorage.getItem(STORAGE_KEY) === '1'
+    // Default OPEN (reference keeps the decoder rail visible). Only an explicit
+    // stored '0' collapses it; absent/legacy state opens.
+    return localStorage.getItem(STORAGE_KEY) !== '0'
   } catch {
-    return false
+    return true
   }
 }
 
