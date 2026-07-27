@@ -209,6 +209,50 @@ export function buildTerrainEngineGateHeaders(opts?: {
   }
 }
 
+/**
+ * Classify an engine-api / upstream failure so the BFF surfaces an HONEST
+ * user-visible message instead of mislabelling a 401 gate/auth rejection as
+ * "Engine API unreachable". Mirrors pe-site-plan-export-core.classifyEngineFailure.
+ */
+export type EngineFailureKind = 'gate' | 'payment' | 'unreachable' | 'other'
+
+export function classifyEngineFailure(input: {
+  status?: number | null
+  message?: string | null
+}): EngineFailureKind {
+  const status = input.status ?? null
+  const message = (input.message ?? '').toLowerCase()
+
+  if (status === 402 || /payment_required|paid x-hauska-key|public-paid|anonymous and free|upgrade or retry after quota|metering denied/.test(message)) {
+    return 'payment'
+  }
+  if (
+    status === 401 ||
+    status === 403 ||
+    /gate_front_context_required|gate-front|missing or invalid gate|unauthorized|forbidden|invalid.*(gate|credential|token|key)|requires engine-api/.test(
+      message,
+    )
+  ) {
+    return 'gate'
+  }
+  if (
+    /unreachable|econnrefused|econnreset|etimedout|enotfound|eai_again|fetch failed|network|socket hang up|timed out|timeout|aborted/.test(
+      message,
+    )
+  ) {
+    return 'unreachable'
+  }
+  return 'other'
+}
+
+/** Honest, actionable message for a gate/auth failure reaching engine-api. */
+export const ENGINE_GATE_TOKEN_MESSAGE =
+  'Terrain export needs an engine-api gate token (server config) — HAUSKA_ENGINE_API_KEY / gate-front context not set or not accepted.'
+
+/** Honest message when the gate token env is entirely absent at request time. */
+export const ENGINE_GATE_TOKEN_MISSING_MESSAGE =
+  'Terrain export is not configured: engine-api gate token missing (set HAUSKA_ENGINE_API_KEY or ENGINE_API_GATE_TOKEN).'
+
 export function terrainFilename(parcelNodeId: string, format: TerrainExportFormat): string {
   const stem = parcelNodeId.replace(':', '_')
   switch (format) {

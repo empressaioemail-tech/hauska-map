@@ -20,6 +20,9 @@ import {
 import { readPeSessionCookie } from './_lib/session-cookie.js'
 import {
   buildTerrainEngineGateHeaders,
+  classifyEngineFailure,
+  ENGINE_GATE_TOKEN_MESSAGE,
+  ENGINE_GATE_TOKEN_MISSING_MESSAGE,
   engineApiBaseUrl,
   engineApiGateToken,
   isValidParcelNodeId,
@@ -123,6 +126,16 @@ async function handleRefresh(
         res.status(402).json({ error: 'payment_required', message })
         return
       }
+      // FIX 1: honest gate/auth classification (same as site-plan).
+      const kind = classifyEngineFailure({ message })
+      if (kind === 'gate') {
+        res.status(503).json({
+          error: 'engine_gate_config',
+          message: ENGINE_GATE_TOKEN_MESSAGE,
+          detail: message,
+        })
+        return
+      }
       res.status(502).json({ error: 'upstream_error', message })
       return
     }
@@ -148,6 +161,16 @@ async function handleRefresh(
       res.status(402).json({
         error: 'payment_required',
         message,
+      })
+      return
+    }
+    // FIX 1: honest classification for thrown MCP/engine errors.
+    const kind = classifyEngineFailure({ message })
+    if (kind === 'gate') {
+      res.status(503).json({
+        error: 'engine_gate_config',
+        message: ENGINE_GATE_TOKEN_MESSAGE,
+        detail: message,
       })
       return
     }
@@ -179,8 +202,10 @@ async function handleDownload(
 
   const gateToken = engineApiGateToken()
   if (!gateToken) {
+    // FIX 1: fail fast with the specific cause.
     res.status(503).json({
-      error: 'proxy not configured',
+      error: 'engine_gate_config',
+      message: ENGINE_GATE_TOKEN_MISSING_MESSAGE,
       missing: 'HAUSKA_ENGINE_API_KEY|ENGINE_API_GATE_TOKEN',
     })
     return
@@ -199,6 +224,16 @@ async function handleDownload(
 
     if (!upstream.ok) {
       const text = await upstream.text()
+      // FIX 1: honest gate/auth vs failure distinction.
+      const kind = classifyEngineFailure({ status: upstream.status, message: text })
+      if (kind === 'gate') {
+        res.status(503).json({
+          error: 'engine_gate_config',
+          message: ENGINE_GATE_TOKEN_MESSAGE,
+          detail: text.slice(0, 300),
+        })
+        return
+      }
       res.status(upstream.status).json({
         error: 'download_failed',
         message: text.slice(0, 300),
@@ -220,9 +255,11 @@ async function handleDownload(
     const buffer = Buffer.from(await upstream.arrayBuffer())
     res.status(200).send(buffer)
   } catch (err) {
+    // FIX 1: thrown fetch error here IS a genuine connect/timeout failure.
+    const message = err instanceof Error ? err.message : String(err)
     res.status(502).json({
-      error: 'upstream_error',
-      message: err instanceof Error ? err.message : String(err),
+      error: 'engine_unreachable',
+      message: `Engine API unreachable while downloading terrain (${message}).`,
     })
   }
 }

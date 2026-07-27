@@ -24,6 +24,9 @@ import {
 import { readPeSessionCookie } from './_lib/session-cookie.js'
 import {
   buildSitePlanEngineGateHeaders,
+  classifyEngineFailure,
+  ENGINE_GATE_TOKEN_MESSAGE,
+  ENGINE_GATE_TOKEN_MISSING_MESSAGE,
   engineApiBaseUrl,
   engineApiGateToken,
   isValidParcelNodeId,
@@ -144,6 +147,20 @@ async function handleRefresh(
         res.status(402).json({ error: 'payment_required', message })
         return
       }
+      // FIX 1: a gate/auth rejection (engine-api's gate_front_context_required,
+      // or a 401/403 forwarded through MCP) previously surfaced as the
+      // misleading "Engine API unreachable ... requires engine-api". Reframe it
+      // as the honest server-config cause; only genuine connect failures say
+      // "unreachable".
+      const kind = classifyEngineFailure({ message })
+      if (kind === 'gate') {
+        res.status(503).json({
+          error: 'engine_gate_config',
+          message: ENGINE_GATE_TOKEN_MESSAGE,
+          detail: message,
+        })
+        return
+      }
       res.status(502).json({ error: 'upstream_error', message })
       return
     }
@@ -180,6 +197,16 @@ async function handleRefresh(
       })
       return
     }
+    // FIX 1: honest classification for thrown MCP/engine errors.
+    const kind = classifyEngineFailure({ message })
+    if (kind === 'gate') {
+      res.status(503).json({
+        error: 'engine_gate_config',
+        message: ENGINE_GATE_TOKEN_MESSAGE,
+        detail: message,
+      })
+      return
+    }
     res.status(502).json({ error: 'upstream_error', message })
   }
 }
@@ -208,8 +235,11 @@ async function handleDownload(
 
   const gateToken = engineApiGateToken()
   if (!gateToken) {
+    // FIX 1: fail fast with the SPECIFIC cause rather than making a tokenless
+    // call that 401s and then gets mislabelled "unreachable".
     res.status(503).json({
-      error: 'proxy not configured',
+      error: 'engine_gate_config',
+      message: ENGINE_GATE_TOKEN_MISSING_MESSAGE,
       missing: 'HAUSKA_ENGINE_API_KEY|ENGINE_API_GATE_TOKEN',
     })
     return
@@ -228,6 +258,18 @@ async function handleDownload(
 
     if (!upstream.ok) {
       const text = await upstream.text()
+      // FIX 1: distinguish a gate/auth rejection (engine up, call refused) from
+      // a real failure. A 401/403 here means the gate token / gate-front
+      // context is wrong or missing server-side — say so, don't say "unreachable".
+      const kind = classifyEngineFailure({ status: upstream.status, message: text })
+      if (kind === 'gate') {
+        res.status(503).json({
+          error: 'engine_gate_config',
+          message: ENGINE_GATE_TOKEN_MESSAGE,
+          detail: text.slice(0, 300),
+        })
+        return
+      }
       res.status(upstream.status).json({
         error: 'download_failed',
         message: text.slice(0, 300),
@@ -249,9 +291,12 @@ async function handleDownload(
     const buffer = Buffer.from(await upstream.arrayBuffer())
     res.status(200).send(buffer)
   } catch (err) {
+    // FIX 1: a thrown fetch error here IS a genuine connect/timeout failure —
+    // this is the only branch that may honestly say the engine is unreachable.
+    const message = err instanceof Error ? err.message : String(err)
     res.status(502).json({
-      error: 'upstream_error',
-      message: err instanceof Error ? err.message : String(err),
+      error: 'engine_unreachable',
+      message: `Engine API unreachable while downloading the site plan (${message}).`,
     })
   }
 }
