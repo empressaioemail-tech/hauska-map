@@ -4,6 +4,10 @@
   "buildCommand": "cd ../.. && pnpm --filter property-explorer build",
   "outputDirectory": "dist",
   "framework": null,
+  "functions": {
+    "api/pe-site-plan-export.ts": { "maxDuration": 60 },
+    "api/pe-terrain-export.ts": { "maxDuration": 60 }
+  },
   "rewrites": [
     { "source": "/api/auth/(.*)", "destination": "/api/auth?upath=$1" },
     { "source": "/api/spine-deep/(.*)", "destination": "/api/spine-deep?upath=$1" },

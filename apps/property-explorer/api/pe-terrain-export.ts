@@ -19,12 +19,9 @@ import {
 } from './_lib/pe-export-dev-bypass.js'
 import { readPeSessionCookie } from './_lib/session-cookie.js'
 import {
-  buildTerrainEngineGateHeaders,
   classifyEngineFailure,
   ENGINE_GATE_TOKEN_MESSAGE,
-  ENGINE_GATE_TOKEN_MISSING_MESSAGE,
-  engineApiBaseUrl,
-  engineApiGateToken,
+  extractInlineDownload,
   isValidParcelNodeId,
   mapMcpTerrainPayload,
   parseTerrainFormat,
@@ -200,66 +197,83 @@ async function handleDownload(
     return
   }
 
-  const gateToken = engineApiGateToken()
-  if (!gateToken) {
-    // FIX 1: fail fast with the specific cause.
+  // Download through the MCP gate, NOT directly to engine-api.
+  //
+  // engine-api accepts ONLY gate-signed calls (X-Hauska-Gate-Context +
+  // X-Hauska-Gate-Signature from GATE_CONTEXT_SIGNING_KEY, held only in the
+  // MCP gate). A direct PE->engine Bearer call with plain gate-front headers
+  // is rejected with gate_front_context_required. Terrain meshes routinely
+  // exceed the MCP inline cap, so the refresh POST returns a ref and the
+  // download flows here; it must be gate-signed too.
+  // download_parcel_terrain_export signs the gate and returns bytes as
+  // base64. One SDK meter is consumed at refresh, not here.
+  if (!mcpProductKey()) {
     res.status(503).json({
-      error: 'engine_gate_config',
-      message: ENGINE_GATE_TOKEN_MISSING_MESSAGE,
-      missing: 'HAUSKA_ENGINE_API_KEY|ENGINE_API_GATE_TOKEN',
+      error: 'proxy not configured',
+      missing: 'MCP_PRODUCT_KEY',
     })
     return
   }
 
-  const target = `${engineApiBaseUrl()}/v1/property-nodes/${encodeURIComponent(parcelNodeId)}/terrain-export/download?format=${encodeURIComponent(format)}`
-
   try {
-    const upstream = await fetch(target, {
-      headers: {
-        Authorization: `Bearer ${gateToken}`,
-        Accept: '*/*',
-        ...buildTerrainEngineGateHeaders(),
-      },
+    const payload = await callMcpTool('download_parcel_terrain_export', {
+      parcel_node_id: parcelNodeId,
+      format,
     })
 
-    if (!upstream.ok) {
-      const text = await upstream.text()
-      // FIX 1: honest gate/auth vs failure distinction.
-      const kind = classifyEngineFailure({ status: upstream.status, message: text })
+    if (payload.isError === true) {
+      const message = mcpToolErrorMessage(payload)
+      if (isMcpPaymentMessage(message)) {
+        res.status(402).json({ error: 'payment_required', message })
+        return
+      }
+      const kind = classifyEngineFailure({ message })
       if (kind === 'gate') {
         res.status(503).json({
           error: 'engine_gate_config',
           message: ENGINE_GATE_TOKEN_MESSAGE,
-          detail: text.slice(0, 300),
+          detail: message,
         })
         return
       }
-      res.status(upstream.status).json({
+      res.status(502).json({ error: 'download_failed', message })
+      return
+    }
+
+    const inline = extractInlineDownload(payload)
+    if (!inline) {
+      res.status(502).json({
         error: 'download_failed',
-        message: text.slice(0, 300),
+        message: 'MCP terrain download returned no artifact bytes.',
       })
       return
     }
 
-    const contentType = upstream.headers.get('content-type')
-    const disposition = upstream.headers.get('content-disposition')
-    if (contentType) res.setHeader('Content-Type', contentType)
-    if (disposition) res.setHeader('Content-Disposition', disposition)
-    else {
-      res.setHeader(
-        'Content-Disposition',
-        `attachment; filename="${terrainFilename(parcelNodeId, format)}"`,
-      )
-    }
-
-    const buffer = Buffer.from(await upstream.arrayBuffer())
+    const buffer = Buffer.from(inline.base64, 'base64')
+    res.setHeader('Content-Type', inline.contentType || 'application/octet-stream')
+    res.setHeader(
+      'Content-Disposition',
+      `attachment; filename="${terrainFilename(parcelNodeId, format)}"`,
+    )
     res.status(200).send(buffer)
   } catch (err) {
-    // FIX 1: thrown fetch error here IS a genuine connect/timeout failure.
     const message = err instanceof Error ? err.message : String(err)
+    if (isMcpPaymentMessage(message)) {
+      res.status(402).json({ error: 'payment_required', message })
+      return
+    }
+    const kind = classifyEngineFailure({ message })
+    if (kind === 'gate') {
+      res.status(503).json({
+        error: 'engine_gate_config',
+        message: ENGINE_GATE_TOKEN_MESSAGE,
+        detail: message,
+      })
+      return
+    }
     res.status(502).json({
-      error: 'engine_unreachable',
-      message: `Engine API unreachable while downloading terrain (${message}).`,
+      error: 'download_failed',
+      message: `Terrain download failed (${message}).`,
     })
   }
 }
