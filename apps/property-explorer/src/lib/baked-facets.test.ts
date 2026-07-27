@@ -113,6 +113,7 @@ describe("deriveBakedCardModel — honest absence", () => {
     const m = deriveBakedCardModel(empty);
     expect(m.setbacks.state).toBe("present");
     expect(m.buildablePct).toEqual({ state: "present", value: "0% — setbacks consume lot" });
+    expect(m.buildableDisplayKind).toBe("declined-consume");
     expect(m.envelopeApproximate).toBe(true);
   });
 
@@ -162,6 +163,30 @@ describe("deriveBakedCardModel — honest absence", () => {
     expect(m.setbacks.state).toBe("present");
     expect(m.buildablePct.state).toBe("pending");
     expect(m.buildablePct.value).toMatch(/pending/i);
+    expect(m.buildableDisplayKind).toBe("pending");
+    expect(m.buildableAgreementToken).toBe("pending");
+  });
+
+  it("B3: buildableAreaSqFt present without pct is buildable-with-area, not bare pending", () => {
+    const warmArea: BakedFacetPayload = {
+      parcelNodeId: "48021:34785",
+      countyName: "Bastrop",
+      baseFacts: { apn: "34785" },
+      zoning: { district: "SF-7" },
+      envelope: {
+        status: "ok",
+        setbacks: { front_ft: 15, side_ft: 0, rear_ft: 0 },
+        buildableAreaSqFt: 13641,
+        // pct omitted — historical pending path
+      },
+      facetCoverage: { baseFacts: true, landUse: false, acreage: false, zoning: true, envelope: true },
+    };
+    const m = deriveBakedCardModel(warmArea);
+    expect(m.buildableDisplayKind).toBe("buildable-with-area");
+    expect(m.buildablePct.state).toBe("present");
+    expect(m.buildablePct.value).toMatch(/13,?641/);
+    expect(m.buildablePct.value).not.toMatch(/pending/i);
+    expect(m.buildableAgreementToken).toMatch(/^buildable:/);
   });
 
   it("Gate C: atom_path_pending is pending/loading — never not-verified", () => {
