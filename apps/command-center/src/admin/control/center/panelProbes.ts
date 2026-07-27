@@ -14,6 +14,7 @@ export type PanelBadge = 'live' | 'stub' | 'degraded' | 'checking'
 export type PanelProbeId =
   | 'retrieval-healthz'
   | 'retrieval-atom-chain'
+  | 'retrieval-spine-health'
   | 'mcp-introspection'
   | 'mcp-metering'
   | 'cortex-coverage'
@@ -68,6 +69,22 @@ export async function runPanelProbe(
     )
     const ok = res.ok && res.json?.parcelNodeId === GOLD_PARCEL
     return { ok, status: res.status, error: res.error, checkedAt }
+  }
+
+  if (probeId === 'retrieval-spine-health') {
+    const base = (config.retrievalApiUrl || '').replace(/\/$/, '')
+    const res = await getJson<{ pack?: string; rows?: unknown[] }>(
+      `${base}/health/spine`,
+      config,
+      20_000,
+    )
+    const ok = res.ok && typeof res.json?.pack === 'string'
+    return {
+      ok,
+      status: res.status,
+      error: res.error ?? (ok ? undefined : 'spine health summary missing pack'),
+      checkedAt,
+    }
   }
 
   if (probeId === 'mcp-introspection') {
