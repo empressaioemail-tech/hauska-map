@@ -3,38 +3,60 @@
 // Uses the Command Center hash bus (`#panel=…&node={fips}:{propId}`) so map
 // click and Node & Graph ledger share one lock. `node` is a reserved context
 // param (see activeContext CONTEXT_PARAM_KEYS) and survives panel switches.
+//
+// CC-A U1: `node=` also accepts road + boundary-edge ids for walkable inspect
+// (Amendment 1). Map lock-on-map still requires a strict parcel id.
 
 import { useCallback } from 'react'
 import { useActivePanel } from './useActivePanel'
+import {
+  isCanonicalBoundaryEdgeNodeId,
+  isCanonicalRoadNodeId,
+  isStrictParcelNodeId,
+} from '../../api/atomTrace'
 
-/** G6 shape — keep in sync with PE/MCP PARCEL_NODE_ID_SOURCE. */
-const PARCEL_NODE_ID_RE = /^\d{5}:[^/\s]+$/
+export { isCanonicalBoundaryEdgeNodeId, isCanonicalRoadNodeId, isStrictParcelNodeId }
 
+/** G6 parcel shape — excludes road + boundary-edge (CC-A U1). */
 export function isCanonicalParcelNodeId(value: unknown): value is string {
-  return typeof value === 'string' && PARCEL_NODE_ID_RE.test(value.trim())
-}
-
-/** R1 — road spine node id on the same substrate. */
-export function isCanonicalRoadNodeId(value: unknown): value is string {
-  return typeof value === 'string' && /^\d{5}:road:\d+$/.test(value.trim())
+  return isStrictParcelNodeId(value)
 }
 
 export function isCanonicalSpineNodeId(value: unknown): value is string {
-  return isCanonicalParcelNodeId(value) || isCanonicalRoadNodeId(value)
+  return (
+    isCanonicalParcelNodeId(value) ||
+    isCanonicalRoadNodeId(value) ||
+    isCanonicalBoundaryEdgeNodeId(value)
+  )
 }
 
 /**
- * Read/write the locked parcel node id from the shared panel hash.
+ * Read/write the locked spine node id from the shared panel hash.
  * Map → ledger: lockParcelNode(id) after a parcel click.
- * Ledger → map: lockParcelNode(id) then open a map workspace panel.
+ * Ledger → map: lockParcelNode(parcelId) then open a map workspace panel.
+ * Walkable inspect (U1): lockInspectNode accepts parcel / road / boundary-edge.
  */
 export function useParcelNodeBinding(): {
   parcelNodeId: string | null
+  inspectNodeId: string | null
   lockParcelNode: (id: string | null, opts?: { panelId?: string }) => void
+  lockInspectNode: (id: string | null, opts?: { panelId?: string }) => void
 } {
   const [panelId, selectPanel, params] = useActivePanel()
   const raw = params.node ?? null
+  const inspectNodeId = raw && isCanonicalSpineNodeId(raw) ? raw.trim() : null
   const parcelNodeId = raw && isCanonicalParcelNodeId(raw) ? raw.trim() : null
+
+  const lockInspectNode = useCallback(
+    (id: string | null, opts?: { panelId?: string }) => {
+      const next = id && isCanonicalSpineNodeId(id) ? id.trim() : null
+      const nextParams: Record<string, string> = { ...params }
+      if (next) nextParams.node = next
+      else delete nextParams.node
+      selectPanel(opts?.panelId ?? panelId, nextParams)
+    },
+    [params, panelId, selectPanel],
+  )
 
   const lockParcelNode = useCallback(
     (id: string | null, opts?: { panelId?: string }) => {
@@ -47,5 +69,5 @@ export function useParcelNodeBinding(): {
     [params, panelId, selectPanel],
   )
 
-  return { parcelNodeId, lockParcelNode }
+  return { parcelNodeId, inspectNodeId, lockParcelNode, lockInspectNode }
 }

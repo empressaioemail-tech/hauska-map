@@ -219,3 +219,109 @@ export function propertyChainDids(parcelNodeId: string): {
     buildableEnvelope: `did:hauska:buildable-envelope:${id}`,
   }
 }
+
+// ── CC-A U1 / WDLL 1+2+6 — Control-Tower node detail + boundary edges ──
+
+export const BOUNDARY_EDGE_ID_RE = /^\d{5}:[A-Za-z0-9._-]+:boundary:\d+$/
+export const PARCEL_NODE_ID_STRICT_RE = /^\d{5}:[A-Za-z0-9._-]+$/
+
+export function isCanonicalBoundaryEdgeNodeId(value: unknown): value is string {
+  return typeof value === 'string' && BOUNDARY_EDGE_ID_RE.test(value.trim())
+}
+
+/** Parcel only — excludes road + boundary-edge ids. */
+export function isStrictParcelNodeId(value: unknown): value is string {
+  if (typeof value !== 'string') return false
+  const id = value.trim()
+  if (isCanonicalRoadNodeId(id) || isCanonicalBoundaryEdgeNodeId(id)) return false
+  return PARCEL_NODE_ID_STRICT_RE.test(id)
+}
+
+export interface PropertyGraphEdge {
+  id: string
+  from_node: string
+  type: string
+  to_node: string
+  label?: string | null
+  provenance?: unknown
+}
+
+export interface PropertyNodeDetailBody {
+  available: boolean
+  reason?: string | null
+  requested_node_id: string
+  canonical_node_id: string
+  node: {
+    node_id: string
+    node_type: 'parcel' | 'road' | 'property-boundary-edge'
+    resolution_status: string
+    status: string
+    name?: string | null
+    summary?: Record<string, unknown> | null
+  } | null
+  identifiers: Array<{
+    identifier_type: string
+    identifier_value: string
+    node_id: string
+  }>
+  edges_out: PropertyGraphEdge[]
+  edges_in: PropertyGraphEdge[]
+  atom_counts_by_family: Record<string, number>
+  boundary_edge?: Record<string, unknown> | null
+}
+
+export interface BoundaryEdgesListBody {
+  available: boolean
+  reason?: string
+  parcelNodeId: string
+  edges: unknown[]
+  count: number
+}
+
+/**
+ * Control-Tower-shaped node detail (parcel / road / boundary-edge).
+ * GET {retrieval}/nodes/:id — WDLL 1+2+6.
+ */
+export async function fetchPropertyNodeDetail(
+  nodeId: string,
+  config: SpineConfig,
+  timeoutMs = 20_000,
+): Promise<AtomTraceResult & { json: PropertyNodeDetailBody | null }> {
+  const retrievalUrl = config.retrievalApiUrl?.replace(/\/$/, '') || ''
+  if (!retrievalUrl) {
+    return { ok: false, status: 0, json: null, error: 'No retrieval API URL configured' }
+  }
+  const id = nodeId.trim()
+  if (!id) {
+    return { ok: false, status: 0, json: null, error: 'nodeId is required' }
+  }
+  return getJson<PropertyNodeDetailBody>(
+    `${retrievalUrl}/nodes/${encodeURIComponent(id)}`,
+    config,
+    timeoutMs,
+  )
+}
+
+/**
+ * Stranded StoragePort boundary edges over HTTP (WDLL 6).
+ * GET {retrieval}/property-nodes/:id/boundary-edges
+ */
+export async function fetchBoundaryEdges(
+  parcelNodeId: string,
+  config: SpineConfig,
+  timeoutMs = 20_000,
+): Promise<AtomTraceResult & { json: BoundaryEdgesListBody | null }> {
+  const retrievalUrl = config.retrievalApiUrl?.replace(/\/$/, '') || ''
+  if (!retrievalUrl) {
+    return { ok: false, status: 0, json: null, error: 'No retrieval API URL configured' }
+  }
+  const id = parcelNodeId.trim()
+  if (!id) {
+    return { ok: false, status: 0, json: null, error: 'parcelNodeId is required' }
+  }
+  return getJson<BoundaryEdgesListBody>(
+    `${retrievalUrl}/property-nodes/${encodeURIComponent(id)}/boundary-edges`,
+    config,
+    timeoutMs,
+  )
+}
