@@ -259,7 +259,7 @@ export function SitePlanExportSection({
               data-testid="site-plan-street-absence"
               style={{ marginTop: 6, fontSize: 10, color: MUTED, lineHeight: 1.4 }}
             >
-              STREET layer: no road-anchor data on file for this parcel yet.
+              STREET layer: no road-node attaches to this parcel yet.
             </div>
           )}
 

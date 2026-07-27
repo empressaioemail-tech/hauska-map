@@ -378,12 +378,11 @@ export function InspectCard({
         </div>
       )}
 
-      {/* BAKED honest 0% — an "ok"-shaped envelope whose setbacks consume the
-          whole lot (buildableAreaPct 0). This is HONEST, not missing data: state
-          it plainly rather than leaving a bare "0%". */}
+      {/* BAKED honest 0% — shared B3 kind declined-consume only (never when
+          warm area is present; that maps to buildable-with-area). */}
       {source === "baked" &&
         baked &&
-        baked.envelopeStatus === "no-buildable-area" && (
+        baked.buildableDisplayKind === "declined-consume" && (
           <div
             data-testid="no-buildable-area"
             style={{ marginTop: 8, fontSize: 10.5, color: "#fcd34d" }}
