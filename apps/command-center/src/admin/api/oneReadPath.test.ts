@@ -72,6 +72,33 @@ describe('one-read-path guardrails (F1b dogfood)', () => {
     expect(existsSync(resolve(mapRoot, 'packages/map-renderer/src/live-gis.ts'))).toBe(true)
   })
 
+  it('CC LiveMapTile + PE ExplorerMap share layered chrome from @hauska/map-renderer (CC-A WDLL 7)', () => {
+    const liveMap = readFileSync(
+      resolve(adminRoot, 'workspace/tiles/LiveMapTile.tsx'),
+      'utf8',
+    )
+    const explorer = readFileSync(
+      resolve(mapRoot, 'apps/property-explorer/src/browse/ExplorerMap.tsx'),
+      'utf8',
+    )
+    const peLayers = readFileSync(
+      resolve(mapRoot, 'apps/property-explorer/src/browse/LayersControl.tsx'),
+      'utf8',
+    )
+    // One shared chrome module — not a CARTO-only fork without LAYER_REGISTRY.
+    expect(liveMap).toMatch(/LayersControl/)
+    expect(liveMap).toMatch(/MapTools/)
+    expect(liveMap).toMatch(/SHARED_PARCEL_TILES/)
+    expect(liveMap).toMatch(/visibleLayers/)
+    expect(liveMap).toMatch(/from ['"]@hauska\/map-renderer['"]/)
+    expect(explorer).toMatch(/LayersControl/)
+    expect(explorer).toMatch(/MapTools/)
+    expect(peLayers).toMatch(/packages\/map-renderer\/src\/chrome\/LayersControl/)
+    expect(peLayers).not.toMatch(/export function LayersControl/)
+    expect(existsSync(resolve(mapRoot, 'packages/map-renderer/src/chrome/LayersControl.tsx'))).toBe(true)
+    expect(existsSync(resolve(mapRoot, 'packages/map-renderer/src/chrome/MapTools.tsx'))).toBe(true)
+  })
+
   it('shared retrieval clients are exported', () => {
     expect(typeof fetchAtomTrace).toBe('function')
     expect(typeof fetchPropertyAtomChain).toBe('function')

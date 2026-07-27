@@ -139,3 +139,29 @@ export type {
   LiveLayerState,
   ParcelCardData,
 } from "./live-gis";
+
+// Shared layered-map chrome (CC-A WDLL 7 — one shell for PE + CC).
+export {
+  LayersControl,
+  MapTools,
+  asMaplibreMap,
+  setSatelliteBase,
+  SATELLITE_ATTRIBUTION,
+  installMapTools,
+  SHARED_DEFAULT_CENTER,
+  SHARED_PARCEL_TILES,
+} from "./chrome/index";
+export type {
+  MapToolsController,
+  ToolsSnapshot,
+  ToolKind,
+  MeasureMode,
+  LngLat,
+} from "./chrome/index";
+export {
+  haversineMeters,
+  polylineLengthMeters,
+  ringAreaSqMeters,
+  formatDistance,
+  formatArea,
+} from "./chrome/index";

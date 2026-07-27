@@ -66,4 +66,10 @@ describe('WDLL 7 mechanical badges', () => {
     const errors = assertPanelLivenessContract(fake)
     expect(errors.some((e) => e.includes('fake-fixture-live'))).toBe(true)
   })
+
+  it('retrieval-healthz probe targets /health (not /healthz/) — CC-A WDLL 8', () => {
+    const src = readFileSync(resolve(import.meta.dirname, './panelProbes.ts'), 'utf8')
+    expect(src).toMatch(/\$\{base\}\/health/)
+    expect(src).not.toMatch(/\$\{base\}\/healthz\//)
+  })
 })

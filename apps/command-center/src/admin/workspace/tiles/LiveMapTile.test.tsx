@@ -19,9 +19,23 @@ const { floatingMapProps } = vi.hoisted(() => ({
 }))
 
 vi.mock('@hauska/map-renderer', () => ({
-  FloatingMap: (props: Record<string, any>) => {
+  FloatingMap: React.forwardRef((props: Record<string, any>, ref) => {
     floatingMapProps.push(props)
+    React.useImperativeHandle(ref, () => ({
+      getVisibleLayers: () => new Set(['zoning', 'flood']),
+      getMap: () => null,
+    }))
     return <div data-testid="floating-map-stub" data-usefixture={String(props.useFixture)} />
+  }),
+  LayersControl: ({ known }: { known: Set<string> }) => (
+    <div data-testid="layers-control-stub">{[...known].join(',')}</div>
+  ),
+  MapTools: () => <div data-testid="map-tools-stub" />,
+  SHARED_DEFAULT_CENTER: { latitude: 30.1105, longitude: -97.3184 },
+  SHARED_PARCEL_TILES: {
+    url: 'https://example.test/parcels.pmtiles',
+    sourceLayer: 'parcels',
+    promoteId: 'parcel_node_id',
   },
 }))
 vi.mock('@hauska/map-renderer/styles.css', () => ({}))

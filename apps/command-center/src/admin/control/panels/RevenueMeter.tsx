@@ -121,6 +121,16 @@ export const RevenueMeter: React.FC = () => {
 
   const hasUnbilledWarning = summary && summary.totals.billed === 0 && summary.totals.unbilled > 0
 
+  // Honest degraded body when metering is gated (CC-A WDLL 9). Never silent empty;
+  // never claim LIVE numbers without a successful summary fetch. Badge stays
+  // mechanical via usePanelHealth / mcp-metering probe.
+  const isPlatformInternalGate =
+    err != null &&
+    (err.includes('platform_internal') ||
+      err.includes('403') ||
+      /forbidden/i.test(err) ||
+      /HTTP 403/i.test(err))
+
   return (
     <Panel
       title="Revenue Meter"
@@ -153,7 +163,37 @@ export const RevenueMeter: React.FC = () => {
       {loading && !summary ? (
         <Loading />
       ) : err ? (
-        <ErrorState msg={err} />
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }} data-testid="revenue-meter-degraded">
+          <ErrorState msg={err} />
+          <div
+            style={{
+              padding: '10px 12px',
+              borderRadius: 6,
+              border: '0.5px dashed var(--color-border-warning)',
+              background: 'var(--color-background-warning)',
+              color: 'var(--color-text-warning)',
+              fontSize: 11,
+              fontFamily: 'var(--font-ui)',
+              lineHeight: 1.45,
+            }}
+          >
+            {isPlatformInternalGate ? (
+              <>
+                <strong>Requires platform_internal key.</strong> GET{' '}
+                <code style={mono}>/api/spine/mcp-metering/summary</code> returned 403 (
+                <code style={mono}>platform_internal_required</code>). Wire an MCP product key
+                with <code style={mono}>platform_internal</code> access as{' '}
+                <code style={mono}>MCP_PRODUCT_KEY</code> on the Command Center deploy, then
+                refresh. Until then the NavRail badge stays DEGRADED (mechanical probe) — not LIVE.
+              </>
+            ) : (
+              <>
+                Metering summary unavailable. Badge stays DEGRADED until the probe succeeds —
+                never shown as LIVE without live numbers.
+              </>
+            )}
+          </div>
+        </div>
       ) : !summary ? (
         <Loading />
       ) : (

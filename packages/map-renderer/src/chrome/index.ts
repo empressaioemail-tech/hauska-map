@@ -1,0 +1,29 @@
+// Shared layered-map chrome — PE + CC (CC-A WDLL 7).
+// One module both surfaces import; no second map shell fork.
+
+export { LayersControl } from "./LayersControl";
+export { MapTools } from "./MapTools";
+export {
+  asMaplibreMap,
+  setSatelliteBase,
+  SATELLITE_ATTRIBUTION,
+} from "./satelliteBase";
+export { installMapTools } from "./mapToolsController";
+export type {
+  MapToolsController,
+  ToolsSnapshot,
+  ToolKind,
+  MeasureMode,
+} from "./mapToolsController";
+export {
+  SHARED_DEFAULT_CENTER,
+  SHARED_PARCEL_TILES,
+} from "./sharedMapDefaults";
+export {
+  haversineMeters,
+  polylineLengthMeters,
+  ringAreaSqMeters,
+  formatDistance,
+  formatArea,
+} from "./geoMeasure";
+export type { LngLat } from "./geoMeasure";
