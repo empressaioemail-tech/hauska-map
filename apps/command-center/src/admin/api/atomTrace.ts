@@ -325,3 +325,240 @@ export async function fetchBoundaryEdges(
     timeoutMs,
   )
 }
+
+// ── CC-A U2 / WDLL 3+4+5 — node atoms list + atom-by-did inspector ──
+
+export interface NodeAtomSummary {
+  atom_id: string
+  entity_type: string
+  entity_id: string
+  claim_key: string
+  claim_type: string
+  family: string
+  worker: string
+  access_policy: string
+  knowledge_time?: string | null
+  /** Compact preview fields for list rows (boundary role etc.). */
+  preview?: string | null
+}
+
+export interface NodeAtomsListBody {
+  available: boolean
+  reason?: string | null
+  node_id: string
+  family: string
+  total: number
+  atoms: NodeAtomSummary[]
+}
+
+export interface AtomByDidBody {
+  atom: Record<string, unknown> | null
+  composition?: unknown
+}
+
+function asRec(v: unknown): Record<string, unknown> | null {
+  return v != null && typeof v === 'object' ? (v as Record<string, unknown>) : null
+}
+
+function strField(v: unknown, fallback = ''): string {
+  return v == null ? fallback : String(v)
+}
+
+/** Build DID when payload omits atomDid (mirrors engine buildAtomDid). */
+export function propertyAtomDid(entityType: string, localId: string): string {
+  return `did:hauska:${entityType}:${localId}`
+}
+
+function summaryFromPayload(payload: Record<string, unknown>, fallbackFamily: string): NodeAtomSummary {
+  const entityType = strField(payload.entityType ?? payload.family ?? fallbackFamily, fallbackFamily)
+  const entityId = strField(
+    payload.entityId ?? payload.parcelNodeId ?? payload.boundaryEdgeId ?? payload.roadNodeId ?? '',
+  )
+  const atomId = strField(
+    payload.atomDid ?? payload.atom_id,
+    entityId ? propertyAtomDid(entityType, entityId) : '',
+  )
+  const role = payload.role != null ? `role=${payload.role}` : null
+  const adj = payload.adjacencyKind != null ? `adj=${payload.adjacencyKind}` : null
+  const preview = [role, adj].filter(Boolean).join(' · ') || null
+  return {
+    atom_id: atomId,
+    entity_type: entityType,
+    entity_id: entityId || atomId,
+    claim_key: strField(payload.claimKey ?? payload.sectionNumber ?? entityId, entityId || '—'),
+    claim_type: strField(payload.claimType ?? payload.title ?? entityType, entityType),
+    family: entityType,
+    worker: strField(payload.worker ?? payload.sourceAdapter ?? payload.author, '—'),
+    access_policy: strField(payload.accessPolicy ?? payload.access_policy, '—'),
+    knowledge_time: (payload.knowledgeTime ??
+      payload.extractedAt ??
+      payload.fetchedAt ??
+      payload.effectiveDate ??
+      null) as string | null,
+    preview,
+  }
+}
+
+/**
+ * GET {retrieval}/atoms/:did — full atom body for inspector (WDLL 4).
+ */
+export async function fetchAtomByDid(
+  atomDid: string,
+  config: SpineConfig,
+  timeoutMs = 20_000,
+): Promise<AtomTraceResult & { json: AtomByDidBody | null }> {
+  const retrievalUrl = config.retrievalApiUrl?.replace(/\/$/, '') || ''
+  if (!retrievalUrl) {
+    return { ok: false, status: 0, json: null, error: 'No retrieval API URL configured' }
+  }
+  const did = atomDid.trim()
+  if (!did) {
+    return { ok: false, status: 0, json: null, error: 'atomDid is required' }
+  }
+  return getJson<AtomByDidBody>(
+    `${retrievalUrl}/atoms/${encodeURIComponent(did)}`,
+    config,
+    timeoutMs,
+  )
+}
+
+/**
+ * Assemble per-node atom list from existing U1/U2 read paths (no second store).
+ * Ports CT GET /admin/nodes/:id/atoms shape for the property substrate.
+ * family '' or 'all' → unfiltered.
+ */
+export async function fetchNodeAtoms(
+  nodeId: string,
+  family: string,
+  config: SpineConfig,
+  timeoutMs = 20_000,
+): Promise<AtomTraceResult & { json: NodeAtomsListBody | null }> {
+  const id = nodeId.trim()
+  if (!id) {
+    return { ok: false, status: 0, json: null, error: 'nodeId is required' }
+  }
+  const famFilter = !family || family === 'all' ? '' : family.trim()
+  const rows: NodeAtomSummary[] = []
+
+  if (isCanonicalBoundaryEdgeNodeId(id)) {
+    const detail = await fetchPropertyNodeDetail(id, config, timeoutMs)
+    if (!detail.ok || !detail.json?.available) {
+      return {
+        ok: detail.ok,
+        status: detail.status,
+        json: null,
+        error: detail.error || detail.json?.reason || 'boundary-edge not found',
+      }
+    }
+    const edge = asRec(detail.json.boundary_edge)
+    if (edge) {
+      rows.push(summaryFromPayload({ ...edge, entityType: 'property-boundary-edge' }, 'property-boundary-edge'))
+    }
+  } else if (isCanonicalRoadNodeId(id)) {
+    const chain = await fetchRoadAtomChain(id, config, timeoutMs)
+    if (!chain.ok) {
+      return { ok: false, status: chain.status, json: null, error: chain.error }
+    }
+    const body = asRec(chain.json)
+    const road = asRec(body?.roadNode)
+    if (road) {
+      rows.push(summaryFromPayload({ ...road, entityType: 'road-node', roadNodeId: id }, 'road-node'))
+    }
+    const atoms = Array.isArray(body?.atoms) ? body!.atoms : []
+    for (const a of atoms) {
+      const rec = asRec(a)
+      if (!rec) continue
+      const payload = asRec(rec.payload) ?? rec
+      rows.push(
+        summaryFromPayload(
+          {
+            ...payload,
+            atomDid: rec.did ?? payload.atomDid,
+            entityType: strField(rec.type ?? rec.kind ?? payload.entityType, 'road-node'),
+          },
+          'road-node',
+        ),
+      )
+    }
+  } else if (isStrictParcelNodeId(id)) {
+    const [chain, edges] = await Promise.all([
+      fetchPropertyAtomChain(id, config, timeoutMs),
+      fetchBoundaryEdges(id, config, timeoutMs),
+    ])
+    if (!chain.ok) {
+      return { ok: false, status: chain.status, json: null, error: chain.error }
+    }
+    const body = asRec(chain.json)
+    const atoms = Array.isArray(body?.atoms) ? body!.atoms : []
+    if (atoms.length > 0) {
+      for (const a of atoms) {
+        const rec = asRec(a)
+        if (!rec) continue
+        const payload = asRec(rec.payload) ?? rec
+        rows.push(
+          summaryFromPayload(
+            {
+              ...payload,
+              atomDid: rec.did ?? payload.atomDid,
+              entityType: strField(rec.type ?? rec.kind ?? payload.entityType, 'unknown'),
+              accessPolicy: rec.accessPolicy ?? payload.accessPolicy,
+            },
+            'unknown',
+          ),
+        )
+      }
+    } else {
+      // Slot fallback when wire omits atoms[] (older chain shape).
+      for (const [slotKey, slot] of [
+        ['zoning-fact', body?.zoningFact],
+        ['setback-rule', body?.setbackRule],
+        ['buildable-envelope', body?.buildableEnvelope],
+      ] as const) {
+        const rec = asRec(slot)
+        if (!rec || chainSlotStatus(rec) !== 'present') continue
+        rows.push(
+          summaryFromPayload(
+            {
+              ...rec,
+              entityType: slotKey,
+              entityId: id,
+              atomDid: strField(rec.atomDid, propertyAtomDid(slotKey, id)),
+            },
+            slotKey,
+          ),
+        )
+      }
+    }
+    if (edges.ok && edges.json?.edges) {
+      for (const e of edges.json.edges) {
+        const rec = asRec(e)
+        if (!rec) continue
+        rows.push(summaryFromPayload({ ...rec, entityType: 'property-boundary-edge' }, 'property-boundary-edge'))
+      }
+    }
+  } else {
+    return { ok: false, status: 400, json: null, error: 'invalid node id' }
+  }
+
+  // Dedupe by atom_id (road chain can double-count).
+  const seen = new Set<string>()
+  const deduped = rows.filter((r) => {
+    if (!r.atom_id || seen.has(r.atom_id)) return false
+    seen.add(r.atom_id)
+    return true
+  })
+  const filtered = famFilter ? deduped.filter((r) => r.family === famFilter) : deduped
+
+  return {
+    ok: true,
+    status: 200,
+    json: {
+      available: true,
+      reason: filtered.length === 0 ? 'No atoms for this node/family.' : null,
+      node_id: id,
+      family: famFilter || 'all',
+      total: filtered.length,
+      atoms: filtered,
+    },
+  }
+}

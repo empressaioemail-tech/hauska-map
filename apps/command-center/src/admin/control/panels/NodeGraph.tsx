@@ -5,7 +5,9 @@
 // CC-A U1 / WDLL 1+2+6: PORT Control Tower NodeInspect organism — structured
 // card (node_id, type, resolution, identifiers, clickable edges OUT/IN,
 // atoms-by-family counts). Raw JSON demoted to optional debug.
-// Reference: Empressa Trading NodeGraphBrowser.tsx NodeInspect.
+// CC-A U2 / WDLL 3+4+5: family pills open NodeAtoms; atom click → AtomInspector
+// with return=node-graph&node=…&atoms=… (closeDetail restores this card).
+// Reference: Empressa Trading NodeGraphBrowser.tsx + AtomInspector.tsx.
 //
 // Walkable done-line (Amendment 1): 48021:28286 parcel → boundary-edge →
 // road → neighbor through this UI. Builder does not grade MET.
@@ -16,14 +18,17 @@ import {
   fetchPropertyAtomChain,
   fetchPropertyNodeDetail,
   fetchCentralTxNodeGraphTally,
+  fetchNodeAtoms,
   propertyChainSlotStatuses,
   type PropertyAtomChainBody,
   type PropertyNodeDetailBody,
   type PropertyGraphEdge,
+  type NodeAtomSummary,
   type CentralTxNodeGraphTally,
   type CentralTxCountyTallyRow,
 } from '../../api/atomTrace'
-import { Panel, Pill, Loading, Empty, sectionHeader, mono } from '../primitives'
+import { Panel, Pill, Loading, Empty, sectionHeader, mono, fmtTime, fmtNum } from '../primitives'
+import { useActivePanel } from '../center/useActivePanel'
 import {
   useParcelNodeBinding,
   isCanonicalParcelNodeId,
@@ -85,27 +90,159 @@ const preStyle: React.CSSProperties = {
   overflowY: 'auto',
 }
 
-const FamilyCounts: React.FC<{ counts: Record<string, number> }> = ({ counts }) => {
+/** PORT of CT FamilyCounts — click opens NodeAtoms for that family (WDLL 3). */
+const FamilyCounts: React.FC<{
+  counts: Record<string, number>
+  onPick: (family: string) => void
+}> = ({ counts, onPick }) => {
   const entries = Object.entries(counts || {}).sort((a, b) => b[1] - a[1])
   if (entries.length === 0) return <Empty>No atoms recorded for this node.</Empty>
   return (
     <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
       {entries.map(([fam, n]) => (
-        <span
+        <button
           key={fam}
+          type="button"
+          onClick={() => onPick(fam)}
+          data-testid={`family-count-${fam}`}
           style={{
             ...btnStyle,
             background: 'var(--color-background-secondary)',
             display: 'flex',
             gap: 8,
-            cursor: 'default',
           }}
-          title="Family count (U2 opens inspector)"
+          title="Filter this node's atoms to this family"
         >
           <span style={{ fontFamily: 'var(--font-ui)' }}>{fam}</span>
-          <span style={{ ...mono, fontWeight: 700 }}>{n}</span>
-        </span>
+          <span style={{ ...mono, fontWeight: 700 }}>{fmtNum(n)}</span>
+        </button>
       ))}
+    </div>
+  )
+}
+
+/** PORT of CT NodeAtoms — family-scoped clickable atom rows (WDLL 3). */
+const NodeAtoms: React.FC<{
+  nodeId: string
+  family: string
+  config: SpineConfig
+  onClear: () => void
+  onOpenAtom: (atomId: string) => void
+}> = ({ nodeId, family, config, onClear, onOpenAtom }) => {
+  const [atoms, setAtoms] = useState<NodeAtomSummary[]>([])
+  const [total, setTotal] = useState(0)
+  const [err, setErr] = useState<string | null>(null)
+  const [loading, setLoading] = useState(true)
+
+  useEffect(() => {
+    let cancelled = false
+    setLoading(true)
+    void fetchNodeAtoms(nodeId, family, config).then((res) => {
+      if (cancelled) return
+      if (!res.ok || !res.json) {
+        setAtoms([])
+        setTotal(0)
+        setErr(res.error || `HTTP ${res.status}`)
+      } else {
+        setAtoms(res.json.atoms)
+        setTotal(res.json.total)
+        setErr(null)
+      }
+      setLoading(false)
+    })
+    return () => {
+      cancelled = true
+    }
+  }, [nodeId, family, config])
+
+  return (
+    <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }} data-testid="node-atoms">
+      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8 }}>
+        <span style={sectionHeader}>
+          Atoms{family ? ` · family=${family}` : ''}
+          {total ? ` · ${fmtNum(total)}` : ''}
+        </span>
+        <button
+          type="button"
+          onClick={onClear}
+          style={{ ...btnStyle, background: 'var(--color-background-secondary)' }}
+          data-testid="node-atoms-close"
+        >
+          ✕ close atoms
+        </button>
+      </div>
+      {loading ? (
+        <Loading />
+      ) : err ? (
+        <div style={{ fontSize: 11, color: 'var(--color-text-danger)', fontFamily: 'var(--font-ui)' }}>{err}</div>
+      ) : atoms.length === 0 ? (
+        <Empty>No atoms for this node/family.</Empty>
+      ) : (
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 5 }}>
+          {atoms.map((a) => (
+            <button
+              key={a.atom_id}
+              type="button"
+              onClick={() => onOpenAtom(a.atom_id)}
+              title="Open in Atom Inspector"
+              data-testid={`node-atom-${a.family}`}
+              style={{
+                textAlign: 'left',
+                padding: '7px 10px',
+                borderRadius: 6,
+                background: 'var(--color-background-secondary)',
+                display: 'flex',
+                flexDirection: 'column',
+                gap: 3,
+                border: '0.5px solid var(--color-border-tertiary)',
+                cursor: 'pointer',
+                font: 'inherit',
+                color: 'inherit',
+              }}
+              onMouseEnter={(e) => {
+                e.currentTarget.style.background = 'var(--color-background-accent)'
+              }}
+              onMouseLeave={(e) => {
+                e.currentTarget.style.background = 'var(--color-background-secondary)'
+              }}
+            >
+              <div style={{ display: 'flex', justifyContent: 'space-between', gap: 8 }}>
+                <span style={{ ...mono, fontSize: 11, fontWeight: 700, color: 'var(--color-text-primary)' }}>
+                  {a.claim_type}
+                </span>
+                <span style={{ ...mono, fontSize: 10, color: 'var(--color-text-tertiary)' }}>
+                  {fmtTime(a.knowledge_time)}
+                </span>
+              </div>
+              <div
+                style={{
+                  display: 'flex',
+                  gap: 12,
+                  flexWrap: 'wrap',
+                  ...mono,
+                  fontSize: 10,
+                  color: 'var(--color-text-secondary)',
+                }}
+              >
+                <span>key: {a.claim_key}</span>
+                <span>family: {a.family}</span>
+                <span>access: {a.access_policy}</span>
+                {a.preview ? <span>{a.preview}</span> : null}
+              </div>
+              <span
+                style={{
+                  ...mono,
+                  fontSize: 9.5,
+                  color: 'var(--color-text-tertiary)',
+                  wordBreak: 'break-all',
+                }}
+              >
+                {a.atom_id}
+              </span>
+            </button>
+          ))}
+        </div>
+      )}
     </div>
   )
 }
@@ -159,15 +296,33 @@ const EdgeRow: React.FC<{
 /**
  * NodeInspect — PORT from trading Control Tower NodeGraphBrowser.tsx.
  * Property-native: boundary role / adjacency / setback / interior on card.
+ * U2: atoms-by-family → NodeAtoms → AtomInspector (WDLL 3/4/5).
  */
 const NodeInspect: React.FC<{
   nodeId: string
   detail: PropertyNodeDetailBody
   slotStatus: Record<string, SlotStatus>
   chainJson: string | null
+  config: SpineConfig
+  atomFamily: string | null
+  onPickFamily: (family: string) => void
+  onClearAtoms: () => void
+  onOpenAtom: (atomId: string) => void
   onWalk: (nodeId: string) => void
   onClose: () => void
-}> = ({ nodeId, detail, slotStatus, chainJson, onWalk, onClose }) => {
+}> = ({
+  nodeId,
+  detail,
+  slotStatus,
+  chainJson,
+  config,
+  atomFamily,
+  onPickFamily,
+  onClearAtoms,
+  onOpenAtom,
+  onWalk,
+  onClose,
+}) => {
   const [showDebug, setShowDebug] = useState(false)
   const n = detail.node
   if (!n) return <Empty>{detail.reason || 'Node not found.'}</Empty>
@@ -321,9 +476,29 @@ const NodeInspect: React.FC<{
       </div>
 
       <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
-        <span style={sectionHeader}>Atoms by family</span>
-        <FamilyCounts counts={detail.atom_counts_by_family} />
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8 }}>
+          <span style={sectionHeader}>Atoms by family</span>
+          <button
+            type="button"
+            style={{ ...btnStyle, background: 'var(--color-background-secondary)', padding: '4px 10px' }}
+            onClick={() => onPickFamily('')}
+            data-testid="view-all-atoms"
+          >
+            View all atoms →
+          </button>
+        </div>
+        <FamilyCounts counts={detail.atom_counts_by_family} onPick={onPickFamily} />
       </div>
+
+      {atomFamily !== null && (
+        <NodeAtoms
+          nodeId={nodeId}
+          family={atomFamily}
+          config={config}
+          onClear={onClearAtoms}
+          onOpenAtom={onOpenAtom}
+        />
+      )}
 
       {n.node_type === 'parcel' && (
         <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
@@ -361,6 +536,7 @@ const NodeInspect: React.FC<{
 
 export const NodeGraph: React.FC = () => {
   const config = useMemo<SpineConfig>(() => loadConfig(), [])
+  const [, selectPanel, hashParams] = useActivePanel()
   const { parcelNodeId, inspectNodeId, lockParcelNode, lockInspectNode } = useParcelNodeBinding()
   const [inputId, setInputId] = useState(inspectNodeId ?? parcelNodeId ?? '48021:28286')
   const [tally, setTally] = useState<GateATally | null>(null)
@@ -371,6 +547,17 @@ export const NodeGraph: React.FC = () => {
   const [chainJson, setChainJson] = useState<string | null>(null)
   const [loadingNode, setLoadingNode] = useState(false)
   const [nodeError, setNodeError] = useState<string | null>(null)
+
+  // atomFamily === null → atoms panel closed; '' → all families; 'zoning-fact' etc → filtered.
+  const [atomFamily, setAtomFamily] = useState<string | null>(() => {
+    if (hashParams.atoms === undefined) return null
+    return hashParams.atoms === 'all' ? '' : hashParams.atoms
+  })
+
+  useEffect(() => {
+    if (hashParams.atoms === undefined) setAtomFamily(null)
+    else setAtomFamily(hashParams.atoms === 'all' ? '' : hashParams.atoms)
+  }, [hashParams.atoms])
 
   useEffect(() => {
     if (inspectNodeId) setInputId(inspectNodeId)
@@ -475,13 +662,39 @@ export const NodeGraph: React.FC = () => {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [inspectNodeId])
 
+  const pickAtomFamily = (fam: string): void => {
+    const nodeId = inspectNodeId ?? inputId.trim()
+    setAtomFamily(fam)
+    const next: Record<string, string> = { ...hashParams, node: nodeId, atoms: fam || 'all' }
+    selectPanel('node-graph', next)
+  }
+
+  const clearAtoms = (): void => {
+    setAtomFamily(null)
+    const nodeId = inspectNodeId ?? inputId.trim()
+    const next: Record<string, string> = { ...hashParams, node: nodeId }
+    delete next.atoms
+    selectPanel('node-graph', next)
+  }
+
+  /** PORT of CT openAtomInspector — return=node-graph breadcrumb (WDLL 5). */
+  const openAtomInspector = (atomId: string): void => {
+    const nodeId = inspectNodeId ?? inputId.trim()
+    selectPanel('atom-inspector', {
+      id: atomId,
+      return: 'node-graph',
+      node: nodeId,
+      atoms: atomFamily === '' ? 'all' : atomFamily ?? 'all',
+    })
+  }
+
   const counties = tally?.centralTx?.counties ?? []
   const roadRollup = tally?.roadRollup
 
   return (
     <Panel
       title="Node & Graph"
-      subtitle="Live ledger · Control-Tower node organism (CC-A U1) + Central-TX tally"
+      subtitle="Live ledger · Control-Tower node organism (CC-A U1/U2) + Central-TX tally"
       right={
         <Pill sev={tallySource === 'live' ? 'ok' : tallySource === 'artifact' ? 'warn' : 'info'}>
           {tallySource === 'live' ? 'tally live' : tallySource === 'artifact' ? 'tally stale' : '…'}
@@ -607,9 +820,9 @@ export const NodeGraph: React.FC = () => {
               marginBottom: 8,
             }}
           >
-            Locks hash <code>node=</code>. Walk edges OUT/IN on gold{' '}
-            <code>48021:28286</code> (parcel → boundary-edge → road / neighbor). Endpoint-200 alone
-            is not the done-line (Amendment 1).
+            Locks hash <code>node=</code>. Family pills open atoms; atom click opens inspector with{' '}
+            <code>return=node-graph</code> back-nav (WDLL 3/4/5). Walk edges on gold{' '}
+            <code>48021:28286</code>.
           </p>
           <div style={{ display: 'flex', gap: 6, alignItems: 'center' }}>
             <input
@@ -659,6 +872,11 @@ export const NodeGraph: React.FC = () => {
                 detail={detail}
                 slotStatus={slotStatus}
                 chainJson={chainJson}
+                config={config}
+                atomFamily={atomFamily}
+                onPickFamily={pickAtomFamily}
+                onClearAtoms={clearAtoms}
+                onOpenAtom={openAtomInspector}
                 onWalk={(nextId) => {
                   setInputId(nextId)
                   void inspectNode(nextId)
@@ -666,6 +884,7 @@ export const NodeGraph: React.FC = () => {
                 onClose={() => {
                   setDetail(null)
                   setChainJson(null)
+                  setAtomFamily(null)
                   lockInspectNode(null)
                 }}
               />

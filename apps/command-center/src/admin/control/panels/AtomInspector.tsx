@@ -1,25 +1,23 @@
 // apps/command-center/src/admin/control/panels/AtomInspector.tsx
 //
-// Command Center · Atom Inspector (panel id: atom-inspector).  LIVE.
+// Command Center · Atom Inspector (panel id: atom-inspector).
 //
-// Queries OUR spine atoms via the Empressa MCP server's `search_atoms` tool
-// (public catalog — anonymous works; a key widens scope). Selecting an atom
-// opens a detail view. The CONFIDENCE DISPLAY RULE from the trading Control
-// Tower is preserved verbatim in spirit: a confidence figure is NEVER shown as a
-// bare number — value, n, width and basis are always rendered together, so a
-// thin/asserted figure cannot masquerade as an earned one (doc-repo commitments
-// #1 sell reasoning not data, #2 confidence earned not asserted).
+// Two paths (CC-A U2 / WDLL 3+4+5 — do not invent a second organism):
+//   1. Code-catalog search via MCP search_atoms (unchanged).
+//   2. Property-scoped detail when hash carries return=node-graph + id=DID —
+//      PORT of trading Control Tower AtomInspector detail (claim, ConfidenceBlock
+//      {n,width,basis}, provenance/citation, bitemporal, lineage/supersession,
+//      LIVE/AS-OF when backend supports, accessPolicy ∩ license). Boundary-edge
+//      atoms also render role / adjacency / setback / interior; property-line-tags
+//      only if present and labeled "not a survey".
 //
-// Our atom shape differs from the trading admin's admin_spine.py models, so
-// toConfidenceFigure maps our read-contract calibratedConfidence
-// {estimate, n, intervalWidth, provenance} → {value, n, width, basis, scope}.
-// This panel renders REAL MCP results, or an honest empty/error when MCP is
-// unreachable — never mock data.
+// closeDetail PORT: restore node-graph with node + atoms (+ return_*).
 
 import React, { useEffect, useMemo, useState } from 'react'
 import { useActivePanel } from '../center/useActivePanel'
 import { loadConfig, HauskaMcpClient, type SpineConfig } from '../../api/spineClient'
 import { SEARCH_ATOMS_ENTITY_TYPES, normalizeJurisdiction } from '../../api/searchAtomsContract'
+import { fetchAtomByDid } from '../../api/atomTrace'
 import { Panel, Pill, Loading, ErrorState, Empty, sectionHeader, mono, fmtTime, fmtNum } from '../primitives'
 
 interface ConfidenceFigure {
@@ -51,13 +49,19 @@ function str(v: unknown, fallback = ''): string {
   return v == null ? fallback : String(v)
 }
 
+function isHauskaDid(id: string | undefined | null): boolean {
+  return typeof id === 'string' && id.startsWith('did:hauska:')
+}
+
 // Map our atom → a never-bare confidence figure. Defensive: atoms may carry the
 // read-contract calibratedConfidence {estimate, n, intervalWidth, provenance},
-// a top-level confidence object, or nothing (then value 0 / basis asserted).
+// assertedConfidence, a top-level confidence object, or nothing.
 function toConfidenceFigure(atom: RawAtom): ConfidenceFigure {
-  const rc = (atom.readContract as { axes?: { calibratedConfidence?: Record<string, unknown> } } | undefined)?.axes
-    ?.calibratedConfidence
-  const cal = (rc || (atom.confidence as Record<string, unknown> | undefined) || {}) as Record<string, unknown>
+  const axes = (atom.readContract as { axes?: Record<string, unknown> } | undefined)?.axes
+  const cal = (axes?.calibratedConfidence ||
+    axes?.assertedConfidence ||
+    atom.confidence ||
+    {}) as Record<string, unknown>
   const value = Number(cal.estimate ?? cal.value ?? 0) || 0
   const n = Number(cal.n ?? cal.sampleSize ?? 0) || 0
   const width = Number(cal.intervalWidth ?? cal.width ?? 0) || 0
@@ -82,16 +86,18 @@ function toRow(atom: RawAtom): AtomRowModel {
     id,
     claimType: str(atom.claimType ?? (atom as { claim_type?: unknown }).claim_type ?? atom.title ?? family, family),
     claimKey: str(atom.claimKey ?? (atom as { claim_key?: unknown }).claim_key ?? atom.sectionNumber ?? atom.key, '—'),
-    worker: str(atom.worker ?? atom.author ?? atom.source, '—'),
+    worker: str(atom.worker ?? atom.author ?? atom.sourceAdapter ?? atom.source, '—'),
     family,
     jurisdiction: str(
       atom.jurisdiction ?? atom.jurisdictionTenant ?? (atom as { jurisdiction_tenant?: unknown }).jurisdiction_tenant,
       '—',
     ),
     accessPolicy: str(atom.accessPolicy ?? atom.policy ?? (atom as { access_policy?: unknown }).access_policy, '—'),
-    knowledgeTime: (atom.knowledgeTime ?? (atom as { knowledge_time?: unknown }).knowledge_time ?? atom.updatedAt ?? null) as
-      | string
-      | null,
+    knowledgeTime: (atom.knowledgeTime ??
+      (atom as { knowledge_time?: unknown }).knowledge_time ??
+      atom.extractedAt ??
+      atom.updatedAt ??
+      null) as string | null,
     confidence: toConfidenceFigure(atom),
     raw: atom,
   }
@@ -173,44 +179,70 @@ const AtomRow: React.FC<{ a: AtomRowModel; onClick: () => void }> = ({ a, onClic
   </button>
 )
 
-const AtomDetailView: React.FC<{ atom: AtomRowModel; onClose: () => void }> = ({ atom, onClose }) => {
-  const claimValue = atom.raw.claimValue ?? (atom.raw as { claim_value?: unknown }).claim_value ?? atom.raw.text ?? atom.raw.body ?? atom.raw
+const inputStyle: React.CSSProperties = {
+  fontFamily: 'var(--font-ui)',
+  fontSize: 11,
+  padding: '4px 8px',
+  borderRadius: 6,
+  color: 'var(--color-text-primary)',
+  background: 'var(--color-background-secondary)',
+  border: '0.5px solid var(--color-border-tertiary)',
+  minWidth: 0,
+}
+const btnStyle: React.CSSProperties = {
+  fontFamily: 'var(--font-ui)',
+  fontSize: 11,
+  fontWeight: 600,
+  padding: '4px 10px',
+  borderRadius: 6,
+  cursor: 'pointer',
+  color: 'var(--color-text-primary)',
+  background: 'var(--color-background-accent)',
+  border: '0.5px solid var(--color-border-secondary)',
+}
+const labelVal: React.CSSProperties = {
+  ...mono,
+  fontSize: 11,
+  color: 'var(--color-text-primary)',
+  wordBreak: 'break-all',
+}
+const pre: React.CSSProperties = {
+  ...mono,
+  fontSize: 10.5,
+  color: 'var(--color-text-primary)',
+  background: 'var(--color-background-secondary)',
+  border: '0.5px solid var(--color-border-tertiary)',
+  borderRadius: 6,
+  padding: 10,
+  margin: 0,
+  overflowX: 'auto',
+  whiteSpace: 'pre-wrap',
+  wordBreak: 'break-word',
+}
+
+/** Catalog-path detail (search_atoms hit already in hand). */
+const CatalogAtomDetailView: React.FC<{ atom: AtomRowModel; onClose: () => void; backLabel: string }> = ({
+  atom,
+  onClose,
+  backLabel,
+}) => {
+  const claimValue =
+    atom.raw.claimValue ?? (atom.raw as { claim_value?: unknown }).claim_value ?? atom.raw.text ?? atom.raw.body ?? atom.raw
   const provenance = (atom.raw.provenance as { source?: string; method?: string } | undefined) ?? null
   const citation = (atom.raw.citation as { ref?: string; url?: string } | undefined) ?? null
-  const btnStyle: React.CSSProperties = {
-    fontFamily: 'var(--font-ui)',
-    fontSize: 11,
-    fontWeight: 600,
-    padding: '4px 10px',
-    borderRadius: 6,
-    cursor: 'pointer',
-    color: 'var(--color-text-primary)',
-    background: 'var(--color-background-secondary)',
-    border: '0.5px solid var(--color-border-secondary)',
-  }
-  const labelVal: React.CSSProperties = { ...mono, fontSize: 11, color: 'var(--color-text-primary)', wordBreak: 'break-all' }
-  const pre: React.CSSProperties = {
-    ...mono,
-    fontSize: 10.5,
-    color: 'var(--color-text-primary)',
-    background: 'var(--color-background-secondary)',
-    border: '0.5px solid var(--color-border-tertiary)',
-    borderRadius: 6,
-    padding: 10,
-    margin: 0,
-    overflowX: 'auto',
-    whiteSpace: 'pre-wrap',
-    wordBreak: 'break-word',
-  }
   return (
-    <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
+    <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }} data-testid="atom-detail-catalog">
       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8 }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
-          <span style={{ fontSize: 13.5, fontWeight: 700, color: 'var(--color-text-primary)', fontFamily: 'var(--font-ui)' }}>{atom.claimType}</span>
+          <span style={{ fontSize: 13.5, fontWeight: 700, color: 'var(--color-text-primary)', fontFamily: 'var(--font-ui)' }}>
+            {atom.claimType}
+          </span>
           <Pill sev="info">{atom.family}</Pill>
           <Pill sev={atom.accessPolicy.includes('public') ? 'ok' : 'warn'}>{atom.accessPolicy}</Pill>
         </div>
-        <button onClick={onClose} style={btnStyle}>← back to results</button>
+        <button type="button" onClick={onClose} style={{ ...btnStyle, background: 'var(--color-background-secondary)' }}>
+          {backLabel}
+        </button>
       </div>
 
       <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
@@ -258,26 +290,270 @@ const AtomDetailView: React.FC<{ atom: AtomRowModel; onClose: () => void }> = ({
   )
 }
 
-const inputStyle: React.CSSProperties = {
-  fontFamily: 'var(--font-ui)',
-  fontSize: 11,
-  padding: '4px 8px',
-  borderRadius: 6,
-  color: 'var(--color-text-primary)',
-  background: 'var(--color-background-secondary)',
-  border: '0.5px solid var(--color-border-tertiary)',
-  minWidth: 0,
-}
-const btnStyle: React.CSSProperties = {
-  fontFamily: 'var(--font-ui)',
-  fontSize: 11,
-  fontWeight: 600,
-  padding: '4px 10px',
-  borderRadius: 6,
-  cursor: 'pointer',
-  color: 'var(--color-text-primary)',
-  background: 'var(--color-background-accent)',
-  border: '0.5px solid var(--color-border-secondary)',
+/**
+ * Property-rich AtomDetailView — PORT of CT AtomInspector detail (WDLL 4).
+ * Fetches GET /atoms/:did. Lineage / LIVE-AS-OF honest-empty when substrate lacks them.
+ */
+const PropertyAtomDetailView: React.FC<{
+  atomId: string
+  config: SpineConfig
+  onClose: () => void
+  backLabel: string
+}> = ({ atomId, config, onClose, backLabel }) => {
+  const [atom, setAtom] = useState<RawAtom | null>(null)
+  const [err, setErr] = useState<string | null>(null)
+  const [loading, setLoading] = useState(true)
+
+  useEffect(() => {
+    let cancelled = false
+    setLoading(true)
+    void fetchAtomByDid(atomId, config).then((res) => {
+      if (cancelled) return
+      if (!res.ok || !res.json?.atom) {
+        setAtom(null)
+        setErr(res.error || (res.status === 404 ? 'Atom not found.' : `HTTP ${res.status}`))
+      } else {
+        setAtom(res.json.atom as RawAtom)
+        setErr(null)
+      }
+      setLoading(false)
+    })
+    return () => {
+      cancelled = true
+    }
+  }, [atomId, config])
+
+  if (loading) return <Loading />
+  if (err) return <ErrorState msg={err} />
+  if (!atom) return <Empty>Atom not found.</Empty>
+
+  const row = toRow(atom)
+  const claimValue =
+    atom.claimValue ??
+    (atom as { claim_value?: unknown }).claim_value ??
+    atom.district ??
+    atom.setbackTable ??
+    atom.buildableAreaSqFt ??
+    atom
+  const provenance =
+    (atom.provenance as { source?: string; method?: string } | undefined) ??
+    (atom.sourceAdapter || atom.sourceUrl
+      ? { source: str(atom.sourceAdapter || atom.sourceUrl), method: str(atom.sourceCitation ?? 'storage') }
+      : null)
+  const citation =
+    (atom.citation as { ref?: string; url?: string } | undefined) ??
+    (atom.sourceCitation ? { ref: str(atom.sourceCitation), url: null } : null)
+  const license = (atom.license as Record<string, unknown> | undefined) ?? null
+  const reasoningChain = atom.reasoningChain ?? null
+  const isBoundary = row.family === 'property-boundary-edge'
+  const lineTags =
+    atom.propertyLineTags ??
+    atom.property_line_tags ??
+    (atom as { 'property-line-tags'?: unknown })['property-line-tags'] ??
+    null
+  const depthWarmKeys = Object.keys(atom).filter((k) => k.toLowerCase().startsWith('depthwarm'))
+
+  const validFrom = atom.validFrom ?? atom.valid_from ?? atom.effectiveDate ?? null
+  const validTo = atom.validTo ?? atom.valid_to ?? null
+  const knowledgeTime = atom.knowledgeTime ?? atom.knowledge_time ?? atom.extractedAt ?? null
+  const capturedAt = atom.capturedAt ?? atom.captured_at ?? atom.fetchedAt ?? null
+  const supersedes = atom.supersedesEntityId ?? atom.supersedes_entity_id ?? null
+
+  return (
+    <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }} data-testid="atom-detail-property">
+      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8 }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
+          <span style={{ fontSize: 13.5, fontWeight: 700, color: 'var(--color-text-primary)', fontFamily: 'var(--font-ui)' }}>
+            {row.claimType}
+          </span>
+          <Pill sev="info">{row.family}</Pill>
+          <Pill sev={row.accessPolicy.includes('public') ? 'ok' : 'warn'}>access: {row.accessPolicy}</Pill>
+          {atom.status != null ? <Pill sev="info">{str(atom.status)}</Pill> : null}
+        </div>
+        <button
+          type="button"
+          onClick={onClose}
+          style={{ ...btnStyle, background: 'var(--color-background-secondary)' }}
+          data-testid="atom-detail-back"
+        >
+          {backLabel}
+        </button>
+      </div>
+
+      <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+        <span style={sectionHeader}>Claim</span>
+        <div style={{ display: 'grid', gridTemplateColumns: 'auto 1fr', gap: '4px 12px', alignItems: 'baseline' }}>
+          {(
+            [
+              ['entity', `${row.family} · ${str(atom.entityId ?? atom.parcelNodeId ?? atom.boundaryEdgeId ?? '—')}`],
+              ['claim_key', row.claimKey],
+              ['worker', row.worker],
+              ['atom_id', row.id],
+            ] as [string, string][]
+          ).map(([k, v]) => (
+            <React.Fragment key={k}>
+              <span style={sectionHeader}>{k}</span>
+              <span style={labelVal}>{v}</span>
+            </React.Fragment>
+          ))}
+        </div>
+        <pre style={pre}>{typeof claimValue === 'string' ? claimValue : JSON.stringify(claimValue, null, 2)}</pre>
+      </div>
+
+      <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+        <span style={sectionHeader}>Confidence (object — never bare)</span>
+        <ConfidenceBlock fig={row.confidence} showValue={false} />
+      </div>
+
+      <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+        <span style={sectionHeader}>Provenance &amp; citation</span>
+        <div style={{ display: 'grid', gridTemplateColumns: 'auto 1fr', gap: '4px 12px', alignItems: 'baseline' }}>
+          <span style={sectionHeader}>source</span>
+          <span style={labelVal}>{provenance?.source || '—'}</span>
+          <span style={sectionHeader}>method</span>
+          <span style={labelVal}>{provenance?.method || '—'}</span>
+          <span style={sectionHeader}>citation</span>
+          <span style={labelVal}>
+            {citation?.ref || str(atom.sourceCitation) || '—'}
+            {citation?.url ? (
+              <>
+                {' '}
+                <a href={citation.url} target="_blank" rel="noreferrer" style={{ color: 'var(--color-text-info)' }}>
+                  {citation.url}
+                </a>
+              </>
+            ) : null}
+          </span>
+        </div>
+      </div>
+
+      <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+        <span style={sectionHeader}>Bitemporal</span>
+        <div style={{ display: 'grid', gridTemplateColumns: 'auto 1fr', gap: '4px 12px', alignItems: 'baseline' }}>
+          {(
+            [
+              ['valid_from', fmtTime(validFrom as string | null)],
+              ['valid_to', validTo ? fmtTime(validTo as string) : '∞ (open)'],
+              ['knowledge_time', fmtTime(knowledgeTime as string | null)],
+              ['captured_at', fmtTime(capturedAt as string | null)],
+            ] as [string, string][]
+          ).map(([k, v]) => (
+            <React.Fragment key={k}>
+              <span style={sectionHeader}>{k}</span>
+              <span style={labelVal}>{v}</span>
+            </React.Fragment>
+          ))}
+        </div>
+      </div>
+
+      {isBoundary && (
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }} data-testid="boundary-atom-fields">
+          <span style={sectionHeader}>Boundary primitive (property-rich)</span>
+          <div style={{ display: 'grid', gridTemplateColumns: 'auto 1fr', gap: '4px 12px', alignItems: 'baseline' }}>
+            {(
+              [
+                ['role', str(atom.role, '—')],
+                ['adjacency', str(atom.adjacencyKind, '—')],
+                ['setback', atom.setback != null ? JSON.stringify(atom.setback) : '—'],
+                ['interior', atom.interior != null ? JSON.stringify(atom.interior) : '—'],
+                ['neighbor', str(atom.parcelNeighborPropId, '—')],
+                [
+                  'facing_road',
+                  atom.facingRoad != null
+                    ? str((atom.facingRoad as { roadNodeId?: string }).roadNodeId, JSON.stringify(atom.facingRoad))
+                    : '—',
+                ],
+              ] as [string, string][]
+            ).map(([k, v]) => (
+              <React.Fragment key={k}>
+                <span style={sectionHeader}>{k}</span>
+                <span style={labelVal}>{v}</span>
+              </React.Fragment>
+            ))}
+          </div>
+          {lineTags != null ? (
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
+              <span style={sectionHeader}>property-line-tags</span>
+              <Pill sev="warn">not a survey (GIS-approx)</Pill>
+              <pre style={pre}>{JSON.stringify(lineTags, null, 2)}</pre>
+            </div>
+          ) : (
+            <span style={{ fontSize: 10, color: 'var(--color-text-tertiary)', fontFamily: 'var(--font-ui)' }}>
+              No property-line-tags on this edge (optional — Amendment 2). GIS-approx — not a survey.
+            </span>
+          )}
+        </div>
+      )}
+
+      {reasoningChain != null && (
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+          <span style={sectionHeader}>Reasoning chain</span>
+          <pre style={pre}>{JSON.stringify(reasoningChain, null, 2)}</pre>
+        </div>
+      )}
+
+      {depthWarmKeys.length > 0 && (
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+          <span style={sectionHeader}>Depth-warm fields</span>
+          <div style={{ display: 'grid', gridTemplateColumns: 'auto 1fr', gap: '4px 12px', alignItems: 'baseline' }}>
+            {depthWarmKeys.map((k) => (
+              <React.Fragment key={k}>
+                <span style={sectionHeader}>{k}</span>
+                <span style={labelVal}>
+                  {typeof atom[k] === 'string' ? str(atom[k]) : JSON.stringify(atom[k])}
+                </span>
+              </React.Fragment>
+            ))}
+          </div>
+        </div>
+      )}
+
+      <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+        <span style={sectionHeader}>Access &amp; license</span>
+        <div style={{ display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap' }}>
+          <Pill sev={row.accessPolicy.includes('public') ? 'ok' : 'warn'}>access: {row.accessPolicy}</Pill>
+          {license && Object.keys(license).length > 0 ? (
+            <Pill sev="info">license present</Pill>
+          ) : (
+            <Pill sev="info">no license terms</Pill>
+          )}
+        </div>
+        {license && Object.keys(license).length > 0 ? (
+          <pre style={pre}>{JSON.stringify(license, null, 2)}</pre>
+        ) : (
+          <span style={{ fontSize: 11, color: 'var(--color-text-tertiary)', fontFamily: 'var(--font-ui)' }}>
+            No license terms recorded.
+          </span>
+        )}
+      </div>
+
+      <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+        <span style={sectionHeader}>Time travel — LIVE / AS-OF</span>
+        <Empty>
+          Property substrate does not expose LIVE/AS-OF projection endpoints yet — showing the
+          fetched atom as current. (CT TimeTravel ports when retrieval adds as-of.)
+        </Empty>
+      </div>
+
+      <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+        <span style={sectionHeader}>Lineage / supersession chain</span>
+        {supersedes ? (
+          <div
+            style={{
+              padding: '6px 10px',
+              borderRadius: 6,
+              background: 'var(--color-background-secondary)',
+              border: '0.5px solid var(--color-border-tertiary)',
+            }}
+          >
+            <span style={labelVal}>supersedes: {str(supersedes)}</span>
+          </div>
+        ) : (
+          <Empty>No supersession chain indexed for this property atom.</Empty>
+        )}
+      </div>
+    </div>
+  )
 }
 
 function extractHits(result: Record<string, unknown>): RawAtom[] {
@@ -301,10 +577,19 @@ export const AtomInspector: React.FC = () => {
   const [loading, setLoading] = useState(true)
   const [err, setErr] = useState<string | null>(null)
 
-  const selected = hashParams.id ? rows?.find((r) => r.id === hashParams.id) ?? null : null
+  const selectedId = hashParams.id ?? null
+  const fromNodeGraph = hashParams.return === 'node-graph'
+  const propertyDetailMode = Boolean(selectedId && (fromNodeGraph || isHauskaDid(selectedId)))
+  const catalogSelected =
+    selectedId && !propertyDetailMode ? rows?.find((r) => r.id === selectedId) ?? null : null
   const normalizedJurisdiction = normalizeJurisdiction(jurisdiction)
 
   useEffect(() => {
+    // Skip catalog query when deep-linked into a property atom detail.
+    if (propertyDetailMode) {
+      setLoading(false)
+      return
+    }
     let cancelled = false
     setLoading(true)
     setErr(null)
@@ -318,10 +603,6 @@ export const AtomInspector: React.FC = () => {
           return
         }
         const mcp = new HauskaMcpClient(config.mcpUrl, config.hauskaKey, 'public')
-        // entity_type passes through verbatim — the tool enum is hyphenated
-        // (e.g. code-section); converting to underscores gets rejected with
-        // -32602 invalid_enum_value. jurisdiction is normalized client-side
-        // to the underscored tenant-id shape the tool actually matches.
         const result = await mcp.callTool('search_atoms', {
           query: query || 'building code',
           jurisdiction: normalizeJurisdiction(jurisdiction) || undefined,
@@ -341,23 +622,56 @@ export const AtomInspector: React.FC = () => {
       cancelled = true
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [applied])
+  }, [applied, propertyDetailMode])
+
+  /** PORT of CT AtomInspector.closeDetail (WDLL 5). */
+  const closeDetail = (): void => {
+    if (hashParams.return === 'node-graph' && hashParams.node) {
+      const nodeParams: Record<string, string> = { node: hashParams.node }
+      if (hashParams.atoms) nodeParams.atoms = hashParams.atoms
+      for (const [k, v] of Object.entries(hashParams)) {
+        if (k.startsWith('return_') && v) nodeParams[k.slice('return_'.length)] = v
+      }
+      selectPanel('node-graph', nodeParams)
+      return
+    }
+    selectPanel('atom-inspector')
+  }
 
   const openAtom = (id: string): void => selectPanel('atom-inspector', { id })
-  const closeDetail = (): void => selectPanel('atom-inspector')
+  const backLabel =
+    hashParams.return === 'node-graph' && hashParams.node ? '← back to node' : '← back to results'
 
   return (
     <Panel
       title="Atom Inspector"
-      subtitle="Live · MCP search_atoms (public catalog) · confidence never bare"
-      right={<Pill sev={config.hauskaKey ? 'ok' : 'info'}>{config.hauskaKey ? 'keyed' : 'anonymous'}</Pill>}
+      subtitle={
+        propertyDetailMode
+          ? 'Property atom detail · Control-Tower port · confidence never bare'
+          : 'Live · MCP search_atoms (public catalog) · confidence never bare'
+      }
+      right={
+        <Pill sev={config.hauskaKey ? 'ok' : 'info'}>{config.hauskaKey ? 'keyed' : 'anonymous'}</Pill>
+      }
     >
-      {selected ? (
-        <AtomDetailView atom={selected} onClose={closeDetail} />
+      {propertyDetailMode && selectedId ? (
+        <PropertyAtomDetailView
+          atomId={selectedId}
+          config={config}
+          onClose={closeDetail}
+          backLabel={backLabel}
+        />
+      ) : catalogSelected ? (
+        <CatalogAtomDetailView atom={catalogSelected} onClose={closeDetail} backLabel={backLabel} />
       ) : (
         <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
           <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', alignItems: 'center' }}>
-            <input style={{ ...inputStyle, flex: 1 }} placeholder="query" value={query} onChange={(e) => setQuery(e.target.value)} />
+            <input
+              style={{ ...inputStyle, flex: 1 }}
+              placeholder="query"
+              value={query}
+              onChange={(e) => setQuery(e.target.value)}
+            />
             <input
               style={inputStyle}
               placeholder="jurisdiction (e.g. Bastrop, TX)"

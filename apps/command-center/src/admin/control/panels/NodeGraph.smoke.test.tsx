@@ -1,6 +1,6 @@
 /**
- * WDLL 8 / CC-A U1 smoke — Node & Graph ledger renders Gate A tally +
- * Control-Tower NodeInspect with clickable edges (mocked network).
+ * WDLL 8 / CC-A U1+U2 smoke — Node & Graph ledger renders Gate A tally +
+ * Control-Tower NodeInspect with clickable edges + family→atoms (mocked network).
  */
 import { describe, it, expect, vi, beforeEach } from 'vitest'
 import { render, screen, waitFor, fireEvent } from '@testing-library/react'
@@ -9,6 +9,13 @@ import React from 'react'
 const lockInspectNode = vi.fn()
 const lockParcelNode = vi.fn()
 let lockedId: string | null = null
+const selectPanel = vi.fn()
+let hashParams: Record<string, string> = {}
+
+vi.mock('../center/useActivePanel', () => ({
+  useActivePanel: () => ['node-graph', selectPanel, hashParams],
+  PanelProvider: ({ children }: { children: React.ReactNode }) => <>{children}</>,
+}))
 
 vi.mock('../center/parcelNodeBinding', async () => {
   const atomTrace = await import('../../api/atomTrace')
@@ -62,10 +69,102 @@ vi.mock('../../api/atomTrace', async () => {
               status: 'active',
               atomDid: `did:hauska:buildable-envelope:${parcelNodeId}`,
             },
+            atoms: [
+              {
+                did: `did:hauska:zoning-fact:${parcelNodeId}`,
+                type: 'zoning-fact',
+                accessPolicy: 'public-free',
+                payload: {
+                  entityType: 'zoning-fact',
+                  atomDid: `did:hauska:zoning-fact:${parcelNodeId}`,
+                  parcelNodeId,
+                  district: 'HC',
+                  accessPolicy: 'public-free',
+                },
+              },
+              {
+                did: `did:hauska:buildable-envelope:${parcelNodeId}`,
+                type: 'buildable-envelope',
+                accessPolicy: 'public-free',
+                payload: {
+                  entityType: 'buildable-envelope',
+                  atomDid: `did:hauska:buildable-envelope:${parcelNodeId}`,
+                  parcelNodeId,
+                  accessPolicy: 'public-free',
+                },
+              },
+            ],
           },
         }
       }
       return { ok: false, status: 502, json: null, error: 'unreachable' }
+    }),
+    fetchBoundaryEdges: vi.fn(async (parcelNodeId: string) => {
+      if (parcelNodeId !== '48021:28286') {
+        return { ok: true, status: 200, json: { available: true, parcelNodeId, edges: [], count: 0 } }
+      }
+      return {
+        ok: true,
+        status: 200,
+        json: {
+          available: true,
+          parcelNodeId,
+          count: 1,
+          edges: [
+            {
+              entityType: 'property-boundary-edge',
+              atomDid: 'did:hauska:property-boundary-edge:48021:28286:boundary:2',
+              boundaryEdgeId: '48021:28286:boundary:2',
+              parcelNodeId,
+              role: 'front',
+              adjacencyKind: 'ROW',
+              accessPolicy: 'platform-internal',
+            },
+          ],
+        },
+      }
+    }),
+    fetchNodeAtoms: vi.fn(async (nodeId: string, family: string) => {
+      const atoms = []
+      if (!family || family === 'all' || family === 'zoning-fact') {
+        atoms.push({
+          atom_id: `did:hauska:zoning-fact:${nodeId.includes('boundary') ? '48021:28286' : nodeId}`,
+          entity_type: 'zoning-fact',
+          entity_id: nodeId,
+          claim_key: nodeId,
+          claim_type: 'zoning-fact',
+          family: 'zoning-fact',
+          worker: 'test',
+          access_policy: 'public-free',
+          knowledge_time: null,
+          preview: null,
+        })
+      }
+      if ((!family || family === 'all' || family === 'property-boundary-edge') && nodeId === '48021:28286') {
+        atoms.push({
+          atom_id: 'did:hauska:property-boundary-edge:48021:28286:boundary:2',
+          entity_type: 'property-boundary-edge',
+          entity_id: '48021:28286:boundary:2',
+          claim_key: '48021:28286:boundary:2',
+          claim_type: 'property-boundary-edge',
+          family: 'property-boundary-edge',
+          worker: 'test',
+          access_policy: 'platform-internal',
+          knowledge_time: null,
+          preview: 'role=front · adj=ROW',
+        })
+      }
+      return {
+        ok: true,
+        status: 200,
+        json: {
+          available: true,
+          node_id: nodeId,
+          family: family || 'all',
+          total: atoms.length,
+          atoms,
+        },
+      }
     }),
     fetchPropertyNodeDetail: vi.fn(async (nodeId: string) => {
       if (nodeId === '48021:28286' || nodeId === '48209:156346') {
@@ -192,11 +291,17 @@ const TALLY = {
   },
 }
 
-describe('NodeGraph smoke (WDLL 8 / CC-A U1)', () => {
+describe('NodeGraph smoke (WDLL 8 / CC-A U1+U2)', () => {
   beforeEach(() => {
     lockedId = null
+    hashParams = {}
     lockInspectNode.mockClear()
     lockParcelNode.mockClear()
+    selectPanel.mockClear()
+    selectPanel.mockImplementation((_id: string, params?: Record<string, string>) => {
+      hashParams = { ...params }
+      if (params?.node) lockedId = params.node
+    })
     vi.stubGlobal(
       'fetch',
       vi.fn(async (url: string) => {
@@ -243,6 +348,40 @@ describe('NodeGraph smoke (WDLL 8 / CC-A U1)', () => {
       expect(screen.getByText(/^front$/)).toBeTruthy()
       expect(screen.getByText(/faces-road/i)).toBeTruthy()
       expect(screen.getByText(/adjacent-parcel/i)).toBeTruthy()
+    })
+  })
+
+  it('opens atoms by family and routes to AtomInspector with return breadcrumb (WDLL 3/5)', async () => {
+    lockedId = '48021:28286'
+    hashParams = { node: '48021:28286' }
+    render(<NodeGraph />)
+
+    await waitFor(() => {
+      expect(screen.getByTestId('node-inspect')).toBeTruthy()
+    })
+
+    fireEvent.click(screen.getByTestId('family-count-zoning-fact'))
+
+    await waitFor(() => {
+      expect(selectPanel).toHaveBeenCalledWith(
+        'node-graph',
+        expect.objectContaining({ node: '48021:28286', atoms: 'zoning-fact' }),
+      )
+      expect(screen.getByTestId('node-atoms')).toBeTruthy()
+    })
+
+    fireEvent.click(screen.getByTestId('node-atom-zoning-fact'))
+
+    await waitFor(() => {
+      expect(selectPanel).toHaveBeenCalledWith(
+        'atom-inspector',
+        expect.objectContaining({
+          id: 'did:hauska:zoning-fact:48021:28286',
+          return: 'node-graph',
+          node: '48021:28286',
+          atoms: 'zoning-fact',
+        }),
+      )
     })
   })
 })
