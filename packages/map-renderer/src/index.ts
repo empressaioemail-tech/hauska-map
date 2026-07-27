@@ -122,12 +122,16 @@ export type {
 export {
   LIVE_PARCELS_KEY,
   LIVE_FEMA_KEY,
+  LIVE_TOPO_KEY,
   MIN_PARCEL_ZOOM,
   MIN_FEMA_ZOOM,
+  MIN_TOPO_ZOOM,
   layersForZoom,
   fetchGisLayer,
+  fetchTopographyLayer,
   parcelFillColor,
   toLiveOverlays,
+  toTopoOverlay,
   parcelNodeIdFromSelection,
   selectionToCard,
 } from "./live-gis";
@@ -137,6 +141,8 @@ export type {
   FeatureCollectionLike,
   GisLayerResponse,
   LiveLayerState,
+  TopoLayerResponse,
+  TopoLayerState,
   ParcelCardData,
 } from "./live-gis";
 

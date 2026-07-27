@@ -12,6 +12,7 @@
     { "source": "/api/pe-billing", "destination": "/api/pe-billing" },
     { "source": "/api/pe-terrain-export", "destination": "/api/pe-terrain-export" },
     { "source": "/api/pe-site-plan-export", "destination": "/api/pe-site-plan-export" },
+    { "source": "/api/pe-topography", "destination": "/api/pe-topography" },
     { "source": "/((?!api/).*)", "destination": "/index.html" }
   ]
 }
