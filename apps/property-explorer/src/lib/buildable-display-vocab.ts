@@ -102,6 +102,11 @@ function areaPresent(input: BuildableDisplayInput): boolean {
   return false;
 }
 
+/** Numeric area OR drawable warm geojson — never leave as bare pending. */
+function drawableOrAreaPresent(input: BuildableDisplayInput): boolean {
+  return areaPresent(input) || input.hasGeometry === true;
+}
+
 function formatPct(pct: number): string {
   return `${Math.round(pct)}%`;
 }
@@ -119,6 +124,7 @@ export function mapBuildableDisplay(input: BuildableDisplayInput): BuildableDisp
   const silent = input.notSpecifiedAxes === true;
   const areaSqFt = resolveBuildableAreaSqFt(input);
   const hasArea = areaPresent(input);
+  const hasDrawable = drawableOrAreaPresent(input);
   const provisional =
     input.provisional === true ||
     input.warmEnvelopeKind === "provisional-front-edge";
@@ -145,8 +151,8 @@ export function mapBuildableDisplay(input: BuildableDisplayInput): BuildableDisp
     };
   }
 
-  // Silent axes (build-to-line) — never consume-lot, never fabricated 0%.
-  if (silent && !hasArea) {
+  // Silent axes (build-to-line) with NO drawable/area — never consume-lot.
+  if (silent && !hasDrawable) {
     return {
       kind: "not_specified",
       cardState: "pending",
@@ -156,8 +162,8 @@ export function mapBuildableDisplay(input: BuildableDisplayInput): BuildableDisp
     };
   }
 
-  // Area present wins over any local "consumes lot" / bare pending (B3 guard).
-  if (hasArea) {
+  // Area or warm geojson wins over any local "consumes lot" / bare pending (B3).
+  if (hasDrawable) {
     const pct = positiveNumber(input.buildableAreaPct)
       ? input.buildableAreaPct
       : null;
@@ -165,12 +171,16 @@ export function mapBuildableDisplay(input: BuildableDisplayInput): BuildableDisp
       ? formatPct(pct)
       : areaSqFt != null
         ? `~${formatSqFt(areaSqFt)}`
-        : "buildable area on file";
+        : silent
+          ? "buildable envelope on file (build-to-line)"
+          : "buildable envelope on file";
     const pdfCore = areaSqFt != null
       ? formatSqFt(areaSqFt)
       : pct != null
         ? `${formatPct(pct)} of lot`
-        : "buildable envelope on file";
+        : silent
+          ? "buildable envelope on file (build-to-line)"
+          : "buildable envelope on file";
 
     if (provisional) {
       return {
@@ -178,7 +188,7 @@ export function mapBuildableDisplay(input: BuildableDisplayInput): BuildableDisp
         cardState: "present",
         cardLabel: `${cardCore} (provisional)`,
         pdfLabel: `${pdfCore} (PROVISIONAL)`,
-        agreementToken: `provisional:${pct ?? Math.round(areaSqFt ?? 0)}`,
+        agreementToken: `provisional:${pct ?? (areaSqFt != null ? Math.round(areaSqFt) : "envelope")}`,
       };
     }
     return {
@@ -186,7 +196,7 @@ export function mapBuildableDisplay(input: BuildableDisplayInput): BuildableDisp
       cardState: "present",
       cardLabel: cardCore,
       pdfLabel: pdfCore,
-      agreementToken: `buildable:${pct ?? Math.round(areaSqFt ?? 0)}`,
+      agreementToken: `buildable:${pct ?? (areaSqFt != null ? Math.round(areaSqFt) : "envelope")}`,
     };
   }
 
@@ -266,12 +276,12 @@ export function violatesHistoricalDisagreementGuard(
   vocab: BuildableDisplayVocab,
   input: BuildableDisplayInput,
 ): boolean {
-  if (!areaPresent(input)) return false;
+  if (!drawableOrAreaPresent(input)) return false;
   const blob = `${vocab.cardLabel ?? ""} ${vocab.pdfLabel}`.toLowerCase();
   if (/consumes?\s+lot/.test(blob)) return true;
   if (vocab.kind === "declined-consume") return true;
-  // Bare pending % while area exists is the other half of the disagreement.
-  if (vocab.kind === "pending") return true;
+  // Bare pending % while drawable/area exists is the other half of the disagreement.
+  if (vocab.kind === "pending" || vocab.kind === "not_specified") return true;
   if (/buildable % pending/.test(blob) && !/provisional/.test(blob)) return true;
   return false;
 }

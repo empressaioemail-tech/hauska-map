@@ -82,6 +82,21 @@ describe("mapBuildableDisplay — historical disagreement class (B3)", () => {
     expect(vocab.agreementToken).toBe("not_specified");
   });
 
+  it("warm geojson + silent axes → buildable-with-area, not bare pending %", () => {
+    // Planner BEFORE 34785: card said build-to-line pending despite warm geojson.
+    const input: BuildableDisplayInput = {
+      envelopeStatus: "ok",
+      notSpecifiedAxes: true,
+      hasGeometry: true,
+    };
+    const vocab = mapBuildableDisplay(input);
+    expect(vocab.kind).toBe("buildable-with-area");
+    expect(vocab.cardState).toBe("present");
+    expect(vocab.cardLabel).not.toMatch(/buildable % pending/i);
+    expect(vocab.pdfLabel.toLowerCase()).not.toMatch(/consumes/);
+    expect(violatesHistoricalDisagreementGuard(vocab, input)).toBe(false);
+  });
+
   it("declined-consume only when no area and status/warm/offset agree", () => {
     const input: BuildableDisplayInput = {
       envelopeStatus: "no-buildable-area",
