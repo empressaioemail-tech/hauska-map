@@ -361,12 +361,23 @@ export async function fetchMeteringSummary(config: SpineConfig, days: number): P
   const url = `${mcpBase.replace(/\/mcp$/, '/mcp-metering')}/summary?days=${days}`
   try {
     const res = await fetch(url, { headers: authHeaders(config) })
-    const json = (await res.json().catch(() => ({}))) as MeteringSummary & { message?: string; error?: string }
+    const json = (await res.json().catch(() => ({}))) as MeteringSummary & {
+      message?: string
+      error?: string
+      missing?: string
+    }
     if (!res.ok) {
+      const detail = json.message || json.error || `HTTP ${res.status}`
+      const missing = json.missing ? ` (missing ${json.missing})` : ''
+      // Preserve platform_internal / 403 signal for honest in-panel copy (WDLL 9).
+      const message =
+        res.status === 403 || detail.includes('platform_internal')
+          ? `platform_internal_required: ${detail}${missing}`
+          : `${detail}${missing}`
       return {
         status: 'error',
         httpStatus: res.status,
-        message: json.message || json.error || `HTTP ${res.status}`,
+        message,
       }
     }
     return { status: 'ok', summary: json }

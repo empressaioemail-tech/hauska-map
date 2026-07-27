@@ -339,7 +339,12 @@ export default async function handler(req: VercelRequest, res: VercelResponse): 
   const qsStr = qs.toString()
   // The MCP JSON-RPC endpoint lives at /mcp upstream; a request to /api/spine/mcp
   // (empty remainder) must target it, not the upstream root ("Cannot POST /").
-  const effectivePath = path[0] === 'mcp' && upstreamPath === '' ? 'mcp' : upstreamPath
+  const effectivePathRaw = path[0] === 'mcp' && upstreamPath === '' ? 'mcp' : upstreamPath
+  // Alias /healthz → /health (upstream only serves /health; CC-A WDLL 8).
+  const effectivePath =
+    path[0] === 'retrieval' && (effectivePathRaw === 'healthz' || effectivePathRaw === 'healthz/')
+      ? 'health'
+      : effectivePathRaw
   const targetUrl = `${upstream.baseUrl}/${effectivePath}${qsStr ? `?${qsStr}` : ''}`
   const headers: Record<string, string> = {
     ...upstream.headers,

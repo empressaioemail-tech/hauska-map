@@ -92,6 +92,22 @@ describe('RevenueMeter', () => {
     expect(screen.getByText(/MCP metering endpoint unreachable/)).toBeInTheDocument()
   })
 
+  it('should show honest platform_internal degraded copy on 403 (WDLL 9)', async () => {
+    mockFetchMeteringSummary.mockResolvedValue({
+      status: 'error',
+      httpStatus: 403,
+      message: 'platform_internal_required: platform_internal_required',
+    })
+
+    render(<RevenueMeter />)
+
+    await waitFor(() => {
+      expect(screen.getByTestId('revenue-meter-degraded')).toBeInTheDocument()
+    })
+    expect(screen.getByText(/Requires platform_internal key/i)).toBeInTheDocument()
+    expect(screen.getByText(/DEGRADED/i)).toBeInTheDocument()
+  })
+
   it('should show unbilled warning when Stripe key not mounted', async () => {
     const unbilledData: MeteringResult = {
       status: 'ok',

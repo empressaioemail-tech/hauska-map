@@ -24,9 +24,21 @@
 //     'hydrology-flow'), with a per-overlay toggle chip and an honest "empty"
 //     chip when a report pushed zero features.
 
-import React, { useCallback, useMemo, useRef, useState } from 'react'
-import { FloatingMap } from '@hauska/map-renderer'
-import type { OverlaySpec, ParcelSelection, ViewportState } from '@hauska/map-renderer'
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import {
+  FloatingMap,
+  LayersControl,
+  MapTools,
+  SHARED_DEFAULT_CENTER,
+  SHARED_PARCEL_TILES,
+} from '@hauska/map-renderer'
+import type {
+  FloatingMapHandle,
+  LayerKey,
+  OverlaySpec,
+  ParcelSelection,
+  ViewportState,
+} from '@hauska/map-renderer'
 import '@hauska/map-renderer/styles.css'
 import 'maplibre-gl/dist/maplibre-gl.css'
 import { useEngagement, useSpatial, TileStatusBanner } from '@empressaio/tile-shell'
@@ -128,6 +140,7 @@ function LiveMapTileInner() {
   const { overlays: spatialOverlays } = useSpatial()
   const [, selectPanel] = useActivePanel()
   const { lockParcelNode } = useParcelNodeBinding()
+  const mapRef = useRef<FloatingMapHandle>(null)
 
   const [parcels, setParcels] = useState<LayerSlot>(IDLE)
   const [fema, setFema] = useState<LayerSlot>(IDLE)
@@ -137,17 +150,33 @@ function LiveMapTileInner() {
   const [hiddenOverlayIds, setHiddenOverlayIds] = useState<ReadonlySet<string>>(
     () => new Set<string>(),
   )
+  // LAYER_REGISTRY visibility — same seed + prop path as PE ExplorerMap (WDLL 7).
+  const [visibleLayers, setVisibleLayers] = useState<Set<LayerKey> | null>(null)
+  const [knownLayers, setKnownLayers] = useState<Set<LayerKey> | null>(null)
   const abortRef = useRef<AbortController | null>(null)
 
   const { apn, jurisdiction, lat, lng } = activeParcel
   const center = useMemo(
-    () => (lat != null && lng != null ? { latitude: lat, longitude: lng } : undefined),
+    () => (lat != null && lng != null ? { latitude: lat, longitude: lng } : SHARED_DEFAULT_CENTER),
     [lat, lng],
   )
   const flyToParcel = useMemo(
     () => (lat != null && lng != null ? { apn: apn ?? undefined, lat, lng } : null),
     [apn, lat, lng],
   )
+
+  // Seed visible layers from the live renderer handle (PE path).
+  useEffect(() => {
+    if (visibleLayers) return
+    const h = mapRef.current
+    if (!h) return
+    const seed = h.getVisibleLayers?.()
+    if (seed && seed.size) {
+      const next = new Set(seed)
+      setVisibleLayers(next)
+      setKnownLayers(next)
+    }
+  })
 
   const handleViewportChange = useCallback((vp: ViewportState) => {
     setZoom(vp.zoom)
@@ -312,16 +341,29 @@ function LiveMapTileInner() {
 
       <div style={{ position: 'relative', flex: 1, minHeight: 0, display: 'flex' }}>
         <FloatingMap
+          ref={mapRef}
           floating={false}
           center={center}
           parcel={flyToParcel}
           address={jurisdiction || undefined}
           useFixture={fixtureOn}
+          parcelTiles={SHARED_PARCEL_TILES}
+          visibleLayers={visibleLayers ?? undefined}
           overlays={mapOverlays}
           onParcelSelect={handleParcelSelect}
           onViewportChange={handleViewportChange}
           style={{ flex: 1, minHeight: 0 }}
         />
+
+        {/* Shared LAYER_REGISTRY chrome (same module as PE — WDLL 7). */}
+        {visibleLayers && knownLayers && (
+          <LayersControl
+            known={knownLayers}
+            visible={visibleLayers}
+            onChange={(next) => setVisibleLayers(new Set(next))}
+          />
+        )}
+        <MapTools mapRef={mapRef} />
 
         {/* Fixture layers must never render unlabeled (tile-level watermark;
             the renderer stamps its own FIXTURE DATA badge on the canvas too). */}

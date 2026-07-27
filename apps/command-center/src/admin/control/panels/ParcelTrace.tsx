@@ -1,11 +1,9 @@
 // apps/command-center/src/admin/control/panels/ParcelTrace.tsx
 //
-// Command Center · Parcel Trace (panel id: parcel-trace). LIVE.
-//
-// Parcel drill-through and atom trace. The vanilla console's E7 panel was driven
-// by map click (select parcel → show atoms → trace graph). The deployed
-// command-center has no interactive map, so this panel provides a search-based
-// interface: enter an address → resolve place → show atoms → trace graph.
+// Command Center · Parcel Trace (panel id: parcel-trace). LIVE when retrieval
+// /health probe ok (panelProbes retrieval-healthz → /health). Address search
+// resolves place → atoms → trace. Site Analysis hosts the interactive map;
+// this panel is the search/trace companion (not a map substitute).
 
 import React, { useMemo, useState } from 'react'
 import { loadConfig, type SpineConfig, getJson, postJson } from '../../api/spineClient'
@@ -195,9 +193,9 @@ export const ParcelTrace: React.FC = () => {
               marginBottom: 8,
             }}
           >
-            The vanilla console's E7 panel was map-driven (click parcel → atoms). The deployed command-center has no
-            interactive map, so this panel provides a search interface: enter address → resolve place → show atoms →
-            trace graph.
+            The vanilla console's E7 panel was map-driven (click parcel → atoms). Site Analysis
+            now hosts the shared layered map; this panel is the address search + atom trace
+            companion — resolve place → show atoms → trace graph.
           </p>
           <div style={{ display: 'flex', gap: 6, alignItems: 'center' }}>
             <input

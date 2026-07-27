@@ -88,7 +88,10 @@ function getUpstream(pathSegments: string[]): { upstream: Upstream | null; error
     const url = process.env.RETRIEVAL_API_URL?.trim() || 'https://hauska-retrieval-api-h7gvu7rgcq-uc.a.run.app'
     const key = process.env.RETRIEVAL_API_KEY?.trim()
     const upstreamPath = rest.join('/')
-    const isHealthPath = upstreamPath === 'health' || upstreamPath === 'healthz' || upstreamPath === 'ready'
+    // /healthz is aliased to /health at forward time (upstream only serves /health).
+    const normalized =
+      upstreamPath === 'healthz' || upstreamPath === 'healthz/' ? 'health' : upstreamPath
+    const isHealthPath = normalized === 'health' || normalized === 'ready'
     // The retrieval API requires Authorization: Bearer <RETRIEVAL_API_KEY> on
     // every route except health probes (its Bearer gate is what keeps the
     // internal data plane off the open internet). Without the env var, only
@@ -250,7 +253,12 @@ export default async function handler(req: VercelRequest, res: VercelResponse): 
   const qsStr = qs.toString()
   // The MCP JSON-RPC endpoint lives at /mcp upstream; a request to /api/spine/mcp
   // (empty remainder) must target it, not the upstream root ("Cannot POST /").
-  const effectivePath = path[0] === 'mcp' && upstreamPath === '' ? 'mcp' : upstreamPath
+  // Retrieval: alias /healthz → /health (upstream only serves /health; Phase 0
+  // CC-A found BFF /healthz 404 while /health 200).
+  let effectivePath = path[0] === 'mcp' && upstreamPath === '' ? 'mcp' : upstreamPath
+  if (path[0] === 'retrieval' && (effectivePath === 'healthz' || effectivePath === 'healthz/')) {
+    effectivePath = 'health'
+  }
   const targetUrl = `${upstream.baseUrl}/${effectivePath}${qsStr ? `?${qsStr}` : ''}`
   const headers: Record<string, string> = {
     ...upstream.headers,

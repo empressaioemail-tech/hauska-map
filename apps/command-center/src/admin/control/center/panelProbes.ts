@@ -38,9 +38,12 @@ export async function runPanelProbe(
   }
 
   if (probeId === 'retrieval-healthz') {
+    // Live retrieval serves GET /health (200). /healthz and /healthz/ 404 via
+    // BFF→upstream (Phase 0 CC-A). Probe the working path so badge matches
+    // geocode/resolve reality — never lie LIVE on a 404 probe.
     const base = (config.retrievalApiUrl || '').replace(/\/$/, '')
-    const res = await getJson<{ status?: string; corpus?: { ok?: boolean } }>(
-      `${base}/healthz/`,
+    const res = await getJson<{ status?: string; corpus?: { ok?: boolean }; service?: string }>(
+      `${base}/health`,
       config,
       12_000,
     )
@@ -48,7 +51,12 @@ export async function runPanelProbe(
       res.ok &&
       (res.json?.status === 'ok' || res.json?.status === 'warn') &&
       res.json?.corpus?.ok !== false
-    return { ok, status: res.status, error: res.error, checkedAt }
+    return {
+      ok,
+      status: res.status,
+      error: res.error ?? (ok ? undefined : `retrieval /health not ok (status=${res.status})`),
+      checkedAt,
+    }
   }
 
   if (probeId === 'retrieval-atom-chain') {
