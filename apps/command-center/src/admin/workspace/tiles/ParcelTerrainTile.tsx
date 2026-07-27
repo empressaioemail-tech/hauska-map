@@ -97,12 +97,12 @@ const honestStyle: React.CSSProperties = {
   textAlign: 'center',
   fontFamily: 'var(--font-ui)',
   fontSize: 12,
-  color: 'var(--color-text-tertiary, var(--h-text-muted, #768390))',
+  color: 'var(--color-text-tertiary)',
   height: '100%',
 }
 
 const labelStyle: React.CSSProperties = {
-  color: 'var(--h-text-muted, #768390)',
+  color: 'var(--color-text-tertiary)',
   fontSize: 10,
   textTransform: 'uppercase',
   letterSpacing: '0.04em',
@@ -235,7 +235,7 @@ function FormatArtifactRow({
     <div
       data-testid={`terrain-format-${format}`}
       style={{
-        border: '0.5px solid var(--h-border-subtle, #30363d)',
+        border: '0.5px solid var(--color-border-secondary)',
         borderRadius: 6,
         padding: 8,
         display: 'flex',
@@ -250,14 +250,14 @@ function FormatArtifactRow({
           style={{
             fontSize: 10,
             fontWeight: 600,
-            color: available ? '#7dd3fc' : 'var(--h-text-muted, #768390)',
+            color: available ? '#7dd3fc' : 'var(--color-text-tertiary)',
           }}
         >
           {deferred ? 'deferred' : available ? 'available' : 'not available'}
         </span>
       </div>
       {deferred && entry?.deferredReason ? (
-        <div style={{ fontSize: 10, color: 'var(--h-text-muted, #768390)' }}>{entry.deferredReason}</div>
+        <div style={{ fontSize: 10, color: 'var(--color-text-tertiary)' }}>{entry.deferredReason}</div>
       ) : null}
       {available ? (
         <dl style={{ margin: 0, display: 'grid', gridTemplateColumns: 'auto 1fr', gap: '2px 8px' }}>
@@ -359,7 +359,7 @@ function ParcelTerrainTileInner() {
         gap: 10,
         fontFamily: 'var(--font-ui)',
         fontSize: 12,
-        color: 'var(--color-text-secondary, var(--h-text-primary, #e6edf3))',
+        color: 'var(--color-text-secondary)',
         overflow: 'auto',
         height: '100%',
       }}
@@ -380,7 +380,7 @@ function ParcelTerrainTileInner() {
             fontSize: 11,
             padding: '6px 8px',
             borderRadius: 4,
-            border: '0.5px solid var(--h-border-subtle, #30363d)',
+            border: '0.5px solid var(--color-border-secondary)',
             background: 'var(--color-background-secondary, #0d1117)',
             color: 'inherit',
           }}
@@ -421,7 +421,7 @@ function ParcelTerrainTileInner() {
         {format === 'landxml-tin' ? (
           <div
             data-testid="terrain-landxml-deferred"
-            style={{ fontSize: 10, color: 'var(--h-text-muted, #768390)', marginTop: 4 }}
+            style={{ fontSize: 10, color: 'var(--color-text-tertiary)', marginTop: 4 }}
           >
             {LANDXML_DEFER_REASON}
           </div>
@@ -439,9 +439,9 @@ function ParcelTerrainTileInner() {
           fontSize: 11,
           fontWeight: 600,
           fontFamily: 'var(--font-ui)',
-          color: 'var(--h-text-primary, #e6edf3)',
+          color: 'var(--color-text-primary)',
           background: 'transparent',
-          border: '0.5px solid var(--h-border-subtle, #30363d)',
+          border: '0.5px solid var(--color-border-secondary)',
           borderRadius: 4,
           cursor: idValid ? 'pointer' : 'not-allowed',
           opacity: idValid ? 1 : 0.6,
@@ -489,9 +489,9 @@ function ParcelTerrainTileInner() {
               fontSize: 11,
               fontWeight: 600,
               fontFamily: 'var(--font-ui)',
-              color: 'var(--h-text-primary, #e6edf3)',
+              color: 'var(--color-text-primary)',
               background: 'transparent',
-              border: '0.5px solid var(--h-border-subtle, #30363d)',
+              border: '0.5px solid var(--color-border-secondary)',
               borderRadius: 4,
               cursor: 'pointer',
             }}
@@ -535,7 +535,7 @@ function TerrainExportResults({
       <div
         data-testid="terrain-selected-format"
         style={{
-          border: '0.5px solid var(--h-border-subtle, #30363d)',
+          border: '0.5px solid var(--color-border-secondary)',
           borderRadius: 6,
           padding: 10,
           display: 'flex',
@@ -546,7 +546,7 @@ function TerrainExportResults({
         <div style={{ fontWeight: 700, fontSize: 12 }}>
           Selected: {selectedFormat}
           {data.parcelNodeId ? (
-            <span style={{ fontWeight: 400, color: 'var(--h-text-muted, #768390)' }}>
+            <span style={{ fontWeight: 400, color: 'var(--color-text-tertiary)' }}>
               {' '}
               · {data.parcelNodeId}
             </span>
@@ -572,7 +572,7 @@ function TerrainExportResults({
             {download.label}
           </a>
         ) : (
-          <span data-testid="terrain-download-missing" style={{ fontSize: 11, color: 'var(--h-text-muted, #768390)' }}>
+          <span data-testid="terrain-download-missing" style={{ fontSize: 11, color: 'var(--color-text-tertiary)' }}>
             No download payload for {selectedFormat}. Artifact refs are listed below.
           </span>
         )}
@@ -592,7 +592,7 @@ function TerrainExportResults({
       <div
         data-testid="terrain-quality-signals"
         style={{
-          border: '0.5px solid var(--h-border-subtle, #30363d)',
+          border: '0.5px solid var(--color-border-secondary)',
           borderRadius: 6,
           padding: 10,
           display: 'flex',
@@ -625,9 +625,9 @@ function TerrainExportResults({
           </dd>
         </dl>
         {env.meta?.note ? (
-          <div style={{ fontSize: 10, color: 'var(--h-text-muted, #768390)', marginTop: 4 }}>{env.meta.note}</div>
+          <div style={{ fontSize: 10, color: 'var(--color-text-tertiary)', marginTop: 4 }}>{env.meta.note}</div>
         ) : null}
-        <div style={{ fontSize: 10, color: 'var(--h-text-muted, #768390)', marginTop: 4 }}>
+        <div style={{ fontSize: 10, color: 'var(--color-text-tertiary)', marginTop: 4 }}>
           Layer 2 paid export (`public-paid`). Confidence reflects source resolution and coverage;
           asserted provenance is shown until calibration earns tighter bounds.
         </div>

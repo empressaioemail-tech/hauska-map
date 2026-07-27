@@ -56,7 +56,7 @@ const honestStyle: React.CSSProperties = {
   textAlign: 'center',
   fontFamily: 'var(--font-ui)',
   fontSize: 12,
-  color: 'var(--color-text-tertiary, var(--h-text-muted, #768390))',
+  color: 'var(--color-text-tertiary)',
 }
 
 function HonestState({ title, hint }: { title: string; hint: string }) {

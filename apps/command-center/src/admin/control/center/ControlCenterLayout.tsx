@@ -2,12 +2,13 @@
 //
 // The Spine Command Center — the operator console's 3-column shell:
 //
-//   [ NavRail ]   [ active inspector (center) ]   [ StateLegend ]
+//   [ NavRail ]   [ active inspector (center) ]   [ StateLegend drawer ]
 //
 // The center column renders the panel selected in the nav rail (driven by the
-// PanelRegistry + the #panel= hash route). The nav rail (left) and the state
-// legend (right) are persistent and scroll independently; only the center
-// inspector changes. The active panel persists across reload and is linkable.
+// PanelRegistry + the #panel= hash route). NavRail is persistent; StateLegend is
+// a collapsible reference drawer (default collapsed) so the inspector gets the
+// width. Only the center inspector changes with routing. Active panel persists
+// across reload and is linkable.
 //
 // Ported from the trading Control Tower (backend-agnostic).
 

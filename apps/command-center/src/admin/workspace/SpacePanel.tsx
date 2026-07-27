@@ -3,7 +3,7 @@
 // Native space panel — renders a workspace space's tiles DIRECTLY in the command
 // center's own panel chrome, without the nested CortexShell (no inner spaces bar,
 // no View/Edit mode toggles, no "Cortex Workspace" title). Each tile gets the
-// theme from @empressaio/design-tokens, and layout editing lives behind a single
+// theme from admin/tokens.css (imported once at shell root), and layout editing lives behind a single
 // compact "Edit layout" button styled like the command center's own controls.
 //
 // Edit mode (behind that button) provides per-tile controls — maximize/restore,
@@ -51,7 +51,6 @@ import {
 } from './layoutModel'
 import type { PresetSpace, TileDef } from '@empressaio/tile-shell'
 import type { TileLayout } from './layoutModel'
-import '@empressaio/design-tokens/tokens.css'
 
 interface SpacePanelProps {
   space: PresetSpace

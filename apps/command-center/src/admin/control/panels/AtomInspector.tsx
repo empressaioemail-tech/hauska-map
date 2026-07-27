@@ -18,7 +18,24 @@ import { useActivePanel } from '../center/useActivePanel'
 import { loadConfig, HauskaMcpClient, type SpineConfig } from '../../api/spineClient'
 import { SEARCH_ATOMS_ENTITY_TYPES, normalizeJurisdiction } from '../../api/searchAtomsContract'
 import { fetchAtomByDid } from '../../api/atomTrace'
-import { Panel, Pill, Loading, ErrorState, Empty, sectionHeader, mono, fmtTime, fmtNum } from '../primitives'
+import {
+  Panel,
+  Pill,
+  Loading,
+  ErrorState,
+  Empty,
+  sectionHeader,
+  mono,
+  fmtTime,
+  fmtNum,
+  Button,
+  AtomListRow,
+  WalkBreadcrumb,
+  typeCaption,
+  typeTitle,
+  shortDid,
+  summarizeValue,
+} from '../primitives'
 
 interface ConfidenceFigure {
   value: number
@@ -135,7 +152,7 @@ const ConfidenceBlock: React.FC<{ fig: ConfidenceFigure; showValue?: boolean }> 
           </div>
         ))}
       </div>
-      <span style={{ fontSize: 9.5, color: 'var(--color-text-tertiary)', fontFamily: 'var(--font-ui)' }}>
+      <span style={{ ...typeCaption, color: 'var(--color-text-tertiary)' }}>
         scope={fig.scope} · a confidence figure always carries n + width + basis
       </span>
     </div>
@@ -143,45 +160,14 @@ const ConfidenceBlock: React.FC<{ fig: ConfidenceFigure; showValue?: boolean }> 
 }
 
 const ConfidenceInline: React.FC<{ fig: ConfidenceFigure }> = ({ fig }) => (
-  <span style={{ ...mono, fontSize: 10, color: 'var(--color-text-secondary)' }}>
+  <span style={{ ...mono, fontSize: 'var(--type-caption)', color: 'var(--color-text-secondary)' }}>
     n={fmtNum(fig.n)} · width={fmtNum(fig.width, 3)} · basis={fig.basis}
   </span>
 )
 
-const AtomRow: React.FC<{ a: AtomRowModel; onClick: () => void }> = ({ a, onClick }) => (
-  <button
-    onClick={onClick}
-    style={{
-      textAlign: 'left',
-      display: 'flex',
-      flexDirection: 'column',
-      gap: 3,
-      padding: '7px 10px',
-      borderRadius: 6,
-      cursor: 'pointer',
-      background: 'var(--color-background-secondary)',
-      border: '0.5px solid var(--color-border-tertiary)',
-    }}
-  >
-    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8 }}>
-      <span style={{ ...mono, fontSize: 11, fontWeight: 700, color: 'var(--color-text-primary)', overflow: 'hidden', textOverflow: 'ellipsis' }}>
-        {a.claimType}
-      </span>
-      <span style={{ ...mono, fontSize: 10, color: 'var(--color-text-tertiary)' }}>{fmtTime(a.knowledgeTime)}</span>
-    </div>
-    <div style={{ display: 'flex', gap: 12, flexWrap: 'wrap', ...mono, fontSize: 10, color: 'var(--color-text-secondary)' }}>
-      <span>key: {a.claimKey}</span>
-      <span>family: {a.family}</span>
-      <span>juris: {a.jurisdiction}</span>
-      <Pill sev={a.accessPolicy.includes('public') ? 'ok' : 'warn'}>{a.accessPolicy}</Pill>
-    </div>
-    <ConfidenceInline fig={a.confidence} />
-  </button>
-)
-
 const inputStyle: React.CSSProperties = {
   fontFamily: 'var(--font-ui)',
-  fontSize: 11,
+  fontSize: 'var(--type-caption)',
   padding: '4px 8px',
   borderRadius: 6,
   color: 'var(--color-text-primary)',
@@ -189,26 +175,15 @@ const inputStyle: React.CSSProperties = {
   border: '0.5px solid var(--color-border-tertiary)',
   minWidth: 0,
 }
-const btnStyle: React.CSSProperties = {
-  fontFamily: 'var(--font-ui)',
-  fontSize: 11,
-  fontWeight: 600,
-  padding: '4px 10px',
-  borderRadius: 6,
-  cursor: 'pointer',
-  color: 'var(--color-text-primary)',
-  background: 'var(--color-background-accent)',
-  border: '0.5px solid var(--color-border-secondary)',
-}
 const labelVal: React.CSSProperties = {
   ...mono,
-  fontSize: 11,
+  fontSize: 'var(--type-caption)',
   color: 'var(--color-text-primary)',
   wordBreak: 'break-all',
 }
 const pre: React.CSSProperties = {
   ...mono,
-  fontSize: 10.5,
+  fontSize: 'var(--type-caption)',
   color: 'var(--color-text-primary)',
   background: 'var(--color-background-secondary)',
   border: '0.5px solid var(--color-border-tertiary)',
@@ -221,28 +196,27 @@ const pre: React.CSSProperties = {
 }
 
 /** Catalog-path detail (search_atoms hit already in hand). */
-const CatalogAtomDetailView: React.FC<{ atom: AtomRowModel; onClose: () => void; backLabel: string }> = ({
-  atom,
-  onClose,
-  backLabel,
-}) => {
+const CatalogAtomDetailView: React.FC<{
+  atom: AtomRowModel
+  onClose: () => void
+  crumbs: React.ComponentProps<typeof WalkBreadcrumb>['crumbs']
+}> = ({ atom, onClose, crumbs }) => {
   const claimValue =
     atom.raw.claimValue ?? (atom.raw as { claim_value?: unknown }).claim_value ?? atom.raw.text ?? atom.raw.body ?? atom.raw
   const provenance = (atom.raw.provenance as { source?: string; method?: string } | undefined) ?? null
   const citation = (atom.raw.citation as { ref?: string; url?: string } | undefined) ?? null
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }} data-testid="atom-detail-catalog">
+      <WalkBreadcrumb crumbs={crumbs} />
       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8 }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
-          <span style={{ fontSize: 13.5, fontWeight: 700, color: 'var(--color-text-primary)', fontFamily: 'var(--font-ui)' }}>
-            {atom.claimType}
-          </span>
+          <span style={typeTitle}>{atom.claimType}</span>
           <Pill sev="info">{atom.family}</Pill>
           <Pill sev={atom.accessPolicy.includes('public') ? 'ok' : 'warn'}>{atom.accessPolicy}</Pill>
         </div>
-        <button type="button" onClick={onClose} style={{ ...btnStyle, background: 'var(--color-background-secondary)' }}>
-          {backLabel}
-        </button>
+        <Button variant="secondary" onClick={onClose}>
+          ← back
+        </Button>
       </div>
 
       <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
@@ -298,8 +272,8 @@ const PropertyAtomDetailView: React.FC<{
   atomId: string
   config: SpineConfig
   onClose: () => void
-  backLabel: string
-}> = ({ atomId, config, onClose, backLabel }) => {
+  crumbs: React.ComponentProps<typeof WalkBreadcrumb>['crumbs']
+}> = ({ atomId, config, onClose, crumbs }) => {
   const [atom, setAtom] = useState<RawAtom | null>(null)
   const [err, setErr] = useState<string | null>(null)
   const [loading, setLoading] = useState(true)
@@ -361,23 +335,17 @@ const PropertyAtomDetailView: React.FC<{
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }} data-testid="atom-detail-property">
+      <WalkBreadcrumb crumbs={crumbs} />
       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8 }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
-          <span style={{ fontSize: 13.5, fontWeight: 700, color: 'var(--color-text-primary)', fontFamily: 'var(--font-ui)' }}>
-            {row.claimType}
-          </span>
+          <span style={typeTitle}>{row.claimType}</span>
           <Pill sev="info">{row.family}</Pill>
           <Pill sev={row.accessPolicy.includes('public') ? 'ok' : 'warn'}>access: {row.accessPolicy}</Pill>
           {atom.status != null ? <Pill sev="info">{str(atom.status)}</Pill> : null}
         </div>
-        <button
-          type="button"
-          onClick={onClose}
-          style={{ ...btnStyle, background: 'var(--color-background-secondary)' }}
-          data-testid="atom-detail-back"
-        >
-          {backLabel}
-        </button>
+        <Button variant="secondary" onClick={onClose} testId="atom-detail-back">
+          ← back
+        </Button>
       </div>
 
       <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
@@ -454,8 +422,8 @@ const PropertyAtomDetailView: React.FC<{
               [
                 ['role', str(atom.role, '—')],
                 ['adjacency', str(atom.adjacencyKind, '—')],
-                ['setback', atom.setback != null ? JSON.stringify(atom.setback) : '—'],
-                ['interior', atom.interior != null ? JSON.stringify(atom.interior) : '—'],
+                ['setback', atom.setback != null ? summarizeValue(atom.setback) : '—'],
+                ['interior', atom.interior != null ? summarizeValue(atom.interior) : '—'],
                 ['neighbor', str(atom.parcelNeighborPropId, '—')],
                 [
                   'facing_road',
@@ -478,7 +446,7 @@ const PropertyAtomDetailView: React.FC<{
               <pre style={pre}>{JSON.stringify(lineTags, null, 2)}</pre>
             </div>
           ) : (
-            <span style={{ fontSize: 10, color: 'var(--color-text-tertiary)', fontFamily: 'var(--font-ui)' }}>
+            <span style={typeCaption}>
               No property-line-tags on this edge (optional — Amendment 2). GIS-approx — not a survey.
             </span>
           )}
@@ -521,7 +489,7 @@ const PropertyAtomDetailView: React.FC<{
         {license && Object.keys(license).length > 0 ? (
           <pre style={pre}>{JSON.stringify(license, null, 2)}</pre>
         ) : (
-          <span style={{ fontSize: 11, color: 'var(--color-text-tertiary)', fontFamily: 'var(--font-ui)' }}>
+          <span style={{ ...typeCaption }}>
             No license terms recorded.
           </span>
         )}
@@ -639,8 +607,29 @@ export const AtomInspector: React.FC = () => {
   }
 
   const openAtom = (id: string): void => selectPanel('atom-inspector', { id })
-  const backLabel =
-    hashParams.return === 'node-graph' && hashParams.node ? '← back to node' : '← back to results'
+
+  const walkCrumbs = (() => {
+    if (hashParams.return === 'node-graph' && hashParams.node) {
+      const family = hashParams.atoms === 'all' ? 'all families' : hashParams.atoms || 'family'
+      const crumbs: React.ComponentProps<typeof WalkBreadcrumb>['crumbs'] = [
+        {
+          label: hashParams.node,
+          onClick: closeDetail,
+          title: 'Back to node',
+        },
+        { label: family },
+      ]
+      if (selectedId) crumbs.push({ label: shortDid(selectedId), title: selectedId })
+      return crumbs
+    }
+    if (selectedId) {
+      return [
+        { label: 'results', onClick: closeDetail },
+        { label: shortDid(selectedId), title: selectedId },
+      ]
+    }
+    return []
+  })()
 
   return (
     <Panel
@@ -659,10 +648,10 @@ export const AtomInspector: React.FC = () => {
           atomId={selectedId}
           config={config}
           onClose={closeDetail}
-          backLabel={backLabel}
+          crumbs={walkCrumbs}
         />
       ) : catalogSelected ? (
-        <CatalogAtomDetailView atom={catalogSelected} onClose={closeDetail} backLabel={backLabel} />
+        <CatalogAtomDetailView atom={catalogSelected} onClose={closeDetail} crumbs={walkCrumbs} />
       ) : (
         <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
           <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', alignItems: 'center' }}>
@@ -691,15 +680,13 @@ export const AtomInspector: React.FC = () => {
                 </option>
               ))}
             </select>
-            <button style={btnStyle} onClick={() => setApplied((a) => a + 1)}>
-              Query
-            </button>
+            <Button onClick={() => setApplied((a) => a + 1)}>Query</Button>
           </div>
           {normalizedJurisdiction ? (
             <div style={{ display: 'flex', gap: 6, alignItems: 'center', flexWrap: 'wrap' }}>
               <Pill sev="info">jurisdiction sent: {normalizedJurisdiction}</Pill>
               {normalizedJurisdiction !== jurisdiction.trim() ? (
-                <span style={{ fontSize: 10, color: 'var(--color-text-tertiary)', fontFamily: 'var(--font-ui)' }}>
+                <span style={typeCaption}>
                   normalized from “{jurisdiction.trim()}” — search_atoms matches exact underscored tenant ids only
                 </span>
               ) : null}
@@ -719,7 +706,20 @@ export const AtomInspector: React.FC = () => {
               <span style={sectionHeader}>Results · {fmtNum(rows.length)}</span>
               <div style={{ display: 'flex', flexDirection: 'column', gap: 5 }}>
                 {rows.map((a) => (
-                  <AtomRow key={a.id} a={a} onClick={() => openAtom(a.id)} />
+                  <AtomListRow
+                    key={a.id}
+                    claimType={a.claimType}
+                    knowledgeTime={a.knowledgeTime}
+                    atomId={a.id}
+                    accessPolicy={a.accessPolicy}
+                    meta={[
+                      { label: 'key', value: a.claimKey },
+                      { label: 'family', value: a.family },
+                      { label: 'juris', value: a.jurisdiction },
+                    ]}
+                    trailing={<ConfidenceInline fig={a.confidence} />}
+                    onClick={() => openAtom(a.id)}
+                  />
                 ))}
               </div>
             </>

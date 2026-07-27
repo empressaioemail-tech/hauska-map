@@ -12,7 +12,7 @@ import {
   type SpineHealthProbeRow,
   type SpineHealthSummary,
 } from '../../api/atomTrace'
-import { Panel, Pill, Loading, ErrorState, sectionHeader, mono, sevColors } from '../primitives'
+import { Panel, Pill, Loading, ErrorState, sectionHeader, mono, sevColors, Button, Card, summarizeValue, typeCaption } from '../primitives'
 
 function statusSev(status: SpineHealthProbeRow['status'] | undefined): string {
   if (status === 'firing') return 'ok'
@@ -25,26 +25,28 @@ function statusSev(status: SpineHealthProbeRow['status'] | undefined): string {
 function ProbeRow({ row }: { row: SpineHealthProbeRow }) {
   const sev = statusSev(row.status)
   const colors = sevColors(sev)
+  const signalText = row.error
+    ? row.error
+    : row.signal
+      ? summarizeValue(row.signal)
+      : '—'
   return (
-    <div
-      data-testid={`spine-health-row-${row.probeId}`}
+    <Card
+      testId={`spine-health-row-${row.probeId}`}
+      padding="8px 10px"
       style={{
         display: 'grid',
         gridTemplateColumns: 'minmax(140px, 1.4fr) 110px 70px 1fr',
         gap: 8,
         alignItems: 'center',
-        padding: '8px 0',
-        borderBottom: '0.5px solid var(--color-border-tertiary)',
-        fontSize: 11,
+        fontSize: 'var(--type-caption)',
         fontFamily: 'var(--font-ui)',
         color: 'var(--color-text-secondary)',
       }}
     >
       <div style={{ ...mono, color: 'var(--color-text-primary)' }}>
         {row.probeId}
-        <div style={{ fontSize: 9, color: 'var(--color-text-tertiary)', marginTop: 2 }}>
-          {row.kind}
-        </div>
+        <div style={{ ...typeCaption, marginTop: 2 }}>{row.kind}</div>
       </div>
       <div style={{ display: 'flex', gap: 4, flexWrap: 'wrap' }}>
         <Pill sev={sev}>{row.status}</Pill>
@@ -57,14 +59,13 @@ function ProbeRow({ row }: { row: SpineHealthProbeRow }) {
           {row.baselineValue ?? '—'}
         </span>
       </div>
-      <div style={{ ...mono, color: colors.fg, overflow: 'hidden', textOverflow: 'ellipsis' }}>
-        {row.error
-          ? row.error
-          : row.signal
-            ? JSON.stringify(row.signal).slice(0, 120)
-            : '—'}
+      <div
+        style={{ ...mono, color: colors.fg, overflow: 'hidden', textOverflow: 'ellipsis' }}
+        title={typeof signalText === 'string' ? signalText : undefined}
+      >
+        {signalText}
       </div>
-    </div>
+    </Card>
   )
 }
 
@@ -125,42 +126,12 @@ export const SpineHealth: React.FC = () => {
       subtitle="Bastrop source+engine liveness · Control-Tower panel shell (COMPLETE-BASTROP B1)"
       right={
         <div style={{ display: 'flex', gap: 6 }}>
-          <button
-            type="button"
-            onClick={() => void load()}
-            disabled={loading || running}
-            style={{
-              padding: '4px 10px',
-              borderRadius: 4,
-              border: '0.5px solid var(--color-border-secondary)',
-              background: 'transparent',
-              color: 'var(--color-text-secondary)',
-              fontFamily: 'var(--font-ui)',
-              fontSize: 10,
-              fontWeight: 600,
-              cursor: 'pointer',
-            }}
-          >
+          <Button variant="ghost" onClick={() => void load()} disabled={loading || running}>
             Refresh
-          </button>
-          <button
-            type="button"
-            onClick={() => void onRun()}
-            disabled={loading || running}
-            style={{
-              padding: '4px 10px',
-              borderRadius: 4,
-              border: '0.5px solid var(--color-border-secondary)',
-              background: 'var(--color-background-info)',
-              color: 'var(--color-text-info)',
-              fontFamily: 'var(--font-ui)',
-              fontSize: 10,
-              fontWeight: 600,
-              cursor: 'pointer',
-            }}
-          >
+          </Button>
+          <Button variant="accent" onClick={() => void onRun()} disabled={loading || running}>
             {running ? 'Running…' : 'Run probes'}
-          </button>
+          </Button>
         </div>
       }
     >

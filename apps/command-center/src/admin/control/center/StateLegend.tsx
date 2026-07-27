@@ -1,19 +1,13 @@
 // apps/command-center/src/admin/control/center/StateLegend.tsx
 //
-// The persistent RIGHT column of the Command Center: a compact, always-visible
-// reference for the substrate's shared vocabulary so an operator never has to
-// guess what a pill or status means. Reference-only — it reads nothing from the
-// backend (it explains state; it does not show it).
-//
-// This vocabulary is aligned with the doc-repo structural commitments #1 (sell
-// reasoning, not data) and #2 (confidence is earned, not asserted): "a
-// confidence is never shown without its n + width" and "asserted = declared, not
-// yet checked against outcomes — treat as a prior."
-//
-// Ported from the trading Control Tower.
+// RIGHT column of the Command Center: a compact reference for the substrate's
+// shared vocabulary so an operator never has to guess what a pill or status
+// means. Reference-only — it reads nothing from the backend (it explains state;
+// it does not show it). QA3: collapsible drawer — default collapsed so the
+// center inspector gets the width; reachable via toggle, not always-on chrome.
 
-import React from 'react'
-import { Pill, sectionHeader } from '../primitives'
+import React, { useEffect, useState } from 'react'
+import { Pill, sectionHeader, Button, typeCaption } from '../primitives'
 
 interface Term {
   marker: React.ReactNode
@@ -25,6 +19,8 @@ interface LegendSection {
   note?: string
   terms: Term[]
 }
+
+const STORAGE_KEY = 'cc-state-legend-open'
 
 const SECTIONS: LegendSection[] = [
   {
@@ -89,48 +85,121 @@ const SECTIONS: LegendSection[] = [
 const TermRow: React.FC<{ term: Term }> = ({ term }) => (
   <div style={{ display: 'flex', alignItems: 'flex-start', gap: 8 }}>
     <div style={{ flex: 'none', width: 92, display: 'flex' }}>{term.marker}</div>
-    <span style={{ fontSize: 11, lineHeight: 1.45, color: 'var(--color-text-secondary)', fontFamily: 'var(--font-ui)' }}>
-      {term.gloss}
-    </span>
+    <span style={{ ...typeCaption, color: 'var(--color-text-secondary)' }}>{term.gloss}</span>
   </div>
 )
 
-export const StateLegend: React.FC = () => (
-  <aside
-    aria-label="State legend"
-    style={{
-      flex: 'none',
-      width: 296,
-      display: 'flex',
-      flexDirection: 'column',
-      minHeight: 0,
-      borderLeft: '0.5px solid var(--color-border-tertiary)',
-      background: 'var(--color-background-secondary)',
-    }}
-  >
-    <div style={{ flex: 'none', padding: '12px 14px 8px' }}>
-      <span style={{ ...sectionHeader, fontSize: 10, color: 'var(--color-text-tertiary)' }}>State Legend</span>
-    </div>
-    <div style={{ flex: 1, minHeight: 0, overflowY: 'auto', padding: '0 14px 18px', display: 'flex', flexDirection: 'column', gap: 16 }}>
-      {SECTIONS.map((section) => (
-        <div key={section.heading} style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-          <div style={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
-            <span style={{ ...sectionHeader, color: 'var(--color-text-secondary)' }}>{section.heading}</span>
-            {section.note && (
-              <span style={{ fontSize: 10, lineHeight: 1.4, color: 'var(--color-text-tertiary)', fontFamily: 'var(--font-ui)' }}>
-                {section.note}
-              </span>
-            )}
+function readStoredOpen(): boolean {
+  try {
+    return localStorage.getItem(STORAGE_KEY) === '1'
+  } catch {
+    return false
+  }
+}
+
+export const StateLegend: React.FC = () => {
+  const [open, setOpen] = useState<boolean>(() => readStoredOpen())
+
+  useEffect(() => {
+    try {
+      localStorage.setItem(STORAGE_KEY, open ? '1' : '0')
+    } catch {
+      /* ignore */
+    }
+  }, [open])
+
+  if (!open) {
+    return (
+      <aside
+        aria-label="State legend (collapsed)"
+        data-testid="state-legend-collapsed"
+        style={{
+          flex: 'none',
+          width: 40,
+          display: 'flex',
+          flexDirection: 'column',
+          alignItems: 'center',
+          minHeight: 0,
+          borderLeft: '0.5px solid var(--color-border-tertiary)',
+          background: 'var(--color-background-secondary)',
+          paddingTop: 12,
+          gap: 8,
+        }}
+      >
+        <Button
+          variant="ghost"
+          onClick={() => setOpen(true)}
+          title="Open state legend (reference glossary)"
+          testId="state-legend-open"
+          style={{ padding: '8px 6px', writingMode: 'vertical-rl', textOrientation: 'mixed', letterSpacing: '0.08em' }}
+        >
+          Legend
+        </Button>
+      </aside>
+    )
+  }
+
+  return (
+    <aside
+      aria-label="State legend"
+      data-testid="state-legend-open-panel"
+      style={{
+        flex: 'none',
+        width: 296,
+        display: 'flex',
+        flexDirection: 'column',
+        minHeight: 0,
+        borderLeft: '0.5px solid var(--color-border-tertiary)',
+        background: 'var(--color-background-secondary)',
+      }}
+    >
+      <div
+        style={{
+          flex: 'none',
+          padding: '12px 14px 8px',
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'space-between',
+          gap: 8,
+        }}
+      >
+        <span style={{ ...sectionHeader, fontSize: 'var(--type-caption)', color: 'var(--color-text-tertiary)' }}>
+          State Legend
+        </span>
+        <Button variant="ghost" onClick={() => setOpen(false)} testId="state-legend-close" style={{ padding: '4px 8px' }}>
+          Collapse
+        </Button>
+      </div>
+      <p style={{ ...typeCaption, margin: '0 14px 10px' }}>
+        Explains state; does not show it. Reference glossary.
+      </p>
+      <div
+        style={{
+          flex: 1,
+          minHeight: 0,
+          overflowY: 'auto',
+          padding: '0 14px 18px',
+          display: 'flex',
+          flexDirection: 'column',
+          gap: 16,
+        }}
+      >
+        {SECTIONS.map((section) => (
+          <div key={section.heading} style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
+              <span style={{ ...sectionHeader, color: 'var(--color-text-secondary)' }}>{section.heading}</span>
+              {section.note && <span style={typeCaption}>{section.note}</span>}
+            </div>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+              {section.terms.map((term, i) => (
+                <TermRow key={i} term={term} />
+              ))}
+            </div>
           </div>
-          <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
-            {section.terms.map((term, i) => (
-              <TermRow key={i} term={term} />
-            ))}
-          </div>
-        </div>
-      ))}
-    </div>
-  </aside>
-)
+        ))}
+      </div>
+    </aside>
+  )
+}
 
 export default StateLegend

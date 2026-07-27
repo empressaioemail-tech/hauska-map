@@ -27,7 +27,23 @@ import {
   type CentralTxNodeGraphTally,
   type CentralTxCountyTallyRow,
 } from '../../api/atomTrace'
-import { Panel, Pill, Loading, Empty, sectionHeader, mono, fmtTime, fmtNum } from '../primitives'
+import {
+  Panel,
+  Pill,
+  Loading,
+  Empty,
+  sectionHeader,
+  mono,
+  fmtNum,
+  Button,
+  Card,
+  CollapsibleSection,
+  AtomListRow,
+  WalkBreadcrumb,
+  typeCaption,
+  typeTitle,
+  summarizeValue,
+} from '../primitives'
 import { useActivePanel } from '../center/useActivePanel'
 import {
   useParcelNodeBinding,
@@ -45,7 +61,7 @@ type SlotStatus = 'present' | 'honest-empty' | 'missing' | 'error' | 'loading'
 
 const inputStyle: React.CSSProperties = {
   fontFamily: 'var(--font-ui)',
-  fontSize: 11,
+  fontSize: 'var(--type-caption)',
   padding: '6px 10px',
   borderRadius: 6,
   color: 'var(--color-text-primary)',
@@ -55,28 +71,16 @@ const inputStyle: React.CSSProperties = {
   flex: 1,
 }
 
-const btnStyle: React.CSSProperties = {
-  fontFamily: 'var(--font-ui)',
-  fontSize: 11,
-  fontWeight: 600,
-  padding: '6px 14px',
-  borderRadius: 6,
-  cursor: 'pointer',
-  color: 'var(--color-text-primary)',
-  background: 'var(--color-background-accent)',
-  border: '0.5px solid var(--color-border-secondary)',
-}
-
 const labelVal: React.CSSProperties = {
   ...mono,
-  fontSize: 11,
+  fontSize: 'var(--type-caption)',
   color: 'var(--color-text-primary)',
   wordBreak: 'break-all',
 }
 
 const preStyle: React.CSSProperties = {
   ...mono,
-  fontSize: 10.5,
+  fontSize: 'var(--type-caption)',
   color: 'var(--color-text-primary)',
   background: 'var(--color-background-secondary)',
   border: '0.5px solid var(--color-border-tertiary)',
@@ -100,22 +104,17 @@ const FamilyCounts: React.FC<{
   return (
     <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
       {entries.map(([fam, n]) => (
-        <button
+        <Button
           key={fam}
-          type="button"
+          variant="secondary"
           onClick={() => onPick(fam)}
-          data-testid={`family-count-${fam}`}
-          style={{
-            ...btnStyle,
-            background: 'var(--color-background-secondary)',
-            display: 'flex',
-            gap: 8,
-          }}
+          testId={`family-count-${fam}`}
           title="Filter this node's atoms to this family"
+          style={{ display: 'flex', gap: 8 }}
         >
           <span style={{ fontFamily: 'var(--font-ui)' }}>{fam}</span>
           <span style={{ ...mono, fontWeight: 700 }}>{fmtNum(n)}</span>
-        </button>
+        </Button>
       ))}
     </div>
   )
@@ -162,84 +161,34 @@ const NodeAtoms: React.FC<{
           Atoms{family ? ` · family=${family}` : ''}
           {total ? ` · ${fmtNum(total)}` : ''}
         </span>
-        <button
-          type="button"
-          onClick={onClear}
-          style={{ ...btnStyle, background: 'var(--color-background-secondary)' }}
-          data-testid="node-atoms-close"
-        >
+        <Button variant="secondary" onClick={onClear} testId="node-atoms-close">
           ✕ close atoms
-        </button>
+        </Button>
       </div>
       {loading ? (
         <Loading />
       ) : err ? (
-        <div style={{ fontSize: 11, color: 'var(--color-text-danger)', fontFamily: 'var(--font-ui)' }}>{err}</div>
+        <div style={{ ...typeCaption, color: 'var(--color-text-danger)' }}>{err}</div>
       ) : atoms.length === 0 ? (
         <Empty>No atoms for this node/family.</Empty>
       ) : (
         <div style={{ display: 'flex', flexDirection: 'column', gap: 5 }}>
           {atoms.map((a) => (
-            <button
+            <AtomListRow
               key={a.atom_id}
-              type="button"
+              claimType={a.claim_type}
+              knowledgeTime={a.knowledge_time}
+              atomId={a.atom_id}
+              preview={a.preview}
+              meta={[
+                { label: 'key', value: a.claim_key },
+                { label: 'family', value: a.family },
+                { label: 'access', value: a.access_policy },
+              ]}
               onClick={() => onOpenAtom(a.atom_id)}
               title="Open in Atom Inspector"
-              data-testid={`node-atom-${a.family}`}
-              style={{
-                textAlign: 'left',
-                padding: '7px 10px',
-                borderRadius: 6,
-                background: 'var(--color-background-secondary)',
-                display: 'flex',
-                flexDirection: 'column',
-                gap: 3,
-                border: '0.5px solid var(--color-border-tertiary)',
-                cursor: 'pointer',
-                font: 'inherit',
-                color: 'inherit',
-              }}
-              onMouseEnter={(e) => {
-                e.currentTarget.style.background = 'var(--color-background-accent)'
-              }}
-              onMouseLeave={(e) => {
-                e.currentTarget.style.background = 'var(--color-background-secondary)'
-              }}
-            >
-              <div style={{ display: 'flex', justifyContent: 'space-between', gap: 8 }}>
-                <span style={{ ...mono, fontSize: 11, fontWeight: 700, color: 'var(--color-text-primary)' }}>
-                  {a.claim_type}
-                </span>
-                <span style={{ ...mono, fontSize: 10, color: 'var(--color-text-tertiary)' }}>
-                  {fmtTime(a.knowledge_time)}
-                </span>
-              </div>
-              <div
-                style={{
-                  display: 'flex',
-                  gap: 12,
-                  flexWrap: 'wrap',
-                  ...mono,
-                  fontSize: 10,
-                  color: 'var(--color-text-secondary)',
-                }}
-              >
-                <span>key: {a.claim_key}</span>
-                <span>family: {a.family}</span>
-                <span>access: {a.access_policy}</span>
-                {a.preview ? <span>{a.preview}</span> : null}
-              </div>
-              <span
-                style={{
-                  ...mono,
-                  fontSize: 9.5,
-                  color: 'var(--color-text-tertiary)',
-                  wordBreak: 'break-all',
-                }}
-              >
-                {a.atom_id}
-              </span>
-            </button>
+              testId={`node-atom-${a.family}`}
+            />
           ))}
         </div>
       )}
@@ -255,41 +204,24 @@ const EdgeRow: React.FC<{
 }> = ({ edge, direction, onWalk }) => {
   const target = direction === 'out' ? edge.to_node : edge.from_node
   return (
-    <button
-      type="button"
+    <Card
+      asButton
       onClick={() => onWalk(target)}
       title={`Walk to ${target}`}
-      data-testid={`edge-${direction}-${edge.id}`}
-      style={{
-        textAlign: 'left',
-        ...mono,
-        fontSize: 10.5,
-        color: 'var(--color-text-secondary)',
-        padding: '6px 10px',
-        borderRadius: 6,
-        background: 'var(--color-background-secondary)',
-        border: '0.5px solid var(--color-border-tertiary)',
-        cursor: 'pointer',
-        font: 'inherit',
-        width: '100%',
-      }}
-      onMouseEnter={(e) => {
-        e.currentTarget.style.background = 'var(--color-background-accent)'
-      }}
-      onMouseLeave={(e) => {
-        e.currentTarget.style.background = 'var(--color-background-secondary)'
-      }}
+      testId={`edge-${direction}-${edge.id}`}
+      padding="6px 10px"
+      style={{ ...mono, fontSize: 'var(--type-caption)', color: 'var(--color-text-secondary)', gap: 2 }}
     >
-      <span style={{ color: 'var(--color-text-tertiary)' }}>
-        {direction === 'out' ? 'out →' : 'in ←'}
-      </span>{' '}
-      <span style={{ color: 'var(--color-text-primary)', fontWeight: 700 }}>{edge.type}</span>
-      {' · '}
-      <span style={{ color: 'var(--color-text-primary)' }}>{target}</span>
-      {edge.label ? (
-        <span style={{ color: 'var(--color-text-tertiary)' }}> — {edge.label}</span>
-      ) : null}
-    </button>
+      <div>
+        <span style={{ color: 'var(--color-text-tertiary)' }}>
+          {direction === 'out' ? 'out →' : 'in ←'}
+        </span>{' '}
+        <span style={{ color: 'var(--color-text-primary)', fontWeight: 700 }}>{edge.type}</span>
+        {' · '}
+        <span style={{ color: 'var(--color-text-primary)' }}>{target}</span>
+        {edge.label ? <span style={{ color: 'var(--color-text-tertiary)' }}> — {edge.label}</span> : null}
+      </div>
+    </Card>
   )
 }
 
@@ -334,28 +266,26 @@ const NodeInspect: React.FC<{
     <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }} data-testid="node-inspect">
       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8 }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
-          <span
-            style={{
-              fontSize: 14,
-              fontWeight: 700,
-              color: 'var(--color-text-primary)',
-              fontFamily: 'var(--font-ui)',
-            }}
-          >
-            {n.name || n.node_id}
-          </span>
+          <span style={typeTitle}>{n.name || n.node_id}</span>
           <Pill sev={n.resolution_status}>{n.resolution_status}</Pill>
           <Pill sev={n.status}>{n.status}</Pill>
           <Pill sev="info">{n.node_type}</Pill>
         </div>
-        <button
-          type="button"
-          onClick={onClose}
-          style={{ ...btnStyle, background: 'var(--color-background-secondary)' }}
-        >
+        <Button variant="secondary" onClick={onClose}>
           ← clear inspect
-        </button>
+        </Button>
       </div>
+
+      {atomFamily !== null ? (
+        <WalkBreadcrumb
+          crumbs={[
+            { label: nodeId, onClick: onClearAtoms, title: 'Back to node card' },
+            { label: atomFamily || 'all families' },
+          ]}
+        />
+      ) : (
+        <WalkBreadcrumb crumbs={[{ label: nodeId }]} />
+      )}
 
       <div
         style={{
@@ -399,7 +329,7 @@ const NodeInspect: React.FC<{
                 [
                   'setback',
                   typeof summary.setback === 'object' && summary.setback != null
-                    ? JSON.stringify(summary.setback)
+                    ? summarizeValue(summary.setback)
                     : String(summary.setback ?? '—'),
                 ],
                 [
@@ -420,7 +350,7 @@ const NodeInspect: React.FC<{
               </React.Fragment>
             ))}
           </div>
-          <span style={{ fontSize: 10, color: 'var(--color-text-tertiary)', fontFamily: 'var(--font-ui)' }}>
+          <span style={{ ...typeCaption }}>
             GIS-approx edge geometry — not a survey. Property-line-tags optional (Amendment 2).
           </span>
         </div>
@@ -478,14 +408,14 @@ const NodeInspect: React.FC<{
       <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8 }}>
           <span style={sectionHeader}>Atoms by family</span>
-          <button
-            type="button"
-            style={{ ...btnStyle, background: 'var(--color-background-secondary)', padding: '4px 10px' }}
+          <Button
+            variant="secondary"
+            style={{ padding: '4px 10px' }}
             onClick={() => onPickFamily('')}
-            data-testid="view-all-atoms"
+            testId="view-all-atoms"
           >
             View all atoms →
-          </button>
+          </Button>
         </div>
         <FamilyCounts counts={detail.atom_counts_by_family} onPick={onPickFamily} />
       </div>
@@ -516,14 +446,14 @@ const NodeInspect: React.FC<{
       )}
 
       <div>
-        <button
-          type="button"
-          style={{ ...btnStyle, background: 'var(--color-background-secondary)', marginBottom: 8 }}
+        <Button
+          variant="secondary"
+          style={{ marginBottom: 8 }}
           onClick={() => setShowDebug((v) => !v)}
-          data-testid="node-inspect-debug-toggle"
+          testId="node-inspect-debug-toggle"
         >
           {showDebug ? 'Hide raw JSON' : 'Show raw JSON (debug)'}
-        </button>
+        </Button>
         {showDebug && (
           <pre style={preStyle} data-testid="node-graph-trace">
             {JSON.stringify({ nodeId, detail, chain: chainJson ? JSON.parse(chainJson) : null }, null, 2)}
@@ -703,16 +633,114 @@ export const NodeGraph: React.FC = () => {
     >
       <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
         <div>
-          <span style={sectionHeader}>Central-TX tally (G1 / WDLL 9 — live re-SELECT)</span>
-          <p
-            style={{
-              fontSize: 11,
-              color: 'var(--color-text-tertiary)',
-              fontFamily: 'var(--font-ui)',
-              marginTop: 4,
-              marginBottom: 8,
-            }}
-          >
+          <span style={sectionHeader}>Node inspect (Control-Tower organism)</span>
+          <p style={{ ...typeCaption, marginTop: 4, marginBottom: 8 }}>
+            Locks hash <code>node=</code>. Family pills open atoms; atom click opens inspector with{' '}
+            <code>return=node-graph</code> trail (WDLL 3/4/5). Walk edges on gold <code>48021:28286</code>.
+          </p>
+          <div style={{ display: 'flex', gap: 6, alignItems: 'center' }}>
+            <input
+              style={inputStyle}
+              value={inputId}
+              onChange={(e) => setInputId(e.target.value)}
+              onKeyDown={(e) => {
+                if (e.key === 'Enter') void inspectNode(inputId)
+              }}
+              placeholder="48021:28286 or …:boundary:2 or …:road:…"
+              data-testid="node-graph-input"
+            />
+            <Button
+              onClick={() => void inspectNode(inputId)}
+              disabled={loadingNode}
+              testId="node-graph-inspect"
+            >
+              {loadingNode ? 'Loading…' : 'Inspect'}
+            </Button>
+            <Button
+              variant="secondary"
+              onClick={() => lockParcelNode(inputId.trim(), { panelId: 'site-analysis' })}
+              disabled={!isCanonicalParcelNodeId(inputId)}
+              title="Lock parcel and open map workspace (ledger → map)"
+            >
+              Lock on map
+            </Button>
+          </div>
+          {inspectNodeId && (
+            <div style={{ marginTop: 8, ...typeCaption, color: 'var(--color-text-secondary)' }}>
+              Locked: <code data-testid="node-graph-locked">{inspectNodeId}</code>
+              {isCanonicalBoundaryEdgeNodeId(inspectNodeId) && ' (boundary-edge)'}
+              {isCanonicalRoadNodeId(inspectNodeId) && ' (road)'}
+            </div>
+          )}
+          {nodeError && (
+            <div style={{ marginTop: 8, ...typeCaption, color: 'var(--color-text-danger)' }}>{nodeError}</div>
+          )}
+          <div style={{ marginTop: 12 }}>
+            {loadingNode && <Loading />}
+            {!loadingNode && detail?.available && detail.node && (
+              <NodeInspect
+                nodeId={inspectNodeId ?? inputId}
+                detail={detail}
+                slotStatus={slotStatus}
+                chainJson={chainJson}
+                config={config}
+                atomFamily={atomFamily}
+                onPickFamily={pickAtomFamily}
+                onClearAtoms={clearAtoms}
+                onOpenAtom={openAtomInspector}
+                onWalk={(nextId) => {
+                  setInputId(nextId)
+                  void inspectNode(nextId)
+                }}
+                onClose={() => {
+                  setDetail(null)
+                  setChainJson(null)
+                  setAtomFamily(null)
+                  lockInspectNode(null)
+                }}
+              />
+            )}
+            {!loadingNode && detail && !detail.available && (
+              <Empty>{detail.reason || 'Node not available.'}</Empty>
+            )}
+          </div>
+        </div>
+
+        {roadRollup != null && (
+          <CollapsibleSection title="Road nodes (27c WDLL 3 / R1)" defaultOpen={false}>
+            <div style={{ ...typeCaption, color: 'var(--color-text-secondary)', marginBottom: 8 }}>
+              Total road nodes: <code>{roadRollup.road_nodes ?? 0}</code> · Named:{' '}
+              <code>{roadRollup.named_roads ?? 0}</code>
+            </div>
+            {(roadRollup.sampleNamed?.length ?? 0) > 0 && (
+              <ul style={{ ...typeCaption, color: 'var(--color-text-secondary)', margin: 0, paddingLeft: 18 }}>
+                {roadRollup.sampleNamed!.map((r) => (
+                  <li key={r.roadNodeId}>
+                    <Button
+                      variant="secondary"
+                      style={{ padding: '2px 8px' }}
+                      onClick={() => {
+                        setInputId(r.roadNodeId)
+                        void inspectNode(r.roadNodeId)
+                      }}
+                    >
+                      Inspect
+                    </Button>{' '}
+                    <code>{r.roadNodeId}</code>
+                    {r.displayName ? ` — ${r.displayName}` : ''}
+                  </li>
+                ))}
+              </ul>
+            )}
+          </CollapsibleSection>
+        )}
+
+        <CollapsibleSection
+          title="Central-TX tally (G1 / WDLL 9 — live re-SELECT)"
+          defaultOpen={false}
+          testId="central-tx-tally"
+        >
+          <p style={{ ...typeCaption, marginTop: 0, marginBottom: 8 }}>
             Source:{' '}
             {tallySource === 'live'
               ? `live GET /stats/central-tx-node-graph (${tally?.generatedAt ?? '…'})`
@@ -721,9 +749,7 @@ export const NodeGraph: React.FC = () => {
             <code>depthWarmPromotion=depth-warm-promoted-v1</code>.
           </p>
           {tallyError && (
-            <div style={{ fontSize: 11, color: 'var(--color-text-danger)', marginBottom: 8 }}>
-              {tallyError}
-            </div>
+            <div style={{ ...typeCaption, color: 'var(--color-text-danger)', marginBottom: 8 }}>{tallyError}</div>
           )}
           {!tally && !tallyError && <Loading />}
           {counties.length > 0 && (
@@ -732,7 +758,7 @@ export const NodeGraph: React.FC = () => {
                 style={{
                   width: '100%',
                   borderCollapse: 'collapse',
-                  fontSize: 11,
+                  fontSize: 'var(--type-caption)',
                   fontFamily: 'var(--font-ui)',
                 }}
               >
@@ -777,123 +803,7 @@ export const NodeGraph: React.FC = () => {
               </table>
             </div>
           )}
-        </div>
-
-        {roadRollup != null && (
-          <div>
-            <span style={sectionHeader}>Road nodes (27c WDLL 3 / R1)</span>
-            <div style={{ fontSize: 11, fontFamily: 'var(--font-ui)', marginBottom: 8 }}>
-              Total road nodes: <code>{roadRollup.road_nodes ?? 0}</code> · Named:{' '}
-              <code>{roadRollup.named_roads ?? 0}</code>
-            </div>
-            {(roadRollup.sampleNamed?.length ?? 0) > 0 && (
-              <ul style={{ fontSize: 11, fontFamily: 'var(--font-ui)', margin: 0, paddingLeft: 18 }}>
-                {roadRollup.sampleNamed!.map((r) => (
-                  <li key={r.roadNodeId}>
-                    <button
-                      type="button"
-                      style={{ ...btnStyle, padding: '2px 8px', fontSize: 10 }}
-                      onClick={() => {
-                        setInputId(r.roadNodeId)
-                        void inspectNode(r.roadNodeId)
-                      }}
-                    >
-                      Inspect
-                    </button>{' '}
-                    <code>{r.roadNodeId}</code>
-                    {r.displayName ? ` — ${r.displayName}` : ''}
-                  </li>
-                ))}
-              </ul>
-            )}
-          </div>
-        )}
-
-        <div>
-          <span style={sectionHeader}>Node inspect (Control-Tower organism)</span>
-          <p
-            style={{
-              fontSize: 11,
-              color: 'var(--color-text-tertiary)',
-              fontFamily: 'var(--font-ui)',
-              marginTop: 4,
-              marginBottom: 8,
-            }}
-          >
-            Locks hash <code>node=</code>. Family pills open atoms; atom click opens inspector with{' '}
-            <code>return=node-graph</code> back-nav (WDLL 3/4/5). Walk edges on gold{' '}
-            <code>48021:28286</code>.
-          </p>
-          <div style={{ display: 'flex', gap: 6, alignItems: 'center' }}>
-            <input
-              style={inputStyle}
-              value={inputId}
-              onChange={(e) => setInputId(e.target.value)}
-              onKeyDown={(e) => {
-                if (e.key === 'Enter') void inspectNode(inputId)
-              }}
-              placeholder="48021:28286 or …:boundary:2 or …:road:…"
-              data-testid="node-graph-input"
-            />
-            <button
-              style={btnStyle}
-              onClick={() => void inspectNode(inputId)}
-              disabled={loadingNode}
-              data-testid="node-graph-inspect"
-            >
-              {loadingNode ? 'Loading…' : 'Inspect'}
-            </button>
-            <button
-              style={btnStyle}
-              onClick={() => lockParcelNode(inputId.trim(), { panelId: 'site-analysis' })}
-              disabled={!isCanonicalParcelNodeId(inputId)}
-              title="Lock parcel and open map workspace (ledger → map)"
-            >
-              Lock on map
-            </button>
-          </div>
-          {inspectNodeId && (
-            <div style={{ marginTop: 8, fontSize: 11, fontFamily: 'var(--font-ui)' }}>
-              Locked: <code data-testid="node-graph-locked">{inspectNodeId}</code>
-              {isCanonicalBoundaryEdgeNodeId(inspectNodeId) && ' (boundary-edge)'}
-              {isCanonicalRoadNodeId(inspectNodeId) && ' (road)'}
-            </div>
-          )}
-          {nodeError && (
-            <div style={{ marginTop: 8, fontSize: 11, color: 'var(--color-text-danger)', fontFamily: 'var(--font-ui)' }}>
-              {nodeError}
-            </div>
-          )}
-          <div style={{ marginTop: 12 }}>
-            {loadingNode && <Loading />}
-            {!loadingNode && detail?.available && detail.node && (
-              <NodeInspect
-                nodeId={inspectNodeId ?? inputId}
-                detail={detail}
-                slotStatus={slotStatus}
-                chainJson={chainJson}
-                config={config}
-                atomFamily={atomFamily}
-                onPickFamily={pickAtomFamily}
-                onClearAtoms={clearAtoms}
-                onOpenAtom={openAtomInspector}
-                onWalk={(nextId) => {
-                  setInputId(nextId)
-                  void inspectNode(nextId)
-                }}
-                onClose={() => {
-                  setDetail(null)
-                  setChainJson(null)
-                  setAtomFamily(null)
-                  lockInspectNode(null)
-                }}
-              />
-            )}
-            {!loadingNode && detail && !detail.available && (
-              <Empty>{detail.reason || 'Node not available.'}</Empty>
-            )}
-          </div>
-        </div>
+        </CollapsibleSection>
       </div>
     </Panel>
   )
