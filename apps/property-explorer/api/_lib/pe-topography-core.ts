@@ -7,14 +7,17 @@
 //
 // The contour LAYER is a FREE browse layer (peer to FEMA flood on the browse
 // map), so this BFF does NOT gate on a paid PE session. It fetches the engine
-// map-layers `topography` slot for the current viewport and returns the contour
-// GeoJSON plus HONEST source/interval provenance.
+// map-layers `topography-1ft` slot for the current viewport and returns the
+// contour GeoJSON plus the HONEST per-viewport source tier.
 //
-// HONESTY: the engine map-layers `topography` slot derives contours from the
-// USGS 3DEP national DEM at a 1-METRE vertical interval. It is NOT the Bastrop
-// 1-ft LiDAR (that authoritative tier flows only through the DXF/site-plan
-// EXPORT path via resolveContourSource, not this live map slot). This BFF
-// therefore labels contours as 3DEP-derived and never claims 1-ft.
+// HONESTY — TIER FOLLOWS THE SERVED RESPONSE, NEVER A STATIC CLAIM:
+//   The `topography-1ft` slot serves the AUTHORITATIVE 1-ft LiDAR contours
+//   inside the Bastrop County footprint (`contourSource.tier ==="authoritative-1ft"`)
+//   and an HONEST 3DEP-derived fallback everywhere else / on degrade
+//   (`tier === "3dep-fallback"`, carrying a `fallbackReason`). This BFF reads
+//   `payload.attributes.contourSource` per response and passes the TRUE tier +
+//   source/vintage/interval to the client so a Bastrop viewport is labelled
+//   1-ft and a non-Bastrop viewport is labelled 3DEP. It NEVER hardcodes either.
 
 import {
   engineApiBaseUrl,
@@ -101,9 +104,9 @@ function safeJson(s: string): unknown {
 
 /**
  * Build the map-layers assemble request body for a viewport, requesting ONLY the
- * topography slot. Jurisdiction keys are left null — the topography slot is
- * jurisdiction-agnostic (3DEP national DEM); passing a wrong localKey would not
- * upgrade it to 1-ft anyway (that tier is export-only).
+ * topography-1ft slot. Jurisdiction keys are left null — the slot self-detects
+ * the Bastrop footprint from the bbox (it does not need a localKey to upgrade to
+ * 1-ft; the county contour service is queried by bbox intersection).
  */
 export function buildAssembleBody(req: TopoRequest): Record<string, unknown> {
   return {
@@ -113,7 +116,7 @@ export function buildAssembleBody(req: TopoRequest): Record<string, unknown> {
       parcelKey: 'pe-browse-viewport',
     },
     jurisdiction: { stateKey: null, localKey: null },
-    layers: ['topography'],
+    layers: ['topography-1ft'],
     bbox: req.bbox,
   }
 }
@@ -144,15 +147,24 @@ export function buildTopographyGateHeaders(opts?: {
   }
 }
 
+/** The honest served-contour tier, straight from `contourSource.tier`. */
+export type ContourTier = 'authoritative-1ft' | '3dep-fallback'
+
 export interface TopoLayerResponse {
   /** Contour FeatureCollection (may be empty features on no-coverage). */
   geojson: { type: 'FeatureCollection'; features: unknown[] }
   /** Honest provider label from the engine slot. */
   provider: string | null
-  /** Honest source tier — 3DEP-derived contours for this map slot. */
-  tier: 'derived-3dep'
-  /** Honest interval label, e.g. "1 m (3DEP-derived)". */
+  /** Honest source tier for THIS viewport — 1-ft (Bastrop) or 3DEP fallback. */
+  tier: ContourTier
+  /** Honest interval label, e.g. "1 ft (Bastrop LiDAR)" or "1-m (3DEP-derived)". */
   intervalLabel: string
+  /** Source string from the served contourSource (e.g. Bastrop GIS / usgs:3dep-dem). */
+  source: string | null
+  /** Data vintage of the served tier, when present. */
+  vintage: string | null
+  /** When tier is 3dep-fallback, WHY the authoritative tier was not served. */
+  fallbackReason: string | null
   /** True when the engine flagged degraded coverage (nodata masking, etc.). */
   degraded: boolean
   /** Feature count for chip/telemetry. */
@@ -163,65 +175,115 @@ export interface TopoLayerResponse {
   detail?: string
 }
 
+/** The engine seals slot geometry under `envelope.payload` (see sealEnvelope);
+ *  accept a legacy `data` key too so a fixture or older wire shape still maps. */
+function envelopeBody(envelope: Record<string, unknown> | undefined): Record<string, unknown> | undefined {
+  if (!envelope) return undefined
+  return (envelope.payload ?? envelope.data ?? envelope) as Record<string, unknown> | undefined
+}
+
 /**
  * Map the engine `/v1/map-layers/assemble` payload onto the browse-map contour
- * response. Reads the ONE `topography` slot; never fabricates a source it did
- * not get. Any non-ok slot returns an honest status the client can surface.
+ * response. Reads the ONE `topography-1ft` slot and reports the TRUE served tier
+ * (`contourSource.tier`). Never fabricates a source or a tier it did not get;
+ * any non-ok slot returns an honest status the client can surface.
  */
 export function mapAssemblePayload(payload: unknown): TopoLayerResponse {
   const empty: TopoLayerResponse = {
     geojson: { type: 'FeatureCollection', features: [] },
     provider: null,
-    tier: 'derived-3dep',
-    intervalLabel: '1 m (3DEP-derived)',
+    tier: '3dep-fallback',
+    intervalLabel: 'contours unavailable',
+    source: null,
+    vintage: null,
+    fallbackReason: 'engine returned no topography-1ft slot',
     degraded: true,
     featureCount: 0,
     status: 'empty',
-    detail: 'engine returned no topography slot',
+    detail: 'engine returned no topography-1ft slot',
   }
   const p = payload as Record<string, unknown> | null
-  // The engine seals the assemble body under `data` (envelopeJson). Support both
-  // a bare payload and an enveloped one.
-  const data = (p?.data ?? p) as Record<string, unknown> | null
-  const layers = data?.layers as Array<Record<string, unknown>> | undefined
+  // Outer envelope: the assemble body is sealed under `payload` (envelopeJson).
+  // Support a bare payload, a `payload`-sealed one, and a legacy `data` one.
+  const outer = (p?.payload ?? p?.data ?? p) as Record<string, unknown> | null
+  const layers = outer?.layers as Array<Record<string, unknown>> | undefined
   if (!Array.isArray(layers)) return empty
-  const slot = layers.find((l) => l?.layerKey === 'topography')
+  const slot = layers.find((l) => l?.layerKey === 'topography-1ft')
   if (!slot) return empty
 
   const status = String(slot.status ?? 'empty')
   if (status !== 'ok') {
+    const reason =
+      (typeof slot.pendingReason === 'string' && slot.pendingReason) ||
+      (typeof (slot.error as Record<string, unknown>)?.message === 'string'
+        ? String((slot.error as Record<string, unknown>).message)
+        : 'topography-1ft slot not ok')
     return {
       ...empty,
       status: status === 'pending' ? 'pending' : status === 'no-coverage' ? 'no-coverage' : 'empty',
-      detail:
-        (typeof slot.pendingReason === 'string' && slot.pendingReason) ||
-        (typeof (slot.error as Record<string, unknown>)?.message === 'string'
-          ? String((slot.error as Record<string, unknown>).message)
-          : 'topography slot not ok'),
+      fallbackReason: reason,
+      detail: reason,
     }
   }
 
-  // slot.envelope.data holds the sealed MapLayerGeometryPayload.
   const envelope = slot.envelope as Record<string, unknown> | undefined
-  const geomBody = (envelope?.data ?? envelope) as Record<string, unknown> | undefined
+  const geomBody = envelopeBody(envelope)
   const geojson = normalizeFc(geomBody?.geojson)
-  const provider =
-    typeof geomBody?.provider === 'string' ? geomBody.provider : 'USGS 3DEP + site-topography'
   const attrs = geomBody?.attributes as Record<string, unknown> | undefined
-  const intervalMeters =
-    typeof attrs?.intervalMeters === 'number' ? attrs.intervalMeters : 1
+  const cs = attrs?.contourSource as Record<string, unknown> | undefined
+
+  // TRUE tier comes from the served contourSource. Default to the honest
+  // 3dep-fallback if the block is somehow absent (never assume 1-ft).
+  const rawTier = typeof cs?.tier === 'string' ? cs.tier : '3dep-fallback'
+  const tier: ContourTier =
+    rawTier === 'authoritative-1ft' ? 'authoritative-1ft' : '3dep-fallback'
+
+  const source =
+    (typeof cs?.source === 'string' && cs.source) ||
+    (typeof geomBody?.provider === 'string' ? geomBody.provider : null)
+  const vintage = typeof cs?.vintage === 'string' ? cs.vintage : null
+  const fallbackReason =
+    tier === '3dep-fallback' && typeof cs?.fallbackReason === 'string'
+      ? cs.fallbackReason
+      : null
+
+  const provider =
+    typeof geomBody?.provider === 'string' ? geomBody.provider : source
+
   const coverage = envelope?.coverage as Record<string, unknown> | undefined
   const degraded = coverage?.degraded === true
 
   return {
     geojson,
     provider,
-    tier: 'derived-3dep',
-    intervalLabel: `${intervalMeters} m (3DEP-derived)`,
+    tier,
+    intervalLabel: contourIntervalLabel(tier, cs),
+    source,
+    vintage,
+    fallbackReason,
     degraded,
     featureCount: geojson.features.length,
     status: 'ok',
   }
+}
+
+/**
+ * Build the honest interval/tier LABEL for the served response. 1-ft only when
+ * the served tier IS authoritative-1ft; 3DEP-derived otherwise. Prefers the
+ * served `intervalLabel` string and never upgrades a 3DEP response to "1-ft".
+ */
+export function contourIntervalLabel(
+  tier: ContourTier,
+  cs: Record<string, unknown> | undefined,
+): string {
+  const served = typeof cs?.intervalLabel === 'string' ? cs.intervalLabel : null
+  if (tier === 'authoritative-1ft') {
+    // e.g. served BASTROP_CONTOUR_INTERVAL_LABEL ("1-ft interval (…)") — trust it.
+    return served ?? '1 ft (Bastrop LiDAR)'
+  }
+  // 3DEP fallback: never say 1-ft even if a served label were malformed.
+  if (served && !/1\s*-?\s*ft|lidar/i.test(served)) return served
+  return '1 m (3DEP-derived)'
 }
 
 function normalizeFc(gj: unknown): { type: 'FeatureCollection'; features: unknown[] } {

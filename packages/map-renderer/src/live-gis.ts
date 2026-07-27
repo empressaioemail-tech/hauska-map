@@ -26,6 +26,9 @@ export const LIVE_FEMA_KEY = 'live-fema'
 /** Live contour overlay key (topography). Distinct from the FIXTURE
  *  `topography-contours` layer — this one is drawn from real engine data. */
 export const LIVE_TOPO_KEY = 'live-topography'
+/** Live D8 hydrology flow-channel overlay key. Distinct from the FIXTURE
+ *  `hydrology-flow` registry key — this one is drawn from real engine D8 data. */
+export const LIVE_HYDRO_KEY = 'live-hydrology-flow'
 
 /** Parcels are bbox-capped (~200 features upstream); below this zoom we show
  *  a "zoom in" hint instead of hammering the API with huge viewports. */
@@ -35,6 +38,9 @@ export const MIN_FEMA_ZOOM = 11
 /** Contours derive from a per-viewport DEM fetch; keep them at parcel altitude
  *  so the DEM extent stays small and the contour lines stay legible. */
 export const MIN_TOPO_ZOOM = 14
+/** D8 hydrology runs a per-viewport DEM fetch + flow accumulation; keep it at
+ *  parcel altitude so the compute grid stays bounded and channels stay legible. */
+export const MIN_HYDRO_ZOOM = 14
 
 export interface GeoJsonFeature {
   type: 'Feature'
@@ -126,20 +132,54 @@ export async function fetchGisLayer(
 // --- Live topography (contours) -------------------------------------------
 //
 // Contours are fetched from the PE topography BFF (POST /api/pe-topography),
-// which proxies the engine map-layers `topography` slot (3DEP-derived, 1 m
-// interval). HONEST: this is NOT the Bastrop 1-ft LiDAR (that tier is
-// export-only). The response carries the true provider/interval so the map
-// never over-claims fidelity.
+// which proxies the engine map-layers `topography-1ft` slot. HONEST — TIER
+// FOLLOWS THE SERVED RESPONSE: inside the Bastrop footprint the slot serves the
+// AUTHORITATIVE 1-ft LiDAR contours (`tier === 'authoritative-1ft'`); everywhere
+// else / on degrade it serves an HONEST 3DEP-derived fallback
+// (`tier === '3dep-fallback'`, with a `fallbackReason`). The response carries the
+// TRUE per-viewport tier + source/vintage so the map labels 1-ft in Bastrop and
+// 3DEP elsewhere and never over-claims fidelity.
+
+/** The honest served-contour tier, from the engine `contourSource.tier`. */
+export type ContourTier = 'authoritative-1ft' | '3dep-fallback'
 
 export interface TopoLayerResponse {
   geojson?: FeatureCollectionLike
   provider?: string
-  tier?: string
+  /** TRUE served tier for this viewport (1-ft in Bastrop, 3DEP elsewhere). */
+  tier?: ContourTier | string
   intervalLabel?: string
+  /** Served source string (e.g. Bastrop County GIS / usgs:3dep-dem). */
+  source?: string | null
+  /** Served vintage of the contour tier, when present. */
+  vintage?: string | null
+  /** When tier is 3dep-fallback, WHY the authoritative tier was not served. */
+  fallbackReason?: string | null
   degraded?: boolean
   featureCount?: number
   status?: string
   detail?: string
+}
+
+/**
+ * The HONEST chip label for the served contour tier — the single source of the
+ * per-viewport truth the map surfaces. 1-ft ONLY when the served tier is
+ * authoritative-1ft (names the Bastrop LiDAR source); a clearly-3DEP label
+ * otherwise (names the fallback reason). NEVER a static claim: a Bastrop
+ * viewport reads "1 ft", a non-Bastrop viewport reads "3DEP".
+ */
+export function contourTierLabel(resp: TopoLayerResponse | undefined): string {
+  if (!resp) return 'Contours'
+  if (resp.tier === 'authoritative-1ft') {
+    const src = resp.source || resp.provider || 'Bastrop County LiDAR'
+    // e.g. "Contours — 1 ft LiDAR (Bastrop County GIS, 2017 StratMap)"
+    const vint = resp.vintage ? `, ${resp.vintage}` : ''
+    return `Contours — 1 ft LiDAR (${src}${vint})`
+  }
+  // 3DEP fallback — honest, names the interval and (when present) why not 1-ft.
+  const interval = resp.intervalLabel || '3DEP-derived'
+  const why = resp.fallbackReason ? ` · ${resp.fallbackReason}` : ''
+  return `Contours (3DEP) — ${interval}${why}`
 }
 
 export type TopoLayerState =
@@ -235,6 +275,156 @@ export function toTopoOverlay(
         'line-color': 'rgba(180,120,60,0.72)',
         'line-width': 0.8,
         'line-opacity': 0.85,
+      },
+    },
+  ]
+}
+
+// --- Live hydrology (D8 flow) ---------------------------------------------
+//
+// Flow channels are fetched from the PE hydrology BFF (POST /api/pe-hydrology),
+// which proxies the engine map-layers `hydrology-flow` slot (LIVE D8 flow
+// accumulation over the viewport 3DEP DEM). HONEST: an ok slot with zero
+// channels is honest-empty (empty FeatureCollection + a real reason like "no
+// flow channels above accumulation threshold in this bbox") — the map shows the
+// honest-empty state, NEVER a synthetic meander.
+
+export interface HydroLayerResponse {
+  geojson?: FeatureCollectionLike
+  provider?: string
+  channelCount?: number
+  accumulationThreshold?: number | null
+  routing?: string | null
+  library?: string | null
+  degraded?: boolean
+  /** Present on honest-empty (flat terrain / no channels / DEM void). */
+  honestEmptyReason?: string | null
+  featureCount?: number
+  status?: string
+  detail?: string
+}
+
+export type HydroLayerState =
+  | { status: 'idle' }
+  | { status: 'zoom-gated' }
+  | { status: 'loading' }
+  | { status: 'ok'; response: HydroLayerResponse }
+  | { status: 'no-coverage'; detail?: string }
+  | { status: 'error'; message: string }
+
+/**
+ * POST the viewport bbox+center to the hydrology BFF. Maps HTTP + envelope
+ * outcomes onto honest tile states — NEVER a silent fixture fallback. A 503
+ * (engine key missing on a preview deploy) surfaces as a named error the chip
+ * layer can render as DEGRADED. An ok honest-empty response is `status:'ok'`
+ * with zero features and a `honestEmptyReason` the chip surfaces.
+ */
+export async function fetchHydrologyLayer(
+  bboxUrl: string,
+  bbox: GisBBox,
+  center: { lat: number; lng: number },
+  signal?: AbortSignal,
+): Promise<HydroLayerState> {
+  let res: Response
+  try {
+    res = await fetch(bboxUrl, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        bbox: {
+          westLng: bbox.west,
+          southLat: bbox.south,
+          eastLng: bbox.east,
+          northLat: bbox.north,
+        },
+        centerLat: center.lat,
+        centerLng: center.lng,
+      }),
+      signal,
+    })
+  } catch (err) {
+    if ((err as Error)?.name === 'AbortError') throw err
+    return { status: 'error', message: `hydrology: ${(err as Error)?.message || 'network error'}` }
+  }
+
+  let body: unknown = null
+  try {
+    body = await res.json()
+  } catch {
+    /* non-JSON — handled by status below */
+  }
+  const rec = (body ?? {}) as Record<string, unknown>
+
+  if (res.status === 404) {
+    return { status: 'no-coverage', detail: typeof rec.message === 'string' ? rec.message : undefined }
+  }
+  if (!res.ok) {
+    const detail =
+      (typeof rec.message === 'string' && rec.message) ||
+      (typeof rec.error === 'string' && rec.error) ||
+      `HTTP ${res.status}`
+    return { status: 'error', message: `hydrology: ${detail}` }
+  }
+  const response = rec as unknown as HydroLayerResponse
+  // A non-ok engine slot status (pending/no-coverage) surfaces honestly. NOTE:
+  // an ok slot with zero channels is NOT an error — it is honest-empty and
+  // stays status:'ok' so the chip shows the reason, not a failure.
+  if (response.status && response.status !== 'ok') {
+    if (response.status === 'no-coverage') {
+      return { status: 'no-coverage', detail: response.detail }
+    }
+    return { status: 'error', message: `hydrology: ${response.detail || response.status}` }
+  }
+  return { status: 'ok', response }
+}
+
+/** True when the served hydrology slot is ok but has NO flow channels — the
+ *  honest-empty case (flat terrain / no channels above threshold / DEM void). */
+export function isHydrologyHonestEmpty(state: HydroLayerState): boolean {
+  return (
+    state.status === 'ok' &&
+    (state.response.channelCount ?? state.response.geojson?.features?.length ?? 0) === 0
+  )
+}
+
+/** The honest reason text for an empty/degraded hydrology response, or null. */
+export function hydrologyHonestReason(state: HydroLayerState): string | null {
+  if (state.status !== 'ok') return null
+  const r = state.response
+  if ((r.channelCount ?? r.geojson?.features?.length ?? 0) > 0) return null
+  return r.honestEmptyReason || 'no flow channels in this view'
+}
+
+/**
+ * Compose the live D8 flow-channel OverlaySpec (or none). `visible` binds the
+ * overlay to the LAYERS-panel `hydrology-flow` toggle. An empty (honest-empty)
+ * or non-ok response draws NOTHING — never a synthetic meander. Channels paint
+ * as a blue flow line, thicker where accumulation is higher when the property
+ * is present.
+ */
+export function toHydroOverlay(
+  hydro: HydroLayerState,
+  visible: boolean,
+): OverlaySpec[] {
+  if (hydro.status !== 'ok' || !hydro.response.geojson) return []
+  const fc = hydro.response.geojson
+  if (!fc.features || fc.features.length === 0) return []
+  return [
+    {
+      layerKey: LIVE_HYDRO_KEY,
+      provider: hydro.response.provider,
+      geojson: fc,
+      visible,
+      paint: {
+        'line-color': 'rgba(56,140,220,0.82)',
+        'line-width': [
+          'interpolate',
+          ['linear'],
+          ['coalesce', ['to-number', ['get', 'accumulation']], 0],
+          0, 0.6,
+          5000, 2.4,
+        ],
+        'line-opacity': 0.9,
       },
     },
   ]
