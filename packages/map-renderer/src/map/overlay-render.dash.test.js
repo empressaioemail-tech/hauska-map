@@ -29,8 +29,9 @@ function fakeMap() {
     addSource: (id, def) => sources.set(id, def),
     removeSource: (id) => sources.delete(id),
     getLayer: (id) => layers.get(id),
-    addLayer: (def) => layers.set(def.id, def),
+    addLayer: (def, _beforeId) => layers.set(def.id, def),
     removeLayer: (id) => layers.delete(id),
+    moveLayer: () => {},
     setPaintProperty: (id, prop, val) => {
       const l = layers.get(id);
       if (l) l.paint[prop] = val;
