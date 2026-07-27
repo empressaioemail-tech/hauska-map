@@ -7,6 +7,7 @@ import { describe, expect, it } from 'vitest'
 import {
   buildDownloadPath,
   buildSitePlanEngineGateHeaders,
+  classifyEngineFailure,
   extractInlineDownload,
   isValidParcelNodeId,
   mapMcpSitePlanPayload,
@@ -215,6 +216,42 @@ describe('site-plan export core', () => {
     )
     expect(mapped.ok).toBe(false)
     if (!mapped.ok) expect(mapped.message).toMatch(/setback/i)
+  })
+
+  it('FIX 1: classifies a 401 / gate_front_context_required as gate, not unreachable', () => {
+    expect(classifyEngineFailure({ status: 401 })).toBe('gate')
+    expect(classifyEngineFailure({ status: 403 })).toBe('gate')
+    expect(
+      classifyEngineFailure({
+        message:
+          'Missing or invalid gate-front headers; engine-api accepts only gate-proxied calls',
+      }),
+    ).toBe('gate')
+    expect(
+      classifyEngineFailure({
+        message:
+          'Engine API unreachable at .../site-plan-export/refresh. Site-plan export requires engine-api.',
+      }),
+    ).toBe('gate')
+  })
+
+  it('FIX 1: classifies a real connect failure as unreachable', () => {
+    expect(classifyEngineFailure({ message: 'fetch failed' })).toBe('unreachable')
+    expect(classifyEngineFailure({ message: 'ETIMEDOUT connect' })).toBe('unreachable')
+    expect(classifyEngineFailure({ message: 'ECONNREFUSED 10.0.0.1:443' })).toBe(
+      'unreachable',
+    )
+  })
+
+  it('FIX 1: classifies paid-key / 402 as payment', () => {
+    expect(classifyEngineFailure({ status: 402 })).toBe('payment')
+    expect(
+      classifyEngineFailure({ message: 'requires a paid X-Hauska-Key (public-paid)' }),
+    ).toBe('payment')
+  })
+
+  it('FIX 1: unknown upstream text passes through as other', () => {
+    expect(classifyEngineFailure({ status: 500, message: 'internal boom' })).toBe('other')
   })
 
   it('builds engine gate-front headers with site-plan-export packageId', () => {

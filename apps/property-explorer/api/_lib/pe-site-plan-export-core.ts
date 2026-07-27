@@ -236,6 +236,59 @@ export function buildSitePlanEngineGateHeaders(opts?: {
   }
 }
 
+/**
+ * Classify an engine-api / upstream failure so the BFF can surface an HONEST
+ * user-visible message. The old code labelled every engine failure — including
+ * a 401 gate/auth rejection — as "Engine API unreachable ... requires
+ * engine-api", which is wrong and unactionable (the service is up; the call
+ * was rejected for want of a gate token / signed gate-front context).
+ *
+ * - 'gate': engine-api reachable but rejected the call (401/403, or its
+ *   `gate_front_context_required` seam). Real cause is a server-side gate
+ *   credential/context problem, NOT an unreachable service.
+ * - 'payment': a real paywall (402 / paid-key required).
+ * - 'unreachable': a genuine network / timeout / connect failure.
+ * - 'other': anything else (map verbatim upstream text through).
+ */
+export type EngineFailureKind = 'gate' | 'payment' | 'unreachable' | 'other'
+
+export function classifyEngineFailure(input: {
+  status?: number | null
+  message?: string | null
+}): EngineFailureKind {
+  const status = input.status ?? null
+  const message = (input.message ?? '').toLowerCase()
+
+  if (status === 402 || /payment_required|paid x-hauska-key|public-paid|anonymous and free|upgrade or retry after quota|metering denied/.test(message)) {
+    return 'payment'
+  }
+  if (
+    status === 401 ||
+    status === 403 ||
+    /gate_front_context_required|gate-front|missing or invalid gate|unauthorized|forbidden|invalid.*(gate|credential|token|key)|requires engine-api/.test(
+      message,
+    )
+  ) {
+    return 'gate'
+  }
+  if (
+    /unreachable|econnrefused|econnreset|etimedout|enotfound|eai_again|fetch failed|network|socket hang up|timed out|timeout|aborted/.test(
+      message,
+    )
+  ) {
+    return 'unreachable'
+  }
+  return 'other'
+}
+
+/** Honest, actionable message for a gate/auth failure reaching engine-api. */
+export const ENGINE_GATE_TOKEN_MESSAGE =
+  'Site-plan export needs an engine-api gate token (server config) — HAUSKA_ENGINE_API_KEY / gate-front context not set or not accepted.'
+
+/** Honest message when the gate token env is entirely absent at request time. */
+export const ENGINE_GATE_TOKEN_MISSING_MESSAGE =
+  'Site-plan export is not configured: engine-api gate token missing (set HAUSKA_ENGINE_API_KEY or ENGINE_API_GATE_TOKEN).'
+
 export function sitePlanFilename(parcelNodeId: string, format: SitePlanExportFormat): string {
   const stem = parcelNodeId.replace(':', '_')
   switch (format) {
