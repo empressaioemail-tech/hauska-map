@@ -8,11 +8,14 @@ import {
   buildDownloadPath,
   buildSitePlanEngineGateHeaders,
   classifyEngineFailure,
+  ENGINE_TIMEOUT_RETRY_MESSAGE,
+  ENGINE_UNREACHABLE_RETRY_MESSAGE,
   extractInlineDownload,
   isValidParcelNodeId,
   mapMcpSitePlanPayload,
   parseSitePlanFormat,
   resolveSitePlanExportAuth,
+  retryableEngineFailureResponse,
 } from '../../api/_lib/pe-site-plan-export-core.js'
 
 describe('site-plan export core', () => {
@@ -266,12 +269,58 @@ describe('site-plan export core', () => {
           'Missing or invalid gate-front headers; engine-api accepts only gate-proxied calls',
       }),
     ).toBe('gate')
+  })
+
+  it('TIMEOUT FIX: "requires engine-api" / unreachable-shaped messages NEVER classify as gate', () => {
+    // The live bug: MCP's 30s client timeout aborted a ~23s+ site-plan
+    // refresh and produced this exact message shape; matching it into
+    // 'gate' showed the customer a false gate-token error. It is an
+    // unreachable/transient failure, never a gate one.
     expect(
       classifyEngineFailure({
         message:
           'Engine API unreachable at .../site-plan-export/refresh. Site-plan export requires engine-api.',
       }),
-    ).toBe('gate')
+    ).toBe('unreachable')
+    expect(
+      classifyEngineFailure({ message: 'Site-plan export requires engine-api.' }),
+    ).toBe('unreachable')
+  })
+
+  it('TIMEOUT FIX: timeout-shaped messages classify as engine_timeout, not gate', () => {
+    // New MCP-side message (EngineApiTimeoutError).
+    expect(
+      classifyEngineFailure({
+        message:
+          'Engine API call timed out after 50000ms at .../site-plan-export/refresh. The engine may be cold-starting; retry the export in a moment.',
+      }),
+    ).toBe('engine_timeout')
+    expect(classifyEngineFailure({ message: 'The operation was aborted' })).toBe(
+      'engine_timeout',
+    )
+    expect(classifyEngineFailure({ message: 'request timeout' })).toBe('engine_timeout')
+  })
+
+  it('TIMEOUT FIX: retryableEngineFailureResponse maps transient kinds to 503 + retryable', () => {
+    const timeout = retryableEngineFailureResponse(
+      'engine_timeout',
+      'Engine API call timed out after 50000ms at .../refresh',
+    )
+    expect(timeout?.status).toBe(503)
+    expect(timeout?.body.error).toBe('engine_timeout')
+    expect(timeout?.body.retryable).toBe(true)
+    expect(timeout?.body.message).toBe(ENGINE_TIMEOUT_RETRY_MESSAGE)
+    expect(ENGINE_TIMEOUT_RETRY_MESSAGE).toMatch(/cold start/i)
+
+    const unreachable = retryableEngineFailureResponse('unreachable', 'fetch failed')
+    expect(unreachable?.status).toBe(503)
+    expect(unreachable?.body.error).toBe('engine_unreachable')
+    expect(unreachable?.body.retryable).toBe(true)
+    expect(unreachable?.body.message).toBe(ENGINE_UNREACHABLE_RETRY_MESSAGE)
+
+    expect(retryableEngineFailureResponse('gate', 'x')).toBe(null)
+    expect(retryableEngineFailureResponse('payment', 'x')).toBe(null)
+    expect(retryableEngineFailureResponse('other', 'x')).toBe(null)
   })
 
   it('FIX 1: classifies a real connect failure as unreachable', () => {

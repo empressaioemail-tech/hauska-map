@@ -26,6 +26,7 @@ import {
   mapMcpTerrainPayload,
   parseTerrainFormat,
   resolveTerrainExportAuth,
+  retryableEngineFailureResponse,
   terrainFilename,
   type TerrainExportFormat,
 } from './_lib/pe-terrain-export-core.js'
@@ -133,6 +134,14 @@ async function handleRefresh(
         })
         return
       }
+      // FIX (2026-07-28): an engine timeout (cold start) or connect failure
+      // is transient — 503 + retryable with an honest customer message,
+      // never the misleading gate-token message.
+      const transient = retryableEngineFailureResponse(kind, message)
+      if (transient) {
+        res.status(transient.status).json(transient.body)
+        return
+      }
       res.status(502).json({ error: 'upstream_error', message })
       return
     }
@@ -169,6 +178,11 @@ async function handleRefresh(
         message: ENGINE_GATE_TOKEN_MESSAGE,
         detail: message,
       })
+      return
+    }
+    const transient = retryableEngineFailureResponse(kind, message)
+    if (transient) {
+      res.status(transient.status).json(transient.body)
       return
     }
     res.status(502).json({ error: 'upstream_error', message })
@@ -236,6 +250,11 @@ async function handleDownload(
         })
         return
       }
+      const transient = retryableEngineFailureResponse(kind, message)
+      if (transient) {
+        res.status(transient.status).json(transient.body)
+        return
+      }
       res.status(502).json({ error: 'download_failed', message })
       return
     }
@@ -269,6 +288,11 @@ async function handleDownload(
         message: ENGINE_GATE_TOKEN_MESSAGE,
         detail: message,
       })
+      return
+    }
+    const transient = retryableEngineFailureResponse(kind, message)
+    if (transient) {
+      res.status(transient.status).json(transient.body)
       return
     }
     res.status(502).json({
