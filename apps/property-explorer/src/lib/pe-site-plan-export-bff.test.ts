@@ -135,6 +135,45 @@ describe('site-plan export core', () => {
     }
   })
 
+  it('maps a NO-setback engine payload to ok (honest-absent, NOT an error) and passes the flag through (2026-07-27 requirement)', () => {
+    const mapped = mapMcpSitePlanPayload(
+      {
+        parcelNodeId: '48021:39282',
+        atom: {
+          parcelNodeId: '48021:39282',
+          accessPolicy: 'public-paid',
+          artifacts: {
+            'pdf-site-plan': {
+              format: 'pdf-site-plan',
+              ref: 'gcs://bucket/site-plan/48021_39282/pdf/z',
+              byteCount: 8100,
+              pageCount: 2,
+              setbackHonestAbsence: true,
+            },
+          },
+        },
+        // A missing setback rule is a SUCCESS state now, never isError.
+        setbackHonestAbsence: true,
+        setbackHonestAbsenceReason:
+          'No setback-rule atom on file for this parcel; setbacks are not specified here and have not been verified.',
+        streetHonestAbsence: true,
+        floodZoneHonestUnavailable: true,
+      },
+      'pdf-site-plan',
+    )
+
+    expect(mapped.ok).toBe(true)
+    if (mapped.ok) {
+      expect(mapped.parcelNodeId).toBe('48021:39282')
+      expect(mapped.setbackHonestAbsence).toBe(true)
+      expect(mapped.setbackHonestAbsenceReason).toMatch(/no setback-rule atom/i)
+      // Real downloadable sheet still produced.
+      expect(mapped.downloads['pdf-site-plan']).toBe(
+        buildDownloadPath('48021:39282', 'pdf-site-plan'),
+      )
+    }
+  })
+
   it('extracts MCP inline download from data envelope', () => {
     const inline = extractInlineDownload({
       data: {

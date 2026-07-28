@@ -120,17 +120,14 @@ async function handleRefresh(
 
     if (payload.isError === true) {
       const message = mcpToolErrorMessage(payload)
+      // A missing setback rule is NO LONGER an export error (2026-07-27 operator
+      // requirement): the engine now exports an honest-absent setback layer and
+      // returns success with `setbackHonestAbsence: true`. So there is no
+      // `setback_rule_missing` isError path to catch here anymore. Genuine
+      // gate/payment/upstream failures below are still classified honestly.
+      //
       // Do NOT map every MCP isError to 402 — that opened the customer paywall
-      // for engine/setback/upstream failures (operator saw Stripe with bypass on).
-      if (/422|setback/i.test(message)) {
-        // Keep anti-fabrication 422; soft customer copy (setback correctness is post-F1).
-        res.status(422).json({
-          error: 'setback_rule_missing',
-          message: 'Setbacks not available for this parcel yet.',
-          detail: message,
-        })
-        return
-      }
+      // for engine/upstream failures (operator saw Stripe with bypass on).
       if (isMcpPaymentMessage(message)) {
         if (session.devBypass) {
           res.status(503).json({
@@ -186,14 +183,8 @@ async function handleRefresh(
       })
       return
     }
-    if (/422|setback/i.test(message)) {
-      res.status(422).json({
-        error: 'setback_rule_missing',
-        message: 'Setbacks not available for this parcel yet.',
-        detail: message,
-      })
-      return
-    }
+    // (No `setback_rule_missing` branch: a missing setback rule is an honest
+    // export state now, not a thrown error — see the isError block above.)
     // FIX 1: honest classification for thrown MCP/engine errors.
     const kind = classifyEngineFailure({ message })
     if (kind === 'gate') {
