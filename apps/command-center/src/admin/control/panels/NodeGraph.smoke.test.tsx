@@ -52,6 +52,52 @@ vi.mock('../../api/atomTrace', async () => {
       json: null,
       error: 'unauthorized',
     })),
+    // CC-NAV: county node list (pinned contract GET /nodes?county=&nodeType=&q=…).
+    fetchNodeList: vi.fn(
+      async (args: { county: string; nodeType: string; q?: string; offset?: number }) => {
+        const parcels = [
+          {
+            node_id: '48453:100001',
+            node_type: 'parcel',
+            display_name: '1100 CONGRESS AVE',
+            identifiers: { propId: '100001', address: '1100 CONGRESS AVE, AUSTIN, TX', apn: '01-0001' },
+            atom_families: { 'zoning-fact': 1 },
+          },
+          {
+            node_id: '48453:100002',
+            node_type: 'parcel',
+            display_name: '200 E RIVERSIDE DR',
+            identifiers: { propId: '100002', address: '200 E RIVERSIDE DR, AUSTIN, TX' },
+          },
+        ]
+        const roads = [
+          {
+            node_id: '48453:road:555',
+            node_type: 'road',
+            display_name: 'S Congress Ave',
+            identifiers: { roadName: 'S Congress Ave' },
+          },
+        ]
+        const pool = args.nodeType === 'road' ? roads : parcels
+        const q = (args.q || '').toLowerCase()
+        const nodes = q
+          ? pool.filter((n) => JSON.stringify(n.identifiers).toLowerCase().includes(q))
+          : pool
+        return {
+          ok: true,
+          status: 200,
+          json: {
+            available: true,
+            county: args.county,
+            nodeType: args.nodeType,
+            nodes,
+            total: nodes.length,
+            limit: 50,
+            offset: args.offset ?? 0,
+          },
+        }
+      },
+    ),
     fetchPropertyAtomChain: vi.fn(async (parcelNodeId: string) => {
       if (parcelNodeId === '48209:156346' || parcelNodeId === '48021:28286') {
         return {
@@ -265,6 +311,7 @@ vi.mock('../../api/atomTrace', async () => {
 })
 
 import { NodeGraph } from './NodeGraph'
+import { fetchNodeList } from '../../api/atomTrace'
 
 const TALLY = {
   generatedAt: '2026-07-25T10:49:52.830Z',
@@ -395,6 +442,114 @@ describe('NodeGraph smoke (WDLL 8 / CC-A U1+U2)', () => {
           atoms: 'zoning-fact',
         }),
       )
+    })
+  })
+
+  it('county click opens the live node list: search, road toggle, node click, back-nav restore (CC-NAV)', async () => {
+    render(<NodeGraph />)
+
+    fireEvent.click(await screen.findByTestId('county-row-48453'))
+
+    await waitFor(() => {
+      expect(screen.getByTestId('county-node-list')).toBeTruthy()
+      expect(screen.getByTestId('node-row-48453:100001')).toBeTruthy()
+      expect(screen.getByTestId('node-row-48453:100002')).toBeTruthy()
+    })
+    expect(fetchNodeList).toHaveBeenCalledWith(
+      expect.objectContaining({ county: '48453', nodeType: 'parcel', offset: 0, limit: 50 }),
+      expect.anything(),
+    )
+    // Filters persisted into the hash on open (county=).
+    expect(selectPanel).toHaveBeenCalledWith('node-graph', expect.objectContaining({ county: '48453' }))
+
+    // Server-side multi-identifier search.
+    fireEvent.change(screen.getByTestId('node-list-search'), { target: { value: 'riverside' } })
+    fireEvent.click(screen.getByTestId('node-list-apply'))
+    await waitFor(() => {
+      expect(screen.getByTestId('node-row-48453:100002')).toBeTruthy()
+      expect(screen.queryByTestId('node-row-48453:100001')).toBeNull()
+    })
+    expect(fetchNodeList).toHaveBeenCalledWith(
+      expect.objectContaining({ county: '48453', nodeType: 'parcel', q: 'riverside' }),
+      expect.anything(),
+    )
+    expect(selectPanel).toHaveBeenCalledWith(
+      'node-graph',
+      expect.objectContaining({ county: '48453', q: 'riverside' }),
+    )
+
+    // Node click → existing NodeInspect flow locks the node.
+    fireEvent.click(screen.getByTestId('node-row-48453:100002'))
+    await waitFor(() => {
+      expect(lockInspectNode).toHaveBeenCalledWith('48453:100002')
+      expect(screen.getByTestId('node-graph-back-to-browse')).toBeTruthy()
+    })
+
+    // Back-nav → the county list is restored with the exact filters.
+    fireEvent.click(screen.getByTestId('node-graph-back-to-browse'))
+    await waitFor(() => {
+      expect(screen.getByTestId('county-node-list')).toBeTruthy()
+    })
+    expect((screen.getByTestId('node-list-search') as HTMLInputElement).value).toBe('riverside')
+  })
+
+  it('toggles the county list to road nodes', async () => {
+    hashParams = { county: '48453' }
+    render(<NodeGraph />)
+
+    await waitFor(() => {
+      expect(screen.getByTestId('node-row-48453:100001')).toBeTruthy()
+    })
+    fireEvent.click(screen.getByTestId('node-list-type-road'))
+    await waitFor(() => {
+      expect(screen.getByTestId('node-row-48453:road:555')).toBeTruthy()
+      expect(screen.queryByTestId('node-row-48453:100001')).toBeNull()
+    })
+    expect(fetchNodeList).toHaveBeenCalledWith(
+      expect.objectContaining({ county: '48453', nodeType: 'road' }),
+      expect.anything(),
+    )
+  })
+
+  it('falls back to the roster proxy + honest-empty note when GET /nodes list 404s (endpoint not live)', async () => {
+    vi.mocked(fetchNodeList).mockResolvedValueOnce({
+      ok: false,
+      status: 404,
+      json: null,
+      error: 'HTTP 404',
+    })
+    render(<NodeGraph />)
+
+    fireEvent.click(await screen.findByTestId('county-row-48453'))
+
+    // 404 → back on the roster, id box seeded, honest-empty note names the 404.
+    await waitFor(() => {
+      expect(screen.getByTestId('node-browser')).toBeTruthy()
+      expect((screen.getByTestId('node-graph-input') as HTMLInputElement).value).toBe('48453:')
+      expect(screen.getByTestId('node-browse-honest-empty').textContent).toContain('404')
+    })
+
+    // Subsequent county clicks keep the legacy roster-proxy behavior (no list).
+    fireEvent.click(screen.getByTestId('county-row-48453'))
+    expect(screen.queryByTestId('county-node-list')).toBeNull()
+    expect((screen.getByTestId('node-graph-input') as HTMLInputElement).value).toBe('48453:')
+  })
+
+  it('labels county zoning honestly: city-zoned pill + unincorporated tooltip, number unchanged (CC-NAV fix 4)', async () => {
+    render(<NodeGraph />)
+
+    const pill = await screen.findByText('61% city-zoned')
+    expect(pill.getAttribute('title')).toContain('Only cities zone in TX')
+    expect(pill.getAttribute('title')).toContain('legitimately unzoned')
+
+    // Tally table: same framing on the Zoning breadth % column header.
+    const tallyEl = screen.getByTestId('central-tx-tally')
+    fireEvent.click(tallyEl.querySelector('button[aria-expanded]')!)
+    await waitFor(() => {
+      const th = within(tallyEl).getByText('Zoning breadth %')
+      expect(th.getAttribute('title')).toContain('Only cities zone in TX')
+      // The computed number itself is untouched.
+      expect(within(tallyEl).getByText('61%')).toBeTruthy()
     })
   })
 })

@@ -147,6 +147,9 @@ function LiveMapTileInner() {
   const [zoom, setZoom] = useState<number | null>(null)
   const [fixtureOn, setFixtureOn] = useState(false)
   const [card, setCard] = useState<ParcelCardData | null>(null)
+  // Canonical node id for the open card, when the live feature carries one.
+  // Powers the explicit "Open in Node & Graph →" focus action (CC-NAV fix 1).
+  const [cardNodeId, setCardNodeId] = useState<string | null>(null)
   const [hiddenOverlayIds, setHiddenOverlayIds] = useState<ReadonlySet<string>>(
     () => new Set<string>(),
   )
@@ -219,10 +222,16 @@ function LiveMapTileInner() {
           lng: next.lng,
         })
         // WDLL 4: map → ledger on the ONE canonical id when present on the feature.
+        // Click BINDS the node (hash node=) without yanking the panel; the info
+        // card carries the explicit "Open in Node & Graph →" focus action
+        // (deliberate: panel-jumping on every parcel click would break map
+        // browsing — see openInNodeGraph below).
         const nodeId = parcelNodeIdFromSelection(sel)
+        setCardNodeId(nodeId)
         if (nodeId) lockParcelNode(nodeId)
         return
       }
+      setCardNodeId(null)
       // Fixture / zoning click — legacy behavior: recenter shared context.
       if (sel.lat == null || sel.lng == null) return
       setActiveParcel({
@@ -249,6 +258,14 @@ function LiveMapTileInner() {
     },
     [card, setActiveParcel, selectPanel],
   )
+
+  // CC-NAV fix 1: focus the Node & Graph browser + inspector on the clicked
+  // parcel (hash → panel=node-graph&node=<id>). The reverse direction
+  // (ledger → map via lockParcelNode(id, { panelId: 'site-analysis' })) is
+  // untouched.
+  const openInNodeGraph = useCallback(() => {
+    if (cardNodeId) lockParcelNode(cardNodeId, { panelId: 'node-graph' })
+  }, [cardNodeId, lockParcelNode])
 
   // The report overlay stack (SpatialProvider) as pushed by the report tiles.
   const reportOverlays = useMemo<ReportOverlayView[]>(
@@ -487,7 +504,10 @@ function LiveMapTileInner() {
               <button
                 type="button"
                 aria-label="Close parcel card"
-                onClick={() => setCard(null)}
+                onClick={() => {
+                  setCard(null)
+                  setCardNodeId(null)
+                }}
                 style={{
                   background: 'transparent',
                   border: 'none',
@@ -532,6 +552,29 @@ function LiveMapTileInner() {
                 {card.provider ? `Source: ${card.provider}` : null}
                 {card.notSurveyGrade ? `${card.provider ? ' · ' : ''}not survey grade` : null}
               </div>
+            )}
+            {cardNodeId && (
+              <button
+                type="button"
+                data-testid="open-in-node-graph"
+                onClick={openInNodeGraph}
+                title={`Focus Node & Graph on ${cardNodeId}`}
+                style={{
+                  width: '100%',
+                  marginTop: 8,
+                  padding: '5px 8px',
+                  fontSize: 11,
+                  fontWeight: 700,
+                  fontFamily: 'var(--font-ui)',
+                  color: '#0d1117',
+                  background: '#a5b4fc',
+                  border: 'none',
+                  borderRadius: 4,
+                  cursor: 'pointer',
+                }}
+              >
+                Open in Node &amp; Graph →
+              </button>
             )}
             <div style={{ display: 'flex', gap: 6, marginTop: 8 }}>
               <button
