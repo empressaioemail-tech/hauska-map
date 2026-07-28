@@ -44,6 +44,8 @@ import { startPeCheckout } from "../lib/billingClient";
 import { recordPeGtmEvent, type Persona } from "../lib/gtmClient";
 import { iccCitationStatus } from "../lib/iccCitation";
 import { InspectCard } from "./InspectCard";
+import { PropertyBriefPanel } from "./PropertyBriefPanel";
+import type { ResearchBriefPayload } from "./brief-view-model";
 import { LayersControl } from "./LayersControl";
 import { MapTools } from "./MapTools";
 import { ParcelLookupBar } from "./ParcelLookupBar";
@@ -171,13 +173,7 @@ interface InspectedTarget {
   parcelNodeId: string | null;
 }
 
-type ResearchBrief = {
-  runId: string;
-  brief: {
-    sections: Array<{ id: string; title: string; data: unknown }>;
-    disclosure?: string[];
-  };
-};
+type ResearchBrief = ResearchBriefPayload;
 
 /** Center → the renderer's {latitude, longitude} Center contract, from lat/lng. */
 function toCenter(lat: number | null, lng: number | null): Center | undefined {
@@ -862,6 +858,10 @@ export function ExplorerMap() {
         );
         return;
       }
+      if (res.status === 404 && body.error === "baked_snapshot_not_found") {
+        setResearchNotice("No baked snapshot exists for this parcel yet.");
+        return;
+      }
       if (res.ok && body.runId && body.brief?.sections) {
         setResearchBrief(body as ResearchBrief);
         setResearchNotice("Cited Property Intel brief ready.");
@@ -987,45 +987,10 @@ export function ExplorerMap() {
       </div>
 
       {researchBrief && (
-        <aside
-          data-testid="research-brief"
-          style={{
-            position: "absolute",
-            top: 12,
-            right: 12,
-            zIndex: 9,
-            width: "min(360px, calc(100vw - 24px))",
-            maxHeight: "calc(100vh - 24px)",
-            overflowY: "auto",
-            padding: 14,
-            borderRadius: 8,
-            color: "#e5e7eb",
-            background: "rgba(13,17,23,0.94)",
-            border: "1px solid rgba(154,166,178,0.35)",
-            font: "12px/1.45 system-ui, -apple-system, Segoe UI, Roboto, sans-serif",
-          }}
-        >
-          <strong>Property Intel brief</strong>
-          {researchBrief.brief.sections.map((section) => (
-            <section key={section.id} style={{ marginTop: 10 }}>
-              <strong>{section.title}</strong>
-              <pre
-                style={{
-                  margin: "4px 0 0",
-                  whiteSpace: "pre-wrap",
-                  font: "11px/1.4 ui-monospace, SFMono-Regular, Menlo, monospace",
-                }}
-              >
-                {JSON.stringify(section.data, null, 2)}
-              </pre>
-            </section>
-          ))}
-          {researchBrief.brief.disclosure?.map((disclosure) => (
-            <p key={disclosure} style={{ color: "#fcd34d", margin: "10px 0 0" }}>
-              {disclosure}
-            </p>
-          ))}
-        </aside>
+        <PropertyBriefPanel
+          brief={researchBrief}
+          onClose={() => setResearchBrief(null)}
+        />
       )}
 
       <ParcelLookupBar
