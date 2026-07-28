@@ -177,14 +177,54 @@ function pending<T>(message: T): CardFacet<T> {
 }
 
 /**
+ * Render a land-use fact WITH its provenance inline, e.g.
+ * "A1 — Single-family residential (cad-roll · 2024)". Returns null when the
+ * fact carries no code and no description (a genuine absence — never invent).
+ */
+function formatLandUseDisplay(
+  lu: NonNullable<BakedFacetPayload["baseFacts"]>["landUse"],
+): string | null {
+  if (!lu) return null;
+  const code = typeof lu.code === "string" ? lu.code.trim() : "";
+  const description =
+    typeof lu.description === "string" ? lu.description.trim() : "";
+  const label =
+    code && description ? `${code} — ${description}` : description || code;
+  if (!label) return null;
+  const prov = [lu.source, lu.vintage]
+    .filter((p): p is string => typeof p === "string" && p.trim().length > 0)
+    .map((p) => p.trim());
+  return prov.length > 0 ? `${label} (${prov.join(" · ")})` : label;
+}
+
+/**
+ * Render an acreage fact WITH its method inline, e.g. "1.23 ac (cad-roll)".
+ * The numeric value is rendered as-is (no rounding — no derived precision).
+ * Returns null when there is no finite numeric value (genuine absence).
+ */
+function formatAcreageDisplay(
+  ac: NonNullable<BakedFacetPayload["baseFacts"]>["acreage"],
+): string | null {
+  if (!ac || typeof ac.value !== "number" || !Number.isFinite(ac.value)) {
+    return null;
+  }
+  const method =
+    typeof ac.method === "string" && ac.method.trim() ? ac.method.trim() : null;
+  return method ? `${ac.value} ac (${method})` : `${ac.value} ac`;
+}
+
+/**
  * Derive the card view-model from a baked payload. Pure + owner-free.
  *
- * The `facetCoverage` map is the authoritative present/absent signal the bake
- * computed (true == real content, false == honest absence). We prefer it and
- * fall back to a value-presence check so a payload without coverage flags still
- * renders sensibly. A facet that is honestly absent becomes state:"absent"
- * (the card's "not verified in this area" treatment) — NEVER a blank that reads
- * as "nothing here" and never a fabricated value.
+ * GATING RULE (fix/pe-inspect-landuse-acreage): a genuinely present base-fact
+ * VALUE is trusted and rendered — the `facetCoverage` boolean never suppresses
+ * a real value the payload carries. Coverage only disambiguates a NULL value:
+ *   - value present            → state:"present" (regardless of coverage flag)
+ *   - value null + cov true    → absent WITH a specific label ("covered here,
+ *                                but this parcel carries no value on record")
+ *   - value null + cov falsy   → absent, default "not verified here" treatment
+ * A facet that is honestly absent becomes state:"absent" — NEVER a blank that
+ * reads as "nothing here" and never a fabricated or defaulted value.
  */
 export function deriveBakedCardModel(payload: BakedFacetPayload): BakedCardModel {
   const bf = payload.baseFacts ?? {};
@@ -208,11 +248,14 @@ export function deriveBakedCardModel(payload: BakedFacetPayload): BakedCardModel
     : payload.countyFips ?? null;
   const county = countyStr ? present(countyStr) : absent<string>();
 
-  // Land-use: coverage flag is authoritative (Comal / gate-blocked counties
-  // bake landUse:null with coverage.landUse:false = honest absence).
-  const landUse =
-    cov.landUse === true && bf.landUse
-      ? present(bf.landUse.description || bf.landUse.code)
+  // Land-use: trust a present value (a stale/false coverage flag must not hide
+  // real data the payload carries). Coverage only disambiguates a NULL:
+  // Comal / gate-blocked counties bake landUse:null (honest absence).
+  const landUseDisplay = formatLandUseDisplay(bf.landUse ?? null);
+  const landUse = landUseDisplay
+    ? present(landUseDisplay)
+    : cov.landUse === true
+      ? absent("no land-use value on record here")
       : absent<string>();
 
   const zoningDecline =
@@ -230,9 +273,13 @@ export function deriveBakedCardModel(payload: BakedFacetPayload): BakedCardModel
             ? absent("no zoning here")
             : absent<string>();
 
-  const acreage =
-    cov.acreage === true && bf.acreage && typeof bf.acreage.value === "number"
-      ? present(`${bf.acreage.value} ac`)
+  // Acreage: same rule — a real numeric value renders regardless of the
+  // coverage flag; coverage only shades the wording of a genuine null.
+  const acreageDisplay = formatAcreageDisplay(bf.acreage ?? null);
+  const acreage = acreageDisplay
+    ? present(acreageDisplay)
+    : cov.acreage === true
+      ? absent("no acreage value on record here")
       : absent<string>();
 
   // Envelope-derived facets. Present only when the bake derived an envelope
