@@ -19,11 +19,15 @@ import {
   fetchPropertyNodeDetail,
   fetchCentralTxNodeGraphTally,
   fetchNodeAtoms,
+  fetchNodeList,
+  NODE_LIST_PAGE,
   propertyChainSlotStatuses,
   type PropertyAtomChainBody,
   type PropertyNodeDetailBody,
   type PropertyGraphEdge,
   type NodeAtomSummary,
+  type NodeListBody,
+  type NodeListItem,
   type CentralTxNodeGraphTally,
   type CentralTxCountyTallyRow,
 } from '../../api/atomTrace'
@@ -32,6 +36,7 @@ import {
   Pill,
   Loading,
   Empty,
+  ErrorState,
   sectionHeader,
   mono,
   fmtNum,
@@ -464,6 +469,238 @@ const NodeInspect: React.FC<{
   )
 }
 
+/** Hash keys that persist the county node-list state (mirror the Trading
+ *  reference listParams → return_* round-trip; restored by AtomInspector
+ *  closeDetail and by back-nav from NodeInspect). */
+export const NODE_LIST_HASH_KEYS = ['county', 'ntype', 'q', 'offset'] as const
+
+/** Render an atom_families payload defensively (array or counts map). */
+function familiesLabel(fams: NodeListItem['atom_families']): string | null {
+  if (!fams) return null
+  if (Array.isArray(fams)) return fams.length ? fams.join(' · ') : null
+  const entries = Object.entries(fams)
+  if (entries.length === 0) return null
+  return entries.map(([f, n]) => `${f}·${n}`).join(' · ')
+}
+
+/**
+ * CountyNodeList — faithful port of the Trading NodeGraphBrowser LIST view
+ * onto the new spine county node-list contract:
+ *   GET {retrieval}/nodes?county=&nodeType=&q=&limit=50&offset=0
+ * Server-side multi-identifier search (propId / address / APN / road name),
+ * parcel|road toggle, 50/page pagination. Filters persist in hash params
+ * (county / ntype / q / offset) so back-nav restores the exact list.
+ * 404 = endpoint not live yet → onUnsupported (roster-proxy fallback).
+ */
+const CountyNodeList: React.FC<{
+  fips: string
+  countyName: string | null
+  config: SpineConfig
+  hashParams: Record<string, string>
+  selectPanel: (id: string, params?: Record<string, string>) => void
+  onPickNode: (id: string) => void
+  onBack: () => void
+  onUnsupported: () => void
+  onListLive: () => void
+}> = ({ fips, countyName, config, hashParams, selectPanel, onPickNode, onBack, onUnsupported, onListLive }) => {
+  const [q, setQ] = useState(() => hashParams.q ?? '')
+  const [nodeType, setNodeType] = useState<'parcel' | 'road'>(() =>
+    hashParams.ntype === 'road' ? 'road' : 'parcel',
+  )
+  const [offset, setOffset] = useState(() => Number(hashParams.offset) || 0)
+  const [applied, setApplied] = useState(0)
+  const [data, setData] = useState<NodeListBody | null>(null)
+  const [err, setErr] = useState<string | null>(null)
+  const [loading, setLoading] = useState(true)
+
+  const listParams = (over?: { q?: string; ntype?: 'parcel' | 'road'; offset?: number }): Record<string, string> => {
+    const qq = over?.q ?? q
+    const nt = over?.ntype ?? nodeType
+    const off = over?.offset ?? offset
+    const params: Record<string, string> = { county: fips }
+    if (nt !== 'parcel') params.ntype = nt
+    if (qq.trim()) params.q = qq.trim()
+    if (off) params.offset = String(off)
+    return params
+  }
+
+  useEffect(() => {
+    let cancelled = false
+    setLoading(true)
+    void fetchNodeList({ county: fips, nodeType, q, limit: NODE_LIST_PAGE, offset }, config).then((res) => {
+      if (cancelled) return
+      if (res.status === 404) {
+        // Endpoint not live yet on this deploy — feature-detect, don't break.
+        onUnsupported()
+        return
+      }
+      if (!res.ok || !res.json) {
+        setData(null)
+        setErr(res.error || `HTTP ${res.status}`)
+      } else {
+        setData(res.json)
+        setErr(null)
+        onListLive()
+      }
+      setLoading(false)
+    })
+    return () => {
+      cancelled = true
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [fips, nodeType, offset, applied, config])
+
+  const apply = (): void => {
+    setOffset(0)
+    setApplied((a) => a + 1)
+    selectPanel('node-graph', listParams({ offset: 0 }))
+  }
+
+  const switchType = (nt: 'parcel' | 'road'): void => {
+    if (nt === nodeType) return
+    setNodeType(nt)
+    setOffset(0)
+    selectPanel('node-graph', listParams({ ntype: nt, offset: 0 }))
+  }
+
+  const goToPage = (nextOffset: number): void => {
+    setOffset(nextOffset)
+    selectPanel('node-graph', listParams({ offset: nextOffset }))
+  }
+
+  const total = data?.total ?? 0
+
+  return (
+    <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }} data-testid="county-node-list">
+      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8 }}>
+        <span style={{ ...typeTitle, fontSize: 'var(--type-body)' }}>
+          {countyName ? `${countyName} ` : ''}
+          <span style={{ ...mono, color: 'var(--color-text-tertiary)' }}>({fips})</span> · node list
+        </span>
+        <Button variant="secondary" onClick={onBack} testId="node-list-back-to-counties">
+          ← back to counties
+        </Button>
+      </div>
+
+      <div style={{ display: 'flex', gap: 6, alignItems: 'center', flexWrap: 'wrap' }}>
+        {(['parcel', 'road'] as const).map((nt) => (
+          <Button
+            key={nt}
+            variant={nodeType === nt ? 'primary' : 'secondary'}
+            onClick={() => switchType(nt)}
+            testId={`node-list-type-${nt}`}
+          >
+            {nt}
+          </Button>
+        ))}
+        <input
+          style={inputStyle}
+          value={q}
+          onChange={(e) => setQ(e.target.value)}
+          onKeyDown={(e) => {
+            if (e.key === 'Enter') apply()
+          }}
+          placeholder="search propId / address / APN / road name…"
+          data-testid="node-list-search"
+        />
+        <Button onClick={apply} testId="node-list-apply">
+          Search
+        </Button>
+      </div>
+
+      {loading ? (
+        <Loading />
+      ) : err ? (
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+          <ErrorState msg={err} />
+          <Button variant="secondary" onClick={() => setApplied((a) => a + 1)} testId="node-list-retry">
+            Retry
+          </Button>
+        </div>
+      ) : !data || data.available === false || data.nodes.length === 0 ? (
+        <Empty>{data?.reason || 'No nodes match the filter.'}</Empty>
+      ) : (
+        <>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 5 }}>
+            {data.nodes.map((n) => {
+              const idr = n.identifiers ?? {}
+              const idBits = (
+                [
+                  ['propId', idr.propId],
+                  ['apn', idr.apn],
+                  ['address', idr.address],
+                  ['road', idr.roadName],
+                ] as const
+              ).filter(([, v]) => Boolean(v))
+              const fams = familiesLabel(n.atom_families)
+              return (
+                <Card
+                  key={n.node_id}
+                  asButton
+                  onClick={() => onPickNode(n.node_id)}
+                  title={`Inspect ${n.node_id}`}
+                  testId={`node-row-${n.node_id}`}
+                  padding="8px 10px"
+                >
+                  <div style={{ display: 'flex', justifyContent: 'space-between', gap: 8, alignItems: 'center' }}>
+                    <span style={{ ...typeTitle, fontSize: 'var(--type-body)' }}>
+                      {n.display_name || n.node_id}
+                    </span>
+                    <Pill sev="info">{n.node_type}</Pill>
+                  </div>
+                  <div
+                    style={{
+                      display: 'flex',
+                      gap: 12,
+                      flexWrap: 'wrap',
+                      ...mono,
+                      fontSize: 'var(--type-caption)',
+                      color: 'var(--color-text-secondary)',
+                    }}
+                  >
+                    <span style={{ color: 'var(--color-text-tertiary)' }}>{n.node_id}</span>
+                    {idBits.map(([k, v]) => (
+                      <span key={k}>
+                        {k}: {v}
+                      </span>
+                    ))}
+                  </div>
+                  {fams && (
+                    <div style={{ ...mono, fontSize: 'var(--type-caption)', color: 'var(--color-text-tertiary)' }}>
+                      atoms: {fams}
+                    </div>
+                  )}
+                </Card>
+              )
+            })}
+          </div>
+          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8 }}>
+            <Button
+              variant="secondary"
+              disabled={offset === 0}
+              onClick={() => goToPage(Math.max(0, offset - NODE_LIST_PAGE))}
+              testId="node-list-prev"
+            >
+              ← prev
+            </Button>
+            <span style={{ ...mono, fontSize: 'var(--type-caption)', color: 'var(--color-text-tertiary)' }}>
+              {offset + 1}–{Math.min(offset + NODE_LIST_PAGE, total)} of {fmtNum(total)}
+            </span>
+            <Button
+              variant="secondary"
+              disabled={offset + NODE_LIST_PAGE >= total}
+              onClick={() => goToPage(offset + NODE_LIST_PAGE)}
+              testId="node-list-next"
+            >
+              next →
+            </Button>
+          </div>
+        </>
+      )}
+    </div>
+  )
+}
+
 /**
  * NodeBrowser — PORT of the Control Tower NodeGraphBrowser LIST shell.
  *
@@ -485,8 +722,11 @@ const NodeBrowser: React.FC<{
   inputId: string
   loadingNode: boolean
   tallyLoading: boolean
+  /** false → the /nodes county list 404'd (not live yet); roster-proxy fallback. */
+  nodeListSupported: boolean | null
   onInputChange: (v: string) => void
   onInspect: (id: string) => void
+  onOpenCounty: (c: CountyTallyRow) => void
   onLockMap: (id: string) => void
   canLockMap: boolean
 }> = ({
@@ -495,8 +735,10 @@ const NodeBrowser: React.FC<{
   inputId,
   loadingNode,
   tallyLoading,
+  nodeListSupported,
   onInputChange,
   onInspect,
+  onOpenCounty,
   onLockMap,
   canLockMap,
 }) => {
@@ -538,8 +780,9 @@ const NodeBrowser: React.FC<{
           </Button>
         </div>
         <span style={{ ...typeCaption }} data-testid="node-browse-honest-empty">
-          Spine serves no parcel-list endpoint (GET /nodes, /property-nodes 404) — a filterable node
-          list is honest-empty here. Browse by id, by county, or from a named-road sample below.
+          {nodeListSupported === false
+            ? 'Spine serves no parcel-list endpoint (GET /nodes county list 404 — not live yet on this deploy) — a filterable node list is honest-empty here. Browse by id, by county, or from a named-road sample below.'
+            : 'Click a county to open its node list (parcel + road, searchable by propId / address / APN / road name), or inspect directly by id.'}
         </span>
       </div>
 
@@ -567,8 +810,12 @@ const NodeBrowser: React.FC<{
               <Card
                 key={c.fips}
                 asButton
-                onClick={() => onInputChange(`${c.fips}:`)}
-                title={`Seed ${c.county} (${c.fips}) into the id box — append a propId to inspect`}
+                onClick={() => onOpenCounty(c)}
+                title={
+                  nodeListSupported === false
+                    ? `Seed ${c.county} (${c.fips}) into the id box — append a propId to inspect`
+                    : `Open the ${c.county} (${c.fips}) node list`
+                }
                 testId={`county-row-${c.fips}`}
                 padding="8px 10px"
               >
@@ -576,7 +823,14 @@ const NodeBrowser: React.FC<{
                   <span style={{ ...typeTitle, fontSize: 'var(--type-body)' }}>
                     {c.county} <span style={{ ...mono, color: 'var(--color-text-tertiary)' }}>({c.fips})</span>
                   </span>
-                  <Pill sev={c.zoning_present_pct > 0 ? 'ok' : 'info'}>{c.zoning_present_pct}% zoned</Pill>
+                  {/* Labeling fix: the NUMBER is correct — TX counties don't zone
+                      unincorporated land, so a low % is honest coverage, not failure. */}
+                  <Pill
+                    sev={c.zoning_present_pct > 0 ? 'ok' : 'info'}
+                    title={`Only cities zone in TX; unincorporated county land is legitimately unzoned. ${fmtNum(c.zoning_present)} city-zoned · ${fmtNum(c.zoning_honest_absent_or_empty)} honestly unzoned.`}
+                  >
+                    {c.zoning_present_pct}% city-zoned
+                  </Pill>
                 </div>
                 <div
                   style={{
@@ -659,6 +913,17 @@ export const NodeGraph: React.FC = () => {
     if (hashParams.atoms === undefined) setAtomFamily(null)
     else setAtomFamily(hashParams.atoms === 'all' ? '' : hashParams.atoms)
   }, [hashParams.atoms])
+
+  // County node-list browse (CC-NAV). State mirrors hash `county=` (same
+  // local-state + hash-sync pattern as atomFamily above; no new store).
+  // nodeListSupported: null = not yet probed, false = GET /nodes list 404'd
+  // (endpoint not live yet) → roster-proxy fallback, true = live.
+  const [browseCounty, setBrowseCounty] = useState<string | null>(() => hashParams.county ?? null)
+  const [nodeListSupported, setNodeListSupported] = useState<boolean | null>(null)
+
+  useEffect(() => {
+    setBrowseCounty(hashParams.county ?? null)
+  }, [hashParams.county])
 
   useEffect(() => {
     if (inspectNodeId) setInputId(inspectNodeId)
@@ -803,19 +1068,60 @@ export const NodeGraph: React.FC = () => {
     selectPanel('node-graph', next)
   }
 
-  /** PORT of CT openAtomInspector — return=node-graph breadcrumb (WDLL 5). */
+  /** PORT of CT openAtomInspector — return=node-graph breadcrumb (WDLL 5).
+   *  Forwards the county list filters as return_* (Trading reference pattern)
+   *  so AtomInspector.closeDetail rebuilds the exact list the operator left. */
   const openAtomInspector = (atomId: string): void => {
     const nodeId = inspectNodeId ?? inputId.trim()
+    const returnList: Record<string, string> = {}
+    for (const k of NODE_LIST_HASH_KEYS) {
+      const v = hashParams[k]
+      if (v) returnList[`return_${k}`] = v
+    }
     selectPanel('atom-inspector', {
       id: atomId,
       return: 'node-graph',
       node: nodeId,
       atoms: atomFamily === '' ? 'all' : atomFamily ?? 'all',
+      ...returnList,
     })
   }
 
   const counties = tally?.centralTx?.counties ?? []
   const roadRollup = tally?.roadRollup
+
+  /** County roster click: open the county node list when the endpoint may be
+   *  live; when it 404'd, keep the legacy roster-proxy (seed the id box). */
+  const openCountyList = (c: CountyTallyRow): void => {
+    if (nodeListSupported === false) {
+      setInputId(`${c.fips}:`)
+      return
+    }
+    setBrowseCounty(c.fips)
+    selectPanel('node-graph', { county: c.fips })
+  }
+
+  /** GET /nodes list 404 → not live yet: fall back honestly (keep roster +
+   *  honest-empty note + id-box seeding), never a broken list view. */
+  const nodeListUnsupported = (fips: string): void => {
+    setNodeListSupported(false)
+    setBrowseCounty(null)
+    setInputId(`${fips}:`)
+    selectPanel('node-graph', {})
+  }
+
+  const closeCountyList = (): void => {
+    setBrowseCounty(null)
+    selectPanel('node-graph', {})
+  }
+
+  /** Node click in the county list → existing NodeInspect (inspectNode locks
+   *  hash node=; the persisted county/ntype/q/offset params survive the lock,
+   *  so back-nav restores the exact list). */
+  const openNodeFromList = (id: string): void => {
+    setInputId(id)
+    void inspectNode(id)
+  }
 
   return (
     <Panel
@@ -829,19 +1135,37 @@ export const NodeGraph: React.FC = () => {
     >
       <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
         {/* List ↔ detail toggle — the reference opens on a browse LIST, then
-            swaps the center for the node detail on selection. */}
+            swaps the center for the node detail on selection. Browse itself is
+            two levels: county roster → county node list (CC-NAV). */}
         {!inspectNodeId && !detail ? (
-          <NodeBrowser
-            counties={counties}
-            sampleRoads={roadRollup?.sampleNamed ?? []}
-            inputId={inputId}
-            loadingNode={loadingNode}
-            tallyLoading={!tally && !tallyError}
-            onInputChange={setInputId}
-            onInspect={(id) => void inspectNode(id)}
-            onLockMap={(id) => lockParcelNode(id, { panelId: 'site-analysis' })}
-            canLockMap={isCanonicalParcelNodeId(inputId)}
-          />
+          browseCounty && nodeListSupported !== false ? (
+            <CountyNodeList
+              key={browseCounty}
+              fips={browseCounty}
+              countyName={counties.find((c) => c.fips === browseCounty)?.county ?? null}
+              config={config}
+              hashParams={hashParams}
+              selectPanel={selectPanel}
+              onPickNode={openNodeFromList}
+              onBack={closeCountyList}
+              onUnsupported={() => nodeListUnsupported(browseCounty)}
+              onListLive={() => setNodeListSupported(true)}
+            />
+          ) : (
+            <NodeBrowser
+              counties={counties}
+              sampleRoads={roadRollup?.sampleNamed ?? []}
+              inputId={inputId}
+              loadingNode={loadingNode}
+              tallyLoading={!tally && !tallyError}
+              nodeListSupported={nodeListSupported}
+              onInputChange={setInputId}
+              onInspect={(id) => void inspectNode(id)}
+              onOpenCounty={openCountyList}
+              onLockMap={(id) => lockParcelNode(id, { panelId: 'site-analysis' })}
+              canLockMap={isCanonicalParcelNodeId(inputId)}
+            />
+          )
         ) : (
           <div>
             <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8 }}>
@@ -1020,7 +1344,12 @@ export const NodeGraph: React.FC = () => {
                     <th style={{ padding: '4px 6px' }}>Depth warm</th>
                     <th style={{ padding: '4px 6px' }}>Place-type</th>
                     <th style={{ padding: '4px 6px' }}>Refs</th>
-                    <th style={{ padding: '4px 6px' }}>Zoning breadth %</th>
+                    <th
+                      style={{ padding: '4px 6px', cursor: 'help', textDecoration: 'underline dotted' }}
+                      title="City-zoned share of county parcels. Only cities zone in TX; unincorporated county land is legitimately unzoned — a low % is honest coverage, not missing data."
+                    >
+                      Zoning breadth %
+                    </th>
                     <th style={{ padding: '4px 6px' }}>Depth place-type %</th>
                   </tr>
                 </thead>

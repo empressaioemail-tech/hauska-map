@@ -466,4 +466,34 @@ describe('parcel click-through', () => {
     fireEvent.click(await screen.findByText('Site analysis'))
     expect(window.location.hash).toContain('panel=site-analysis')
   })
+
+  // CC-NAV fix 1: map click → focus Node & Graph, via an explicit card action
+  // (click binds node= without yanking the panel; the card action does the jump).
+  it('offers "Open in Node & Graph →" when the feature carries the canonical node id; click focuses panel + node', async () => {
+    mockFetchByLayer({})
+    renderTile()
+    const withNode = {
+      ...SELECTION,
+      properties: { ...SELECTION.properties, parcel_node_id: '48209:12311' },
+    }
+    act(() => latestMapProps().onParcelSelect(withNode))
+
+    // The click itself binds the node on the hash bus (map → ledger, WDLL 4)…
+    await waitFor(() => expect(window.location.hash).toContain('node=48209%3A12311'))
+    // …without leaving the current panel.
+    expect(window.location.hash).not.toContain('panel=node-graph')
+
+    // The explicit action performs the focus jump.
+    fireEvent.click(await screen.findByTestId('open-in-node-graph'))
+    expect(window.location.hash).toContain('panel=node-graph')
+    expect(window.location.hash).toContain('node=48209%3A12311')
+  })
+
+  it('omits the Node & Graph action when the selection has no canonical node id', async () => {
+    mockFetchByLayer({})
+    renderTile()
+    act(() => latestMapProps().onParcelSelect(SELECTION))
+    await screen.findByTestId('parcel-info-card')
+    expect(screen.queryByTestId('open-in-node-graph')).not.toBeInTheDocument()
+  })
 })
