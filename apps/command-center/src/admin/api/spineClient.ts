@@ -103,11 +103,20 @@ export function authHeaders(config: SpineConfig): Record<string, string> {
   return h
 }
 
+/**
+ * ONE default spine-read timeout (single source of truth — timeout hardening).
+ * Callers passing an explicit timeoutMs are honored (default parameter, not a
+ * clamp); this constant exists so getJson/postJson and the atomTrace helpers
+ * stop carrying scattered 15/20/25s literals that silently disagree.
+ * Hard ceiling for default reads is 30s — do not raise this past 30_000.
+ */
+export const DEFAULT_SPINE_TIMEOUT_MS = 25_000
+
 /** GET a JSON endpoint with a hard timeout; returns {ok, status, json, error}. */
 export async function getJson<T = unknown>(
   url: string,
   config: SpineConfig,
-  timeoutMs = 20_000,
+  timeoutMs = DEFAULT_SPINE_TIMEOUT_MS,
 ): Promise<{ ok: boolean; status: number; json: T | null; error?: string }> {
   const controller = new AbortController()
   const timer = setTimeout(() => controller.abort(), timeoutMs)
@@ -156,7 +165,7 @@ export async function postJson<T = unknown>(
   url: string,
   config: SpineConfig,
   body: unknown,
-  timeoutMs = 20_000,
+  timeoutMs = DEFAULT_SPINE_TIMEOUT_MS,
 ): Promise<{ ok: boolean; status: number; json: T | null; error?: string }> {
   const controller = new AbortController()
   const timer = setTimeout(() => controller.abort(), timeoutMs)

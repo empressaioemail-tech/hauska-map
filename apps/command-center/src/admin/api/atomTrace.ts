@@ -8,7 +8,7 @@
 //   - Node & Graph tally: GET {retrieval}/stats/central-tx-node-graph
 // Bearer attached by the /api/spine/retrieval proxy.
 
-import { getJson, type SpineConfig } from './spineClient'
+import { getJson, DEFAULT_SPINE_TIMEOUT_MS, type SpineConfig } from './spineClient'
 
 export interface AtomTraceResult {
   ok: boolean
@@ -153,7 +153,7 @@ export type ChainSlotStatus = 'present' | 'honest-empty' | 'missing'
 export async function fetchAtomTrace(
   atomDid: string,
   config: SpineConfig,
-  timeoutMs = 15_000,
+  timeoutMs = DEFAULT_SPINE_TIMEOUT_MS,
 ): Promise<AtomTraceResult> {
   const retrievalUrl = config.retrievalApiUrl?.replace(/\/$/, '') || ''
   if (!retrievalUrl) {
@@ -185,7 +185,7 @@ function sleep(ms: number): Promise<void> {
 export async function fetchPropertyAtomChain(
   parcelNodeId: string,
   config: SpineConfig,
-  timeoutMs = 25_000,
+  timeoutMs = DEFAULT_SPINE_TIMEOUT_MS,
 ): Promise<AtomTraceResult> {
   const retrievalUrl = config.retrievalApiUrl?.replace(/\/$/, '') || ''
   if (!retrievalUrl) {
@@ -217,7 +217,7 @@ export function isCanonicalRoadNodeId(value: unknown): value is string {
 export async function fetchRoadAtomChain(
   roadNodeId: string,
   config: SpineConfig,
-  timeoutMs = 20_000,
+  timeoutMs = DEFAULT_SPINE_TIMEOUT_MS,
 ): Promise<AtomTraceResult> {
   const retrievalUrl = config.retrievalApiUrl?.replace(/\/$/, '') || ''
   if (!retrievalUrl) {
@@ -343,7 +343,7 @@ export interface BoundaryEdgesListBody {
 export async function fetchPropertyNodeDetail(
   nodeId: string,
   config: SpineConfig,
-  timeoutMs = 25_000,
+  timeoutMs = DEFAULT_SPINE_TIMEOUT_MS,
 ): Promise<AtomTraceResult & { json: PropertyNodeDetailBody | null }> {
   const retrievalUrl = config.retrievalApiUrl?.replace(/\/$/, '') || ''
   if (!retrievalUrl) {
@@ -369,7 +369,7 @@ export async function fetchPropertyNodeDetail(
 export async function fetchBoundaryEdges(
   parcelNodeId: string,
   config: SpineConfig,
-  timeoutMs = 20_000,
+  timeoutMs = DEFAULT_SPINE_TIMEOUT_MS,
 ): Promise<AtomTraceResult & { json: BoundaryEdgesListBody | null }> {
   const retrievalUrl = config.retrievalApiUrl?.replace(/\/$/, '') || ''
   if (!retrievalUrl) {
@@ -384,6 +384,74 @@ export async function fetchBoundaryEdges(
     config,
     timeoutMs,
   )
+}
+
+// ── CC-NAV — county node LIST (pinned spine contract; may 404 until live) ──
+//
+// GET {retrieval}/nodes?county=<5-digit fips>&nodeType=parcel|road&q=<search>
+//     &limit=50&offset=0
+// 200 → { available, county, nodeType, nodes:[{node_id, node_type, display_name,
+//         identifiers:{propId?,address?,apn?,roadName?}, atom_families?}],
+//         total, limit, offset }
+//
+// The endpoint is being built in parallel: 404 means NOT LIVE YET, and the
+// browser falls back to the county-roster proxy + honest-empty note. Do not
+// treat 404 as an error state — feature-detect.
+
+export const NODE_LIST_PAGE = 50
+
+export interface NodeListIdentifiers {
+  propId?: string
+  address?: string
+  apn?: string
+  roadName?: string
+}
+
+export interface NodeListItem {
+  node_id: string
+  node_type: 'parcel' | 'road' | string
+  display_name: string | null
+  identifiers?: NodeListIdentifiers
+  /** Contract leaves shape open — render defensively (array or counts map). */
+  atom_families?: string[] | Record<string, number>
+}
+
+export interface NodeListBody {
+  available: boolean
+  reason?: string | null
+  county: string
+  nodeType: string
+  nodes: NodeListItem[]
+  total: number
+  limit: number
+  offset: number
+}
+
+/**
+ * County-scoped node list with server-side multi-identifier search (q matches
+ * propId / address / apn / roadName upstream). Faithful port of the Trading
+ * Control Tower GET /admin/nodes list read.
+ */
+export async function fetchNodeList(
+  args: { county: string; nodeType: 'parcel' | 'road'; q?: string; limit?: number; offset?: number },
+  config: SpineConfig,
+  timeoutMs = DEFAULT_SPINE_TIMEOUT_MS,
+): Promise<AtomTraceResult & { json: NodeListBody | null }> {
+  const retrievalUrl = config.retrievalApiUrl?.replace(/\/$/, '') || ''
+  if (!retrievalUrl) {
+    return { ok: false, status: 0, json: null, error: 'No retrieval API URL configured' }
+  }
+  const county = args.county.trim()
+  if (!/^\d{5}$/.test(county)) {
+    return { ok: false, status: 0, json: null, error: 'county must be a 5-digit fips' }
+  }
+  const sp = new URLSearchParams()
+  sp.set('county', county)
+  sp.set('nodeType', args.nodeType)
+  if (args.q?.trim()) sp.set('q', args.q.trim())
+  sp.set('limit', String(args.limit ?? NODE_LIST_PAGE))
+  sp.set('offset', String(args.offset ?? 0))
+  return getJson<NodeListBody>(`${retrievalUrl}/nodes?${sp.toString()}`, config, timeoutMs)
 }
 
 // ── CC-A U2 / WDLL 3+4+5 — node atoms list + atom-by-did inspector ──
@@ -465,7 +533,7 @@ function summaryFromPayload(payload: Record<string, unknown>, fallbackFamily: st
 export async function fetchAtomByDid(
   atomDid: string,
   config: SpineConfig,
-  timeoutMs = 20_000,
+  timeoutMs = DEFAULT_SPINE_TIMEOUT_MS,
 ): Promise<AtomTraceResult & { json: AtomByDidBody | null }> {
   const retrievalUrl = config.retrievalApiUrl?.replace(/\/$/, '') || ''
   if (!retrievalUrl) {
@@ -491,7 +559,7 @@ export async function fetchNodeAtoms(
   nodeId: string,
   family: string,
   config: SpineConfig,
-  timeoutMs = 20_000,
+  timeoutMs = DEFAULT_SPINE_TIMEOUT_MS,
 ): Promise<AtomTraceResult & { json: NodeAtomsListBody | null }> {
   const id = nodeId.trim()
   if (!id) {
