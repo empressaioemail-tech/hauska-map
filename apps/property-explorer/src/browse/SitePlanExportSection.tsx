@@ -245,6 +245,16 @@ export function SitePlanExportSection({
             </div>
           )}
 
+          {result.setbackHonestAbsence && (
+            <div
+              data-testid="site-plan-setback-absence"
+              style={{ marginTop: 6, fontSize: 10, color: MUTED, lineHeight: 1.4 }}
+            >
+              Setback layer: {result.setbackHonestAbsenceReason ??
+                "no setback rule on file for this parcel — setbacks not specified here and not verified."}
+            </div>
+          )}
+
           {result.setbackDegenerate && (
             <div
               data-testid="site-plan-setback-degenerate"

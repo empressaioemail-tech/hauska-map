@@ -72,6 +72,11 @@ export interface SitePlanExportBffResponse {
   /** Honesty flags passed through verbatim from the engine — never hidden. */
   setbackDegenerate?: boolean
   setbackDegenerateReason?: string
+  /** True when NO setback-rule atom was on file. The sheet still exported —
+   * the setback layer is honest-absent, NOT an error. PE must surface this as
+   * an honest "setbacks not specified" note, never as an export failure. */
+  setbackHonestAbsence?: boolean
+  setbackHonestAbsenceReason?: string
   streetHonestAbsence?: boolean
   zoningHonestAbsence?: boolean
   floodZoneHonestUnavailable?: boolean
@@ -173,6 +178,14 @@ export function mapMcpSitePlanPayload(
     setbackDegenerateReason:
       typeof flagsSource.setbackDegenerateReason === 'string'
         ? flagsSource.setbackDegenerateReason
+        : undefined,
+    setbackHonestAbsence:
+      typeof flagsSource.setbackHonestAbsence === 'boolean'
+        ? flagsSource.setbackHonestAbsence
+        : undefined,
+    setbackHonestAbsenceReason:
+      typeof flagsSource.setbackHonestAbsenceReason === 'string'
+        ? flagsSource.setbackHonestAbsenceReason
         : undefined,
     streetHonestAbsence:
       typeof flagsSource.streetHonestAbsence === 'boolean' ? flagsSource.streetHonestAbsence : undefined,

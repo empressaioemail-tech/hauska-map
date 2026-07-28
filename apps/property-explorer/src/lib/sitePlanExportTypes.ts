@@ -52,6 +52,9 @@ export interface SitePlanExportBffResponse {
   inlineDownload?: SitePlanExportInlineDownload
   setbackDegenerate?: boolean
   setbackDegenerateReason?: string
+  /** No setback-rule atom on file — sheet exported honest-absent, NOT an error. */
+  setbackHonestAbsence?: boolean
+  setbackHonestAbsenceReason?: string
   streetHonestAbsence?: boolean
   zoningHonestAbsence?: boolean
   floodZoneHonestUnavailable?: boolean
