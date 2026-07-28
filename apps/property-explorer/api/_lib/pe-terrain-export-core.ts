@@ -214,7 +214,12 @@ export function buildTerrainEngineGateHeaders(opts?: {
  * user-visible message instead of mislabelling a 401 gate/auth rejection as
  * "Engine API unreachable". Mirrors pe-site-plan-export-core.classifyEngineFailure.
  */
-export type EngineFailureKind = 'gate' | 'payment' | 'unreachable' | 'other'
+export type EngineFailureKind =
+  | 'gate'
+  | 'payment'
+  | 'engine_timeout'
+  | 'unreachable'
+  | 'other'
 
 export function classifyEngineFailure(input: {
   status?: number | null
@@ -226,21 +231,30 @@ export function classifyEngineFailure(input: {
   if (status === 402 || /payment_required|paid x-hauska-key|public-paid|anonymous and free|upgrade or retry after quota|metering denied/.test(message)) {
     return 'payment'
   }
-  if (
-    status === 401 ||
-    status === 403 ||
-    /gate_front_context_required|gate-front|missing or invalid gate|unauthorized|forbidden|invalid.*(gate|credential|token|key)|requires engine-api/.test(
-      message,
-    )
-  ) {
+  if (status === 401 || status === 403) {
     return 'gate'
   }
+  // Timeout-shaped messages are checked BEFORE the gate patterns so no
+  // timeout text can ever classify as a gate/auth failure.
+  if (/timed out|timeout\b|aborted|aborterror/.test(message)) {
+    return 'engine_timeout'
+  }
+  // Connect/network failures — including the old MCP "Engine API
+  // unreachable ... requires engine-api" suffix, which must NOT read as
+  // a gate failure (it is usually a timeout wearing an unreachable coat).
   if (
-    /unreachable|econnrefused|econnreset|etimedout|enotfound|eai_again|fetch failed|network|socket hang up|timed out|timeout|aborted/.test(
+    /unreachable|econnrefused|econnreset|etimedout|enotfound|eai_again|fetch failed|network|socket hang up|requires engine-api/.test(
       message,
     )
   ) {
     return 'unreachable'
+  }
+  if (
+    /gate_front_context_required|gate-front|missing or invalid gate|unauthorized|forbidden|invalid.*(gate|credential|token|key)/.test(
+      message,
+    )
+  ) {
+    return 'gate'
   }
   return 'other'
 }
@@ -248,6 +262,51 @@ export function classifyEngineFailure(input: {
 /** Honest, actionable message for a gate/auth failure reaching engine-api. */
 export const ENGINE_GATE_TOKEN_MESSAGE =
   'Terrain export needs an engine-api gate token (server config) — HAUSKA_ENGINE_API_KEY / gate-front context not set or not accepted.'
+
+/** Honest customer message for an engine timeout (usually a cold start). */
+export const ENGINE_TIMEOUT_RETRY_MESSAGE =
+  'Terrain export engine timed out — this usually means a cold start. Try the export again in a moment.'
+
+/** Honest customer message for a genuine connect failure. */
+export const ENGINE_UNREACHABLE_RETRY_MESSAGE =
+  'Terrain export engine did not respond — it may be restarting. Try the export again in a moment.'
+
+/**
+ * 503 + retryable body for the transient engine failure classes
+ * (timeout / unreachable); null for everything else so callers keep
+ * their existing gate/payment/other handling.
+ */
+export function retryableEngineFailureResponse(
+  kind: EngineFailureKind,
+  detail: string,
+): {
+  status: 503
+  body: { error: string; message: string; retryable: true; detail: string }
+} | null {
+  if (kind === 'engine_timeout') {
+    return {
+      status: 503,
+      body: {
+        error: 'engine_timeout',
+        message: ENGINE_TIMEOUT_RETRY_MESSAGE,
+        retryable: true,
+        detail,
+      },
+    }
+  }
+  if (kind === 'unreachable') {
+    return {
+      status: 503,
+      body: {
+        error: 'engine_unreachable',
+        message: ENGINE_UNREACHABLE_RETRY_MESSAGE,
+        retryable: true,
+        detail,
+      },
+    }
+  }
+  return null
+}
 
 /** Honest message when the gate token env is entirely absent at request time. */
 export const ENGINE_GATE_TOKEN_MISSING_MESSAGE =

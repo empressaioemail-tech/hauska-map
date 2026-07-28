@@ -6,11 +6,14 @@ import { describe, expect, it } from 'vitest'
 import {
   buildDownloadPath,
   buildTerrainEngineGateHeaders,
+  classifyEngineFailure,
+  ENGINE_TIMEOUT_RETRY_MESSAGE,
   extractInlineDownload,
   isValidParcelNodeId,
   mapMcpTerrainPayload,
   parseTerrainFormat,
   resolveTerrainExportAuth,
+  retryableEngineFailureResponse,
 } from '../../api/_lib/pe-terrain-export-core.js'
 
 describe('terrain export core', () => {
@@ -183,5 +186,39 @@ describe('terrain export core', () => {
     expect(headers['x-hauska-gate-credential-id']).toBe('pe-bff')
     expect(headers['x-hauska-request-id']).toBe('req-test-1')
     expect(headers['X-Hauska-Package']).toBeUndefined()
+  })
+
+  it('TIMEOUT FIX: mirrors site-plan classifier — timeout/unreachable never classify as gate', () => {
+    expect(
+      classifyEngineFailure({
+        message:
+          'Engine API call timed out after 45000ms at .../terrain-export/download. The engine may be cold-starting; retry the download in a moment.',
+      }),
+    ).toBe('engine_timeout')
+    expect(
+      classifyEngineFailure({
+        message:
+          'Engine API unreachable at .../terrain-export/refresh. Terrain export requires engine-api.',
+      }),
+    ).toBe('unreachable')
+    expect(classifyEngineFailure({ status: 401 })).toBe('gate')
+    expect(
+      classifyEngineFailure({ message: 'gate_front_context_required' }),
+    ).toBe('gate')
+  })
+
+  it('TIMEOUT FIX: retryableEngineFailureResponse returns 503 retryable for transient kinds', () => {
+    const timeout = retryableEngineFailureResponse('engine_timeout', 'timed out after 45000ms')
+    expect(timeout?.status).toBe(503)
+    expect(timeout?.body.error).toBe('engine_timeout')
+    expect(timeout?.body.retryable).toBe(true)
+    expect(timeout?.body.message).toBe(ENGINE_TIMEOUT_RETRY_MESSAGE)
+
+    const unreachable = retryableEngineFailureResponse('unreachable', 'ECONNREFUSED')
+    expect(unreachable?.status).toBe(503)
+    expect(unreachable?.body.error).toBe('engine_unreachable')
+
+    expect(retryableEngineFailureResponse('gate', 'x')).toBe(null)
+    expect(retryableEngineFailureResponse('other', 'x')).toBe(null)
   })
 })
