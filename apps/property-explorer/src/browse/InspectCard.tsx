@@ -301,6 +301,11 @@ export function InspectCard({
               testid="inspect-landuse"
             />
             <Row label="County" value={card.county} />
+            {/* No acreage row on the LIVE fallback: ParcelCardData carries no
+                acreage field and the live envelope compose returns no lot
+                acreage — rendering one would require fabricating or newly
+                fetching a value (honesty commitment #1). The baked branch
+                above renders acreage from the baked base facts. */}
             <Row
               label="Zoning"
               value={env.district ?? (env.status === "loading" ? "…" : null)}

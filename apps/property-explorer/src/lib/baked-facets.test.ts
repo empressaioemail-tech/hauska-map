@@ -35,9 +35,13 @@ describe("deriveBakedCardModel — present facets", () => {
   it("marks real content as present with rendered values", () => {
     const m = deriveBakedCardModel(fullPayload);
     expect(m.apn).toEqual({ state: "present", value: "10068" });
-    expect(m.landUse).toEqual({ state: "present", value: "Single-family residential" });
+    // Land-use renders code + description + inline provenance caption.
+    expect(m.landUse).toEqual({
+      state: "present",
+      value: "A1 — Single-family residential (cad-roll)",
+    });
     expect(m.zoning).toEqual({ state: "present", value: "R-1" });
-    expect(m.acreage.state).toBe("present");
+    expect(m.acreage).toEqual({ state: "present", value: "0.2388 ac" });
     expect(m.setbacks).toEqual({ state: "present", value: "F 35′ · S 20′ · R 30′" });
     expect(m.buildablePct).toEqual({ state: "present", value: "62%" });
     expect(m.envelopeApproximate).toBe(true);
@@ -53,6 +57,92 @@ describe("deriveBakedCardModel — present facets", () => {
     const m = deriveBakedCardModel(withOwner);
     expect(JSON.stringify(m)).not.toMatch(/owner/i);
     expect(JSON.stringify(m)).not.toMatch(/SHOULD NOT LEAK/);
+  });
+});
+
+describe("deriveBakedCardModel — present values are trusted over coverage flags", () => {
+  it("renders land use + acreage when the values are present but coverage says false", () => {
+    // The bug this locks: a baked payload carrying real baseFacts.landUse and
+    // baseFacts.acreage was forced to "not verified here" whenever the
+    // facetCoverage boolean was false/missing. Present values must render.
+    const covFalse: BakedFacetPayload = {
+      parcelNodeId: "48055:10068",
+      countyName: "Caldwell",
+      baseFacts: {
+        apn: "10068",
+        landUse: {
+          code: "A1",
+          description: "Single-family residential",
+          source: "cad-roll",
+          vintage: "2024",
+        },
+        acreage: { value: 1.23, sqft: 53579, method: "cad-roll" },
+      },
+      facetCoverage: { baseFacts: true, landUse: false, acreage: false },
+    };
+    const m = deriveBakedCardModel(covFalse);
+    expect(m.landUse).toEqual({
+      state: "present",
+      value: "A1 — Single-family residential (cad-roll · 2024)",
+    });
+    expect(m.acreage).toEqual({ state: "present", value: "1.23 ac (cad-roll)" });
+  });
+
+  it("renders present values when facetCoverage is entirely missing", () => {
+    const noCov: BakedFacetPayload = {
+      parcelNodeId: "48055:10068",
+      baseFacts: {
+        landUse: { code: "A1" },
+        acreage: { value: 0.5 },
+      },
+    };
+    const m = deriveBakedCardModel(noCov);
+    expect(m.landUse).toEqual({ state: "present", value: "A1" });
+    expect(m.acreage).toEqual({ state: "present", value: "0.5 ac" });
+  });
+
+  it("caption formatting: code-only, description-only, partial provenance", () => {
+    const descOnly = deriveBakedCardModel({
+      baseFacts: { landUse: { code: "", description: "Commercial", vintage: "2023" } },
+    } as BakedFacetPayload);
+    expect(descOnly.landUse).toEqual({ state: "present", value: "Commercial (2023)" });
+
+    const codeOnly = deriveBakedCardModel({
+      baseFacts: { landUse: { code: "B2", source: "cad-roll" } },
+    });
+    expect(codeOnly.landUse).toEqual({ state: "present", value: "B2 (cad-roll)" });
+  });
+
+  it("coverage=true with a NULL value is honest-absent with covered wording — never a default", () => {
+    const coveredButNull: BakedFacetPayload = {
+      parcelNodeId: "48055:1",
+      baseFacts: { apn: "1", landUse: null, acreage: null },
+      facetCoverage: { baseFacts: true, landUse: true, acreage: true },
+    };
+    const m = deriveBakedCardModel(coveredButNull);
+    expect(m.landUse.state).toBe("absent");
+    expect(m.landUse.value).toBe("no land-use value on record here");
+    expect(m.acreage.state).toBe("absent");
+    expect(m.acreage.value).toBe("no acreage value on record here");
+  });
+
+  it("absent stays absent: null values + falsy coverage keep the default not-verified treatment", () => {
+    const trulyAbsent: BakedFacetPayload = {
+      parcelNodeId: "48091:2",
+      baseFacts: { apn: "2", landUse: null, acreage: null },
+      facetCoverage: { baseFacts: true, landUse: false, acreage: false },
+    };
+    const m = deriveBakedCardModel(trulyAbsent);
+    expect(m.landUse).toEqual({ state: "absent", value: null });
+    expect(m.acreage).toEqual({ state: "absent", value: null });
+  });
+
+  it("a non-numeric acreage value never fabricates a rendered acreage", () => {
+    const bogus = deriveBakedCardModel({
+      baseFacts: { acreage: { value: NaN } },
+    } as BakedFacetPayload);
+    expect(bogus.acreage.state).toBe("absent");
+    expect(bogus.acreage.value).toBeNull();
   });
 });
 
