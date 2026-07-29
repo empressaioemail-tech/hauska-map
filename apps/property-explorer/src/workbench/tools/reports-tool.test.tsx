@@ -82,26 +82,37 @@ const TERRAIN_STATE: TerrainExportSectionState = {
   },
 };
 
-describe("reports tool — both exports render in the dock", () => {
-  it("renders the site-plan AND terrain export sections with pickers + run buttons", () => {
+describe("reports tool — all three report sections render in the dock", () => {
+  it("renders the site-plan, FLOOD & DRAINAGE (FD2), and terrain sections", () => {
     const html = render({ activeParcelNodeId: "48021:123" });
     expect(html).toContain('data-tool="reports"');
     expect(html).toContain('data-testid="reports-tool"');
     expect(html).toContain('data-testid="site-plan-export-section"');
+    expect(html).toContain('data-testid="flood-drainage-section"');
     expect(html).toContain('data-testid="terrain-export-section"');
     expect(html).toContain('data-testid="site-plan-format-picker"');
     expect(html).toContain('data-testid="terrain-format-picker"');
     expect(html).toContain('data-testid="site-plan-export-run"');
+    expect(html).toContain('data-testid="flood-run"');
     expect(html).toContain('data-testid="terrain-export-run"');
+    // Section ORDER: the two $15-scope reports first, Pro-only terrain last.
+    expect(html.indexOf('data-testid="site-plan-export-section"')).toBeLessThan(
+      html.indexOf('data-testid="flood-drainage-section"'),
+    );
+    expect(html.indexOf('data-testid="flood-drainage-section"')).toBeLessThan(
+      html.indexOf('data-testid="terrain-export-section"'),
+    );
     // Fresh property: no stale results.
     expect(html).not.toContain('data-testid="site-plan-download-link"');
     expect(html).not.toContain('data-testid="terrain-download-link"');
+    expect(html).not.toContain('data-testid="flood-result"');
   });
 
   it("no active property → the honest select-first state, no export UI", () => {
     const html = render({ activeParcelNodeId: null });
     expect(html).toContain('data-testid="dock-no-property"');
     expect(html).not.toContain('data-testid="site-plan-export-section"');
+    expect(html).not.toContain('data-testid="flood-drainage-section"');
     expect(html).not.toContain('data-testid="terrain-export-section"');
   });
 });

@@ -108,6 +108,19 @@ export interface WorkbenchHostActions {
     fc: { type: "FeatureCollection"; features: unknown[] } | null,
     forParcelNodeId?: string,
   ) => void;
+  /**
+   * FLOOD & DRAINAGE 10x: render the drainage study ON the main map (the
+   * water-gradient raster / fallback fills + flow arrows + catchment glow),
+   * or clear it with null. `forParcelNodeId` records which property the
+   * overlay belongs to — the app shell auto-clears when the ACTIVE property
+   * switches (the showDossierDrawings lifecycle precedent); the tool's own
+   * effect cleanup clears on tool close / study replacement. The study is
+   * passed verbatim — the overlay module feature-detects `gradient`.
+   */
+  setFloodMapOverlay?: (
+    study: import("../lib/floodDrainageClient").FloodDrainageStudyView | null,
+    forParcelNodeId?: string,
+  ) => void;
 }
 
 /** One bubble in the top-right cluster. */
