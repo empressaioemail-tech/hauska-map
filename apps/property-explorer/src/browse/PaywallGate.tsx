@@ -1,25 +1,39 @@
+// apps/property-explorer/src/browse/PaywallGate.tsx
+//
+// R1 PAYWALL — the unlock MODAL (the reactive server-402 belt). Renders the
+// SAME unified two-choice unlock flow the in-dock locked states use
+// (UnlockFlow.tsx) — one flow everywhere, never a different wall per bubble.
+// The old Pro-hardcoded copy ("R1–R10 … Pro entitlement" + checkout-mode
+// note) is REPLACED by the value line the triggering bubble passes plus the
+// two purchase units from the pricing config.
+
+import { UnlockChoices } from "./UnlockFlow";
+
 const PANEL_BG = "rgba(13,17,23,0.96)";
-const ACCENT = "#7dd3fc";
 const MUTED = "#8b97a5";
 
 export function PaywallGate({
-  message,
-  checkoutNote,
-  onUpgrade,
+  parcelNodeId,
+  valueLine,
+  proOnly,
+  statusNote,
   onClose,
-  busy,
 }: {
-  message: string;
-  checkoutNote?: string | null;
-  onUpgrade: () => void;
+  /** The active property the unlock applies to (null → Pro checkout only). */
+  parcelNodeId: string | null;
+  /** What the locked capability is worth — set by the bubble that gated. */
+  valueLine: string;
+  /** Pro-only feature (terrain): the flow offers ONLY the Pro choice. */
+  proOnly?: boolean;
+  /** Honest status footnote (e.g. ICC citation licensing state). */
+  statusNote?: string | null;
   onClose: () => void;
-  busy?: boolean;
 }) {
   return (
     <div
       role="dialog"
       aria-modal="true"
-      aria-label="Unlock deep research"
+      aria-label="Unlock property tools"
       data-testid="paywall-gate"
       style={{
         position: "absolute",
@@ -34,7 +48,7 @@ export function PaywallGate({
     >
       <div
         style={{
-          width: "min(380px, 100%)",
+          width: "min(400px, 100%)",
           padding: "20px 18px",
           borderRadius: 12,
           background: PANEL_BG,
@@ -44,44 +58,30 @@ export function PaywallGate({
         }}
       >
         <div style={{ fontWeight: 700, fontSize: 16, marginBottom: 8 }}>
-          Deep research is paywalled
+          {proOnly ? "This is a Pro feature" : "Unlock this property's tools"}
         </div>
         <p style={{ margin: "0 0 14px", fontSize: 13, lineHeight: 1.5, color: "#c6d0dc" }}>
-          {message}
+          {valueLine}
         </p>
-        {checkoutNote && (
+        <UnlockChoices
+          parcelNodeId={parcelNodeId}
+          proOnly={proOnly}
+          onUnlocked={onClose}
+        />
+        {statusNote ? (
           <p
-            data-testid="checkout-honest-note"
-            style={{ margin: "0 0 14px", fontSize: 11.5, color: MUTED, lineHeight: 1.45 }}
+            data-testid="paywall-status-note"
+            style={{ margin: "10px 0 0", fontSize: 10.5, color: MUTED, lineHeight: 1.45 }}
           >
-            {checkoutNote}
+            {statusNote}
           </p>
-        )}
-        <button
-          type="button"
-          data-testid="paywall-upgrade"
-          disabled={busy}
-          onClick={onUpgrade}
-          style={{
-            width: "100%",
-            padding: "10px 12px",
-            borderRadius: 8,
-            border: "none",
-            background: ACCENT,
-            color: "#0d1117",
-            fontWeight: 700,
-            cursor: busy ? "default" : "pointer",
-            opacity: busy ? 0.7 : 1,
-          }}
-        >
-          {busy ? "Starting checkout…" : "Upgrade for deep research"}
-        </button>
+        ) : null}
         <button
           type="button"
           onClick={onClose}
           style={{
             width: "100%",
-            marginTop: 8,
+            marginTop: 10,
             padding: "8px 12px",
             borderRadius: 8,
             border: "0.5px solid rgba(154,166,178,0.35)",
@@ -90,7 +90,7 @@ export function PaywallGate({
             cursor: "pointer",
           }}
         >
-          Keep browsing
+          Keep browsing — the map and inspect card stay free
         </button>
       </div>
     </div>

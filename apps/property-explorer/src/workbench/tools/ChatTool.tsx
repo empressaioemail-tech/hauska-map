@@ -30,13 +30,18 @@
 
 import { useCallback, useEffect, useRef, useState } from "react";
 import type { CSSProperties, KeyboardEvent } from "react";
+import { googleSignInUrl } from "../../lib/auth";
+import { invalidatePropertyEntitlement } from "../../lib/entitlementClient";
 import { recordPeGtmEvent } from "../../lib/gtmClient";
+import { usePropertyEntitlement } from "../../lib/usePropertyEntitlement";
 import { useDockToolState, useWorkbench } from "../WorkbenchContext";
 import type { BriefToolStoredState } from "./BriefTool";
+import { LockedToolPanel } from "./LockedToolPanel";
 import {
   buildChatSubjectFromFacets,
   chatOutcomeNotice,
-  CHAT_PAYWALL_MESSAGE,
+  CHAT_FREE_EXHAUSTED_MESSAGE,
+  CHAT_SUMMARY_LOCK_MESSAGE,
   getChatPropertyFacets,
   INVESTOR_STARTER_PROMPTS,
   runChatTurn,
@@ -290,6 +295,12 @@ const starterChipStyle: CSSProperties = {
 
 export function ChatTool() {
   const { activeParcelNodeId, host } = useWorkbench();
+  // R1 PROACTIVE entitlement: chat is PARTIALLY free — 3 signed-in free
+  // messages per property (server-counted), then the wall. Entitled ($15
+  // unlock or Pro) chats without limits. loading/error never blocks — the
+  // server-402 belt stays authoritative.
+  const ent = usePropertyEntitlement(activeParcelNodeId);
+  const chatWalled = ent.locked && ent.freeMessagesLeft <= 0;
   const [stored, setStored] = useDockToolState<ChatToolStoredState>("chat");
   // Read-only view of the BRIEF tool's stored state for the SAME property —
   // the chassis store is shared, keyed (property, toolId). Fuels areaContext.
@@ -373,6 +384,9 @@ export function ChatTool() {
         // Persist even if the dock closed mid-flight — setStored is bound to
         // the property this send STARTED for and the store outlives the mount.
         setStored({ turns: [...withUser, answerTurn(outcome.answer)] });
+        // A free (not-entitled) answer consumed a server-counted message —
+        // refresh the proactive read so the remaining-messages line is true.
+        if (!ent.entitled) invalidatePropertyEntitlement(activeParcelNodeId);
         if (mountedRef.current) setPhase({ kind: "idle" });
         return;
       }
@@ -382,7 +396,10 @@ export function ChatTool() {
           eventType: "pe_paywall_hit",
           parcelNodeId: activeParcelNodeId,
         });
-        host.openPaywall(CHAT_PAYWALL_MESSAGE);
+        // The server said 402 — refresh the proactive read (the wall renders
+        // from it) and open the unified unlock flow with the honest reason.
+        invalidatePropertyEntitlement(activeParcelNodeId);
+        host.openPaywall(chatOutcomeNotice(outcome));
       }
       if (!mountedRef.current) return;
       setPhase({
@@ -402,7 +419,7 @@ export function ChatTool() {
       });
     },
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    [activeParcelNodeId, stored, briefStored, host, setStored],
+    [activeParcelNodeId, stored, briefStored, host, setStored, ent.entitled],
   );
 
   // WB6 — SAVE TO PROPERTY: store the thread (capped) into the saved
@@ -620,7 +637,9 @@ export function ChatTool() {
         )}
       </div>
 
-      {/* WB6 — SAVE TO PROPERTY (visible once a thread exists). */}
+      {/* WB6 — SAVE TO PROPERTY (visible once a thread exists). R1: the AI
+          summary is PAID chat — not entitled → the button is a lock that
+          opens the unified unlock flow (server 402 stays the belt). */}
       {turns.length > 0 && (
         <div
           data-testid="chat-save-row"
@@ -634,8 +653,15 @@ export function ChatTool() {
           <button
             type="button"
             data-testid="chat-save-to-property"
+            data-locked={ent.locked ? "true" : "false"}
             disabled={saveBusy || phase.kind === "sending"}
-            onClick={() => void handleSaveToProperty()}
+            onClick={() => {
+              if (ent.locked) {
+                host.openPaywall(CHAT_SUMMARY_LOCK_MESSAGE);
+                return;
+              }
+              void handleSaveToProperty();
+            }}
             style={{
               fontSize: 10.5,
               color: ACCENT,
@@ -647,7 +673,11 @@ export function ChatTool() {
               opacity: saveBusy ? 0.6 : 1,
             }}
           >
-            {saveBusy ? "Saving…" : "Save to property"}
+            {saveBusy
+              ? "Saving…"
+              : ent.locked
+                ? "Save to property (unlock)"
+                : "Save to property"}
           </button>
           {saveStatus && (
             <span
@@ -682,6 +712,50 @@ export function ChatTool() {
         </div>
       )}
 
+      {/* R1 sign-in-first (signed-out): the free chat taste needs a FREE
+          account (signed-in-free ruling) — say so up front; the map and
+          inspect card stay anonymous. The composer stays; the server-401
+          reactive path still answers if they try anyway. */}
+      {ent.signedOut && (
+        <p
+          data-testid="chat-sign-in-first"
+          style={{ margin: 0, fontSize: 10.5, color: MUTED }}
+        >
+          Sign in free to chat — {ent.freeMessagesLimit} free messages on every
+          property.{" "}
+          <a
+            href={googleSignInUrl()}
+            data-testid="chat-sign-in-first-link"
+            style={{ color: ACCENT }}
+          >
+            Sign in
+          </a>
+        </p>
+      )}
+
+      {/* R1 free-message meter — subtle, only while on the free allowance. */}
+      {ent.locked && !chatWalled && (
+        <p
+          data-testid="chat-free-remaining"
+          style={{ margin: 0, fontSize: 10.5, color: MUTED }}
+        >
+          {ent.freeMessagesLeft === 1
+            ? "1 free message left on this property"
+            : `${ent.freeMessagesLeft} free messages left on this property`}
+        </p>
+      )}
+
+      {/* R1 THE WALL — free messages exhausted: the composer is replaced by
+          the unified unlock flow (never a broken/empty state; the thread
+          above stays readable). */}
+      {chatWalled ? (
+        <LockedToolPanel
+          parcelNodeId={activeParcelNodeId}
+          valueLine={CHAT_FREE_EXHAUSTED_MESSAGE}
+          testId="chat-wall"
+        />
+      ) : (
+      <>
       {/* THE COMPOSER — pinned at the dock bottom; Enter sends. */}
       <div style={{ display: "flex", gap: 6 }}>
         <input
@@ -724,6 +798,8 @@ export function ChatTool() {
           Send
         </button>
       </div>
+      </>
+      )}
     </div>
   );
 }

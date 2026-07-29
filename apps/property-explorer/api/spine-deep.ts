@@ -26,6 +26,11 @@ const DEEP_POST_EXACT = new Set([
   // W3 workbench chat — same user-session Bearer as research/brief (never the
   // service key, never the extension's install-id/public-key wedge).
   'api/brokerage/v1/research/chat',
+  // R1 paywall: the cortex DEV-UNLOCK for the $15 property unlock stub seam.
+  // Server-side guarded (cortex dev-bypass only; 404/403 on a backend without
+  // it → the client degrades to the honest "purchase flow coming" state).
+  // Live checkout wiring follows in the payments wave — never through here.
+  'api/property-explorer/v1/entitlement/dev-unlock',
 ])
 
 // W4 My Properties: PUT (upsert) / DELETE on exactly ONE path segment after

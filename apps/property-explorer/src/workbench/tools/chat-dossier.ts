@@ -58,7 +58,7 @@ function summaryFailureNote(outcome: ChatTurnOutcome): string {
     case "sign-in":
       return "summary needs sign-in";
     case "paywall":
-      return "summary requires Pro entitlement";
+      return "summary requires a property unlock or Pro";
     case "scope-failed":
       return "summary could not scope to this property";
     case "unreachable":
@@ -106,10 +106,14 @@ export async function saveChatToProperty(
   }));
   let summary: DossierChatSummary | null = null;
   let summaryNote: string | null = null;
+  // R1 entitlement classification: the summary rides as PAID chat — the body
+  // declares purpose:"summary" so the server never counts it as (or lets it
+  // slip past) the free-message allowance.
   const summaryOutcome = await runTurn({
     message: chatSummaryPrompt(input.address),
     history,
     subject: input.subject,
+    purpose: "summary",
   });
   if (summaryOutcome.kind === "answer") {
     summary = {
