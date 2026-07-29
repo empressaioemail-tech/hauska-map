@@ -74,6 +74,16 @@ export interface WorkbenchHostActions {
     address: string | null;
     countyName: string | null;
   };
+  /**
+   * REOPEN a property (W4 My Properties): navigate the LIVE map to this
+   * parcel and open its inspect card — the same find/fly+inspect flow the
+   * search bar's parcel fast path uses (runParcelLookup: resolve facets →
+   * inspectInPlace → rebindProperty + resolveSubjectAndFit; never a remount).
+   * Re-scopes the dock automatically because the active property changes.
+   * Optional (same convention as the W2/W3 actions) — the tool no-ops when
+   * the host does not implement it.
+   */
+  openProperty?: (parcelNodeId: string) => void;
 }
 
 /** One bubble in the top-right cluster. */

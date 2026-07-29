@@ -6,7 +6,7 @@
 //        moved off the inspect card) + brief verdict line (inside the brief
 //        tool's PropertyBriefPanel itself)
 //   W3 — chat live (starter chips → atom-cited answers → inline expand)
-//   W4 — properties (save/workspace/reopen) + share live
+//   W4 — properties (save/workspace/reopen) + share live (DONE below)
 //
 // Entry contract: see WorkbenchToolDef in ./types.ts (the pinned API).
 
@@ -15,6 +15,8 @@ import { WorkbenchIcon } from "./Workbench";
 import { BriefTool } from "./tools/BriefTool";
 import { ChatTool } from "./tools/ChatTool";
 import { ReportsTool } from "./tools/ReportsTool";
+import { PropertiesTool } from "./tools/PropertiesTool";
+import { ShareTool } from "./tools/ShareTool";
 
 // Stroke glyphs in the MapToolset icon language (24-viewBox paths).
 const ICONS = {
@@ -32,8 +34,8 @@ const ICONS = {
 } as const;
 
 /**
- * The static v1 registry. Order = cluster order, top to bottom. Live as of
- * W2: brief + reports; the rest are registered honestly as coming.
+ * The static v1 registry. Order = cluster order, top to bottom. As of W4 all
+ * five tools are LIVE (brief, chat, reports, properties, share).
  */
 export const WORKBENCH_TOOLS: WorkbenchToolDef[] = [
   {
@@ -61,17 +63,21 @@ export const WORKBENCH_TOOLS: WorkbenchToolDef[] = [
     render: () => <ReportsTool />,
   },
   {
+    // W4: saved-properties workspace (server is the truth; deep-proxy routes).
     id: "properties",
     label: "My properties",
     icon: <WorkbenchIcon path={ICONS.properties} />,
-    status: "coming",
+    status: "live",
     propertyScoped: false,
+    render: () => <PropertiesTool />,
   },
   {
+    // W4: share links that carry the analysis (signed one-parcel tokens).
     id: "share",
     label: "Share",
     icon: <WorkbenchIcon path={ICONS.share} />,
-    status: "coming",
+    status: "live",
     propertyScoped: true,
+    render: () => <ShareTool />,
   },
 ];

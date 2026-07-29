@@ -10,10 +10,12 @@ import { readPeSessionCookie } from './_lib/session-cookie.js'
 
 const DEEP_GET_EXACT = new Set([
   'api/property-explorer/v1/entitlement',
+  // W4 My Properties: the saved-properties LIST (exact — the only GET the
+  // saved-properties surface needs; per-item reads don't exist upstream).
+  'api/property-explorer/v1/saved-properties',
 ])
 
 const DEEP_GET_PREFIX = [
-  'api/property-explorer/v1/saved-properties',
   'api/property-explorer/v1/research/layer-manifest',
 ]
 
@@ -26,6 +28,10 @@ const DEEP_POST_EXACT = new Set([
   'api/brokerage/v1/research/chat',
 ])
 
+// W4 My Properties: PUT (upsert) / DELETE on exactly ONE path segment after
+// saved-properties/ — the :parcelNodeId. No nested subpaths.
+const SAVED_PROPERTY_ITEM_RE = /^api\/property-explorer\/v1\/saved-properties\/[^/]+$/
+
 function isDeepPathAllowed(method: string, upstreamPath: string): boolean {
   if (method === 'GET' || method === 'HEAD') {
     if (DEEP_GET_EXACT.has(upstreamPath)) return true
@@ -36,7 +42,7 @@ function isDeepPathAllowed(method: string, upstreamPath: string): boolean {
     return false
   }
   if (method === 'PUT' || method === 'DELETE') {
-    return upstreamPath.startsWith('api/property-explorer/v1/saved-properties/')
+    return SAVED_PROPERTY_ITEM_RE.test(upstreamPath)
   }
   return false
 }

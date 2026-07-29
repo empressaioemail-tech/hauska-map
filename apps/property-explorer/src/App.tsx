@@ -12,6 +12,7 @@
 import { useEffect, useState } from "react";
 import { ExplorerMap } from "./browse/ExplorerMap";
 import { SignUpCard } from "./coldopen/SignUpCard";
+import { ShareView } from "./share/ShareView";
 import { fetchSession } from "./lib/auth";
 import { recordPeGtmEvent } from "./lib/gtmClient";
 
@@ -45,7 +46,23 @@ function stripSignedInParam(): void {
   window.history.replaceState({}, "", next || "/");
 }
 
+/** True when this load is the read-only /share route (W4 share links). */
+function isShareRoute(): boolean {
+  if (typeof window === "undefined") return false;
+  return window.location.pathname.replace(/\/+$/, "") === "/share";
+}
+
 export function App() {
+  // /share#<token> renders the READ-ONLY share view INSTEAD of the map app —
+  // no auth, no cold-open, no search; see src/share/ShareView.tsx. Everything
+  // below (hooks included) belongs to the map app only.
+  if (isShareRoute()) {
+    return <ShareView />;
+  }
+  return <MapApp />;
+}
+
+function MapApp() {
   const [coldOpen, setColdOpen] = useState(readInitialColdOpen);
 
   useEffect(() => {
