@@ -10,10 +10,13 @@ import { useEffect, useRef, useState } from "react";
 import type { SavedPropertyRow } from "../../lib/savedPropertiesClient";
 import {
   DOSSIER_NOTES_MAX_CHARS,
+  DOSSIER_STATUSES,
   savedRowDisplayLabel,
   cleanDisplayString,
   type DossierExportEntry,
+  type DossierStatus,
 } from "../../lib/propertyDossier";
+import { pinAccent } from "../../lib/saved-pins";
 
 const MUTED = "#9aa6b2";
 const AMBER = "#fcd34d";
@@ -52,6 +55,60 @@ function exportLabel(entry: DossierExportEntry): string {
   return `${entry.kind === "site-plan" ? "Site plan" : "Terrain"} · ${entry.format}`;
 }
 
+/** Human labels for the WB7d single-select status chips. */
+export const STATUS_LABELS: Record<DossierStatus, string> = {
+  researching: "Researching",
+  offer: "Offer",
+  passed: "Passed",
+};
+
+/**
+ * WB7d — compact single-select status chips (three states; tapping the
+ * selected chip clears back to unset). Colors mirror the map-pin accents so
+ * the status language is ONE system across dock and map.
+ */
+export function DossierStatusSelector({
+  status,
+  busy,
+  onSetStatus,
+}: {
+  status: DossierStatus | null;
+  busy: boolean;
+  onSetStatus: (status: DossierStatus | null) => void;
+}) {
+  return (
+    <div data-testid="dossier-status" style={{ display: "flex", gap: 6 }}>
+      {DOSSIER_STATUSES.map((s) => {
+        const selected = status === s;
+        const accent = pinAccent(s);
+        return (
+          <button
+            key={s}
+            type="button"
+            data-testid={`dossier-status-${s}`}
+            aria-pressed={selected}
+            disabled={busy}
+            onClick={() => onSetStatus(selected ? null : s)}
+            style={{
+              fontSize: 10.5,
+              fontWeight: 600,
+              padding: "3px 10px",
+              borderRadius: 999,
+              cursor: busy ? "default" : "pointer",
+              color: selected ? "#0d1117" : accent,
+              background: selected ? accent : "transparent",
+              border: `1px solid ${accent}`,
+              opacity: busy ? 0.6 : 1,
+            }}
+          >
+            {STATUS_LABELS[s]}
+          </button>
+        );
+      })}
+    </div>
+  );
+}
+
 /**
  * Presentational detail view — exported for direct render tests (fetches and
  * debounced saves live in the callbacks the container provides).
@@ -64,6 +121,7 @@ export function PropertyDossierDetail({
   onSaveDrawings,
   onShowDrawings,
   onSaveNotes,
+  onSetStatus,
 }: {
   row: SavedPropertyRow;
   busy: boolean;
@@ -76,6 +134,8 @@ export function PropertyDossierDetail({
   onShowDrawings: () => void;
   /** Persist notes (already debounced by <NotesField>). */
   onSaveNotes: (text: string) => void;
+  /** WB7d — persist the single-select status (null clears to unset). */
+  onSetStatus: (status: DossierStatus | null) => void;
 }) {
   const dossier = row.snapshot ?? {};
   const title = savedRowDisplayLabel(row);
@@ -126,6 +186,14 @@ export function PropertyDossierDetail({
           {notice}
         </p>
       )}
+
+      {/* STATUS — WB7d compact single-select chips (map pins mirror it). */}
+      {sectionHeader("Status")}
+      <DossierStatusSelector
+        status={dossier.status ?? null}
+        busy={busy}
+        onSetStatus={onSetStatus}
+      />
 
       {/* NOTES — debounced autosave, 4k cap with an honest counter. */}
       {sectionHeader("Notes")}

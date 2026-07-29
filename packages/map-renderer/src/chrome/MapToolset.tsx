@@ -288,6 +288,7 @@ export function MapToolset({
   visible,
   onLayersChange,
   layerStates,
+  extraLabels,
   onToolsController,
 }: {
   mapRef: RefObject<FloatingMapHandle | null>;
@@ -300,6 +301,10 @@ export function MapToolset({
   onLayersChange: (next: Set<LayerKey>) => void;
   /** Persistent honest per-layer state (dot + tooltip + caption per row). */
   layerStates?: Partial<Record<LayerKey, LayerStateBadge>>;
+  /** Labels for host-side layer keys that are NOT in the shared registry
+   *  (e.g. PE's saved-property pin layer). Falls back to the registry label,
+   *  then the raw key. Additive — omitting it changes nothing. */
+  extraLabels?: Partial<Record<LayerKey, string>>;
   /** WB6 dossier seam: fires with the live MapToolsController once installed
    *  (and null on teardown) so the host can capture/redraw drawings. */
   onToolsController?: (controller: MapToolsController | null) => void;
@@ -401,8 +406,9 @@ export function MapToolset({
   const controller = () => controllerRef.current;
   const toolsReady = map != null;
 
+  const labelOf = (key: LayerKey): string => extraLabels?.[key] ?? labelFor(key);
   const layerKeys = [...known].sort((a, b) =>
-    labelFor(a).localeCompare(labelFor(b)),
+    labelOf(a).localeCompare(labelOf(b)),
   );
   const toggleLayer = (key: LayerKey) => {
     const next = new Set(visible);
@@ -497,7 +503,7 @@ export function MapToolset({
                     onChange={() => toggleLayer(key)}
                     style={{ accentColor: ACCENT, cursor: "pointer" }}
                   />
-                  <span style={{ flex: 1 }}>{labelFor(key)}</span>
+                  <span style={{ flex: 1 }}>{labelOf(key)}</span>
                   {badge && (
                     <span
                       data-testid={`layer-state-${key}`}

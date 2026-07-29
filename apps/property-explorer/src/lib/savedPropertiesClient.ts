@@ -212,6 +212,8 @@ export async function savePropertyWithDossier(
     label?: string | null
     address?: string | null
     drawings?: PropertyDossier['drawings']
+    /** WB7c — save-time map-pin coordinate (never overwrites an existing pin). */
+    pin?: PropertyDossier['pin']
   },
   fetchImpl: FetchLike = fetch,
 ): Promise<SavedPropertyMutationOutcome> {
@@ -231,6 +233,9 @@ export async function savePropertyWithDossier(
     ...current,
     savedAt: current.savedAt ?? new Date().toISOString(),
     address: seed.address ?? current.address,
+    // An EXISTING pin wins (it was resolved at first save); the seed only
+    // fills absence — a re-save never drags a pin to a new coordinate.
+    pin: current.pin ?? seed.pin,
     drawings: seed.drawings ?? current.drawings,
   })
   return saveProperty(
