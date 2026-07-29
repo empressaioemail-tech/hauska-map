@@ -1,4 +1,4 @@
-// MY PROPERTIES — the saved-properties workspace tool (Workbench W4).
+// MY PROPERTIES — the saved-properties workspace tool (Workbench W4, WB6).
 //
 // Surfaces the EXISTING cortex saved-properties backend (auth-gated, through
 // the deep proxy). The SERVER IS THE TRUTH: nothing is persisted chassis-side;
@@ -6,28 +6,38 @@
 // any entry point mutates (savedPropertiesClient change notifications — the
 // InspectCard "Save property" button and this tool share ONE save flow).
 //
-// UX:
-//   - list of saved properties (label = server label → address, else parcel
-//     id; updatedAt date), newest first (server-ordered);
-//   - save-current action when the ACTIVE property isn't saved yet (label
-//     seeded from the ported node store's address when it knows this parcel);
-//   - remove action per row;
-//   - REOPEN: clicking a saved property calls host.openProperty — the same
-//     find/fly+inspect flow as the search bar's parcel fast path; the dock
-//     re-scopes automatically as the active property changes;
+// WB6 — MASTER → DETAIL inside the SAME dock (the design law: one dock, no
+// second surface):
+//   - the LIST stays the master view (label fallback: label → dossier address
+//     → parcel id; NEVER an empty-comma artifact like ", ,");
+//   - clicking a saved property opens the DOSSIER DETAIL view in the dock
+//     (PropertyDossierDetail: header, notes, drawings, chat summary, exports)
+//     AND navigates the map to the property (the #104 reopen flight, kept)
+//     AND redraws any saved drawings as the read-only dossier overlay;
+//   - a Back button returns to the master list;
+//   - saving a property (list save-current) seeds the dossier with savedAt /
+//     address / the CURRENT map drawings (savePropertyWithDossier — merges,
+//     never clobbers an existing dossier);
 //   - 401 → honest sign-in state (link to the OIDC start).
 
 import { useCallback, useEffect, useState } from "react";
 import {
   listSavedProperties,
   removeSavedProperty,
-  saveProperty,
+  savePropertyWithDossier,
+  updatePropertyDossier,
   subscribeSavedPropertiesChanged,
   type SavedPropertyRow,
 } from "../../lib/savedPropertiesClient";
+import {
+  savedRowDisplayLabel,
+  sanitizeDrawings,
+  type DossierFeatureCollection,
+} from "../../lib/propertyDossier";
 import { googleSignInUrl } from "../../lib/auth";
 import { parcelNodes } from "../../lib/parcel-node-store.js";
 import { useWorkbench } from "../WorkbenchContext";
+import { PropertyDossierDetail } from "./PropertyDossierDetail";
 
 const MUTED = "#9aa6b2";
 const AMBER = "#fcd34d";
@@ -39,6 +49,11 @@ type ListPhase =
   | { kind: "ready"; items: SavedPropertyRow[] }
   | { kind: "sign-in" }
   | { kind: "notice"; text: string };
+
+/** Master list vs. one property's dossier detail — same dock, one surface. */
+export type PropertiesView =
+  | { kind: "list" }
+  | { kind: "detail"; parcelNodeId: string };
 
 /** Best-effort label for the ACTIVE property from the ported node store. */
 export function activePropertyLabel(activeParcelNodeId: string): string | null {
@@ -75,14 +90,15 @@ export function PropertiesList({
   activeParcelNodeId,
   busy,
   onSaveCurrent,
-  onReopen,
+  onOpen,
   onRemove,
 }: {
   phase: ListPhase;
   activeParcelNodeId: string | null;
   busy: boolean;
   onSaveCurrent: () => void;
-  onReopen: (parcelNodeId: string) => void;
+  /** Open the dossier DETAIL view AND navigate the map (the reopen flight). */
+  onOpen: (parcelNodeId: string) => void;
   onRemove: (parcelNodeId: string) => void;
 }) {
   if (phase.kind === "loading") {
@@ -148,7 +164,16 @@ export function PropertiesList({
         </p>
       ) : (
         items.map((row) => {
-          const date = fmtDate(row.updatedAt);
+          const date = fmtDate(row.updatedAt) ?? fmtDate(row.snapshot?.savedAt ?? null);
+          // WB6 label fallback chain: label → dossier address → parcel id.
+          // cleanDisplayString inside guarantees no ", ," artifacts render.
+          const title = savedRowDisplayLabel(row);
+          const dossierBits = [
+            row.snapshot?.notes ? "notes" : null,
+            row.snapshot?.drawings ? "drawings" : null,
+            row.snapshot?.chatSummary || row.snapshot?.chatThread ? "chat" : null,
+            row.snapshot?.exports?.length ? "exports" : null,
+          ].filter((b): b is string => b !== null);
           return (
             <div
               key={row.parcelNodeId}
@@ -161,12 +186,12 @@ export function PropertiesList({
                 borderBottom: "1px solid rgba(154,166,178,0.15)",
               }}
             >
-              {/* REOPEN — the row itself navigates the map to the property. */}
+              {/* OPEN — the row opens the dossier detail AND navigates the map. */}
               <button
                 type="button"
                 data-testid="properties-reopen"
-                onClick={() => onReopen(row.parcelNodeId)}
-                title={`Open ${row.parcelNodeId} on the map`}
+                onClick={() => onOpen(row.parcelNodeId)}
+                title={`Open ${title} — dossier + map`}
                 style={{
                   flex: 1,
                   textAlign: "left",
@@ -179,19 +204,18 @@ export function PropertiesList({
                   lineHeight: 1.4,
                 }}
               >
-                <span style={{ fontWeight: 600 }}>
-                  {row.label ?? row.parcelNodeId}
-                </span>
+                <span style={{ fontWeight: 600 }}>{title}</span>
                 <span style={{ display: "block", fontSize: 10, color: MUTED }}>
-                  {row.label ? `${row.parcelNodeId}` : "parcel"}
+                  {title === row.parcelNodeId ? "parcel" : row.parcelNodeId}
                   {date ? ` · saved ${date}` : ""}
+                  {dossierBits.length > 0 ? ` · ${dossierBits.join(" · ")}` : ""}
                   {row.parcelNodeId === activeParcelNodeId ? " · active" : ""}
                 </span>
               </button>
               <button
                 type="button"
                 data-testid="properties-remove"
-                aria-label={`Remove ${row.label ?? row.parcelNodeId}`}
+                aria-label={`Remove ${title}`}
                 onClick={() => onRemove(row.parcelNodeId)}
                 disabled={busy}
                 style={{
@@ -218,6 +242,9 @@ export function PropertiesTool() {
   const { activeParcelNodeId, host } = useWorkbench();
   const [phase, setPhase] = useState<ListPhase>({ kind: "loading" });
   const [busy, setBusy] = useState(false);
+  const [view, setView] = useState<PropertiesView>({ kind: "list" });
+  // Transient dossier-action outcome shown in the detail view (honest line).
+  const [dossierNotice, setDossierNotice] = useState<string | null>(null);
 
   const refresh = useCallback(async () => {
     const outcome = await listSavedProperties();
@@ -255,38 +282,165 @@ export function PropertiesTool() {
     };
   }, [refresh]);
 
+  const applyMutationOutcome = useCallback(
+    (outcome: { kind: string; message?: string }) => {
+      if (outcome.kind === "sign-in") setPhase({ kind: "sign-in" });
+      else if (outcome.kind === "error" && outcome.message) {
+        setPhase({ kind: "notice", text: outcome.message });
+      } else if (outcome.kind === "unreachable") {
+        setPhase({ kind: "notice", text: "Could not reach the saved-properties service." });
+      }
+      // "ok" refreshes via the change notification.
+    },
+    [],
+  );
+
   const handleSaveCurrent = useCallback(async () => {
     if (!activeParcelNodeId) return;
     setBusy(true);
     const label = activePropertyLabel(activeParcelNodeId);
-    const outcome = await saveProperty(activeParcelNodeId, { label });
+    // WB6: seed the dossier — savedAt/address plus the CURRENT map drawings.
+    const drawings = sanitizeDrawings(host.getMapDrawings?.() ?? null);
+    const outcome = await savePropertyWithDossier(activeParcelNodeId, {
+      label,
+      address: label,
+      drawings: drawings ?? undefined,
+    });
     setBusy(false);
-    if (outcome.kind === "sign-in") setPhase({ kind: "sign-in" });
-    else if (outcome.kind === "error") setPhase({ kind: "notice", text: outcome.message });
-    else if (outcome.kind === "unreachable") {
-      setPhase({ kind: "notice", text: "Could not reach the saved-properties service." });
-    }
-    // "ok" refreshes via the change notification.
-  }, [activeParcelNodeId]);
+    applyMutationOutcome(outcome);
+  }, [activeParcelNodeId, host, applyMutationOutcome]);
 
-  const handleRemove = useCallback(async (parcelNodeId: string) => {
-    setBusy(true);
-    const outcome = await removeSavedProperty(parcelNodeId);
-    setBusy(false);
-    if (outcome.kind === "sign-in") setPhase({ kind: "sign-in" });
-    else if (outcome.kind === "error") setPhase({ kind: "notice", text: outcome.message });
-    else if (outcome.kind === "unreachable") {
-      setPhase({ kind: "notice", text: "Could not reach the saved-properties service." });
-    }
+  const handleRemove = useCallback(
+    async (parcelNodeId: string) => {
+      setBusy(true);
+      const outcome = await removeSavedProperty(parcelNodeId);
+      setBusy(false);
+      applyMutationOutcome(outcome);
+    },
+    [applyMutationOutcome],
+  );
+
+  // OPEN a saved property: detail view in the SAME dock + the reopen flight
+  // (host.openProperty — find/fly+inspect, kept from #104) + redraw its saved
+  // drawings as the dossier overlay (cleared automatically on property switch).
+  const handleOpen = useCallback(
+    (parcelNodeId: string) => {
+      setDossierNotice(null);
+      setView({ kind: "detail", parcelNodeId });
+      host.openProperty?.(parcelNodeId);
+      const row =
+        phase.kind === "ready"
+          ? phase.items.find((r) => r.parcelNodeId === parcelNodeId)
+          : undefined;
+      if (row?.snapshot?.drawings) {
+        host.showDossierDrawings?.(row.snapshot.drawings, parcelNodeId);
+      }
+    },
+    [host, phase],
+  );
+
+  const handleBack = useCallback(() => {
+    setDossierNotice(null);
+    setView({ kind: "list" });
   }, []);
 
-  const handleReopen = useCallback(
-    (parcelNodeId: string) => {
-      // Optional host action (W2/W3 convention) — no-op when unimplemented.
-      host.openProperty?.(parcelNodeId);
+  // --- Dossier actions (detail view) — all read-modify-write on the server. ---
+
+  const handleSaveDrawings = useCallback(
+    async (parcelNodeId: string) => {
+      const drawings = sanitizeDrawings(host.getMapDrawings?.() ?? null);
+      if (!drawings) {
+        setDossierNotice(
+          "Nothing drawn on the map yet — use the map tools (draw / marker / measure) first.",
+        );
+        return;
+      }
+      setBusy(true);
+      const outcome = await updatePropertyDossier(parcelNodeId, { drawings });
+      setBusy(false);
+      if (outcome.kind === "ok") {
+        setDossierNotice(
+          `Saved ${drawings.features.length} shape${drawings.features.length === 1 ? "" : "s"} to this property.`,
+        );
+      } else if (outcome.kind === "not-saved") {
+        setDossierNotice("This property is no longer saved.");
+      } else {
+        setDossierNotice("Could not save drawings — try again.");
+        applyMutationOutcome(outcome);
+      }
+    },
+    [host, applyMutationOutcome],
+  );
+
+  const handleShowDrawings = useCallback(
+    (row: SavedPropertyRow) => {
+      if (row.snapshot?.drawings) {
+        host.showDossierDrawings?.(
+          row.snapshot.drawings as DossierFeatureCollection,
+          row.parcelNodeId,
+        );
+        setDossierNotice(null);
+      }
     },
     [host],
   );
+
+  const handleSaveNotes = useCallback(
+    async (parcelNodeId: string, text: string) => {
+      const outcome = await updatePropertyDossier(parcelNodeId, {
+        notes: text.trim() ? text : null,
+      });
+      if (outcome.kind === "not-saved") {
+        setDossierNotice("This property is no longer saved — notes not stored.");
+      } else if (outcome.kind !== "ok") {
+        setDossierNotice("Notes could not be saved — they are not stored.");
+      }
+      // Quiet on ok — autosave should not chatter.
+    },
+    [],
+  );
+
+  // DETAIL view — needs a ready list carrying the row; otherwise fall back to
+  // the master states (loading / sign-in / notice render as usual).
+  if (view.kind === "detail" && phase.kind === "ready") {
+    const row = phase.items.find((r) => r.parcelNodeId === view.parcelNodeId);
+    if (!row) {
+      // Row vanished (removed elsewhere) — honest return to the list.
+      return (
+        <div>
+          <p style={{ margin: "0 0 8px", fontSize: 11.5, color: MUTED }}>
+            This property is no longer saved.
+          </p>
+          <button
+            type="button"
+            data-testid="dossier-back"
+            onClick={handleBack}
+            style={{
+              background: "transparent",
+              border: "none",
+              color: ACCENT,
+              cursor: "pointer",
+              padding: 0,
+              fontSize: 11.5,
+            }}
+          >
+            ← All saved properties
+          </button>
+        </div>
+      );
+    }
+    return (
+      <PropertyDossierDetail
+        row={row}
+        busy={busy}
+        notice={dossierNotice}
+        onBack={handleBack}
+        onSaveDrawings={() => void handleSaveDrawings(row.parcelNodeId)}
+        onShowDrawings={() => handleShowDrawings(row)}
+        onSaveNotes={(text) => void handleSaveNotes(row.parcelNodeId, text)}
+      />
+    );
+  }
 
   return (
     <PropertiesList
@@ -294,7 +448,7 @@ export function PropertiesTool() {
       activeParcelNodeId={activeParcelNodeId}
       busy={busy}
       onSaveCurrent={() => void handleSaveCurrent()}
-      onReopen={handleReopen}
+      onOpen={handleOpen}
       onRemove={(id) => void handleRemove(id)}
     />
   );

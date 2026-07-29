@@ -125,8 +125,9 @@ describe("PropertiesList states (presentational)", () => {
       parcelNodeId: "48021:2",
       label: "104 Main St, Bastrop, TX",
       updatedAt: "2026-07-28T00:00:00.000Z",
+      snapshot: null,
     },
-    { parcelNodeId: "48021:1", label: null, updatedAt: null },
+    { parcelNodeId: "48021:1", label: null, updatedAt: null, snapshot: null },
   ];
 
   function renderList(opts: {
@@ -143,7 +144,7 @@ describe("PropertiesList states (presentational)", () => {
         activeParcelNodeId={opts.activeParcelNodeId ?? null}
         busy={false}
         onSaveCurrent={noop}
-        onReopen={noop}
+        onOpen={noop}
         onRemove={noop}
       />,
     );
