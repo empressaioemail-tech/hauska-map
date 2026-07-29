@@ -21,7 +21,7 @@ import { reasoningLayerAwaitingReason } from "./input-gates.js";
  */
 
 export const LAYER_REGISTRY = [
-  { key: "parcel-polygon", label: "Parcel boundary", group: "parcel", fixture: true, live: true, fuelGated: false },
+  { key: "parcel-polygon", label: "GIS Parcel Boundary", group: "parcel", fixture: true, live: true, fuelGated: false },
   { key: "parcel-extrusion", label: "Allowed height (3D)", group: "parcel", fixture: true, live: false, fuelGated: false },
   { key: "zoning", label: "Zoning / land use", group: "regulatory", fixture: true, live: true, fuelGated: true },
   { key: "flood-zone", label: "FEMA flood zone", group: "hazard", fixture: true, live: true, fuelGated: false },

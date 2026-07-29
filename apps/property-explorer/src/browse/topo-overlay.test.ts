@@ -16,10 +16,13 @@ import {
   toTopoOverlay,
   toHydroOverlay,
   contourTierLabel,
+  contourLinesOnly,
   isHydrologyHonestEmpty,
   hydrologyHonestReason,
   type TopoLayerState,
   type HydroLayerState,
+  type FeatureCollectionLike,
+  type GeoJsonFeature,
 } from './liveGis'
 
 const topoState = (tier: 'authoritative-1ft' | '3dep-fallback', features: unknown[]): TopoLayerState => ({
@@ -58,6 +61,80 @@ describe('toTopoOverlay toggle binding', () => {
     expect(toTopoOverlay({ status: 'error', message: 'x' }, true)).toHaveLength(0)
     expect(toTopoOverlay({ status: 'no-coverage' }, true)).toHaveLength(0)
     expect(toTopoOverlay({ status: 'idle' }, true)).toHaveLength(0)
+  })
+})
+
+// --- Contour line-only normalisation (the zoom-out blue-wash fix) -----------
+//
+// The coarse 3DEP tier is d3-contour-derived: each elevation threshold arrives
+// as a FILLED-contour MultiPolygon band covering the DEM extent. Rendered raw,
+// the overlay renderer's polygon family paints every band with its default
+// translucent BLUE fill (the contour paint spec only carries line-*), washing
+// the whole viewport blue at wide zoom. Contours must render as LINES at every
+// zoom: polygon rings are converted to MultiLineString, never filled.
+
+const ring = [[0, 0], [1, 0], [1, 1], [0, 1], [0, 0]]
+const ring2 = [[2, 2], [3, 2], [3, 3], [2, 3], [2, 2]]
+
+const multiPolygonBand: GeoJsonFeature = {
+  type: 'Feature',
+  geometry: { type: 'MultiPolygon', coordinates: [[ring], [ring2]] },
+  properties: { elevationMeters: 150 },
+}
+const polygonBand: GeoJsonFeature = {
+  type: 'Feature',
+  geometry: { type: 'Polygon', coordinates: [ring] },
+  properties: { elevationMeters: 151 },
+}
+
+function geometryTypes(fc: FeatureCollectionLike): string[] {
+  return fc.features.map((f) => (f.geometry as { type: string }).type)
+}
+
+describe('contourLinesOnly — filled-contour polygons become contour LINES', () => {
+  it('converts Polygon / MultiPolygon elevation bands to MultiLineString rings', () => {
+    const fc = contourLinesOnly({
+      type: 'FeatureCollection',
+      features: [multiPolygonBand, polygonBand],
+    })
+    expect(geometryTypes(fc)).toEqual(['MultiLineString', 'MultiLineString'])
+    // Rings preserved as lines: the MultiPolygon's two rings flatten into one
+    // MultiLineString; the Polygon's single ring carries over unchanged.
+    expect((fc.features[0].geometry as { coordinates: unknown }).coordinates).toEqual([ring, ring2])
+    expect((fc.features[1].geometry as { coordinates: unknown }).coordinates).toEqual([ring])
+    // Elevation properties survive the conversion.
+    expect(fc.features[0].properties).toEqual({ elevationMeters: 150 })
+  })
+
+  it('passes (Multi)LineString features through untouched and drops points', () => {
+    const line = oneLine[0] as GeoJsonFeature
+    const point: GeoJsonFeature = {
+      type: 'Feature',
+      geometry: { type: 'Point', coordinates: [0, 0] },
+      properties: null,
+    }
+    const fc = contourLinesOnly({ type: 'FeatureCollection', features: [line, point] })
+    expect(fc.features).toEqual([line])
+  })
+})
+
+describe('toTopoOverlay — no polygon family ever reaches the map (blue-wash fence)', () => {
+  it('emits line-only geometry for a 3DEP filled-contour (MultiPolygon) response', () => {
+    const overlays = toTopoOverlay(topoState('3dep-fallback', [multiPolygonBand, polygonBand]), true)
+    expect(overlays).toHaveLength(1)
+    const types = geometryTypes(overlays[0].geojson as FeatureCollectionLike)
+    expect(types.every((t) => t === 'LineString' || t === 'MultiLineString')).toBe(true)
+    // Line paint only — no fill-* keys that could re-introduce a wash.
+    expect(Object.keys(overlays[0].paint ?? {}).every((k) => k.startsWith('line-'))).toBe(true)
+  })
+
+  it('draws nothing when normalisation leaves no line features (never a bare fill)', () => {
+    const pointOnly: GeoJsonFeature = {
+      type: 'Feature',
+      geometry: { type: 'Point', coordinates: [0, 0] },
+      properties: null,
+    }
+    expect(toTopoOverlay(topoState('3dep-fallback', [pointOnly]), true)).toHaveLength(0)
   })
 })
 

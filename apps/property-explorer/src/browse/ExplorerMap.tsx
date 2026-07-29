@@ -811,15 +811,11 @@ export function ExplorerMap() {
       tone: "warn",
       note: "No parcel coverage here",
     };
-  } else if (attribution) {
-    layerStates["parcel-polygon" as LayerKey] = {
-      tone:
-        parcels.fetch.status === "ok" && parcels.fetch.response.notSurveyGrade
-          ? "warn"
-          : "info",
-      note: attribution,
-    };
   }
+  // NO persistent attribution / not-survey-grade badge on the parcel row
+  // (operator-ratified 2026-07-29): the layer NAME carries "GIS" and the
+  // not-survey-grade disclosure lives on the site-plan export where it
+  // matters. Live-health badges (error / no-coverage) above stay.
   if (topoToggledOn) {
     if (topo.fetch.status === "error") {
       layerStates[TOPO_TOGGLE_KEY] = {
