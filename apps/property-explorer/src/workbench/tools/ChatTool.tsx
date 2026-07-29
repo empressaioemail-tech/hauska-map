@@ -14,8 +14,10 @@
 //     tapping one sends its question with the REMAPPED starterPromptId
 //     (unknown ids 400 server-side — the remap is the extension's own).
 //   - Each request carries the last-8-turn history window + areaContext built
-//     from the stored R1 brief (setbacks/envelope/jurisdiction) + the inspect
-//     card address (host seam). See chat-research.ts for the contract.
+//     SELF-SUFFICIENTLY from the property's baked facets (zoning, setbacks,
+//     envelope, situs address — fetched once per property, module-cached),
+//     supplemented by the stored R1 brief when present (never a prerequisite)
+//     and the inspect card address (host seam). See chat-research.ts.
 //   - Assistant answers render as plain-text paragraphs (consumer mode — the
 //     server strips [n] markers) with a chip row from the response citations;
 //     tapping a chip expands an in-thread detail card (label + snippet +
@@ -32,9 +34,10 @@ import { recordPeGtmEvent } from "../../lib/gtmClient";
 import { useDockToolState, useWorkbench } from "../WorkbenchContext";
 import type { BriefToolStoredState } from "./BriefTool";
 import {
-  buildChatSubjectContext,
+  buildChatSubjectFromFacets,
   chatOutcomeNotice,
   CHAT_PAYWALL_MESSAGE,
+  getChatPropertyFacets,
   INVESTOR_STARTER_PROMPTS,
   runChatTurn,
   type ChatAnswer,
@@ -332,8 +335,14 @@ export function ChatTool() {
       if (!opts.isRetry) setStored({ turns: withUser });
       setPhase({ kind: "sending" });
 
-      const subject = buildChatSubjectContext(
+      // SELF-SUFFICIENT context: the chat sources the property's BAKED FACETS
+      // itself (fetched once per property, module-cached) — zoning, setbacks,
+      // envelope, situs address — so answers know the property even when the
+      // Brief tool was never opened. The stored brief supplements when present.
+      const facets = await getChatPropertyFacets(activeParcelNodeId);
+      const subject = buildChatSubjectFromFacets(
         activeParcelNodeId,
+        facets,
         briefStored?.brief ?? null,
         host.getActivePropertyAddress?.() ?? null,
       );

@@ -12,6 +12,7 @@ import {
   type BuildableEnvelopeResult,
 } from "./buildable-envelope.js";
 import { CORTEX_PROXY_BASE, PE_FACETS_PROXY_BASE } from "./config";
+import { fetchGeocodeSuggestions } from "./geocodeClient";
 import { isValidParcelNodeId, normalizeParcelNodeId } from "./parcel-node-id";
 
 export type LookupKind = "parcel-node-id" | "address";
@@ -68,11 +69,15 @@ function cardFromFacets(resp: BakedFacetsResponse, parcelNodeId: string): Parcel
   };
 }
 
-function cardFromEnvelope(
+/**
+ * The backend's AUTHORITATIVE geocode for the resolved parcel — the
+ * `coord:<lat>:<lng>` placeKey the envelope resolve returns. Source of truth
+ * for "where is this property" (the same resolution that produced the
+ * parcel_node_id). Null when the response carries no parseable placeKey.
+ */
+function centerFromEnvelope(
   env: BuildableEnvelopeResult,
-  parcelNodeId: string,
-  address: string,
-): ParcelCardData {
+): { lat: number; lng: number } | null {
   const envRec = env as unknown as Record<string, unknown>;
   const parcelRec =
     env.parcel && typeof env.parcel === "object"
@@ -84,7 +89,15 @@ function cardFromEnvelope(
       : typeof parcelRec?.placeKey === "string"
         ? parcelRec.placeKey
         : null;
-  const center = parsePlaceKey(placeKey);
+  return parsePlaceKey(placeKey);
+}
+
+function cardFromEnvelope(
+  env: BuildableEnvelopeResult,
+  parcelNodeId: string,
+  address: string,
+): ParcelCardData {
+  const center = centerFromEnvelope(env);
   const propId = parcelNodeId.split(":")[1] ?? null;
   const fips = parcelNodeId.split(":")[0] ?? null;
   const summary = (env.summary ?? {}) as Record<string, unknown>;
@@ -148,11 +161,73 @@ export async function resolveParcelLookup(
             : `Could not load parcel ${classified.value}.`,
       };
     }
+    const card = cardFromFacets(resp.data, classified.value);
+
+    // NAVIGATION SEAM (workbench polish): baked facets carry NO coordinates,
+    // so a card built purely from facets leaves lat/lng null and the caller's
+    // camera block (rebindProperty + resolveSubjectAndFit) silently never
+    // fires — the inspect card opens but the map does not move. When the
+    // facets carry a situs address, resolve the backend's AUTHORITATIVE
+    // geocode for it through the same buildable-envelope path the address
+    // lookup uses, and adopt its center (+ parcel geometry when returned) so
+    // saved-property reopen and the search bar's parcel-id fast path both FLY
+    // the live map to the parcel. Best-effort: any failure here degrades to
+    // today's behavior (card opens, no fly) — never a lookup failure.
+    let geometry: unknown = null;
+    if (card.lat == null || card.lng == null) {
+      const situs = card.situsAddress?.trim();
+      if (situs) {
+        try {
+          const env = await fetchBuildableEnvelope(
+            { address: situs },
+            cortexBase,
+            fetchImpl,
+          );
+          const center = centerFromEnvelope(env);
+          if (center) {
+            card.lat = center.lat;
+            card.lng = center.lng;
+          }
+          const envNodeId =
+            typeof env.parcelNodeId === "string" ? env.parcelNodeId.trim() : "";
+          // Geometry is only trustworthy when it is THIS parcel's geometry.
+          if (envNodeId === classified.value && env.geometry != null) {
+            geometry = env.geometry;
+          }
+        } catch {
+          /* honest degrade — the geocode fallback below may still center */
+        }
+      }
+      // FALLBACK: declined-envelope jurisdictions return no placeKey — geocode
+      // the situs address (same-origin Photon BFF) purely for CAMERA targeting.
+      // Never parcel data: the card stays facets-truth; a geocode miss keeps
+      // today's behavior (card opens, no fly).
+      if ((card.lat == null || card.lng == null) && situs) {
+        try {
+          const suggestions = await fetchGeocodeSuggestions(
+            situs,
+            null,
+            new AbortController().signal,
+            { limit: 1, fetchImpl },
+          );
+          const hit = suggestions.find(
+            (s) => s.lat != null && s.lng != null,
+          );
+          if (hit && hit.lat != null && hit.lng != null) {
+            card.lat = hit.lat;
+            card.lng = hit.lng;
+          }
+        } catch {
+          /* honest degrade: no center resolved — card still opens */
+        }
+      }
+    }
     return {
       ok: true,
       target: {
         parcelNodeId: classified.value,
-        card: cardFromFacets(resp.data, classified.value),
+        card,
+        ...(geometry != null ? { geometry } : {}),
         source: "parcel-node-id",
       },
     };
