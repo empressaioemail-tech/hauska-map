@@ -7,9 +7,7 @@
   "functions": {
     "api/pe-site-plan-export.ts": { "maxDuration": 60 },
     "api/pe-terrain-export.ts": { "maxDuration": 60 },
-    "api/pe-topography.ts": { "maxDuration": 60 },
-    "api/pe-hydrology.ts": { "maxDuration": 60 },
-    "api/pe-hydrography.ts": { "maxDuration": 60 },
+    "api/pe-map-layers.ts": { "maxDuration": 60 },
     "api/pe-share-view.ts": { "maxDuration": 60 }
   },
   "rewrites": [
@@ -20,9 +18,9 @@
     { "source": "/api/pe-billing", "destination": "/api/pe-billing" },
     { "source": "/api/pe-terrain-export", "destination": "/api/pe-terrain-export" },
     { "source": "/api/pe-site-plan-export", "destination": "/api/pe-site-plan-export" },
-    { "source": "/api/pe-topography", "destination": "/api/pe-topography" },
-    { "source": "/api/pe-hydrology", "destination": "/api/pe-hydrology" },
-    { "source": "/api/pe-hydrography", "destination": "/api/pe-hydrography" },
+    { "source": "/api/pe-topography", "destination": "/api/pe-map-layers?layer=topography" },
+    { "source": "/api/pe-hydrology", "destination": "/api/pe-map-layers?layer=hydrology" },
+    { "source": "/api/pe-hydrography", "destination": "/api/pe-map-layers?layer=hydrography" },
     { "source": "/api/pe-geocode", "destination": "/api/pe-geocode" },
     { "source": "/api/pe-share", "destination": "/api/pe-share" },
     { "source": "/api/pe-share-view", "destination": "/api/pe-share-view" },
