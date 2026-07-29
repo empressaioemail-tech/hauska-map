@@ -12,7 +12,12 @@
 import { useEffect, useState } from "react";
 import { ExplorerMap } from "./browse/ExplorerMap";
 import { SignUpCard } from "./coldopen/SignUpCard";
-import { ShareView } from "./share/ShareView";
+import { ShareFunnelApp } from "./share/ShareFunnelApp";
+import {
+  defaultShareStash,
+  resolveShareLanding,
+  type ShareLanding,
+} from "./share/share-landing";
 import { fetchSession } from "./lib/auth";
 import { recordPeGtmEvent } from "./lib/gtmClient";
 
@@ -46,18 +51,23 @@ function stripSignedInParam(): void {
   window.history.replaceState({}, "", next || "/");
 }
 
-/** True when this load is the read-only /share route (W4 share links). */
-function isShareRoute(): boolean {
-  if (typeof window === "undefined") return false;
-  return window.location.pathname.replace(/\/+$/, "") === "/share";
+/** This load's share landing, resolved ONCE at module-app boot: /share#<token>
+ *  (URL shape unchanged — existing links keep working), bare /share (honest
+ *  invalid), or a post-sign-in restore (?signed_in=1 + stashed token). */
+function readShareLanding(): ShareLanding | null {
+  if (typeof window === "undefined") return null;
+  return resolveShareLanding(window.location, defaultShareStash());
 }
 
 export function App() {
-  // /share#<token> renders the READ-ONLY share view INSTEAD of the map app —
-  // no auth, no cold-open, no search; see src/share/ShareView.tsx. Everything
-  // below (hooks included) belongs to the map app only.
-  if (isShareRoute()) {
-    return <ShareView />;
+  // SHARE FUNNEL: /share#<token> loads the FULL map app (not the old
+  // standalone read-only page) — flight to the shared property, read-only
+  // dossier docked in the workbench, persistent sign-up prompt. See
+  // src/share/ShareFunnelApp.tsx. Everything below (hooks included) belongs
+  // to the normal map app only.
+  const [shareLanding] = useState<ShareLanding | null>(readShareLanding);
+  if (shareLanding) {
+    return <ShareFunnelApp landing={shareLanding} />;
   }
   return <MapApp />;
 }

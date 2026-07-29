@@ -1,13 +1,15 @@
-// /share — the READ-ONLY share-link view (Workbench W4).
+// src/share/ShareView.tsx — the READ-ONLY share-link content (Workbench W4).
 //
-// The page a share-link recipient lands on (https://<host>/share#<token>).
-// No auth, no session, no search, no map: it fetches EXCLUSIVELY through the
-// token-gated /api/pe-share-view BFF, which validates the signed one-parcel
-// token server-side and proxies with server credentials. What renders:
-//   - the property header (address / parcel id),
-//   - the VERDICT line + the full cited brief (same renderer as the app),
-//   - the site-plan PDF download and terrain drawings download, each honest
-//     about availability (a link only carries artifacts the sharer exported).
+// SHARE FUNNEL (operator directive): /share#<token> no longer renders this
+// file's standalone <ShareView /> page INSTEAD of the app — the share landing
+// loads the FULL map app (src/share/ShareFunnelApp.tsx), flies to the shared
+// property, and docks the read-only analysis in the workbench. THIS file stays
+// the single source of the share content pieces both surfaces reuse:
+//   - fetchShareBrief / fetchShareDossier — the token-gated /api/pe-share-view
+//     data plane (the ONLY data plane a share viewer has),
+//   - ShareAnalysisContent — verdict card + full cited brief + the sharer's
+//     dossier + the Export downloads (site-plan PDF / terrain GLB),
+//   - ShareDossierSection / DownloadButton — the individual pieces.
 // Expired or tampered links get the honest "this share link has expired" /
 // "invalid" state — never a blank page, never a silent fallback.
 
@@ -19,6 +21,10 @@ import {
   drawingsSummaryLine,
   drawingsToSketch,
 } from "./share-dossier-sketch";
+import { shareTokenFromLocation } from "./share-landing";
+
+// Kept as a ShareView export — the historical home of the token parser.
+export { shareTokenFromLocation };
 
 const MUTED = "#9aa6b2";
 const AMBER = "#fcd34d";
@@ -26,7 +32,7 @@ const TEXT = "#e5e7eb";
 const ACCENT = "#7dd3fc";
 const CARD_BG = "rgba(13,17,23,0.94)";
 
-interface ShareBriefResponse {
+export interface ShareBriefResponse {
   property: {
     parcelNodeId: string;
     situsAddress: string | null;
@@ -36,7 +42,7 @@ interface ShareBriefResponse {
   share: { expiresAt: string | null };
 }
 
-type Phase =
+export type SharePhase =
   | { kind: "loading" }
   | { kind: "ready"; data: ShareBriefResponse }
   | { kind: "expired" }
@@ -68,7 +74,7 @@ export interface ShareDossierData {
  * cortex route not deployed yet, nothing saved to share) returns null and the
  * page renders exactly as it did before the dossier shipped — never an error.
  */
-async function fetchShareDossier(token: string): Promise<ShareDossierData | null> {
+export async function fetchShareDossier(token: string): Promise<ShareDossierData | null> {
   try {
     const res = await fetch(
       `/api/pe-share-view?token=${encodeURIComponent(token)}&what=dossier`,
@@ -84,17 +90,7 @@ async function fetchShareDossier(token: string): Promise<ShareDossierData | null
   }
 }
 
-export function shareTokenFromLocation(loc: {
-  hash: string;
-  search: string;
-}): string | null {
-  const hash = loc.hash.startsWith("#") ? loc.hash.slice(1) : loc.hash;
-  if (hash.trim()) return hash.trim();
-  const token = new URLSearchParams(loc.search).get("token")?.trim();
-  return token || null;
-}
-
-async function fetchShareBrief(token: string): Promise<Phase> {
+export async function fetchShareBrief(token: string): Promise<SharePhase> {
   try {
     const res = await fetch(
       `/api/pe-share-view?token=${encodeURIComponent(token)}&what=brief`,
@@ -125,7 +121,7 @@ async function fetchShareBrief(token: string): Promise<Phase> {
 
 type DownloadState = { kind: "idle" | "busy" } | { kind: "notice"; text: string };
 
-function DownloadButton({
+export function DownloadButton({
   label,
   href,
   filenameHint,
@@ -335,8 +331,127 @@ function CenterCard({ children }: { children: React.ReactNode }) {
   );
 }
 
+/**
+ * The read-only share ANALYSIS block — verdict card, full cited brief (same
+ * renderer as the app), the sharer's dossier when the link carries one, and
+ * the Export downloads (site-plan PDF / terrain GLB). THE reused content:
+ * the standalone page and the workbench dock host both render exactly this.
+ * `variant="dock"` compacts the header for the workbench dock's width.
+ */
+export function ShareAnalysisContent({
+  token,
+  data,
+  dossier,
+  variant = "page",
+}: {
+  token: string;
+  data: ShareBriefResponse;
+  dossier: ShareDossierData | null;
+  variant?: "page" | "dock";
+}) {
+  const { property, report, share } = data;
+  const title = property.situsAddress ?? `Parcel ${property.parcelNodeId}`;
+  const verdict = deriveShareVerdict(report);
+  const downloadBase = `/api/pe-share-view?token=${encodeURIComponent(token)}`;
+  const dock = variant === "dock";
+
+  return (
+    <div data-testid="share-analysis-content">
+      {/* Property header */}
+      <header style={{ marginBottom: dock ? 10 : 14 }}>
+        {!dock && (
+          <div style={{ fontSize: 10.5, color: MUTED, letterSpacing: 0.4 }}>
+            SHARED PROPERTY ANALYSIS · READ-ONLY
+          </div>
+        )}
+        {dock ? (
+          <strong style={{ display: "block", fontSize: 13.5, lineHeight: 1.3 }}>
+            {title}
+          </strong>
+        ) : (
+          <h1 style={{ margin: "4px 0 2px", fontSize: 19, lineHeight: 1.3 }}>{title}</h1>
+        )}
+        <div style={{ fontSize: 11, color: MUTED }}>
+          {property.parcelNodeId}
+          {property.countyName ? ` · ${property.countyName} County` : ""}
+          {share.expiresAt ? ` · link expires ${share.expiresAt.slice(0, 10)}` : ""}
+        </div>
+      </header>
+
+      {/* VERDICT */}
+      <section
+        data-testid="share-verdict"
+        style={{
+          padding: "12px 14px",
+          borderRadius: 8,
+          background: CARD_BG,
+          border: "1px solid rgba(125,211,252,0.3)",
+          marginBottom: 14,
+        }}
+      >
+        <div style={{ fontSize: 10.5, color: MUTED, marginBottom: 4 }}>Verdict</div>
+        {verdict.length > 0 ? (
+          <div style={{ fontSize: 13.5, fontWeight: 600 }}>{verdict.join(" · ")}</div>
+        ) : (
+          <div style={{ fontSize: 12, color: AMBER }}>{VERDICT_FALLBACK}</div>
+        )}
+        <div style={{ marginTop: 6, fontSize: 10, color: MUTED }}>
+          Public-record-derived · approximate, not survey grade · every fact
+          below carries its citation.
+        </div>
+      </section>
+
+      {/* Full cited brief — same renderer as the app, embedded mode. */}
+      <section
+        style={{
+          padding: "12px 14px",
+          borderRadius: 8,
+          background: CARD_BG,
+          border: "1px solid rgba(154,166,178,0.3)",
+          marginBottom: 14,
+        }}
+      >
+        <PropertyBriefPanel embedded brief={report} onClose={() => {}} />
+      </section>
+
+      {/* The sharer's dossier — AFTER the brief, BEFORE the downloads.
+          Renders only when the link carries one (v2 token + saved content);
+          otherwise this block is byte-for-byte the pre-dossier layout. */}
+      {dossier && <ShareDossierSection dossier={dossier} />}
+
+      {/* Downloads */}
+      <section
+        data-testid="share-downloads"
+        style={{
+          padding: "12px 14px",
+          borderRadius: 8,
+          background: CARD_BG,
+          border: "1px solid rgba(154,166,178,0.3)",
+        }}
+      >
+        <div style={{ fontSize: 10.5, color: MUTED, marginBottom: 2 }}>Documents</div>
+        <DownloadButton
+          label="Download site plan (PDF)"
+          href={`${downloadBase}&what=siteplan`}
+          filenameHint="the site plan"
+        />
+        <DownloadButton
+          label="Download terrain model (GLB)"
+          href={`${downloadBase}&what=terrain&format=glb`}
+          filenameHint="the terrain model"
+        />
+      </section>
+    </div>
+  );
+}
+
+/**
+ * The STANDALONE read-only page — no longer routed (the share landing loads
+ * the full app; see ShareFunnelApp), kept alive as the render host of the
+ * shared content pieces and as a direct-render fallback surface.
+ */
 export function ShareView() {
-  const [phase, setPhase] = useState<Phase>({ kind: "loading" });
+  const [phase, setPhase] = useState<SharePhase>({ kind: "loading" });
   // Dossier is feature-detected and OPTIONAL: null keeps the pre-dossier page.
   const [dossier, setDossier] = useState<ShareDossierData | null>(null);
   const [token] = useState<string | null>(() =>
@@ -393,11 +508,6 @@ export function ShareView() {
     );
   }
 
-  const { property, report, share } = phase.data;
-  const title = property.situsAddress ?? `Parcel ${property.parcelNodeId}`;
-  const verdict = deriveShareVerdict(report);
-  const downloadBase = `/api/pe-share-view?token=${encodeURIComponent(token ?? "")}`;
-
   return (
     <div
       data-testid="share-view"
@@ -412,82 +522,12 @@ export function ShareView() {
       }}
     >
       <div style={{ width: "min(560px, 100%)" }}>
-        {/* Property header */}
-        <header style={{ marginBottom: 14 }}>
-          <div style={{ fontSize: 10.5, color: MUTED, letterSpacing: 0.4 }}>
-            SHARED PROPERTY ANALYSIS · READ-ONLY
-          </div>
-          <h1 style={{ margin: "4px 0 2px", fontSize: 19, lineHeight: 1.3 }}>{title}</h1>
-          <div style={{ fontSize: 11, color: MUTED }}>
-            {property.parcelNodeId}
-            {property.countyName ? ` · ${property.countyName} County` : ""}
-            {share.expiresAt ? ` · link expires ${share.expiresAt.slice(0, 10)}` : ""}
-          </div>
-        </header>
-
-        {/* VERDICT */}
-        <section
-          data-testid="share-verdict"
-          style={{
-            padding: "12px 14px",
-            borderRadius: 8,
-            background: CARD_BG,
-            border: "1px solid rgba(125,211,252,0.3)",
-            marginBottom: 14,
-          }}
-        >
-          <div style={{ fontSize: 10.5, color: MUTED, marginBottom: 4 }}>Verdict</div>
-          {verdict.length > 0 ? (
-            <div style={{ fontSize: 13.5, fontWeight: 600 }}>{verdict.join(" · ")}</div>
-          ) : (
-            <div style={{ fontSize: 12, color: AMBER }}>{VERDICT_FALLBACK}</div>
-          )}
-          <div style={{ marginTop: 6, fontSize: 10, color: MUTED }}>
-            Public-record-derived · approximate, not survey grade · every fact
-            below carries its citation.
-          </div>
-        </section>
-
-        {/* Full cited brief — same renderer as the app, embedded mode. */}
-        <section
-          style={{
-            padding: "12px 14px",
-            borderRadius: 8,
-            background: CARD_BG,
-            border: "1px solid rgba(154,166,178,0.3)",
-            marginBottom: 14,
-          }}
-        >
-          <PropertyBriefPanel embedded brief={report} onClose={() => {}} />
-        </section>
-
-        {/* The sharer's dossier — AFTER the brief, BEFORE the downloads.
-            Renders only when the link carries one (v2 token + saved content);
-            otherwise this page is byte-for-byte the pre-dossier layout. */}
-        {dossier && <ShareDossierSection dossier={dossier} />}
-
-        {/* Downloads */}
-        <section
-          data-testid="share-downloads"
-          style={{
-            padding: "12px 14px",
-            borderRadius: 8,
-            background: CARD_BG,
-            border: "1px solid rgba(154,166,178,0.3)",
-          }}
-        >
-          <div style={{ fontSize: 10.5, color: MUTED, marginBottom: 2 }}>Documents</div>
-          <DownloadButton
-            label="Download site plan (PDF)"
-            href={`${downloadBase}&what=siteplan`}
-            filenameHint="the site plan"
-          />
-          <DownloadButton
-            label="Download terrain model (GLB)"
-            href={`${downloadBase}&what=terrain&format=glb`}
-            filenameHint="the terrain model"
-          />
-        </section>
+        <ShareAnalysisContent
+          token={token ?? ""}
+          data={phase.data}
+          dossier={dossier}
+          variant="page"
+        />
       </div>
     </div>
   );

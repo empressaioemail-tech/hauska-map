@@ -1,10 +1,11 @@
 // packages/map-renderer/src/chrome/MapToolset.tsx
 //
-// ONE map control cluster: the TOOLS toolbar (satellite/aerial base toggle,
-// measure, draw, marker, clear, and the in-panel "My location" geolocate
-// button — the GeolocateControl itself is mounted hidden on the map and
-// triggered from the panel, never shown as a floating map button) merged with
-// the LAYERS checklist into a single coherent panel. Replaces the split
+// ONE map control cluster: the TOOLS toolbar (measure, draw, marker, clear,
+// and the in-panel "My location" geolocate button — the GeolocateControl
+// itself is mounted hidden on the map and triggered from the panel, never
+// shown as a floating map button) merged with the LAYERS checklist into a
+// single coherent panel. The satellite/aerial base toggle lives in the LAYERS
+// section (first row) — it reads as a basemap layer, not a tool. Replaces the split
 // LayersControl (top-right) + MapTools (bottom-right) pair on surfaces that
 // want the unified toolset; the split components remain exported for
 // consumers that still use them (CC).
@@ -132,24 +133,20 @@ export function ToolsetToolsSection({
   active,
   measureMode,
   readout,
-  satellite,
   tracking,
   onActivate,
   onClear,
   onSetMeasureMode,
-  onSatelliteChange,
   onLocate,
 }: {
   active: ToolsSnapshot["active"];
   measureMode: ToolsSnapshot["measureMode"];
   readout: string | null;
-  satellite: boolean;
   /** True while the hidden GeolocateControl is tracking the user location. */
   tracking: boolean;
   onActivate: (tool: "measure" | "draw" | "marker") => void;
   onClear: () => void;
   onSetMeasureMode: (mode: "line" | "area") => void;
-  onSatelliteChange: (on: boolean) => void;
   /** Trigger / toggle the hidden GeolocateControl. */
   onLocate: () => void;
 }) {
@@ -257,27 +254,6 @@ export function ToolsetToolsSection({
           {readout}
         </div>
       )}
-
-      {/* Satellite / aerial base toggle. */}
-      <label
-        style={{
-          display: "flex",
-          alignItems: "center",
-          gap: 8,
-          marginTop: 8,
-          cursor: "pointer",
-          fontSize: 11.5,
-          color: TEXT,
-        }}
-      >
-        <input
-          type="checkbox"
-          checked={satellite}
-          onChange={(e) => onSatelliteChange(e.target.checked)}
-          style={{ accentColor: ACCENT, cursor: "pointer" }}
-        />
-        <span>Satellite / aerial</span>
-      </label>
     </div>
   );
 }
@@ -461,12 +437,10 @@ export function MapToolset({
             active={active}
             measureMode={snap.measureMode}
             readout={snap.readout}
-            satellite={satellite}
             tracking={tracking}
             onActivate={(tool) => controller()?.activate(tool)}
             onClear={() => controller()?.clear()}
             onSetMeasureMode={(mode) => controller()?.setMeasureMode(mode)}
-            onSatelliteChange={setSatellite}
             onLocate={() => geolocateRef.current?.trigger()}
           />
         )}
@@ -484,6 +458,28 @@ export function MapToolset({
           }
         >
           <div style={{ ...sectionHeaderStyle(), marginBottom: 7 }}>Layers</div>
+          {/* Satellite / aerial BASE toggle — first row of LAYERS (it reads as
+              a basemap layer). Same behavior/handler as before the move: the
+              setSatelliteBase effect operates on the live map in place. */}
+          <div style={{ padding: "3px 0" }}>
+            <label
+              style={{
+                display: "flex",
+                alignItems: "center",
+                gap: 8,
+                cursor: "pointer",
+              }}
+            >
+              <input
+                type="checkbox"
+                data-testid="map-toolset-satellite"
+                checked={satellite}
+                onChange={(e) => setSatellite(e.target.checked)}
+                style={{ accentColor: ACCENT, cursor: "pointer" }}
+              />
+              <span style={{ flex: 1 }}>Satellite / aerial</span>
+            </label>
+          </div>
           {layerKeys.map((key) => {
             const badge = layerStates?.[key];
             return (
