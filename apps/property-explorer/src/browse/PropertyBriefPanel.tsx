@@ -164,9 +164,20 @@ function CitationAppendix({ citations }: { citations: CitationEntry[] }) {
 export interface PropertyBriefPanelProps {
   brief: ResearchBriefPayload;
   onClose: () => void;
+  /**
+   * WB1: render as DOCK CONTENT inside the workbench dock (static flow, full
+   * width, no own chrome — the dock provides position/background/border and
+   * owns the × close). Default false keeps the original standalone top-right
+   * aside for compatibility.
+   */
+  embedded?: boolean;
 }
 
-export function PropertyBriefPanel({ brief, onClose }: PropertyBriefPanelProps) {
+export function PropertyBriefPanel({
+  brief,
+  onClose,
+  embedded = false,
+}: PropertyBriefPanelProps) {
   const vm = useMemo(() => deriveBriefViewModel(brief), [brief]);
   const printFrameRef = useRef<HTMLIFrameElement | null>(null);
 
@@ -217,25 +228,35 @@ export function PropertyBriefPanel({ brief, onClose }: PropertyBriefPanelProps) 
   );
 
   return (
-    // DOCKING (operator revision 2026-07-29 #2): the toolset collapsed into a
-    // lower-right bubble, so the brief returns to its ORIGINAL home — top-right,
-    // natural height, NO internal scrollbar (the page owns any overflow).
+    // Standalone mode: the brief's ORIGINAL top-right aside (natural height,
+    // NO internal scrollbar — the page owns any overflow). Embedded mode
+    // (WB1): the workbench dock occupies that exact space and provides the
+    // chrome, so the brief renders as plain full-width dock content.
     <aside
       data-testid="research-brief"
-      style={{
-        position: "absolute",
-        top: 12,
-        right: 12,
-        zIndex: 8,
-        width: "min(400px, calc(100vw - 24px))",
-        padding: 14,
-        borderRadius: 8,
-        color: TEXT,
-        background: "rgba(13,17,23,0.94)",
-        border: "1px solid rgba(154,166,178,0.35)",
-        font: "12px/1.45 system-ui, -apple-system, Segoe UI, Roboto, sans-serif",
-        animation: "pe-brief-in 280ms ease",
-      }}
+      data-embedded={embedded ? "true" : undefined}
+      style={
+        embedded
+          ? {
+              width: "100%",
+              color: TEXT,
+              font: "12px/1.45 system-ui, -apple-system, Segoe UI, Roboto, sans-serif",
+            }
+          : {
+              position: "absolute",
+              top: 12,
+              right: 12,
+              zIndex: 8,
+              width: "min(400px, calc(100vw - 24px))",
+              padding: 14,
+              borderRadius: 8,
+              color: TEXT,
+              background: "rgba(13,17,23,0.94)",
+              border: "1px solid rgba(154,166,178,0.35)",
+              font: "12px/1.45 system-ui, -apple-system, Segoe UI, Roboto, sans-serif",
+              animation: "pe-brief-in 280ms ease",
+            }
+      }
     >
       <style>{`@keyframes pe-brief-in {
   from { opacity: 0; transform: translateY(-10px); }
@@ -268,23 +289,26 @@ export function PropertyBriefPanel({ brief, onClose }: PropertyBriefPanelProps) 
           >
             Export PDF
           </button>
-          <button
-            type="button"
-            aria-label="Close"
-            data-testid="brief-close"
-            onClick={onClose}
-            style={{
-              background: "transparent",
-              border: "none",
-              color: MUTED,
-              cursor: "pointer",
-              fontSize: 15,
-              lineHeight: 1,
-              padding: 0,
-            }}
-          >
-            ×
-          </button>
+          {/* Embedded (dock) mode: the dock header owns the × — no double close. */}
+          {!embedded && (
+            <button
+              type="button"
+              aria-label="Close"
+              data-testid="brief-close"
+              onClick={onClose}
+              style={{
+                background: "transparent",
+                border: "none",
+                color: MUTED,
+                cursor: "pointer",
+                fontSize: 15,
+                lineHeight: 1,
+                padding: 0,
+              }}
+            >
+              ×
+            </button>
+          )}
         </div>
       </div>
 
