@@ -133,6 +133,45 @@ describe("the ONE shared dock", () => {
   });
 });
 
+describe("dock height model — scrolls instead of clipping below the viewport", () => {
+  it("the dock is viewport-bounded: maxHeight = 100vh minus top offset minus 16px", () => {
+    const html = render({ openToolId: "brief", activeParcelNodeId: "p1" });
+    const dock = html.match(/data-testid="workbench-dock"[^>]*style="([^"]*)"/);
+    expect(dock).not.toBeNull();
+    // top:12px + 16px bottom margin → calc(100vh - 28px).
+    expect(dock![1]).toContain("max-height:calc(100vh - 28px)");
+    // Flex column so the pinned header + scroll region share the budget.
+    expect(dock![1]).toContain("flex-direction:column");
+    expect(dock![1]).toContain("overflow:hidden");
+  });
+
+  it("ONE dock-owned scroll region wraps every tool's content (momentum scroll)", () => {
+    const html = render({ openToolId: "brief", activeParcelNodeId: "p1" });
+    expect(html.match(/data-testid="dock-scroll"/g)).toHaveLength(1);
+    const scroll = html.match(/data-testid="dock-scroll"[^>]*style="([^"]*)"/);
+    expect(scroll).not.toBeNull();
+    expect(scroll![1]).toContain("overflow-y:auto");
+    expect(scroll![1]).toContain("-webkit-overflow-scrolling:touch");
+    expect(scroll![1]).toContain("min-height:0");
+    // The tool's content renders INSIDE the scroll region: the dock body
+    // (here the honest no-brief fetch-entry state) comes after dock-scroll.
+    expect(html.indexOf('data-testid="dock-scroll"')).toBeLessThan(
+      html.indexOf("Checking access"),
+    );
+  });
+
+  it("the header (title + ×) is pinned chrome OUTSIDE the scroll region", () => {
+    const html = render({ openToolId: "chat", activeParcelNodeId: "p1" });
+    const headerAt = html.indexOf('data-testid="dock-header"');
+    const closeAt = html.indexOf('data-testid="dock-close"');
+    const scrollAt = html.indexOf('data-testid="dock-scroll"');
+    expect(headerAt).toBeGreaterThan(-1);
+    // Header (and its close control) precede the scroll container entirely.
+    expect(headerAt).toBeLessThan(scrollAt);
+    expect(closeAt).toBeLessThan(scrollAt);
+  });
+});
+
 describe("brief in the dock — per-property persistent via the chassis store", () => {
   it("renders the STORED brief for the active property without refetch UI", () => {
     const store = createWorkbenchToolStateStore({ storage: null });

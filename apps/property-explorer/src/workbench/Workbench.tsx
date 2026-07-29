@@ -148,7 +148,13 @@ export function Workbench({
         })}
       </div>
 
-      {/* THE ONE SHARED DOCK — exactly one tool's content, or nothing. */}
+      {/* THE ONE SHARED DOCK — exactly one tool's content, or nothing.
+          HEIGHT MODEL (polish wave): the dock never extends past the viewport.
+          maxHeight = 100vh minus the dock's top offset (12px) minus a 16px
+          bottom margin; content taller than that scrolls INSIDE the dock
+          (momentum scroll) while the header (title + ×) stays pinned. This is
+          dock chrome, owned HERE for every tool — tools do not add their own
+          outer scrollboxes. */}
       {openTool && (
         <section
           data-testid="workbench-dock"
@@ -159,11 +165,14 @@ export function Workbench({
             right: 54,
             zIndex: 9,
             width: "min(400px, calc(100vw - 78px))",
+            maxHeight: "calc(100vh - 28px)",
+            display: "flex",
+            flexDirection: "column",
+            overflow: "hidden",
             borderRadius: 8,
             color: TEXT,
             background: CARD_BG,
             border: BORDER,
-            padding: "10px 14px 14px",
             font: "12px/1.45 system-ui, -apple-system, Segoe UI, Roboto, sans-serif",
             animation: "pe-dock-in 240ms ease",
           }}
@@ -172,14 +181,17 @@ export function Workbench({
   from { opacity: 0; transform: translateY(-10px); }
   to   { opacity: 1; transform: translateY(0); }
 }`}</style>
+          {/* PINNED HEADER — never scrolls out of view. */}
           <div
+            data-testid="dock-header"
             style={{
+              flex: "0 0 auto",
               display: "flex",
               justifyContent: "space-between",
               alignItems: "center",
               gap: 8,
+              padding: "10px 14px 6px",
               marginBottom: 8,
-              paddingBottom: 6,
               borderBottom: "1px solid rgba(154,166,178,0.2)",
             }}
           >
@@ -202,12 +214,24 @@ export function Workbench({
               ×
             </button>
           </div>
-          <DockBody
-            tool={openTool}
-            activeParcelNodeId={activeParcelNodeId}
-            closeDock={closeDock}
-            host={host}
-          />
+          {/* THE SCROLL REGION — every tool's content lives inside it. */}
+          <div
+            data-testid="dock-scroll"
+            style={{
+              flex: "1 1 auto",
+              minHeight: 0,
+              overflowY: "auto",
+              WebkitOverflowScrolling: "touch",
+              padding: "0 14px 14px",
+            }}
+          >
+            <DockBody
+              tool={openTool}
+              activeParcelNodeId={activeParcelNodeId}
+              closeDock={closeDock}
+              host={host}
+            />
+          </div>
         </section>
       )}
     </WorkbenchProvider>
