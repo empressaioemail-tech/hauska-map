@@ -23,10 +23,18 @@ import {
   type ResearchBriefPayload,
 } from "./brief-view-model";
 import { renderBriefPrintHtml } from "./brief-print-html";
+import { composeBriefVerdict, type BriefVerdictTone } from "./brief-verdict";
 
 const MUTED = "#9aa6b2";
 const AMBER = "#fcd34d";
 const TEXT = "#e5e7eb";
+
+/** W2 verdict tones: red flag leads red-ish; caution amber; clean earns green. */
+const VERDICT_COLOR: Record<BriefVerdictTone, string> = {
+  flag: "#fca5a5",
+  caution: AMBER,
+  clear: "#4ade80",
+};
 
 const FRESHNESS_COLOR: Record<FreshnessVerdict, string> = {
   fresh: "#4ade80",
@@ -179,6 +187,9 @@ export function PropertyBriefPanel({
   embedded = false,
 }: PropertyBriefPanelProps) {
   const vm = useMemo(() => deriveBriefViewModel(brief), [brief]);
+  // W2: the deterministic one-line verdict that LEADS the brief (no LLM —
+  // pure composition over the payload; absences stay absences).
+  const verdict = useMemo(() => composeBriefVerdict(brief), [brief]);
   const printFrameRef = useRef<HTMLIFrameElement | null>(null);
 
   // Drop the hidden print iframe on unmount so an exported frame never leaks.
@@ -311,6 +322,22 @@ export function PropertyBriefPanel({
           )}
         </div>
       </div>
+
+      {/* W2 VERDICT LINE — the plain-English glance, visually LEADING the
+          brief content before any cited detail. Deterministic, payload-only. */}
+      <p
+        data-testid="brief-verdict"
+        data-tone={verdict.tone}
+        style={{
+          margin: "8px 0 0",
+          fontSize: 12.5,
+          fontWeight: 600,
+          lineHeight: 1.45,
+          color: VERDICT_COLOR[verdict.tone],
+        }}
+      >
+        {verdict.line}
+      </p>
 
       <div data-testid="brief-provenance" style={{ marginTop: 6 }}>
         {headerLine("Parcel", vm.header.parcelNodeId)}

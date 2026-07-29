@@ -34,8 +34,6 @@ import {
   type CardFacet,
 } from "../lib/baked-facets";
 import { CORTEX_PROXY_BASE, PE_FACETS_PROXY_BASE } from "../lib/config";
-import { TerrainExportSection } from "./TerrainExportSection";
-import { SitePlanExportSection } from "./SitePlanExportSection";
 
 const CARD_BG = "rgba(13,17,23,0.94)";
 const MUTED = "#8b97a5";
@@ -66,8 +64,6 @@ export function InspectCard({
   onEnvelope,
   onMakeSubject,
   onResearch,
-  onTerrainPaymentRequired,
-  onSitePlanPaymentRequired,
   onSaveProperty,
 }: {
   card: ParcelCardData;
@@ -87,8 +83,6 @@ export function InspectCard({
   // stubbed ask/report path.
   onMakeSubject: () => void;
   onResearch: () => void;
-  onTerrainPaymentRequired: () => void;
-  onSitePlanPaymentRequired?: () => void;
   onSaveProperty?: () => void;
 }) {
   // Baked-first source state. `source` is "loading" until we know whether a
@@ -383,27 +377,9 @@ export function InspectCard({
         credentials pending (WDLL 31 hold).
       </div>
 
-      {parcelNodeId && (
-        <TerrainExportSection
-          parcelNodeId={parcelNodeId}
-          onPaymentRequired={onTerrainPaymentRequired}
-        />
-      )}
-
-      {parcelNodeId && (
-        <SitePlanExportSection
-          parcelNodeId={parcelNodeId}
-          address={
-            (baked?.situsAddress.state === "present"
-              ? baked.situsAddress.value
-              : card.situsAddress) ?? null
-          }
-          countyName={
-            (baked?.county.state === "present" ? baked.county.value : null) ?? null
-          }
-          onPaymentRequired={onSitePlanPaymentRequired ?? onTerrainPaymentRequired}
-        />
-      )}
+      {/* W2: the run-a-report actions (site-plan + terrain export) moved OFF
+          this card into the workbench "Reports & exports" bubble/dock — the
+          card keeps its data rows + Research/Make subject/Save actions. */}
 
       {/* DISTINCT explicit action: make this inspected parcel the SUBJECT. */}
       <button

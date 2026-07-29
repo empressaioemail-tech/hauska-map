@@ -58,6 +58,15 @@ export interface WorkbenchToolContext {
 export interface WorkbenchHostActions {
   /** Open the PE paywall gate with the given message (the 402 path). */
   openPaywall: (message: string) => void;
+  /**
+   * W2: best-known display facts for the ACTIVE parcel (the site-plan export
+   * sheet header wants address/county). Optional — tools must treat a missing
+   * implementation or null fields as honest absence, never fabricate.
+   */
+  getActiveParcelFacts?: () => {
+    address: string | null;
+    countyName: string | null;
+  };
 }
 
 /** One bubble in the top-right cluster. */

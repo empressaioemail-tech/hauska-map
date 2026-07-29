@@ -31,17 +31,52 @@ function blobHrefFromBase64(base64: string, contentType: string): string | null 
   }
 }
 
+/**
+ * W2: the JSON-serializable snapshot of this section's user-visible outcome —
+ * persisted per property by the Reports workbench tool (useDockToolState) so
+ * the last export result + download link survive dock close/reopen.
+ */
+export interface TerrainExportSectionState {
+  format: TerrainExportFormat;
+  notice: string | null;
+  result: TerrainExportBffResponse | null;
+}
+
 export function TerrainExportSection({
   parcelNodeId,
   onPaymentRequired,
+  initialState,
+  onStateChange,
 }: {
   parcelNodeId: string;
   onPaymentRequired: () => void;
+  /** Seed from a persisted snapshot (W2 Reports tool). Read at mount only —
+   *  remount (key on the property) when the active property changes. */
+  initialState?: TerrainExportSectionState | null;
+  /** Fires with the full snapshot on every terminal outcome + format change. */
+  onStateChange?: (next: TerrainExportSectionState) => void;
 }) {
-  const [format, setFormat] = useState<TerrainExportFormat>("glb");
+  const [format, setFormat] = useState<TerrainExportFormat>(
+    initialState?.format ?? "glb",
+  );
   const [busy, setBusy] = useState(false);
-  const [notice, setNotice] = useState<string | null>(null);
-  const [result, setResult] = useState<TerrainExportBffResponse | null>(null);
+  const [notice, setNotice] = useState<string | null>(
+    initialState?.notice ?? null,
+  );
+  const [result, setResult] = useState<TerrainExportBffResponse | null>(
+    initialState?.result ?? null,
+  );
+
+  // Persist the honest terminal state: what the section shows is what survives.
+  const settle = useCallback(
+    (next: TerrainExportSectionState) => {
+      setFormat(next.format);
+      setNotice(next.notice);
+      setResult(next.result);
+      onStateChange?.(next);
+    },
+    [onStateChange],
+  );
 
   const handleExport = useCallback(async () => {
     setBusy(true);
@@ -52,21 +87,32 @@ export function TerrainExportSection({
 
     if (!resp.ok) {
       if (resp.status === 401) {
-        setNotice("Sign in to export terrain for this parcel.");
+        settle({
+          format,
+          notice: "Sign in to export terrain for this parcel.",
+          result: null,
+        });
         return;
       }
       if (resp.status === 402) {
-        setNotice(null);
+        settle({ format, notice: null, result: null });
         onPaymentRequired();
         return;
       }
-      setNotice(resp.message ?? `Export failed (${resp.status || "network"}).`);
+      settle({
+        format,
+        notice: resp.message ?? `Export failed (${resp.status || "network"}).`,
+        result: null,
+      });
       return;
     }
 
-    setResult(resp.data);
-    setNotice("Terrain export ready â€” download below.");
-  }, [format, onPaymentRequired, parcelNodeId]);
+    settle({
+      format,
+      notice: "Terrain export ready â€” download below.",
+      result: resp.data,
+    });
+  }, [format, onPaymentRequired, parcelNodeId, settle]);
 
   const inline = result?.inlineDownload;
   const inlineMatches =
@@ -117,7 +163,13 @@ export function TerrainExportSection({
         data-testid="terrain-format-picker"
         value={format}
         disabled={busy}
-        onChange={(e) => setFormat(e.target.value as TerrainExportFormat)}
+        onChange={(e) =>
+          settle({
+            format: e.target.value as TerrainExportFormat,
+            notice,
+            result,
+          })
+        }
         style={{
           width: "100%",
           marginBottom: 8,
