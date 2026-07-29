@@ -35,6 +35,10 @@ export default defineConfig({
               target: spineProxyTarget,
               changeOrigin: true,
             },
+            "/api/pe-geocode": {
+              target: spineProxyTarget,
+              changeOrigin: true,
+            },
             "/api/auth": {
               target: spineProxyTarget,
               changeOrigin: true,
