@@ -58,6 +58,13 @@ export interface WorkbenchToolContext {
 export interface WorkbenchHostActions {
   /** Open the PE paywall gate with the given message (the 402 path). */
   openPaywall: (message: string) => void;
+  /**
+   * The ACTIVE property's situs address when the app shell knows it (inspect
+   * card), else null. W3 chat sends it as the research-chat address selector;
+   * tools must degrade honestly when it is null. Optional so injected test
+   * hosts predating W3 stay valid.
+   */
+  getActivePropertyAddress?: () => string | null;
 }
 
 /** One bubble in the top-right cluster. */
