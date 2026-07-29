@@ -43,6 +43,13 @@ import { startPeCheckout } from "../lib/billingClient";
 import { recordPeGtmEvent } from "../lib/gtmClient";
 import { savePropertyWithDossier } from "../lib/savedPropertiesClient";
 import { sanitizeDrawings } from "../lib/propertyDossier";
+import {
+  SAVED_PINS_LAYER_KEY,
+  SAVED_PINS_LAYER_LABEL,
+  SAVED_PINS_LEGEND,
+  resolvePinForSave,
+} from "../lib/saved-pins";
+import { SavedPropertyPins } from "./SavedPropertyPins";
 import { iccCitationStatus } from "../lib/iccCitation";
 import { InspectCard } from "./InspectCard";
 import { Workbench } from "../workbench/Workbench";
@@ -110,6 +117,10 @@ const PE_HYDROLOGY_URL = "/api/pe-hydrology";
 
 /** Zoom gate for viewport road-node layer (same altitude as parcels). */
 const MIN_ROAD_ZOOM = MIN_PARCEL_ZOOM;
+
+/** WB7c: the LAYERS-panel row key for saved-property pins. PE-side layer (DOM
+ *  markers) — the key never reaches the renderer's visible-layer set. */
+const SAVED_PINS_KEY = SAVED_PINS_LAYER_KEY as LayerKey;
 
 async function fetchRoadsNearBbox(
   bbox: { west: number; south: number; east: number; north: number },
@@ -271,10 +282,22 @@ export function ExplorerMap() {
     const seed = h.getVisibleLayers();
     if (seed && seed.size) {
       const filtered = filterConsumerLayers(new Set(seed));
-      setVisibleLayers(filtered);
-      setKnownLayers(filtered);
+      // WB7c: the saved-property pin layer is a PE-side row (DOM markers, not
+      // a renderer layer) — default ON; signed-out simply renders zero pins.
+      filtered.add(SAVED_PINS_KEY);
+      setVisibleLayers(new Set(filtered));
+      setKnownLayers(new Set(filtered));
     }
   });
+
+  // The renderer's visible-layer set MUST NOT carry the PE-side pins key —
+  // strip it before threading `visibleLayers` into FloatingMap.
+  const rendererVisibleLayers = useMemo(() => {
+    if (!visibleLayers) return undefined;
+    const next = new Set(visibleLayers);
+    next.delete(SAVED_PINS_KEY);
+    return next;
+  }, [visibleLayers]);
 
   // Viewport loader — bbox-scoped live-GIS + road-node network on load +
   // debounced move/zoom.
@@ -965,6 +988,9 @@ export function ExplorerMap() {
       note: "No parcel coverage here",
     };
   }
+  // WB7c: pin-layer legend rides the layer row's tooltip (info tone = quiet,
+  // tooltip-only — the panel stays clean; the honest legend stays discoverable).
+  layerStates[SAVED_PINS_KEY] = { tone: "info", note: SAVED_PINS_LEGEND };
   // NO persistent attribution / not-survey-grade badge on the parcel row
   // (operator-ratified 2026-07-29): the layer NAME carries "GIS" and the
   // not-survey-grade disclosure lives on the site-plan export where it
@@ -1114,17 +1140,29 @@ export function ExplorerMap() {
       parcelNodeId: nodeId,
     });
     if (nodeId) {
-      const address = inspectedRef.current?.card.situsAddress ?? null;
+      const inspCard = inspectedRef.current?.card ?? null;
+      const address = inspCard?.situsAddress ?? null;
       // WB6: seed the dossier (savedAt/address + current map drawings) —
       // savePropertyWithDossier merges into an existing dossier, never clobbers.
       const drawings = sanitizeDrawings(
         toolsControllerRef.current?.getDrawings() ?? null,
       );
-      void savePropertyWithDossier(nodeId, {
-        label: address,
-        address,
-        drawings: drawings ?? undefined,
-      });
+      // WB7c: capture the pin coordinate at save time — the inspect card's
+      // center when it carries one, else ONE pass through the #104
+      // center-resolution chain; still unknown → honestly no pin.
+      void (async () => {
+        const pin = await resolvePinForSave(
+          nodeId,
+          inspCard?.lat ?? null,
+          inspCard?.lng ?? null,
+        );
+        void savePropertyWithDossier(nodeId, {
+          label: address,
+          address,
+          drawings: drawings ?? undefined,
+          pin: pin ?? undefined,
+        });
+      })();
     }
     setOpenWorkbenchTool("properties");
   }, [cardNodeId]);
@@ -1157,7 +1195,7 @@ export function ExplorerMap() {
         center={DEFAULT_CENTER}
         parcelTiles={PARCEL_TILES}
         overlays={mapOverlays}
-        visibleLayers={visibleLayers ?? undefined}
+        visibleLayers={rendererVisibleLayers}
         onParcelSelect={handleParcelSelect}
         onParcelClick={handleParcelClick}
         onViewportChange={handleViewportChange}
@@ -1178,9 +1216,20 @@ export function ExplorerMap() {
           visible={visibleLayers}
           onLayersChange={(next) => setVisibleLayers(new Set(next))}
           layerStates={layerStates}
+          extraLabels={{ [SAVED_PINS_KEY]: SAVED_PINS_LAYER_LABEL }}
           onToolsController={handleToolsController}
         />
       )}
+
+      {/* WB7c: saved-property pins — ambient portfolio decoration on the LIVE
+          map (small star markers from the server list; signed-out renders
+          none). Clicking a pin reuses the SAME reopen flow as My Properties
+          (runParcelLookup — find/fly+inspect; workbench re-scopes itself). */}
+      <SavedPropertyPins
+        mapRef={mapRef}
+        visible={visibleLayers ? visibleLayers.has(SAVED_PINS_KEY) : false}
+        onOpenProperty={(id) => void runParcelLookup(id)}
+      />
 
       {/* Transient notification area (item 2): layer-state chips appear on
           change, stay long enough to read, then fade — never stacking stale
