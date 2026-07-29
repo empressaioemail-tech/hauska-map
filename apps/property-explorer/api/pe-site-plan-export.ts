@@ -13,10 +13,29 @@
 // Sibling of pe-terrain-export.ts: same session/entitlement gate, distinct
 // engine route (site-plan-export/*) and MCP tool
 // (refresh_parcel_site_plan_export).
+//
+// DOSSIER FOLD-IN (engine #174 / MCP dossier tools): `?kind=dossier` routes
+// the SAME function to the property-dossier PDF export — no new serverless
+// function (Vercel 11/12 cap). POST ?kind=dossier refreshes via MCP
+// refresh_parcel_dossier_export (body: address/countyName/verdictLine/brief/
+// chatSummary/notes, forwarded verbatim after cap-trim); GET ?kind=dossier&
+// action=download streams the pdf-dossier bytes via
+// download_parcel_dossier_export. GATE DIFFERENCE: the dossier requires
+// PROPERTY entitlement (paid OR the single-property unlock — the R1 line),
+// not the Pro-only tier the site-plan formats keep.
 
 import type { VercelRequest, VercelResponse } from '@vercel/node'
 import { callMcpTool, mcpProductKey } from './_lib/mcp-server-client.js'
-import { fetchPeEntitlement } from './_lib/pe-entitlement.js'
+import {
+  fetchPeEntitlement,
+  fetchPeEntitlementDetail,
+} from './_lib/pe-entitlement.js'
+import {
+  dossierFilename,
+  mapMcpDossierPayload,
+  parseDossierExportContent,
+  resolveDossierExportAuth,
+} from './_lib/pe-dossier-export-core.js'
 import {
   isPeExportDevBypassArmed,
   PE_EXPORT_DEV_BYPASS_HEADER,
@@ -330,12 +349,236 @@ async function handleDownload(
   }
 }
 
+// ---------------------------------------------------------------------------
+// DOSSIER leg (kind=dossier) — property-entitlement gate + MCP dossier tools.
+// ---------------------------------------------------------------------------
+
+/** Session + PROPERTY entitlement (paid OR unlocked-for-parcel; dev bypass). */
+async function requireDossierSession(
+  req: VercelRequest,
+  res: VercelResponse,
+  parcelNodeId: string,
+): Promise<{ token: string; devBypass: boolean } | null> {
+  const token = readPeSessionCookie(req.headers.cookie)
+  const detail = token
+    ? await fetchPeEntitlementDetail(token, parcelNodeId)
+    : { ok: false as const, status: 401 as const }
+  const gate = resolveDossierExportAuth({
+    sessionToken: token,
+    entitlement: detail.ok
+      ? {
+          ok: true,
+          tier: detail.tier,
+          propertyUnlocked: detail.propertyUnlocked,
+        }
+      : detail,
+    devBypass: isPeExportDevBypassArmed({
+      headerValue: req.headers[PE_EXPORT_DEV_BYPASS_HEADER],
+    }),
+  })
+  if (!gate.ok) {
+    res.status(gate.status).json({ error: gate.error, message: gate.message })
+    return null
+  }
+  if (gate.devBypass) {
+    res.setHeader('X-PE-Export-Dev-Bypass', '1')
+  }
+  return { token: token!, devBypass: gate.devBypass === true }
+}
+
+/** Shared honest error mapping for MCP dossier failures (message or throw). */
+function respondDossierFailure(
+  res: VercelResponse,
+  message: string,
+  session: { devBypass: boolean } | null,
+): void {
+  if (isMcpPaymentMessage(message)) {
+    if (session?.devBypass) {
+      res.status(503).json({
+        error: 'mcp_paid_key_required',
+        message:
+          'Operator bypass cleared the PE paywall, but MCP_PRODUCT_KEY is not paid-tier. ' +
+          message,
+      })
+      return
+    }
+    res.status(402).json({ error: 'payment_required', message })
+    return
+  }
+  const kind = classifyEngineFailure({ message })
+  if (kind === 'gate') {
+    res.status(503).json({
+      error: 'engine_gate_config',
+      message: ENGINE_GATE_TOKEN_MESSAGE,
+      detail: message,
+    })
+    return
+  }
+  // Honest-timeout classes: transient engine failures are 503 + retryable,
+  // never a misleading gate-token or paywall message.
+  const transient = retryableEngineFailureResponse(kind, message)
+  if (transient) {
+    res.status(transient.status).json(transient.body)
+    return
+  }
+  res.status(502).json({ error: 'upstream_error', message })
+}
+
+async function handleDossierRefresh(
+  req: VercelRequest,
+  res: VercelResponse,
+): Promise<void> {
+  const body = (typeof req.body === 'string' ? JSON.parse(req.body) : req.body) as
+    | Record<string, unknown>
+    | undefined
+
+  const parcelNodeId = body?.parcelNodeId
+  if (!isValidParcelNodeId(parcelNodeId)) {
+    res.status(400).json({
+      error: 'invalid_parcel_node_id',
+      message: 'parcelNodeId must match {fips}:{propId}, e.g. 48029:105129.',
+    })
+    return
+  }
+
+  const session = await requireDossierSession(req, res, parcelNodeId)
+  if (!session) return
+
+  if (!mcpProductKey()) {
+    res.status(503).json({
+      error: 'proxy not configured',
+      missing: 'MCP_PRODUCT_KEY',
+    })
+    return
+  }
+
+  // Cap-trim the caller-supplied dossier content; absent pieces are honestly
+  // omitted (the engine renders their absence honestly — never fabricates).
+  const content = parseDossierExportContent(body)
+
+  try {
+    const payload = await callMcpTool('refresh_parcel_dossier_export', {
+      parcel_node_id: parcelNodeId,
+      format: 'pdf-dossier',
+      ...(content.address ? { address: content.address } : {}),
+      ...(content.countyName ? { county_name: content.countyName } : {}),
+      ...(content.verdictLine ? { verdict_line: content.verdictLine } : {}),
+      ...(content.brief ? { brief: content.brief } : {}),
+      ...(content.chatSummary ? { chat_summary: content.chatSummary } : {}),
+      ...(content.notes ? { notes: content.notes } : {}),
+    })
+
+    if (payload.isError === true) {
+      respondDossierFailure(res, mcpToolErrorMessage(payload), session)
+      return
+    }
+
+    const mapped = mapMcpDossierPayload(payload, parcelNodeId)
+    if (!mapped.ok) {
+      res.status(502).json({ error: 'upstream_error', message: mapped.message })
+      return
+    }
+    res.status(200).json(mapped)
+  } catch (err) {
+    respondDossierFailure(
+      res,
+      err instanceof Error ? err.message : String(err),
+      session,
+    )
+  }
+}
+
+async function handleDossierDownload(
+  req: VercelRequest,
+  res: VercelResponse,
+): Promise<void> {
+  const parcelNodeIdRaw = req.query.parcelNodeId
+  const parcelNodeId = Array.isArray(parcelNodeIdRaw)
+    ? parcelNodeIdRaw[0]
+    : parcelNodeIdRaw
+  if (!isValidParcelNodeId(parcelNodeId)) {
+    res.status(400).json({ error: 'invalid_parcel_node_id' })
+    return
+  }
+
+  const session = await requireDossierSession(req, res, parcelNodeId)
+  if (!session) return
+
+  if (!mcpProductKey()) {
+    res.status(503).json({
+      error: 'proxy not configured',
+      missing: 'MCP_PRODUCT_KEY',
+    })
+    return
+  }
+
+  try {
+    // Gate-signed byte hop through MCP (engine-api accepts only gate-signed
+    // calls) — same reason as the site-plan download above. Not metered:
+    // the SDK meter was consumed at refresh.
+    const payload = await callMcpTool('download_parcel_dossier_export', {
+      parcel_node_id: parcelNodeId,
+    })
+
+    if (payload.isError === true) {
+      const message = mcpToolErrorMessage(payload)
+      if (/404|not found/i.test(message)) {
+        res.status(404).json({
+          error: 'artifact_not_available',
+          message,
+        })
+        return
+      }
+      respondDossierFailure(res, message, session)
+      return
+    }
+
+    const inline = extractInlineDownload(payload)
+    if (!inline) {
+      res.status(502).json({
+        error: 'download_failed',
+        message: 'MCP dossier download returned no artifact bytes.',
+      })
+      return
+    }
+
+    const buffer = Buffer.from(inline.base64, 'base64')
+    res.setHeader('Content-Type', inline.contentType || 'application/pdf')
+    res.setHeader(
+      'Content-Disposition',
+      `attachment; filename="${dossierFilename(parcelNodeId)}"`,
+    )
+    res.status(200).send(buffer)
+  } catch (err) {
+    respondDossierFailure(
+      res,
+      err instanceof Error ? err.message : String(err),
+      session,
+    )
+  }
+}
+
 export default async function handler(
   req: VercelRequest,
   res: VercelResponse,
 ): Promise<void> {
   const actionRaw = req.query.action
   const action = Array.isArray(actionRaw) ? actionRaw[0] : actionRaw
+  const kindRaw = req.query.kind
+  const kind = Array.isArray(kindRaw) ? kindRaw[0] : kindRaw
+
+  if (kind === 'dossier') {
+    if (req.method === 'GET' && action === 'download') {
+      await handleDossierDownload(req, res)
+      return
+    }
+    if (req.method === 'POST') {
+      await handleDossierRefresh(req, res)
+      return
+    }
+    res.status(405).json({ error: 'method_not_allowed' })
+    return
+  }
 
   if (req.method === 'GET' && action === 'download') {
     await handleDownload(req, res)

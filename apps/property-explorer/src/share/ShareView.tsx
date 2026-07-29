@@ -15,6 +15,10 @@ import { useEffect, useState } from "react";
 import { PropertyBriefPanel } from "../browse/PropertyBriefPanel";
 import type { ResearchBriefPayload } from "../browse/brief-view-model";
 import { deriveShareVerdict, VERDICT_FALLBACK } from "./share-verdict";
+import {
+  drawingsSummaryLine,
+  drawingsToSketch,
+} from "./share-dossier-sketch";
 
 const MUTED = "#9aa6b2";
 const AMBER = "#fcd34d";
@@ -38,6 +42,47 @@ type Phase =
   | { kind: "expired" }
   | { kind: "invalid" }
   | { kind: "notice"; text: string };
+
+/** The share-safe dossier the BFF projects (what=dossier, cortex #362). */
+export interface ShareDossierData {
+  address: string | null;
+  savedAt: string | null;
+  drawings: {
+    type: "FeatureCollection";
+    features: Array<{
+      type: "Feature";
+      geometry: { type: string; coordinates: unknown };
+      properties: Record<string, unknown>;
+    }>;
+  } | null;
+  chatSummary: {
+    summary: string;
+    savedAt: string;
+    disclaimer: string | null;
+  } | null;
+  notes: string | null;
+}
+
+/**
+ * FEATURE-DETECTED dossier fetch: any non-200 (v1 token without owner scope,
+ * cortex route not deployed yet, nothing saved to share) returns null and the
+ * page renders exactly as it did before the dossier shipped — never an error.
+ */
+async function fetchShareDossier(token: string): Promise<ShareDossierData | null> {
+  try {
+    const res = await fetch(
+      `/api/pe-share-view?token=${encodeURIComponent(token)}&what=dossier`,
+      { headers: { Accept: "application/json" } },
+    );
+    if (!res.ok) return null;
+    const body = (await res.json().catch(() => null)) as {
+      dossier?: ShareDossierData;
+    } | null;
+    return body?.dossier ?? null;
+  } catch {
+    return null;
+  }
+}
 
 export function shareTokenFromLocation(loc: {
   hash: string;
@@ -149,6 +194,118 @@ function DownloadButton({
   );
 }
 
+/**
+ * The sharer's dossier — saved drawings (schematic static-SVG sketch, honest
+ * "not to scale"), the AI chat summary (ALWAYS labeled AI, with disclaimer),
+ * and notes. Renders nothing when the share carries no dossier. Exported for
+ * render tests.
+ */
+export function ShareDossierSection({ dossier }: { dossier: ShareDossierData }) {
+  const sketch = drawingsToSketch(dossier.drawings);
+  const summaryLine = drawingsSummaryLine(dossier.drawings);
+  return (
+    <section
+      data-testid="share-dossier"
+      style={{
+        padding: "12px 14px",
+        borderRadius: 8,
+        background: CARD_BG,
+        border: "1px solid rgba(154,166,178,0.3)",
+        marginBottom: 14,
+      }}
+    >
+      <div style={{ fontSize: 10.5, color: MUTED, marginBottom: 6 }}>
+        From the sharer&apos;s workspace
+        {dossier.savedAt ? ` · saved ${dossier.savedAt.slice(0, 10)}` : ""}
+      </div>
+
+      {dossier.drawings && (
+        <div data-testid="share-dossier-drawings" style={{ marginBottom: 10 }}>
+          <div style={{ fontSize: 11.5, fontWeight: 600, marginBottom: 4 }}>
+            Map drawings{summaryLine ? ` · ${summaryLine}` : ""}
+          </div>
+          {sketch ? (
+            <>
+              <svg
+                data-testid="share-dossier-sketch"
+                viewBox={sketch.viewBox}
+                role="img"
+                aria-label="Schematic sketch of the sharer's saved map drawings"
+                style={{
+                  width: 180,
+                  height: 180,
+                  display: "block",
+                  background: "rgba(154,166,178,0.06)",
+                  border: "1px solid rgba(154,166,178,0.25)",
+                  borderRadius: 6,
+                }}
+              >
+                {sketch.paths.map((p, i) => (
+                  <path
+                    key={i}
+                    d={p.d}
+                    fill={p.closed ? "rgba(125,211,252,0.15)" : "none"}
+                    stroke={ACCENT}
+                    strokeWidth={1.2}
+                    strokeLinejoin="round"
+                    strokeLinecap="round"
+                  />
+                ))}
+                {sketch.points.map((pt, i) => (
+                  <circle key={i} cx={pt.x} cy={pt.y} r={2} fill={AMBER} />
+                ))}
+              </svg>
+              <div style={{ marginTop: 4, fontSize: 9.5, color: MUTED }}>
+                Schematic sketch of the sharer&apos;s annotations — not to
+                scale, no basemap.
+              </div>
+            </>
+          ) : (
+            <div style={{ fontSize: 10.5, color: MUTED }}>
+              The sharer saved annotations that cannot be sketched here.
+            </div>
+          )}
+        </div>
+      )}
+
+      {dossier.chatSummary && (
+        <div data-testid="share-dossier-chat" style={{ marginBottom: 10 }}>
+          <div style={{ fontSize: 10, color: AMBER, fontWeight: 600 }}>
+            AI research summary · saved {dossier.chatSummary.savedAt.slice(0, 10)}
+          </div>
+          <p
+            style={{
+              margin: "3px 0 0",
+              fontSize: 11.5,
+              whiteSpace: "pre-wrap",
+            }}
+          >
+            {dossier.chatSummary.summary}
+          </p>
+          <p
+            data-testid="share-dossier-chat-disclaimer"
+            style={{ margin: "3px 0 0", fontSize: 9.5, color: MUTED }}
+          >
+            {dossier.chatSummary.disclaimer ??
+              "AI-generated summary of a research chat — verify against the cited sources before relying on it."}
+          </p>
+        </div>
+      )}
+
+      {dossier.notes && (
+        <div data-testid="share-dossier-notes">
+          <div style={{ fontSize: 11.5, fontWeight: 600, marginBottom: 2 }}>
+            Notes from the sharer
+          </div>
+          <p style={{ margin: 0, fontSize: 11.5, whiteSpace: "pre-wrap" }}>
+            {dossier.notes}
+          </p>
+        </div>
+      )}
+    </section>
+  );
+}
+
 function CenterCard({ children }: { children: React.ReactNode }) {
   return (
     <div
@@ -180,6 +337,8 @@ function CenterCard({ children }: { children: React.ReactNode }) {
 
 export function ShareView() {
   const [phase, setPhase] = useState<Phase>({ kind: "loading" });
+  // Dossier is feature-detected and OPTIONAL: null keeps the pre-dossier page.
+  const [dossier, setDossier] = useState<ShareDossierData | null>(null);
   const [token] = useState<string | null>(() =>
     typeof window === "undefined" ? null : shareTokenFromLocation(window.location),
   );
@@ -192,6 +351,9 @@ export function ShareView() {
     let cancelled = false;
     void fetchShareBrief(token).then((next) => {
       if (!cancelled) setPhase(next);
+    });
+    void fetchShareDossier(token).then((next) => {
+      if (!cancelled) setDossier(next);
     });
     return () => {
       cancelled = true;
@@ -286,6 +448,24 @@ export function ShareView() {
           </div>
         </section>
 
+        {/* Full cited brief — same renderer as the app, embedded mode. */}
+        <section
+          style={{
+            padding: "12px 14px",
+            borderRadius: 8,
+            background: CARD_BG,
+            border: "1px solid rgba(154,166,178,0.3)",
+            marginBottom: 14,
+          }}
+        >
+          <PropertyBriefPanel embedded brief={report} onClose={() => {}} />
+        </section>
+
+        {/* The sharer's dossier — AFTER the brief, BEFORE the downloads.
+            Renders only when the link carries one (v2 token + saved content);
+            otherwise this page is byte-for-byte the pre-dossier layout. */}
+        {dossier && <ShareDossierSection dossier={dossier} />}
+
         {/* Downloads */}
         <section
           data-testid="share-downloads"
@@ -294,7 +474,6 @@ export function ShareView() {
             borderRadius: 8,
             background: CARD_BG,
             border: "1px solid rgba(154,166,178,0.3)",
-            marginBottom: 14,
           }}
         >
           <div style={{ fontSize: 10.5, color: MUTED, marginBottom: 2 }}>Documents</div>
@@ -308,18 +487,6 @@ export function ShareView() {
             href={`${downloadBase}&what=terrain&format=glb`}
             filenameHint="the terrain model"
           />
-        </section>
-
-        {/* Full cited brief — same renderer as the app, embedded mode. */}
-        <section
-          style={{
-            padding: "12px 14px",
-            borderRadius: 8,
-            background: CARD_BG,
-            border: "1px solid rgba(154,166,178,0.3)",
-          }}
-        >
-          <PropertyBriefPanel embedded brief={report} onClose={() => {}} />
         </section>
       </div>
     </div>
