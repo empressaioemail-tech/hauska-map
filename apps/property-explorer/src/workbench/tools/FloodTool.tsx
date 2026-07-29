@@ -1,27 +1,34 @@
 // apps/property-explorer/src/workbench/tools/FloodTool.tsx
 //
-// R3 — the FLOOD & DRAINAGE report bubble: the FIRST paid report bubble in
-// the workbench, and the pattern-setter for every future report:
+// FLOOD & DRAINAGE — the report SECTION inside the Reports & exports bubble
+// (10x consolidation: the standalone flood bubble is gone; the map is the
+// star and the report's viz moved ONTO it):
+//   map overlay  → while this section holds a study for the active property,
+//                  the drainage picture renders on the MAIN map through the
+//                  host seam (setFloodMapOverlay): the engine's water-ramp
+//                  gradient PNG (feature-detected) or the zone/ponding
+//                  fallback fills, prominent flow arrows, catchment glow.
+//                  Applied on study load; cleared on section unmount (tool
+//                  close), study replacement (re-run), and property switch
+//                  (the app shell's auto-clear, WB6 precedent).
 //   run-in-dock  → honest progress (the drainage study is real work,
 //                  ~15-45 s: DEM fetch + hydrology model);
-//   sharp viz    → a self-contained SVG in the dock — parcel ring +
-//                  catchment boundary + drainage zones (graded subtle
-//                  fills) + rainfall ponding + flow-exit arrows + legend +
-//                  provenance line; the layman briefing text below;
+//   mini viz     → the sharp in-dock SVG grid stays (operator call) — parcel
+//                  ring + catchment + zones + ponding + flow exits + legend +
+//                  provenance; the layman briefing text below;
 //   PDF export   → the Sheet-Standard flood-drainage sheet via the gated
-//                  BFF download (same UX as the site-plan download), and
-//                  the WB6 auto-attach to the saved property's dossier.
+//                  BFF download, and the WB6 auto-attach to the dossier.
 //
-// PAID gate: proactive usePropertyEntitlement (locked → LockedToolPanel —
-// flood & drainage IS in the $15 property unlock, so the standard
-// two-choice flow, never Pro-only) + the reactive server-402 belt
-// (host.openPaywall). Honest-empty renders the ENGINE's reason verbatim —
-// never a fake result on flat terrain / DEM void.
+// PAID gate: the Reports tool hosts the section behind the standard
+// property-entitlement lock (flood IS in the $15 property unlock — the
+// two-choice flow, never Pro-only), so this section renders only signed-in
+// and unlocked (or entitlement-unknown, where the reactive server-402 belt
+// stays authoritative via host.openPaywall). Honest-empty renders the
+// ENGINE's reason verbatim — never a fake result on flat terrain / DEM void.
 //
-// PER-PROPERTY PERSISTENCE: the fetched study snapshot lives in the chassis
-// store via useDockToolState — the viz survives dock close/reopen and
-// property switches re-scope automatically. A server-cached study hydrates
-// silently on first open (cheap GET) so a re-visit never re-runs the model.
+// PER-PROPERTY PERSISTENCE: unchanged — the study snapshot lives under the
+// chassis-store key "flood" (the pre-consolidation key, so studies persisted
+// before the bubble folded into Reports hydrate exactly as before).
 
 import { useCallback, useEffect, useRef, useState, type CSSProperties } from "react";
 import {
@@ -36,7 +43,6 @@ import { googleSignInUrl } from "../../lib/auth";
 import { recordPeGtmEvent } from "../../lib/gtmClient";
 import { usePropertyEntitlement } from "../../lib/usePropertyEntitlement";
 import { useDockToolState, useWorkbench } from "../WorkbenchContext";
-import { LockedToolPanel } from "./LockedToolPanel";
 import { attachExportToDossier } from "./reports-dossier";
 import { buildFloodVizModel, type FloodVizModel } from "./flood-viz";
 
@@ -53,14 +59,12 @@ const PONDING_STROKE = "rgba(147,197,253,0.9)";
 const FLOW_STROKE = "rgba(125,211,252,0.75)";
 const EXIT_COLOR = "#fcd34d";
 
-export const FLOOD_LOCKED_VALUE_LINE =
-  "Flood & drainage study on this property — the upstream catchment, drainage concentration zones, modeled rainfall ponding at the design storm, and where water exits the parcel, with a professional PDF sheet.";
 export const FLOOD_PAYWALL_MESSAGE =
   "Flood & drainage report — catchment, drainage zones, rainfall ponding, and flow exits with a Sheet-Standard PDF.";
 export const FLOOD_RUNNING_LINE =
   "Running drainage study — fetching the DEM and modeling catchment, ponding, and flow (usually 15-45 s)…";
 
-/** JSON-serializable per-property snapshot (useDockToolState slot). */
+/** JSON-serializable per-property snapshot (useDockToolState slot "flood"). */
 export interface FloodToolStoredState {
   study: FloodDrainageStudyView | null;
   notice: string | null;
@@ -176,7 +180,12 @@ function Legend() {
   );
 }
 
-export function FloodTool() {
+/**
+ * The Flood & Drainage report section, hosted INSIDE the Reports & exports
+ * tool (which owns the entitlement lock around it). One study fetch feeds
+ * BOTH the dock mini viz and the main-map overlay.
+ */
+export function FloodDrainageSection() {
   const { activeParcelNodeId, host } = useWorkbench();
   const [stored, setStored] = useDockToolState<FloodToolStoredState>("flood");
   const ent = usePropertyEntitlement(activeParcelNodeId);
@@ -260,36 +269,34 @@ export function FloodTool() {
     });
   }, [activeParcelNodeId, stored, busy, ent.status, ent.signedOut, ent.locked, setStored]);
 
-  // The dock guarantees a non-null active property for propertyScoped tools.
-  if (!activeParcelNodeId) return null;
-
-  if (ent.signedOut) {
-    return (
-      <LockedToolPanel
-        parcelNodeId={activeParcelNodeId}
-        valueLine={FLOOD_LOCKED_VALUE_LINE}
-        signedOut
-        signInLine="Sign in to run the flood & drainage report on this parcel."
-        testId="flood-locked"
-      />
-    );
-  }
-  if (ent.locked) {
-    return (
-      <LockedToolPanel
-        parcelNodeId={activeParcelNodeId}
-        valueLine={FLOOD_LOCKED_VALUE_LINE}
-        testId="flood-locked"
-      />
-    );
-  }
-
   const study = stored?.study ?? null;
   const notice = stored?.notice ?? null;
   const model = study ? buildFloodVizModel(study) : null;
 
+  // THE MAP OVERLAY SYNC — the one study snapshot feeds the main map through
+  // the host seam. Effect cleanup clears on section unmount (tool close /
+  // bubble switch) and on study replacement (re-run redraws); the app
+  // shell's property-switch auto-clear is the belt on top (WB6 precedent).
+  useEffect(() => {
+    const setOverlay = host.setFloodMapOverlay;
+    if (!setOverlay || !activeParcelNodeId) return undefined;
+    if (!study || study.honestEmpty) return undefined;
+    setOverlay(study, activeParcelNodeId);
+    return () => setOverlay(null);
+  }, [study, activeParcelNodeId, host]);
+
+  // The Reports tool guarantees a non-null active property.
+  if (!activeParcelNodeId) return null;
+
   return (
-    <div data-testid="flood-tool">
+    <div
+      data-testid="flood-drainage-section"
+      style={{
+        marginTop: 10,
+        paddingTop: 10,
+        borderTop: "0.5px solid rgba(154,166,178,0.22)",
+      }}
+    >
       <div style={{ fontSize: 10, color: MUTED, marginBottom: 6 }}>
         Flood &amp; drainage report · public-paid
       </div>
@@ -298,7 +305,7 @@ export function FloodTool() {
         <p style={{ margin: "0 0 8px", fontSize: 11.5, lineHeight: 1.5, color: TEXT }}>
           Model this parcel&apos;s drainage: the upstream catchment delivering
           runoff, where water concentrates, modeled ponding at the design
-          storm, and where it exits.
+          storm, and where it exits — drawn on the map.
         </p>
       )}
 
@@ -363,6 +370,17 @@ export function FloodTool() {
 
       {study && !study.honestEmpty && model && (
         <div data-testid="flood-result" style={{ marginTop: 10 }}>
+          {/* The map is the star: the same study is drawn ON the main map
+              while this report is open (host seam; absent host → dock only). */}
+          {host.setFloodMapOverlay && (
+            <div
+              data-testid="flood-map-overlay-hint"
+              style={{ marginBottom: 6, fontSize: 10, color: ACCENT }}
+            >
+              Drainage overlay drawn on the map — flow arrows mark where water
+              moves and exits.
+            </div>
+          )}
           <FloodVizSvg model={model} />
           <Legend />
           <div
@@ -370,6 +388,9 @@ export function FloodTool() {
             style={{ marginTop: 6, fontSize: 10, color: MUTED, lineHeight: 1.5 }}
           >
             {floodProvenanceLine(study)}
+            {study.gradient?.note ? (
+              <span data-testid="flood-gradient-note"> · {study.gradient.note}</span>
+            ) : null}
           </div>
           {study.briefing && (
             <p

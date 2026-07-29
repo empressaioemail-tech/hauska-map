@@ -56,6 +56,8 @@ import { WORKBENCH_TOOLS } from "../workbench/registry";
 import type { WorkbenchHostActions } from "../workbench/types";
 import { MapToolset, type LayerStateBadge } from "./MapToolset";
 import type { MapToolsController } from "./mapToolsController";
+import { asMaplibreMap } from "./satelliteBase";
+import { createFloodMapOverlayController } from "./flood-map-overlay";
 import { TransientChips } from "./TransientChips";
 import type { ChipSpec } from "./transient-chips";
 import { SearchBar } from "./SearchBar";
@@ -253,6 +255,18 @@ export function ExplorerMap() {
     },
     [],
   );
+  // FD2 flood overlay: ONE controller per mount; the map handle is read per
+  // call (the map mounts after the controller exists). The dock's flood
+  // section drives it via host.setFloodMapOverlay; the property-switch
+  // effect below auto-clears (the WB6 dossier-overlay precedent).
+  const floodOverlay = useMemo(
+    () =>
+      createFloodMapOverlayController(() =>
+        asMaplibreMap(mapRef.current?.getMap?.() ?? null),
+      ),
+    [],
+  );
+  useEffect(() => () => floodOverlay.destroy(), [floodOverlay]);
   const [paywallOpen, setPaywallOpen] = useState(false);
   const [paywallMessage, setPaywallMessage] = useState<string | null>(null);
   // R1: the unified unlock flow's Pro-only variant (terrain) — set per open.
@@ -1114,8 +1128,14 @@ export function ExplorerMap() {
         dossierOverlayForRef.current = fc ? (forParcelNodeId ?? null) : null;
         controller.setDossierOverlay(fc);
       },
+      // FD2: the flood study's main-map overlay (water gradient / fallback
+      // fills + flow arrows + catchment glow). Draw + clear delegate to the
+      // one controller; property-switch auto-clear runs in the effect below.
+      setFloodMapOverlay: (study, forParcelNodeId) => {
+        floodOverlay.set(study, forParcelNodeId ?? null);
+      },
     }),
-    [runParcelLookup],
+    [runParcelLookup, floodOverlay],
   );
 
   // ACTIVE PROPERTY for the workbench: the currently-INSPECTED parcel's baked
@@ -1134,7 +1154,10 @@ export function ExplorerMap() {
       dossierOverlayForRef.current = null;
       toolsControllerRef.current?.setDossierOverlay(null);
     }
-  }, [activeParcelNodeId]);
+    // FD2: same rule for the flood water overlay — never lingers over a
+    // different property (the controller no-ops when nothing is drawn).
+    floodOverlay.onActivePropertyChange(activeParcelNodeId);
+  }, [activeParcelNodeId, floodOverlay]);
 
   // W2: the terrain/site-plan paywall handlers moved into the workbench
   // Reports tool (ReportsTool.tsx) with the same copy + pe_paywall_hit event —

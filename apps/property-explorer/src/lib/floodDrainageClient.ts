@@ -54,6 +54,16 @@ export interface FloodDrainageStudyView {
     eastLng: number
     northLat: number
   }
+  /**
+   * FD1 engine v2 addition (feature-detect: absent on older cached studies
+   * and until the engine deploys): a transparent water-ramp PNG of the
+   * drainage field, anchored to its own bbox, for the main-map overlay.
+   */
+  gradient?: {
+    pngBase64: string
+    bbox: { westLng: number; southLat: number; eastLng: number; northLat: number }
+    note?: string
+  }
   generatedAt?: string
 }
 

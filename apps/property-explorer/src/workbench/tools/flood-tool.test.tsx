@@ -1,19 +1,25 @@
-// R3 FLOOD & DRAINAGE bubble — dock render + lock matrix + persistence +
-// honest-empty + dossier-attach tests.
+// FD2 FLOOD & DRAINAGE — the report SECTION inside the Reports & exports
+// bubble (the standalone flood bubble is GONE) + persistence + honest-empty
+// + dossier-attach + map-overlay-hint tests.
 //
 // Static render via react-dom/server through the REAL Workbench + registry
 // (the repo's component-test idiom: effects don't run; entitlement primed
 // via the module cache; per-property state seeded through the chassis
 // store). Pins:
-//   - the flood bubble exists in the cluster and opens in the ONE dock;
-//   - PAID gate: anon → sign-in-first; free signed-in → LOCKED with the
-//     unified two-choice flow (flood is IN the $15 unlock — NEVER Pro-only);
-//     property-unlocked and Pro render the run state;
+//   - NO standalone flood bubble; the section renders inside the Reports
+//     tool alongside site-plan + terrain;
+//   - PAID gate is the Reports tool's whole-tool lock: anon → sign-in-first;
+//     free signed-in → LOCKED with the unified two-choice flow (flood is IN
+//     the $15 unlock — NEVER Pro-only); property-unlocked and Pro render
+//     the run state (terrain alone keeps its per-section Pro lock);
 //   - run state: generate button (honest ~15-45 s copy lives in the busy
 //     state, not asserted here — static render can't click);
-//   - a persisted study renders the sharp viz (zones + ponding + exits +
-//     parcel ring), legend, provenance line, briefing, and the PDF export
-//     link (the gated BFF download path);
+//   - a persisted study renders the mini grid viz (KEPT per operator) —
+//     zones + ponding + exits + parcel ring — legend, provenance line,
+//     briefing, and the PDF export link, PLUS the map-overlay hint when the
+//     host implements setFloodMapOverlay (one study feeds dock AND map);
+//   - PERSISTENCE MIGRATION: the chassis-store key stays "flood" — a study
+//     persisted before the bubble folded into Reports hydrates unchanged;
 //   - honest-empty renders the ENGINE reason verbatim, no viz, no export;
 //   - persistence is per-property (another parcel renders clean);
 //   - the dossier attach maps the flood export to a kind:"flood-drainage"
@@ -44,6 +50,11 @@ const host: WorkbenchHostActions = {
   openPaywall: () => {},
   getActiveParcelFacts: () => ({ address: "714 Spring St", countyName: "Bastrop" }),
 };
+/** A host WITH the map-overlay seam (ExplorerMap's real shape). */
+const overlayHost: WorkbenchHostActions = {
+  ...host,
+  setFloodMapOverlay: () => {},
+};
 const noop = () => {};
 
 function ent(overrides: Partial<PropertyEntitlementState>): PropertyEntitlementState {
@@ -62,16 +73,17 @@ function ent(overrides: Partial<PropertyEntitlementState>): PropertyEntitlementS
 function render(opts: {
   activeParcelNodeId?: string | null;
   store?: ReturnType<typeof createWorkbenchToolStateStore>;
+  host?: WorkbenchHostActions;
 }): string {
   return renderToStaticMarkup(
     <Workbench
       tools={WORKBENCH_TOOLS}
-      openToolId="flood"
+      openToolId="reports"
       onOpenToolChange={noop}
       activeParcelNodeId={
         opts.activeParcelNodeId === undefined ? PARCEL : opts.activeParcelNodeId
       }
-      host={host}
+      host={opts.host ?? host}
       store={opts.store ?? createWorkbenchToolStateStore({ storage: null })}
     />,
   );
@@ -185,36 +197,43 @@ afterEach(() => {
   resetPropertyEntitlementsForTests();
 });
 
-describe("flood bubble — registry + paid-gate lock matrix", () => {
-  it("registers in the cluster as a live property-scoped bubble", () => {
-    const html = render({});
-    expect(html).toContain('data-testid="workbench-bubble-flood"');
-    expect(html).toContain('data-tool="flood"');
-  });
-
-  it("anon → sign-in-first (no unlock choices yet)", () => {
-    primePropertyEntitlement(PARCEL, ent({ authenticated: false }));
-    const html = render({});
-    expect(html).toContain('data-testid="flood-locked-sign-in"');
-    expect(html).not.toContain('data-testid="flood-run"');
-  });
-
-  it("free signed-in → LOCKED with the unified two-choice flow — NEVER Pro-only", () => {
-    primePropertyEntitlement(PARCEL, ent({}));
-    const html = render({});
-    expect(html).toContain('data-testid="flood-locked"');
-    // Flood & drainage is IN the $15 property unlock: the standard
-    // two-choice flow, not the Pro-only variant.
-    expect(html).toMatch(/data-testid="flood-locked"[^>]*data-pro-only="false"/);
-    expect(html).not.toContain('data-testid="flood-run"');
-  });
-
-  it("property-unlocked ($15) → the run state renders", () => {
+describe("flood & drainage — folded INSIDE the Reports bubble (no standalone bubble)", () => {
+  it("no flood bubble in the cluster; the section renders inside the reports dock", () => {
     primePropertyEntitlement(PARCEL, ent({ propertyUnlocked: true }));
     const html = render({});
-    expect(html).toContain('data-testid="flood-tool"');
+    expect(html).not.toContain('data-testid="workbench-bubble-flood"');
+    expect(html).toContain('data-tool="reports"');
+    expect(html).toContain('data-testid="flood-drainage-section"');
+    // Alongside the sibling report sections, in the ONE dock.
+    expect(html).toContain('data-testid="site-plan-export-section"');
+  });
+
+  it("anon → the Reports sign-in-first state (no flood run UI)", () => {
+    primePropertyEntitlement(PARCEL, ent({ authenticated: false }));
+    const html = render({});
+    expect(html).toContain('data-testid="reports-locked-sign-in"');
+    expect(html).not.toContain('data-testid="flood-run"');
+  });
+
+  it("free signed-in → the Reports LOCK with the unified two-choice flow — NEVER Pro-only", () => {
+    primePropertyEntitlement(PARCEL, ent({}));
+    const html = render({});
+    expect(html).toContain('data-testid="reports-locked"');
+    // Flood & drainage is IN the $15 property unlock: the standard
+    // two-choice flow, not the Pro-only variant, and the value line names it.
+    expect(html).toMatch(/data-testid="reports-locked"[^>]*data-pro-only="false"/);
+    expect(html).toContain('data-testid="unlock-property-choice"');
+    expect(html).toContain("flood &amp; drainage study");
+    expect(html).not.toContain('data-testid="flood-run"');
+  });
+
+  it("property-unlocked ($15) → the run state renders (terrain alone stays Pro-locked)", () => {
+    primePropertyEntitlement(PARCEL, ent({ propertyUnlocked: true }));
+    const html = render({});
+    expect(html).toContain('data-testid="flood-drainage-section"');
     expect(html).toContain('data-testid="flood-run"');
-    expect(html).not.toContain('data-testid="flood-locked"');
+    expect(html).not.toContain('data-testid="reports-locked"');
+    expect(html).toContain('data-testid="terrain-pro-lock"');
   });
 
   it("Pro → the run state renders", () => {
@@ -226,11 +245,11 @@ describe("flood bubble — registry + paid-gate lock matrix", () => {
   it("no active property → the chassis' honest select-first state", () => {
     const html = render({ activeParcelNodeId: null });
     expect(html).toContain("Select a property");
-    expect(html).not.toContain('data-testid="flood-tool"');
+    expect(html).not.toContain('data-testid="flood-drainage-section"');
   });
 });
 
-describe("flood bubble — persisted study renders the sharp viz", () => {
+describe("flood section — persisted study renders the mini viz (KEPT) + map-overlay hint", () => {
   it("viz + legend + provenance + briefing + PDF export link", () => {
     primePropertyEntitlement(PARCEL, ent({ propertyUnlocked: true }));
     const store = createWorkbenchToolStateStore({ storage: null });
@@ -265,6 +284,35 @@ describe("flood bubble — persisted study renders the sharp viz", () => {
       "/api/pe-site-plan-export?report=flood-drainage&amp;action=download",
     );
     expect(html).toContain("48021_54321_flood_drainage.pdf");
+  });
+
+  it("host WITH the map seam → the map-overlay hint renders (one study feeds dock AND map)", () => {
+    primePropertyEntitlement(PARCEL, ent({ propertyUnlocked: true }));
+    const store = createWorkbenchToolStateStore({ storage: null });
+    store.set(PARCEL, "flood", {
+      study: fixtureStudy(),
+      notice: null,
+    } satisfies FloodToolStoredState);
+    const html = render({ store, host: overlayHost });
+    expect(html).toContain('data-testid="flood-map-overlay-hint"');
+    expect(html).toContain("Drainage overlay drawn on the map");
+    // Host WITHOUT the seam (older injected test hosts) → no hint, dock only.
+    const bare = render({ store });
+    expect(bare).not.toContain('data-testid="flood-map-overlay-hint"');
+  });
+
+  it("PERSISTENCE MIGRATION: the pre-consolidation chassis key \"flood\" hydrates unchanged", () => {
+    // A study persisted while flood was its own bubble lives under the tool
+    // id "flood". The section reads the SAME key — no migration, no loss.
+    primePropertyEntitlement(PARCEL, ent({ propertyUnlocked: true }));
+    const store = createWorkbenchToolStateStore({ storage: null });
+    store.set(PARCEL, "flood", {
+      study: fixtureStudy(),
+      notice: null,
+    } satisfies FloodToolStoredState);
+    const html = render({ store });
+    expect(html).toContain('data-testid="flood-result"');
+    expect(html).toContain("Re-run study");
   });
 
   it("persistence is per-property: another parcel renders the clean run state", () => {
@@ -313,6 +361,23 @@ describe("flood bubble — persisted study renders the sharp viz", () => {
     const html = render({ store });
     expect(html).toContain('data-testid="flood-notice"');
     expect(html).toContain("could not be produced");
+  });
+
+  it("a study carrying the FD1 gradient note surfaces it in the provenance line", () => {
+    primePropertyEntitlement(PARCEL, ent({ propertyUnlocked: true }));
+    const study: FloodDrainageStudyView = {
+      ...fixtureStudy(),
+      gradient: {
+        pngBase64: "iVBORw0KGgo=",
+        bbox: { westLng: -97.324, southLat: 30.106, eastLng: -97.314, northLat: 30.116 },
+        note: "Drainage field ramp from the D8 accumulation grid.",
+      },
+    };
+    const store = createWorkbenchToolStateStore({ storage: null });
+    store.set(PARCEL, "flood", { study, notice: null } satisfies FloodToolStoredState);
+    const html = render({ store });
+    expect(html).toContain('data-testid="flood-gradient-note"');
+    expect(html).toContain("D8 accumulation grid");
   });
 });
 
