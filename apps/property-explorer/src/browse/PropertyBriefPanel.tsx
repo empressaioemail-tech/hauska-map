@@ -217,21 +217,17 @@ export function PropertyBriefPanel({ brief, onClose }: PropertyBriefPanelProps) 
   );
 
   return (
-    // DOCKING (operator revision 2026-07-29): top-center covered the parcel
-    // being inspected. The brief now docks on the RIGHT, BELOW the merged
-    // toolset (the operator's red-box position), in a scrollable container
-    // capped to the remaining viewport height. z-index sits BELOW the toolset
-    // and card so it never covers them.
+    // DOCKING (operator revision 2026-07-29 #2): the toolset collapsed into a
+    // lower-right bubble, so the brief returns to its ORIGINAL home — top-right,
+    // natural height, NO internal scrollbar (the page owns any overflow).
     <aside
       data-testid="research-brief"
       style={{
         position: "absolute",
-        top: 400,
+        top: 12,
         right: 12,
         zIndex: 8,
         width: "min(400px, calc(100vw - 24px))",
-        maxHeight: "calc(100vh - 412px)",
-        overflowY: "auto",
         padding: 14,
         borderRadius: 8,
         color: TEXT,
