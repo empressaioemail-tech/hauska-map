@@ -81,8 +81,10 @@ describe('one-read-path guardrails (F1b dogfood)', () => {
       resolve(mapRoot, 'apps/property-explorer/src/browse/ExplorerMap.tsx'),
       'utf8',
     )
-    const peLayers = readFileSync(
-      resolve(mapRoot, 'apps/property-explorer/src/browse/LayersControl.tsx'),
+    // PE consumes the MERGED upper-right toolset (map UX cluster item 1) via a
+    // thin re-export of the SAME shared chrome package — still no shell fork.
+    const peToolset = readFileSync(
+      resolve(mapRoot, 'apps/property-explorer/src/browse/MapToolset.tsx'),
       'utf8',
     )
     // One shared chrome module — not a CARTO-only fork without LAYER_REGISTRY.
@@ -91,12 +93,12 @@ describe('one-read-path guardrails (F1b dogfood)', () => {
     expect(liveMap).toMatch(/SHARED_PARCEL_TILES/)
     expect(liveMap).toMatch(/visibleLayers/)
     expect(liveMap).toMatch(/from ['"]@hauska\/map-renderer['"]/)
-    expect(explorer).toMatch(/LayersControl/)
-    expect(explorer).toMatch(/MapTools/)
-    expect(peLayers).toMatch(/packages\/map-renderer\/src\/chrome\/LayersControl/)
-    expect(peLayers).not.toMatch(/export function LayersControl/)
+    expect(explorer).toMatch(/MapToolset/)
+    expect(peToolset).toMatch(/packages\/map-renderer\/src\/chrome\/MapToolset/)
+    expect(peToolset).not.toMatch(/export function MapToolset/)
     expect(existsSync(resolve(mapRoot, 'packages/map-renderer/src/chrome/LayersControl.tsx'))).toBe(true)
     expect(existsSync(resolve(mapRoot, 'packages/map-renderer/src/chrome/MapTools.tsx'))).toBe(true)
+    expect(existsSync(resolve(mapRoot, 'packages/map-renderer/src/chrome/MapToolset.tsx'))).toBe(true)
   })
 
   it('shared retrieval clients are exported', () => {

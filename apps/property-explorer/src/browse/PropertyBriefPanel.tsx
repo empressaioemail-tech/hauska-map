@@ -217,15 +217,22 @@ export function PropertyBriefPanel({ brief, onClose }: PropertyBriefPanelProps) 
   );
 
   return (
+    // DOCKING (map UX cluster item 5): the brief docks TOP-CENTER, directly
+    // below the Find/search bar, sliding in — it no longer opens over the
+    // upper-right toolset. Width clamps so on normal desktop widths it clears
+    // both the inspect card (left) and the merged toolset (right); z-index sits
+    // BELOW the toolset and card so even at narrow widths it never covers them.
     <aside
       data-testid="research-brief"
       style={{
         position: "absolute",
-        top: 12,
-        right: 12,
-        zIndex: 9,
-        width: "min(400px, calc(100vw - 24px))",
-        maxHeight: "calc(100vh - 24px)",
+        top: 72,
+        left: "50%",
+        transform: "translateX(-50%)",
+        zIndex: 8,
+        width: "clamp(280px, calc(100vw - 560px), 400px)",
+        maxWidth: "calc(100vw - 24px)",
+        maxHeight: "calc(100vh - 84px)",
         overflowY: "auto",
         padding: 14,
         borderRadius: 8,
@@ -233,8 +240,13 @@ export function PropertyBriefPanel({ brief, onClose }: PropertyBriefPanelProps) 
         background: "rgba(13,17,23,0.94)",
         border: "1px solid rgba(154,166,178,0.35)",
         font: "12px/1.45 system-ui, -apple-system, Segoe UI, Roboto, sans-serif",
+        animation: "pe-brief-in 280ms ease",
       }}
     >
+      <style>{`@keyframes pe-brief-in {
+  from { opacity: 0; transform: translate(-50%, -10px); }
+  to   { opacity: 1; transform: translate(-50%, 0); }
+}`}</style>
       <div
         style={{
           display: "flex",

@@ -3,6 +3,8 @@
 
 export { LayersControl } from "./LayersControl";
 export { MapTools } from "./MapTools";
+export { MapToolset } from "./MapToolset";
+export type { LayerStateBadge } from "./MapToolset";
 export {
   asMaplibreMap,
   setSatelliteBase,

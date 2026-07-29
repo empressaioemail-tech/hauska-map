@@ -1,5 +1,3 @@
-import type { Persona } from "../lib/gtmClient";
-
 const PANEL_BG = "rgba(13,17,23,0.96)";
 const ACCENT = "#7dd3fc";
 const MUTED = "#8b97a5";
@@ -98,5 +96,3 @@ export function PaywallGate({
     </div>
   );
 }
-
-export type { Persona };

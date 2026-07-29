@@ -24,7 +24,7 @@
 // bake never wrote it, the endpoint strips it), and this card does not read an
 // owner field.
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useState } from "react";
 import type { ParcelCardData } from "./liveGis";
 import { fetchBuildableEnvelope } from "../lib/buildable-envelope.js";
 import {
@@ -34,12 +34,6 @@ import {
   type CardFacet,
 } from "../lib/baked-facets";
 import { CORTEX_PROXY_BASE, PE_FACETS_PROXY_BASE } from "../lib/config";
-import type { Persona } from "../lib/gtmClient";
-import {
-  extractPersonaFacts,
-  personaHeadline,
-  PERSONA_OPTIONS,
-} from "../lib/personaRegister";
 import { TerrainExportSection } from "./TerrainExportSection";
 import { SitePlanExportSection } from "./SitePlanExportSection";
 
@@ -75,8 +69,6 @@ export function InspectCard({
   onTerrainPaymentRequired,
   onSitePlanPaymentRequired,
   onSaveProperty,
-  persona: personaProp,
-  onPersonaChange,
 }: {
   card: ParcelCardData;
   // The clicked parcel's stable baked-node id ("{fips}:{propId}"), the read key
@@ -98,16 +90,7 @@ export function InspectCard({
   onTerrainPaymentRequired: () => void;
   onSitePlanPaymentRequired?: () => void;
   onSaveProperty?: () => void;
-  persona?: Persona;
-  onPersonaChange?: (persona: Persona) => void;
 }) {
-  const [localPersona, setLocalPersona] = useState<Persona>("homeowner");
-  const persona = personaProp ?? localPersona;
-  const setPersona = (next: Persona) => {
-    if (onPersonaChange) onPersonaChange(next);
-    else setLocalPersona(next);
-  };
-
   // Baked-first source state. `source` is "loading" until we know whether a
   // baked snapshot exists; then "baked" (pure read) or "live" (fallback).
   const [source, setSource] = useState<Source>("loading");
@@ -212,19 +195,6 @@ export function InspectCard({
       : card.situsAddress) ||
     (card.apn ? `Parcel ${card.apn}` : "Parcel");
 
-  const personaLine = useMemo(() => {
-    const facts = extractPersonaFacts(baked);
-    if (source === "live" && env.status === "ok") {
-      return personaHeadline(persona, {
-        ...facts,
-        setbacks: liveSetbackLine(env),
-        buildable: liveBuildablePct(env),
-        zoning: env.district,
-      });
-    }
-    return personaHeadline(persona, facts);
-  }, [baked, persona, source, env]);
-
   return (
     <div
       data-testid="inspect-card"
@@ -320,50 +290,6 @@ export function InspectCard({
           </>
         )}
       </dl>
-
-      <div
-        data-testid="persona-register"
-        style={{
-          marginTop: 10,
-          paddingTop: 10,
-          borderTop: "0.5px solid rgba(154,166,178,0.22)",
-        }}
-      >
-        <div style={{ fontSize: 10, color: MUTED, marginBottom: 6 }}>View as</div>
-        <div style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>
-          {PERSONA_OPTIONS.map((opt) => (
-            <button
-              key={opt.id}
-              type="button"
-              data-testid={`persona-${opt.id}`}
-              aria-pressed={persona === opt.id}
-              onClick={() => setPersona(opt.id)}
-              style={{
-                padding: "4px 8px",
-                borderRadius: 6,
-                border:
-                  persona === opt.id
-                    ? `0.5px solid ${ACCENT}`
-                    : "0.5px solid rgba(154,166,178,0.28)",
-                background:
-                  persona === opt.id ? "rgba(125,211,252,0.15)" : "transparent",
-                color: persona === opt.id ? ACCENT : MUTED,
-                fontSize: 11,
-                fontWeight: 600,
-                cursor: "pointer",
-              }}
-            >
-              {opt.label}
-            </button>
-          ))}
-        </div>
-        <div
-          data-testid="persona-headline"
-          style={{ marginTop: 8, fontSize: 11.5, lineHeight: 1.45, color: "#c6d0dc" }}
-        >
-          {personaLine}
-        </div>
-      </div>
 
       {/* Honest coverage / disclosure states. */}
       {source === "loading" && (

@@ -7,6 +7,7 @@ import {
   atomChainIsUsable,
   isPropertyAtomPathEnabled,
   isDepthWarmPromoted,
+  mergeBakedBaseFacts,
   parsePropertyAtomsPath,
   shouldSkipColdDerive,
   DEPTH_WARM_PROMOTION_MARKER,
@@ -254,6 +255,91 @@ const bastropGold34785Chain: PropertyAtomChain = {
   },
   atoms: [{}, {}, {}],
 };
+
+/** Cortex baked-facets body shaped like the live facets endpoint response. */
+const bakedCortexBody = {
+  parcelNodeId: "48209:156346",
+  adapterKey: "county-gis",
+  source: "baked-snapshot",
+  facets: {
+    parcelNodeId: "48209:156346",
+    countyFips: "48209",
+    countyName: "Hays",
+    baseFacts: {
+      apn: "R156346",
+      situsAddress: "123 Ranch Rd, San Marcos, TX",
+      situsCity: "San Marcos",
+      situsState: "TX",
+      landUse: { code: "A1", description: "Single-family residential", source: "cad-roll", vintage: "2025" },
+      acreage: { value: 1.42, sqft: 61855, method: "cad-roll" },
+    },
+    zoning: { district: "ZOMBIE-DISTRICT" }, // must NEVER be adopted
+    envelope: { status: "ok", district: "ZOMBIE-DISTRICT", buildableAreaPct: 99 }, // must NEVER be adopted
+    facetCoverage: { baseFacts: true, landUse: true, acreage: true, zoning: true, envelope: true },
+    provenance: {
+      parcelSource: "county-gis",
+      parcelVintage: "2025-01",
+      landUseSource: "cad-roll",
+      landUseGateBlocked: false,
+    },
+  },
+};
+
+describe("mergeBakedBaseFacts — atom path + baked base facts (item 6)", () => {
+  it("merges land-use, acreage, situs and county name onto the atom-chain read", () => {
+    const adapted = adaptAtomChainToBakedFacets(haysChain)!;
+    // Pre-merge: the adapter hardcodes landUse/acreage coverage false, no values.
+    expect(adapted.facets.facetCoverage?.landUse).toBe(false);
+    expect(adapted.facets.facetCoverage?.acreage).toBe(false);
+    expect(adapted.facets.baseFacts?.landUse).toBeNull();
+
+    const merged = mergeBakedBaseFacts(adapted, bakedCortexBody);
+    expect(merged.baseFactsMerged).toBe(true);
+    expect(merged.facets.baseFacts?.landUse?.code).toBe("A1");
+    expect(merged.facets.baseFacts?.acreage?.value).toBe(1.42);
+    expect(merged.facets.baseFacts?.situsAddress).toBe("123 Ranch Rd, San Marcos, TX");
+    expect(merged.facets.countyName).toBe("Hays");
+    expect(merged.facets.facetCoverage?.landUse).toBe(true);
+    expect(merged.facets.facetCoverage?.acreage).toBe(true);
+    expect(merged.facets.provenance?.landUseSource).toBe("cad-roll");
+    // APN from the atom node id wins; baked apn only fills a gap.
+    expect(merged.facets.baseFacts?.apn).toBe("156346");
+  });
+
+  it("NEVER adopts cortex zoning or envelope — atom chain stays product truth", () => {
+    const adapted = adaptAtomChainToBakedFacets(haysChain)!;
+    const merged = mergeBakedBaseFacts(adapted, bakedCortexBody);
+    expect(merged.facets.zoning).toEqual({ district: "RS" });
+    expect(merged.facets.envelope?.district).toBe("RS");
+    expect(merged.facets.envelope?.buildableAreaPct).toBeUndefined();
+    expect(merged.facets.facetCoverage?.zoning).toBe(true);
+    expect(merged.facets.facetCoverage?.envelope).toBe(true);
+    expect(JSON.stringify(merged)).not.toMatch(/ZOMBIE-DISTRICT/);
+  });
+
+  it("baked-absent stays honestly absent (no defaulting, coverage stays false)", () => {
+    const adapted = adaptAtomChainToBakedFacets(haysChain)!;
+    const merged = mergeBakedBaseFacts(adapted, {
+      facets: {
+        countyName: "Comal",
+        baseFacts: { apn: null, situsAddress: null, landUse: null, acreage: null },
+        facetCoverage: { baseFacts: true, landUse: false, acreage: false },
+      },
+    });
+    expect(merged.facets.baseFacts?.landUse).toBeNull();
+    expect(merged.facets.baseFacts?.acreage).toBeNull();
+    expect(merged.facets.facetCoverage?.landUse).toBe(false);
+    expect(merged.facets.facetCoverage?.acreage).toBe(false);
+    expect(merged.facets.countyName).toBe("Comal");
+  });
+
+  it("unusable baked body returns the atom response unchanged", () => {
+    const adapted = adaptAtomChainToBakedFacets(haysChain)!;
+    expect(mergeBakedBaseFacts(adapted, null)).toBe(adapted);
+    expect(mergeBakedBaseFacts(adapted, "oops")).toBe(adapted);
+    expect(mergeBakedBaseFacts(adapted, {})).toBe(adapted);
+  });
+});
 
 describe("adaptAtomChainToBakedFacets — P-5 silent axes keep warm area (Track B3)", () => {
   it("publishes buildableAreaSqFt when outcome is buildable even if side/rear not_specified", () => {

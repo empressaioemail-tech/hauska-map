@@ -7,9 +7,11 @@
  */
 
 import { getInstallId } from "./installId";
-import type { PersonaId } from "./personaRegister";
 
-export type Persona = PersonaId;
+/** Persona UI was removed from the inspect card (map UX cluster item 4). The
+ *  optional wire field survives for backward compatibility with recorded
+ *  events, but the app no longer sends it. */
+export type Persona = "homeowner" | "investor" | "architect";
 
 export type PeFunnelEventType =
   | "pe_browse_started"
