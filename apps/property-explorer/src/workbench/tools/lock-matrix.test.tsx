@@ -5,7 +5,8 @@
 //
 // The paywall LINE under test:
 //   free  = inspect card + map/layers (not in the dock — untouched here)
-//   paid  = brief, chat (past the free messages), reports (site-plan), share
+//   paid  = brief, chat (past the free messages), reports (site-plan +
+//           flood & drainage — FD2 folded the flood bubble in here), share
 //   TERRAIN = PRO-ONLY (its lock offers ONLY the Pro choice)
 //   chat  = 3 signed-in-free messages, subtle meter, wall at exhaustion,
 //           "Save chat" (AI summary) follows entitlement
@@ -108,7 +109,7 @@ describe("BRIEF bubble", () => {
   });
 });
 
-describe("REPORTS bubble (site-plan per-property; TERRAIN Pro-only)", () => {
+describe("REPORTS bubble (site-plan + flood per-property; TERRAIN Pro-only)", () => {
   it("anon → sign-in-first", () => {
     primePropertyEntitlement(PARCEL, ANON);
     expect(renderTool("reports")).toContain(
@@ -122,16 +123,20 @@ describe("REPORTS bubble (site-plan per-property; TERRAIN Pro-only)", () => {
     expect(html).toContain('data-testid="reports-locked"');
     expect(html).toContain('data-testid="unlock-property-choice"');
     expect(html).toContain('data-testid="unlock-pro-choice"');
-    // The whole tool is locked — no export sections behind the wall.
+    // The whole tool is locked — no report sections behind the wall.
     expect(html).not.toContain('data-testid="terrain-pro-lock"');
+    expect(html).not.toContain('data-testid="flood-drainage-section"');
   });
 
-  it("property-unlocked → site-plan runs; TERRAIN shows its PRO-ONLY lock (only the Pro choice)", () => {
+  it("property-unlocked → site-plan AND flood run; TERRAIN shows its PRO-ONLY lock (only the Pro choice)", () => {
     primePropertyEntitlement(PARCEL, PROPERTY_UNLOCKED);
     const html = renderTool("reports");
     expect(html).not.toContain('data-testid="reports-locked"');
     // Site-plan export section is live.
     expect(html).toContain("site-plan");
+    // FD2: the flood & drainage section is live in the SAME $15 scope.
+    expect(html).toContain('data-testid="flood-drainage-section"');
+    expect(html).toContain('data-testid="flood-run"');
     // Terrain slot is the Pro-only lock: NO $15 choice inside it, and the
     // copy says terrain is not part of the single-property unlock.
     expect(html).toContain('data-testid="terrain-pro-lock"');
@@ -140,17 +145,19 @@ describe("REPORTS bubble (site-plan per-property; TERRAIN Pro-only)", () => {
     expect(html).toContain("not part of the single-property unlock");
   });
 
-  it("pro → the real terrain export section, no locks", () => {
+  it("pro → the real terrain export section, no locks; flood runs", () => {
     primePropertyEntitlement(PARCEL, PRO);
     const html = renderTool("reports");
     expect(html).not.toContain('data-testid="reports-locked"');
     expect(html).not.toContain('data-testid="terrain-pro-lock"');
+    expect(html).toContain('data-testid="flood-run"');
   });
 
   it("entitlement unknown → sections render as today (reactive 402 belt)", () => {
     const html = renderTool("reports");
     expect(html).not.toContain('data-testid="reports-locked"');
     expect(html).not.toContain('data-testid="terrain-pro-lock"');
+    expect(html).toContain('data-testid="flood-drainage-section"');
   });
 });
 

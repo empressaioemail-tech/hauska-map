@@ -2,11 +2,16 @@
 //
 // W2 REPORTS BUBBLE — the run-a-report actions, moved OFF the inspect card
 // into the workbench dock (the design law: one dock, no second surface).
-// Exactly the two existing exports, nothing new (further report types are
-// deferred by spec):
+// Three report sections (the FD2 consolidation folded the flood bubble in
+// here — back to 6 bubbles):
 //   - SITE-PLAN EXPORT (format select + export + download link + honest
 //     status/retry messages) — the SitePlanExportSection internals, reused;
-//   - TERRAIN EXPORT (format select + export) — TerrainExportSection, reused.
+//   - FLOOD & DRAINAGE (FloodDrainageSection: run/re-run + the mini grid
+//     viz + briefing + PDF export; the same study renders ON the main map
+//     as the water overlay while the report is open) — in the $15 property
+//     unlock, same as site-plan;
+//   - TERRAIN EXPORT (format select + export) — TerrainExportSection,
+//     reused; PRO-ONLY (its per-section lock below).
 //
 // Every honest state is intact: 503/502 retryable upstream copy, 402 →
 // host.openPaywall (with the same paywall copy + pe_paywall_hit event the
@@ -33,11 +38,12 @@ import { usePropertyEntitlement } from "../../lib/usePropertyEntitlement";
 import { useDockToolState, useWorkbench } from "../WorkbenchContext";
 import { LockedToolPanel } from "./LockedToolPanel";
 import { attachExportToDossier } from "./reports-dossier";
+import { FloodDrainageSection } from "./FloodTool";
 
 /** R1 value lines — the unified unlock flow renders under them (replaces the
  *  Pro-hardcoded "Sign in and upgrade to Pro" copy). */
 export const REPORTS_LOCKED_VALUE_LINE =
-  "Professional reports on this property — the cited site-plan export (layered DXF/IFC + PDF sheet with setbacks, contours, and provenance) and every report that ships next.";
+  "Professional reports on this property — the cited site-plan export (layered DXF/IFC + PDF sheet with setbacks, contours, and provenance), the flood & drainage study drawn on the map with its PDF sheet, and every report that ships next.";
 export const SITE_PLAN_PAYWALL_MESSAGE =
   "Cited site-plan export — layered DXF/IFC plus a PDF sheet with setbacks, contours, and provenance.";
 /** TERRAIN IS PRO-ONLY: never claimed by the $15 property unlock. */
@@ -145,6 +151,11 @@ export function ReportsTool() {
           maybeAttach(activeParcelNodeId, "site-plan", next.result);
         }}
       />
+      {/* FLOOD & DRAINAGE — in the $15 property unlock, same lock scope as
+          site-plan (the whole-tool lock above covers both). The section owns
+          its own state (chassis key "flood" — pre-consolidation persistence
+          intact) and drives the main-map water overlay via the host seam. */}
+      <FloodDrainageSection />
       {terrainProLocked ? (
         <div style={{ marginTop: 14 }}>
           <LockedToolPanel
