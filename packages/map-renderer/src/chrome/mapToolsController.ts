@@ -38,6 +38,15 @@ const DRAW_VERT_ID = "explorer-tools-draw-verts";
 const MARKER_SRC = "explorer-tools-marker";
 const MARKER_ID = "explorer-tools-marker-pts";
 
+// WB6 dossier overlay — READ-ONLY redraw of a saved property's drawings.
+// Own source + layers, static paint only (the blank-map crash rule), violet
+// so restored annotations read distinctly from live draw (amber) / measure
+// (blue).
+const DOSSIER_SRC = "explorer-tools-dossier";
+const DOSSIER_FILL_ID = "explorer-tools-dossier-fill";
+const DOSSIER_LINE_ID = "explorer-tools-dossier-line";
+const DOSSIER_PT_ID = "explorer-tools-dossier-pts";
+
 type FC = { type: "FeatureCollection"; features: unknown[] };
 const EMPTY_FC: FC = { type: "FeatureCollection", features: [] };
 
@@ -56,6 +65,20 @@ export interface MapToolsController {
   setMeasureMode: (mode: MeasureMode) => void;
   clear: () => void;
   snapshot: () => ToolsSnapshot;
+  /**
+   * WB6 dossier seam: the CURRENT draw/measure/marker geometries as one plain
+   * GeoJSON FeatureCollection. Committed draw shapes + the in-progress shape,
+   * markers, and the measure line/polygon (vertex helper dots excluded —
+   * markers keep their Points). Each feature carries `properties.tool`
+   * ("draw" | "marker" | "measure"). Pure snapshot — no state change.
+   */
+  getDrawings: () => FC;
+  /**
+   * WB6 dossier seam: render (or clear, with null) a READ-ONLY overlay of a
+   * saved property's drawings. Its own source/layers — never touches the live
+   * draw/measure/marker state.
+   */
+  setDossierOverlay: (fc: FC | null) => void;
   destroy: () => void;
 }
 
@@ -241,6 +264,115 @@ export function installMapTools(
     return { type: "FeatureCollection", features: [...state.markers] };
   }
 
+  /* ---------- WB6 dossier drawings (capture + read-only redraw) ---------- */
+
+  /** A feature clone with `properties.tool` stamped (never mutates state). */
+  function tagged(feature: unknown, tool: string): unknown {
+    const f = feature as { geometry?: unknown; properties?: Record<string, unknown> };
+    return {
+      type: "Feature",
+      geometry: f?.geometry ?? null,
+      properties: { ...(f?.properties ?? {}), tool },
+    };
+  }
+
+  function getDrawings(): FC {
+    const features: unknown[] = [];
+    // Committed draw shapes.
+    for (const shape of state.drawShapes) features.push(tagged(shape, "draw"));
+    // The in-progress draw shape (not yet committed) — same commit rules.
+    if (state.drawVerts.length >= 3) {
+      features.push({
+        type: "Feature",
+        geometry: {
+          type: "Polygon",
+          coordinates: [[...state.drawVerts, state.drawVerts[0]]],
+        },
+        properties: { tool: "draw" },
+      });
+    } else if (state.drawVerts.length === 2) {
+      features.push({
+        type: "Feature",
+        geometry: { type: "LineString", coordinates: [...state.drawVerts] },
+        properties: { tool: "draw" },
+      });
+    }
+    // Markers (Points).
+    for (const marker of state.markers) features.push(tagged(marker, "marker"));
+    // The measure geometry (line or ring) — helper vertex dots excluded.
+    const mv = state.measureVerts;
+    if (state.measureMode === "area" && mv.length >= 3) {
+      features.push({
+        type: "Feature",
+        geometry: { type: "Polygon", coordinates: [[...mv, mv[0]]] },
+        properties: { tool: "measure" },
+      });
+    } else if (mv.length >= 2) {
+      features.push({
+        type: "Feature",
+        geometry: { type: "LineString", coordinates: [...mv] },
+        properties: { tool: "measure" },
+      });
+    }
+    return { type: "FeatureCollection", features };
+  }
+
+  let dossierLayersAdded = false;
+  function ensureDossierLayers(): void {
+    if (dossierLayersAdded) return;
+    try {
+      if (!map.getSource(DOSSIER_SRC)) {
+        map.addSource(DOSSIER_SRC, { type: "geojson", data: EMPTY_FC as never });
+      }
+      if (!map.getLayer(DOSSIER_FILL_ID)) {
+        map.addLayer({
+          id: DOSSIER_FILL_ID,
+          type: "fill",
+          source: DOSSIER_SRC,
+          filter: ["==", ["geometry-type"], "Polygon"],
+          paint: { "fill-color": "#a78bfa", "fill-opacity": 0.12 },
+        });
+      }
+      if (!map.getLayer(DOSSIER_LINE_ID)) {
+        map.addLayer({
+          id: DOSSIER_LINE_ID,
+          type: "line",
+          source: DOSSIER_SRC,
+          layout: { "line-cap": "round", "line-join": "round" },
+          // STATIC dash — safe (not feature-state driven).
+          paint: { "line-color": "#a78bfa", "line-width": 2, "line-dasharray": [2, 1.5] },
+        });
+      }
+      if (!map.getLayer(DOSSIER_PT_ID)) {
+        map.addLayer({
+          id: DOSSIER_PT_ID,
+          type: "circle",
+          source: DOSSIER_SRC,
+          filter: ["==", ["geometry-type"], "Point"],
+          paint: {
+            "circle-radius": 5,
+            "circle-color": "#a78bfa",
+            "circle-stroke-color": "#4c1d95",
+            "circle-stroke-width": 2,
+          },
+        });
+      }
+      dossierLayersAdded = true;
+    } catch (err) {
+      // eslint-disable-next-line no-console
+      console.warn("[map-tools] ensureDossierLayers failed:", err);
+    }
+  }
+
+  function setDossierOverlay(fc: FC | null): void {
+    if (fc && Array.isArray(fc.features) && fc.features.length > 0) {
+      ensureDossierLayers();
+      setData(DOSSIER_SRC, fc);
+    } else {
+      setData(DOSSIER_SRC, EMPTY_FC);
+    }
+  }
+
   /* ---------- rendering + readout ---------- */
   function renderMeasure(): void {
     setData(MEASURE_SRC, measureFc());
@@ -406,7 +538,10 @@ export function installMapTools(
 
   map.on("click", onMapClick);
   map.on("dblclick", onMapDblClick);
-  window.addEventListener("keydown", onKeyDown);
+  // Guarded for non-browser callers (SSR / node tests) — Esc is a browser affordance.
+  if (typeof window !== "undefined") {
+    window.addEventListener("keydown", onKeyDown);
+  }
 
   return {
     activate,
@@ -420,11 +555,15 @@ export function installMapTools(
       measureMode: state.measureMode,
       readout: state.readout,
     }),
+    getDrawings,
+    setDossierOverlay,
     destroy() {
       try {
         map.off("click", onMapClick);
         map.off("dblclick", onMapDblClick);
-        window.removeEventListener("keydown", onKeyDown);
+        if (typeof window !== "undefined") {
+          window.removeEventListener("keydown", onKeyDown);
+        }
       } catch {
         /* ignore */
       }
@@ -433,10 +572,11 @@ export function installMapTools(
           MEASURE_FILL_ID, MEASURE_LINE_ID, MEASURE_VERT_ID,
           DRAW_FILL_ID, DRAW_LINE_ID, DRAW_VERT_ID,
           MARKER_ID,
+          DOSSIER_FILL_ID, DOSSIER_LINE_ID, DOSSIER_PT_ID,
         ]) {
           if (map.getLayer(id)) map.removeLayer(id);
         }
-        for (const src of [MEASURE_SRC, DRAW_SRC, MARKER_SRC]) {
+        for (const src of [MEASURE_SRC, DRAW_SRC, MARKER_SRC, DOSSIER_SRC]) {
           if (map.getSource(src)) map.removeSource(src);
         }
       } catch {

@@ -41,13 +41,15 @@ import { cortexClient } from "../lib/cortexClient";
 import { parcelNodes } from "../lib/parcel-node-store.js";
 import { startPeCheckout } from "../lib/billingClient";
 import { recordPeGtmEvent } from "../lib/gtmClient";
-import { saveProperty } from "../lib/savedPropertiesClient";
+import { savePropertyWithDossier } from "../lib/savedPropertiesClient";
+import { sanitizeDrawings } from "../lib/propertyDossier";
 import { iccCitationStatus } from "../lib/iccCitation";
 import { InspectCard } from "./InspectCard";
 import { Workbench } from "../workbench/Workbench";
 import { WORKBENCH_TOOLS } from "../workbench/registry";
 import type { WorkbenchHostActions } from "../workbench/types";
 import { MapToolset, type LayerStateBadge } from "./MapToolset";
+import type { MapToolsController } from "./mapToolsController";
 import { TransientChips } from "./TransientChips";
 import type { ChipSpec } from "./transient-chips";
 import { SearchBar } from "./SearchBar";
@@ -244,6 +246,18 @@ export function ExplorerMap() {
   // Render-time mirror of the workbench active property so the stable host
   // callbacks (W3 getActivePropertyAddress) read the CURRENT binding.
   const activeParcelNodeIdRef = useRef<string | null>(null);
+  // WB6 dossier: the live MapToolsController (measure/draw/marker) once the
+  // MapToolset installs it, plus which property the dossier-drawings overlay
+  // currently belongs to (so a property switch clears a stale overlay).
+  const toolsControllerRef = useRef<MapToolsController | null>(null);
+  const dossierOverlayForRef = useRef<string | null>(null);
+  const handleToolsController = useCallback(
+    (controller: MapToolsController | null) => {
+      toolsControllerRef.current = controller;
+      if (!controller) dossierOverlayForRef.current = null;
+    },
+    [],
+  );
   const [paywallOpen, setPaywallOpen] = useState(false);
   const [paywallMessage, setPaywallMessage] = useState<string | null>(null);
   const [checkoutBusy, setCheckoutBusy] = useState(false);
@@ -1047,6 +1061,22 @@ export function ExplorerMap() {
       openProperty: (parcelNodeId: string) => {
         void runParcelLookup(parcelNodeId);
       },
+      // WB6 dossier: capture the live draw/measure/marker geometries. Null
+      // when the toolset never installed (map still mounting) — honest absence.
+      getMapDrawings: () => {
+        const controller = toolsControllerRef.current;
+        if (!controller) return null;
+        const fc = controller.getDrawings();
+        return fc.features.length > 0 ? fc : null;
+      },
+      // WB6 dossier: redraw saved drawings as the read-only overlay; records
+      // which property they belong to so the switch-effect below can clear.
+      showDossierDrawings: (fc, forParcelNodeId) => {
+        const controller = toolsControllerRef.current;
+        if (!controller) return;
+        dossierOverlayForRef.current = fc ? (forParcelNodeId ?? null) : null;
+        controller.setDossierOverlay(fc);
+      },
     }),
     [runParcelLookup],
   );
@@ -1056,6 +1086,18 @@ export function ExplorerMap() {
   // this changes (chassis store is keyed by it).
   const activeParcelNodeId = cardNodeId ?? subjectNodeId;
   activeParcelNodeIdRef.current = activeParcelNodeId;
+
+  // WB6 dossier: when the ACTIVE property switches away from the property the
+  // dossier-drawings overlay was drawn for, clear the overlay — saved drawings
+  // never linger over a different parcel. (Reopen draws AFTER recording the
+  // target id, so the overlay for the newly-opened property survives.)
+  useEffect(() => {
+    const drawnFor = dossierOverlayForRef.current;
+    if (drawnFor && drawnFor !== activeParcelNodeId) {
+      dossierOverlayForRef.current = null;
+      toolsControllerRef.current?.setDossierOverlay(null);
+    }
+  }, [activeParcelNodeId]);
 
   // W2: the terrain/site-plan paywall handlers moved into the workbench
   // Reports tool (ReportsTool.tsx) with the same copy + pe_paywall_hit event —
@@ -1073,7 +1115,16 @@ export function ExplorerMap() {
     });
     if (nodeId) {
       const address = inspectedRef.current?.card.situsAddress ?? null;
-      void saveProperty(nodeId, { label: address });
+      // WB6: seed the dossier (savedAt/address + current map drawings) —
+      // savePropertyWithDossier merges into an existing dossier, never clobbers.
+      const drawings = sanitizeDrawings(
+        toolsControllerRef.current?.getDrawings() ?? null,
+      );
+      void savePropertyWithDossier(nodeId, {
+        label: address,
+        address,
+        drawings: drawings ?? undefined,
+      });
     }
     setOpenWorkbenchTool("properties");
   }, [cardNodeId]);
@@ -1127,6 +1178,7 @@ export function ExplorerMap() {
           visible={visibleLayers}
           onLayersChange={(next) => setVisibleLayers(new Set(next))}
           layerStates={layerStates}
+          onToolsController={handleToolsController}
         />
       )}
 

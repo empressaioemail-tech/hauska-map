@@ -8,7 +8,9 @@ import {
   listSavedProperties,
   removeSavedProperty,
   saveProperty,
+  savePropertyWithDossier,
   subscribeSavedPropertiesChanged,
+  updatePropertyDossier,
 } from './savedPropertiesClient'
 
 function fakeFetch(status: number, body: unknown): typeof fetch {
@@ -31,8 +33,8 @@ describe('listSavedProperties', () => {
     expect(outcome).toEqual({
       kind: 'ready',
       items: [
-        { parcelNodeId: '48021:2', label: '104 Main St', updatedAt: '2026-07-28T00:00:00Z' },
-        { parcelNodeId: '48021:1', label: null, updatedAt: '2026-07-27T00:00:00Z' },
+        { parcelNodeId: '48021:2', label: '104 Main St', updatedAt: '2026-07-28T00:00:00Z', snapshot: null },
+        { parcelNodeId: '48021:1', label: null, updatedAt: '2026-07-27T00:00:00Z', snapshot: null },
       ],
     })
   })
@@ -106,5 +108,139 @@ describe('saveProperty / removeSavedProperty', () => {
     expect(
       await removeSavedProperty('48021:2', fakeFetch(500, { message: 'boom' })),
     ).toEqual({ kind: 'error', message: 'boom' })
+  })
+
+  it('PUTs the sanitized snapshot when provided (dossier rides the jsonb)', async () => {
+    const f = fakeFetch(200, { ok: true })
+    await saveProperty('48021:2', {
+      label: '104 Main St',
+      snapshot: { notes: 'hello', savedAt: '2026-07-29T00:00:00Z' },
+    }, f)
+    const [, init] = (f as unknown as { mock: { calls: [string, RequestInit][] } }).mock.calls[0]
+    expect(JSON.parse(init.body as string)).toEqual({
+      label: '104 Main St',
+      snapshot: { savedAt: '2026-07-29T00:00:00Z', notes: 'hello' },
+    })
+  })
+})
+
+/** Sequenced fake fetch: first call = LIST response, later calls = PUT. */
+function listThenPut(
+  listBody: unknown,
+  putStatus = 200,
+): { fetch: typeof fetch; calls: () => Array<[string, RequestInit]> } {
+  const fn = vi.fn(async (url: string, init?: RequestInit) => {
+    const isList = (init?.method ?? 'GET') === 'GET'
+    return new Response(JSON.stringify(isList ? listBody : { ok: true }), {
+      status: isList ? 200 : putStatus,
+      headers: { 'Content-Type': 'application/json' },
+    })
+  }) as unknown as typeof fetch
+  return {
+    fetch: fn,
+    calls: () => (fn as unknown as { mock: { calls: Array<[string, RequestInit]> } }).mock.calls,
+  }
+}
+
+describe('updatePropertyDossier — read-modify-write against the server snapshot', () => {
+  const savedRow = {
+    parcelNodeId: '48021:2',
+    label: '104 Main St',
+    updatedAt: '2026-07-28T00:00:00Z',
+    snapshot: { notes: 'old notes', savedAt: '2026-07-01T00:00:00Z' },
+  }
+
+  it('merges the patch into the EXISTING snapshot and keeps the label', async () => {
+    const { fetch: f, calls } = listThenPut([savedRow])
+    const outcome = await updatePropertyDossier(
+      '48021:2',
+      { chatSummary: { summary: 'AI summary text', savedAt: '2026-07-29T00:00:00Z', turnCount: 4 } },
+      f,
+    )
+    expect(outcome).toEqual({ kind: 'ok' })
+    const put = calls().find(([, init]) => init?.method === 'PUT')!
+    const body = JSON.parse(put[1].body as string)
+    expect(body.label).toBe('104 Main St')
+    expect(body.snapshot.notes).toBe('old notes') // untouched field survives
+    expect(body.snapshot.savedAt).toBe('2026-07-01T00:00:00Z')
+    expect(body.snapshot.chatSummary.summary).toBe('AI summary text')
+  })
+
+  it('supports the FUNCTION patch form (exports dedupe needs current state)', async () => {
+    const rowWithExports = {
+      ...savedRow,
+      snapshot: {
+        ...savedRow.snapshot,
+        exports: [
+          { kind: 'terrain', format: 'glb', savedAt: '2026-07-20T00:00:00Z', downloadPath: '/old' },
+        ],
+      },
+    }
+    const { fetch: f, calls } = listThenPut([rowWithExports])
+    await updatePropertyDossier(
+      '48021:2',
+      (current) => ({
+        exports: [
+          ...(current.exports ?? []).filter((e) => e.format !== 'glb'),
+          { kind: 'terrain', format: 'glb', savedAt: '2026-07-29T00:00:00Z', downloadPath: '/new' },
+        ],
+      }),
+      f,
+    )
+    const put = calls().find(([, init]) => init?.method === 'PUT')!
+    const body = JSON.parse(put[1].body as string)
+    expect(body.snapshot.exports).toEqual([
+      { kind: 'terrain', format: 'glb', savedAt: '2026-07-29T00:00:00Z', downloadPath: '/new' },
+    ])
+  })
+
+  it('property not in the list → honest not-saved, no PUT fired', async () => {
+    const { fetch: f, calls } = listThenPut([])
+    const outcome = await updatePropertyDossier('48021:2', { notes: 'x' }, f)
+    expect(outcome).toEqual({ kind: 'not-saved' })
+    expect(calls().every(([, init]) => (init?.method ?? 'GET') === 'GET')).toBe(true)
+  })
+
+  it('list 401 → sign-in (never a blind PUT)', async () => {
+    const outcome = await updatePropertyDossier('48021:2', { notes: 'x' }, fakeFetch(401, {}))
+    expect(outcome).toEqual({ kind: 'sign-in' })
+  })
+})
+
+describe('savePropertyWithDossier — seeded save merges, never clobbers', () => {
+  it('already saved → existing dossier fields survive the seed', async () => {
+    const existing = {
+      parcelNodeId: '48021:2',
+      label: 'Old label',
+      updatedAt: '2026-07-28T00:00:00Z',
+      snapshot: { notes: 'keep me', savedAt: '2026-07-01T00:00:00Z' },
+    }
+    const { fetch: f, calls } = listThenPut([existing])
+    await savePropertyWithDossier('48021:2', {
+      label: '104 Main St',
+      address: '104 Main St',
+      drawings: {
+        type: 'FeatureCollection',
+        features: [
+          { type: 'Feature', geometry: { type: 'Point', coordinates: [1, 2] }, properties: { tool: 'marker' } },
+        ],
+      },
+    }, f)
+    const put = calls().find(([, init]) => init?.method === 'PUT')!
+    const body = JSON.parse(put[1].body as string)
+    expect(body.snapshot.notes).toBe('keep me')
+    expect(body.snapshot.savedAt).toBe('2026-07-01T00:00:00Z')
+    expect(body.snapshot.address).toBe('104 Main St')
+    expect(body.snapshot.drawings.features).toHaveLength(1)
+  })
+
+  it('not yet saved → snapshot seeded with savedAt + address', async () => {
+    const { fetch: f, calls } = listThenPut([])
+    await savePropertyWithDossier('48021:9', { label: '9 Oak Ln', address: '9 Oak Ln' }, f)
+    const put = calls().find(([, init]) => init?.method === 'PUT')!
+    const body = JSON.parse(put[1].body as string)
+    expect(body.label).toBe('9 Oak Ln')
+    expect(body.snapshot.address).toBe('9 Oak Ln')
+    expect(typeof body.snapshot.savedAt).toBe('string')
   })
 })

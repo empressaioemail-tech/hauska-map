@@ -84,6 +84,26 @@ export interface WorkbenchHostActions {
    * the host does not implement it.
    */
   openProperty?: (parcelNodeId: string) => void;
+  /**
+   * WB6 dossier: the CURRENT map draw/measure/marker geometries as a plain
+   * GeoJSON FeatureCollection (features tagged `properties.tool`), or null
+   * when the map tools are not installed / nothing is drawn. Pure read.
+   */
+  getMapDrawings?: () => {
+    type: "FeatureCollection";
+    features: unknown[];
+  } | null;
+  /**
+   * WB6 dossier: REDRAW a saved property's drawings on the live map as the
+   * read-only dossier overlay (null clears it). `forParcelNodeId` records
+   * which property the overlay belongs to — the app shell auto-clears the
+   * overlay when the ACTIVE property switches to a different parcel, so
+   * dossier drawings never linger over the wrong property.
+   */
+  showDossierDrawings?: (
+    fc: { type: "FeatureCollection"; features: unknown[] } | null,
+    forParcelNodeId?: string,
+  ) => void;
 }
 
 /** One bubble in the top-right cluster. */

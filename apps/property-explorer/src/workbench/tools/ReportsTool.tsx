@@ -19,6 +19,7 @@
 // re-scope automatically. Sections are keyed on the active property so their
 // mount-time state re-seeds from the right slot.
 
+import { useCallback, useRef } from "react";
 import {
   SitePlanExportSection,
   type SitePlanExportSectionState,
@@ -29,6 +30,7 @@ import {
 } from "../../browse/TerrainExportSection";
 import { recordPeGtmEvent } from "../../lib/gtmClient";
 import { useDockToolState, useWorkbench } from "../WorkbenchContext";
+import { attachExportToDossier } from "./reports-dossier";
 
 /** Verbatim paywall copy the card's 402 handlers carried (moved, not changed). */
 export const SITE_PLAN_PAYWALL_MESSAGE =
@@ -43,8 +45,40 @@ export function ReportsTool() {
   const [terrain, setTerrain] =
     useDockToolState<TerrainExportSectionState>("reports.terrain");
 
+  // WB6 auto-attach: remember which result object was already attached per
+  // (property, kind) so a format-change settle carrying the SAME result does
+  // not re-fire. Attach is fire-and-forget; `not-saved` is a silent no-op
+  // (nothing to attach to) and the dossier upsert dedupes kind+format anyway.
+  const attachedRef = useRef(new Map<string, unknown>());
+  const maybeAttach = useCallback(
+    (
+      parcelNodeId: string,
+      kind: "site-plan" | "terrain",
+      result:
+        | SitePlanExportSectionState["result"]
+        | TerrainExportSectionState["result"],
+    ) => {
+      if (!result) return;
+      const key = `${parcelNodeId}:${kind}`;
+      if (attachedRef.current.get(key) === result) return;
+      attachedRef.current.set(key, result);
+      void attachExportToDossier(parcelNodeId, kind, result);
+    },
+    [],
+  );
+
   // The dock guarantees a non-null active property for propertyScoped tools.
   if (!activeParcelNodeId) return null;
+
+  // Seed the attach memory with results that were PERSISTED before this mount
+  // — those exports already attached when they happened; only a NEW settle
+  // (new result object) should auto-attach.
+  if (sitePlan?.result && !attachedRef.current.has(`${activeParcelNodeId}:site-plan`)) {
+    attachedRef.current.set(`${activeParcelNodeId}:site-plan`, sitePlan.result);
+  }
+  if (terrain?.result && !attachedRef.current.has(`${activeParcelNodeId}:terrain`)) {
+    attachedRef.current.set(`${activeParcelNodeId}:terrain`, terrain.result);
+  }
 
   const facts = host.getActiveParcelFacts?.() ?? {
     address: null,
@@ -68,14 +102,20 @@ export function ReportsTool() {
         countyName={facts.countyName}
         onPaymentRequired={() => paywall(SITE_PLAN_PAYWALL_MESSAGE)}
         initialState={sitePlan}
-        onStateChange={setSitePlan}
+        onStateChange={(next) => {
+          setSitePlan(next);
+          maybeAttach(activeParcelNodeId, "site-plan", next.result);
+        }}
       />
       <TerrainExportSection
         key={`terrain:${activeParcelNodeId}`}
         parcelNodeId={activeParcelNodeId}
         onPaymentRequired={() => paywall(TERRAIN_PAYWALL_MESSAGE)}
         initialState={terrain}
-        onStateChange={setTerrain}
+        onStateChange={(next) => {
+          setTerrain(next);
+          maybeAttach(activeParcelNodeId, "terrain", next.result);
+        }}
       />
     </div>
   );

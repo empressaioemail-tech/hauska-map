@@ -48,6 +48,8 @@ import {
   freshnessTitle,
   type ChatRef,
 } from "./chat-citations";
+import { saveChatToProperty } from "./chat-dossier";
+import { savePropertyWithDossier } from "../../lib/savedPropertiesClient";
 
 const TEXT = "#e5e7eb";
 const MUTED = "#9aa6b2";
@@ -294,6 +296,14 @@ export function ChatTool() {
   const [briefStored] = useDockToolState<BriefToolStoredState>("brief");
   const [phase, setPhase] = useState<ChatPhase>({ kind: "idle" });
   const [draft, setDraft] = useState("");
+  // WB6 save-to-property: transient action state (never persisted).
+  const [saveBusy, setSaveBusy] = useState(false);
+  const [saveStatus, setSaveStatus] = useState<{
+    text: string;
+    tone: "muted" | "amber";
+    /** True → the property is unsaved; offer "save the property first". */
+    offerSave?: boolean;
+  } | null>(null);
   const threadRef = useRef<HTMLDivElement | null>(null);
   const mountedRef = useRef(true);
   useEffect(() => {
@@ -304,6 +314,11 @@ export function ChatTool() {
   }, []);
 
   const turns = stored?.turns ?? [];
+
+  // Save-status is per property — switching the active property resets it.
+  useEffect(() => {
+    setSaveStatus(null);
+  }, [activeParcelNodeId]);
 
   // Keep the newest turn in view as the thread grows.
   useEffect(() => {
@@ -388,6 +403,86 @@ export function ChatTool() {
     },
     // eslint-disable-next-line react-hooks/exhaustive-deps
     [activeParcelNodeId, stored, briefStored, host, setStored],
+  );
+
+  // WB6 — SAVE TO PROPERTY: store the thread (capped) into the saved
+  // property's dossier + ONE extra call to the same research route for the AI
+  // summary. An unsaved property gets the honest offer to save it first; a
+  // failed summary still saves the thread, honestly noted.
+  const handleSaveToProperty = useCallback(
+    async (opts: { savePropertyFirst?: boolean } = {}) => {
+      if (!activeParcelNodeId || turns.length === 0 || saveBusy) return;
+      setSaveBusy(true);
+      setSaveStatus(null);
+      try {
+        // Same subject construction as a normal send — the summary call is
+        // scoped exactly like the thread it summarizes.
+        const facets = await getChatPropertyFacets(activeParcelNodeId);
+        const subject = buildChatSubjectFromFacets(
+          activeParcelNodeId,
+          facets,
+          briefStored?.brief ?? null,
+          host.getActivePropertyAddress?.() ?? null,
+        );
+        if (opts.savePropertyFirst) {
+          const saved = await savePropertyWithDossier(activeParcelNodeId, {
+            label: subject.address,
+            address: subject.address,
+          });
+          if (saved.kind !== "ok") {
+            setSaveStatus({
+              text:
+                saved.kind === "sign-in"
+                  ? "Sign in to save properties."
+                  : "Could not save the property — try again.",
+              tone: "amber",
+            });
+            return;
+          }
+        }
+        const outcome = await saveChatToProperty({
+          parcelNodeId: activeParcelNodeId,
+          address: subject.address,
+          turns: turns.map((t) => ({ role: t.role, content: t.content })),
+          subject,
+        });
+        if (!mountedRef.current) return;
+        switch (outcome.kind) {
+          case "saved":
+            setSaveStatus(
+              outcome.summarized
+                ? { text: "Saved to property with an AI summary.", tone: "muted" }
+                : {
+                    text: `Thread saved — no summary (${outcome.summaryNote ?? "summary generation failed"}).`,
+                    tone: "muted",
+                  },
+            );
+            return;
+          case "not-saved":
+            setSaveStatus({
+              text: "This property isn't saved yet.",
+              tone: "amber",
+              offerSave: true,
+            });
+            return;
+          case "sign-in":
+            setSaveStatus({ text: "Sign in to save this chat.", tone: "amber" });
+            return;
+          case "unreachable":
+            setSaveStatus({
+              text: "Could not reach the saved-properties service.",
+              tone: "amber",
+            });
+            return;
+          case "error":
+            setSaveStatus({ text: outcome.message, tone: "amber" });
+            return;
+        }
+      } finally {
+        setSaveBusy(false);
+      }
+    },
+    [activeParcelNodeId, turns, saveBusy, briefStored, host],
   );
 
   const submitDraft = () => {
@@ -524,6 +619,68 @@ export function ChatTool() {
           </div>
         )}
       </div>
+
+      {/* WB6 — SAVE TO PROPERTY (visible once a thread exists). */}
+      {turns.length > 0 && (
+        <div
+          data-testid="chat-save-row"
+          style={{
+            display: "flex",
+            alignItems: "center",
+            flexWrap: "wrap",
+            gap: 6,
+          }}
+        >
+          <button
+            type="button"
+            data-testid="chat-save-to-property"
+            disabled={saveBusy || phase.kind === "sending"}
+            onClick={() => void handleSaveToProperty()}
+            style={{
+              fontSize: 10.5,
+              color: ACCENT,
+              background: "transparent",
+              border: "1px solid rgba(125,211,252,0.45)",
+              borderRadius: 5,
+              padding: "2px 8px",
+              cursor: saveBusy ? "default" : "pointer",
+              opacity: saveBusy ? 0.6 : 1,
+            }}
+          >
+            {saveBusy ? "Saving…" : "Save to property"}
+          </button>
+          {saveStatus && (
+            <span
+              data-testid="chat-save-status"
+              style={{
+                fontSize: 10,
+                color: saveStatus.tone === "amber" ? AMBER : MUTED,
+              }}
+            >
+              {saveStatus.text}
+            </span>
+          )}
+          {saveStatus?.offerSave && (
+            <button
+              type="button"
+              data-testid="chat-save-property-first"
+              disabled={saveBusy}
+              onClick={() => void handleSaveToProperty({ savePropertyFirst: true })}
+              style={{
+                fontSize: 10.5,
+                color: "#0b0f14",
+                background: ACCENT,
+                border: `1px solid ${ACCENT}`,
+                borderRadius: 5,
+                padding: "2px 8px",
+                cursor: saveBusy ? "default" : "pointer",
+              }}
+            >
+              Save property &amp; attach chat
+            </button>
+          )}
+        </div>
+      )}
 
       {/* THE COMPOSER — pinned at the dock bottom; Enter sends. */}
       <div style={{ display: "flex", gap: 6 }}>
