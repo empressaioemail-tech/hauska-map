@@ -29,14 +29,20 @@ import {
   type TerrainExportSectionState,
 } from "../../browse/TerrainExportSection";
 import { recordPeGtmEvent } from "../../lib/gtmClient";
+import { usePropertyEntitlement } from "../../lib/usePropertyEntitlement";
 import { useDockToolState, useWorkbench } from "../WorkbenchContext";
+import { LockedToolPanel } from "./LockedToolPanel";
 import { attachExportToDossier } from "./reports-dossier";
 
-/** Verbatim paywall copy the card's 402 handlers carried (moved, not changed). */
+/** R1 value lines — the unified unlock flow renders under them (replaces the
+ *  Pro-hardcoded "Sign in and upgrade to Pro" copy). */
+export const REPORTS_LOCKED_VALUE_LINE =
+  "Professional reports on this property — the cited site-plan export (layered DXF/IFC + PDF sheet with setbacks, contours, and provenance) and every report that ships next.";
 export const SITE_PLAN_PAYWALL_MESSAGE =
-  "Cited site-plan export (layered DXF/IFC + PDF sheet with setbacks, contours, and provenance) is a paid public-paid spine atom. Sign in and upgrade to Pro to export.";
+  "Cited site-plan export — layered DXF/IFC plus a PDF sheet with setbacks, contours, and provenance.";
+/** TERRAIN IS PRO-ONLY: never claimed by the $15 property unlock. */
 export const TERRAIN_PAYWALL_MESSAGE =
-  "Multi-format terrain export (GLB, IFC, DXF) is a paid public-paid spine atom. Sign in and upgrade to Pro to export.";
+  "Multi-format terrain export (GLB, IFC, DXF) is a Pro feature — it is not part of the single-property unlock.";
 
 export function ReportsTool() {
   const { activeParcelNodeId, host } = useWorkbench();
@@ -44,6 +50,11 @@ export function ReportsTool() {
     useDockToolState<SitePlanExportSectionState>("reports.sitePlan");
   const [terrain, setTerrain] =
     useDockToolState<TerrainExportSectionState>("reports.terrain");
+  // R1 PROACTIVE gate: reports are a PAID bubble. locked → the in-dock LOCKED
+  // state; signedOut → sign-in-first; entitled-but-not-Pro → site-plan runs,
+  // terrain shows its PRO-ONLY lock; loading/error → run as today (the
+  // server-402 belt stays authoritative).
+  const ent = usePropertyEntitlement(activeParcelNodeId);
 
   // WB6 auto-attach: remember which result object was already attached per
   // (property, kind) so a format-change settle carrying the SAME result does
@@ -70,6 +81,27 @@ export function ReportsTool() {
   // The dock guarantees a non-null active property for propertyScoped tools.
   if (!activeParcelNodeId) return null;
 
+  if (ent.signedOut) {
+    return (
+      <LockedToolPanel
+        parcelNodeId={activeParcelNodeId}
+        valueLine={REPORTS_LOCKED_VALUE_LINE}
+        signedOut
+        signInLine="Sign in to run reports and exports on this parcel."
+        testId="reports-locked"
+      />
+    );
+  }
+  if (ent.locked) {
+    return (
+      <LockedToolPanel
+        parcelNodeId={activeParcelNodeId}
+        valueLine={REPORTS_LOCKED_VALUE_LINE}
+        testId="reports-locked"
+      />
+    );
+  }
+
   // Seed the attach memory with results that were PERSISTED before this mount
   // — those exports already attached when they happened; only a NEW settle
   // (new result object) should auto-attach.
@@ -85,13 +117,19 @@ export function ReportsTool() {
     countyName: null,
   };
 
-  const paywall = (message: string) => {
+  const paywall = (message: string, opts?: { proOnly?: boolean }) => {
     void recordPeGtmEvent({
       eventType: "pe_paywall_hit",
       parcelNodeId: activeParcelNodeId,
     });
-    host.openPaywall(message);
+    host.openPaywall(message, opts);
   };
+
+  // TERRAIN = PRO-ONLY: a property-unlocked (non-Pro) user gets the site-plan
+  // section live and the terrain slot as its Pro-only lock — the $15 unlock
+  // never claims terrain. Pro (or an unresolved/soft entitlement — belt
+  // decides) renders the real section.
+  const terrainProLocked = ent.status === "ready" && !ent.pro;
 
   return (
     <div data-testid="reports-tool">
@@ -107,16 +145,30 @@ export function ReportsTool() {
           maybeAttach(activeParcelNodeId, "site-plan", next.result);
         }}
       />
-      <TerrainExportSection
-        key={`terrain:${activeParcelNodeId}`}
-        parcelNodeId={activeParcelNodeId}
-        onPaymentRequired={() => paywall(TERRAIN_PAYWALL_MESSAGE)}
-        initialState={terrain}
-        onStateChange={(next) => {
-          setTerrain(next);
-          maybeAttach(activeParcelNodeId, "terrain", next.result);
-        }}
-      />
+      {terrainProLocked ? (
+        <div style={{ marginTop: 14 }}>
+          <LockedToolPanel
+            parcelNodeId={activeParcelNodeId}
+            valueLine="Terrain export — the parcel's real terrain as GLB, IFC, or DXF for modeling tools."
+            proOnly
+            proOnlyNote={TERRAIN_PAYWALL_MESSAGE}
+            testId="terrain-pro-lock"
+          />
+        </div>
+      ) : (
+        <TerrainExportSection
+          key={`terrain:${activeParcelNodeId}`}
+          parcelNodeId={activeParcelNodeId}
+          onPaymentRequired={() =>
+            paywall(TERRAIN_PAYWALL_MESSAGE, { proOnly: true })
+          }
+          initialState={terrain}
+          onStateChange={(next) => {
+            setTerrain(next);
+            maybeAttach(activeParcelNodeId, "terrain", next.result);
+          }}
+        />
+      )}
     </div>
   );
 }

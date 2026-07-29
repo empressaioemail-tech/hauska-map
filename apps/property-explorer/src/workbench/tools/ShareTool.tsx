@@ -14,12 +14,19 @@
 //     old links stay valid until their own expiry — tokens are stateless).
 
 import { useState } from "react";
+import { usePropertyEntitlement } from "../../lib/usePropertyEntitlement";
 import { useDockToolState, useWorkbench } from "../WorkbenchContext";
+import { LockedToolPanel } from "./LockedToolPanel";
 import {
   mintShareLink,
   SHARE_PAYWALL_MESSAGE,
   type MintedShareLink,
 } from "../../lib/shareClient";
+
+/** R1 value line — share is a PAID bubble folded into the per-property
+ *  unlock semantics (the mint requires property entitlement). */
+export const SHARE_LOCKED_VALUE_LINE =
+  "Share links carry this property's full analysis — the verdict and cited brief plus the site-plan and terrain downloads — readable by anyone you send them to.";
 
 const MUTED = "#9aa6b2";
 const AMBER = "#fcd34d";
@@ -176,6 +183,10 @@ export function ShareTool() {
   const { activeParcelNodeId, host } = useWorkbench();
   const [stored, setStored] = useDockToolState<ShareToolStoredState>("share");
   const [phase, setPhase] = useState<Phase>({ kind: "idle" });
+  // R1 PROACTIVE gate: the share MINT requires property entitlement ($15
+  // unlock or Pro). locked → in-dock LOCKED state; signedOut → sign-in-first;
+  // loading/error → run as today (the server-402 belt stays authoritative).
+  const ent = usePropertyEntitlement(activeParcelNodeId);
 
   const handleCreate = async () => {
     if (!activeParcelNodeId) return;
@@ -234,6 +245,27 @@ export function ShareTool() {
       });
     }
   };
+
+  if (ent.signedOut) {
+    return (
+      <LockedToolPanel
+        parcelNodeId={activeParcelNodeId}
+        valueLine={SHARE_LOCKED_VALUE_LINE}
+        signedOut
+        signInLine="Sign in to create a share link for this property."
+        testId="share-locked"
+      />
+    );
+  }
+  if (ent.locked) {
+    return (
+      <LockedToolPanel
+        parcelNodeId={activeParcelNodeId}
+        valueLine={SHARE_LOCKED_VALUE_LINE}
+        testId="share-locked"
+      />
+    );
+  }
 
   return (
     <ShareBody

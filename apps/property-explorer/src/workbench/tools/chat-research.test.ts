@@ -320,6 +320,22 @@ const FULL_SUBJECT: ChatSubjectContext = buildChatSubjectContext(
 );
 
 describe("buildChatRequestBody — the RESEARCH_CHAT_BODY shape", () => {
+  it("summary calls declare purpose:'summary' (R1 paid-chat classification); normal sends omit it", () => {
+    const summaryBody = buildChatRequestBody({
+      message: "Summarize the key findings",
+      history: [],
+      subject: FULL_SUBJECT,
+      purpose: "summary",
+    }) as { purpose?: string };
+    expect(summaryBody.purpose).toBe("summary");
+    const normalBody = buildChatRequestBody({
+      message: "zoning?",
+      history: [],
+      subject: FULL_SUBJECT,
+    }) as { purpose?: string };
+    expect("purpose" in normalBody).toBe(false);
+  });
+
   it("builds the full body: areaContext subject seam + address + remapped starter", () => {
     const body = buildChatRequestBody({
       message: "Can I add an ADU?",
@@ -502,9 +518,32 @@ describe("runChatTurn — honest status mapping", () => {
     expect(chatOutcomeNotice(outcome as never)).toMatch(/sign in/i);
   });
 
-  it("402 → paywall (caller opens the gate)", async () => {
+  it("402 → paywall upgrade_required (caller opens the unified unlock flow)", async () => {
     const outcome = await runChatTurn(SEND, fakePost(402, {}));
-    expect(outcome).toEqual({ kind: "paywall" });
+    expect(outcome).toEqual({
+      kind: "paywall",
+      reason: "upgrade_required",
+      freeMessagesUsed: null,
+      freeMessagesLimit: null,
+    });
+  });
+
+  it("402 free_messages_exhausted → paywall with the pinned counter fields", async () => {
+    const outcome = await runChatTurn(
+      SEND,
+      fakePost(402, {
+        error: "free_messages_exhausted",
+        freeMessagesUsed: 3,
+        freeMessagesLimit: 3,
+      }),
+    );
+    expect(outcome).toEqual({
+      kind: "paywall",
+      reason: "free_messages_exhausted",
+      freeMessagesUsed: 3,
+      freeMessagesLimit: 3,
+    });
+    expect(chatOutcomeNotice(outcome as never)).toMatch(/free messages/i);
   });
 
   it("400 (run-selector/areaContext rejection) → scope-failed with the server's words", async () => {

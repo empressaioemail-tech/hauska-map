@@ -39,7 +39,6 @@ import "maplibre-gl/dist/maplibre-gl.css";
 import { DEFAULT_CENTER, PARCEL_TILES } from "../lib/config";
 import { cortexClient } from "../lib/cortexClient";
 import { parcelNodes } from "../lib/parcel-node-store.js";
-import { startPeCheckout } from "../lib/billingClient";
 import { recordPeGtmEvent } from "../lib/gtmClient";
 import { savePropertyWithDossier } from "../lib/savedPropertiesClient";
 import { sanitizeDrawings } from "../lib/propertyDossier";
@@ -256,8 +255,8 @@ export function ExplorerMap() {
   );
   const [paywallOpen, setPaywallOpen] = useState(false);
   const [paywallMessage, setPaywallMessage] = useState<string | null>(null);
-  const [checkoutBusy, setCheckoutBusy] = useState(false);
-  const [checkoutNote, setCheckoutNote] = useState<string | null>(null);
+  // R1: the unified unlock flow's Pro-only variant (terrain) — set per open.
+  const [paywallProOnly, setPaywallProOnly] = useState(false);
 
   // toggle set (a copy — mutating it does not leak into renderer state).
   useEffect(() => {
@@ -1080,9 +1079,9 @@ export function ExplorerMap() {
   // Reads route through refs so the host identity stays stable.
   const workbenchHost = useMemo<WorkbenchHostActions>(
     () => ({
-      openPaywall: (message: string) => {
-        setCheckoutNote(null);
+      openPaywall: (message: string, opts?: { proOnly?: boolean }) => {
         setPaywallMessage(message);
+        setPaywallProOnly(opts?.proOnly === true);
         setPaywallOpen(true);
       },
       getActivePropertyAddress: () => {
@@ -1179,20 +1178,9 @@ export function ExplorerMap() {
     setOpenWorkbenchTool("properties");
   }, [cardNodeId]);
 
-  const handleUpgrade = useCallback(async () => {
-    setCheckoutBusy(true);
-    const nodeId = cardNodeId ?? inspectedRef.current?.parcelNodeId ?? null;
-    const result = await startPeCheckout({ parcelNodeId: nodeId });
-    setCheckoutBusy(false);
-    if (!result.ok) {
-      setCheckoutNote(result.message ?? "Checkout unavailable");
-      return;
-    }
-    setCheckoutNote(result.honestNote ?? null);
-    if (result.checkoutUrl) {
-      window.location.assign(result.checkoutUrl);
-    }
-  }, [cardNodeId]);
+  // R1: checkout handling moved INTO the unified unlock flow (UnlockFlow.tsx
+  // useUnlockChoices actions) — the modal is self-contained; ExplorerMap only
+  // owns open/close + the value line + the Pro-only variant flag.
 
   // Two-products: PE is map + inspect card + exports only. County ledger /
   // node-graph balance sheet stays in Command Center (operator), never here.
@@ -1286,13 +1274,19 @@ export function ExplorerMap() {
         />
       )}
 
+      {/* R1: the unified two-choice unlock flow (replaces the Pro-hardcoded
+          "R1–R10 … Pro entitlement" copy). Value line comes from the bubble
+          that gated; prices come from the pricing config module. */}
       {paywallOpen && (
         <PaywallGate
-          message={`${paywallMessage ?? "Deep research and cited property reports (R1–R10) require sign-in and Pro entitlement."} Checkout runs in test or live mode depending on cortex Stripe config — browse stays free. ${iccCitationStatus().live ? "" : iccCitationStatus().message}`}
-          checkoutNote={checkoutNote}
-          onUpgrade={() => void handleUpgrade()}
+          parcelNodeId={activeParcelNodeId}
+          valueLine={
+            paywallMessage ??
+            "The full brief, AI chat, reports, and share links are the paid toolkit on this property — the inspect card and map stay free."
+          }
+          proOnly={paywallProOnly}
+          statusNote={iccCitationStatus().live ? null : iccCitationStatus().message}
           onClose={() => setPaywallOpen(false)}
-          busy={checkoutBusy}
         />
       )}
     </div>

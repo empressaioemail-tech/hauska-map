@@ -34,6 +34,7 @@ function isDeepPathAllowed(method: string, upstreamPath: string): boolean {
     'api/property-explorer/v1/research/brief',
     'api/property-explorer/v1/research/hydrology',
     'api/property-explorer/v1/research/subsurface',
+    'api/property-explorer/v1/entitlement/dev-unlock',
   ])
   const SAVED_PROPERTY_ITEM_RE = /^api\/property-explorer\/v1\/saved-properties\/[^/]+$/
   if (method === 'GET' || method === 'HEAD') {
@@ -88,6 +89,17 @@ describe('proxy allowlists', () => {
 
   it('allows deep research on deep proxy', () => {
     expect(isDeepPathAllowed('POST', 'api/property-explorer/v1/research/brief')).toBe(true)
+  })
+
+  it('allows the entitlement dev-unlock POST on deep proxy (R1 stub seam)', () => {
+    expect(
+      isDeepPathAllowed('POST', 'api/property-explorer/v1/entitlement/dev-unlock'),
+    ).toBe(true)
+    // The entitlement READ stays GET-only; arbitrary entitlement writes blocked.
+    expect(isDeepPathAllowed('POST', 'api/property-explorer/v1/entitlement')).toBe(false)
+    expect(
+      isDeepPathAllowed('POST', 'api/property-explorer/v1/entitlement/unlock'),
+    ).toBe(false)
   })
 
   it('allows layer manifests on deep GET proxy', () => {

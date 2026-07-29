@@ -17,9 +17,10 @@ import type { ResearchBriefPayload } from "../../browse/brief-view-model";
 
 export const BRIEF_ENDPOINT = "api/property-explorer/v1/research/brief";
 
-/** The exact paywall copy the 402 path has always shown. */
+/** 402 value line — the unified unlock flow renders under it (R1: replaces
+ *  the Pro-hardcoded "R1–R10 … Pro entitlement" copy). */
 export const BRIEF_PAYWALL_MESSAGE =
-  "Deep research and cited property reports (R1–R10) require sign-in and Pro entitlement.";
+  "The full cited property brief — zoning, setbacks, buildable envelope, flood, and utilities with source citations and a verdict.";
 
 export type BriefResearchOutcome =
   | { kind: "ready"; brief: ResearchBriefPayload }

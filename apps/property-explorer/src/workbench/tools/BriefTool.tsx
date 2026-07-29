@@ -19,7 +19,9 @@ import { useEffect, useState } from "react";
 import { PropertyBriefPanel } from "../../browse/PropertyBriefPanel";
 import type { ResearchBriefPayload } from "../../browse/brief-view-model";
 import { recordPeGtmEvent } from "../../lib/gtmClient";
+import { usePropertyEntitlement } from "../../lib/usePropertyEntitlement";
 import { useDockToolState, useWorkbench } from "../WorkbenchContext";
+import { LockedToolPanel } from "./LockedToolPanel";
 import {
   BRIEF_PAYWALL_MESSAGE,
   briefOutcomeNotice,
@@ -45,6 +47,12 @@ export function BriefTool() {
   // Transient fetch phase (per mount / per property) — never persisted, so a
   // failed or gated fetch retries on the next open.
   const [phase, setPhase] = useState<Phase>({ kind: "loading" });
+  // R1 PROACTIVE gate: the brief is a PAID bubble — read entitlement BEFORE
+  // fetching. locked → the in-dock LOCKED state (no fetch); signedOut →
+  // sign-in-first; loading/error → run as today (the server-402 belt stays
+  // authoritative — a failed entitlement read never hard-blocks).
+  const ent = usePropertyEntitlement(activeParcelNodeId);
+  const proactivelyGated = ent.locked || ent.signedOut;
 
   const hasBrief = !!stored?.brief;
 
@@ -53,6 +61,10 @@ export function BriefTool() {
     // the active property by the chassis). The dock guarantees a non-null
     // active property before rendering this propertyScoped tool.
     if (!activeParcelNodeId || hasBrief) return;
+    // Proactively gated (or entitlement still resolving): don't fire a fetch
+    // we know will 402 — the locked/sign-in panel renders instead. status
+    // "loading" waits one beat; "error" falls through and runs optimistically.
+    if (proactivelyGated || ent.status === "loading") return;
     let cancelled = false;
     setPhase({ kind: "loading" });
     void runBriefResearch(activeParcelNodeId).then((outcome) => {
@@ -82,13 +94,36 @@ export function BriefTool() {
       cancelled = true;
     };
     // setStored/host identities follow activeParcelNodeId; keying the effect on
-    // the property (+ stored-presence) is the intended re-run contract.
+    // the property (+ stored-presence + the proactive gate) is the intended
+    // re-run contract.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [activeParcelNodeId, hasBrief]);
+  }, [activeParcelNodeId, hasBrief, proactivelyGated, ent.status]);
 
   if (stored?.brief) {
     return (
       <PropertyBriefPanel embedded brief={stored.brief} onClose={closeDock} />
+    );
+  }
+  // R1: the proactive LOCKED / sign-in-first states — value line + the
+  // unified unlock flow in the dock, never a broken/empty state.
+  if (ent.signedOut) {
+    return (
+      <LockedToolPanel
+        parcelNodeId={activeParcelNodeId}
+        valueLine={BRIEF_PAYWALL_MESSAGE}
+        signedOut
+        signInLine="Sign in to unlock deep research on this parcel."
+        testId="brief-locked"
+      />
+    );
+  }
+  if (ent.locked) {
+    return (
+      <LockedToolPanel
+        parcelNodeId={activeParcelNodeId}
+        valueLine={BRIEF_PAYWALL_MESSAGE}
+        testId="brief-locked"
+      />
     );
   }
   if (phase.kind === "notice") {
