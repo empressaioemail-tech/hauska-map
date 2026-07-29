@@ -1,0 +1,402 @@
+// apps/property-explorer/src/workbench/tools/chat-research.ts
+//
+// W3 — the AI-chat request/outcome seam, a FLOW port of the brief-extension's
+// research chat (src/lib/research-api.js + research-app.js callLiveResearch)
+// rebuilt PE-native. Same backend, same contract:
+//
+//   POST api/brokerage/v1/research/chat (cortex, ldt brokerageBrief.ts
+//   RESEARCH_CHAT_BODY): { message (required), history (last-8 turns),
+//   presentationMode, starterPromptId?, personaBucket?, areaContext?, address? }.
+//   The run selector accepts runId | address | workspaceDid | areaContext
+//   (scope=area OR non-empty visibleParcels). `mapContext` is NOT in the
+//   schema — never sent.
+//
+// PE v1 scoping: PE has no brokerage brief runs (its R1 brief is the separate
+// property-explorer baked-snapshot report), so the ONLY selector that always
+// resolves is `areaContext`. We send the subject parcel as the single
+// `visibleParcels` row (the honest expression of "this one parcel is in
+// focus" — and the eligibility anchor), plus the extension's real F4 seam:
+// the subject's setbacks/envelope under `areaContext.subject`
+// (parcel-node-store.js getSubjectAreaContext shape — FIELD NAMES ARE
+// LOAD-BEARING, they match the BE zod in brokerageResearchAreaContext.ts).
+// `address` also rides top-level when known.
+//
+// Auth: through the PE deep proxy (user-session Bearer — postDeepResearch),
+// NEVER the service key and NEVER the extension's X-Hauska-Install-Id /
+// public-key wedge.
+
+import { postDeepResearch } from "../../lib/auth";
+import {
+  refsFromChatResponse,
+  type ChatRef,
+  type ChatResponsePayload,
+} from "./chat-citations";
+
+export const CHAT_ENDPOINT = "api/brokerage/v1/research/chat";
+
+/** 402 copy — same paywall gate the brief uses, chat-flavored. */
+export const CHAT_PAYWALL_MESSAGE =
+  "Cited AI property chat requires sign-in and Pro entitlement.";
+
+// ---------------------------------------------------------------------------
+// Starter prompts — INVESTOR_STARTER_PROMPTS ported VERBATIM from the
+// extension (src/lib/lay-render.js). Atom-seeded chips are deferred by spec;
+// this static set is the v1 surface. `factorMatch` rides along verbatim even
+// though PE v1 does not do factor matching (kept so a later wave inherits the
+// full definition, not a lossy copy).
+// ---------------------------------------------------------------------------
+
+export interface StarterPrompt {
+  id: string;
+  chip: string;
+  question: string;
+  personaBucket: string;
+  factorMatch: RegExp;
+}
+
+export const INVESTOR_STARTER_PROMPTS: StarterPrompt[] = [
+  {
+    id: "unit_subdivide",
+    chip: "Can I add a unit or subdivide?",
+    question:
+      "Can this parcel support an additional unit, ADU, or subdivision under current zoning?",
+    personaBucket: "investor",
+    factorMatch: /unit|subdivide|adu|zoning|density|lot split|duplex/i,
+  },
+  {
+    id: "pencil",
+    chip: "Does it pencil?",
+    question:
+      "Does this deal pencil on conservative buy-and-hold or flip assumptions?",
+    personaBucket: "investor",
+    factorMatch: /pencil|numbers|cap|noi|arv|margin|rent|cash.?flow/i,
+  },
+  {
+    id: "killers",
+    chip: "What kills this deal?",
+    question: "What are the top deal killers or show-stoppers on this parcel?",
+    personaBucket: "investor",
+    factorMatch: /kill|dead|flood|environment|title|easement|risk|pass/i,
+  },
+  {
+    id: "rehab",
+    chip: "Rehab reality check",
+    question:
+      "What rehab or condition issues would change the investor verdict?",
+    personaBucket: "investor",
+    factorMatch: /rehab|condition|repair|structural|age|deferred/i,
+  },
+  {
+    id: "insurance",
+    chip: "Insurance and flood cost?",
+    question:
+      "What should I budget for insurance and flood-related costs on this property?",
+    personaBucket: "investor",
+    factorMatch: /insur|flood|fema|premium/i,
+  },
+];
+
+// ---------------------------------------------------------------------------
+// Starter-id remap — ported from the extension (src/lib/research-api.js:17-29).
+// The backend's starterPromptId is a closed z.enum; UNKNOWN VALUES 400. The
+// investor chip ids are remapped to the nearest brokerage starter; unmappable
+// ids (e.g. "pencil") OMIT the field entirely.
+// ---------------------------------------------------------------------------
+
+/** cortex-api z.enum — invalid ids cause HTTP 400 on /research/chat */
+const BROKERAGE_STARTER_PROMPT_IDS = new Set([
+  "adu",
+  "flood",
+  "schools",
+  "str",
+  "setbacks",
+  "red_flags",
+]);
+
+/** Map investor-radar chip ids to nearest brokerage starter for GTM + retrieval hints */
+const INVESTOR_TO_BROKERAGE_STARTER: Record<string, string> = {
+  unit_subdivide: "adu",
+  killers: "red_flags",
+  insurance: "flood",
+  rehab: "red_flags",
+};
+
+export function resolveBrokerageStarterPromptId(
+  starterPromptId: string | null | undefined,
+): string | undefined {
+  if (!starterPromptId) return undefined;
+  if (BROKERAGE_STARTER_PROMPT_IDS.has(starterPromptId)) return starterPromptId;
+  return INVESTOR_TO_BROKERAGE_STARTER[starterPromptId];
+}
+
+// ---------------------------------------------------------------------------
+// Subject context — the F4 seam shape (extension parcel-node-store.js
+// getSubjectAreaContext), fed from what PE actually knows about the active
+// property: the stored R1 brief's zoning + setbacks-envelope sections and the
+// inspect card's situs address (host seam). All fields honest-nullable.
+// ---------------------------------------------------------------------------
+
+export interface ChatSubjectSetbacks {
+  front_ft: number | null;
+  side_ft: number | null;
+  rear_ft: number | null;
+  district: string | null;
+}
+
+export interface ChatSubjectEnvelope {
+  buildableAreaSqFt: number | null;
+  buildableAreaPct: number | null;
+  maxHeightFt: number | null;
+  maxLotCoveragePct: number | null;
+  maxFootprintSqFt: number | null;
+  notSurveyGrade: boolean;
+  approximate: boolean;
+  edgeSignal: string | null;
+  disclosure: string | null;
+  citationUrl: string | null;
+}
+
+export interface ChatSubjectContext {
+  parcelNodeId: string;
+  address: string | null;
+  /** Drives backend atom retrieval (citations) — from the brief's zoning section. */
+  jurisdictionKey: string | null;
+  setbacks: ChatSubjectSetbacks | null;
+  envelope: ChatSubjectEnvelope | null;
+}
+
+function asRecord(v: unknown): Record<string, unknown> | null {
+  return v !== null && typeof v === "object" && !Array.isArray(v)
+    ? (v as Record<string, unknown>)
+    : null;
+}
+
+function num(v: unknown): number | null {
+  return typeof v === "number" && Number.isFinite(v) ? v : null;
+}
+
+function str(v: unknown): string | null {
+  return typeof v === "string" && v.trim() ? v.trim() : null;
+}
+
+/** Minimal structural view of the stored R1 brief (brief-view-model shapes). */
+interface BriefLike {
+  brief?: { sections?: Array<{ id?: string; data?: unknown }> };
+}
+
+/**
+ * Build the subject context from the ACTIVE property's stored R1 brief (when
+ * present) + the inspect card address. Absent pieces stay null — the backend
+ * prompt honestly says setbacks "aren't resolved" rather than fabricating.
+ */
+export function buildChatSubjectContext(
+  parcelNodeId: string,
+  brief: BriefLike | null | undefined,
+  address: string | null,
+): ChatSubjectContext {
+  const sections = brief?.brief?.sections ?? [];
+  const zoning = asRecord(sections.find((s) => s?.id === "zoning")?.data);
+  const env = asRecord(
+    sections.find((s) => s?.id === "setbacks-envelope")?.data,
+  );
+  const sb = env ? asRecord(env.setbacks) : null;
+
+  const district = (env ? str(env.district) : null) ?? (zoning ? str(zoning.district) : null);
+  const setbacks: ChatSubjectSetbacks | null = sb
+    ? {
+        front_ft: num(sb.front_ft),
+        side_ft: num(sb.side_ft),
+        rear_ft: num(sb.rear_ft),
+        district,
+      }
+    : null;
+
+  // Only a derived (non-declined) envelope carries numbers worth sending.
+  const envelope: ChatSubjectEnvelope | null =
+    env && str(env.status) && str(env.status) !== "declined"
+      ? {
+          buildableAreaSqFt: num(env.buildableAreaSqFt),
+          buildableAreaPct: num(env.buildableAreaPct),
+          maxHeightFt: num(env.maxHeightFt),
+          maxLotCoveragePct: num(env.maxLotCoveragePct),
+          maxFootprintSqFt: num(env.maxFootprintSqFt),
+          notSurveyGrade: true, // PE envelopes are never survey grade.
+          approximate: env.approximate !== false,
+          edgeSignal: str(env.edgeSignal),
+          disclosure: str(env.disclosure),
+          citationUrl: str(env.citationUrl),
+        }
+      : null;
+
+  return {
+    parcelNodeId,
+    address,
+    jurisdictionKey: zoning ? str(zoning.jurisdictionKey) : null,
+    setbacks,
+    envelope,
+  };
+}
+
+// ---------------------------------------------------------------------------
+// Request builder.
+// ---------------------------------------------------------------------------
+
+export interface ChatTurn {
+  role: "user" | "assistant";
+  content: string;
+}
+
+/** History window the backend accepts — last 8 turns (extension parity). */
+export const CHAT_HISTORY_WINDOW = 8;
+
+export function buildChatRequestBody(input: {
+  message: string;
+  /** PRIOR turns (the new message is NOT in history — it rides as `message`). */
+  history: ChatTurn[];
+  subject: ChatSubjectContext;
+  /** RAW chip id (investor set) — remapped/omitted per the extension rules. */
+  starterPromptId?: string;
+  personaBucket?: string;
+}): Record<string, unknown> {
+  const { message, subject } = input;
+  const starter = resolveBrokerageStarterPromptId(input.starterPromptId);
+  const address = str(subject.address);
+
+  // The subject parcel as the single visible parcel: the honest "one parcel in
+  // focus" statement AND the areaContext run-selector eligibility anchor (PE
+  // has no brokerage brief runs to select by address/runId).
+  const visibleParcel: Record<string, unknown> = {
+    parcelId: subject.parcelNodeId,
+    ...(address ? { address } : {}),
+  };
+
+  return {
+    message,
+    history: input.history
+      .slice(-CHAT_HISTORY_WINDOW)
+      .map((t) => ({ role: t.role, content: t.content })),
+    presentationMode: "consumer",
+    ...(starter ? { starterPromptId: starter } : {}),
+    ...(input.personaBucket ? { personaBucket: input.personaBucket } : {}),
+    ...(address ? { address } : {}),
+    // NOTE: no `mapContext` — it is not in the RESEARCH_CHAT_BODY schema.
+    areaContext: {
+      scope: "property",
+      ...(subject.jurisdictionKey
+        ? { jurisdictionKey: subject.jurisdictionKey }
+        : {}),
+      visibleParcels: [visibleParcel],
+      subject: {
+        parcelNodeId: subject.parcelNodeId,
+        address,
+        setbacks: subject.setbacks,
+        envelope: subject.envelope,
+      },
+    },
+  };
+}
+
+// ---------------------------------------------------------------------------
+// Turn runner — honest status mapping (the brief tool's idiom):
+//   401                → sign-in state
+//   402                → paywall (caller opens the PaywallGate)
+//   400 / 404          → "could not scope to this property" + server message
+//   5xx                → retryable honest error
+//   200 + message      → the answer turn (plain text + normalized citation refs)
+//   anything else      → the server's message or the status line
+//   network throw      → unreachable (retryable)
+// ---------------------------------------------------------------------------
+
+export interface ChatAnswer {
+  message: string;
+  refs: ChatRef[];
+  disclaimer: string | null;
+  confidence: number | null;
+  generatedAt: string | null;
+  method: string | null;
+}
+
+export type ChatTurnOutcome =
+  | { kind: "answer"; answer: ChatAnswer }
+  | { kind: "sign-in" }
+  | { kind: "paywall" }
+  | { kind: "scope-failed"; text: string }
+  | { kind: "retryable"; text: string }
+  | { kind: "message"; text: string }
+  | { kind: "unreachable" };
+
+export async function runChatTurn(
+  input: {
+    message: string;
+    history: ChatTurn[];
+    subject: ChatSubjectContext;
+    starterPromptId?: string;
+    personaBucket?: string;
+  },
+  post: (
+    path: string,
+    body: Record<string, unknown>,
+  ) => Promise<Response> = postDeepResearch,
+): Promise<ChatTurnOutcome> {
+  try {
+    const res = await post(CHAT_ENDPOINT, buildChatRequestBody(input));
+    const body = (await res.json().catch(() => ({}))) as {
+      error?: string;
+      message?: string;
+    } & ChatResponsePayload;
+    if (res.status === 401) return { kind: "sign-in" };
+    if (res.status === 402) return { kind: "paywall" };
+    if (res.status === 400 || res.status === 404) {
+      // Run-selector / areaContext rejection (or no brokerage run resolved):
+      // the honest "could not scope" state, carrying the server's own words.
+      return {
+        kind: "scope-failed",
+        text: body.message ?? `Chat request returned ${res.status}.`,
+      };
+    }
+    if (res.status >= 500) {
+      return {
+        kind: "retryable",
+        text: body.message ?? `Research service error (${res.status}).`,
+      };
+    }
+    if (res.ok && typeof body.message === "string" && body.message.trim()) {
+      return {
+        kind: "answer",
+        answer: {
+          message: body.message,
+          refs: refsFromChatResponse(body),
+          disclaimer: str(body.disclaimer),
+          confidence: num(body.confidence),
+          generatedAt: str(body.generatedAt),
+          method: str(body.method),
+        },
+      };
+    }
+    return {
+      kind: "message",
+      text: body.message ?? `Chat request returned ${res.status}.`,
+    };
+  } catch {
+    return { kind: "unreachable" };
+  }
+}
+
+/** Human copy for non-answer outcomes (rendered in the thread, never stored). */
+export function chatOutcomeNotice(
+  outcome: Exclude<ChatTurnOutcome, { kind: "answer" }>,
+): string {
+  switch (outcome.kind) {
+    case "sign-in":
+      return "Sign in to unlock AI chat on this parcel.";
+    case "paywall":
+      return CHAT_PAYWALL_MESSAGE;
+    case "scope-failed":
+      return "Chat could not scope to this property.";
+    case "retryable":
+    case "message":
+      return outcome.text;
+    case "unreachable":
+      return "Could not reach the research service.";
+  }
+}
