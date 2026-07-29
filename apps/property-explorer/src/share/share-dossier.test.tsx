@@ -6,8 +6,14 @@
 
 import { describe, expect, it } from "vitest";
 import { renderToStaticMarkup } from "react-dom/server";
-import { ShareDossierSection, type ShareDossierData } from "./ShareView";
+import {
+  ShareAnalysisContent,
+  ShareDossierSection,
+  type ShareBriefResponse,
+  type ShareDossierData,
+} from "./ShareView";
 import { drawingsSummaryLine, drawingsToSketch } from "./share-dossier-sketch";
+import { ZONED_BRIEF } from "../browse/__fixtures__/research-brief.fixture";
 
 const DRAWINGS: NonNullable<ShareDossierData["drawings"]> = {
   type: "FeatureCollection",
@@ -109,6 +115,29 @@ describe("ShareDossierSection render states", () => {
     expect(html).toContain("Just a note.");
     expect(html).not.toContain("share-dossier-sketch");
     expect(html).not.toContain("AI research summary");
+  });
+
+  it("renders inside ShareAnalysisContent (the block BOTH the page and the dock reuse), after the brief and before the downloads", () => {
+    const data: ShareBriefResponse = {
+      property: {
+        parcelNodeId: "48021:34177",
+        situsAddress: "1127 N Pine St",
+        countyName: "Bastrop",
+      },
+      report: ZONED_BRIEF,
+      share: { expiresAt: "2026-08-15T00:00:00.000Z" },
+    };
+    const html = renderToStaticMarkup(
+      <ShareAnalysisContent token="tok" data={data} dossier={FULL} variant="dock" />,
+    );
+    expect(html).toContain('data-testid="share-analysis-content"');
+    expect(html).toContain('data-testid="share-dossier"');
+    const briefAt = html.indexOf('data-testid="research-brief"');
+    const dossierAt = html.indexOf('data-testid="share-dossier"');
+    const downloadsAt = html.indexOf('data-testid="share-downloads"');
+    expect(briefAt).toBeGreaterThan(-1);
+    expect(dossierAt).toBeGreaterThan(briefAt);
+    expect(downloadsAt).toBeGreaterThan(dossierAt);
   });
 
   it("labels a summary WITHOUT a stored disclaimer with the standing one", () => {

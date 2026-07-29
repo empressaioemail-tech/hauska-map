@@ -28,12 +28,10 @@ function renderTools(tracking: boolean): string {
       active={null}
       measureMode="line"
       readout={null}
-      satellite={false}
       tracking={tracking}
       onActivate={noop}
       onClear={noop}
       onSetMeasureMode={noop}
-      onSatelliteChange={noop}
       onLocate={noop}
     />,
   );
@@ -76,6 +74,35 @@ describe("no floating GPS button — GeolocateControl is mounted hidden", () => 
   it("the hidden control is driven by trigger() from the panel button", () => {
     expect(source).toMatch(/geolocateRef\.current\?\.trigger\(\)/);
     expect(source).toMatch(/display = "none"/);
+  });
+});
+
+describe("satellite / aerial toggle — lives in LAYERS, not TOOLS", () => {
+  it("the Tools section no longer renders the satellite checkbox", () => {
+    const html = renderTools(false);
+    expect(html).not.toContain("Satellite / aerial");
+  });
+
+  it("MapToolset renders Satellite / aerial as the FIRST row of the Layers section", () => {
+    const mapRef = createRef<FloatingMapHandle>();
+    const known = new Set<LayerKey>(["parcel-polygon" as LayerKey]);
+    const html = renderToStaticMarkup(
+      <MapToolset
+        mapRef={mapRef}
+        known={known}
+        visible={new Set<LayerKey>(known)}
+        onLayersChange={noop}
+        layerStates={{}}
+      />,
+    );
+    const layersAt = html.indexOf('data-testid="map-toolset-layers"');
+    const satelliteAt = html.indexOf('data-testid="map-toolset-satellite"');
+    const parcelRowAt = html.indexOf("GIS Parcel Boundary");
+    expect(layersAt).toBeGreaterThan(-1);
+    // Satellite row sits INSIDE the layers section, before the layer rows.
+    expect(satelliteAt).toBeGreaterThan(layersAt);
+    expect(parcelRowAt).toBeGreaterThan(satelliteAt);
+    expect(html).toContain("Satellite / aerial");
   });
 });
 

@@ -54,6 +54,11 @@ import { InspectCard } from "./InspectCard";
 import { Workbench } from "../workbench/Workbench";
 import { WORKBENCH_TOOLS } from "../workbench/registry";
 import type { WorkbenchHostActions } from "../workbench/types";
+import {
+  SHARED_ANALYSIS_TOOL_ID,
+  sharedAnalysisToolDef,
+  type ShareFunnelBinding,
+} from "../share/SharedDossierDock";
 import { MapToolset, type LayerStateBadge } from "./MapToolset";
 import type { MapToolsController } from "./mapToolsController";
 import { asMaplibreMap } from "./satelliteBase";
@@ -182,7 +187,15 @@ function toCenter(lat: number | null, lng: number | null): Center | undefined {
   return { latitude: lat, longitude: lng };
 }
 
-export function ExplorerMap() {
+export function ExplorerMap({
+  share = null,
+}: {
+  /** SHARE FUNNEL binding (ShareFunnelApp): non-null only on a share landing.
+   *  Prepends the read-only shared-analysis dock tool, auto-opens it, and
+   *  flies to the shared property via the SAME reopen chain the workbench
+   *  uses (runParcelLookup — never a second resolver). Null → normal app. */
+  share?: ShareFunnelBinding | null;
+} = {}) {
   const mapRef = useRef<FloatingMapHandle>(null);
   const [parcels, setParcels] = useState<LayerSlot>(IDLE);
   const [fema, setFema] = useState<LayerSlot>(IDLE);
@@ -237,8 +250,11 @@ export function ExplorerMap() {
   const [knownLayers, setKnownLayers] = useState<Set<LayerKey> | null>(null);
   // WORKBENCH (WB1): the single open dock tool (null → dock closed) and the
   // SUBJECT's node id as state (mirror of subjectNodeIdRef) so the workbench
-  // active-property binding re-renders when the subject changes.
-  const [openWorkbenchTool, setOpenWorkbenchTool] = useState<string | null>(null);
+  // active-property binding re-renders when the subject changes. A share
+  // landing opens with the shared-analysis dock already docked.
+  const [openWorkbenchTool, setOpenWorkbenchTool] = useState<string | null>(
+    share ? SHARED_ANALYSIS_TOOL_ID : null,
+  );
   const [subjectNodeId, setSubjectNodeId] = useState<string | null>(null);
   // Render-time mirror of the workbench active property so the stable host
   // callbacks (W3 getActivePropertyAddress) read the CURRENT binding.
@@ -676,6 +692,31 @@ export function ExplorerMap() {
     deepLinkDoneRef.current = true;
     void runParcelLookup(handoff, { fromDeepLink: true });
   }, [runParcelLookup]);
+
+  // SHARE FUNNEL flight: once the share token resolves, fly/dock the LIVE map
+  // to the shared property through the SAME find/fly+inspect chain the
+  // workbench reopen uses (runParcelLookup → resolveParcelLookup's
+  // center-resolution chain → inspectInPlace + rebindProperty +
+  // resolveSubjectAndFit). Quiet: a resolution miss never paints the search
+  // error line — the docked analysis still renders from the token-gated BFF.
+  const shareFlightDoneRef = useRef(false);
+  useEffect(() => {
+    if (!share || share.phase.kind !== "ready" || shareFlightDoneRef.current) {
+      return;
+    }
+    shareFlightDoneRef.current = true;
+    void runParcelLookup(share.phase.data.property.parcelNodeId, {
+      quiet: true,
+    });
+  }, [share, runParcelLookup]);
+
+  // The workbench cluster: share landings get the read-only shared-analysis
+  // tool PREPENDED (top bubble); everything else is the standard registry —
+  // outside the share grant the app behaves exactly as anonymous.
+  const workbenchTools = useMemo(
+    () => (share ? [sharedAnalysisToolDef(share), ...WORKBENCH_TOOLS] : WORKBENCH_TOOLS),
+    [share],
+  );
 
   // Live-GIS overlay parcel click -> inspect-in-place. Fold the clicked parcel
   // into the ported node store as `inspected` and draw the InspectCard.
@@ -1264,7 +1305,7 @@ export function ExplorerMap() {
           chassis store; the brief is the first live tool. The bottom-right
           MapToolset bubble is a SEPARATE cluster (map utilities) — untouched. */}
       <Workbench
-        tools={WORKBENCH_TOOLS}
+        tools={workbenchTools}
         openToolId={openWorkbenchTool}
         onOpenToolChange={setOpenWorkbenchTool}
         activeParcelNodeId={activeParcelNodeId}
