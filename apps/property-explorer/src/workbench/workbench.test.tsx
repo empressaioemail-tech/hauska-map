@@ -50,26 +50,27 @@ describe("dock single-tenancy — the pure toggle rule", () => {
 });
 
 describe("bubble cluster", () => {
-  it("renders all five v1 bubbles and no dock while closed", () => {
+  it("renders all six bubbles and no dock while closed", () => {
     const html = render({});
     expect(html).toContain('data-testid="workbench-cluster"');
-    for (const id of ["brief", "chat", "reports", "properties", "share"]) {
+    for (const id of ["brief", "chat", "reports", "properties", "share", "compare"]) {
       expect(html).toContain(`data-testid="workbench-bubble-${id}"`);
     }
     expect(html).not.toContain('data-testid="workbench-dock"');
   });
 
-  it("registry: ALL FIVE tools live as of W4 (brief/chat/reports/properties/share)", () => {
+  it("registry: ALL SIX tools live as of WB7 (…/share/compare appended)", () => {
     expect(WORKBENCH_TOOLS.map((t) => t.id)).toEqual([
       "brief",
       "chat",
       "reports",
       "properties",
       "share",
+      "compare",
     ]);
     expect(
       WORKBENCH_TOOLS.filter((t) => t.status === "live").map((t) => t.id),
-    ).toEqual(["brief", "chat", "reports", "properties", "share"]);
+    ).toEqual(["brief", "chat", "reports", "properties", "share", "compare"]);
     expect(
       WORKBENCH_TOOLS.find((t) => t.id === "reports")?.label,
     ).toBe("Reports & exports");
