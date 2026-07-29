@@ -5,7 +5,7 @@
  *   - "Zoning / land use" OFF → the land-use choropleth fill actually goes
  *     transparent (paint-only: the fill layer stays `visible` so parcel clicks
  *     keep working) and the base stroke color goes neutral.
- *   - "Parcel boundary" OFF → the line + glow layers hide via layout
+ *   - "GIS Parcel Boundary" OFF → the line + glow layers hide via layout
  *     visibility; the fill layer's layout is never touched.
  *
  * Run: node --test (map-renderer test script).

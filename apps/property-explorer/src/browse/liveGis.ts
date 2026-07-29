@@ -19,6 +19,7 @@ export {
   fetchTopographyLayer,
   fetchHydrologyLayer,
   contourTierLabel,
+  contourLinesOnly,
   isHydrologyHonestEmpty,
   hydrologyHonestReason,
   parcelFillColor,

@@ -1,0 +1,117 @@
+// Toolset geolocate + parcel-row label tests (map polish, 2026-07-29).
+//
+// Static render via react-dom/server (same pattern as InspectCard.test.tsx —
+// node env, no effects run). Pins:
+//   1. The "My location" button lives IN the toolset Tools row (the
+//      GeolocateControl is hidden on the map; no floating GPS button), with
+//      aria-pressed reflecting track state.
+//   2. MapToolset source no longer adds the GeolocateControl as a visible
+//      corner control ("bottom-right" floating button removed).
+//   3. The layer row label for parcel-polygon is "GIS Parcel Boundary" and the
+//      persistent not-survey-grade caption is gone from the parcel row
+//      (operator-ratified: disclosure lives on the site-plan export).
+
+import { readFileSync } from "node:fs";
+import { resolve } from "node:path";
+import { describe, expect, it } from "vitest";
+import { renderToStaticMarkup } from "react-dom/server";
+import { createRef } from "react";
+import { MapToolset, ToolsetToolsSection } from "./MapToolset";
+import { LAYER_REGISTRY } from "../../../../packages/map-renderer/src/layer-registry.js";
+import type { FloatingMapHandle, LayerKey } from "@hauska/map-renderer";
+
+const noop = () => {};
+
+function renderTools(tracking: boolean): string {
+  return renderToStaticMarkup(
+    <ToolsetToolsSection
+      active={null}
+      measureMode="line"
+      readout={null}
+      satellite={false}
+      tracking={tracking}
+      onActivate={noop}
+      onClear={noop}
+      onSetMeasureMode={noop}
+      onSatelliteChange={noop}
+      onLocate={noop}
+    />,
+  );
+}
+
+describe("toolset Tools row — My location button (geolocate lives in the panel)", () => {
+  it("renders the My location button alongside the other tools", () => {
+    const html = renderTools(false);
+    expect(html).toContain('data-testid="map-toolset-locate"');
+    expect(html).toContain('aria-label="My location"');
+    // Still a full tools row.
+    expect(html).toContain('aria-label="Measure distance or area"');
+    expect(html).toContain('aria-label="Drop a marker"');
+  });
+
+  it("aria-pressed follows the tracking state", () => {
+    expect(renderTools(false)).toMatch(
+      /data-testid="map-toolset-locate"[^>]*aria-pressed="false"|aria-pressed="false"[^>]*data-testid="map-toolset-locate"/,
+    );
+    expect(renderTools(true)).toMatch(
+      /data-testid="map-toolset-locate"[^>]*aria-pressed="true"|aria-pressed="true"[^>]*data-testid="map-toolset-locate"/,
+    );
+  });
+});
+
+describe("no floating GPS button — GeolocateControl is mounted hidden", () => {
+  const source = readFileSync(
+    resolve(
+      __dirname,
+      "../../../../packages/map-renderer/src/chrome/MapToolset.tsx",
+    ),
+    "utf8",
+  );
+
+  it("MapToolset never adds the GeolocateControl to a map corner", () => {
+    expect(source).not.toMatch(/addControl\(\s*geolocate/);
+    expect(source).not.toContain('"bottom-right"');
+  });
+
+  it("the hidden control is driven by trigger() from the panel button", () => {
+    expect(source).toMatch(/geolocateRef\.current\?\.trigger\(\)/);
+    expect(source).toMatch(/display = "none"/);
+  });
+});
+
+describe("parcel layer row — GIS Parcel Boundary, no persistent disclaimer", () => {
+  it('registry labels parcel-polygon as "GIS Parcel Boundary"', () => {
+    const entry = (LAYER_REGISTRY as Array<{ key: string; label: string }>).find(
+      (l) => l.key === "parcel-polygon",
+    );
+    expect(entry?.label).toBe("GIS Parcel Boundary");
+  });
+
+  it("toolset layer list renders the new label with NO badge/caption when no layerStates entry is passed", () => {
+    const mapRef = createRef<FloatingMapHandle>();
+    const known = new Set<LayerKey>(["parcel-polygon" as LayerKey]);
+    const html = renderToStaticMarkup(
+      <MapToolset
+        mapRef={mapRef}
+        known={known}
+        visible={new Set<LayerKey>(known)}
+        onLayersChange={noop}
+        layerStates={{}}
+      />,
+    );
+    expect(html).toContain("GIS Parcel Boundary");
+    expect(html).not.toContain("Parcel boundary<");
+    expect(html).not.toContain("not survey grade");
+    expect(html).not.toContain('data-testid="layer-state-parcel-polygon"');
+  });
+
+  it("ExplorerMap no longer pins the persistent attribution/not-survey-grade badge on the parcel row", () => {
+    const explorer = readFileSync(resolve(__dirname, "ExplorerMap.tsx"), "utf8");
+    // Live-health badges stay…
+    expect(explorer).toMatch(/Parcels failed/);
+    expect(explorer).toMatch(/No parcel coverage here/);
+    // …but the always-on attribution badge is gone: `attribution` is never
+    // written into layerStates for the parcel row.
+    expect(explorer).not.toMatch(/layerStates\[[^\]]*parcel-polygon[^\]]*\]\s*=\s*\{[^}]*note:\s*attribution/s);
+  });
+});

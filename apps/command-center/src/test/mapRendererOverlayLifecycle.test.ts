@@ -14,8 +14,8 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest'
 
 // ── maplibre-gl fake ───────────────────────────────────────────────────
-// The renderer only needs Map + NavigationControl. The fake records
-// sources/layers so tests can assert exactly what would be drawn.
+// The renderer only needs Map + NavigationControl + AttributionControl. The
+// fake records sources/layers so tests can assert exactly what would be drawn.
 
 const { fakeState, FakeMap } = vi.hoisted(() => {
   const fakeState = {
@@ -116,6 +116,9 @@ vi.mock('maplibre-gl', () => ({
   default: {
     Map: FakeMap,
     NavigationControl: class {},
+    // The renderer mounts an explicit compact bottom-left AttributionControl
+    // (required OSM/CARTO credits; lower-right belongs to the toolset bubble).
+    AttributionControl: class {},
   },
 }))
 

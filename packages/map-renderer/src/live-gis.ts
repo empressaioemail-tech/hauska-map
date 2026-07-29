@@ -253,17 +253,70 @@ export async function fetchTopographyLayer(
 }
 
 /**
+ * Normalise a served contour FeatureCollection to LINE geometry only.
+ *
+ * WHY (the zoom-out blue-wash defect): the coarse `3dep-fallback` tier is
+ * derived with d3-contour, which emits FILLED-contour MultiPolygon features —
+ * each elevation threshold is a polygon band covering the whole DEM extent at
+ * or above that elevation. The overlay renderer paints every polygon family
+ * with a fill layer, and since the contour paint spec carries only `line-*`
+ * keys the fill falls back to the renderer default (translucent blue) —
+ * dozens of stacked elevation-band fills wash the entire viewport blue. The
+ * authoritative 1-ft tier serves LineStrings, so the wash appeared only on
+ * the coarse tier (zoomed out past the 1-ft threshold).
+ *
+ * Contours are LINES by definition, so: keep (Multi)LineString features as-is
+ * and convert Polygon/MultiPolygon features to MultiLineString of their rings
+ * (the ring boundaries ARE the contour lines — no geometry is lost, only the
+ * fill family). Anything else (points, null geometry) is dropped.
+ */
+export function contourLinesOnly(fc: FeatureCollectionLike): FeatureCollectionLike {
+  const features: GeoJsonFeature[] = []
+  for (const f of fc.features ?? []) {
+    const geom = f?.geometry as { type?: string; coordinates?: unknown } | null
+    const t = geom?.type
+    if (t === 'LineString' || t === 'MultiLineString') {
+      features.push(f)
+      continue
+    }
+    if (t === 'Polygon' && Array.isArray(geom?.coordinates)) {
+      features.push({
+        ...f,
+        geometry: { type: 'MultiLineString', coordinates: geom.coordinates },
+      })
+      continue
+    }
+    if (t === 'MultiPolygon' && Array.isArray(geom?.coordinates)) {
+      const rings = (geom.coordinates as unknown[][]).flatMap((poly) =>
+        Array.isArray(poly) ? poly : [],
+      )
+      features.push({
+        ...f,
+        geometry: { type: 'MultiLineString', coordinates: rings },
+      })
+    }
+    // Points / null geometry: dropped — never a contour.
+  }
+  return { type: 'FeatureCollection', features }
+}
+
+/**
  * Compose the live contour OverlaySpec (or none). `visible` binds the overlay to
  * the LAYERS-panel toggle for the FIXTURE registry key `topography-contours`, so
  * unchecking that row hides the real contour overlay (the toggle now controls a
  * real layer). Empty feature collections draw nothing but keep the state honest.
+ *
+ * The served FC is normalised to LINES ONLY (contourLinesOnly) so the coarse
+ * 3DEP filled-contour MultiPolygons render as contour lines over the basemap at
+ * every zoom — never as the renderer's default polygon fill (the full-viewport
+ * blue-wash defect).
  */
 export function toTopoOverlay(
   topo: TopoLayerState,
   visible: boolean,
 ): OverlaySpec[] {
   if (topo.status !== 'ok' || !topo.response.geojson) return []
-  const fc = topo.response.geojson
+  const fc = contourLinesOnly(topo.response.geojson)
   if (!fc.features || fc.features.length === 0) return []
   return [
     {
