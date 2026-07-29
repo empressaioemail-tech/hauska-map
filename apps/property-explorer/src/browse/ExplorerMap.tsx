@@ -49,12 +49,14 @@ import type { ResearchBriefPayload } from "./brief-view-model";
 import { MapToolset, type LayerStateBadge } from "./MapToolset";
 import { TransientChips } from "./TransientChips";
 import type { ChipSpec } from "./transient-chips";
-import { ParcelLookupBar } from "./ParcelLookupBar";
+import { SearchBar } from "./SearchBar";
 import { PaywallGate } from "./PaywallGate";
 import {
   deepLinkLookupQuery,
   resolveParcelLookup,
 } from "../lib/parcel-lookup";
+import { executeSearchLanding } from "../lib/search-landing";
+import type { GeoExtent, Suggestion } from "../lib/search-kinds";
 import {
   normalizeEnvelope,
   envelopeInsetOverlay,
@@ -198,6 +200,10 @@ export function ExplorerMap() {
   const [cardNodeId, setCardNodeId] = useState<string | null>(null);
   const [lookupBusy, setLookupBusy] = useState(false);
   const [lookupError, setLookupError] = useState<string | null>(null);
+  // Type-ahead search landing state: transient honest chip (coverage miss) and
+  // the brief fading street-extent highlight overlay.
+  const [searchChip, setSearchChip] = useState<string | null>(null);
+  const [searchOverlays, setSearchOverlays] = useState<OverlaySpec[]>([]);
   const abortRef = useRef<AbortController | null>(null);
   const deepLinkDoneRef = useRef(false);
 
@@ -429,19 +435,25 @@ export function ExplorerMap() {
     [],
   );
 
-  // Reachability: lookup bar + deep-link (?parcelNodeId= | ?parcel= | ?address=)
+  // Reachability: search bar + deep-link (?parcelNodeId= | ?parcel= | ?address=)
   // resolve → inspectInPlace (same path as map click). GTM still recorded.
+  // Returns true when the lookup resolved and opened the inspect card; the
+  // kind-aware search landing uses that (quiet misses land the map honestly
+  // instead of painting the error line).
   const runParcelLookup = useCallback(
-    async (query: string, opts?: { fromDeepLink?: boolean }) => {
+    async (
+      query: string,
+      opts?: { fromDeepLink?: boolean; quiet?: boolean },
+    ): Promise<boolean> => {
       const q = query.trim();
-      if (!q) return;
+      if (!q) return false;
       setLookupBusy(true);
       setLookupError(null);
       try {
         const result = await resolveParcelLookup(q);
         if (!result.ok) {
-          setLookupError(result.reason);
-          return;
+          if (!opts?.quiet) setLookupError(result.reason);
+          return false;
         }
         const { target } = result;
         if (opts?.fromDeepLink) {
@@ -480,16 +492,134 @@ export function ExplorerMap() {
             fit: true,
           });
         }
+        return true;
       } catch (err) {
-        setLookupError(
-          err instanceof Error ? err.message : "Lookup failed — try again.",
-        );
+        if (!opts?.quiet) {
+          setLookupError(
+            err instanceof Error ? err.message : "Lookup failed — try again.",
+          );
+        }
+        return false;
       } finally {
         setLookupBusy(false);
       }
     },
     [inspectInPlace],
   );
+
+  // ---- Type-ahead search: kind-aware landing (parcel / address / street /
+  // place). Camera moves use the RAW maplibre handle (getMap) — flyTo /
+  // fitBounds on the LIVE map, never a remount.
+  const flyToPoint = useCallback((lat: number, lng: number, zoomTo: number) => {
+    const m = mapRef.current?.getMap() as {
+      flyTo?: (o: { center: [number, number]; zoom: number }) => void;
+    } | null;
+    m?.flyTo?.({ center: [lng, lat], zoom: zoomTo });
+  }, []);
+
+  const fitExtent = useCallback((extent: GeoExtent) => {
+    // Photon extent order: [minLon, maxLat, maxLon, minLat].
+    const [minLon, maxLat, maxLon, minLat] = extent;
+    const m = mapRef.current?.getMap() as {
+      fitBounds?: (
+        b: [[number, number], [number, number]],
+        o?: { padding?: number; duration?: number; maxZoom?: number },
+      ) => void;
+    } | null;
+    m?.fitBounds?.(
+      [
+        [minLon, minLat],
+        [maxLon, maxLat],
+      ],
+      { padding: 64, duration: 1200, maxZoom: 17 },
+    );
+  }, []);
+
+  // Transient honest search chip ("Outside parcel coverage — map view only").
+  // Cleared after the toast has faded so a LATER identical miss re-toasts
+  // (TransientChips keeps a tombstone while the source still reports the key).
+  const searchChipTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const showSearchChip = useCallback((text: string) => {
+    if (searchChipTimerRef.current) clearTimeout(searchChipTimerRef.current);
+    setSearchChip(text);
+    searchChipTimerRef.current = setTimeout(() => {
+      setSearchChip(null);
+      searchChipTimerRef.current = null;
+    }, 9_000);
+  }, []);
+
+  // Brief street-extent highlight: draw at full strength, dim, then remove —
+  // a temporary fading outline of the street's extent (the geocoder returns
+  // the extent bbox, not the centerline geometry).
+  const streetTimersRef = useRef<Array<ReturnType<typeof setTimeout>>>([]);
+  const highlightStreet = useCallback((extent: GeoExtent, name: string) => {
+    for (const t of streetTimersRef.current) clearTimeout(t);
+    streetTimersRef.current = [];
+    const [minLon, maxLat, maxLon, minLat] = extent;
+    const ring = [
+      [minLon, minLat],
+      [maxLon, minLat],
+      [maxLon, maxLat],
+      [minLon, maxLat],
+      [minLon, minLat],
+    ];
+    const spec = (lineOpacity: number, fillOpacity: number): OverlaySpec => ({
+      layerKey: "search-street-highlight" as LayerKey,
+      layerKind: "search-street-highlight",
+      geojson: {
+        type: "Feature",
+        properties: { name },
+        geometry: { type: "Polygon", coordinates: [ring] },
+      },
+      paint: {
+        "line-color": "#7dd3fc",
+        "line-width": 2.5,
+        "line-opacity": lineOpacity,
+        "fill-color": "#7dd3fc",
+        "fill-opacity": fillOpacity,
+      },
+    });
+    setSearchOverlays([spec(0.85, 0.07)]);
+    streetTimersRef.current.push(
+      setTimeout(() => setSearchOverlays([spec(0.3, 0.02)]), 2_600),
+      setTimeout(() => setSearchOverlays([]), 4_200),
+    );
+  }, []);
+
+  useEffect(
+    () => () => {
+      if (searchChipTimerRef.current) clearTimeout(searchChipTimerRef.current);
+      for (const t of streetTimersRef.current) clearTimeout(t);
+    },
+    [],
+  );
+
+  const handleSearchSelect = useCallback(
+    (suggestion: Suggestion) => {
+      void executeSearchLanding(suggestion, {
+        runParcelLookup: (q, opts) => runParcelLookup(q, { quiet: opts?.quiet }),
+        flyTo: flyToPoint,
+        fitExtent,
+        showChip: showSearchChip,
+        highlightStreet,
+      });
+    },
+    [runParcelLookup, flyToPoint, fitExtent, showSearchChip, highlightStreet],
+  );
+
+  // Viewport bias for the geocoder — current LIVE camera center + zoom.
+  const getSearchBias = useCallback(() => {
+    const handle = mapRef.current;
+    if (!handle) return null;
+    try {
+      const vs = handle.getViewState();
+      const [lng, lat] = vs.center;
+      if (!Number.isFinite(lat) || !Number.isFinite(lng)) return null;
+      return { lat, lng, zoom: vs.zoom };
+    } catch {
+      return null;
+    }
+  }, []);
 
   // Extension / share deep-link: open inspect (not GTM-only).
   useEffect(() => {
@@ -721,8 +851,10 @@ export function ExplorerMap() {
       ...roadOverlays,
       // The buildable-envelope wedge, drawn last so it sits above the parcels.
       ...envelopeOverlays,
+      // Brief street-search highlight (temporary, self-fading).
+      ...searchOverlays,
     ],
-    [parcels, fema, topo, hydro, roadOverlays, envelopeOverlays, visibleLayers],
+    [parcels, fema, topo, hydro, roadOverlays, envelopeOverlays, searchOverlays, visibleLayers],
   );
 
   // Chips are now TRANSIENT notifications (item 2): each entry appears when its
@@ -795,6 +927,10 @@ export function ExplorerMap() {
   }
   if (researchNotice) {
     chips.push({ key: "research-notice", sev: "info", text: researchNotice });
+  }
+  // Honest search-landing chip (e.g. address outside parcel coverage).
+  if (searchChip) {
+    chips.push({ key: "search-coverage", sev: "warn", text: searchChip });
   }
 
   // PERSISTENT per-layer honesty for the merged toolset (item 2 constraint):
@@ -1016,10 +1152,17 @@ export function ExplorerMap() {
         />
       )}
 
-      <ParcelLookupBar
+      {/* Type-ahead search (rebuilt Find bar): grouped suggestions with
+          viewport bias; kind-aware landing (parcel → inspect card, address →
+          existing lookup or honest map-only landing, street → extent fit +
+          fading highlight, place → dock over its bbox). Raw submit keeps the
+          original parcel-id / address direct behavior. */}
+      <SearchBar
         busy={lookupBusy}
         error={lookupError}
-        onSubmit={(q) => void runParcelLookup(q)}
+        onSelect={handleSearchSelect}
+        onSubmitRaw={(q) => void runParcelLookup(q)}
+        getBias={getSearchBias}
       />
 
       {card && (
