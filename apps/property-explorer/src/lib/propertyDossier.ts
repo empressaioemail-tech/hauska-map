@@ -57,7 +57,7 @@ export interface DossierChatSummary {
   disclaimer?: string | null;
 }
 
-export type DossierExportKind = "site-plan" | "terrain";
+export type DossierExportKind = "site-plan" | "terrain" | "flood-drainage";
 
 /**
  * WB7c: the property's map-pin coordinate, captured ONCE at save time from the
@@ -286,7 +286,12 @@ function sanitizeExports(value: unknown): DossierExportEntry[] {
   for (const raw of value) {
     const rec = asRecord(raw);
     if (!rec) continue;
-    const kind = rec.kind === "site-plan" || rec.kind === "terrain" ? rec.kind : null;
+    const kind =
+      rec.kind === "site-plan" ||
+      rec.kind === "terrain" ||
+      rec.kind === "flood-drainage"
+        ? rec.kind
+        : null;
     const format = str(rec.format);
     const savedAt = str(rec.savedAt);
     if (!kind || !format || !savedAt) continue;

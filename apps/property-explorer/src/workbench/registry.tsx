@@ -15,6 +15,7 @@ import { WorkbenchIcon } from "./Workbench";
 import { BriefTool } from "./tools/BriefTool";
 import { ChatTool } from "./tools/ChatTool";
 import { ReportsTool } from "./tools/ReportsTool";
+import { FloodTool } from "./tools/FloodTool";
 import { PropertiesTool } from "./tools/PropertiesTool";
 import { ShareTool } from "./tools/ShareTool";
 import { CompareTool } from "./tools/CompareTool";
@@ -27,6 +28,8 @@ const ICONS = {
   chat: "M4 5h16v11H10l-6 4V5Z",
   // Document stack: front sheet with folded corner over a back sheet.
   reports: "M9 3h7l4 4v11H9V3Zm7 0v4h4M5 8v13h11",
+  // Water drop (flood & drainage report).
+  flood: "M12 3c3.6 4.6 6 8 6 10.8a6 6 0 0 1-12 0C6 11 8.4 7.6 12 3Z",
   // Bookmark (saved properties).
   properties: "M7 3h10v18l-5-4-5 4V3Z",
   // Share nodes.
@@ -64,6 +67,16 @@ export const WORKBENCH_TOOLS: WorkbenchToolDef[] = [
     status: "live",
     propertyScoped: true,
     render: () => <ReportsTool />,
+  },
+  {
+    // R3: FLOOD & DRAINAGE — the FIRST paid report bubble (run-in-dock →
+    // sharp viz → Sheet-Standard PDF). Sets the paid-report pattern.
+    id: "flood",
+    label: "Flood & Drainage",
+    icon: <WorkbenchIcon path={ICONS.flood} />,
+    status: "live",
+    propertyScoped: true,
+    render: () => <FloodTool />,
   },
   {
     // W4: saved-properties workspace (server is the truth; deep-proxy routes).
