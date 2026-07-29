@@ -39,9 +39,18 @@ import {
 
 export const CHAT_ENDPOINT = "api/brokerage/v1/research/chat";
 
-/** 402 copy — same paywall gate the brief uses, chat-flavored. */
+/** 402 value line — the unified unlock flow renders under it (R1: no
+ *  Pro-hardcoded copy; the flow offers the $15 property unlock AND Pro). */
 export const CHAT_PAYWALL_MESSAGE =
-  "Cited AI property chat requires sign-in and Pro entitlement.";
+  "Unlimited cited AI chat on this property — every answer cites the municipal-code atoms it rests on.";
+
+/** 402 free_messages_exhausted value line (the chat wall). */
+export const CHAT_FREE_EXHAUSTED_MESSAGE =
+  "You've used your free messages on this property. Unlock it for unlimited AI chat plus every report.";
+
+/** WB6 save-chat AI summary — classified as PAID chat (R1). */
+export const CHAT_SUMMARY_LOCK_MESSAGE =
+  "Saving this chat with an AI summary is part of paid chat on this property.";
 
 // ---------------------------------------------------------------------------
 // Starter prompts — INVESTOR_STARTER_PROMPTS ported VERBATIM from the
@@ -417,6 +426,9 @@ export function buildChatRequestBody(input: {
   /** RAW chip id (investor set) — remapped/omitted per the extension rules. */
   starterPromptId?: string;
   personaBucket?: string;
+  /** R1 entitlement classification: summary calls declare themselves so the
+   *  server gates them as PAID chat (402 upgrade_required unless entitled). */
+  purpose?: "summary";
 }): Record<string, unknown> {
   const { message, subject } = input;
   const starter = resolveBrokerageStarterPromptId(input.starterPromptId);
@@ -439,6 +451,7 @@ export function buildChatRequestBody(input: {
       .slice(-CHAT_HISTORY_WINDOW)
       .map((t) => ({ role: t.role, content: t.content })),
     presentationMode: "consumer",
+    ...(input.purpose ? { purpose: input.purpose } : {}),
     ...(starter ? { starterPromptId: starter } : {}),
     ...(input.personaBucket ? { personaBucket: input.personaBucket } : {}),
     ...(address ? { address } : {}),
@@ -479,10 +492,21 @@ export interface ChatAnswer {
   method: string | null;
 }
 
+/** The pinned R1 chat-402 contract: after the 3rd free message the server
+ *  responds { error: "free_messages_exhausted", freeMessagesUsed,
+ *  freeMessagesLimit }; paid-classified calls (summary) 402 with
+ *  "upgrade_required" unless entitled. Anything else 402 → upgrade_required. */
+export type ChatPaywallReason = "free_messages_exhausted" | "upgrade_required";
+
 export type ChatTurnOutcome =
   | { kind: "answer"; answer: ChatAnswer }
   | { kind: "sign-in" }
-  | { kind: "paywall" }
+  | {
+      kind: "paywall";
+      reason: ChatPaywallReason;
+      freeMessagesUsed: number | null;
+      freeMessagesLimit: number | null;
+    }
   | { kind: "scope-failed"; text: string }
   | { kind: "retryable"; text: string }
   | { kind: "message"; text: string }
@@ -495,6 +519,7 @@ export async function runChatTurn(
     subject: ChatSubjectContext;
     starterPromptId?: string;
     personaBucket?: string;
+    purpose?: "summary";
   },
   post: (
     path: string,
@@ -506,9 +531,21 @@ export async function runChatTurn(
     const body = (await res.json().catch(() => ({}))) as {
       error?: string;
       message?: string;
+      freeMessagesUsed?: number;
+      freeMessagesLimit?: number;
     } & ChatResponsePayload;
     if (res.status === 401) return { kind: "sign-in" };
-    if (res.status === 402) return { kind: "paywall" };
+    if (res.status === 402) {
+      return {
+        kind: "paywall",
+        reason:
+          body.error === "free_messages_exhausted"
+            ? "free_messages_exhausted"
+            : "upgrade_required",
+        freeMessagesUsed: num(body.freeMessagesUsed),
+        freeMessagesLimit: num(body.freeMessagesLimit),
+      };
+    }
     if (res.status === 400 || res.status === 404) {
       // Run-selector / areaContext rejection (or no brokerage run resolved):
       // the honest "could not scope" state, carrying the server's own words.
@@ -553,7 +590,9 @@ export function chatOutcomeNotice(
     case "sign-in":
       return "Sign in to unlock AI chat on this parcel.";
     case "paywall":
-      return CHAT_PAYWALL_MESSAGE;
+      return outcome.reason === "free_messages_exhausted"
+        ? CHAT_FREE_EXHAUSTED_MESSAGE
+        : CHAT_PAYWALL_MESSAGE;
     case "scope-failed":
       return "Chat could not scope to this property.";
     case "retryable":

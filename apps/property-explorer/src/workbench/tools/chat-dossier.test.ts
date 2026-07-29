@@ -71,10 +71,13 @@ describe("saveChatToProperty", () => {
       message: string;
       history: unknown[];
       subject: ChatSubjectContext;
+      purpose?: string;
     };
     expect(call.message).toBe(chatSummaryPrompt(subject.address));
     expect(call.history).toHaveLength(4);
     expect(call.subject).toBe(subject);
+    // R1: the summary declares itself PAID chat.
+    expect(call.purpose).toBe("summary");
     expect(update).toHaveBeenCalledWith("48021:2", {
       chatThread: capThreadForDossier(turns(4)),
       chatSummary: {
