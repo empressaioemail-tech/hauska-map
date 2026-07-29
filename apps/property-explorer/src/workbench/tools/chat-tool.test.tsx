@@ -78,9 +78,10 @@ const THREAD: ChatToolStoredState = {
 
 describe("chat in the registry + dock", () => {
   it("chat is LIVE and renders inside the one shared dock", () => {
+    // W4 flipped properties + share live too — chat must be among the live set.
     expect(
       WORKBENCH_TOOLS.filter((t) => t.status === "live").map((t) => t.id),
-    ).toEqual(["brief", "chat", "reports"]);
+    ).toContain("chat");
     const html = renderChat({});
     expect(html.match(/data-testid="workbench-dock"/g)).toHaveLength(1);
     expect(html).toContain('data-tool="chat"');

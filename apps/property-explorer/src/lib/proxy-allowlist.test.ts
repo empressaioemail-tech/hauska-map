@@ -23,9 +23,11 @@ function isCortexBrowsePathAllowed(method: string, upstreamPath: string): boolea
 }
 
 function isDeepPathAllowed(method: string, upstreamPath: string): boolean {
-  const DEEP_GET_EXACT = new Set(['api/property-explorer/v1/entitlement'])
-  const DEEP_GET_PREFIX = [
+  const DEEP_GET_EXACT = new Set([
+    'api/property-explorer/v1/entitlement',
     'api/property-explorer/v1/saved-properties',
+  ])
+  const DEEP_GET_PREFIX = [
     'api/property-explorer/v1/research/layer-manifest',
   ]
   const DEEP_POST_EXACT = new Set([
@@ -33,6 +35,7 @@ function isDeepPathAllowed(method: string, upstreamPath: string): boolean {
     'api/property-explorer/v1/research/hydrology',
     'api/property-explorer/v1/research/subsurface',
   ])
+  const SAVED_PROPERTY_ITEM_RE = /^api\/property-explorer\/v1\/saved-properties\/[^/]+$/
   if (method === 'GET' || method === 'HEAD') {
     if (DEEP_GET_EXACT.has(upstreamPath)) return true
     return DEEP_GET_PREFIX.some((p) => upstreamPath === p || upstreamPath.startsWith(`${p}/`))
@@ -42,7 +45,7 @@ function isDeepPathAllowed(method: string, upstreamPath: string): boolean {
     return false
   }
   if (method === 'PUT' || method === 'DELETE') {
-    return upstreamPath.startsWith('api/property-explorer/v1/saved-properties/')
+    return SAVED_PROPERTY_ITEM_RE.test(upstreamPath)
   }
   return false
 }
@@ -93,10 +96,38 @@ describe('proxy allowlists', () => {
     ).toBe(true)
   })
 
-  it('allows saved property mutations on deep proxy', () => {
+  it('allows the saved-properties LIST on deep GET proxy (exact)', () => {
+    expect(
+      isDeepPathAllowed('GET', 'api/property-explorer/v1/saved-properties'),
+    ).toBe(true)
+    // No per-item GET exists upstream — subpaths stay blocked (tight list).
+    expect(
+      isDeepPathAllowed('GET', 'api/property-explorer/v1/saved-properties/48055:10068'),
+    ).toBe(false)
+  })
+
+  it('allows saved property mutations on deep proxy (single item segment)', () => {
     expect(
       isDeepPathAllowed('PUT', 'api/property-explorer/v1/saved-properties/48055:10068'),
     ).toBe(true)
+    expect(
+      isDeepPathAllowed('DELETE', 'api/property-explorer/v1/saved-properties/48055:10068'),
+    ).toBe(true)
+  })
+
+  it('blocks saved-properties abuse shapes on deep proxy', () => {
+    // POST is not a saved-properties verb.
+    expect(
+      isDeepPathAllowed('POST', 'api/property-explorer/v1/saved-properties/48055:10068'),
+    ).toBe(false)
+    // Nested subpaths past the item segment stay blocked.
+    expect(
+      isDeepPathAllowed('PUT', 'api/property-explorer/v1/saved-properties/48055:10068/extra'),
+    ).toBe(false)
+    // Bare mutation on the collection stays blocked.
+    expect(
+      isDeepPathAllowed('DELETE', 'api/property-explorer/v1/saved-properties'),
+    ).toBe(false)
   })
 
   it('allows retrieval atom-chain, attaching-roads POST, near-bbox, and atoms/:did', () => {
