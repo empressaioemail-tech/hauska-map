@@ -40,6 +40,7 @@ import {
   isPeExportDevBypassArmed,
   PE_EXPORT_DEV_BYPASS_HEADER,
 } from './_lib/pe-export-dev-bypass.js'
+import { handleFloodDrainageRequest } from './_lib/pe-flood-drainage-handler.js'
 import { readPeSessionCookie } from './_lib/session-cookie.js'
 import {
   classifyEngineFailure,
@@ -562,6 +563,22 @@ export default async function handler(
   req: VercelRequest,
   res: VercelResponse,
 ): Promise<void> {
+  // R3 FOLD-IN: the Flood & Drainage report rides THIS function
+  // (?report=flood-drainage) — PE is at the 11/12 Vercel Hobby function
+  // cap, so the first paid report adds a dispatcher param, not a 12th
+  // function (the exact failure #108 hit). Everything else below is the
+  // unchanged site-plan surface.
+  const reportRaw = req.query.report
+  const report = Array.isArray(reportRaw) ? reportRaw[0] : reportRaw
+  if (report === 'flood-drainage') {
+    await handleFloodDrainageRequest(req, res)
+    return
+  }
+  if (report !== undefined) {
+    res.status(400).json({ error: 'unknown_report', message: `Unknown report "${report}".` })
+    return
+  }
+
   const actionRaw = req.query.action
   const action = Array.isArray(actionRaw) ? actionRaw[0] : actionRaw
   const kindRaw = req.query.kind
