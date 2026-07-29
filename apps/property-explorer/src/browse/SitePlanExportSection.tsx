@@ -33,21 +33,57 @@ function blobHrefFromBase64(base64: string, contentType: string): string | null 
   }
 }
 
+/**
+ * W2: the JSON-serializable snapshot of this section's user-visible outcome —
+ * the Reports workbench tool persists it per property (useDockToolState) so
+ * the last export result + download link survive dock close/reopen. Exactly
+ * what the UI shows: transient busy states are never persisted.
+ */
+export interface SitePlanExportSectionState {
+  format: SitePlanExportFormat;
+  notice: string | null;
+  result: SitePlanExportBffResponse | null;
+}
+
 export function SitePlanExportSection({
   parcelNodeId,
   address,
   countyName,
   onPaymentRequired,
+  initialState,
+  onStateChange,
 }: {
   parcelNodeId: string;
   address?: string | null;
   countyName?: string | null;
   onPaymentRequired: () => void;
+  /** Seed from a persisted snapshot (W2 Reports tool). Read at mount only —
+   *  remount (key on the property) when the active property changes. */
+  initialState?: SitePlanExportSectionState | null;
+  /** Fires with the full snapshot on every terminal outcome + format change. */
+  onStateChange?: (next: SitePlanExportSectionState) => void;
 }) {
-  const [format, setFormat] = useState<SitePlanExportFormat>("pdf-site-plan");
+  const [format, setFormat] = useState<SitePlanExportFormat>(
+    initialState?.format ?? "pdf-site-plan",
+  );
   const [busy, setBusy] = useState(false);
-  const [notice, setNotice] = useState<string | null>(null);
-  const [result, setResult] = useState<SitePlanExportBffResponse | null>(null);
+  const [notice, setNotice] = useState<string | null>(
+    initialState?.notice ?? null,
+  );
+  const [result, setResult] = useState<SitePlanExportBffResponse | null>(
+    initialState?.result ?? null,
+  );
+
+  // Persist the honest terminal state: what the section shows is what survives.
+  const settle = useCallback(
+    (next: SitePlanExportSectionState) => {
+      setFormat(next.format);
+      setNotice(next.notice);
+      setResult(next.result);
+      onStateChange?.(next);
+    },
+    [onStateChange],
+  );
 
   const handleExport = useCallback(async () => {
     setBusy(true);
@@ -61,27 +97,42 @@ export function SitePlanExportSection({
 
     if (!resp.ok) {
       if (resp.status === 401) {
-        setNotice("Sign in to export the site plan for this parcel.");
+        settle({
+          format,
+          notice: "Sign in to export the site plan for this parcel.",
+          result: null,
+        });
         return;
       }
       if (resp.status === 402) {
-        setNotice(null);
+        settle({ format, notice: null, result: null });
         onPaymentRequired();
         return;
       }
       if (resp.status === 422) {
         // Anti-fabrication stays (422); only the customer copy is soft.
-        setNotice("Setbacks not available for this parcel yet.");
+        settle({
+          format,
+          notice: "Setbacks not available for this parcel yet.",
+          result: null,
+        });
         return;
       }
       // 502/503: real upstream/config errors — never open the Stripe paywall.
-      setNotice(resp.message ?? `Export failed (${resp.status || "network"}).`);
+      settle({
+        format,
+        notice: resp.message ?? `Export failed (${resp.status || "network"}).`,
+        result: null,
+      });
       return;
     }
 
-    setResult(resp.data);
-    setNotice("Site plan ready — download below.");
-  }, [address, countyName, format, onPaymentRequired, parcelNodeId]);
+    settle({
+      format,
+      notice: "Site plan ready — download below.",
+      result: resp.data,
+    });
+  }, [address, countyName, format, onPaymentRequired, parcelNodeId, settle]);
 
   const inline = result?.inlineDownload;
   const inlineMatches =
@@ -131,7 +182,13 @@ export function SitePlanExportSection({
         data-testid="site-plan-format-picker"
         value={format}
         disabled={busy}
-        onChange={(e) => setFormat(e.target.value as SitePlanExportFormat)}
+        onChange={(e) =>
+          settle({
+            format: e.target.value as SitePlanExportFormat,
+            notice,
+            result,
+          })
+        }
         style={{
           width: "100%",
           marginBottom: 8,
