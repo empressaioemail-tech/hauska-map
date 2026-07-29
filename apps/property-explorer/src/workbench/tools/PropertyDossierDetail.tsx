@@ -52,7 +52,13 @@ function sectionHeader(label: string) {
 }
 
 function exportLabel(entry: DossierExportEntry): string {
-  return `${entry.kind === "site-plan" ? "Site plan" : "Terrain"} · ${entry.format}`;
+  const kindLabel =
+    entry.kind === "site-plan"
+      ? "Site plan"
+      : entry.kind === "flood-drainage"
+        ? "Flood & drainage"
+        : "Terrain";
+  return `${kindLabel} · ${entry.format}`;
 }
 
 /** Human labels for the WB7d single-select status chips. */
