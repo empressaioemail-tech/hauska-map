@@ -18,6 +18,7 @@ import {
   adaptAtomChainToBakedFacets,
   atomChainIsUsable,
   isPropertyAtomPathEnabled,
+  mergeBakedBaseFacts,
   parsePropertyAtomsPath,
   type PeBakedFacetsResponse,
   type PropertyAtomChain,
@@ -285,10 +286,42 @@ export async function handlePropertyAtomsFacets(
   }
 
   // Flag ON: atom-chain is the envelope product path. No cortex envelope fallback.
+  //
+  // The cortex baked-facets read is kicked off IN PARALLEL: on the atom path
+  // its BASE FACTS (land-use / acreage / situs / county name) are merged onto
+  // the atom-chain response (map UX cluster item 6 — the card previously said
+  // "not verified here" for facts cortex serves for ~100% of Bastrop); on the
+  // definitive-empty path it remains the stripped-envelope fallback body. One
+  // upstream cortex fetch either way — the client still makes ONE request.
+  const cortexPromise: Promise<{
+    status: number;
+    body: string;
+    contentType: string | null;
+  }> = fetchCortexFacets(parcelNodeId).catch((err) => ({
+    status: 0,
+    body: err instanceof Error ? err.message : String(err),
+    contentType: null,
+  }));
   const atom = await fetchAtomChain(parcelNodeId);
   if (atom.ok) {
     const adapted = adaptAtomChainToBakedFacets(atom.chain);
     if (adapted) {
+      // Merge baked base facts (never zoning/envelope — those stay atom-owned).
+      // A failed/unusable cortex read serves the atom response unmerged: base
+      // facts then stay honestly absent, never fabricated.
+      let payload: PeBakedFacetsResponse = adapted;
+      const cortex = await cortexPromise;
+      if (cortex.status >= 200 && cortex.status < 300) {
+        let parsedBody: unknown = null;
+        try {
+          parsedBody = JSON.parse(cortex.body);
+        } catch {
+          parsedBody = null;
+        }
+        if (parsedBody && typeof parsedBody === "object") {
+          payload = mergeBakedBaseFacts(adapted, parsedBody);
+        }
+      }
       const readHeader: PeReadPathHeader =
         adapted.readPath === "atom-chain-warm" ? "atom-chain-warm" : "atom-chain";
       res.setHeader("X-PE-Read-Path", readHeader);
@@ -296,7 +329,7 @@ export async function handlePropertyAtomsFacets(
         res.setHeader("X-PE-Cold-Derive", "skipped");
       }
       res.setHeader("Content-Type", "application/json");
-      res.status(200).json(adapted);
+      res.status(200).json(payload);
       return;
     }
   }
@@ -319,7 +352,7 @@ export async function handlePropertyAtomsFacets(
 
   // Definitive empty / adapt-failed: merge cortex baseFacts only (never envelope).
   try {
-    const cortex = await fetchCortexFacets(parcelNodeId);
+    const cortex = await cortexPromise;
     if (cortex.status >= 200 && cortex.status < 300) {
       let parsedBody: unknown;
       try {
