@@ -30,6 +30,11 @@ export interface ChatRef {
   /** Structured edition/vintage when the ref carries one (freshness input). */
   edition: string | null;
   vintage: string | null;
+  /**
+   * Backend numbered-citation index ([n] in the PRO-mode answer text maps to
+   * this). Null for refs that arrived without a number (sources/inlineRefs).
+   */
+  n: number | null;
 }
 
 interface RawRefLike {
@@ -41,6 +46,7 @@ interface RawRefLike {
   snippet?: unknown;
   edition?: unknown;
   vintage?: unknown;
+  n?: unknown;
 }
 
 /** The chat response fields this module reads (all defensive-optional). */
@@ -103,6 +109,8 @@ export function normalizeChatRef(raw: unknown): ChatRef | null {
     snippet: s(r.snippet),
     edition: s(r.edition),
     vintage: s(r.vintage),
+    n:
+      typeof r.n === "number" && Number.isInteger(r.n) && r.n > 0 ? r.n : null,
   };
 }
 
@@ -126,6 +134,7 @@ export function refsFromChatResponse(payload: ChatResponsePayload): ChatRef[] {
     const existing = byDid.get(ref.did);
     if (existing) {
       if (!existing.snippet && ref.snippet) existing.snippet = ref.snippet;
+      if (existing.n == null && ref.n != null) existing.n = ref.n;
       continue;
     }
     byDid.set(ref.did, ref);
@@ -205,4 +214,81 @@ export function freshnessTitle(f: ChipFreshness): string {
       ? `Cited edition${f.year ? ` (${f.year})` : ""} is superseded by the current code cycle`
       : `Cited edition${f.year ? ` (${f.year})` : ""} is current`;
   return base + (f.demo ? " · demo estimate" : "");
+}
+
+// ---------------------------------------------------------------------------
+// RESERVED ATOM ACCENT (R2). ONE hue means "openable recorded atom evidence"
+// and is used for NOTHING else in the app. Audit findings (2026-07-29): the
+// general cyan accent (#7dd3fc) carries buttons/links app-wide; the amber
+// family is ALREADY semantic here — #fcd34d is the chat warning/notice tone
+// and the Outdated badge, #f2a23c is the envelope map overlay, #c98b3a is
+// honest-absence/warn — so the trading app's amber precedent would collide
+// with warning semantics ON THIS SURFACE. Violet is unused anywhere in PE and
+// reads distinctly against both: atoms get violet. Numbers, plain links, and
+// web-search/unverified sources stay NON-violet forever.
+// ---------------------------------------------------------------------------
+
+/** The one reserved atom hue. Never reuse outside atom chips/lineage chips. */
+export const ATOM_ACCENT = "#c4b5fd";
+export const ATOM_ACCENT_BORDER = "rgba(196,181,253,0.5)";
+export const ATOM_ACCENT_BG = "rgba(196,181,253,0.14)";
+/** Text color when a chip is filled with the accent (open state). */
+export const ATOM_ACCENT_CONTRAST = "#0b0f14";
+
+// ---------------------------------------------------------------------------
+// WEB-UNVERIFIED classifier. The brief's out-of-coverage fallback grounds on
+// web search; those source ids are minted `websearch:<...>` (ldt
+// @workspace/codes reasoningAtoms/grounding). A web-derived source is NEVER
+// an atom chip: it renders as a visually distinct non-atom link labeled
+// unverified — it must not borrow the atom accent's authority.
+// ---------------------------------------------------------------------------
+
+export function isWebUnverifiedRef(ref: ChatRef): boolean {
+  const idish = `${ref.did} ${ref.entityId}`.toLowerCase();
+  if (idish.includes("websearch:")) return true;
+  if (/^https?:\/\//.test(ref.did) || /^https?:\/\//.test(ref.entityId)) {
+    return true;
+  }
+  const t = ref.entityType.toLowerCase();
+  return t === "websearch" || t === "web" || t === "web-source";
+}
+
+// ---------------------------------------------------------------------------
+// PRO-mode inline [n] anchors. The backend keeps [n] markers in the answer
+// text for presentationMode "pro" and parseInlineCitations DROPS out-of-range
+// [n] from citations[] — but the raw text may still carry an invented [99].
+// The renderer therefore only anchors an [n] that maps to a REAL delivered
+// citation; anything else stays plain text (second line of defense — a marker
+// that resolved to nothing must never look like evidence).
+// ---------------------------------------------------------------------------
+
+export type AnswerSegment =
+  | { kind: "text"; text: string }
+  | { kind: "cite"; n: number };
+
+/** Split answer text into text/citation-marker segments (pure). */
+export function parseAnswerSegments(content: string): AnswerSegment[] {
+  const out: AnswerSegment[] = [];
+  const re = /\[(\d+)\]/g;
+  let last = 0;
+  let m: RegExpExecArray | null;
+  while ((m = re.exec(content)) !== null) {
+    if (m.index > last) {
+      out.push({ kind: "text", text: content.slice(last, m.index) });
+    }
+    out.push({ kind: "cite", n: Number(m[1]) });
+    last = m.index + m[0].length;
+  }
+  if (last < content.length) {
+    out.push({ kind: "text", text: content.slice(last) });
+  }
+  return out;
+}
+
+/** The ref an inline [n] anchor opens, or null (→ render plain text). */
+export function refForCitationNumber(
+  refs: ChatRef[],
+  n: number,
+): ChatRef | null {
+  return refs.find((r) => r.n === n) ?? null;
 }

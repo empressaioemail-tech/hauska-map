@@ -18,10 +18,21 @@
 //     envelope, situs address — fetched once per property, module-cached),
 //     supplemented by the stored R1 brief when present (never a prerequisite)
 //     and the inspect card address (host seam). See chat-research.ts.
-//   - Assistant answers render as plain-text paragraphs (consumer mode — the
-//     server strips [n] markers) with a chip row from the response citations;
-//     tapping a chip expands an in-thread detail card (label + snippet +
-//     freshness) from LOCAL data — no network fetch, no innerHTML.
+//   - R2 CITATION LAYER: requests ride presentationMode "pro" (the pro ICP —
+//     consumer mode strips [n] markers server-side), so answers carry inline
+//     [n] anchors mapped to the citation chips. Tapping a chip or an inline
+//     anchor opens ONE accordion card inside the thread (shared controller,
+//     one open at a time): BRIEF renders from the LOCAL citation immediately,
+//     then enriches via GET /api/spine/retrieval/atoms/:did (cached; any
+//     non-200 degrades to the local content with an honest "full record
+//     unavailable" line — the chip never breaks). "more →" reveals FULL:
+//     provenance, NEVER-BARE confidence (honestly "asserted" — PE calibration
+//     is not live), times, accessPolicy, and the CLIENT-COMPOSED lineage walk
+//     (COMPUTED-FROM / WOULD-AFFECT chips from the property's atom-chain;
+//     tapping one swaps the card with ← back — envelope → setback → code, in
+//     place, no navigation). Atom chips wear the RESERVED violet accent used
+//     nowhere else; websearch-derived sources render as distinct non-atom
+//     links labeled unverified.
 //   - Honest states: loading is "Researching…" (never an optimistic fake
 //     answer); 401 sign-in notice; 402 opens the PaywallGate + records
 //     pe_paywall_hit; 400/404 "could not scope" with the server's message in
@@ -49,10 +60,33 @@ import {
   type ChatTurn,
 } from "./chat-research";
 import {
+  ATOM_ACCENT,
+  ATOM_ACCENT_BG,
+  ATOM_ACCENT_BORDER,
+  ATOM_ACCENT_CONTRAST,
   deriveChipFreshness,
   freshnessTitle,
+  isWebUnverifiedRef,
+  parseAnswerSegments,
+  refForCitationNumber,
   type ChatRef,
 } from "./chat-citations";
+import {
+  atomFromChain,
+  composeLineage,
+  deriveAtomCardModel,
+  displayedDid,
+  fetchAtomByDid,
+  getChainEntries,
+  openCitationCard,
+  popLineage,
+  pushLineage,
+  type AtomCardModel,
+  type AtomLineage,
+  type CitationCardState,
+  type ConfidenceDisplay,
+} from "./chat-atom-card";
+import { freshnessVerdict } from "../../browse/brief-view-model";
 import { saveChatToProperty } from "./chat-dossier";
 import { savePropertyWithDossier } from "../../lib/savedPropertiesClient";
 
@@ -99,17 +133,9 @@ type ChatPhase =
       retry: { message: string; starterPromptId?: string; personaBucket?: string } | null;
     };
 
-/** Pure chip-expand toggle (extension wireInlineAtomExpand semantics: tapping
- *  the expanded chip collapses it; tapping another replaces the detail). */
-export function nextExpandedDid(
-  current: string | null,
-  tapped: string,
-): string | null {
-  return current === tapped ? null : tapped;
-}
-
 // ---------------------------------------------------------------------------
-// Citation chips + in-thread expand (presentational; state lives in the turn).
+// Citation chips + the ONE in-thread accordion (shared controller — state
+// lives at the tool level so only one card is open across the whole thread).
 // ---------------------------------------------------------------------------
 
 /** Inline freshness badge — empty render for "unknown" (never a bare claim). */
@@ -140,28 +166,86 @@ export function FreshnessBadge({ chatRef }: { chatRef: ChatRef }) {
 }
 
 /**
- * Chip row + the ONE expanded in-thread detail card (enrichAssistantHtml +
- * wireInlineAtomExpand ported as components). Expansion reads the LOCAL ref —
- * no network fetch on tap.
+ * Chip row (presentational). Atom chips wear the RESERVED accent — the one
+ * hue that means "openable recorded atom evidence". Websearch-derived refs
+ * render as visually distinct NON-atom links labeled unverified (they must
+ * not borrow the atom accent's authority). The accordion renders separately
+ * (AtomCard) under the row.
  */
 export function ChatCitationChips({
   refs,
-  expandedDid,
+  openDid,
   onToggle,
 }: {
   refs: ChatRef[];
-  expandedDid: string | null;
+  /** The did whose card is open ON THIS TURN (anchor), else null. */
+  openDid: string | null;
   onToggle: (did: string) => void;
 }) {
   if (refs.length === 0) return null;
-  const expanded = expandedDid
-    ? (refs.find((r) => r.did === expandedDid) ?? null)
-    : null;
   return (
     <div data-testid="chat-citations" style={{ marginTop: 6 }}>
       <div style={{ display: "flex", flexWrap: "wrap", gap: 4 }}>
         {refs.map((r) => {
-          const isOpen = r.did === expandedDid;
+          if (isWebUnverifiedRef(r)) {
+            const href =
+              /^https?:\/\//.test(r.entityId) ? r.entityId : /^https?:\/\//.test(r.did) ? r.did : null;
+            const inner = (
+              <>
+                <span
+                  style={{
+                    overflow: "hidden",
+                    textOverflow: "ellipsis",
+                    whiteSpace: "nowrap",
+                  }}
+                >
+                  {r.label}
+                </span>
+                <span
+                  style={{
+                    fontSize: 9,
+                    fontWeight: 600,
+                    letterSpacing: 0.3,
+                    textTransform: "uppercase",
+                    color: MUTED,
+                  }}
+                >
+                  unverified
+                </span>
+              </>
+            );
+            const webStyle: CSSProperties = {
+              display: "inline-flex",
+              alignItems: "center",
+              gap: 4,
+              maxWidth: "100%",
+              fontSize: 10.5,
+              color: MUTED,
+              background: "transparent",
+              border: `1px dashed rgba(154,166,178,0.45)`,
+              borderRadius: 10,
+              padding: "1px 7px",
+              textDecoration: "none",
+              lineHeight: 1.5,
+            };
+            return href ? (
+              <a
+                key={r.did}
+                data-testid="chat-web-source"
+                href={href}
+                target="_blank"
+                rel="noreferrer"
+                style={webStyle}
+              >
+                {inner}
+              </a>
+            ) : (
+              <span key={r.did} data-testid="chat-web-source" style={webStyle}>
+                {inner}
+              </span>
+            );
+          }
+          const isOpen = r.did === openDid;
           return (
             <button
               key={r.did}
@@ -175,9 +259,9 @@ export function ChatCitationChips({
                 gap: 4,
                 maxWidth: "100%",
                 fontSize: 10.5,
-                color: isOpen ? "#0b0f14" : ACCENT,
-                background: isOpen ? ACCENT : "transparent",
-                border: `1px solid ${isOpen ? ACCENT : "rgba(125,211,252,0.45)"}`,
+                color: isOpen ? ATOM_ACCENT_CONTRAST : ATOM_ACCENT,
+                background: isOpen ? ATOM_ACCENT : "transparent",
+                border: `1px solid ${isOpen ? ATOM_ACCENT : ATOM_ACCENT_BORDER}`,
                 borderRadius: 10,
                 padding: "1px 7px",
                 cursor: "pointer",
@@ -209,30 +293,367 @@ export function ChatCitationChips({
           );
         })}
       </div>
-      {expanded && (
-        <div
-          data-testid="chat-citation-detail"
+    </div>
+  );
+}
+
+// ---------------------------------------------------------------------------
+// Inline [n] anchors (PRO mode keeps the markers in answer text). An anchor
+// renders ONLY when the [n] maps to a real delivered citation — an invented
+// [99] the backend dropped from citations[] stays plain text, never evidence.
+// ---------------------------------------------------------------------------
+
+export function InlineAnswerText({
+  content,
+  refs,
+  onCitationTap,
+}: {
+  content: string;
+  refs: ChatRef[];
+  onCitationTap: (did: string) => void;
+}) {
+  const paragraphs = content.split(/\n{2,}|\n/).filter((p) => p.trim());
+  return (
+    <>
+      {paragraphs.map((p, i) => (
+        <p key={i} style={{ margin: i === 0 ? 0 : "6px 0 0", color: TEXT }}>
+          {parseAnswerSegments(p).map((seg, j) => {
+            if (seg.kind === "text") {
+              return <span key={j}>{seg.text}</span>;
+            }
+            const ref = refForCitationNumber(refs, seg.n);
+            if (!ref || isWebUnverifiedRef(ref)) {
+              // No matching recorded atom → the marker is not evidence.
+              return <span key={j}>{`[${seg.n}]`}</span>;
+            }
+            return (
+              <button
+                key={j}
+                type="button"
+                data-testid="chat-inline-citation"
+                title={ref.label}
+                onClick={() => onCitationTap(ref.did)}
+                style={{
+                  display: "inline-block",
+                  verticalAlign: "super",
+                  fontSize: 9,
+                  fontWeight: 700,
+                  lineHeight: 1,
+                  color: ATOM_ACCENT,
+                  background: "transparent",
+                  border: "none",
+                  padding: "0 1px",
+                  cursor: "pointer",
+                }}
+              >
+                [{seg.n}]
+              </button>
+            );
+          })}
+        </p>
+      ))}
+    </>
+  );
+}
+
+// ---------------------------------------------------------------------------
+// The accordion card (BRIEF → "more →" → FULL, with the lineage walk).
+// AtomCardView is presentational (test seam); AtomCard wires the fetches.
+// ---------------------------------------------------------------------------
+
+function ConfidenceLine({
+  confidence,
+  calibrated,
+}: {
+  confidence: ConfidenceDisplay | null;
+  calibrated: ConfidenceDisplay | null;
+}) {
+  // NEVER-BARE: no basis → no number at all.
+  if (!confidence) return null;
+  return (
+    <p
+      data-testid="atom-card-confidence"
+      style={{ margin: "3px 0 0", fontSize: 10, color: MUTED }}
+    >
+      Confidence {confidence.value.toFixed(2)} ·{" "}
+      <span data-testid="atom-card-confidence-basis">{confidence.basis}</span>
+      {calibrated ? (
+        <>
+          {" "}
+          · calibrated {calibrated.value.toFixed(2)} ({calibrated.basis}, n=
+          {calibrated.n ?? 0})
+        </>
+      ) : null}
+    </p>
+  );
+}
+
+function AsOfLine({ model }: { model: AtomCardModel }) {
+  const asOf = model.asOf ?? model.capturedAt;
+  if (!asOf) return null;
+  const verdict = freshnessVerdict(asOf, Date.now());
+  const date = asOf.slice(0, 10);
+  const stale = verdict === "stale";
+  return (
+    <p style={{ margin: "3px 0 0", fontSize: 10, color: MUTED }}>
+      As of {date}
+      {verdict !== "unknown" ? (
+        <span
+          data-testid="atom-card-freshness"
+          data-fresh={verdict}
           style={{
-            marginTop: 5,
-            padding: "6px 8px",
-            borderRadius: 6,
-            background: DETAIL_BG,
-            border: CHIP_BORDER,
+            marginLeft: 5,
+            fontSize: 9,
+            fontWeight: 600,
+            letterSpacing: 0.3,
+            textTransform: "uppercase",
+            color: stale ? AMBER : verdict === "fresh" ? "#4ade80" : MUTED,
+            border: `1px solid ${
+              stale
+                ? "rgba(252,211,77,0.5)"
+                : verdict === "fresh"
+                  ? "rgba(74,222,128,0.45)"
+                  : "rgba(154,166,178,0.4)"
+            }`,
+            borderRadius: 3,
+            padding: "0 3px",
           }}
         >
-          <p style={{ margin: 0, fontSize: 11, fontWeight: 600, color: TEXT }}>
-            {expanded.label}
-            <FreshnessBadge chatRef={expanded} />
-          </p>
-          {expanded.snippet ? (
-            <p style={{ margin: "3px 0 0", fontSize: 10.5, color: TEXT }}>
-              {expanded.snippet.slice(0, 480)}
+          {verdict}
+        </span>
+      ) : null}
+    </p>
+  );
+}
+
+function LineageChipRow({
+  title,
+  chips,
+  testId,
+  onTap,
+}: {
+  title: string;
+  chips: AtomLineage["computedFrom"];
+  testId: string;
+  onTap: (did: string) => void;
+}) {
+  if (chips.length === 0) return null;
+  return (
+    <div style={{ marginTop: 5 }}>
+      <p
+        style={{
+          margin: 0,
+          fontSize: 9,
+          fontWeight: 600,
+          letterSpacing: 0.4,
+          textTransform: "uppercase",
+          color: MUTED,
+        }}
+      >
+        {title}
+      </p>
+      <div style={{ display: "flex", flexWrap: "wrap", gap: 4, marginTop: 2 }}>
+        {chips.map((c) => (
+          <button
+            key={c.did}
+            type="button"
+            data-testid={testId}
+            data-did={c.did}
+            onClick={() => onTap(c.did)}
+            style={{
+              fontSize: 10,
+              color: ATOM_ACCENT,
+              background: ATOM_ACCENT_BG,
+              border: `1px solid ${ATOM_ACCENT_BORDER}`,
+              borderRadius: 8,
+              padding: "1px 7px",
+              cursor: "pointer",
+            }}
+          >
+            {c.label}
+          </button>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+export interface AtomCardViewProps {
+  did: string;
+  /** Local citation backing the anchor (BRIEF fallback content). */
+  localRef: ChatRef | null;
+  model: AtomCardModel | null;
+  /** Fetch failed → keep local BRIEF content + honest unavailable line. */
+  degraded: boolean;
+  loading: boolean;
+  full: boolean;
+  lineage: AtomLineage | null;
+  canBack: boolean;
+  onBack: () => void;
+  onToggleFull: () => void;
+  onLineageTap: (did: string) => void;
+}
+
+export function AtomCardView({
+  did,
+  localRef,
+  model,
+  degraded,
+  loading,
+  full,
+  lineage,
+  canBack,
+  onBack,
+  onToggleFull,
+  onLineageTap,
+}: AtomCardViewProps) {
+  const title =
+    model?.claim ??
+    localRef?.label ??
+    model?.entityType?.replace(/-/g, " ") ??
+    did;
+  return (
+    <div
+      data-testid="chat-citation-detail"
+      style={{
+        marginTop: 5,
+        padding: "6px 8px",
+        borderRadius: 6,
+        background: DETAIL_BG,
+        border: `1px solid ${ATOM_ACCENT_BORDER}`,
+      }}
+    >
+      {canBack && (
+        <button
+          type="button"
+          data-testid="atom-card-back"
+          onClick={onBack}
+          style={{
+            fontSize: 10,
+            color: ATOM_ACCENT,
+            background: "transparent",
+            border: "none",
+            padding: 0,
+            marginBottom: 3,
+            cursor: "pointer",
+          }}
+        >
+          ← back
+        </button>
+      )}
+      <p style={{ margin: 0, fontSize: 11, fontWeight: 600, color: TEXT }}>
+        {title}
+        {localRef ? <FreshnessBadge chatRef={localRef} /> : null}
+      </p>
+
+      {/* BRIEF: local snippet immediately; enrichment layers on when it lands. */}
+      {localRef?.snippet ? (
+        <p style={{ margin: "3px 0 0", fontSize: 10.5, color: TEXT }}>
+          {localRef.snippet.slice(0, full ? 1000 : 480)}
+        </p>
+      ) : !model?.claim && !loading ? (
+        <p style={{ margin: "3px 0 0", fontSize: 10.5, color: MUTED }}>
+          No excerpt for this source — open the property brief for full code
+          context.
+        </p>
+      ) : null}
+
+      {loading && (
+        <p
+          data-testid="atom-card-loading"
+          style={{ margin: "3px 0 0", fontSize: 10, color: MUTED, fontStyle: "italic" }}
+        >
+          Loading atom record…
+        </p>
+      )}
+
+      {degraded && (
+        <p
+          data-testid="atom-card-unavailable"
+          style={{ margin: "3px 0 0", fontSize: 10, color: MUTED }}
+        >
+          Full record unavailable — showing the cited excerpt.
+        </p>
+      )}
+
+      {model && (
+        <>
+          {(model.source || model.method) && (
+            <p
+              data-testid="atom-card-provenance"
+              style={{ margin: "3px 0 0", fontSize: 10, color: MUTED }}
+            >
+              {[model.source, model.method].filter(Boolean).join(" · ")}
             </p>
-          ) : (
-            <p style={{ margin: "3px 0 0", fontSize: 10.5, color: MUTED }}>
-              No excerpt for this source — open the property brief for full
-              code context.
+          )}
+          <ConfidenceLine
+            confidence={model.confidence}
+            calibrated={model.calibrated}
+          />
+          <AsOfLine model={model} />
+          {model.accessPolicy && (
+            <p
+              data-testid="atom-card-access"
+              style={{ margin: "3px 0 0", fontSize: 9.5, color: MUTED }}
+            >
+              access: {model.accessPolicy}
             </p>
+          )}
+        </>
+      )}
+
+      {full && (
+        <div data-testid="atom-card-full">
+          {model?.calibrated == null && model?.confidence != null && (
+            <p style={{ margin: "4px 0 0", fontSize: 9.5, color: MUTED }}>
+              Calibration not yet earned for this atom — the figure above is
+              an asserted basis, not an outcome-calibrated one.
+            </p>
+          )}
+          {model?.sourceCitation && (
+            <p style={{ margin: "4px 0 0", fontSize: 9.5, color: MUTED }}>
+              {model.sourceCitation.slice(0, 300)}
+            </p>
+          )}
+          {model?.sourceUrl && (
+            <a
+              data-testid="atom-card-source-link"
+              href={model.sourceUrl}
+              target="_blank"
+              rel="noreferrer"
+              style={{
+                display: "inline-block",
+                marginTop: 4,
+                fontSize: 10,
+                color: ACCENT,
+              }}
+            >
+              Open cited source
+            </a>
+          )}
+          {lineage && (
+            <>
+              <LineageChipRow
+                title="Computed from"
+                chips={lineage.computedFrom}
+                testId="atom-card-computed-from"
+                onTap={onLineageTap}
+              />
+              <LineageChipRow
+                title="Would affect"
+                chips={lineage.wouldAffect}
+                testId="atom-card-would-affect"
+                onTap={onLineageTap}
+              />
+              {lineage.citedInputs.length > 0 && (
+                <p
+                  data-testid="atom-card-cited-inputs"
+                  style={{ margin: "4px 0 0", fontSize: 9.5, color: MUTED }}
+                >
+                  Cited inputs: {lineage.citedInputs.join(" · ")}
+                </p>
+              )}
+            </>
           )}
           <code
             style={{
@@ -243,29 +664,152 @@ export function ChatCitationChips({
               wordBreak: "break-all",
             }}
           >
-            {expanded.did}
+            {did}
           </code>
         </div>
       )}
+
+      <button
+        type="button"
+        data-testid="atom-card-more"
+        onClick={onToggleFull}
+        style={{
+          display: "block",
+          marginTop: 4,
+          fontSize: 10,
+          color: ATOM_ACCENT,
+          background: "transparent",
+          border: "none",
+          padding: 0,
+          cursor: "pointer",
+        }}
+      >
+        {full ? "less ←" : "more →"}
+      </button>
     </div>
   );
 }
 
-function AssistantTurn({ turn }: { turn: ChatStoredTurn }) {
-  const [expandedDid, setExpandedDid] = useState<string | null>(null);
-  const paragraphs = turn.content.split(/\n{2,}|\n/).filter((p) => p.trim());
+/** Container: wires the chain/atom fetches + the walk state for one card. */
+function AtomCard({
+  state,
+  refs,
+  parcelNodeId,
+  onWalk,
+  onBack,
+}: {
+  state: CitationCardState;
+  refs: ChatRef[];
+  parcelNodeId: string;
+  onWalk: (did: string) => void;
+  onBack: () => void;
+}) {
+  const did = displayedDid(state);
+  const localRef =
+    refs.find((r) => r.did === did) ??
+    (did === state.anchorDid
+      ? (refs.find((r) => r.did === state.anchorDid) ?? null)
+      : null);
+  const [full, setFull] = useState(false);
+  const [enrich, setEnrich] = useState<{
+    forDid: string | null;
+    model: AtomCardModel | null;
+    degraded: boolean;
+    lineage: AtomLineage | null;
+  }>({ forDid: null, model: null, degraded: false, lineage: null });
+
+  // Swapping the displayed atom resets to BRIEF (the walk starts shallow).
+  useEffect(() => {
+    setFull(false);
+  }, [did]);
+
+  useEffect(() => {
+    let live = true;
+    void (async () => {
+      const entries = parcelNodeId
+        ? await getChainEntries(parcelNodeId)
+        : null;
+      // Chain-first (lineage taps resolve without a network hop), then the
+      // atoms/:did route; both missing → the honest degrade.
+      const fromChain = atomFromChain(did, entries);
+      let model: AtomCardModel | null = fromChain
+        ? deriveAtomCardModel(did, fromChain)
+        : null;
+      let degraded = false;
+      if (!model) {
+        const fetched = await fetchAtomByDid(did);
+        if (fetched.kind === "ok") {
+          model = deriveAtomCardModel(did, fetched.atom);
+        } else {
+          degraded = true;
+        }
+      }
+      const lineage = composeLineage(did, entries);
+      if (live) setEnrich({ forDid: did, model, degraded, lineage });
+    })();
+    return () => {
+      live = false;
+    };
+  }, [did, parcelNodeId]);
+
+  const settled = enrich.forDid === did;
+  return (
+    <AtomCardView
+      did={did}
+      localRef={localRef}
+      model={settled ? enrich.model : null}
+      degraded={settled ? enrich.degraded : false}
+      loading={!settled}
+      full={full}
+      lineage={settled ? enrich.lineage : null}
+      canBack={state.stack.length > 1}
+      onBack={onBack}
+      onToggleFull={() => setFull((f) => !f)}
+      onLineageTap={onWalk}
+    />
+  );
+}
+
+function AssistantTurn({
+  turn,
+  turnIndex,
+  parcelNodeId,
+  cardState,
+  onOpenCard,
+  onWalk,
+  onBack,
+}: {
+  turn: ChatStoredTurn;
+  turnIndex: number;
+  parcelNodeId: string;
+  cardState: CitationCardState | null;
+  onOpenCard: (turnIndex: number, did: string) => void;
+  onWalk: (did: string) => void;
+  onBack: () => void;
+}) {
+  const refs = turn.refs ?? [];
+  const cardHere = cardState?.turnIndex === turnIndex ? cardState : null;
   return (
     <div data-testid="chat-turn-assistant" style={{ marginBottom: 10 }}>
-      {paragraphs.map((p, i) => (
-        <p key={i} style={{ margin: i === 0 ? 0 : "6px 0 0", color: TEXT }}>
-          {p}
-        </p>
-      ))}
-      <ChatCitationChips
-        refs={turn.refs ?? []}
-        expandedDid={expandedDid}
-        onToggle={(did) => setExpandedDid((cur) => nextExpandedDid(cur, did))}
+      <InlineAnswerText
+        content={turn.content}
+        refs={refs}
+        onCitationTap={(did) => onOpenCard(turnIndex, did)}
       />
+      <ChatCitationChips
+        refs={refs}
+        openDid={cardHere?.anchorDid ?? null}
+        onToggle={(did) => onOpenCard(turnIndex, did)}
+      />
+      {cardHere && (
+        <AtomCard
+          state={cardHere}
+          refs={refs}
+          parcelNodeId={parcelNodeId}
+          onWalk={onWalk}
+          onBack={onBack}
+        />
+      )}
       {turn.disclaimer ? (
         <p
           data-testid="chat-disclaimer"
@@ -326,9 +870,15 @@ export function ChatTool() {
 
   const turns = stored?.turns ?? [];
 
-  // Save-status is per property — switching the active property resets it.
+  // ONE accordion card across the whole thread (shared controller) — with the
+  // lineage walk stack. Transient: never persisted, resets on property switch.
+  const [cardState, setCardState] = useState<CitationCardState | null>(null);
+
+  // Save-status + open card are per property — switching the active property
+  // resets both.
   useEffect(() => {
     setSaveStatus(null);
+    setCardState(null);
   }, [activeParcelNodeId]);
 
   // Keep the newest turn in view as the thread grows.
@@ -571,7 +1121,18 @@ export function ChatTool() {
               {turn.content}
             </p>
           ) : (
-            <AssistantTurn key={i} turn={turn} />
+            <AssistantTurn
+              key={i}
+              turn={turn}
+              turnIndex={i}
+              parcelNodeId={activeParcelNodeId ?? ""}
+              cardState={cardState}
+              onOpenCard={(turnIndex, did) =>
+                setCardState((cur) => openCitationCard(cur, turnIndex, did))
+              }
+              onWalk={(did) => setCardState((cur) => pushLineage(cur, did))}
+              onBack={() => setCardState((cur) => popLineage(cur))}
+            />
           ),
         )}
 
