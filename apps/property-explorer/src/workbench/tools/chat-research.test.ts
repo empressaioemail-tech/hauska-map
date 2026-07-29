@@ -7,15 +7,19 @@ import { describe, expect, it } from "vitest";
 import {
   buildChatRequestBody,
   buildChatSubjectContext,
+  buildChatSubjectFromFacets,
   chatOutcomeNotice,
   CHAT_ENDPOINT,
   CHAT_HISTORY_WINDOW,
+  getChatPropertyFacets,
   INVESTOR_STARTER_PROMPTS,
+  resetChatPropertyFacetsCache,
   resolveBrokerageStarterPromptId,
   runChatTurn,
   type ChatSubjectContext,
   type ChatTurn,
 } from "./chat-research";
+import type { BakedFacetPayload } from "../../lib/baked-facets";
 import { ZONED_BRIEF, UNZONED_BRIEF } from "../../browse/__fixtures__/research-brief.fixture";
 
 // ---------------------------------------------------------------------------
@@ -108,6 +112,204 @@ describe("buildChatSubjectContext — from the stored R1 brief", () => {
 });
 
 // ---------------------------------------------------------------------------
+// SELF-SUFFICIENT subject context from the BAKED FACETS (workbench polish).
+// The live defect: with the card showing zoning P-5 / setbacks / acreage,
+// chat answered "I don't have zoning information" because the subject was
+// built only from the stored R1 brief — empty unless the Brief tool had been
+// opened. The facets are now the PRIMARY source; the brief supplements.
+// ---------------------------------------------------------------------------
+
+const PECAN_FACETS: BakedFacetPayload = {
+  parcelNodeId: "48021:58867",
+  countyFips: "48021",
+  countyName: "Bastrop",
+  baseFacts: {
+    apn: "58867",
+    situsAddress: "1010 Pecan St, Bastrop, TX",
+    acreage: { value: 0.21 },
+  },
+  zoning: { district: "P-5" },
+  envelope: {
+    status: "ok",
+    approximate: true,
+    district: "P-5",
+    setbacks: { front_ft: 10, side_ft: 5, rear_ft: 10 },
+    buildableAreaSqFt: 4200,
+    buildableAreaPct: 46,
+    disclosure: "Approximate — not survey grade.",
+    citationUrl: "https://library.municode.com/tx/bastrop",
+  },
+  facetCoverage: { zoning: true, envelope: true },
+};
+
+describe("buildChatSubjectFromFacets — chat carries its own property context", () => {
+  it("BRIEF NEVER OPENED: builds a FULL subject from the baked facets alone", () => {
+    const s = buildChatSubjectFromFacets("48021:58867", PECAN_FACETS, null, null);
+    expect(s).toEqual({
+      parcelNodeId: "48021:58867",
+      address: "1010 Pecan St, Bastrop, TX",
+      // Facets carry no jurisdiction key today — honest omission, not a guess.
+      jurisdictionKey: null,
+      setbacks: { front_ft: 10, side_ft: 5, rear_ft: 10, district: "P-5" },
+      envelope: {
+        buildableAreaSqFt: 4200,
+        buildableAreaPct: 46,
+        maxHeightFt: null,
+        maxLotCoveragePct: null,
+        maxFootprintSqFt: null,
+        notSurveyGrade: true,
+        approximate: true,
+        edgeSignal: null,
+        disclosure: "Approximate — not survey grade.",
+        citationUrl: "https://library.municode.com/tx/bastrop",
+      },
+    });
+    // …and the request body carries the district on the anchor parcel too.
+    const body = buildChatRequestBody({ message: "zoning?", history: [], subject: s }) as {
+      areaContext: {
+        visibleParcels: Array<Record<string, unknown>>;
+        subject: { setbacks: { district: string | null } | null };
+      };
+    };
+    expect(body.areaContext.subject.setbacks?.district).toBe("P-5");
+    expect(body.areaContext.visibleParcels[0]).toMatchObject({ zoning: "P-5" });
+  });
+
+  it("stored brief SUPPLEMENTS facets (jurisdictionKey + max* fields) — never a prerequisite", () => {
+    const s = buildChatSubjectFromFacets(
+      "48021:123",
+      PECAN_FACETS,
+      ZONED_BRIEF,
+      "123 Main St",
+    );
+    // Facets stay primary where they carry values…
+    expect(s.address).toBe("1010 Pecan St, Bastrop, TX");
+    expect(s.setbacks).toEqual({
+      front_ft: 10,
+      side_ft: 5,
+      rear_ft: 10,
+      district: "P-5",
+    });
+    expect(s.envelope?.buildableAreaSqFt).toBe(4200);
+    // …and the brief fills what facets do not carry.
+    expect(s.jurisdictionKey).toBe("bastrop-city-tx");
+    expect(s.envelope?.maxHeightFt).toBe(35);
+    expect(s.envelope?.maxLotCoveragePct).toBe(60);
+  });
+
+  it("zoning known but setback scalars absent → district still travels (numbers stay null)", () => {
+    const facets: BakedFacetPayload = {
+      parcelNodeId: "48021:77",
+      zoning: { district: "C-1" },
+      envelope: { status: "declined", declineReason: "setback-rule-pending" },
+    };
+    const s = buildChatSubjectFromFacets("48021:77", facets, null, null);
+    expect(s.setbacks).toEqual({
+      front_ft: null,
+      side_ft: null,
+      rear_ft: null,
+      district: "C-1",
+    });
+    expect(s.envelope).toBeNull();
+  });
+
+  it("not_specified axes are NULLED — never sent as fabricated scalar setbacks", () => {
+    const facets: BakedFacetPayload = {
+      ...PECAN_FACETS,
+      envelope: {
+        ...PECAN_FACETS.envelope!,
+        setbacks: {
+          front_ft: 25,
+          side_ft: 0,
+          rear_ft: 0,
+          not_specified: { side: true, rear: true },
+        },
+      },
+    };
+    const s = buildChatSubjectFromFacets("48021:58867", facets, null, null);
+    expect(s.setbacks).toEqual({
+      front_ft: 25,
+      side_ft: null,
+      rear_ft: null,
+      district: "P-5",
+    });
+  });
+
+  it("no facets at all → identical to the brief-only subject (unchanged behavior)", () => {
+    const fromFacets = buildChatSubjectFromFacets(
+      "48021:123",
+      null,
+      ZONED_BRIEF,
+      "123 Main St",
+    );
+    expect(fromFacets).toEqual(
+      buildChatSubjectContext("48021:123", ZONED_BRIEF, "123 Main St"),
+    );
+  });
+
+  it("no facets AND no brief → honest nulls with the host address, never a throw", () => {
+    const s = buildChatSubjectFromFacets("48021:9", null, null, "9 Elm St");
+    expect(s).toEqual({
+      parcelNodeId: "48021:9",
+      address: "9 Elm St",
+      jurisdictionKey: null,
+      setbacks: null,
+      envelope: null,
+    });
+  });
+
+  it("reads a jurisdiction key DEFENSIVELY when the wire carries one", () => {
+    const facets = {
+      ...PECAN_FACETS,
+      zoning: { district: "P-5", jurisdictionKey: "bastrop_city_tx" },
+    } as unknown as BakedFacetPayload;
+    const s = buildChatSubjectFromFacets("48021:58867", facets, null, null);
+    expect(s.jurisdictionKey).toBe("bastrop_city_tx");
+  });
+});
+
+describe("getChatPropertyFacets — fetch once per property, module-cached", () => {
+  it("fetches ONCE across repeated calls for the same property", async () => {
+    resetChatPropertyFacetsCache();
+    let calls = 0;
+    const fetcher = async () => {
+      calls += 1;
+      return PECAN_FACETS;
+    };
+    const a = await getChatPropertyFacets("48021:58867", fetcher);
+    const b = await getChatPropertyFacets("48021:58867", fetcher);
+    expect(a).toBe(PECAN_FACETS);
+    expect(b).toBe(PECAN_FACETS);
+    expect(calls).toBe(1);
+  });
+
+  it("a failed/empty fetch is NOT pinned — the next message retries", async () => {
+    resetChatPropertyFacetsCache();
+    let calls = 0;
+    const fetcher = async () => {
+      calls += 1;
+      if (calls === 1) throw new Error("offline");
+      return PECAN_FACETS;
+    };
+    expect(await getChatPropertyFacets("48021:1", fetcher)).toBeNull();
+    expect(await getChatPropertyFacets("48021:1", fetcher)).toBe(PECAN_FACETS);
+    expect(calls).toBe(2);
+  });
+
+  it("different properties cache independently", async () => {
+    resetChatPropertyFacetsCache();
+    const seen: string[] = [];
+    const fetcher = async (id: string) => {
+      seen.push(id);
+      return PECAN_FACETS;
+    };
+    await getChatPropertyFacets("48021:1", fetcher);
+    await getChatPropertyFacets("48021:2", fetcher);
+    expect(seen).toEqual(["48021:1", "48021:2"]);
+  });
+});
+
+// ---------------------------------------------------------------------------
 // Request-body builder.
 // ---------------------------------------------------------------------------
 
@@ -143,7 +345,11 @@ describe("buildChatRequestBody — the RESEARCH_CHAT_BODY shape", () => {
         scope: "property",
         jurisdictionKey: "bastrop-city-tx",
         visibleParcels: [
-          { parcelId: "48021:123", address: "123 Main St, Bastrop, TX" },
+          {
+            parcelId: "48021:123",
+            address: "123 Main St, Bastrop, TX",
+            zoning: "P-2",
+          },
         ],
         subject: {
           parcelNodeId: "48021:123",
@@ -212,8 +418,26 @@ describe("buildChatRequestBody — the RESEARCH_CHAT_BODY shape", () => {
     expect(body).not.toHaveProperty("address");
     // The subject parcel still anchors run-selector eligibility.
     expect(body.areaContext.visibleParcels).toEqual([
-      { parcelId: "48021:123" },
+      { parcelId: "48021:123", zoning: "P-2" },
     ]);
+  });
+
+  it("omits zoning on the visible parcel when no district is known", () => {
+    const subject: ChatSubjectContext = {
+      parcelNodeId: "48021:9",
+      address: null,
+      jurisdictionKey: null,
+      setbacks: null,
+      envelope: null,
+    };
+    const body = buildChatRequestBody({
+      message: "q",
+      history: [],
+      subject,
+    }) as Record<string, unknown> & {
+      areaContext: { visibleParcels: Array<Record<string, unknown>> };
+    };
+    expect(body.areaContext.visibleParcels).toEqual([{ parcelId: "48021:9" }]);
   });
 });
 

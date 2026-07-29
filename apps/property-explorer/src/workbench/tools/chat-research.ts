@@ -27,6 +27,11 @@
 
 import { postDeepResearch } from "../../lib/auth";
 import {
+  fetchBakedNodeFacetsOrNull,
+  type BakedFacetPayload,
+} from "../../lib/baked-facets";
+import { PE_FACETS_PROXY_BASE } from "../../lib/config";
+import {
   refsFromChatResponse,
   type ChatRef,
   type ChatResponsePayload,
@@ -238,6 +243,161 @@ export function buildChatSubjectContext(
 }
 
 // ---------------------------------------------------------------------------
+// SELF-SUFFICIENT subject context (workbench polish). Root cause of the "I
+// don't have zoning information" defect: the subject was built ONLY from the
+// stored R1 brief, which is empty unless the user opened the Brief tool first
+// — while the inspect card was showing zoning/setbacks from the BAKED FACETS
+// the whole time. The chat tool now sources its own context: the baked facets
+// are the PRIMARY source (fetched once per property, module-cached below) and
+// the stored brief is a SUPPLEMENT when present — never a prerequisite.
+// Honest omissions stay null; nothing is fabricated.
+// ---------------------------------------------------------------------------
+
+/**
+ * Defensive jurisdiction read: the typed facets payload does not carry a
+ * jurisdiction key today, but the wire payload may (zoning.jurisdictionKey /
+ * top-level jurisdictionKey / jurisdiction). Honest null when absent.
+ */
+export function jurisdictionKeyFromFacets(
+  facets: BakedFacetPayload,
+): string | null {
+  const rec = facets as unknown as Record<string, unknown>;
+  const zoning = asRecord(rec.zoning);
+  const jurisdiction = asRecord(rec.jurisdiction);
+  return (
+    (zoning
+      ? (str(zoning.jurisdictionKey) ?? str(zoning.jurisdiction))
+      : null) ??
+    str(rec.jurisdictionKey) ??
+    (jurisdiction
+      ? (str(jurisdiction.key) ?? str(jurisdiction.jurisdictionKey))
+      : str(rec.jurisdiction))
+  );
+}
+
+/**
+ * Build the subject from the property's BAKED FACETS (the inspect card's own
+ * data — primary), supplemented by the stored R1 brief when present and the
+ * host's inspect-card address as the last address fallback.
+ *
+ * not_specified setback axes are nulled (build-to-line governs — sending the
+ * placeholder number would fabricate a scalar setback the code does not carry).
+ */
+export function buildChatSubjectFromFacets(
+  parcelNodeId: string,
+  facets: BakedFacetPayload | null,
+  brief: BriefLike | null | undefined,
+  address: string | null,
+): ChatSubjectContext {
+  // The brief-derived subject (may be all-null when no brief was ever opened).
+  const fromBrief = buildChatSubjectContext(parcelNodeId, brief, address);
+  if (!facets) return fromBrief;
+
+  const env = facets.envelope ?? null;
+  const envUsable = !!env && env.status !== "declined";
+  const district =
+    (envUsable ? str(env.district) : null) ??
+    str(facets.zoning?.district) ??
+    fromBrief.setbacks?.district ??
+    null;
+
+  const s = envUsable ? (env.setbacks ?? null) : null;
+  const ns = s?.not_specified ?? {};
+  const facetSetbacks: ChatSubjectSetbacks | null = s
+    ? {
+        front_ft: ns.front ? null : num(s.front_ft),
+        side_ft: ns.side ? null : num(s.side_ft),
+        rear_ft: ns.rear ? null : num(s.rear_ft),
+        district,
+      }
+    : null;
+  const setbacks =
+    facetSetbacks ??
+    fromBrief.setbacks ??
+    // District known without setback scalars: still say WHICH district — the
+    // honest partial (numbers stay null; the backend prompt says so).
+    (district
+      ? { front_ft: null, side_ft: null, rear_ft: null, district }
+      : null);
+
+  const briefEnv = fromBrief.envelope;
+  const envelope: ChatSubjectEnvelope | null = envUsable
+    ? {
+        buildableAreaSqFt:
+          num(env.buildableAreaSqFt) ?? briefEnv?.buildableAreaSqFt ?? null,
+        buildableAreaPct:
+          num(env.buildableAreaPct) ?? briefEnv?.buildableAreaPct ?? null,
+        // Not on the baked facets — brief-only supplements.
+        maxHeightFt: briefEnv?.maxHeightFt ?? null,
+        maxLotCoveragePct: briefEnv?.maxLotCoveragePct ?? null,
+        maxFootprintSqFt: briefEnv?.maxFootprintSqFt ?? null,
+        notSurveyGrade: true, // PE envelopes are never survey grade.
+        approximate: env.approximate !== false,
+        edgeSignal: briefEnv?.edgeSignal ?? null,
+        disclosure: str(env.disclosure) ?? briefEnv?.disclosure ?? null,
+        citationUrl: str(env.citationUrl) ?? briefEnv?.citationUrl ?? null,
+      }
+    : briefEnv;
+
+  return {
+    parcelNodeId,
+    address:
+      str(facets.baseFacts?.situsAddress) ?? fromBrief.address,
+    jurisdictionKey:
+      jurisdictionKeyFromFacets(facets) ?? fromBrief.jurisdictionKey,
+    setbacks,
+    envelope,
+  };
+}
+
+// ---------------------------------------------------------------------------
+// Per-property facets cache — fetch ONCE per property, not per message. The
+// promise is cached so concurrent sends share one in-flight fetch; a failed /
+// empty fetch is evicted so a later message retries instead of pinning the
+// property to "no context" forever.
+// ---------------------------------------------------------------------------
+
+const chatFacetsCache = new Map<string, Promise<BakedFacetPayload | null>>();
+
+async function defaultChatFacetsFetcher(
+  parcelNodeId: string,
+): Promise<BakedFacetPayload | null> {
+  const resp = await fetchBakedNodeFacetsOrNull(
+    parcelNodeId,
+    PE_FACETS_PROXY_BASE,
+  );
+  return resp?.facets ?? null;
+}
+
+/** Facets for the active property, module-cached per parcelNodeId. */
+export function getChatPropertyFacets(
+  parcelNodeId: string,
+  fetcher: (
+    parcelNodeId: string,
+  ) => Promise<BakedFacetPayload | null> = defaultChatFacetsFetcher,
+): Promise<BakedFacetPayload | null> {
+  const cached = chatFacetsCache.get(parcelNodeId);
+  if (cached) return cached;
+  const inFlight = fetcher(parcelNodeId).then(
+    (facets) => {
+      if (facets == null) chatFacetsCache.delete(parcelNodeId);
+      return facets;
+    },
+    () => {
+      chatFacetsCache.delete(parcelNodeId);
+      return null;
+    },
+  );
+  chatFacetsCache.set(parcelNodeId, inFlight);
+  return inFlight;
+}
+
+/** Test seam — clear the per-property facets cache. */
+export function resetChatPropertyFacetsCache(): void {
+  chatFacetsCache.clear();
+}
+
+// ---------------------------------------------------------------------------
 // Request builder.
 // ---------------------------------------------------------------------------
 
@@ -264,10 +424,13 @@ export function buildChatRequestBody(input: {
 
   // The subject parcel as the single visible parcel: the honest "one parcel in
   // focus" statement AND the areaContext run-selector eligibility anchor (PE
-  // has no brokerage brief runs to select by address/runId).
+  // has no brokerage brief runs to select by address/runId). Carries the
+  // zoning district when known (RESEARCH_AREA_VISIBLE_PARCEL.zoning).
+  const zoningDistrict = str(subject.setbacks?.district ?? null);
   const visibleParcel: Record<string, unknown> = {
     parcelId: subject.parcelNodeId,
     ...(address ? { address } : {}),
+    ...(zoningDistrict ? { zoning: zoningDistrict } : {}),
   };
 
   return {
