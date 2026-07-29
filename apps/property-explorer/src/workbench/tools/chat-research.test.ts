@@ -353,7 +353,7 @@ describe("buildChatRequestBody — the RESEARCH_CHAT_BODY shape", () => {
         { role: "user", content: "hi" },
         { role: "assistant", content: "hello" },
       ],
-      presentationMode: "consumer",
+      presentationMode: "pro",
       starterPromptId: "adu",
       personaBucket: "investor",
       address: "123 Main St, Bastrop, TX",
@@ -402,6 +402,16 @@ describe("buildChatRequestBody — the RESEARCH_CHAT_BODY shape", () => {
       subject: FULL_SUBJECT,
     });
     expect(Object.keys(body)).not.toContain("mapContext");
+  });
+
+  it("R2: presentationMode is PRO (inline [n] markers survive; consumer strips them)", () => {
+    // The backend enum is ["consumer","pro"] — "professional" would 400.
+    const body = buildChatRequestBody({
+      message: "q",
+      history: [],
+      subject: FULL_SUBJECT,
+    }) as { presentationMode: string };
+    expect(body.presentationMode).toBe("pro");
   });
 
   it("windows history to the LAST 8 turns", () => {
