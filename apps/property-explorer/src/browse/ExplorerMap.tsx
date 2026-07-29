@@ -41,13 +41,14 @@ import { postDeepResearch } from "../lib/auth";
 import { cortexClient } from "../lib/cortexClient";
 import { parcelNodes } from "../lib/parcel-node-store.js";
 import { startPeCheckout } from "../lib/billingClient";
-import { recordPeGtmEvent, type Persona } from "../lib/gtmClient";
+import { recordPeGtmEvent } from "../lib/gtmClient";
 import { iccCitationStatus } from "../lib/iccCitation";
 import { InspectCard } from "./InspectCard";
 import { PropertyBriefPanel } from "./PropertyBriefPanel";
 import type { ResearchBriefPayload } from "./brief-view-model";
-import { LayersControl } from "./LayersControl";
-import { MapTools } from "./MapTools";
+import { MapToolset, type LayerStateBadge } from "./MapToolset";
+import { TransientChips } from "./TransientChips";
+import type { ChipSpec } from "./transient-chips";
 import { ParcelLookupBar } from "./ParcelLookupBar";
 import { PaywallGate } from "./PaywallGate";
 import {
@@ -181,25 +182,6 @@ function toCenter(lat: number | null, lng: number | null): Center | undefined {
   return { latitude: lat, longitude: lng };
 }
 
-const chipStyle = (sev: "info" | "warn" | "error"): React.CSSProperties => ({
-  fontSize: 10.5,
-  fontFamily: "system-ui, -apple-system, Segoe UI, Roboto, sans-serif",
-  fontWeight: 600,
-  padding: "3px 9px",
-  borderRadius: 5,
-  pointerEvents: "none",
-  whiteSpace: "nowrap",
-  color: sev === "error" ? "#fca5a5" : sev === "warn" ? "#fcd34d" : "#9aa6b2",
-  background: "rgba(13,17,23,0.82)",
-  border: `0.5px solid ${
-    sev === "error"
-      ? "rgba(248,113,113,0.55)"
-      : sev === "warn"
-        ? "rgba(252,211,77,0.5)"
-        : "rgba(154,166,178,0.35)"
-  }`,
-});
-
 export function ExplorerMap() {
   const mapRef = useRef<FloatingMapHandle>(null);
   const [parcels, setParcels] = useState<LayerSlot>(IDLE);
@@ -251,7 +233,6 @@ export function ExplorerMap() {
   const [knownLayers, setKnownLayers] = useState<Set<LayerKey> | null>(null);
   const [researchNotice, setResearchNotice] = useState<string | null>(null);
   const [researchBrief, setResearchBrief] = useState<ResearchBrief | null>(null);
-  const [persona, setPersona] = useState<Persona>("homeowner");
   const [paywallOpen, setPaywallOpen] = useState(false);
   const [paywallMessage, setPaywallMessage] = useState<string | null>(null);
   const [checkoutBusy, setCheckoutBusy] = useState(false);
@@ -744,7 +725,12 @@ export function ExplorerMap() {
     [parcels, fema, topo, hydro, roadOverlays, envelopeOverlays, visibleLayers],
   );
 
-  const chips: Array<{ key: string; sev: "info" | "warn" | "error"; text: string }> = [];
+  // Chips are now TRANSIENT notifications (item 2): each entry appears when its
+  // state key/text changes, stays long enough to read, then fades. Persistent
+  // honest states (degraded, not-survey-grade, honest-empty) are ALSO written
+  // into `layerStates` below so they stay discoverable in the merged toolset's
+  // layer rows after the toast fades — honesty is never lost, only the toast.
+  const chips: ChipSpec[] = [];
   if (zoom != null && zoom < MIN_PARCEL_ZOOM) {
     chips.push({ key: "zoom", sev: "info", text: "Zoom in for parcels" });
   }
@@ -804,6 +790,71 @@ export function ExplorerMap() {
           parcels.fetch.response.notSurveyGrade ? " · not survey grade" : ""
         }`
       : null;
+  if (attribution) {
+    chips.push({ key: "attribution", sev: "info", text: attribution });
+  }
+  if (researchNotice) {
+    chips.push({ key: "research-notice", sev: "info", text: researchNotice });
+  }
+
+  // PERSISTENT per-layer honesty for the merged toolset (item 2 constraint):
+  // everything a fading toast said about a layer's ONGOING state lives here as
+  // a state dot + tooltip (+ caption for warn/error) on that layer's row.
+  const layerStates: Partial<Record<LayerKey, LayerStateBadge>> = {};
+  if (parcels.fetch.status === "error") {
+    layerStates["parcel-polygon" as LayerKey] = {
+      tone: "error",
+      note: `Parcels failed — ${parcels.fetch.message}`,
+    };
+  } else if (parcels.fetch.status === "no-coverage") {
+    layerStates["parcel-polygon" as LayerKey] = {
+      tone: "warn",
+      note: "No parcel coverage here",
+    };
+  } else if (attribution) {
+    layerStates["parcel-polygon" as LayerKey] = {
+      tone:
+        parcels.fetch.status === "ok" && parcels.fetch.response.notSurveyGrade
+          ? "warn"
+          : "info",
+      note: attribution,
+    };
+  }
+  if (topoToggledOn) {
+    if (topo.fetch.status === "error") {
+      layerStates[TOPO_TOGGLE_KEY] = {
+        tone: "warn",
+        note: `Contours degraded — ${topo.fetch.message}`,
+      };
+    } else if (topo.fetch.status === "no-coverage") {
+      layerStates[TOPO_TOGGLE_KEY] = { tone: "warn", note: "No contour coverage here" };
+    } else if (topo.fetch.status === "ok" && topo.data) {
+      layerStates[TOPO_TOGGLE_KEY] = {
+        tone: topo.data.degraded ? "warn" : "ok",
+        note: `${contourTierLabel(topo.data)}${topo.data.degraded ? " · degraded" : ""}`,
+      };
+    }
+  }
+  if (hydroToggledOn) {
+    if (hydro.fetch.status === "error") {
+      layerStates[HYDRO_TOGGLE_KEY] = {
+        tone: "warn",
+        note: `Flow lines degraded — ${hydro.fetch.message}`,
+      };
+    } else if (hydro.fetch.status === "no-coverage") {
+      layerStates[HYDRO_TOGGLE_KEY] = { tone: "warn", note: "No hydrology coverage here" };
+    } else if (hydro.fetch.status === "ok" && hydro.data) {
+      const emptyReason = hydrologyHonestReason(hydro.fetch);
+      layerStates[HYDRO_TOGGLE_KEY] = emptyReason
+        ? { tone: "info", note: `Flow lines — none: ${emptyReason}` }
+        : {
+            tone: hydro.data.degraded ? "warn" : "ok",
+            note: `Flow lines — ${
+              hydro.data.channelCount ?? hydro.data.featureCount ?? 0
+            } D8 channels${hydro.data.degraded ? " · degraded" : ""}`,
+          };
+    }
+  }
 
   const isSubject =
     !!card &&
@@ -814,7 +865,6 @@ export function ExplorerMap() {
     const nodeId = cardNodeId ?? inspectedRef.current?.parcelNodeId ?? null;
     void recordPeGtmEvent({
       eventType: "pe_research_clicked",
-      persona,
       parcelNodeId: nodeId,
     });
 
@@ -841,7 +891,6 @@ export function ExplorerMap() {
       if (res.status === 402) {
         void recordPeGtmEvent({
           eventType: "pe_paywall_hit",
-          persona,
           parcelNodeId: nodeId,
         });
         setResearchNotice(null);
@@ -871,13 +920,12 @@ export function ExplorerMap() {
     } catch {
       setResearchNotice("Could not reach the research service.");
     }
-  }, [cardNodeId, persona]);
+  }, [cardNodeId]);
 
   const handleTerrainPaymentRequired = useCallback(() => {
     const nodeId = cardNodeId ?? inspectedRef.current?.parcelNodeId ?? null;
     void recordPeGtmEvent({
       eventType: "pe_paywall_hit",
-      persona,
       parcelNodeId: nodeId,
     });
     setPaywallMessage(
@@ -885,13 +933,12 @@ export function ExplorerMap() {
     );
     setCheckoutNote(null);
     setPaywallOpen(true);
-  }, [cardNodeId, persona]);
+  }, [cardNodeId]);
 
   const handleSitePlanPaymentRequired = useCallback(() => {
     const nodeId = cardNodeId ?? inspectedRef.current?.parcelNodeId ?? null;
     void recordPeGtmEvent({
       eventType: "pe_paywall_hit",
-      persona,
       parcelNodeId: nodeId,
     });
     setPaywallMessage(
@@ -899,16 +946,15 @@ export function ExplorerMap() {
     );
     setCheckoutNote(null);
     setPaywallOpen(true);
-  }, [cardNodeId, persona]);
+  }, [cardNodeId]);
 
   const handleSaveProperty = useCallback(() => {
     const nodeId = cardNodeId ?? inspectedRef.current?.parcelNodeId ?? null;
     void recordPeGtmEvent({
       eventType: "pe_save_property",
-      persona,
       parcelNodeId: nodeId,
     });
-  }, [cardNodeId, persona]);
+  }, [cardNodeId]);
 
   const handleUpgrade = useCallback(async () => {
     setCheckoutBusy(true);
@@ -945,46 +991,27 @@ export function ExplorerMap() {
         style={{ position: "absolute", inset: 0 }}
       />
 
-      {/* Layer toggles driven through the substrate (getVisibleLayers seed +
-          visibleLayers prop). No local shadow paint state. */}
+      {/* ONE upper-right toolset (item 1): tools (satellite, measure, draw,
+          marker, clear, GPS) merged with the layer checklist. Layer toggles are
+          driven through the substrate (getVisibleLayers seed + visibleLayers
+          prop — no shadow paint state); tools operate on the LIVE persistent
+          map via the shared handle — never remounts the map. Per-layer honest
+          state (degraded / not-survey-grade / honest-empty) is pinned to the
+          layer rows via `layerStates` so it outlives the transient toasts. */}
       {visibleLayers && knownLayers && (
-        <LayersControl
+        <MapToolset
+          mapRef={mapRef}
           known={knownLayers}
           visible={visibleLayers}
-          onChange={(next) => setVisibleLayers(new Set(next))}
+          onLayersChange={(next) => setVisibleLayers(new Set(next))}
+          layerStates={layerStates}
         />
       )}
 
-      {/* Satellite base toggle + measure/draw/marker/GPS tools. Operates on the
-          LIVE persistent map via the shared handle — never remounts the map. */}
-      <MapTools mapRef={mapRef} />
-
-      {/* Honest live-layer state chips. */}
-      <div
-        data-testid="live-chips"
-        style={{
-          position: "absolute",
-          left: 12,
-          bottom: 12,
-          zIndex: 8,
-          display: "flex",
-          flexDirection: "column",
-          alignItems: "flex-start",
-          gap: 5,
-        }}
-      >
-        {chips.map((c) => (
-          <span key={c.key} style={chipStyle(c.sev)}>
-            {c.text}
-          </span>
-        ))}
-        {attribution && <span style={chipStyle("info")}>{attribution}</span>}
-        {researchNotice && (
-          <span data-testid="research-notice" style={chipStyle("info")}>
-            {researchNotice}
-          </span>
-        )}
-      </div>
+      {/* Transient notification area (item 2): layer-state chips appear on
+          change, stay long enough to read, then fade — never stacking stale
+          entries. Persistent honesty lives in the toolset's layer rows. */}
+      <TransientChips chips={chips} />
 
       {researchBrief && (
         <PropertyBriefPanel
@@ -1011,8 +1038,6 @@ export function ExplorerMap() {
           onTerrainPaymentRequired={handleTerrainPaymentRequired}
           onSitePlanPaymentRequired={handleSitePlanPaymentRequired}
           onSaveProperty={handleSaveProperty}
-          persona={persona}
-          onPersonaChange={setPersona}
         />
       )}
 

@@ -11,6 +11,7 @@ import {
   addParcelTiles,
   removeParcelTiles,
   setParcelFeatureState,
+  setParcelTilesToggles,
   clearParcelFeatureState,
   parcelNodeIdFromFeature,
   PARCEL_TILES_FILL_ID,
@@ -437,11 +438,28 @@ export function createMapRenderer() {
    * Same load-event gating as applyOverlays (styleReady, not isStyleLoaded).
    * Additive: does nothing unless a consumer passed parcelTiles.
    */
+  /**
+   * Bind the PMTiles browse-parcel layers to the current toggle set:
+   * "zoning" drives the land-use choropleth fill (paint-only unbind — clicks
+   * keep working), "parcel-polygon" drives the boundary line + glow layers.
+   * Gated on styleReady like applyParcelTiles; cheap + idempotent.
+   */
+  function applyParcelTileToggles() {
+    if (!map || !styleReady || !parcelTilesApplied) return;
+    setParcelTilesToggles(map, {
+      zoningFill: visibleLayers.has("zoning"),
+      boundaryLines: visibleLayers.has("parcel-polygon"),
+    });
+  }
+
   function applyParcelTiles() {
     if (!map || !styleReady) return;
     if (parcelTilesCfg && parcelTilesCfg.url && parcelTilesCfg.sourceLayer) {
       addParcelTiles(map, parcelTilesCfg);
       parcelTilesApplied = true;
+      // Apply the toggle set to the freshly-added layers so a pre-toggled
+      // "zoning off" / "boundary off" state is honored from first paint.
+      applyParcelTileToggles();
       // Re-assert any pending subject/inspected state now the source exists.
       const sl = parcelTilesCfg.sourceLayer;
       if (subjectNodeId != null) {
@@ -612,6 +630,9 @@ export function createMapRenderer() {
     setLayerVisibility(visible) {
       visibleLayers = new Set(visible);
       applyLayerVisibility();
+      // The PMTiles browse-parcel layers bind to "zoning" / "parcel-polygon"
+      // toggles too (separate gating: styleReady, not isStyleLoaded).
+      applyParcelTileToggles();
     },
 
     /**

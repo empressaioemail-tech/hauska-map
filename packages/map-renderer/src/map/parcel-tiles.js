@@ -42,8 +42,25 @@ export const DEFAULT_PROMOTE_ID = "parcel_node_id";
 /**
  * Base choropleth fill opacity, lifted for the subject and nudged for inspected.
  * Uses ONLY fill-opacity from feature-state (safe — no dasharray/gradient).
+ *
+ * `zoningFill=false` (the LAYERS-panel "Zoning / land use" toggle OFF) drops the
+ * base choropleth to fully transparent so unchecking the row actually removes
+ * the parcel color fill. Subject/inspected are SELECTION states, not a data
+ * layer — they keep a (dimmer, neutral-colored) highlight so the current
+ * selection never vanishes. Opacity-only: the fill layer stays `visible` so
+ * click-to-inspect (queryRenderedFeatures on the fill) keeps working.
  */
-function parcelFillOpacityExpr() {
+function parcelFillOpacityExpr(zoningFill = true) {
+  if (!zoningFill) {
+    return [
+      "case",
+      ["boolean", ["feature-state", "subject"], false],
+      0.55,
+      ["boolean", ["feature-state", "inspected"], false],
+      0.25,
+      0,
+    ];
+  }
   return [
     "case",
     ["boolean", ["feature-state", "subject"], false],
@@ -57,28 +74,35 @@ function parcelFillOpacityExpr() {
 /**
  * Subject = a bright fill-color boost; inspected + base = the land-use choropleth.
  * Feature-state drives only fill-color (safe).
+ *
+ * With `zoningFill=false` the land-use choropleth is replaced by a NEUTRAL
+ * highlight color so no zoning/land-use encoding leaks through the selection
+ * states while the layer is toggled off.
  */
-function parcelFillColorExpr() {
+function parcelFillColorExpr(zoningFill = true) {
   return [
     "case",
     ["boolean", ["feature-state", "subject"], false],
     "#fff2b0",
-    landUseFillColorExpr(),
+    zoningFill ? landUseFillColorExpr() : "#9ec9e8",
   ];
 }
 
 /**
  * Line color: subject = bright glow yellow, inspected = light outline, else the
  * land-use stroke. Feature-state drives only line-color (safe).
+ *
+ * With `zoningFill=false` the base stroke goes NEUTRAL so the boundary layer
+ * carries no zoning/land-use color encoding while that toggle is off.
  */
-function parcelLineColorExpr() {
+function parcelLineColorExpr(zoningFill = true) {
   return [
     "case",
     ["boolean", ["feature-state", "subject"], false],
     "#ffe14d",
     ["boolean", ["feature-state", "inspected"], false],
     "#cfe8ff",
-    landUseLineColorExpr(),
+    zoningFill ? landUseLineColorExpr() : "rgba(154,166,178,0.75)",
   ];
 }
 
@@ -198,6 +222,65 @@ export function addParcelTiles(map, cfg) {
         "line-blur": parcelLineBlurExpr(),
       },
     });
+  }
+}
+
+/**
+ * Bind the PMTiles browse-parcel layers to the LAYERS-panel toggle set.
+ *
+ *   - `zoningFill` ← the "zoning" registry key ("Zoning / land use"). OFF drops
+ *     the land-use choropleth fill to transparent and neutralizes the base
+ *     stroke color, via PAINT ONLY (no layout visibility flip) so the fill
+ *     layer keeps receiving clicks (inspect stays live) and toggling never
+ *     removes/re-adds a layer (no flicker, no tile reload).
+ *   - `boundaryLines` ← the "parcel-polygon" registry key ("Parcel boundary").
+ *     OFF hides the line + glow layers via layout visibility (cheap, no
+ *     source work). The fill layer is untouched by this flag — zoning fill is
+ *     its own toggle.
+ *
+ * Idempotent + cheap: safe to call on every visibility-set change.
+ *
+ * @param {import('maplibre-gl').Map} map
+ * @param {{ zoningFill?: boolean, boundaryLines?: boolean }} toggles
+ */
+export function setParcelTilesToggles(map, toggles = {}) {
+  if (!map || !map.getSource(PARCEL_TILES_SOURCE_ID)) return;
+  const zoningFill = toggles.zoningFill !== false;
+  const boundaryLines = toggles.boundaryLines !== false;
+  try {
+    if (map.getLayer(PARCEL_TILES_FILL_ID)) {
+      map.setPaintProperty(
+        PARCEL_TILES_FILL_ID,
+        "fill-color",
+        parcelFillColorExpr(zoningFill),
+      );
+      map.setPaintProperty(
+        PARCEL_TILES_FILL_ID,
+        "fill-opacity",
+        parcelFillOpacityExpr(zoningFill),
+      );
+    }
+    if (map.getLayer(PARCEL_TILES_LINE_ID)) {
+      map.setLayoutProperty(
+        PARCEL_TILES_LINE_ID,
+        "visibility",
+        boundaryLines ? "visible" : "none",
+      );
+      map.setPaintProperty(
+        PARCEL_TILES_LINE_ID,
+        "line-color",
+        parcelLineColorExpr(zoningFill),
+      );
+    }
+    if (map.getLayer(PARCEL_TILES_GLOW_ID)) {
+      map.setLayoutProperty(
+        PARCEL_TILES_GLOW_ID,
+        "visibility",
+        boundaryLines ? "visible" : "none",
+      );
+    }
+  } catch {
+    /* style mid-swap — next applyLayerVisibility re-asserts */
   }
 }
 

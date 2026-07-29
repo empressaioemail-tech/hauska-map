@@ -160,6 +160,7 @@ export type {
 export {
   LayersControl,
   MapTools,
+  MapToolset,
   asMaplibreMap,
   setSatelliteBase,
   SATELLITE_ATTRIBUTION,
@@ -168,6 +169,7 @@ export {
   SHARED_PARCEL_TILES,
 } from "./chrome/index";
 export type {
+  LayerStateBadge,
   MapToolsController,
   ToolsSnapshot,
   ToolKind,

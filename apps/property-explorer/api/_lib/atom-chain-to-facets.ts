@@ -147,6 +147,8 @@ export interface PeBakedFacetsResponse {
   snapshotAt: string | null;
   facets: PeBakedFacetPayload;
   readPath: "atom-chain" | "atom-chain-warm";
+  /** True when baked cortex base facts were merged onto the atom-chain read. */
+  baseFactsMerged?: boolean;
 }
 
 export function isPropertyAtomPathEnabled(
@@ -236,6 +238,102 @@ function mapSetbacks(
     side_ft: side,
     rear_ft: rear,
     ...(not_specified ? { not_specified } : {}),
+  };
+}
+
+/**
+ * Merge the BAKED cortex base facts into an atom-chain facets response
+ * (map UX cluster item 6 — data-path fix).
+ *
+ * The cortex facets endpoint serves acreage for ~100% of Bastrop parcels and
+ * land-use for ~98.8%, but the atom-chain adapter hardcoded
+ * facetCoverage.landUse/acreage to false and carried no base facts, so the
+ * card said "not verified here" for facts that ARE verified. This merge adopts
+ * ONLY the baked BASE FACTS (land-use, acreage, situs address/city/state,
+ * county name) plus their coverage flags and land-use provenance.
+ *
+ * NEVER adopted (anti-zombie, Master WDLL 3.7): cortex zoning and cortex
+ * envelope — the atom chain stays the sole product truth for both.
+ *
+ * Honesty: a baked-absent fact (null value, coverage false) stays honestly
+ * absent — nothing is defaulted or invented. An unusable baked body returns
+ * the atom response unchanged.
+ */
+export function mergeBakedBaseFacts(
+  atomResponse: PeBakedFacetsResponse,
+  bakedBody: unknown,
+): PeBakedFacetsResponse {
+  const baked = (bakedBody as { facets?: PeBakedFacetPayload } | null | undefined)
+    ?.facets;
+  if (!baked || typeof baked !== "object") return atomResponse;
+
+  const bakedBase = baked.baseFacts ?? {};
+  const bakedCov = baked.facetCoverage ?? {};
+  const atomFacets = atomResponse.facets;
+  const atomBase = atomFacets.baseFacts ?? {};
+
+  const landUse =
+    bakedBase.landUse &&
+    typeof bakedBase.landUse === "object" &&
+    typeof bakedBase.landUse.code === "string" &&
+    bakedBase.landUse.code.trim()
+      ? bakedBase.landUse
+      : null;
+  const acreage =
+    bakedBase.acreage &&
+    typeof bakedBase.acreage === "object" &&
+    typeof bakedBase.acreage.value === "number" &&
+    Number.isFinite(bakedBase.acreage.value)
+      ? bakedBase.acreage
+      : null;
+  const situsAddress =
+    typeof bakedBase.situsAddress === "string" && bakedBase.situsAddress.trim()
+      ? bakedBase.situsAddress
+      : atomBase.situsAddress ?? null;
+  const apn =
+    (typeof atomBase.apn === "string" && atomBase.apn.trim() ? atomBase.apn : null) ??
+    (typeof bakedBase.apn === "string" && bakedBase.apn.trim() ? bakedBase.apn : null);
+
+  return {
+    ...atomResponse,
+    baseFactsMerged: true,
+    facets: {
+      ...atomFacets,
+      countyFips: atomFacets.countyFips ?? baked.countyFips,
+      countyName:
+        typeof baked.countyName === "string" && baked.countyName.trim()
+          ? baked.countyName
+          : atomFacets.countyName,
+      baseFacts: {
+        apn,
+        situsAddress,
+        situsCity: bakedBase.situsCity ?? null,
+        situsState: bakedBase.situsState ?? null,
+        landUse,
+        acreage,
+      },
+      facetCoverage: {
+        ...atomFacets.facetCoverage,
+        baseFacts:
+          atomFacets.facetCoverage?.baseFacts === true ||
+          bakedCov.baseFacts === true ||
+          !!apn,
+        // Coverage true when the baked side covers the facet OR carries a real
+        // value; a baked-absent facet stays false (honest absence).
+        landUse: bakedCov.landUse === true || !!landUse,
+        acreage: bakedCov.acreage === true || !!acreage,
+        // zoning + envelope stay ATOM-OWNED — never adopted from cortex.
+      },
+      provenance: {
+        ...atomFacets.provenance,
+        parcelVintage:
+          baked.provenance?.parcelVintage ??
+          atomFacets.provenance?.parcelVintage ??
+          null,
+        landUseSource: baked.provenance?.landUseSource ?? null,
+        landUseGateBlocked: baked.provenance?.landUseGateBlocked === true,
+      },
+    },
   };
 }
 
