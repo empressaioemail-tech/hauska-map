@@ -33,11 +33,13 @@ import {
   savedRowDisplayLabel,
   sanitizeDrawings,
   type DossierFeatureCollection,
+  type DossierStatus,
 } from "../../lib/propertyDossier";
+import { pinAccent, resolvePinForSave } from "../../lib/saved-pins";
 import { googleSignInUrl } from "../../lib/auth";
 import { parcelNodes } from "../../lib/parcel-node-store.js";
 import { useWorkbench } from "../WorkbenchContext";
-import { PropertyDossierDetail } from "./PropertyDossierDetail";
+import { PropertyDossierDetail, STATUS_LABELS } from "./PropertyDossierDetail";
 
 const MUTED = "#9aa6b2";
 const AMBER = "#fcd34d";
@@ -54,6 +56,21 @@ type ListPhase =
 export type PropertiesView =
   | { kind: "list" }
   | { kind: "detail"; parcelNodeId: string };
+
+/** WB7d — list filter value: all, or one of the three statuses. */
+export type StatusFilter = "all" | DossierStatus;
+
+/** The filter row only appears once the list outgrows this (keep small lists clean). */
+export const STATUS_FILTER_MIN_ENTRIES = 6;
+
+/** Apply the status filter ("all" passes everything through). */
+export function filterRowsByStatus(
+  items: SavedPropertyRow[],
+  filter: StatusFilter,
+): SavedPropertyRow[] {
+  if (filter === "all") return items;
+  return items.filter((row) => (row.snapshot?.status ?? null) === filter);
+}
 
 /** Best-effort label for the ACTIVE property from the ported node store. */
 export function activePropertyLabel(activeParcelNodeId: string): string | null {
@@ -74,6 +91,34 @@ export function activePropertyLabel(activeParcelNodeId: string): string | null {
   return null;
 }
 
+/** WB7c — best-effort centroid for the ACTIVE property from the node store
+ *  (the save flow's known center; resolvePinForSave falls back from here). */
+export function activePropertyCenter(
+  activeParcelNodeId: string,
+): { lat: number; lng: number } | null {
+  const store = parcelNodes as {
+    getInspected?: () => {
+      attrs?: { parcelNodeId?: unknown };
+      centroid?: { lat?: unknown; lng?: unknown } | null;
+    } | null;
+    getSubject?: () => {
+      attrs?: { parcelNodeId?: unknown };
+      centroid?: { lat?: unknown; lng?: unknown } | null;
+    } | null;
+  };
+  for (const node of [store.getInspected?.(), store.getSubject?.()]) {
+    if (
+      node &&
+      node.attrs?.parcelNodeId === activeParcelNodeId &&
+      typeof node.centroid?.lat === "number" &&
+      typeof node.centroid?.lng === "number"
+    ) {
+      return { lat: node.centroid.lat, lng: node.centroid.lng };
+    }
+  }
+  return null;
+}
+
 function fmtDate(iso: string | null): string | null {
   if (!iso) return null;
   const ts = new Date(iso).getTime();
@@ -89,6 +134,8 @@ export function PropertiesList({
   phase,
   activeParcelNodeId,
   busy,
+  statusFilter = "all",
+  onStatusFilterChange,
   onSaveCurrent,
   onOpen,
   onRemove,
@@ -96,6 +143,10 @@ export function PropertiesList({
   phase: ListPhase;
   activeParcelNodeId: string | null;
   busy: boolean;
+  /** WB7d — active status filter; the row only renders on lists with more
+   *  than 5 entries (small lists stay clean). */
+  statusFilter?: StatusFilter;
+  onStatusFilterChange?: (filter: StatusFilter) => void;
   onSaveCurrent: () => void;
   /** Open the dossier DETAIL view AND navigate the map (the reopen flight). */
   onOpen: (parcelNodeId: string) => void;
@@ -130,6 +181,10 @@ export function PropertiesList({
   const activeSaved =
     activeParcelNodeId !== null &&
     items.some((row) => row.parcelNodeId === activeParcelNodeId);
+  // WB7d — the filter row appears only once the list outgrows a handful of
+  // entries; filtering applies to the RENDERED rows (server order preserved).
+  const showFilter = items.length >= STATUS_FILTER_MIN_ENTRIES;
+  const visibleItems = showFilter ? filterRowsByStatus(items, statusFilter) : items;
 
   return (
     <div data-testid="properties-list">
@@ -157,13 +212,50 @@ export function PropertiesList({
         </button>
       )}
 
+      {showFilter && (
+        <div
+          data-testid="properties-status-filter"
+          style={{ display: "flex", gap: 5, marginBottom: 8, flexWrap: "wrap" }}
+        >
+          {(["all", "researching", "offer", "passed"] as const).map((f) => {
+            const selected = statusFilter === f;
+            const accent = f === "all" ? ACCENT : pinAccent(f);
+            return (
+              <button
+                key={f}
+                type="button"
+                data-testid={`properties-filter-${f}`}
+                aria-pressed={selected}
+                onClick={() => onStatusFilterChange?.(f)}
+                style={{
+                  fontSize: 10,
+                  fontWeight: 600,
+                  padding: "2px 8px",
+                  borderRadius: 999,
+                  cursor: "pointer",
+                  color: selected ? "#0d1117" : accent,
+                  background: selected ? accent : "transparent",
+                  border: `1px solid ${accent}`,
+                }}
+              >
+                {f === "all" ? "All" : STATUS_LABELS[f]}
+              </button>
+            );
+          })}
+        </div>
+      )}
+
       {items.length === 0 ? (
         <p data-testid="properties-empty" style={{ margin: 0, fontSize: 11.5, color: MUTED }}>
           No saved properties yet. Click a parcel on the map and save it — your
           workspace lives on the server, not this browser.
         </p>
+      ) : visibleItems.length === 0 ? (
+        <p data-testid="properties-filter-empty" style={{ margin: 0, fontSize: 11.5, color: MUTED }}>
+          No saved properties with this status.
+        </p>
       ) : (
-        items.map((row) => {
+        visibleItems.map((row) => {
           const date = fmtDate(row.updatedAt) ?? fmtDate(row.snapshot?.savedAt ?? null);
           // WB6 label fallback chain: label → dossier address → parcel id.
           // cleanDisplayString inside guarantees no ", ," artifacts render.
@@ -174,6 +266,7 @@ export function PropertiesList({
             row.snapshot?.chatSummary || row.snapshot?.chatThread ? "chat" : null,
             row.snapshot?.exports?.length ? "exports" : null,
           ].filter((b): b is string => b !== null);
+          const status = row.snapshot?.status ?? null;
           return (
             <div
               key={row.parcelNodeId}
@@ -205,6 +298,23 @@ export function PropertiesList({
                 }}
               >
                 <span style={{ fontWeight: 600 }}>{title}</span>
+                {status && (
+                  <span
+                    data-testid="properties-status-chip"
+                    style={{
+                      marginLeft: 6,
+                      fontSize: 9,
+                      fontWeight: 700,
+                      padding: "1px 6px",
+                      borderRadius: 999,
+                      color: pinAccent(status),
+                      border: `1px solid ${pinAccent(status)}`,
+                      verticalAlign: "middle",
+                    }}
+                  >
+                    {STATUS_LABELS[status]}
+                  </span>
+                )}
                 <span style={{ display: "block", fontSize: 10, color: MUTED }}>
                   {title === row.parcelNodeId ? "parcel" : row.parcelNodeId}
                   {date ? ` · saved ${date}` : ""}
@@ -245,6 +355,8 @@ export function PropertiesTool() {
   const [view, setView] = useState<PropertiesView>({ kind: "list" });
   // Transient dossier-action outcome shown in the detail view (honest line).
   const [dossierNotice, setDossierNotice] = useState<string | null>(null);
+  // WB7d — transient list filter (renders only on lists with >5 entries).
+  const [statusFilter, setStatusFilter] = useState<StatusFilter>("all");
 
   const refresh = useCallback(async () => {
     const outcome = await listSavedProperties();
@@ -301,10 +413,19 @@ export function PropertiesTool() {
     const label = activePropertyLabel(activeParcelNodeId);
     // WB6: seed the dossier — savedAt/address plus the CURRENT map drawings.
     const drawings = sanitizeDrawings(host.getMapDrawings?.() ?? null);
+    // WB7c: save-time pin — the node store's known centroid, else ONE pass
+    // through the #104 center-resolution chain; unresolvable → honestly none.
+    const center = activePropertyCenter(activeParcelNodeId);
+    const pin = await resolvePinForSave(
+      activeParcelNodeId,
+      center?.lat ?? null,
+      center?.lng ?? null,
+    );
     const outcome = await savePropertyWithDossier(activeParcelNodeId, {
       label,
       address: label,
       drawings: drawings ?? undefined,
+      pin: pin ?? undefined,
     });
     setBusy(false);
     applyMutationOutcome(outcome);
@@ -385,6 +506,23 @@ export function PropertiesTool() {
     [host],
   );
 
+  // WB7d — persist the single-select status (null clears). Quiet on ok; the
+  // change notification refreshes the list (and the map pins' accent).
+  const handleSetStatus = useCallback(
+    async (parcelNodeId: string, status: DossierStatus | null) => {
+      const outcome = await updatePropertyDossier(parcelNodeId, { status });
+      if (outcome.kind === "not-saved") {
+        setDossierNotice("This property is no longer saved — status not stored.");
+      } else if (outcome.kind !== "ok") {
+        setDossierNotice("Status could not be saved — try again.");
+        applyMutationOutcome(outcome);
+      } else {
+        setDossierNotice(null);
+      }
+    },
+    [applyMutationOutcome],
+  );
+
   const handleSaveNotes = useCallback(
     async (parcelNodeId: string, text: string) => {
       const outcome = await updatePropertyDossier(parcelNodeId, {
@@ -438,6 +576,7 @@ export function PropertiesTool() {
         onSaveDrawings={() => void handleSaveDrawings(row.parcelNodeId)}
         onShowDrawings={() => handleShowDrawings(row)}
         onSaveNotes={(text) => void handleSaveNotes(row.parcelNodeId, text)}
+        onSetStatus={(status) => void handleSetStatus(row.parcelNodeId, status)}
       />
     );
   }
@@ -447,6 +586,8 @@ export function PropertiesTool() {
       phase={phase}
       activeParcelNodeId={activeParcelNodeId}
       busy={busy}
+      statusFilter={statusFilter}
+      onStatusFilterChange={setStatusFilter}
       onSaveCurrent={() => void handleSaveCurrent()}
       onOpen={handleOpen}
       onRemove={(id) => void handleRemove(id)}

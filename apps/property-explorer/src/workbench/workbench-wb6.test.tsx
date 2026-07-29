@@ -48,6 +48,7 @@ function renderDetail(row: SavedPropertyRow, notice: string | null = null): stri
       onSaveDrawings={noop}
       onShowDrawings={noop}
       onSaveNotes={noop}
+      onSetStatus={noop}
     />,
   );
 }

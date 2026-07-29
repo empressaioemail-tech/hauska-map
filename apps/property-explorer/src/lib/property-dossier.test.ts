@@ -9,6 +9,8 @@ import {
   dossierFromSnapshot,
   sanitizeDossier,
   sanitizeDrawings,
+  sanitizePin,
+  sanitizeStatus,
   savedRowDisplayLabel,
   upsertExportEntry,
   DOSSIER_CHAT_MAX_TURNS,
@@ -121,6 +123,62 @@ describe('sanitizeDossier caps', () => {
     expect(dossierFromSnapshot({ notes: 'hi', chatSummary: { bogus: true } })).toEqual({
       notes: 'hi',
     })
+  })
+})
+
+describe('WB7 pin + status — additive schema, defensive parse', () => {
+  it('SCHEMA ADDITIVITY: old dossiers without pin/status parse unchanged', () => {
+    const oldSnapshot = {
+      savedAt: '2026-07-01T00:00:00Z',
+      address: '104 Main St',
+      notes: 'pre-WB7 dossier',
+    }
+    const parsed = dossierFromSnapshot(oldSnapshot)
+    expect(parsed).toEqual({
+      savedAt: '2026-07-01T00:00:00Z',
+      address: '104 Main St',
+      notes: 'pre-WB7 dossier',
+    })
+    expect(parsed!.pin).toBeUndefined()
+    expect(parsed!.status).toBeUndefined()
+  })
+
+  it('valid pin + status round-trip through sanitize/parse', () => {
+    const parsed = dossierFromSnapshot({
+      pin: { lat: 30.123456789, lng: -97.987654321 },
+      status: 'offer',
+      notes: 'x',
+    })
+    expect(parsed!.pin).toEqual({ lat: 30.123457, lng: -97.987654 })
+    expect(parsed!.status).toBe('offer')
+  })
+
+  it('sanitizePin drops malformed / out-of-bounds / non-finite coordinates', () => {
+    expect(sanitizePin(null)).toBeNull()
+    expect(sanitizePin('30,-97')).toBeNull()
+    expect(sanitizePin({ lat: '30', lng: '-97' })).toBeNull()
+    expect(sanitizePin({ lat: NaN, lng: -97 })).toBeNull()
+    expect(sanitizePin({ lat: 91, lng: -97 })).toBeNull()
+    expect(sanitizePin({ lat: 30, lng: 181 })).toBeNull()
+    expect(sanitizePin({ lat: 30.1, lng: -97.2 })).toEqual({ lat: 30.1, lng: -97.2 })
+  })
+
+  it('sanitizeStatus accepts only the three-state union', () => {
+    expect(sanitizeStatus('researching')).toBe('researching')
+    expect(sanitizeStatus('offer')).toBe('offer')
+    expect(sanitizeStatus('passed')).toBe('passed')
+    expect(sanitizeStatus('bought')).toBeNull()
+    expect(sanitizeStatus(1)).toBeNull()
+    expect(sanitizeStatus(null)).toBeNull()
+  })
+
+  it('hostile pin/status in a snapshot are dropped, never thrown', () => {
+    const parsed = dossierFromSnapshot({
+      notes: 'kept',
+      pin: { lat: 'evil', lng: {} },
+      status: 'DROP TABLE',
+    })
+    expect(parsed).toEqual({ notes: 'kept' })
   })
 })
 

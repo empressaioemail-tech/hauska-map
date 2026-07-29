@@ -59,6 +59,29 @@ export interface DossierChatSummary {
 
 export type DossierExportKind = "site-plan" | "terrain";
 
+/**
+ * WB7c: the property's map-pin coordinate, captured ONCE at save time from the
+ * inspect-card / facets center (or the #104 center-resolution chain when the
+ * card carried none). Absent stays absent — a saved property with no resolvable
+ * center honestly renders no pin, never a fabricated location.
+ */
+export interface DossierPin {
+  lat: number;
+  lng: number;
+}
+
+/**
+ * WB7d: single-select pipeline status (v1). No freeform tags yet — flagged as
+ * a follow-up; adding a `tags?: string[]` later is additive under the same
+ * defensive-parse rules.
+ */
+export type DossierStatus = "researching" | "offer" | "passed";
+export const DOSSIER_STATUSES: readonly DossierStatus[] = [
+  "researching",
+  "offer",
+  "passed",
+];
+
 export interface DossierExportEntry {
   kind: DossierExportKind;
   format: string;
@@ -70,6 +93,10 @@ export interface DossierExportEntry {
 export interface PropertyDossier {
   savedAt?: string | null;
   address?: string | null;
+  /** WB7c — save-time map-pin coordinate; null/absent = honestly no pin. */
+  pin?: DossierPin | null;
+  /** WB7d — single-select status; null/absent = unset. */
+  status?: DossierStatus | null;
   drawings?: DossierFeatureCollection | null;
   chatSummary?: DossierChatSummary | null;
   chatThread?: DossierChatTurn[] | null;
@@ -223,6 +250,36 @@ function sanitizeChatSummary(value: unknown): DossierChatSummary | null {
   };
 }
 
+/** Valid pin = finite lat/lng inside world bounds, rounded to ~11 cm. */
+export function sanitizePin(value: unknown): DossierPin | null {
+  const rec = asRecord(value);
+  if (!rec) return null;
+  const lat = rec.lat;
+  const lng = rec.lng;
+  if (
+    typeof lat !== "number" ||
+    typeof lng !== "number" ||
+    !Number.isFinite(lat) ||
+    !Number.isFinite(lng) ||
+    Math.abs(lat) > 90 ||
+    Math.abs(lng) > 180
+  ) {
+    return null;
+  }
+  return {
+    lat: Number(lat.toFixed(COORD_DECIMALS)),
+    lng: Number(lng.toFixed(COORD_DECIMALS)),
+  };
+}
+
+/** Single-select status — anything outside the union is dropped, never thrown. */
+export function sanitizeStatus(value: unknown): DossierStatus | null {
+  return typeof value === "string" &&
+    (DOSSIER_STATUSES as readonly string[]).includes(value)
+    ? (value as DossierStatus)
+    : null;
+}
+
 function sanitizeExports(value: unknown): DossierExportEntry[] {
   if (!Array.isArray(value)) return [];
   const entries: DossierExportEntry[] = [];
@@ -257,6 +314,10 @@ export function sanitizeDossier(input: PropertyDossier): PropertyDossier {
   if (str(input.savedAt ?? null)) out.savedAt = input.savedAt ?? null;
   const address = cleanDisplayString(input.address ?? null);
   if (address) out.address = address;
+  const pin = input.pin ? sanitizePin(input.pin) : null;
+  if (pin) out.pin = pin;
+  const status = sanitizeStatus(input.status ?? null);
+  if (status) out.status = status;
   const drawings = input.drawings ? sanitizeDrawings(input.drawings) : null;
   if (drawings) out.drawings = drawings;
   const chatSummary = input.chatSummary

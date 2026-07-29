@@ -243,4 +243,89 @@ describe('savePropertyWithDossier — seeded save merges, never clobbers', () =>
     expect(body.snapshot.address).toBe('9 Oak Ln')
     expect(typeof body.snapshot.savedAt).toBe('string')
   })
+
+  it('WB7c: first save seeds the pin; a re-save NEVER drags an existing pin', async () => {
+    // First save: no existing row — the seed pin lands.
+    const first = listThenPut([])
+    await savePropertyWithDossier(
+      '48021:9',
+      { label: '9 Oak Ln', pin: { lat: 30.1, lng: -97.2 } },
+      first.fetch,
+    )
+    const firstPut = first.calls().find(([, init]) => init?.method === 'PUT')!
+    expect(JSON.parse(firstPut[1].body as string).snapshot.pin).toEqual({
+      lat: 30.1,
+      lng: -97.2,
+    })
+
+    // Re-save with a DIFFERENT seed pin: the existing pin wins.
+    const existing = {
+      parcelNodeId: '48021:9',
+      label: '9 Oak Ln',
+      updatedAt: '2026-07-28T00:00:00Z',
+      snapshot: { savedAt: '2026-07-01T00:00:00Z', pin: { lat: 30.1, lng: -97.2 } },
+    }
+    const second = listThenPut([existing])
+    await savePropertyWithDossier(
+      '48021:9',
+      { label: '9 Oak Ln', pin: { lat: 44.4, lng: -88.8 } },
+      second.fetch,
+    )
+    const secondPut = second.calls().find(([, init]) => init?.method === 'PUT')!
+    expect(JSON.parse(secondPut[1].body as string).snapshot.pin).toEqual({
+      lat: 30.1,
+      lng: -97.2,
+    })
+  })
+})
+
+describe('WB7d status — set / persist round-trip via the ONE dossier write path', () => {
+  const savedRow = {
+    parcelNodeId: '48021:2',
+    label: '104 Main St',
+    updatedAt: '2026-07-28T00:00:00Z',
+    snapshot: { notes: 'old notes', savedAt: '2026-07-01T00:00:00Z' },
+  }
+
+  it('status patch PUTs the merged snapshot with status (other fields survive)', async () => {
+    const { fetch: f, calls } = listThenPut([savedRow])
+    const outcome = await updatePropertyDossier('48021:2', { status: 'researching' }, f)
+    expect(outcome).toEqual({ kind: 'ok' })
+    const put = calls().find(([, init]) => init?.method === 'PUT')!
+    const body = JSON.parse(put[1].body as string)
+    expect(body.snapshot.status).toBe('researching')
+    expect(body.snapshot.notes).toBe('old notes')
+  })
+
+  it('status: null clears back to unset (dropped from the written snapshot)', async () => {
+    const withStatus = {
+      ...savedRow,
+      snapshot: { ...savedRow.snapshot, status: 'offer' },
+    }
+    const { fetch: f, calls } = listThenPut([withStatus])
+    await updatePropertyDossier('48021:2', { status: null }, f)
+    const put = calls().find(([, init]) => init?.method === 'PUT')!
+    const body = JSON.parse(put[1].body as string)
+    expect(body.snapshot.status).toBeUndefined()
+    expect(body.snapshot.notes).toBe('old notes')
+  })
+
+  it('the parsed list row carries status + pin back out (round trip)', async () => {
+    const rows = [
+      {
+        parcelNodeId: '48021:2',
+        label: '104 Main St',
+        updatedAt: '2026-07-29T00:00:00Z',
+        snapshot: { status: 'passed', pin: { lat: 30.1, lng: -97.2 } },
+      },
+    ]
+    const outcome = await listSavedProperties(fakeFetch(200, rows))
+    expect(outcome.kind).toBe('ready')
+    if (outcome.kind === 'ready') {
+      expect(outcome.items[0].snapshot).toEqual({
+        status: 'passed',
+        pin: { lat: 30.1, lng: -97.2 },
+      })
+    }
+  })
 })
