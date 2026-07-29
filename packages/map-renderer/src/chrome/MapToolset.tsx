@@ -1,8 +1,10 @@
 // packages/map-renderer/src/chrome/MapToolset.tsx
 //
-// ONE upper-right map control cluster: the TOOLS toolbar (satellite/aerial
-// base toggle, measure, draw, marker, clear, GeolocateControl) merged with the
-// LAYERS checklist into a single coherent panel. Replaces the split
+// ONE map control cluster: the TOOLS toolbar (satellite/aerial base toggle,
+// measure, draw, marker, clear, and the in-panel "My location" geolocate
+// button — the GeolocateControl itself is mounted hidden on the map and
+// triggered from the panel, never shown as a floating map button) merged with
+// the LAYERS checklist into a single coherent panel. Replaces the split
 // LayersControl (top-right) + MapTools (bottom-right) pair on surfaces that
 // want the unified toolset; the split components remain exported for
 // consumers that still use them (CC).
@@ -65,6 +67,9 @@ const ICONS = {
   marker:
     "M12 21s7-6.5 7-12a7 7 0 1 0-14 0c0 5.5 7 12 7 12Zm0-9a2.5 2.5 0 1 0 0-5 2.5 2.5 0 0 0 0 5Z",
   clear: "M3 6h18M8 6V4h8v2M6 6l1 14h10l1-14",
+  // Crosshair / GPS glyph for the in-panel "My location" button.
+  locate:
+    "M12 8a4 4 0 1 0 0 8 4 4 0 0 0 0-8Zm0-6v3m0 14v3M2 12h3m14 0h3",
 } as const;
 
 function ToolIcon({ path }: { path: string }) {
@@ -117,6 +122,166 @@ function labelFor(key: LayerKey): string {
   return entry?.label ?? key;
 }
 
+/**
+ * The TOOLS section of the toolset panel — pure presentational (no map/effect
+ * dependency), exported so it is unit-testable via a static render. Includes
+ * the in-panel "My location" button (the GeolocateControl now lives HIDDEN on
+ * the map and is driven from here — no floating GPS button on the map corner).
+ */
+export function ToolsetToolsSection({
+  active,
+  measureMode,
+  readout,
+  satellite,
+  tracking,
+  onActivate,
+  onClear,
+  onSetMeasureMode,
+  onSatelliteChange,
+  onLocate,
+}: {
+  active: ToolsSnapshot["active"];
+  measureMode: ToolsSnapshot["measureMode"];
+  readout: string | null;
+  satellite: boolean;
+  /** True while the hidden GeolocateControl is tracking the user location. */
+  tracking: boolean;
+  onActivate: (tool: "measure" | "draw" | "marker") => void;
+  onClear: () => void;
+  onSetMeasureMode: (mode: "line" | "area") => void;
+  onSatelliteChange: (on: boolean) => void;
+  /** Trigger / toggle the hidden GeolocateControl. */
+  onLocate: () => void;
+}) {
+  return (
+    <div data-testid="map-toolset-tools">
+      <div style={{ ...sectionHeaderStyle(), marginBottom: 7 }}>Tools</div>
+      <div style={{ display: "flex", gap: 6 }}>
+        <button
+          type="button"
+          title="Measure distance / area"
+          aria-label="Measure distance or area"
+          aria-pressed={active === "measure"}
+          onClick={() => onActivate("measure")}
+          style={toolButtonStyle(active === "measure")}
+        >
+          <ToolIcon path={ICONS.measure} />
+        </button>
+        <button
+          type="button"
+          title="Draw / annotate"
+          aria-label="Draw or annotate"
+          aria-pressed={active === "draw"}
+          onClick={() => onActivate("draw")}
+          style={toolButtonStyle(active === "draw")}
+        >
+          <ToolIcon path={ICONS.draw} />
+        </button>
+        <button
+          type="button"
+          title="Drop a marker"
+          aria-label="Drop a marker"
+          aria-pressed={active === "marker"}
+          onClick={() => onActivate("marker")}
+          style={toolButtonStyle(active === "marker")}
+        >
+          <ToolIcon path={ICONS.marker} />
+        </button>
+        <button
+          type="button"
+          title="Clear measure / draw"
+          aria-label="Clear measure and draw"
+          onClick={onClear}
+          style={toolButtonStyle(false)}
+        >
+          <ToolIcon path={ICONS.clear} />
+        </button>
+        <button
+          type="button"
+          data-testid="map-toolset-locate"
+          title="My location"
+          aria-label="My location"
+          aria-pressed={tracking}
+          onClick={onLocate}
+          style={toolButtonStyle(tracking)}
+        >
+          <ToolIcon path={ICONS.locate} />
+        </button>
+      </div>
+
+      {/* Measure sub-mode (distance / area), only while measuring. */}
+      {active === "measure" && (
+        <div
+          style={{
+            display: "inline-flex",
+            marginTop: 7,
+            padding: 3,
+            gap: 3,
+            borderRadius: 8,
+            background: "rgba(154,166,178,0.1)",
+            border: "0.5px solid rgba(154,166,178,0.2)",
+          }}
+        >
+          {(["line", "area"] as const).map((mode) => (
+            <button
+              key={mode}
+              type="button"
+              onClick={() => onSetMeasureMode(mode)}
+              style={{
+                padding: "4px 10px",
+                borderRadius: 6,
+                border: "none",
+                cursor: "pointer",
+                fontSize: 11,
+                fontWeight: 700,
+                color: measureMode === mode ? "#0b0f14" : MUTED,
+                background: measureMode === mode ? ACCENT : "transparent",
+              }}
+            >
+              {mode === "line" ? "Distance" : "Area"}
+            </button>
+          ))}
+        </div>
+      )}
+
+      {/* Running measure/draw readout. */}
+      {readout && (
+        <div
+          style={{
+            marginTop: 7,
+            fontSize: 11,
+            fontWeight: 600,
+            color: TEXT,
+          }}
+        >
+          {readout}
+        </div>
+      )}
+
+      {/* Satellite / aerial base toggle. */}
+      <label
+        style={{
+          display: "flex",
+          alignItems: "center",
+          gap: 8,
+          marginTop: 8,
+          cursor: "pointer",
+          fontSize: 11.5,
+          color: TEXT,
+        }}
+      >
+        <input
+          type="checkbox"
+          checked={satellite}
+          onChange={(e) => onSatelliteChange(e.target.checked)}
+          style={{ accentColor: ACCENT, cursor: "pointer" }}
+        />
+        <span>Satellite / aerial</span>
+      </label>
+    </div>
+  );
+}
+
 export function MapToolset({
   mapRef,
   known,
@@ -146,6 +311,9 @@ export function MapToolset({
     readout: null,
   });
   const [satellite, setSatellite] = useState(false);
+  // True while the hidden GeolocateControl is tracking the user's location —
+  // drives the pressed state of the in-panel "My location" button.
+  const [tracking, setTracking] = useState(false);
 
   // Resolve the live map from the renderer handle. FloatingMap mounts the map
   // asynchronously, so poll briefly until getMap() returns a usable instance.
@@ -166,6 +334,14 @@ export function MapToolset({
 
   // Install the measure/draw controller + the GeolocateControl on the live map.
   // Torn down on unmount / map change — never remounts the map.
+  //
+  // The GeolocateControl is mounted HIDDEN (its own floating button is not
+  // shown anywhere on the map): we call its IControl onAdd() directly and park
+  // the returned element display:none inside the map container, then drive it
+  // from the in-panel "My location" button via .trigger(). This keeps maplibre's
+  // full track-user behaviour (watchPosition, user dot + accuracy circle,
+  // camera lock, background states) with no floating GPS button outside the
+  // toolset panel.
   useEffect(() => {
     if (!map) return;
     const controller = installMapTools(map, setSnap);
@@ -177,21 +353,36 @@ export function MapToolset({
       showUserLocation: true,
     });
     geolocateRef.current = geolocate;
+    let geolocateEl: HTMLElement | null = null;
+    const onTrackStart = () => setTracking(true);
+    const onTrackEnd = () => setTracking(false);
     try {
-      map.addControl(geolocate, "bottom-right");
+      geolocateEl = geolocate.onAdd(map);
+      geolocateEl.style.display = "none";
+      map.getContainer().appendChild(geolocateEl);
+      geolocate.on("trackuserlocationstart", onTrackStart);
+      geolocate.on("trackuserlocationend", onTrackEnd);
     } catch {
-      /* control add failed (unlikely) — GPS button simply absent */
+      /* control setup failed (unlikely) — GPS button simply inert */
     }
 
     return () => {
       controller.destroy();
       controllerRef.current = null;
       try {
-        if (geolocateRef.current) map.removeControl(geolocateRef.current);
+        geolocate.off("trackuserlocationstart", onTrackStart);
+        geolocate.off("trackuserlocationend", onTrackEnd);
+        geolocate.onRemove();
+      } catch {
+        /* ignore */
+      }
+      try {
+        geolocateEl?.remove();
       } catch {
         /* ignore */
       }
       geolocateRef.current = null;
+      setTracking(false);
     };
   }, [map]);
 
@@ -254,121 +445,18 @@ export function MapToolset({
       >
         {/* --- TOOLS --- */}
         {toolsReady && (
-          <div data-testid="map-toolset-tools">
-            <div style={{ ...sectionHeaderStyle(), marginBottom: 7 }}>Tools</div>
-            <div style={{ display: "flex", gap: 6 }}>
-              <button
-                type="button"
-                title="Measure distance / area"
-                aria-label="Measure distance or area"
-                aria-pressed={active === "measure"}
-                onClick={() => controller()?.activate("measure")}
-                style={toolButtonStyle(active === "measure")}
-              >
-                <ToolIcon path={ICONS.measure} />
-              </button>
-              <button
-                type="button"
-                title="Draw / annotate"
-                aria-label="Draw or annotate"
-                aria-pressed={active === "draw"}
-                onClick={() => controller()?.activate("draw")}
-                style={toolButtonStyle(active === "draw")}
-              >
-                <ToolIcon path={ICONS.draw} />
-              </button>
-              <button
-                type="button"
-                title="Drop a marker"
-                aria-label="Drop a marker"
-                aria-pressed={active === "marker"}
-                onClick={() => controller()?.activate("marker")}
-                style={toolButtonStyle(active === "marker")}
-              >
-                <ToolIcon path={ICONS.marker} />
-              </button>
-              <button
-                type="button"
-                title="Clear measure / draw"
-                aria-label="Clear measure and draw"
-                onClick={() => controller()?.clear()}
-                style={toolButtonStyle(false)}
-              >
-                <ToolIcon path={ICONS.clear} />
-              </button>
-            </div>
-
-            {/* Measure sub-mode (distance / area), only while measuring. */}
-            {active === "measure" && (
-              <div
-                style={{
-                  display: "inline-flex",
-                  marginTop: 7,
-                  padding: 3,
-                  gap: 3,
-                  borderRadius: 8,
-                  background: "rgba(154,166,178,0.1)",
-                  border: "0.5px solid rgba(154,166,178,0.2)",
-                }}
-              >
-                {(["line", "area"] as const).map((mode) => (
-                  <button
-                    key={mode}
-                    type="button"
-                    onClick={() => controller()?.setMeasureMode(mode)}
-                    style={{
-                      padding: "4px 10px",
-                      borderRadius: 6,
-                      border: "none",
-                      cursor: "pointer",
-                      fontSize: 11,
-                      fontWeight: 700,
-                      color: snap.measureMode === mode ? "#0b0f14" : MUTED,
-                      background:
-                        snap.measureMode === mode ? ACCENT : "transparent",
-                    }}
-                  >
-                    {mode === "line" ? "Distance" : "Area"}
-                  </button>
-                ))}
-              </div>
-            )}
-
-            {/* Running measure/draw readout. */}
-            {snap.readout && (
-              <div
-                style={{
-                  marginTop: 7,
-                  fontSize: 11,
-                  fontWeight: 600,
-                  color: TEXT,
-                }}
-              >
-                {snap.readout}
-              </div>
-            )}
-
-            {/* Satellite / aerial base toggle. */}
-            <label
-              style={{
-                display: "flex",
-                alignItems: "center",
-                gap: 8,
-                marginTop: 8,
-                cursor: "pointer",
-                fontSize: 11.5,
-                color: TEXT,
-              }}
-            >
-              <input
-                type="checkbox"
-                checked={satellite}
-                onChange={(e) => setSatellite(e.target.checked)}
-                style={{ accentColor: ACCENT, cursor: "pointer" }}
-              />
-              <span>Satellite / aerial</span>
-            </label>
-          </div>
+          <ToolsetToolsSection
+            active={active}
+            measureMode={snap.measureMode}
+            readout={snap.readout}
+            satellite={satellite}
+            tracking={tracking}
+            onActivate={(tool) => controller()?.activate(tool)}
+            onClear={() => controller()?.clear()}
+            onSetMeasureMode={(mode) => controller()?.setMeasureMode(mode)}
+            onSatelliteChange={setSatellite}
+            onLocate={() => geolocateRef.current?.trigger()}
+          />
         )}
 
         {/* --- LAYERS --- */}

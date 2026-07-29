@@ -179,7 +179,9 @@ export function createMapRenderer() {
       pitch: savedViewState?.pitch ?? 0,
       bearing: savedViewState?.bearing ?? 0,
       maxPitch: 68,
-      attributionControl: true,
+      // Attribution is mounted explicitly below (compact, bottom-LEFT) so the
+      // lower-right corner belongs solely to surface chrome (toolset bubble).
+      attributionControl: false,
       fadeDuration: 300,
     });
 
@@ -189,6 +191,19 @@ export function createMapRenderer() {
     mapEl.__hauskaMap = map;
 
     map.addControl(new maplibregl.NavigationControl({ showCompass: true, visualizePitch: true }), "top-right");
+
+    // REQUIRED basemap attribution — compact, bottom-left. OSM (ODbL) and the
+    // CARTO basemap terms REQUIRE visible attribution, so this control must
+    // never be removed; `compact: true` collapses it to the ⓘ toggle so it
+    // stays out of the way. Passing an explicit options object (no
+    // customAttribution) drops maplibre's default "MapLibre |" prefix —
+    // MapLibre itself does not require credit. Tile-source credits (© OSM
+    // © CARTO, plus the Esri line while the satellite base raster is visible)
+    // flow in automatically from each source's `attribution` string.
+    map.addControl(
+      new maplibregl.AttributionControl({ compact: true }),
+      "bottom-left",
+    );
 
     map.on("load", () => {
       styleReady = true;

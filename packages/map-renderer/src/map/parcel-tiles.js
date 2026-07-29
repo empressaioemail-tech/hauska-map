@@ -233,7 +233,7 @@ export function addParcelTiles(map, cfg) {
  *     stroke color, via PAINT ONLY (no layout visibility flip) so the fill
  *     layer keeps receiving clicks (inspect stays live) and toggling never
  *     removes/re-adds a layer (no flicker, no tile reload).
- *   - `boundaryLines` ← the "parcel-polygon" registry key ("Parcel boundary").
+ *   - `boundaryLines` ← the "parcel-polygon" registry key ("GIS Parcel Boundary").
  *     OFF hides the line + glow layers via layout visibility (cheap, no
  *     source work). The fill layer is untouched by this flag — zoning fill is
  *     its own toggle.
