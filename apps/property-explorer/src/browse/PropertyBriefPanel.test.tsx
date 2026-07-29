@@ -57,6 +57,20 @@ describe("PropertyBriefPanel — zoned parcel", () => {
   it("renders the concept explanations (static copy, no parcel claims)", () => {
     expect(html).toContain("minimum distance a structure must be kept");
   });
+
+  it("W2: the verdict line LEADS the brief, before the cited detail", () => {
+    expect(html).toContain('data-testid="brief-verdict"');
+    // ZONED_BRIEF carries in-SFHA + FLOODWAY — the red flag leads the line.
+    expect(html).toContain("Inside a FEMA floodway (Zone AE)");
+    expect(html).toContain('data-tone="flag"');
+    // Leading = the verdict appears BEFORE the provenance block and sections.
+    const verdictAt = html.indexOf('data-testid="brief-verdict"');
+    const provenanceAt = html.indexOf('data-testid="brief-provenance"');
+    const firstSectionAt = html.indexOf('data-testid="brief-section-');
+    expect(verdictAt).toBeGreaterThan(-1);
+    expect(verdictAt).toBeLessThan(provenanceAt);
+    expect(verdictAt).toBeLessThan(firstSectionAt);
+  });
 });
 
 describe("PropertyBriefPanel — unzoned parcel", () => {
@@ -76,6 +90,13 @@ describe("PropertyBriefPanel — unzoned parcel", () => {
 
   it("does not fabricate sources or a populated appendix", () => {
     expect(html).toContain("No sources are recorded");
+  });
+
+  it("W2: the verdict renders absences AS absences (no clean tail)", () => {
+    expect(html).toContain('data-testid="brief-verdict"');
+    expect(html).toContain("flood not verified here");
+    expect(html).toContain('data-tone="caution"');
+    expect(html).not.toContain("no red flags");
   });
 });
 

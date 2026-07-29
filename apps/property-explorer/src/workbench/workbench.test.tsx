@@ -59,7 +59,7 @@ describe("bubble cluster", () => {
     expect(html).not.toContain('data-testid="workbench-dock"');
   });
 
-  it("registry: brief + chat live (W3); the rest honestly coming", () => {
+  it("registry: brief + chat + reports live (W2+W3); the rest honestly coming", () => {
     expect(WORKBENCH_TOOLS.map((t) => t.id)).toEqual([
       "brief",
       "chat",
@@ -69,7 +69,10 @@ describe("bubble cluster", () => {
     ]);
     expect(
       WORKBENCH_TOOLS.filter((t) => t.status === "live").map((t) => t.id),
-    ).toEqual(["brief", "chat"]);
+    ).toEqual(["brief", "chat", "reports"]);
+    expect(
+      WORKBENCH_TOOLS.find((t) => t.id === "reports")?.label,
+    ).toBe("Reports & exports");
   });
 
   it("marks the open tool's bubble active (aria-pressed)", () => {
@@ -93,7 +96,7 @@ describe("the ONE shared dock", () => {
   });
 
   it("registered-but-coming tools render the honest coming state", () => {
-    const html = render({ openToolId: "reports", activeParcelNodeId: "p1" });
+    const html = render({ openToolId: "properties", activeParcelNodeId: "p1" });
     expect(html).toContain('data-testid="dock-coming"');
     expect(html).toContain("not wired up yet");
     expect(html).toContain("Reports");

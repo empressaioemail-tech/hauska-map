@@ -1009,9 +1009,20 @@ export function ExplorerMap() {
     setOpenWorkbenchTool("brief");
   }, [cardNodeId]);
 
+  // W2: latest inspect-card display facts for the Reports tool's site-plan
+  // sheet header (mutable-latest ref so the memoized host stays stable).
+  const cardFactsRef = useRef<{ address: string | null; countyName: string | null }>({
+    address: null,
+    countyName: null,
+  });
+  cardFactsRef.current = {
+    address: card?.situsAddress ?? null,
+    countyName: card?.county ?? null,
+  };
+
   // App-shell actions the workbench tools call back into (the 402 paywall;
-  // W3: the active property's situs address for chat scoping). Reads route
-  // through refs so the host identity stays stable.
+  // W2 active-parcel display facts; W3 the active property's situs address for
+  // chat scoping). Reads route through refs so the host identity stays stable.
   const workbenchHost = useMemo<WorkbenchHostActions>(
     () => ({
       openPaywall: (message: string) => {
@@ -1029,6 +1040,7 @@ export function ExplorerMap() {
         }
         return inspected.card?.situsAddress ?? null;
       },
+      getActiveParcelFacts: () => cardFactsRef.current,
     }),
     [],
   );
@@ -1039,31 +1051,9 @@ export function ExplorerMap() {
   const activeParcelNodeId = cardNodeId ?? subjectNodeId;
   activeParcelNodeIdRef.current = activeParcelNodeId;
 
-  const handleTerrainPaymentRequired = useCallback(() => {
-    const nodeId = cardNodeId ?? inspectedRef.current?.parcelNodeId ?? null;
-    void recordPeGtmEvent({
-      eventType: "pe_paywall_hit",
-      parcelNodeId: nodeId,
-    });
-    setPaywallMessage(
-      "Multi-format terrain export (GLB, IFC, DXF) is a paid public-paid spine atom. Sign in and upgrade to Pro to export.",
-    );
-    setCheckoutNote(null);
-    setPaywallOpen(true);
-  }, [cardNodeId]);
-
-  const handleSitePlanPaymentRequired = useCallback(() => {
-    const nodeId = cardNodeId ?? inspectedRef.current?.parcelNodeId ?? null;
-    void recordPeGtmEvent({
-      eventType: "pe_paywall_hit",
-      parcelNodeId: nodeId,
-    });
-    setPaywallMessage(
-      "Cited site-plan export (layered DXF/IFC + PDF sheet with setbacks, contours, and provenance) is a paid public-paid spine atom. Sign in and upgrade to Pro to export.",
-    );
-    setCheckoutNote(null);
-    setPaywallOpen(true);
-  }, [cardNodeId]);
+  // W2: the terrain/site-plan paywall handlers moved into the workbench
+  // Reports tool (ReportsTool.tsx) with the same copy + pe_paywall_hit event —
+  // the exports no longer live on the inspect card.
 
   const handleSaveProperty = useCallback(() => {
     const nodeId = cardNodeId ?? inspectedRef.current?.parcelNodeId ?? null;
@@ -1164,8 +1154,6 @@ export function ExplorerMap() {
           onEnvelope={handleEnvelope}
           onMakeSubject={handleMakeSubject}
           onResearch={handleResearch}
-          onTerrainPaymentRequired={handleTerrainPaymentRequired}
-          onSitePlanPaymentRequired={handleSitePlanPaymentRequired}
           onSaveProperty={handleSaveProperty}
         />
       )}

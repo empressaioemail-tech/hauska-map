@@ -65,6 +65,15 @@ export interface WorkbenchHostActions {
    * hosts predating W3 stay valid.
    */
   getActivePropertyAddress?: () => string | null;
+  /**
+   * W2: best-known display facts for the ACTIVE parcel (the site-plan export
+   * sheet header wants address/county). Optional — tools must treat a missing
+   * implementation or null fields as honest absence, never fabricate.
+   */
+  getActiveParcelFacts?: () => {
+    address: string | null;
+    countyName: string | null;
+  };
 }
 
 /** One bubble in the top-right cluster. */

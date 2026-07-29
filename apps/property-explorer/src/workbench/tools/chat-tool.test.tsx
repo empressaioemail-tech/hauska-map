@@ -80,7 +80,7 @@ describe("chat in the registry + dock", () => {
   it("chat is LIVE and renders inside the one shared dock", () => {
     expect(
       WORKBENCH_TOOLS.filter((t) => t.status === "live").map((t) => t.id),
-    ).toEqual(["brief", "chat"]);
+    ).toEqual(["brief", "chat", "reports"]);
     const html = renderChat({});
     expect(html.match(/data-testid="workbench-dock"/g)).toHaveLength(1);
     expect(html).toContain('data-tool="chat"');
