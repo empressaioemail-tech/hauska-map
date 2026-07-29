@@ -27,8 +27,14 @@ export const LIVE_FEMA_KEY = 'live-fema'
  *  `topography-contours` layer — this one is drawn from real engine data. */
 export const LIVE_TOPO_KEY = 'live-topography'
 /** Live D8 hydrology flow-channel overlay key. Distinct from the FIXTURE
- *  `hydrology-flow` registry key — this one is drawn from real engine D8 data. */
+ *  `hydrology-flow` registry key — this one is drawn from real engine D8 data.
+ *  INTERNAL/DEBUG only since the hydrography swap: no customer surface renders
+ *  it (PE ships `hydrography` instead); CC may keep it for D8 debug views. */
 export const LIVE_HYDRO_KEY = 'live-hydrology-flow'
+/** Live county-mapped HYDROGRAPHY overlay key (real streams, engine
+ *  `hydrography` slot) — the customer water layer that replaced the D8 flow
+ *  squiggle on browse surfaces. */
+export const LIVE_HYDROGRAPHY_KEY = 'live-hydrography'
 
 /** Parcels are bbox-capped (~200 features upstream); below this zoom we show
  *  a "zoom in" hint instead of hammering the API with huge viewports. */
@@ -41,6 +47,9 @@ export const MIN_TOPO_ZOOM = 14
 /** D8 hydrology runs a per-viewport DEM fetch + flow accumulation; keep it at
  *  parcel altitude so the compute grid stays bounded and channels stay legible. */
 export const MIN_HYDRO_ZOOM = 14
+/** County-mapped hydrography is real (coarse-fetchable) vector data like FEMA
+ *  polygons — fetchable wider out than the DEM-derived layers. */
+export const MIN_HYDROGRAPHY_ZOOM = 11
 
 export interface GeoJsonFeature {
   type: 'Feature'
@@ -478,6 +487,194 @@ export function toHydroOverlay(
           5000, 2.4,
         ],
         'line-opacity': 0.9,
+      },
+    },
+  ]
+}
+
+// --- Live hydrography (county-mapped streams) ------------------------------
+//
+// REAL water. Streams are fetched from the PE hydrography BFF
+// (POST /api/pe-hydrography), which proxies the engine map-layers `hydrography`
+// slot: county-mapped stream geometry from the county's own GIS source, with
+// provenance (source, layerName, vintage) attached. This layer REPLACED the
+// derived D8 flow squiggle as the customer water layer.
+//
+// HONESTY: an ok slot with zero streams is honest-empty (reason attached); a
+// county with no configured source is honest-unavailable; and an engine build
+// that does not serve the slot yet is the FEATURE-DETECT `unavailable` state
+// ("Hydrography not yet available") — none of these are errors, and nothing is
+// ever drawn from a non-ok state.
+
+export interface HydrographyProvenance {
+  source?: string | null
+  layerName?: string | null
+  vintage?: string | null
+  kind?: string | null
+}
+
+export interface HydrographyLayerResponse {
+  geojson?: FeatureCollectionLike
+  provider?: string | null
+  provenance?: HydrographyProvenance
+  degraded?: boolean
+  /** Present on honest-empty / honest-unavailable — the real reason. */
+  honestEmptyReason?: string | null
+  featureCount?: number
+  status?: string
+  detail?: string
+}
+
+export type HydrographyLayerState =
+  | { status: 'idle' }
+  | { status: 'zoom-gated' }
+  | { status: 'loading' }
+  | { status: 'ok'; response: HydrographyLayerResponse }
+  | { status: 'no-coverage'; detail?: string }
+  /** FEATURE-DETECT: the hydrography slot is not served yet (engine leg
+   *  deploys separately) — an honest "not yet available", NEVER an error. */
+  | { status: 'unavailable'; detail?: string }
+  | { status: 'error'; message: string }
+
+/**
+ * POST the viewport bbox+center to the hydrography BFF. Maps HTTP + envelope
+ * outcomes onto honest tile states — NEVER a silent fixture fallback:
+ *   - HTTP 404 (BFF route absent on an older deploy) → `unavailable`;
+ *   - response status "unavailable" (engine slot not deployed / county has no
+ *     configured source per the served detail) → `unavailable`;
+ *   - response status "no-coverage" → `no-coverage`;
+ *   - ok honest-empty stays `ok` with zero features + `honestEmptyReason`.
+ */
+export async function fetchHydrographyLayer(
+  bboxUrl: string,
+  bbox: GisBBox,
+  center: { lat: number; lng: number },
+  signal?: AbortSignal,
+): Promise<HydrographyLayerState> {
+  let res: Response
+  try {
+    res = await fetch(bboxUrl, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        bbox: {
+          westLng: bbox.west,
+          southLat: bbox.south,
+          eastLng: bbox.east,
+          northLat: bbox.north,
+        },
+        centerLat: center.lat,
+        centerLng: center.lng,
+      }),
+      signal,
+    })
+  } catch (err) {
+    if ((err as Error)?.name === 'AbortError') throw err
+    return { status: 'error', message: `hydrography: ${(err as Error)?.message || 'network error'}` }
+  }
+
+  let body: unknown = null
+  try {
+    body = await res.json()
+  } catch {
+    /* non-JSON — handled by status below */
+  }
+  const rec = (body ?? {}) as Record<string, unknown>
+
+  if (res.status === 404) {
+    // Feature-detect at the HTTP level too: no BFF route → not yet available.
+    return {
+      status: 'unavailable',
+      detail: typeof rec.message === 'string' ? rec.message : 'Hydrography not yet available',
+    }
+  }
+  if (!res.ok) {
+    const detail =
+      (typeof rec.message === 'string' && rec.message) ||
+      (typeof rec.error === 'string' && rec.error) ||
+      `HTTP ${res.status}`
+    return { status: 'error', message: `hydrography: ${detail}` }
+  }
+  const response = rec as unknown as HydrographyLayerResponse
+  if (response.status && response.status !== 'ok') {
+    if (response.status === 'unavailable') {
+      return { status: 'unavailable', detail: response.detail ?? 'Hydrography not yet available' }
+    }
+    if (response.status === 'no-coverage') {
+      return { status: 'no-coverage', detail: response.detail }
+    }
+    return { status: 'error', message: `hydrography: ${response.detail || response.status}` }
+  }
+  return { status: 'ok', response }
+}
+
+/** True when the served hydrography slot is ok but has NO streams — the
+ *  honest-empty case (county source configured, nothing mapped in this bbox). */
+export function isHydrographyHonestEmpty(state: HydrographyLayerState): boolean {
+  return (
+    state.status === 'ok' &&
+    (state.response.featureCount ?? state.response.geojson?.features?.length ?? 0) === 0
+  )
+}
+
+/** The honest reason text for an empty hydrography response, or null. */
+export function hydrographyHonestReason(state: HydrographyLayerState): string | null {
+  if (state.status !== 'ok') return null
+  const r = state.response
+  if ((r.featureCount ?? r.geojson?.features?.length ?? 0) > 0) return null
+  return r.honestEmptyReason || 'no mapped streams in this view'
+}
+
+/**
+ * The honest provenance label for served hydrography — names the county source
+ * and vintage (e.g. "Hydrography — Bastrop County GIS, 2023"). Falls back to
+ * the provider string, then a bare "Hydrography". Never fabricates a source.
+ */
+export function hydrographyProvenanceLabel(
+  resp: HydrographyLayerResponse | undefined,
+): string {
+  if (!resp) return 'Hydrography'
+  const src = resp.provenance?.source || resp.provider
+  if (!src) return 'Hydrography'
+  const vint = resp.provenance?.vintage ? `, ${resp.provenance.vintage}` : ''
+  return `Hydrography — ${src}${vint}`
+}
+
+/**
+ * Compose the live hydrography OverlaySpec (or none). `visible` binds the
+ * overlay to the LAYERS-panel `hydrography` toggle. An empty (honest-empty),
+ * unavailable, or non-ok response draws NOTHING. Streams paint as thin, subtle
+ * water-blue lines (PE dark theme), slightly wider at parcel zoom so they stay
+ * legible without shouting. Stream `name` properties ride the features for
+ * future labeling (the overlay contract renders fill/line/circle only — no
+ * symbol layer — so name labels are not drawn here).
+ */
+export function toHydrographyOverlay(
+  state: HydrographyLayerState,
+  visible: boolean,
+): OverlaySpec[] {
+  if (state.status !== 'ok' || !state.response.geojson) return []
+  const fc = state.response.geojson
+  if (!fc.features || fc.features.length === 0) return []
+  return [
+    {
+      layerKey: LIVE_HYDROGRAPHY_KEY,
+      provider: state.response.provider ?? undefined,
+      geojson: fc,
+      visible,
+      paint: {
+        'line-color': 'rgba(96,165,250,0.72)',
+        'line-width': [
+          'interpolate',
+          ['linear'],
+          ['zoom'],
+          10, 0.7,
+          13, 1.1,
+          16, 1.8,
+        ],
+        'line-opacity': 0.85,
+        // Soft water feather — line-blur is the SAFE channel (crash-guard).
+        'line-blur': 0.4,
       },
     },
   ]
