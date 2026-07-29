@@ -1,29 +1,38 @@
 /**
- * Live contour + hydrology overlay + toggle-binding + per-tier label tests —
- * qa/topo-panel-1ft-hydro.
+ * Live contour + hydrography overlay + toggle-binding + per-tier label tests.
  *
  * Locks the toggle wiring: the LAYERS-panel `topography-contours` and
- * `hydrology-flow` checkboxes control the REAL overlays' `visible` flags, an
- * empty/failed fetch draws nothing (never a synthetic line), the contour chip
- * label FOLLOWS the served tier (1-ft in Bastrop, 3DEP elsewhere), and hydrology
- * honest-empty surfaces the served reason.
+ * `hydrography` checkboxes control the REAL overlays' `visible` flags, an
+ * empty/failed/unavailable fetch draws nothing (never a synthetic line), the
+ * contour chip label FOLLOWS the served tier (1-ft in Bastrop, 3DEP elsewhere),
+ * hydrography honest-empty surfaces the served reason, and the derived D8 flow
+ * layer is RETIRED from the customer surface (registry row swap + no PE
+ * consumer).
  */
 
 import { describe, expect, it } from 'vitest'
+import * as liveGis from './liveGis'
 import {
   LIVE_TOPO_KEY,
-  LIVE_HYDRO_KEY,
+  LIVE_HYDROGRAPHY_KEY,
   toTopoOverlay,
-  toHydroOverlay,
+  toHydrographyOverlay,
   contourTierLabel,
   contourLinesOnly,
-  isHydrologyHonestEmpty,
-  hydrologyHonestReason,
+  isHydrographyHonestEmpty,
+  hydrographyHonestReason,
+  hydrographyProvenanceLabel,
   type TopoLayerState,
-  type HydroLayerState,
+  type HydrographyLayerState,
   type FeatureCollectionLike,
   type GeoJsonFeature,
 } from './liveGis'
+import { CONSUMER_EXCLUDED_LAYERS, filterConsumerLayers } from './consumer-layers'
+// The shared registry source (same module MapToolset reads labels from).
+import {
+  LAYER_REGISTRY,
+  DEFAULT_VISIBLE_LAYERS,
+} from '../../../../packages/map-renderer/src/layer-registry.js'
 
 const topoState = (tier: 'authoritative-1ft' | '3dep-fallback', features: unknown[]): TopoLayerState => ({
   status: 'ok',
@@ -159,63 +168,123 @@ describe('contourTierLabel — label follows the served tier (never static)', ()
   })
 })
 
-// --- Hydrology overlay + honest-empty --------------------------------------
+// --- Hydrography overlay (real county-mapped streams) ----------------------
 
-const hydroState = (features: unknown[], attrs: Record<string, unknown> = {}, degraded = false): HydroLayerState => ({
+const hydrographyState = (
+  features: unknown[],
+  opts: { honestEmptyReason?: string; degraded?: boolean; vintage?: string | null } = {},
+): HydrographyLayerState => ({
   status: 'ok',
   response: {
     geojson: { type: 'FeatureCollection', features },
-    provider: 'USGS 3DEP + D8 flow accumulation',
-    channelCount: (attrs.channelCount as number) ?? features.length,
-    accumulationThreshold: (attrs.accumulationThreshold as number) ?? null,
-    routing: (attrs.routing as string) ?? null,
-    library: (attrs.library as string) ?? null,
-    degraded,
-    honestEmptyReason: (attrs.honestEmptyReason as string) ?? null,
+    provider: 'Bastrop County GIS',
+    provenance: {
+      source: 'Bastrop County GIS',
+      layerName: 'Streams',
+      vintage: opts.vintage === undefined ? '2023' : opts.vintage,
+      kind: 'county-mapped-hydrography',
+    },
+    degraded: opts.degraded === true,
+    honestEmptyReason: opts.honestEmptyReason ?? null,
     featureCount: features.length,
     status: 'ok',
   },
 })
 
-const oneChannel = [
-  { type: 'Feature', geometry: { type: 'LineString', coordinates: [[0, 0], [1, 1]] }, properties: { accumulation: 900 } },
+const oneStream = [
+  { type: 'Feature', geometry: { type: 'LineString', coordinates: [[0, 0], [1, 1]] }, properties: { name: 'Piney Creek' } },
 ]
 
-describe('toHydroOverlay toggle binding', () => {
-  it('emits a live flow overlay bound to the toggle', () => {
-    const on = toHydroOverlay(hydroState(oneChannel, { channelCount: 1 }), true)
+describe('toHydrographyOverlay toggle binding', () => {
+  it('emits a live stream overlay bound to the toggle', () => {
+    const on = toHydrographyOverlay(hydrographyState(oneStream), true)
     expect(on).toHaveLength(1)
-    expect(on[0].layerKey).toBe(LIVE_HYDRO_KEY)
+    expect(on[0].layerKey).toBe(LIVE_HYDROGRAPHY_KEY)
     expect(on[0].visible).toBe(true)
-    expect(toHydroOverlay(hydroState(oneChannel, { channelCount: 1 }), false)[0].visible).toBe(false)
+    expect(toHydrographyOverlay(hydrographyState(oneStream), false)[0].visible).toBe(false)
   })
 
-  it('draws NOTHING on honest-empty (no channels) — never a synthetic meander', () => {
+  it('paints a subtle line-only water style (no fill family)', () => {
+    const [spec] = toHydrographyOverlay(hydrographyState(oneStream), true)
+    const paintKeys = Object.keys(spec.paint ?? {})
+    expect(paintKeys.length).toBeGreaterThan(0)
+    expect(paintKeys.every((k) => k.startsWith('line-'))).toBe(true)
+  })
+
+  it('draws NOTHING on honest-empty / unavailable / failed states — never a squiggle', () => {
     expect(
-      toHydroOverlay(hydroState([], { channelCount: 0, honestEmptyReason: 'flat terrain' }, true), true),
+      toHydrographyOverlay(hydrographyState([], { honestEmptyReason: 'no mapped streams in this bbox' }), true),
     ).toHaveLength(0)
-    expect(toHydroOverlay({ status: 'loading' }, true)).toHaveLength(0)
-    expect(toHydroOverlay({ status: 'error', message: 'x' }, true)).toHaveLength(0)
-    expect(toHydroOverlay({ status: 'no-coverage' }, true)).toHaveLength(0)
+    expect(toHydrographyOverlay({ status: 'loading' }, true)).toHaveLength(0)
+    expect(toHydrographyOverlay({ status: 'error', message: 'x' }, true)).toHaveLength(0)
+    expect(toHydrographyOverlay({ status: 'no-coverage' }, true)).toHaveLength(0)
+    // FEATURE-DETECT: engine slot not deployed yet — nothing drawn, no error.
+    expect(
+      toHydrographyOverlay({ status: 'unavailable', detail: 'Hydrography not yet available' }, true),
+    ).toHaveLength(0)
   })
 })
 
-describe('hydrology honest-empty helpers', () => {
+describe('hydrography honest-empty + provenance helpers', () => {
   it('detects honest-empty and surfaces the served reason', () => {
-    const empty = hydroState([], { channelCount: 0, honestEmptyReason: 'no flow channels above accumulation threshold in this bbox' }, true)
-    expect(isHydrologyHonestEmpty(empty)).toBe(true)
-    expect(hydrologyHonestReason(empty)).toContain('no flow channels')
+    const empty = hydrographyState([], { honestEmptyReason: 'no mapped streams in this bbox' })
+    expect(isHydrographyHonestEmpty(empty)).toBe(true)
+    expect(hydrographyHonestReason(empty)).toContain('no mapped streams')
   })
 
-  it('is NOT honest-empty when channels exist', () => {
-    const live = hydroState(oneChannel, { channelCount: 1 })
-    expect(isHydrologyHonestEmpty(live)).toBe(false)
-    expect(hydrologyHonestReason(live)).toBeNull()
+  it('is NOT honest-empty when streams exist', () => {
+    const live = hydrographyState(oneStream)
+    expect(isHydrographyHonestEmpty(live)).toBe(false)
+    expect(hydrographyHonestReason(live)).toBeNull()
   })
 
   it('falls back to a generic honest reason if the slot gave none', () => {
-    const empty = hydroState([], { channelCount: 0 }, true)
-    expect(isHydrologyHonestEmpty(empty)).toBe(true)
-    expect(hydrologyHonestReason(empty)).toBeTruthy()
+    const empty = hydrographyState([])
+    expect(isHydrographyHonestEmpty(empty)).toBe(true)
+    expect(hydrographyHonestReason(empty)).toBeTruthy()
+  })
+
+  it('provenance label names the county source + vintage, never fabricates', () => {
+    const live = hydrographyState(oneStream)
+    const resp = live.status === 'ok' ? live.response : undefined
+    expect(hydrographyProvenanceLabel(resp)).toBe('Hydrography — Bastrop County GIS, 2023')
+    const noVintage = hydrographyState(oneStream, { vintage: null })
+    const nvResp = noVintage.status === 'ok' ? noVintage.response : undefined
+    expect(hydrographyProvenanceLabel(nvResp)).toBe('Hydrography — Bastrop County GIS')
+    expect(hydrographyProvenanceLabel(undefined)).toBe('Hydrography')
+  })
+})
+
+// --- The D8 retirement + registry row swap ----------------------------------
+//
+// The map layer customers see is "Hydrography" (real county-mapped streams);
+// the derived D8 flow squiggle is no longer a customer layer. The registry
+// carries the new row; PE's consumer filter drops the D8 key from the panel;
+// and PE's liveGis surface no longer exports the D8 layer helpers.
+
+describe('Hydrography replaces the D8 customer layer', () => {
+  it('registry carries a live "Hydrography" row in the hydrology group', () => {
+    const row = (LAYER_REGISTRY as Array<{ key: string; label: string; group: string; live: boolean }>).find(
+      (l) => l.key === 'hydrography',
+    )
+    expect(row).toBeTruthy()
+    expect(row?.label).toBe('Hydrography')
+    expect(row?.group).toBe('hydrology')
+    expect(row?.live).toBe(true)
+  })
+
+  it('PE consumer filter drops the D8 row (and keeps Hydrography eligible)', () => {
+    expect(CONSUMER_EXCLUDED_LAYERS.has('hydrology-flow')).toBe(true)
+    const seed = new Set([...DEFAULT_VISIBLE_LAYERS, 'hydrography'] as string[])
+    const filtered = filterConsumerLayers(seed as Set<string>)
+    expect(filtered.has('hydrology-flow')).toBe(false)
+    expect(filtered.has('hydrography')).toBe(true)
+  })
+
+  it('PE liveGis no longer exposes the D8 layer helpers (no customer consumer)', () => {
+    const surface = liveGis as Record<string, unknown>
+    expect(surface.toHydroOverlay).toBeUndefined()
+    expect(surface.fetchHydrologyLayer).toBeUndefined()
+    expect(surface.LIVE_HYDRO_KEY).toBeUndefined()
   })
 })

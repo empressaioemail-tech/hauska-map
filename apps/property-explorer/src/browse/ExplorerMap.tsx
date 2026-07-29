@@ -78,20 +78,22 @@ import {
   type AttachingRoadWire,
 } from "./road-overlay";
 import { countyFipsForViewportCenter } from "./county-fips-viewport";
+import { filterConsumerLayers } from "./consumer-layers";
 import {
   MIN_PARCEL_ZOOM,
   MIN_TOPO_ZOOM,
-  MIN_HYDRO_ZOOM,
+  MIN_HYDROGRAPHY_ZOOM,
   LIVE_PARCELS_KEY,
   layersForZoom,
   fetchGisLayer,
   fetchTopographyLayer,
-  fetchHydrologyLayer,
+  fetchHydrographyLayer,
   contourTierLabel,
-  hydrologyHonestReason,
+  hydrographyHonestReason,
+  hydrographyProvenanceLabel,
   toLiveOverlays,
   toTopoOverlay,
-  toHydroOverlay,
+  toHydrographyOverlay,
   selectionToCard,
   parcelNodeIdFromSelection,
   type GisLayerResponse,
@@ -99,21 +101,24 @@ import {
   type LiveLayerState,
   type TopoLayerResponse,
   type TopoLayerState,
-  type HydroLayerResponse,
-  type HydroLayerState,
+  type HydrographyLayerResponse,
+  type HydrographyLayerState,
   type ParcelCardData,
 } from "./liveGis";
 
 /** The registry key whose LAYERS-panel toggle now controls the LIVE contour
  *  overlay. Toggling this row shows/hides the real engine contours. */
 const TOPO_TOGGLE_KEY = "topography-contours" as LayerKey;
-/** The registry key whose LAYERS-panel toggle controls the LIVE D8 hydrology
- *  flow-channel overlay. Toggling this row shows/hides the real engine flow. */
-const HYDRO_TOGGLE_KEY = "hydrology-flow" as LayerKey;
+/** The registry key whose LAYERS-panel toggle controls the LIVE hydrography
+ *  overlay (REAL county-mapped streams — replaced the derived D8 flow layer,
+ *  which is no longer a customer layer on this surface). */
+const HYDROGRAPHY_TOGGLE_KEY = "hydrography" as LayerKey;
 /** PE topography BFF — free browse contour layer (engine topography-1ft slot). */
 const PE_TOPOGRAPHY_URL = "/api/pe-topography";
-/** PE hydrology BFF — free browse D8 flow layer (engine hydrology-flow slot). */
-const PE_HYDROLOGY_URL = "/api/pe-hydrology";
+/** PE hydrography BFF — free browse county-mapped streams (engine hydrography
+ *  slot). Feature-detected: until the engine leg deploys, the layer reports an
+ *  honest "Hydrography not yet available" state, never an error. */
+const PE_HYDROGRAPHY_URL = "/api/pe-hydrography";
 
 /** Zoom gate for viewport road-node layer (same altitude as parcels). */
 const MIN_ROAD_ZOOM = MIN_PARCEL_ZOOM;
@@ -154,35 +159,15 @@ interface TopoSlot {
 }
 const TOPO_IDLE: TopoSlot = { fetch: { status: "idle" }, data: null };
 
-interface HydroSlot {
-  fetch: HydroLayerState;
-  data: HydroLayerResponse | null;
+interface HydrographySlot {
+  fetch: HydrographyLayerState;
+  data: HydrographyLayerResponse | null;
 }
-const HYDRO_IDLE: HydroSlot = { fetch: { status: "idle" }, data: null };
+const HYDROGRAPHY_IDLE: HydrographySlot = { fetch: { status: "idle" }, data: null };
 
-/**
- * Consumer-honest layer filter for the browse panel. Drops:
- *  - AVM/valuation layers (no `rent-heat` on browse — WDLL 27).
- *  - Fixture-only terrain layers that are NOT wired to live engine data on this
- *    surface. PE runs `useFixture={false}`, so the fixture stack never draws — a
- *    toggle for an unwired layer would do nothing (the "panel doesn't work"
- *    report). We surface ONLY toggles that control a REAL layer: live parcels,
- *    live FEMA, live contours (`topography-contours` -> engine topography-1ft),
- *    and live D8 hydrology (`hydrology-flow` -> engine hydrology-flow slot).
- *    `dem-hillshade` stays excluded — no live hillshade endpoint yet (honest).
- */
-const CONSUMER_EXCLUDED_LAYERS = new Set<LayerKey>([
-  "rent-heat",
-  "dem-hillshade",
-]);
-
-function filterConsumerLayers(seed: Set<LayerKey>): Set<LayerKey> {
-  const next = new Set<LayerKey>();
-  for (const key of seed) {
-    if (!CONSUMER_EXCLUDED_LAYERS.has(key)) next.add(key);
-  }
-  return next;
-}
+// Consumer-honest layer filter: lives in consumer-layers.ts so the panel
+// contract — including the D8 `hydrology-flow` retirement — is unit-testable
+// (imported above with the other browse modules).
 
 /** The inspected parcel we lit on the live map, so we can clear it on change. */
 interface InspectedTarget {
@@ -202,8 +187,8 @@ export function ExplorerMap() {
   const [fema, setFema] = useState<LayerSlot>(IDLE);
   const [topo, setTopo] = useState<TopoSlot>(TOPO_IDLE);
   const topoAbortRef = useRef<AbortController | null>(null);
-  const [hydro, setHydro] = useState<HydroSlot>(HYDRO_IDLE);
-  const hydroAbortRef = useRef<AbortController | null>(null);
+  const [hydrography, setHydrography] = useState<HydrographySlot>(HYDROGRAPHY_IDLE);
+  const hydrographyAbortRef = useRef<AbortController | null>(null);
   const [zoom, setZoom] = useState<number | null>(null);
   const [card, setCard] = useState<ParcelCardData | null>(null);
   // The clicked parcel's stable baked-node id, kept alongside `card` so the
@@ -285,6 +270,10 @@ export function ExplorerMap() {
       // WB7c: the saved-property pin layer is a PE-side row (DOM markers, not
       // a renderer layer) — default ON; signed-out simply renders zero pins.
       filtered.add(SAVED_PINS_KEY);
+      // Hydrography (real county-mapped streams) — PE's customer water layer.
+      // Added here because the renderer's default seed still carries only the
+      // internal D8 key (excluded above); default ON like the other live rows.
+      filtered.add(HYDROGRAPHY_TOGGLE_KEY);
       setVisibleLayers(new Set(filtered));
       setKnownLayers(new Set(filtered));
     }
@@ -363,31 +352,33 @@ export function ExplorerMap() {
         });
     }
 
-    // Live D8 hydrology flow channels (engine hydrology-flow slot). Zoom-gated at
-    // parcel altitude so the per-view DEM + D8 compute stays bounded. Own abort
-    // controller so a hydrology fetch in flight doesn't cancel the parcel/FEMA/
-    // topo batches (separate BFF, separate latency). An ok honest-empty response
-    // (no channels) is kept as ok data — the chip surfaces the honest reason.
-    hydroAbortRef.current?.abort();
-    const hydroCtrl = new AbortController();
-    hydroAbortRef.current = hydroCtrl;
-    if (vp.zoom < MIN_HYDRO_ZOOM) {
-      setHydro({ fetch: { status: "zoom-gated" }, data: null });
+    // Live hydrography — REAL county-mapped streams (engine hydrography slot).
+    // Own abort controller so a hydrography fetch in flight doesn't cancel the
+    // parcel/FEMA/topo batches (separate BFF, separate latency). Honest states
+    // pass through: ok honest-empty keeps its reason; a county without a
+    // configured source is honest-unavailable; and until the engine slot is
+    // DEPLOYED the fetch resolves the feature-detect "unavailable" state
+    // ("Hydrography not yet available") — never an error.
+    hydrographyAbortRef.current?.abort();
+    const hydrographyCtrl = new AbortController();
+    hydrographyAbortRef.current = hydrographyCtrl;
+    if (vp.zoom < MIN_HYDROGRAPHY_ZOOM) {
+      setHydrography({ fetch: { status: "zoom-gated" }, data: null });
     } else {
-      setHydro((s) => ({ ...s, fetch: { status: "loading" } }));
+      setHydrography((s) => ({ ...s, fetch: { status: "loading" } }));
       const hcenter = {
         lat: (vp.bbox.south + vp.bbox.north) / 2,
         lng: (vp.bbox.west + vp.bbox.east) / 2,
       };
-      fetchHydrologyLayer(PE_HYDROLOGY_URL, vp.bbox, hcenter, hydroCtrl.signal)
+      fetchHydrographyLayer(PE_HYDROGRAPHY_URL, vp.bbox, hcenter, hydrographyCtrl.signal)
         .then((state) => {
-          if (hydroCtrl.signal.aborted) return;
-          setHydro({ fetch: state, data: state.status === "ok" ? state.response : null });
+          if (hydrographyCtrl.signal.aborted) return;
+          setHydrography({ fetch: state, data: state.status === "ok" ? state.response : null });
         })
         .catch((err) => {
-          if (hydroCtrl.signal.aborted || (err as Error)?.name === "AbortError") return;
-          setHydro({
-            fetch: { status: "error", message: `hydrology: ${(err as Error)?.message}` },
+          if (hydrographyCtrl.signal.aborted || (err as Error)?.name === "AbortError") return;
+          setHydrography({
+            fetch: { status: "error", message: `hydrography: ${(err as Error)?.message}` },
             data: null,
           });
         });
@@ -873,12 +864,14 @@ export function ExplorerMap() {
         topo.data ? { status: "ok", response: topo.data } : topo.fetch,
         visibleLayers ? visibleLayers.has(TOPO_TOGGLE_KEY) : true,
       ),
-      // Live D8 hydrology flow channels beneath the parcel lines / wedge. The
-      // LAYERS-panel `hydrology-flow` toggle controls their visibility. An
-      // honest-empty response (no channels) draws nothing (never a fake meander).
-      ...toHydroOverlay(
-        hydro.data ? { status: "ok", response: hydro.data } : hydro.fetch,
-        visibleLayers ? visibleLayers.has(HYDRO_TOGGLE_KEY) : true,
+      // Live hydrography (real county-mapped streams) beneath the parcel lines
+      // / wedge. The LAYERS-panel `hydrography` toggle controls visibility. An
+      // honest-empty or unavailable response draws nothing (never a squiggle).
+      ...toHydrographyOverlay(
+        hydrography.data
+          ? { status: "ok", response: hydrography.data }
+          : hydrography.fetch,
+        visibleLayers ? visibleLayers.has(HYDROGRAPHY_TOGGLE_KEY) : true,
       ),
       ...toLiveOverlays(
         parcels.data ? { status: "ok", response: parcels.data } : parcels.fetch,
@@ -897,7 +890,7 @@ export function ExplorerMap() {
       // Brief street-search highlight (temporary, self-fading).
       ...searchOverlays,
     ],
-    [parcels, fema, topo, hydro, roadOverlays, envelopeOverlays, searchOverlays, visibleLayers],
+    [parcels, fema, topo, hydrography, roadOverlays, envelopeOverlays, searchOverlays, visibleLayers],
   );
 
   // Chips are now TRANSIENT notifications (item 2): each entry appears when its
@@ -936,25 +929,33 @@ export function ExplorerMap() {
       });
     }
   }
-  // Honest hydrology state — only when the hydrology toggle is on. Live D8 flow
-  // where it computes; honest-empty (with the served reason) where it doesn't.
-  const hydroToggledOn = visibleLayers ? visibleLayers.has(HYDRO_TOGGLE_KEY) : true;
-  if (hydroToggledOn) {
-    if (hydro.fetch.status === "error") {
-      chips.push({ key: "hydro-err", sev: "warn", text: `Flow lines degraded — ${hydro.fetch.message}` });
-    } else if (hydro.fetch.status === "no-coverage") {
-      chips.push({ key: "hydro-nc", sev: "warn", text: "No hydrology coverage here" });
-    } else if (hydro.fetch.status === "ok" && hydro.data) {
-      const emptyReason = hydrologyHonestReason(hydro.fetch);
+  // Honest hydrography state — only when the toggle is on. Real county-mapped
+  // streams (with source provenance) where the county maps them; honest-empty /
+  // honest-unavailable (with the served reason) where it doesn't; and the
+  // feature-detect "not yet available" state until the engine slot deploys.
+  const hydrographyToggledOn = visibleLayers
+    ? visibleLayers.has(HYDROGRAPHY_TOGGLE_KEY)
+    : true;
+  if (hydrographyToggledOn) {
+    if (hydrography.fetch.status === "error") {
+      chips.push({ key: "hydrography-err", sev: "warn", text: `Hydrography degraded — ${hydrography.fetch.message}` });
+    } else if (hydrography.fetch.status === "no-coverage") {
+      chips.push({ key: "hydrography-nc", sev: "warn", text: "No county hydrography source here" });
+    } else if (hydrography.fetch.status === "unavailable") {
+      chips.push({ key: "hydrography-na", sev: "info", text: "Hydrography not yet available" });
+    } else if (hydrography.fetch.status === "ok" && hydrography.data) {
+      const emptyReason = hydrographyHonestReason(hydrography.fetch);
       if (emptyReason) {
-        // Honest-empty: no channels — surface the real reason, draw nothing.
-        chips.push({ key: "hydro-empty", sev: "info", text: `Flow lines — none: ${emptyReason}` });
+        // Honest-empty: no mapped streams — surface the reason, draw nothing.
+        chips.push({ key: "hydrography-empty", sev: "info", text: `Hydrography — none: ${emptyReason}` });
       } else {
-        const dz = hydro.data.degraded ? " · degraded" : "";
+        const dz = hydrography.data.degraded ? " · degraded" : "";
         chips.push({
-          key: "hydro-ok",
+          key: "hydrography-ok",
           sev: "info",
-          text: `Flow lines — ${hydro.data.channelCount ?? hydro.data.featureCount ?? 0} D8 channels${dz}`,
+          text: `${hydrographyProvenanceLabel(hydrography.data)} — ${
+            hydrography.data.featureCount ?? 0
+          } streams${dz}`,
         });
       }
     }
@@ -1010,23 +1011,34 @@ export function ExplorerMap() {
       };
     }
   }
-  if (hydroToggledOn) {
-    if (hydro.fetch.status === "error") {
-      layerStates[HYDRO_TOGGLE_KEY] = {
+  if (hydrographyToggledOn) {
+    if (hydrography.fetch.status === "error") {
+      layerStates[HYDROGRAPHY_TOGGLE_KEY] = {
         tone: "warn",
-        note: `Flow lines degraded — ${hydro.fetch.message}`,
+        note: `Hydrography degraded — ${hydrography.fetch.message}`,
       };
-    } else if (hydro.fetch.status === "no-coverage") {
-      layerStates[HYDRO_TOGGLE_KEY] = { tone: "warn", note: "No hydrology coverage here" };
-    } else if (hydro.fetch.status === "ok" && hydro.data) {
-      const emptyReason = hydrologyHonestReason(hydro.fetch);
-      layerStates[HYDRO_TOGGLE_KEY] = emptyReason
-        ? { tone: "info", note: `Flow lines — none: ${emptyReason}` }
+    } else if (hydrography.fetch.status === "no-coverage") {
+      layerStates[HYDROGRAPHY_TOGGLE_KEY] = {
+        tone: "warn",
+        note: hydrography.fetch.detail || "No county hydrography source here",
+      };
+    } else if (hydrography.fetch.status === "unavailable") {
+      // Feature-detect: the engine hydrography slot is not deployed yet (or the
+      // BFF route is absent on this deploy). Quiet info state, never an error.
+      layerStates[HYDROGRAPHY_TOGGLE_KEY] = {
+        tone: "info",
+        note: hydrography.fetch.detail || "Hydrography not yet available",
+      };
+    } else if (hydrography.fetch.status === "ok" && hydrography.data) {
+      const emptyReason = hydrographyHonestReason(hydrography.fetch);
+      // Provenance rides the row tooltip: county source + vintage.
+      layerStates[HYDROGRAPHY_TOGGLE_KEY] = emptyReason
+        ? { tone: "info", note: `Hydrography — none: ${emptyReason}` }
         : {
-            tone: hydro.data.degraded ? "warn" : "ok",
-            note: `Flow lines — ${
-              hydro.data.channelCount ?? hydro.data.featureCount ?? 0
-            } D8 channels${hydro.data.degraded ? " · degraded" : ""}`,
+            tone: hydrography.data.degraded ? "warn" : "ok",
+            note: `${hydrographyProvenanceLabel(hydrography.data)} — ${
+              hydrography.data.featureCount ?? 0
+            } streams${hydrography.data.degraded ? " · degraded" : ""}`,
           };
     }
   }
