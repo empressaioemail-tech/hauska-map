@@ -39,6 +39,14 @@ export default defineConfig({
               target: spineProxyTarget,
               changeOrigin: true,
             },
+            "/api/pe-share": {
+              target: spineProxyTarget,
+              changeOrigin: true,
+            },
+            "/api/pe-share-view": {
+              target: spineProxyTarget,
+              changeOrigin: true,
+            },
             "/api/auth": {
               target: spineProxyTarget,
               changeOrigin: true,

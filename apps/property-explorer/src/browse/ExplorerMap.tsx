@@ -41,6 +41,7 @@ import { cortexClient } from "../lib/cortexClient";
 import { parcelNodes } from "../lib/parcel-node-store.js";
 import { startPeCheckout } from "../lib/billingClient";
 import { recordPeGtmEvent } from "../lib/gtmClient";
+import { saveProperty } from "../lib/savedPropertiesClient";
 import { iccCitationStatus } from "../lib/iccCitation";
 import { InspectCard } from "./InspectCard";
 import { Workbench } from "../workbench/Workbench";
@@ -1022,7 +1023,9 @@ export function ExplorerMap() {
 
   // App-shell actions the workbench tools call back into (the 402 paywall;
   // W2 active-parcel display facts; W3 the active property's situs address for
-  // chat scoping). Reads route through refs so the host identity stays stable.
+  // chat scoping; W4 reopen — same find/fly+inspect flow as the search bar's
+  // parcel fast path, via runParcelLookup on the LIVE map, never a remount).
+  // Reads route through refs so the host identity stays stable.
   const workbenchHost = useMemo<WorkbenchHostActions>(
     () => ({
       openPaywall: (message: string) => {
@@ -1041,8 +1044,11 @@ export function ExplorerMap() {
         return inspected.card?.situsAddress ?? null;
       },
       getActiveParcelFacts: () => cardFactsRef.current,
+      openProperty: (parcelNodeId: string) => {
+        void runParcelLookup(parcelNodeId);
+      },
     }),
-    [],
+    [runParcelLookup],
   );
 
   // ACTIVE PROPERTY for the workbench: the currently-INSPECTED parcel's baked
@@ -1055,12 +1061,21 @@ export function ExplorerMap() {
   // Reports tool (ReportsTool.tsx) with the same copy + pe_paywall_hit event —
   // the exports no longer live on the inspect card.
 
+  // SAVE PROPERTY (W4) — ONE save flow, shared with the My Properties tool:
+  // the same savedPropertiesClient PUT (deep proxy, user session upstream),
+  // then open the properties tool so the result is visible (the tool lists
+  // from the server — the truth — and shows the honest sign-in state on 401).
   const handleSaveProperty = useCallback(() => {
     const nodeId = cardNodeId ?? inspectedRef.current?.parcelNodeId ?? null;
     void recordPeGtmEvent({
       eventType: "pe_save_property",
       parcelNodeId: nodeId,
     });
+    if (nodeId) {
+      const address = inspectedRef.current?.card.situsAddress ?? null;
+      void saveProperty(nodeId, { label: address });
+    }
+    setOpenWorkbenchTool("properties");
   }, [cardNodeId]);
 
   const handleUpgrade = useCallback(async () => {

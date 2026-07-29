@@ -59,7 +59,7 @@ describe("bubble cluster", () => {
     expect(html).not.toContain('data-testid="workbench-dock"');
   });
 
-  it("registry: brief + chat + reports live (W2+W3); the rest honestly coming", () => {
+  it("registry: ALL FIVE tools live as of W4 (brief/chat/reports/properties/share)", () => {
     expect(WORKBENCH_TOOLS.map((t) => t.id)).toEqual([
       "brief",
       "chat",
@@ -69,7 +69,7 @@ describe("bubble cluster", () => {
     ]);
     expect(
       WORKBENCH_TOOLS.filter((t) => t.status === "live").map((t) => t.id),
-    ).toEqual(["brief", "chat", "reports"]);
+    ).toEqual(["brief", "chat", "reports", "properties", "share"]);
     expect(
       WORKBENCH_TOOLS.find((t) => t.id === "reports")?.label,
     ).toBe("Reports & exports");
@@ -96,10 +96,28 @@ describe("the ONE shared dock", () => {
   });
 
   it("registered-but-coming tools render the honest coming state", () => {
-    const html = render({ openToolId: "properties", activeParcelNodeId: "p1" });
+    // All five registry tools are live as of W4 — pin the chassis behavior
+    // with a synthetic coming entry (the state future waves' bubbles get).
+    const comingTool = {
+      id: "future-tool",
+      label: "Future tool",
+      icon: <span />,
+      status: "coming" as const,
+      propertyScoped: true,
+    };
+    const html = renderToStaticMarkup(
+      <Workbench
+        tools={[...WORKBENCH_TOOLS, comingTool]}
+        openToolId="future-tool"
+        onOpenToolChange={noop}
+        activeParcelNodeId="p1"
+        host={host}
+        store={createWorkbenchToolStateStore({ storage: null })}
+      />,
+    );
     expect(html).toContain('data-testid="dock-coming"');
     expect(html).toContain("not wired up yet");
-    expect(html).toContain("Reports");
+    expect(html).toContain("Future tool");
   });
 
   it("property-scoped tool with NO active property → honest select-first state", () => {
