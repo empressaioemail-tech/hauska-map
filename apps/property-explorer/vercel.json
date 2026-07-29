@@ -20,6 +20,7 @@
     { "source": "/api/pe-site-plan-export", "destination": "/api/pe-site-plan-export" },
     { "source": "/api/pe-topography", "destination": "/api/pe-topography" },
     { "source": "/api/pe-hydrology", "destination": "/api/pe-hydrology" },
+    { "source": "/api/pe-geocode", "destination": "/api/pe-geocode" },
     { "source": "/((?!api/).*)", "destination": "/index.html" }
   ]
 }
