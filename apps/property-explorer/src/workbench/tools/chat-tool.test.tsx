@@ -6,9 +6,15 @@
 //   - stored thread renders turns, citation chips, muted disclaimer;
 //   - PER-PROPERTY persistence: thread follows the property, close/reopen
 //     keeps it, switching property re-scopes to THAT property's thread;
-//   - chip → in-thread expand mechanics (pure toggle + detail card render);
+//   - R2 citation layer: inline [n] anchors (matched only), the RESERVED atom
+//     accent (used for atoms and NOTHING else), the BRIEF/FULL accordion card
+//     with the lineage walk, web-unverified sources as non-atom links,
+//     honest-empty;
 //   - freshness badge cases (current / outdated / unknown → no badge).
 
+import { readdirSync, readFileSync, statSync } from "node:fs";
+import { join } from "node:path";
+import { fileURLToPath } from "node:url";
 import { describe, expect, it } from "vitest";
 import { renderToStaticMarkup } from "react-dom/server";
 import { Workbench } from "../Workbench";
@@ -16,12 +22,14 @@ import { WORKBENCH_TOOLS } from "../registry";
 import { createWorkbenchToolStateStore } from "../tool-state-store";
 import type { WorkbenchHostActions } from "../types";
 import {
+  AtomCardView,
   ChatCitationChips,
   FreshnessBadge,
-  nextExpandedDid,
+  InlineAnswerText,
   type ChatToolStoredState,
 } from "./ChatTool";
-import type { ChatRef } from "./chat-citations";
+import { ATOM_ACCENT, type ChatRef } from "./chat-citations";
+import type { AtomCardModel, AtomLineage } from "./chat-atom-card";
 
 const host: WorkbenchHostActions = {
   openPaywall: () => {},
@@ -57,6 +65,7 @@ function chatRef(overrides: Partial<ChatRef>): ChatRef {
     snippet: "Accessory dwelling units are permitted subject to…",
     edition: null,
     vintage: null,
+    n: 1,
     ...overrides,
   };
 }
@@ -187,52 +196,273 @@ describe("per-property persistent history (the chassis store owns it)", () => {
   });
 });
 
-describe("citation chip → in-thread expand (no network, local refs only)", () => {
-  it("pure toggle: tap expands, tap again collapses, tap another replaces", () => {
-    expect(nextExpandedDid(null, "did:a")).toBe("did:a");
-    expect(nextExpandedDid("did:a", "did:a")).toBeNull();
-    expect(nextExpandedDid("did:a", "did:b")).toBe("did:b");
-  });
-
-  it("collapsed: chips render, no detail card", () => {
+describe("citation chips — reserved atom accent + web-unverified split", () => {
+  it("collapsed: atom chips render in the RESERVED accent, no card", () => {
     const html = renderToStaticMarkup(
-      <ChatCitationChips refs={[chatRef({})]} expandedDid={null} onToggle={noop} />,
+      <ChatCitationChips refs={[chatRef({})]} openDid={null} onToggle={noop} />,
     );
     expect(html).toContain('data-testid="chat-citation-chip"');
     expect(html).toContain('aria-expanded="false"');
+    expect(html).toContain(ATOM_ACCENT);
+    // The general cyan accent NEVER colors an atom chip.
+    expect(html).not.toContain("#7dd3fc");
     expect(html).not.toContain('data-testid="chat-citation-detail"');
   });
 
-  it("expanded: in-thread detail card with label, snippet excerpt, and did", () => {
+  it("open anchor chip renders filled with the accent (aria-expanded)", () => {
     const html = renderToStaticMarkup(
       <ChatCitationChips
         refs={[chatRef({})]}
-        expandedDid="did:hauska:code-section:bastrop-udc-4-2"
+        openDid="did:hauska:code-section:bastrop-udc-4-2"
         onToggle={noop}
       />,
     );
     expect(html).toContain('aria-expanded="true"');
-    expect(html).toContain('data-testid="chat-citation-detail"');
-    expect(html).toContain("Accessory dwelling units are permitted subject to…");
-    expect(html).toContain("did:hauska:code-section:bastrop-udc-4-2");
   });
 
-  it("expanded ref without a snippet → honest no-excerpt copy, never a blank", () => {
+  it("websearch-derived source → distinct NON-atom link labeled unverified", () => {
     const html = renderToStaticMarkup(
       <ChatCitationChips
-        refs={[chatRef({ snippet: null })]}
-        expandedDid="did:hauska:code-section:bastrop-udc-4-2"
+        refs={[
+          chatRef({
+            did: "websearch:travis-county-zoning",
+            entityId: "websearch:travis-county-zoning",
+            label: "Travis County zoning overview",
+            n: 2,
+          }),
+        ]}
+        openDid={null}
         onToggle={noop}
       />,
     );
-    expect(html).toContain("No excerpt for this source");
+    expect(html).toContain('data-testid="chat-web-source"');
+    expect(html).toContain("unverified");
+    // Never an atom chip, never the atom accent.
+    expect(html).not.toContain('data-testid="chat-citation-chip"');
+    expect(html).not.toContain(ATOM_ACCENT);
   });
 
-  it("no refs → no citation row at all", () => {
+  it("HONEST-EMPTY: no refs → no citation row at all (plain prose answer)", () => {
     const html = renderToStaticMarkup(
-      <ChatCitationChips refs={[]} expandedDid={null} onToggle={noop} />,
+      <ChatCitationChips refs={[]} openDid={null} onToggle={noop} />,
     );
     expect(html).toBe("");
+  });
+});
+
+describe("inline [n] anchors (PRO mode)", () => {
+  it("a matched [n] renders as an atom-accent superscript anchor", () => {
+    const html = renderToStaticMarkup(
+      <InlineAnswerText
+        content="Front setback is 15 ft [1]."
+        refs={[chatRef({ n: 1 })]}
+        onCitationTap={noop}
+      />,
+    );
+    expect(html).toContain('data-testid="chat-inline-citation"');
+    expect(html).toContain("[1]");
+    expect(html).toContain(ATOM_ACCENT);
+  });
+
+  it("an UNMATCHED [99] stays plain text — a dropped marker is never evidence", () => {
+    const html = renderToStaticMarkup(
+      <InlineAnswerText
+        content="Setback is 15 ft [1] but invented [99] survives only as text."
+        refs={[chatRef({ n: 1 })]}
+        onCitationTap={noop}
+      />,
+    );
+    // Exactly one anchor (the real [1]); [99] renders but not as a button.
+    expect(html.match(/data-testid="chat-inline-citation"/g)).toHaveLength(1);
+    expect(html).toContain("[99]");
+  });
+
+  it("a web-unverified ref's [n] stays plain text (no atom anchor authority)", () => {
+    const html = renderToStaticMarkup(
+      <InlineAnswerText
+        content="Per a web source [2]."
+        refs={[chatRef({ n: 2, did: "websearch:x", entityId: "websearch:x" })]}
+        onCitationTap={noop}
+      />,
+    );
+    expect(html).not.toContain('data-testid="chat-inline-citation"');
+    expect(html).toContain("[2]");
+  });
+
+  it("no markers → plain paragraphs, no anchors", () => {
+    const html = renderToStaticMarkup(
+      <InlineAnswerText content="Plain prose." refs={[]} onCitationTap={noop} />,
+    );
+    expect(html).not.toContain('data-testid="chat-inline-citation"');
+    expect(html).toContain("Plain prose.");
+  });
+});
+
+describe("the accordion card (BRIEF → more → FULL, lineage walk)", () => {
+  const MODEL: AtomCardModel = {
+    did: "did:hauska:buildable-envelope:48021:28286",
+    entityType: "buildable-envelope",
+    claim: "Buildable area ≈ 7,316 sq ft after setbacks",
+    source: "depth-warm",
+    method: "buildable-envelope-inset-v1",
+    sourceUrl: "https://example.com/source",
+    sourceCitation: "depth-warm-verified mechanical promote",
+    confidence: { value: 0.85, basis: "asserted", n: 0, intervalWidth: 0.15 },
+    calibrated: null,
+    verification: "asserted",
+    asOf: "2026-07-29T08:38:21.055Z",
+    capturedAt: null,
+    accessPolicy: "public-free",
+  };
+  const LINEAGE: AtomLineage = {
+    computedFrom: [
+      {
+        did: "did:hauska:zoning-fact:48021:28286",
+        label: "zoning fact",
+        entityType: "zoning-fact",
+      },
+      {
+        did: "did:hauska:setback-rule:48021:28286",
+        label: "setback rule",
+        entityType: "setback-rule",
+      },
+    ],
+    wouldAffect: [],
+    citedInputs: ["parcel-geometry-ring"],
+  };
+
+  function card(overrides: Partial<Parameters<typeof AtomCardView>[0]> = {}) {
+    return renderToStaticMarkup(
+      <AtomCardView
+        did={MODEL.did}
+        localRef={chatRef({ did: MODEL.did })}
+        model={MODEL}
+        degraded={false}
+        loading={false}
+        full={false}
+        lineage={LINEAGE}
+        canBack={false}
+        onBack={noop}
+        onToggleFull={noop}
+        onLineageTap={noop}
+        {...overrides}
+      />,
+    );
+  }
+
+  it("BRIEF: claim, provenance (source · method), NEVER-BARE confidence with basis, as-of + read-time freshness, accessPolicy", () => {
+    const html = card();
+    expect(html).toContain("Buildable area ≈ 7,316 sq ft after setbacks");
+    expect(html).toContain("depth-warm · buildable-envelope-inset-v1");
+    expect(html).toContain("Confidence 0.85");
+    // The basis rides WITH the number — PE atoms are honestly asserted.
+    expect(html).toContain('data-testid="atom-card-confidence-basis"');
+    expect(html).toContain("asserted");
+    expect(html).toContain("As of 2026-07-29");
+    expect(html).toContain('data-testid="atom-card-freshness"');
+    expect(html).toContain("access: public-free");
+    // BRIEF hides the FULL block.
+    expect(html).not.toContain('data-testid="atom-card-full"');
+    expect(html).toContain("more →");
+  });
+
+  it("no confidence basis → NO number renders anywhere (never bare)", () => {
+    const html = card({ model: { ...MODEL, confidence: null } });
+    expect(html).not.toContain('data-testid="atom-card-confidence"');
+    expect(html).not.toContain("0.85");
+  });
+
+  it("FULL: lineage chips (computed-from), cited inputs, source link, did, calibration honesty line", () => {
+    const html = card({ full: true });
+    expect(html).toContain('data-testid="atom-card-full"');
+    expect(html.match(/data-testid="atom-card-computed-from"/g)).toHaveLength(2);
+    expect(html).toContain("zoning fact");
+    expect(html).toContain("setback rule");
+    expect(html).toContain("Cited inputs: parcel-geometry-ring");
+    expect(html).toContain('data-testid="atom-card-source-link"');
+    expect(html).toContain(MODEL.did);
+    // PE calibration is not live — the card says so, honestly.
+    expect(html).toContain("Calibration not yet earned");
+    expect(html).toContain("less ←");
+  });
+
+  it("ABSENT lineage links render NOTHING (no fabricated relationships)", () => {
+    const html = card({
+      full: true,
+      lineage: { computedFrom: [], wouldAffect: [], citedInputs: [] },
+    });
+    expect(html).not.toContain('data-testid="atom-card-computed-from"');
+    expect(html).not.toContain('data-testid="atom-card-would-affect"');
+    expect(html).not.toContain("Cited inputs:");
+  });
+
+  it("DEGRADED: local BRIEF content + honest 'full record unavailable' — the chip never breaks", () => {
+    const html = card({ model: null, degraded: true });
+    expect(html).toContain('data-testid="atom-card-unavailable"');
+    expect(html).toContain("Full record unavailable");
+    // The local citation still shows (label + snippet).
+    expect(html).toContain("ADU standards");
+    expect(html).toContain("Accessory dwelling units are permitted subject to…");
+  });
+
+  it("walk depth > 1 → ← back affordance renders", () => {
+    expect(card({ canBack: true })).toContain('data-testid="atom-card-back"');
+    expect(card({ canBack: false })).not.toContain(
+      'data-testid="atom-card-back"',
+    );
+  });
+
+  it("would-affect chips render on the FULL level when links exist", () => {
+    const html = card({
+      full: true,
+      lineage: {
+        computedFrom: [],
+        wouldAffect: [
+          {
+            did: "did:hauska:buildable-envelope:48021:28286",
+            label: "buildable envelope",
+            entityType: "buildable-envelope",
+          },
+        ],
+        citedInputs: [],
+      },
+    });
+    expect(html.match(/data-testid="atom-card-would-affect"/g)).toHaveLength(1);
+    expect(html).toContain("buildable envelope");
+  });
+});
+
+describe("RESERVED atom color — audit (the accent means atoms, nothing else)", () => {
+  it("the accent hex appears in exactly ONE source module (the token definition)", () => {
+    // Walk the app source; the reserved hue may be DEFINED once
+    // (chat-citations.ts ATOM_ACCENT) and referenced only via the token.
+    const here = fileURLToPath(new URL(".", import.meta.url));
+    const srcRoot = join(here, "..", "..");
+    const hits: string[] = [];
+    const walk = (dir: string) => {
+      for (const name of readdirSync(dir)) {
+        const p = join(dir, name);
+        const st = statSync(p);
+        if (st.isDirectory()) {
+          if (name === "node_modules" || name === "dist") continue;
+          walk(p);
+        } else if (/\.(ts|tsx|css|html)$/.test(name)) {
+          const text = readFileSync(p, "utf8");
+          if (text.toLowerCase().includes(ATOM_ACCENT.toLowerCase())) {
+            hits.push(name);
+          }
+        }
+      }
+    };
+    walk(srcRoot);
+    expect(hits).toEqual(["chat-citations.ts"]);
+  });
+
+  it("chips + lineage chips render with the token; numbers/links stay non-atom", () => {
+    const chips = renderToStaticMarkup(
+      <ChatCitationChips refs={[chatRef({})]} openDid={null} onToggle={noop} />,
+    );
+    expect(chips).toContain(ATOM_ACCENT);
   });
 });
 

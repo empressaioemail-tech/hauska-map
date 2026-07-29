@@ -6,7 +6,10 @@ import { describe, expect, it } from "vitest";
 import {
   deriveChipFreshness,
   freshnessTitle,
+  isWebUnverifiedRef,
   normalizeChatRef,
+  parseAnswerSegments,
+  refForCitationNumber,
   refsFromChatResponse,
   type ChatRef,
 } from "./chat-citations";
@@ -20,6 +23,7 @@ function ref(overrides: Partial<ChatRef>): ChatRef {
     snippet: null,
     edition: null,
     vintage: null,
+    n: null,
     ...overrides,
   };
 }
@@ -101,6 +105,103 @@ describe("refsFromChatResponse — merge + dedupe", () => {
   it("empty / absent arrays → empty chip list (no crash)", () => {
     expect(refsFromChatResponse({})).toEqual([]);
     expect(refsFromChatResponse({ citations: [null, 42, "x"] })).toEqual([]);
+  });
+
+  it("carries the backend citation number n (inline [n] anchor mapping)", () => {
+    const refs = refsFromChatResponse({
+      citations: [
+        { n: 1, atomDid: "did:hauska:code-section:a", label: "A" },
+        { atomDid: "did:hauska:code-section:b", label: "B" },
+      ],
+    });
+    expect(refs[0]!.n).toBe(1);
+    expect(refs[1]!.n).toBeNull();
+    // Invalid n shapes are dropped, never coerced.
+    expect(
+      refsFromChatResponse({
+        citations: [{ n: "7", atomDid: "did:hauska:code-section:c", label: "C" }],
+      })[0]!.n,
+    ).toBeNull();
+  });
+
+  it("a duplicate donates its n when the first had none", () => {
+    const refs = refsFromChatResponse({
+      citations: [{ atomDid: "did:hauska:code-section:a", label: "A" }],
+      sources: [{ n: 3, atomDid: "did:hauska:code-section:a", label: "A" }],
+    });
+    expect(refs).toHaveLength(1);
+    expect(refs[0]!.n).toBe(3);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// PRO-mode inline [n] anchor parsing (R2). The second line of defense: only
+// an [n] that maps to a REAL delivered citation may anchor; the rest is text.
+// ---------------------------------------------------------------------------
+
+describe("parseAnswerSegments — inline [n] markers", () => {
+  it("splits text and citation markers, preserving order", () => {
+    expect(parseAnswerSegments("Front setback is 15 ft [1] per code [2].")).toEqual([
+      { kind: "text", text: "Front setback is 15 ft " },
+      { kind: "cite", n: 1 },
+      { kind: "text", text: " per code " },
+      { kind: "cite", n: 2 },
+      { kind: "text", text: "." },
+    ]);
+  });
+
+  it("no markers → one text segment; empty → empty", () => {
+    expect(parseAnswerSegments("Plain prose.")).toEqual([
+      { kind: "text", text: "Plain prose." },
+    ]);
+    expect(parseAnswerSegments("")).toEqual([]);
+  });
+
+  it("non-numeric brackets stay text ([a], [), malformed never crashes", () => {
+    expect(parseAnswerSegments("see [a] and [ then [12")).toEqual([
+      { kind: "text", text: "see [a] and [ then [12" },
+    ]);
+  });
+
+  it("refForCitationNumber maps n → the delivered ref; unknown n → null", () => {
+    const refs = [ref({ n: 1, did: "did:hauska:code-section:a" })];
+    expect(refForCitationNumber(refs, 1)?.did).toBe(
+      "did:hauska:code-section:a",
+    );
+    // An invented [99] resolves to NOTHING — the renderer keeps it plain text.
+    expect(refForCitationNumber(refs, 99)).toBeNull();
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Websearch-derived sources are NEVER atom chips (distinct + unverified).
+// ---------------------------------------------------------------------------
+
+describe("isWebUnverifiedRef", () => {
+  it("websearch: ids classify as web-unverified", () => {
+    expect(
+      isWebUnverifiedRef(ref({ did: "websearch:austin-zoning-overview" })),
+    ).toBe(true);
+    expect(
+      isWebUnverifiedRef(
+        ref({ did: "did:hauska:code-section:x", entityId: "websearch:abc" }),
+      ),
+    ).toBe(true);
+  });
+
+  it("bare URLs and web entity types classify as web-unverified", () => {
+    expect(isWebUnverifiedRef(ref({ did: "https://example.com/zoning" }))).toBe(
+      true,
+    );
+    expect(isWebUnverifiedRef(ref({ entityType: "websearch" }))).toBe(true);
+    expect(isWebUnverifiedRef(ref({ entityType: "web-source" }))).toBe(true);
+  });
+
+  it("recorded atom refs are NOT web-unverified", () => {
+    expect(isWebUnverifiedRef(ref({}))).toBe(false);
+    expect(
+      isWebUnverifiedRef(ref({ did: "did:hauska:zoning-fact:48021:28286" })),
+    ).toBe(false);
   });
 });
 

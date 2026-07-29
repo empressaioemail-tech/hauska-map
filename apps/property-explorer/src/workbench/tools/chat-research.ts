@@ -450,7 +450,11 @@ export function buildChatRequestBody(input: {
     history: input.history
       .slice(-CHAT_HISTORY_WINDOW)
       .map((t) => ({ role: t.role, content: t.content })),
-    presentationMode: "consumer",
+    // R2: the workbench chat serves the PRO ICP — "pro" keeps inline [n]
+    // citation markers in the answer text (the backend z.enum is
+    // ["consumer","pro"]; consumer mode strips the markers, which suppresses
+    // the inline citation layer). LOCK ruling 2026-07-29.
+    presentationMode: "pro",
     ...(input.purpose ? { purpose: input.purpose } : {}),
     ...(starter ? { starterPromptId: starter } : {}),
     ...(input.personaBucket ? { personaBucket: input.personaBucket } : {}),

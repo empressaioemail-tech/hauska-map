@@ -22,6 +22,15 @@ export const CORTEX_PROXY_BASE = "/api/spine/cortex/api";
 export const PE_FACETS_PROXY_BASE = "/api/spine/property-atoms";
 
 /**
+ * Retrieval-API proxy base (anonymous browse allowlist: health,
+ * property-nodes/:id/atom-chain, atoms/:did, attaching-roads, near-bbox).
+ * Used by the chat citation accordion for fetch-on-tap atom enrichment and
+ * the client-composed lineage walk. The proxy attaches the Bearer key
+ * server-side; the browser never holds it.
+ */
+export const PE_RETRIEVAL_PROXY_BASE = "/api/spine/retrieval";
+
+/**
  * DEFAULT_CENTER — Central Texas (Bastrop). Same values as
  * SHARED_DEFAULT_CENTER in @hauska/map-renderer/src/chrome/sharedMapDefaults.
  */
