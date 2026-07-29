@@ -53,14 +53,14 @@ describe("reconcileToasts", () => {
   });
 
   it("same key with CHANGED text is a new event — fresh toast, timer restart", () => {
-    const first = reconcileToasts([], [chip("hydro-ok", "Flow lines — 3 D8 channels")], T0);
+    const first = reconcileToasts([], [chip("hydrography-ok", "Hydrography — 3 streams")], T0);
     const again = reconcileToasts(
       first,
-      [chip("hydro-ok", "Flow lines — 7 D8 channels")],
+      [chip("hydrography-ok", "Hydrography — 7 streams")],
       T0 + 2_000,
     );
     expect(again[0].phase).toBe("showing");
-    expect(again[0].text).toBe("Flow lines — 7 D8 channels");
+    expect(again[0].text).toBe("Hydrography — 7 streams");
     expect(again[0].expiresAt).toBeGreaterThan(T0 + 2_000);
   });
 

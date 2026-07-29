@@ -9,6 +9,7 @@
     "api/pe-terrain-export.ts": { "maxDuration": 60 },
     "api/pe-topography.ts": { "maxDuration": 60 },
     "api/pe-hydrology.ts": { "maxDuration": 60 },
+    "api/pe-hydrography.ts": { "maxDuration": 60 },
     "api/pe-share-view.ts": { "maxDuration": 60 }
   },
   "rewrites": [
@@ -21,6 +22,7 @@
     { "source": "/api/pe-site-plan-export", "destination": "/api/pe-site-plan-export" },
     { "source": "/api/pe-topography", "destination": "/api/pe-topography" },
     { "source": "/api/pe-hydrology", "destination": "/api/pe-hydrology" },
+    { "source": "/api/pe-hydrography", "destination": "/api/pe-hydrography" },
     { "source": "/api/pe-geocode", "destination": "/api/pe-geocode" },
     { "source": "/api/pe-share", "destination": "/api/pe-share" },
     { "source": "/api/pe-share-view", "destination": "/api/pe-share-view" },

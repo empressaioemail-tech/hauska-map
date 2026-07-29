@@ -28,6 +28,9 @@ export const LAYER_REGISTRY = [
   { key: "floodway", label: "Regulatory floodway", group: "hazard", fixture: true, live: true, fuelGated: false },
   { key: "dem-hillshade", label: "Hillshade relief (not live)", group: "terrain", fixture: true, live: false, fuelGated: false },
   { key: "topography-contours", label: "Contours (1 ft / 3DEP)", group: "terrain", fixture: false, live: true, fuelGated: false },
+  { key: "hydrography", label: "Hydrography", group: "hydrology", fixture: false, live: true, fuelGated: false },
+  // INTERNAL/DEBUG: the derived D8 flow layer is no longer a customer layer
+  // (replaced by `hydrography` on browse surfaces); CC may keep it for debug.
   { key: "hydrology-flow", label: "Hydrology flow (D8)", group: "hydrology", fixture: false, live: true, fuelGated: false },
   { key: "buildable-envelope", label: "Buildable envelope", group: "reasoning", fixture: true, live: false, fuelGated: false },
   { key: "constraint-density", label: "Constraint density", group: "reasoning", fixture: true, live: false, fuelGated: false },
@@ -202,6 +205,7 @@ function legendEncodes(key) {
     "rent-heat": "Rent AVM intensity (fixture fire ramp)",
     "dem-hillshade": "DEM relief — not wired to live engine data (fixture; honest follow-up)",
     "topography-contours": "Live elevation contours from the engine topography-1ft slot. Inside the Bastrop County footprint the AUTHORITATIVE 1-ft LiDAR contours are served; everywhere else an honest 3DEP-derived fallback. The map chip labels the TRUE tier served for the current viewport (1-ft in Bastrop, 3DEP elsewhere) — never a static claim.",
+    hydrography: "Real county-mapped streams from the engine hydrography slot — the county's own GIS hydrography source, with provenance (source, layer name, vintage) on the layer row. Where the county has no configured source, or the slot is not yet served, the layer is honestly unavailable — never a derived squiggle.",
     "hydrology-flow": "Live D8 flow channels from the engine hydrology-flow slot — a real flow-accumulation over the viewport 3DEP DEM, emitting channels above the accumulation threshold. On flat terrain / no channels / DEM void it is honest-empty (draws nothing, with the reason on the chip) — never a synthetic meander.",
     "parcel-extrusion": "Allowed build height extrusion (ft)",
     zoning: "Municipal zoning / land-use code",

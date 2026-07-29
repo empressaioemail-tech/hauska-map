@@ -5,27 +5,33 @@
  * Relative import (not the package barrel) so app tests that mock
  * `@hauska/map-renderer` (FloatingMap) do not erase these helpers.
  */
+// NOTE: the derived D8 hydrology helpers (LIVE_HYDRO_KEY, fetchHydrologyLayer,
+// toHydroOverlay, …) are intentionally NOT re-exported: the D8 flow squiggle is
+// no longer a customer layer on the browse map. PE's water layer is the REAL
+// county-mapped `hydrography` slot below. The D8 helpers remain in the shared
+// module for internal (CC/debug) use.
 export {
   LIVE_PARCELS_KEY,
   LIVE_FEMA_KEY,
   LIVE_TOPO_KEY,
-  LIVE_HYDRO_KEY,
+  LIVE_HYDROGRAPHY_KEY,
   MIN_PARCEL_ZOOM,
   MIN_FEMA_ZOOM,
   MIN_TOPO_ZOOM,
-  MIN_HYDRO_ZOOM,
+  MIN_HYDROGRAPHY_ZOOM,
   layersForZoom,
   fetchGisLayer,
   fetchTopographyLayer,
-  fetchHydrologyLayer,
+  fetchHydrographyLayer,
   contourTierLabel,
   contourLinesOnly,
-  isHydrologyHonestEmpty,
-  hydrologyHonestReason,
+  isHydrographyHonestEmpty,
+  hydrographyHonestReason,
+  hydrographyProvenanceLabel,
   parcelFillColor,
   toLiveOverlays,
   toTopoOverlay,
-  toHydroOverlay,
+  toHydrographyOverlay,
   parcelNodeIdFromSelection,
   selectionToCard,
 } from "../../../../packages/map-renderer/src/live-gis";
@@ -38,7 +44,8 @@ export type {
   ContourTier,
   TopoLayerResponse,
   TopoLayerState,
-  HydroLayerResponse,
-  HydroLayerState,
+  HydrographyProvenance,
+  HydrographyLayerResponse,
+  HydrographyLayerState,
   ParcelCardData,
 } from "../../../../packages/map-renderer/src/live-gis";
