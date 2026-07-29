@@ -288,6 +288,7 @@ export function MapToolset({
   visible,
   onLayersChange,
   layerStates,
+  onToolsController,
 }: {
   mapRef: RefObject<FloatingMapHandle | null>;
   /** Full layer set this surface knows about (mount seed) — a toggled-off
@@ -299,6 +300,9 @@ export function MapToolset({
   onLayersChange: (next: Set<LayerKey>) => void;
   /** Persistent honest per-layer state (dot + tooltip + caption per row). */
   layerStates?: Partial<Record<LayerKey, LayerStateBadge>>;
+  /** WB6 dossier seam: fires with the live MapToolsController once installed
+   *  (and null on teardown) so the host can capture/redraw drawings. */
+  onToolsController?: (controller: MapToolsController | null) => void;
 }) {
   // The live maplibre map, resolved once the handle is ready.
   const [map, setMap] = useState<MaplibreMap | null>(null);
@@ -346,6 +350,7 @@ export function MapToolset({
     if (!map) return;
     const controller = installMapTools(map, setSnap);
     controllerRef.current = controller;
+    onToolsController?.(controller);
 
     const geolocate = new GeolocateControl({
       positionOptions: { enableHighAccuracy: true },
@@ -367,6 +372,7 @@ export function MapToolset({
     }
 
     return () => {
+      onToolsController?.(null);
       controller.destroy();
       controllerRef.current = null;
       try {
