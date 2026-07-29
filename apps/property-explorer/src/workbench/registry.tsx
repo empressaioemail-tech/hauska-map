@@ -13,6 +13,7 @@
 import type { WorkbenchToolDef } from "./types";
 import { WorkbenchIcon } from "./Workbench";
 import { BriefTool } from "./tools/BriefTool";
+import { ChatTool } from "./tools/ChatTool";
 import { ReportsTool } from "./tools/ReportsTool";
 
 // Stroke glyphs in the MapToolset icon language (24-viewBox paths).
@@ -47,8 +48,9 @@ export const WORKBENCH_TOOLS: WorkbenchToolDef[] = [
     id: "chat",
     label: "AI chat",
     icon: <WorkbenchIcon path={ICONS.chat} />,
-    status: "coming",
+    status: "live",
     propertyScoped: true,
+    render: () => <ChatTool />,
   },
   {
     id: "reports",

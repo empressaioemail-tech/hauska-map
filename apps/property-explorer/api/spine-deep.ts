@@ -21,6 +21,9 @@ const DEEP_POST_EXACT = new Set([
   'api/property-explorer/v1/research/brief',
   'api/property-explorer/v1/research/hydrology',
   'api/property-explorer/v1/research/subsurface',
+  // W3 workbench chat — same user-session Bearer as research/brief (never the
+  // service key, never the extension's install-id/public-key wedge).
+  'api/brokerage/v1/research/chat',
 ])
 
 function isDeepPathAllowed(method: string, upstreamPath: string): boolean {

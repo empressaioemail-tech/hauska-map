@@ -240,6 +240,9 @@ export function ExplorerMap() {
   // active-property binding re-renders when the subject changes.
   const [openWorkbenchTool, setOpenWorkbenchTool] = useState<string | null>(null);
   const [subjectNodeId, setSubjectNodeId] = useState<string | null>(null);
+  // Render-time mirror of the workbench active property so the stable host
+  // callbacks (W3 getActivePropertyAddress) read the CURRENT binding.
+  const activeParcelNodeIdRef = useRef<string | null>(null);
   const [paywallOpen, setPaywallOpen] = useState(false);
   const [paywallMessage, setPaywallMessage] = useState<string | null>(null);
   const [checkoutBusy, setCheckoutBusy] = useState(false);
@@ -1017,14 +1020,25 @@ export function ExplorerMap() {
     countyName: card?.county ?? null,
   };
 
-  // App-shell actions the workbench tools call back into (the 402 paywall +
-  // W2 active-parcel display facts).
+  // App-shell actions the workbench tools call back into (the 402 paywall;
+  // W2 active-parcel display facts; W3 the active property's situs address for
+  // chat scoping). Reads route through refs so the host identity stays stable.
   const workbenchHost = useMemo<WorkbenchHostActions>(
     () => ({
       openPaywall: (message: string) => {
         setCheckoutNote(null);
         setPaywallMessage(message);
         setPaywallOpen(true);
+      },
+      getActivePropertyAddress: () => {
+        // Only the INSPECTED card carries an address; return it iff it IS the
+        // workbench's active property (never a stale card's address).
+        const active = activeParcelNodeIdRef.current;
+        const inspected = inspectedRef.current;
+        if (!active || !inspected || inspected.parcelNodeId !== active) {
+          return null;
+        }
+        return inspected.card?.situsAddress ?? null;
       },
       getActiveParcelFacts: () => cardFactsRef.current,
     }),
@@ -1035,6 +1049,7 @@ export function ExplorerMap() {
   // node id, falling back to the SUBJECT's. Every dock tool re-scopes when
   // this changes (chassis store is keyed by it).
   const activeParcelNodeId = cardNodeId ?? subjectNodeId;
+  activeParcelNodeIdRef.current = activeParcelNodeId;
 
   // W2: the terrain/site-plan paywall handlers moved into the workbench
   // Reports tool (ReportsTool.tsx) with the same copy + pe_paywall_hit event —
