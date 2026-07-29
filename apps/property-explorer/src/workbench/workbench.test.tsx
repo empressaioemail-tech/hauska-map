@@ -59,7 +59,7 @@ describe("bubble cluster", () => {
     expect(html).not.toContain('data-testid="workbench-dock"');
   });
 
-  it("v1 registry: exactly one live tool (brief); the rest honestly coming", () => {
+  it("registry: brief + reports live (W2); the rest honestly coming", () => {
     expect(WORKBENCH_TOOLS.map((t) => t.id)).toEqual([
       "brief",
       "chat",
@@ -69,7 +69,10 @@ describe("bubble cluster", () => {
     ]);
     expect(
       WORKBENCH_TOOLS.filter((t) => t.status === "live").map((t) => t.id),
-    ).toEqual(["brief"]);
+    ).toEqual(["brief", "reports"]);
+    expect(
+      WORKBENCH_TOOLS.find((t) => t.id === "reports")?.label,
+    ).toBe("Reports & exports");
   });
 
   it("marks the open tool's bubble active (aria-pressed)", () => {

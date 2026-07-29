@@ -33,7 +33,6 @@ const html = renderToStaticMarkup(
     onClose={noop}
     onMakeSubject={noop}
     onResearch={noop}
-    onTerrainPaymentRequired={noop}
   />,
 );
 
@@ -60,5 +59,36 @@ describe("InspectCard — persona UI removed (map UX cluster item 4)", () => {
     expect(html).toContain('data-testid="research-this"');
     // Live-fallback provenance line (honest, not persona copy) survives.
     expect(html).toContain("Source: Bastrop County GIS");
+  });
+});
+
+describe("InspectCard — export sections moved to the workbench (W2)", () => {
+  // Even WITH a baked node id (the condition that used to gate the export
+  // sections in), the card renders NO export UI: site-plan + terrain exports
+  // live in the workbench "Reports & exports" dock now.
+  const withNodeId = renderToStaticMarkup(
+    <InspectCard
+      card={CARD}
+      parcelNodeId="48021:141209"
+      onClose={noop}
+      onMakeSubject={noop}
+      onResearch={noop}
+      onSaveProperty={noop}
+    />,
+  );
+
+  it("renders neither the site-plan nor the terrain export section", () => {
+    expect(withNodeId).not.toContain('data-testid="site-plan-export-section"');
+    expect(withNodeId).not.toContain('data-testid="terrain-export-section"');
+    expect(withNodeId).not.toContain("Export site plan");
+    expect(withNodeId).not.toContain("Export terrain");
+    expect(withNodeId).not.toContain('data-testid="site-plan-format-picker"');
+    expect(withNodeId).not.toContain('data-testid="terrain-format-picker"');
+  });
+
+  it("keeps the leaner card's actions: Research / Make subject / Save", () => {
+    expect(withNodeId).toContain('data-testid="research-this"');
+    expect(withNodeId).toContain('data-testid="make-subject"');
+    expect(withNodeId).toContain('data-testid="save-property"');
   });
 });
