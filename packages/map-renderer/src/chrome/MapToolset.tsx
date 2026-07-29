@@ -214,12 +214,17 @@ export function MapToolset({
     onLayersChange(next);
   };
 
+  // Operator revision 2026-07-29: the toolset lives as a small BUBBLE in the
+  // lower-right corner; clicking it expands the panel upward. Collapsed by
+  // default so the map (and the top-right brief) own the screen.
+  const [expanded, setExpanded] = useState(false);
+
   return (
     <div
       data-testid="map-toolset"
       style={{
         position: "absolute",
-        top: 12,
+        bottom: 16,
         right: 12,
         zIndex: 9,
         display: "flex",
@@ -229,11 +234,11 @@ export function MapToolset({
         fontFamily: "system-ui, -apple-system, Segoe UI, Roboto, sans-serif",
       }}
     >
-      {/* THE unified panel: Tools section + Layers section. */}
+      {/* THE unified panel: Tools section + Layers section (expanded only). */}
       <div
         style={{
+          display: expanded ? "flex" : "none",
           width: 200,
-          display: "flex",
           flexDirection: "column",
           gap: 9,
           padding: "10px 12px",
@@ -243,6 +248,8 @@ export function MapToolset({
           color: TEXT,
           fontSize: 11.5,
           boxShadow: "0 10px 32px rgba(0,0,0,0.45)",
+          maxHeight: "calc(100vh - 96px)",
+          overflowY: "auto",
         }}
       >
         {/* --- TOOLS --- */}
@@ -434,7 +441,9 @@ export function MapToolset({
         </div>
       </div>
 
-      {/* Esri attribution while satellite is on (its terms require the credit). */}
+      {/* Esri attribution while satellite is on (its terms require the credit).
+          Shown even while collapsed — the credit must stay visible whenever
+          the satellite base is. */}
       {satellite && (
         <div
           style={{
@@ -452,6 +461,43 @@ export function MapToolset({
           {SATELLITE_ATTRIBUTION}
         </div>
       )}
+
+      {/* The bubble: always visible, toggles the panel. */}
+      <button
+        type="button"
+        data-testid="map-toolset-bubble"
+        aria-label={expanded ? "Collapse map tools & layers" : "Expand map tools & layers"}
+        aria-expanded={expanded}
+        onClick={() => setExpanded((v) => !v)}
+        style={{
+          width: 44,
+          height: 44,
+          borderRadius: "50%",
+          border: PANEL_BORDER,
+          background: expanded ? "rgba(125,211,252,0.18)" : PANEL_BG,
+          color: expanded ? ACCENT : TEXT,
+          cursor: "pointer",
+          display: "flex",
+          alignItems: "center",
+          justifyContent: "center",
+          boxShadow: "0 8px 24px rgba(0,0,0,0.5)",
+        }}
+      >
+        {/* layer-stack glyph */}
+        <svg
+          viewBox="0 0 24 24"
+          width={20}
+          height={20}
+          aria-hidden="true"
+          fill="none"
+          stroke="currentColor"
+          strokeWidth={2}
+          strokeLinecap="round"
+          strokeLinejoin="round"
+        >
+          <path d="M12 2 2 7.5 12 13l10-5.5L12 2Zm-10 10L12 17.5 22 12M2 16.5 12 22l10-5.5" />
+        </svg>
+      </button>
     </div>
   );
 }
