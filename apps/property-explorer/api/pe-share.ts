@@ -13,7 +13,10 @@
 
 import type { VercelRequest, VercelResponse } from '@vercel/node'
 import { isValidParcelNodeId } from './_lib/parcel-node-id.js'
-import { fetchPeEntitlement } from './_lib/pe-entitlement.js'
+import {
+  fetchPeEntitlement,
+  fetchPeEntitlementDetail,
+} from './_lib/pe-entitlement.js'
 import {
   isPeExportDevBypassArmed,
   PE_EXPORT_DEV_BYPASS_HEADER,
@@ -73,11 +76,24 @@ export default async function handler(
     return
   }
 
-  const minted = mintShareToken({ parcelNodeId, secret })
+  // TOKEN v2 (dossier share): embed the SHARER's owner scope {tenantId,
+  // ownerUserId} so the share view can fetch their saved dossier through the
+  // cortex service-key route. Scope comes from the entitlement snapshot for
+  // THIS session. If it cannot be resolved (older cortex, transient failure)
+  // the link is still minted as v1 — read-only share keeps working, the
+  // share view simply renders without the dossier section.
+  const detail = token ? await fetchPeEntitlementDetail(token) : null
+  const ownerScope =
+    detail?.ok && detail.tenantId && detail.userId
+      ? { tenantId: detail.tenantId, ownerUserId: detail.userId }
+      : null
+
+  const minted = mintShareToken({ parcelNodeId, secret, ownerScope })
   res.status(200).json({
     url: `${deployOrigin(req)}/share#${minted.token}`,
     token: minted.token,
     expiresAt: minted.expiresAt,
     parcelNodeId,
+    tokenVersion: minted.version,
   })
 }

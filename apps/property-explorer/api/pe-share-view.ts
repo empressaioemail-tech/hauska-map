@@ -1,6 +1,6 @@
 // Property Explorer share-view data plane — Workbench W4 SHARE.
 //
-// GET /api/pe-share-view?token=<share-token>&what=brief|siteplan|terrain
+// GET /api/pe-share-view?token=<share-token>&what=brief|siteplan|terrain|dossier
 //
 // The ONLY data plane a share-link viewer has. No session, no service key in
 // the browser: every request carries the signed one-parcel token, the server
@@ -18,6 +18,15 @@
 //   what=terrain  → MCP download_parcel_terrain_export (format glb|ifc|
 //                   dxf-3dface|dxf-contour, default glb). Same download-only
 //                   rule.
+//   what=dossier  → the SHARER's saved dossier (drawings, AI chat SUMMARY,
+//                   notes) via the cortex service-key route (#362, GET
+//                   /api/property-explorer/v1/internal/share-dossier). The
+//                   owner scope comes ONLY from a v2 token; v1 tokens (and a
+//                   cortex without the route yet) get an honest 404
+//                   dossier_not_available — the share view then renders
+//                   exactly as before, no dossier section, never an error.
+//                   The projection strips owner-private pieces (chat THREAD,
+//                   export paths, pin, status) — see _lib/pe-share-dossier.ts.
 //
 // Invalid token → 403 share_link_invalid; expired → 403 share_link_expired
 // (the client renders "This share link has expired."); PE_SHARE_SECRET unset
@@ -27,8 +36,13 @@
 import type { VercelRequest, VercelResponse } from '@vercel/node'
 import { cortexApiUrl } from './_lib/oidc-config.js'
 import { callMcpTool, mcpProductKey } from './_lib/mcp-server-client.js'
-import { peShareSecret, resolveShareViewAccess } from './_lib/pe-share-token.js'
+import {
+  peShareSecret,
+  resolveShareViewAccess,
+  type ShareOwnerScope,
+} from './_lib/pe-share-token.js'
 import { buildShareBriefPayload, sharePropertyHeader } from './_lib/pe-share-brief.js'
+import { buildShareDossierPayload } from './_lib/pe-share-dossier.js'
 import {
   extractInlineDownload as extractSitePlanInline,
   sitePlanFilename,
@@ -40,7 +54,7 @@ import {
   type TerrainExportFormat,
 } from './_lib/pe-terrain-export-core.js'
 
-export const SHARE_VIEW_WHAT = ['brief', 'siteplan', 'terrain'] as const
+export const SHARE_VIEW_WHAT = ['brief', 'siteplan', 'terrain', 'dossier'] as const
 export type ShareViewWhat = (typeof SHARE_VIEW_WHAT)[number]
 
 export function parseShareViewWhat(value: unknown): ShareViewWhat | null {
@@ -105,6 +119,94 @@ async function serveBrief(
       tier2: body.tier2 ?? null,
       snapshotAt,
     }),
+    share: { expiresAt },
+  })
+}
+
+/**
+ * what=dossier — service-key read of the SHARER's saved dossier (cortex
+ * #362), feature-detected: any absence (v1 token, cortex route not deployed,
+ * row gone, service key unset) is an honest 404 dossier_not_available so the
+ * share page renders exactly as it did before the dossier shipped.
+ */
+async function serveDossier(
+  res: VercelResponse,
+  parcelNodeId: string,
+  ownerScope: ShareOwnerScope | null,
+  expiresAt: string,
+): Promise<void> {
+  if (!ownerScope) {
+    // v1 token — read-only compat: no owner scope, no dossier, no error.
+    res.status(404).json({
+      error: 'dossier_not_available',
+      message: 'This share link does not carry a dossier.',
+    })
+    return
+  }
+  const serviceKey = process.env.CORTEX_SERVICE_API_KEY?.trim()
+  if (!serviceKey) {
+    res.status(404).json({
+      error: 'dossier_not_available',
+      message: 'Dossier sharing is not configured on this deployment.',
+    })
+    return
+  }
+  const qs = new URLSearchParams({
+    tenantId: ownerScope.tenantId,
+    ownerUserId: ownerScope.ownerUserId,
+    parcelNodeId,
+  })
+  const url = `${cortexApiUrl()}/api/property-explorer/v1/internal/share-dossier?${qs.toString()}`
+  let upstream: Response
+  try {
+    upstream = await fetch(url, {
+      headers: {
+        Authorization: `Bearer ${serviceKey}`,
+        Accept: 'application/json',
+      },
+    })
+  } catch (err) {
+    res.status(502).json({
+      error: 'upstream_error',
+      message: err instanceof Error ? err.message : String(err),
+    })
+    return
+  }
+  // Feature-detect: route absent (older cortex) OR row absent both surface
+  // as 404 — the share view renders as today, no dossier section.
+  if (upstream.status === 404) {
+    res.status(404).json({
+      error: 'dossier_not_available',
+      message: 'No saved dossier exists for this share.',
+    })
+    return
+  }
+  if (!upstream.ok) {
+    res.status(502).json({
+      error: 'upstream_error',
+      message: `Dossier fetch returned ${upstream.status}.`,
+    })
+    return
+  }
+  const body = (await upstream.json().catch(() => null)) as {
+    parcelNodeId?: unknown
+    label?: unknown
+    updatedAt?: unknown
+    snapshot?: unknown
+  } | null
+  const dossier = body ? buildShareDossierPayload(body.snapshot) : null
+  if (!dossier) {
+    res.status(404).json({
+      error: 'dossier_not_available',
+      message: 'The saved dossier has nothing to share yet.',
+    })
+    return
+  }
+  res.status(200).json({
+    parcelNodeId,
+    label: typeof body?.label === 'string' ? body.label : null,
+    updatedAt: typeof body?.updatedAt === 'string' ? body.updatedAt : null,
+    dossier,
     share: { expiresAt },
   })
 }
@@ -184,7 +286,7 @@ export default async function handler(
   if (!what) {
     res.status(400).json({
       error: 'invalid_what',
-      message: 'what must be one of brief, siteplan, terrain.',
+      message: 'what must be one of brief, siteplan, terrain, dossier.',
     })
     return
   }
@@ -195,6 +297,11 @@ export default async function handler(
 
   if (what === 'brief') {
     await serveBrief(res, parcelNodeId, access.expiresAt)
+    return
+  }
+
+  if (what === 'dossier') {
+    await serveDossier(res, parcelNodeId, access.ownerScope, access.expiresAt)
     return
   }
 

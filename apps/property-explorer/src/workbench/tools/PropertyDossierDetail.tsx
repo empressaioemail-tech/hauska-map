@@ -122,6 +122,7 @@ export function PropertyDossierDetail({
   onShowDrawings,
   onSaveNotes,
   onSetStatus,
+  onExportDossier,
 }: {
   row: SavedPropertyRow;
   busy: boolean;
@@ -136,6 +137,12 @@ export function PropertyDossierDetail({
   onSaveNotes: (text: string) => void;
   /** WB7d — persist the single-select status (null clears to unset). */
   onSetStatus: (status: DossierStatus | null) => void;
+  /**
+   * Export the ONE hand-to-client dossier PDF (engine-assembled: verdict +
+   * cited brief facts + AI chat summary + notes + appended site-plan sheets).
+   * Optional so existing render tests keep passing; absent hides the section.
+   */
+  onExportDossier?: () => void;
 }) {
   const dossier = row.snapshot ?? {};
   const title = savedRowDisplayLabel(row);
@@ -291,6 +298,33 @@ export function PropertyDossierDetail({
               </div>
             </details>
           )}
+        </>
+      )}
+
+      {/* DOSSIER PDF — the one hand-to-client document. The ENGINE assembles
+          it from what this property already holds (verdict + cited brief
+          facts + the AI chat summary + notes, site-plan sheets appended);
+          anything absent renders honestly absent. Property entitlement
+          gates it server-side (402 → paywall). */}
+      {onExportDossier && (
+        <>
+          {sectionHeader("Dossier PDF")}
+          <div data-testid="dossier-export-pdf">
+            <p style={{ margin: "0 0 6px", fontSize: 10.5, color: MUTED }}>
+              One PDF for this property — verdict, cited brief facts, the AI
+              chat summary, your notes, and the site-plan sheets when
+              available.
+            </p>
+            <button
+              type="button"
+              data-testid="dossier-export-pdf-button"
+              onClick={onExportDossier}
+              disabled={busy}
+              style={actionButtonStyle(busy)}
+            >
+              {busy ? "Working…" : "Export dossier PDF"}
+            </button>
+          </div>
         </>
       )}
 

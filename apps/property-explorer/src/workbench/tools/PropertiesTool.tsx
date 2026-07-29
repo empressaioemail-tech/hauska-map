@@ -38,8 +38,19 @@ import {
 import { pinAccent, resolvePinForSave } from "../../lib/saved-pins";
 import { googleSignInUrl } from "../../lib/auth";
 import { parcelNodes } from "../../lib/parcel-node-store.js";
+import { recordPeGtmEvent } from "../../lib/gtmClient";
 import { useWorkbench } from "../WorkbenchContext";
 import { PropertyDossierDetail, STATUS_LABELS } from "./PropertyDossierDetail";
+import { runBriefResearch } from "./brief-research";
+import {
+  assembleDossierExportBody,
+  dossierExportNotice,
+  requestDossierExport,
+} from "./dossier-export";
+
+/** R1 value line for the dossier-PDF paywall (property unlock clears it). */
+export const DOSSIER_PAYWALL_MESSAGE =
+  "The property dossier PDF — verdict, cited brief facts, your notes and AI research summary, with the site-plan sheets appended.";
 
 const MUTED = "#9aa6b2";
 const AMBER = "#fcd34d";
@@ -538,6 +549,76 @@ export function PropertiesTool() {
     [],
   );
 
+  // DOSSIER PDF EXPORT — assemble from what the property already holds
+  // (live R1 brief → verdict + flattened facts; saved chat summary + notes)
+  // and hand the ENGINE the assembly. Missing pieces are honestly omitted.
+  // 402 → the unified paywall (property entitlement clears it).
+  const handleExportDossier = useCallback(
+    async (row: SavedPropertyRow) => {
+      setBusy(true);
+      setDossierNotice("Building the dossier PDF…");
+      // Best-effort brief: any non-ready outcome (sign-in / paywall / no
+      // snapshot / unreachable) omits verdict+brief honestly — the export
+      // gate itself is enforced server-side by the BFF.
+      const briefOutcome = await runBriefResearch(row.parcelNodeId);
+      const brief = briefOutcome.kind === "ready" ? briefOutcome.brief : null;
+      const facts =
+        row.parcelNodeId === activeParcelNodeId
+          ? (host.getActiveParcelFacts?.() ?? null)
+          : null;
+      const body = assembleDossierExportBody({
+        parcelNodeId: row.parcelNodeId,
+        dossier: row.snapshot ?? null,
+        brief,
+        facts,
+      });
+      const result = await requestDossierExport(body);
+      setBusy(false);
+      if (!result.ok && result.status === 402) {
+        void recordPeGtmEvent({
+          eventType: "pe_paywall_hit",
+          parcelNodeId: row.parcelNodeId,
+        });
+        setDossierNotice(dossierExportNotice(result));
+        host.openPaywall(DOSSIER_PAYWALL_MESSAGE);
+        return;
+      }
+      setDossierNotice(dossierExportNotice(result));
+      if (!result.ok) return;
+      // Download: inline bytes when the BFF carried them, else the gated
+      // re-download path (same-session cookie ride).
+      try {
+        let blob: Blob;
+        if (result.inlineDownload) {
+          const bin = atob(result.inlineDownload.base64);
+          const bytes = new Uint8Array(bin.length);
+          for (let i = 0; i < bin.length; i++) bytes[i] = bin.charCodeAt(i);
+          blob = new Blob([bytes], {
+            type: result.inlineDownload.contentType || "application/pdf",
+          });
+        } else {
+          const res = await fetch(result.downloadUrl, { credentials: "include" });
+          if (!res.ok) {
+            setDossierNotice(`Dossier download failed (${res.status}).`);
+            return;
+          }
+          blob = await res.blob();
+        }
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement("a");
+        a.href = url;
+        a.download = `${row.parcelNodeId.replace(":", "_")}_dossier.pdf`;
+        document.body.appendChild(a);
+        a.click();
+        a.remove();
+        URL.revokeObjectURL(url);
+      } catch {
+        setDossierNotice("Dossier downloaded response could not be saved — try again.");
+      }
+    },
+    [activeParcelNodeId, host],
+  );
+
   // DETAIL view — needs a ready list carrying the row; otherwise fall back to
   // the master states (loading / sign-in / notice render as usual).
   if (view.kind === "detail" && phase.kind === "ready") {
@@ -577,6 +658,7 @@ export function PropertiesTool() {
         onShowDrawings={() => handleShowDrawings(row)}
         onSaveNotes={(text) => void handleSaveNotes(row.parcelNodeId, text)}
         onSetStatus={(status) => void handleSetStatus(row.parcelNodeId, status)}
+        onExportDossier={() => void handleExportDossier(row)}
       />
     );
   }
