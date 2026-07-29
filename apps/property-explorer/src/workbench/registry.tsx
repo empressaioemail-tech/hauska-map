@@ -17,6 +17,7 @@ import { ChatTool } from "./tools/ChatTool";
 import { ReportsTool } from "./tools/ReportsTool";
 import { PropertiesTool } from "./tools/PropertiesTool";
 import { ShareTool } from "./tools/ShareTool";
+import { CompareTool } from "./tools/CompareTool";
 
 // Stroke glyphs in the MapToolset icon language (24-viewBox paths).
 const ICONS = {
@@ -31,6 +32,8 @@ const ICONS = {
   // Share nodes.
   share:
     "M18 8a2.5 2.5 0 1 0 0-5 2.5 2.5 0 0 0 0 5ZM6 14.5a2.5 2.5 0 1 0 0-5 2.5 2.5 0 0 0 0 5Zm12 6.5a2.5 2.5 0 1 0 0-5 2.5 2.5 0 0 0 0 5ZM8.2 10.9 15.8 7m-7.6 6.1 7.6 3.9",
+  // Two overlapping rectangles (compare).
+  compare: "M4 4h11v11H4V4Zm5 5h11v11H9V9Z",
 } as const;
 
 /**
@@ -79,5 +82,15 @@ export const WORKBENCH_TOOLS: WorkbenchToolDef[] = [
     status: "live",
     propertyScoped: true,
     render: () => <ShareTool />,
+  },
+  {
+    // WB7: compare two SAVED properties side by side INSIDE the one dock.
+    // Operates on the saved list — works with no active property.
+    id: "compare",
+    label: "Compare",
+    icon: <WorkbenchIcon path={ICONS.compare} />,
+    status: "live",
+    propertyScoped: false,
+    render: () => <CompareTool />,
   },
 ];
