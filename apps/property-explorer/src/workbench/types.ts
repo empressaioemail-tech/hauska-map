@@ -1,0 +1,83 @@
+// apps/property-explorer/src/workbench/types.ts
+//
+// PE WORKBENCH CHASSIS — the PINNED tool API (WB1). Later waves (W2 reports /
+// verdict, W3 chat, W4 properties + share) plug tools in through THIS contract
+// and must not touch dock internals.
+//
+// THE DESIGN LAW the chassis enforces: the clean map-first PE stays the star;
+// every capability is a bubble in the TOP-RIGHT cluster that opens into ONE
+// shared dock (the space the property brief used); ONE tool open at a time;
+// state persists PER-PROPERTY across open/close; NO permanent second surface,
+// NO split screen. If a feature wants a permanent panel, it is designed wrong.
+//
+// HOW A LATER WAVE ADDS A TOOL (the whole recipe — no dock edits):
+//   1. Append a `WorkbenchToolDef` to `WORKBENCH_TOOLS` in `registry.tsx`
+//      (or flip an existing "coming" entry to `status: "live"` and give it a
+//      `render`).
+//   2. Inside the tool component, call `useDockToolState<T>(toolId)` for state
+//      that must persist per property across open/close (chat transcript,
+//      fetched report, notes). The hook is ALREADY scoped to the active
+//      property and ALREADY localStorage-backed — write plain JSON-serializable
+//      values and re-scoping on property switch is automatic.
+//   3. Need the app shell (paywall, etc.)? Use `useWorkbench().host` — extend
+//      `WorkbenchHostActions` and wire the implementation in ExplorerMap.
+//
+// ACTIVE PROPERTY: the currently INSPECTED parcel's baked node id, falling
+// back to the SUBJECT parcel's node id (ExplorerMap binds `cardNodeId ??
+// subjectNodeId` into <Workbench activeParcelNodeId=...>). With no active
+// property, the dock renders the honest "select a property first" state for
+// property-scoped tools — tools never render against a phantom property.
+
+import type { ReactNode } from "react";
+
+/** Stable tool id — the registry key AND the per-property state key. */
+export type WorkbenchToolId = string;
+
+/**
+ * Everything a tool receives from the chassis. Tools rendered as components
+ * can read the same values via `useWorkbench()` instead.
+ */
+export interface WorkbenchToolContext {
+  /**
+   * The active property's stable baked parcel node id ("{fips}:{propId}").
+   * For `propertyScoped` tools this is always non-null when `render` runs —
+   * the dock short-circuits to the honest no-property state otherwise.
+   */
+  activeParcelNodeId: string | null;
+  /** Collapse the dock back to the bubble cluster (the dock's × / active-bubble tap). */
+  closeDock: () => void;
+  /** App-shell actions the chassis cannot own (paywall gate, etc.). */
+  host: WorkbenchHostActions;
+}
+
+/**
+ * Actions implemented by the app shell (ExplorerMap) and handed to tools.
+ * Later waves EXTEND this interface rather than threading new props through
+ * the dock.
+ */
+export interface WorkbenchHostActions {
+  /** Open the PE paywall gate with the given message (the 402 path). */
+  openPaywall: (message: string) => void;
+}
+
+/** One bubble in the top-right cluster. */
+export interface WorkbenchToolDef {
+  id: WorkbenchToolId;
+  /** Human label — bubble tooltip, aria-label, and dock header title. */
+  label: string;
+  /** Bubble glyph. Prefer a 15px stroke SVG (see `WorkbenchIcon` in Workbench.tsx). */
+  icon: ReactNode;
+  /**
+   * "live" tools render `render(ctx)` in the dock; "coming" tools render the
+   * chassis-owned honest coming state (registered, visibly not wired — never
+   * dead-looking UI).
+   */
+  status: "live" | "coming";
+  /**
+   * True → the tool works on the active property; with none selected the dock
+   * renders the honest "select a property first" state instead of `render`.
+   */
+  propertyScoped: boolean;
+  /** Dock content for live tools. Omit for "coming" entries. */
+  render?: (ctx: WorkbenchToolContext) => ReactNode;
+}

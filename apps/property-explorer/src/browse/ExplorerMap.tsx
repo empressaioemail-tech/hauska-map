@@ -37,15 +37,15 @@ import type {
 import "@hauska/map-renderer/styles.css";
 import "maplibre-gl/dist/maplibre-gl.css";
 import { DEFAULT_CENTER, PARCEL_TILES } from "../lib/config";
-import { postDeepResearch } from "../lib/auth";
 import { cortexClient } from "../lib/cortexClient";
 import { parcelNodes } from "../lib/parcel-node-store.js";
 import { startPeCheckout } from "../lib/billingClient";
 import { recordPeGtmEvent } from "../lib/gtmClient";
 import { iccCitationStatus } from "../lib/iccCitation";
 import { InspectCard } from "./InspectCard";
-import { PropertyBriefPanel } from "./PropertyBriefPanel";
-import type { ResearchBriefPayload } from "./brief-view-model";
+import { Workbench } from "../workbench/Workbench";
+import { WORKBENCH_TOOLS } from "../workbench/registry";
+import type { WorkbenchHostActions } from "../workbench/types";
 import { MapToolset, type LayerStateBadge } from "./MapToolset";
 import { TransientChips } from "./TransientChips";
 import type { ChipSpec } from "./transient-chips";
@@ -176,8 +176,6 @@ interface InspectedTarget {
   parcelNodeId: string | null;
 }
 
-type ResearchBrief = ResearchBriefPayload;
-
 /** Center → the renderer's {latitude, longitude} Center contract, from lat/lng. */
 function toCenter(lat: number | null, lng: number | null): Center | undefined {
   if (typeof lat !== "number" || typeof lng !== "number") return undefined;
@@ -237,8 +235,11 @@ export function ExplorerMap() {
   // The full known-layer set for this surface (the mount seed), so a toggled-off
   // layer still renders as an unchecked row and can be re-enabled.
   const [knownLayers, setKnownLayers] = useState<Set<LayerKey> | null>(null);
-  const [researchNotice, setResearchNotice] = useState<string | null>(null);
-  const [researchBrief, setResearchBrief] = useState<ResearchBrief | null>(null);
+  // WORKBENCH (WB1): the single open dock tool (null → dock closed) and the
+  // SUBJECT's node id as state (mirror of subjectNodeIdRef) so the workbench
+  // active-property binding re-renders when the subject changes.
+  const [openWorkbenchTool, setOpenWorkbenchTool] = useState<string | null>(null);
+  const [subjectNodeId, setSubjectNodeId] = useState<string | null>(null);
   const [paywallOpen, setPaywallOpen] = useState(false);
   const [paywallMessage, setPaywallMessage] = useState<string | null>(null);
   const [checkoutBusy, setCheckoutBusy] = useState(false);
@@ -737,6 +738,7 @@ export function ExplorerMap() {
     }
 
     subjectNodeIdRef.current = parcelNodeId;
+    setSubjectNodeId(parcelNodeId);
     parcelNodes.setSubject(
       {
         id: parcelNodeId ?? c.apn ?? (c.lat != null ? `coord:${c.lat}:${c.lng}` : null),
@@ -925,9 +927,6 @@ export function ExplorerMap() {
   if (attribution) {
     chips.push({ key: "attribution", sev: "info", text: attribution });
   }
-  if (researchNotice) {
-    chips.push({ key: "research-notice", sev: "info", text: researchNotice });
-  }
   // Honest search-landing chip (e.g. address outside parcel coverage).
   if (searchChip) {
     chips.push({ key: "search-coverage", sev: "warn", text: searchChip });
@@ -993,66 +992,36 @@ export function ExplorerMap() {
     inspectedRef.current?.parcelNodeId != null &&
     inspectedRef.current.parcelNodeId === subjectNodeIdRef.current;
 
-  const handleResearch = useCallback(async () => {
+  // WB1: "Research this →" now OPENS the workbench brief bubble/dock. The
+  // fetch itself (same endpoint, same 401/402/503/404 states) moved into the
+  // BriefTool (workbench/tools/brief-research.ts) and its result is
+  // per-property persistent via the chassis store. With no baked node id the
+  // dock renders the honest "select a property first" state.
+  const handleResearch = useCallback(() => {
     const nodeId = cardNodeId ?? inspectedRef.current?.parcelNodeId ?? null;
     void recordPeGtmEvent({
       eventType: "pe_research_clicked",
       parcelNodeId: nodeId,
     });
-
-    if (!nodeId) {
-      setResearchNotice("Select a parcel with a baked node id to research.");
-      return;
-    }
-
-    setResearchBrief(null);
-    setResearchNotice("Checking access…");
-    try {
-      const res = await postDeepResearch(
-        "api/property-explorer/v1/research/brief",
-        { parcelNodeId: nodeId },
-      );
-      const body = (await res.json().catch(() => ({}))) as {
-        error?: string;
-        message?: string;
-      } & Partial<ResearchBrief>;
-      if (res.status === 401) {
-        setResearchNotice("Sign in to unlock deep research on this parcel.");
-        return;
-      }
-      if (res.status === 402) {
-        void recordPeGtmEvent({
-          eventType: "pe_paywall_hit",
-          parcelNodeId: nodeId,
-        });
-        setResearchNotice(null);
-        setCheckoutNote(null);
-        setPaywallMessage(
-          "Deep research and cited property reports (R1–R10) require sign-in and Pro entitlement.",
-        );
-        setPaywallOpen(true);
-        return;
-      }
-      if (res.status === 503 && body.error === "report_not_ready") {
-        setResearchNotice(
-          "Property brief path is wired; spine report_run integration pending.",
-        );
-        return;
-      }
-      if (res.status === 404 && body.error === "baked_snapshot_not_found") {
-        setResearchNotice("No baked snapshot exists for this parcel yet.");
-        return;
-      }
-      if (res.ok && body.runId && body.brief?.sections) {
-        setResearchBrief(body as ResearchBrief);
-        setResearchNotice("Cited Property Intel brief ready.");
-        return;
-      }
-      setResearchNotice(body.message ?? `Research request returned ${res.status}.`);
-    } catch {
-      setResearchNotice("Could not reach the research service.");
-    }
+    setOpenWorkbenchTool("brief");
   }, [cardNodeId]);
+
+  // App-shell actions the workbench tools call back into (the 402 paywall).
+  const workbenchHost = useMemo<WorkbenchHostActions>(
+    () => ({
+      openPaywall: (message: string) => {
+        setCheckoutNote(null);
+        setPaywallMessage(message);
+        setPaywallOpen(true);
+      },
+    }),
+    [],
+  );
+
+  // ACTIVE PROPERTY for the workbench: the currently-INSPECTED parcel's baked
+  // node id, falling back to the SUBJECT's. Every dock tool re-scopes when
+  // this changes (chassis store is keyed by it).
+  const activeParcelNodeId = cardNodeId ?? subjectNodeId;
 
   const handleTerrainPaymentRequired = useCallback(() => {
     const nodeId = cardNodeId ?? inspectedRef.current?.parcelNodeId ?? null;
@@ -1145,12 +1114,17 @@ export function ExplorerMap() {
           entries. Persistent honesty lives in the toolset's layer rows. */}
       <TransientChips chips={chips} />
 
-      {researchBrief && (
-        <PropertyBriefPanel
-          brief={researchBrief}
-          onClose={() => setResearchBrief(null)}
-        />
-      )}
+      {/* PE WORKBENCH (WB1): top-right bubble cluster + the ONE shared dock.
+          One tool open at a time; per-property persistent state via the
+          chassis store; the brief is the first live tool. The bottom-right
+          MapToolset bubble is a SEPARATE cluster (map utilities) — untouched. */}
+      <Workbench
+        tools={WORKBENCH_TOOLS}
+        openToolId={openWorkbenchTool}
+        onOpenToolChange={setOpenWorkbenchTool}
+        activeParcelNodeId={activeParcelNodeId}
+        host={workbenchHost}
+      />
 
       {/* Type-ahead search (rebuilt Find bar): grouped suggestions with
           viewport bias; kind-aware landing (parcel → inspect card, address →
@@ -1173,7 +1147,7 @@ export function ExplorerMap() {
           onClose={closeInspect}
           onEnvelope={handleEnvelope}
           onMakeSubject={handleMakeSubject}
-          onResearch={() => void handleResearch()}
+          onResearch={handleResearch}
           onTerrainPaymentRequired={handleTerrainPaymentRequired}
           onSitePlanPaymentRequired={handleSitePlanPaymentRequired}
           onSaveProperty={handleSaveProperty}
