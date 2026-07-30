@@ -46,6 +46,8 @@ interface EnvelopeState {
     front_ft: number | null;
     side_ft: number | null;
     rear_ft: number | null;
+    side_interior_ft?: number | null;
+    side_corner_ft?: number | null;
     district: string | null;
   } | null;
   summary?: Record<string, unknown> | null;
@@ -478,9 +480,18 @@ function honestAbsenceLine(m: BakedCardModel): string {
 
 function liveSetbackLine(env: EnvelopeState): string | null {
   const s = env.setbacks;
-  return s && (s.front_ft != null || s.side_ft != null || s.rear_ft != null)
-    ? `F ${fmtFt(s.front_ft)} · S ${fmtFt(s.side_ft)} · R ${fmtFt(s.rear_ft)}`
-    : null;
+  if (!s || (s.front_ft == null && s.side_ft == null && s.rear_ft == null)) {
+    return null;
+  }
+  const sideInterior = s.side_interior_ft ?? s.side_ft;
+  const sideCorner = s.side_corner_ft;
+  const sideLabel =
+    sideCorner != null &&
+    sideInterior != null &&
+    sideInterior !== sideCorner
+      ? `S ${fmtFt(sideInterior)} · Corner ${fmtFt(sideCorner)}`
+      : `S ${fmtFt(s.side_ft)}`;
+  return `F ${fmtFt(s.front_ft)} · ${sideLabel} · R ${fmtFt(s.rear_ft)}`;
 }
 
 function liveBuildablePct(env: EnvelopeState): string | null {
