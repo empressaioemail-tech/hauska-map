@@ -64,6 +64,8 @@ export function formatSetbackDisplay(
     front_ft: number;
     side_ft: number;
     rear_ft: number;
+    side_interior_ft?: number;
+    side_corner_ft?: number;
     not_specified?: NotSpecifiedAxes | null;
   },
 ): string {
@@ -73,9 +75,19 @@ export function formatSetbackDisplay(
   }
   const fmt = (ft: number, silent: boolean | undefined, label: string) =>
     silent ? `${label} not specified` : `${label} ${ft}′`;
+  const sideInterior = setbacks.side_interior_ft ?? setbacks.side_ft;
+  const sideCorner = setbacks.side_corner_ft;
+  const sidePart =
+    ns?.side
+      ? "S not specified"
+      : sideCorner != null &&
+          sideInterior !== sideCorner &&
+          typeof sideInterior === "number"
+        ? `S ${sideInterior}′ · Corner ${sideCorner}′`
+        : fmt(setbacks.side_ft, ns?.side, "S");
   const parts = [
     fmt(setbacks.front_ft, ns?.front, "F"),
-    fmt(setbacks.side_ft, ns?.side, "S"),
+    sidePart,
     fmt(setbacks.rear_ft, ns?.rear, "R"),
   ];
   const line = parts.join(" · ");

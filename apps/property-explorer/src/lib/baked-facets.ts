@@ -57,6 +57,8 @@ export interface BakedFacetPayload {
       front_ft: number;
       side_ft: number;
       rear_ft: number;
+      side_interior_ft?: number;
+      side_corner_ft?: number;
       not_specified?: {
         front?: boolean;
         side?: boolean;

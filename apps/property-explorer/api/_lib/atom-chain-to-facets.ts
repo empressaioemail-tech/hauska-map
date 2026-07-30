@@ -32,6 +32,8 @@ export interface AtomChainSetbackRule {
   front?: number;
   side?: number;
   rear?: number;
+  /** Interior side yard (AMENDMENT 2 R2); legacy `side` mirrors this. */
+  sideInteriorFt?: number;
   sideCornerFt?: number;
   districtCode?: string | null;
   /** Future wire: per-axis not_specified from emit-setback-rule. */
@@ -115,6 +117,9 @@ export interface PeBakedFacetPayload {
       front_ft: number;
       side_ft: number;
       rear_ft: number;
+      /** Distinct interior side when corner lot split is on the wire. */
+      side_interior_ft?: number;
+      side_corner_ft?: number;
       not_specified?: NotSpecifiedAxes;
     };
     buildableAreaPct?: number;
@@ -218,6 +223,8 @@ function mapSetbacks(
       front_ft: number;
       side_ft: number;
       rear_ft: number;
+      side_interior_ft?: number;
+      side_corner_ft?: number;
       not_specified?: NotSpecifiedAxes;
     }
   | undefined {
@@ -232,11 +239,20 @@ function mapSetbacks(
   ) {
     return undefined;
   }
+  const sideInterior =
+    typeof rule.sideInteriorFt === "number" ? rule.sideInteriorFt : side;
+  const sideCorner =
+    typeof rule.sideCornerFt === "number" ? rule.sideCornerFt : undefined;
   const not_specified = notSpecifiedFromRule(rule, districtHint);
   return {
     front_ft: front,
     side_ft: side,
     rear_ft: rear,
+    ...(sideCorner != null &&
+    typeof sideInterior === "number" &&
+    sideInterior !== sideCorner
+      ? { side_interior_ft: sideInterior, side_corner_ft: sideCorner }
+      : {}),
     ...(not_specified ? { not_specified } : {}),
   };
 }
