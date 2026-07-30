@@ -1,11 +1,17 @@
-// FD4 — the flood & drainage MAIN-MAP overlay, FEMA-ZONE STYLE: pure model +
-// apply/clear + controller lifecycle tests over a structural fake map (node).
+// FD5 — the flood & drainage MAIN-MAP overlay, WARM AMBER HYDRO FAMILY: pure
+// model + apply/clear + controller lifecycle tests over a structural fake map.
 //
-// Pins (the 2026-07-29 operator restyle):
-//   - crisp categorical polygons in the live-FEMA visual language: ponding is
-//     the headline (solid blue fill 0.42 + crisp 1px darker-blue outline),
-//     drainage zones a subordinate light tint (0.18) with the live-FEMA thin
-//     outline, catchment a single dashed boundary line with NO fill;
+// Pins (the 2026-07-30 operator restyle; FEMA keeps the blue as the reference
+// layer and hydro moves entirely out of it):
+//   - THREE dissolved zone concentration bands painted by ONE fill layer via
+//     a `["match", ["get","concentration"], ...]` expression (low #e8b579,
+//     medium #d98a3d, high #a85f22) whose fallback covers features with NO
+//     `concentration` — older cached studies must still render;
+//   - ponding is the pooled deep treatment (#c46a2b core + #7a3f12 rim),
+//     catchment a single dashed #a85f22 boundary line with NO fill;
+//   - exits are DIAMOND markers (#7a3f12 fill, white stroke, unrotated);
+//     flow-path arrows stay arrows and keep `icon-rotate`;
+//   - NOTHING in the hydro stack paints in the FEMA blue family;
 //   - NO scrim, NO dimming of other layers, NO raster gradient, NO swath
 //     corridors, NO animated dash — apply touches nothing but its own
 //     source/layers and other layers' paint stays exactly as it was;
@@ -37,14 +43,26 @@ import {
   FLOOD_PONDING_LINE_ID,
   FLOOD_PONDING_LINE_WIDTH,
   FLOOD_VECTOR_SOURCE_ID,
+  FLOOD_ZONE_FILL_COLOR_EXPR,
   FLOOD_ZONE_FILL_ID,
-  FLOOD_ZONE_FILL_OPACITY,
+  FLOOD_ZONE_FILL_OPACITY_EXPR,
+  FLOOD_ZONE_HIGH_COLOR,
+  FLOOD_ZONE_HIGH_OPACITY,
   FLOOD_ZONE_LINE_COLOR,
   FLOOD_ZONE_LINE_ID,
   FLOOD_ZONE_LINE_WIDTH,
+  FLOOD_ZONE_LOW_COLOR,
+  FLOOD_ZONE_LOW_OPACITY,
+  FLOOD_ZONE_MED_COLOR,
+  FLOOD_ZONE_MED_OPACITY,
+  FLOOD_CATCHMENT_LINE_COLOR,
+  FLOOD_EXIT_ICON_SIZE,
+  FLOOD_FLOW_LINE_COLOR,
   MAX_FLOW_ARROWS,
+  PARCEL_RELEVANCE_BUFFER_M,
   applyFloodMapOverlay,
   buildArrowIconData,
+  buildDiamondIconData,
   buildFloodMapOverlayModel,
   clearFloodMapOverlay,
   createFloodMapOverlayController,
@@ -53,6 +71,7 @@ import {
   pickBelowParcelsBeforeId,
   ringCrossingPoints,
   segmentBearingDeg,
+  zoneConcentrationOf,
   type FloodOverlayMapLike,
 } from "./flood-map-overlay";
 
@@ -209,6 +228,25 @@ type Feat = {
   properties: Record<string, unknown>;
 };
 
+/** The FD5 banded zone payload the engine now emits: three dissolved,
+ *  nested bands each carrying `concentration: 0|1|2`. */
+function bandedZonesFc() {
+  const ringAt = (n: number): Array<[number, number]> => [
+    [-97.322 + n * 0.0005, 30.108 + n * 0.0005],
+    [-97.316 - n * 0.0005, 30.108 + n * 0.0005],
+    [-97.316 - n * 0.0005, 30.114 - n * 0.0005],
+    [-97.322 + n * 0.0005, 30.108 + n * 0.0005],
+  ];
+  return {
+    type: "FeatureCollection" as const,
+    features: [0, 1, 2].map((concentration) => ({
+      type: "Feature" as const,
+      geometry: { type: "Polygon", coordinates: [ringAt(concentration)] },
+      properties: { concentration },
+    })),
+  };
+}
+
 function kindsOf(model: { vectors: { features: unknown[] } }): string[] {
   return (model.vectors.features as Feat[]).map((f) => String(f.properties.kind));
 }
@@ -358,6 +396,19 @@ describe("parcel-relevance filter — only flow that matters to the subject parc
     expect(JSON.stringify(flows)).toContain("-97.3145");
   });
 
+  it("FD5 PIN: the restyle did NOT change the 15 m buffer or the 6-arrow cap", () => {
+    // The operator explicitly approved this behavior — the amber restyle is
+    // paint-only and must never regress it.
+    expect(PARCEL_RELEVANCE_BUFFER_M).toBe(15);
+    expect(MAX_FLOW_ARROWS).toBe(6);
+    // Same survivors as before the restyle, banded zones or not.
+    for (const study of [v3Study(), v3Study({ drainageZonesGeoJson: bandedZonesFc() })]) {
+      const flows = featuresOfKind(buildFloodMapOverlayModel(study), "flow");
+      expect(flows).toHaveLength(2); // exit + through; far path DROPPED
+      expect(JSON.stringify(flows)).not.toContain("30.15");
+    }
+  });
+
   it("legacy studies (no flowPaths) filter flowLinesGeoJson by the same rule", () => {
     const farLine = {
       type: "Feature" as const,
@@ -480,22 +531,145 @@ describe("direction arrows — small, sparse, parcel-anchored, capped", () => {
   });
 });
 
-describe("arrow icon — pure rasterization with the baked paper-halo", () => {
-  it("emits an RGBA buffer of the right size with fill AND halo pixels", () => {
-    const icon = buildArrowIconData(48, [224, 242, 254, 255], [6, 9, 13, 215]);
+describe("icons — pure rasterization (arrows keep the halo, exits are diamonds)", () => {
+  it("the flow arrow emits an RGBA buffer with fill AND halo pixels", () => {
+    const icon = buildArrowIconData(48, [168, 95, 34, 255], [255, 255, 255, 225]);
     expect(icon.width).toBe(48);
     expect(icon.height).toBe(48);
     expect(icon.data.length).toBe(48 * 48 * 4);
     let fillPx = 0;
     let haloPx = 0;
     for (let i = 0; i < icon.data.length; i += 4) {
-      if (icon.data[i] === 224 && icon.data[i + 3] > 0) fillPx++;
-      if (icon.data[i] === 6 && icon.data[i + 3] === 215) haloPx++;
+      if (icon.data[i] === 168 && icon.data[i + 1] === 95 && icon.data[i + 3] > 0) fillPx++;
+      if (icon.data[i] === 255 && icon.data[i + 3] === 225) haloPx++;
     }
     expect(fillPx).toBeGreaterThan(100);
     expect(haloPx).toBeGreaterThan(50);
     // Corners stay transparent (it's an arrow, not a plate).
     expect(icon.data[3]).toBe(0);
+  });
+
+  it("the EXIT DIAMOND rasterizes a #7a3f12 core inside a white stroke, corners clear", () => {
+    const icon = buildDiamondIconData(48, [122, 63, 18, 255], [255, 255, 255, 255]);
+    expect(icon.width).toBe(48);
+    expect(icon.height).toBe(48);
+    expect(icon.data.length).toBe(48 * 48 * 4);
+    const at = (x: number, y: number) => {
+      const i = (y * 48 + x) * 4;
+      return [icon.data[i], icon.data[i + 1], icon.data[i + 2], icon.data[i + 3]];
+    };
+    // Center is the dark fill; the mid-edge along the diagonal is white stroke.
+    expect(at(24, 24).slice(0, 3)).toEqual([122, 63, 18]);
+    expect(at(24, 24)[3]).toBe(255);
+    // A point beyond the fill radius but inside the diamond → white stroke.
+    expect(at(24, 10).slice(0, 3)).toEqual([255, 255, 255]);
+    // The square CORNERS are outside the rotated square → fully transparent.
+    for (const [x, y] of [
+      [0, 0],
+      [47, 0],
+      [0, 47],
+      [47, 47],
+    ]) {
+      expect(at(x, y)[3]).toBe(0);
+    }
+    let fillPx = 0;
+    let strokePx = 0;
+    for (let i = 0; i < icon.data.length; i += 4) {
+      if (icon.data[i] === 122 && icon.data[i + 3] > 0) fillPx++;
+      if (icon.data[i] === 255 && icon.data[i + 1] === 255 && icon.data[i + 3] > 0) strokePx++;
+    }
+    expect(fillPx).toBeGreaterThan(100);
+    expect(strokePx).toBeGreaterThan(100);
+  });
+});
+
+/* --------------------- FD5 zone concentration bands ---------------------- */
+
+describe("zone concentration bands — three dissolved tones from ONE fill layer", () => {
+  it("zoneConcentrationOf reads 0/1/2 and returns undefined for anything else", () => {
+    expect(zoneConcentrationOf({ concentration: 0 })).toBe(0);
+    expect(zoneConcentrationOf({ concentration: 1 })).toBe(1);
+    expect(zoneConcentrationOf({ concentration: 2 })).toBe(2);
+    // Legacy / malformed payloads → undefined (the match fallback paints).
+    expect(zoneConcentrationOf({})).toBeUndefined();
+    expect(zoneConcentrationOf(undefined)).toBeUndefined();
+    expect(zoneConcentrationOf(null)).toBeUndefined();
+    expect(zoneConcentrationOf({ concentration: "high" })).toBeUndefined();
+    expect(zoneConcentrationOf({ concentration: 3 })).toBeUndefined();
+  });
+
+  it("the model carries the served band through onto each zone feature", () => {
+    const model = buildFloodMapOverlayModel(
+      v3Study({ drainageZonesGeoJson: bandedZonesFc() }),
+    );
+    const zones = featuresOfKind(model, "zone");
+    expect(zones).toHaveLength(3);
+    expect(zones.map((z) => z.properties.concentration)).toEqual([0, 1, 2]);
+  });
+
+  it("FEATURE-DETECT: zones with NO concentration still render, prop simply omitted", () => {
+    // The stock fixture's zones have `properties: {}` — the pre-banding shape.
+    const model = buildFloodMapOverlayModel(v3Study());
+    const zones = featuresOfKind(model, "zone");
+    expect(zones.length).toBeGreaterThan(0);
+    for (const z of zones) {
+      expect(z.properties.kind).toBe("zone");
+      expect("concentration" in z.properties).toBe(false);
+    }
+  });
+
+  it("ONE zone fill layer paints all three bands via a match on ['get','concentration']", () => {
+    const map = fakeMap([{ id: "hauska-parcel-tiles-fill", type: "fill" }]);
+    applyFloodMapOverlay(
+      map,
+      buildFloodMapOverlayModel(v3Study({ drainageZonesGeoJson: bandedZonesFc() })),
+    );
+    // Exactly one zone fill layer — the match expression replaces 3 layers.
+    const zoneFills = [...map._layers.keys()].filter(
+      (id) => id.startsWith("pe-flood-") && id.includes("zone") && id.includes("fill"),
+    );
+    expect(zoneFills).toEqual([FLOOD_ZONE_FILL_ID]);
+
+    const color = map._layers.get(FLOOD_ZONE_FILL_ID)!.def.paint!["fill-color"];
+    expect(color).toEqual([
+      "match",
+      ["get", "concentration"],
+      0,
+      FLOOD_ZONE_LOW_COLOR,
+      1,
+      FLOOD_ZONE_MED_COLOR,
+      2,
+      FLOOD_ZONE_HIGH_COLOR,
+      FLOOD_ZONE_LOW_COLOR, // the missing-`concentration` fallback tone
+    ]);
+    expect(FLOOD_ZONE_LOW_COLOR).toBe("#e8b579");
+    expect(FLOOD_ZONE_MED_COLOR).toBe("#d98a3d");
+    expect(FLOOD_ZONE_HIGH_COLOR).toBe("#a85f22");
+
+    const opacity = map._layers.get(FLOOD_ZONE_FILL_ID)!.def.paint!["fill-opacity"];
+    expect(opacity).toEqual([
+      "match",
+      ["get", "concentration"],
+      0,
+      FLOOD_ZONE_LOW_OPACITY,
+      1,
+      FLOOD_ZONE_MED_OPACITY,
+      2,
+      FLOOD_ZONE_HIGH_OPACITY,
+      FLOOD_ZONE_LOW_OPACITY,
+    ]);
+    expect([FLOOD_ZONE_LOW_OPACITY, FLOOD_ZONE_MED_OPACITY, FLOOD_ZONE_HIGH_OPACITY]).toEqual([
+      0.5, 0.6, 0.55,
+    ]);
+  });
+
+  it("the band expressions are property READS only — never feature-state", () => {
+    const serialized = JSON.stringify([
+      FLOOD_ZONE_FILL_COLOR_EXPR,
+      FLOOD_ZONE_FILL_OPACITY_EXPR,
+    ]);
+    expect(serialized).toContain('["get","concentration"]');
+    expect(serialized).not.toContain("feature-state");
   });
 });
 
@@ -513,33 +687,45 @@ describe("apply/clear — FEMA-style layer stack, below-parcels anchoring, no si
     { id: "some-label", type: "symbol" },
   ];
 
-  it("zone + ponding fills and outlines insert BELOW the parcel tiles with the FEMA paint constants", () => {
+  it("zone + ponding fills and outlines insert BELOW the parcel tiles with the AMBER paint constants", () => {
     const map = fakeMap(styleLayers);
     applyFloodMapOverlay(map, buildFloodMapOverlayModel(v3Study()));
-    // Ponding: headline solid fill in the 0.35-0.45 band + crisp 1px outline.
+    // Ponding: the pooled deep treatment — #c46a2b core + a heavier #7a3f12
+    // rim standing in for the spec's radial gradient (MapLibre has none).
     const pondFill = map._layers.get(FLOOD_PONDING_FILL_ID)!;
     expect(pondFill.def.type).toBe("fill");
     expect(pondFill.beforeId).toBe("hauska-parcel-tiles-fill");
     expect(pondFill.def.paint!["fill-color"]).toBe(FLOOD_PONDING_FILL_COLOR);
-    expect(FLOOD_PONDING_FILL_OPACITY).toBeGreaterThanOrEqual(0.35);
-    expect(FLOOD_PONDING_FILL_OPACITY).toBeLessThanOrEqual(0.45);
+    expect(FLOOD_PONDING_FILL_COLOR).toBe("#c46a2b");
     expect(pondFill.def.paint!["fill-opacity"]).toBe(FLOOD_PONDING_FILL_OPACITY);
     const pondLine = map._layers.get(FLOOD_PONDING_LINE_ID)!;
     expect(pondLine.def.paint!["line-color"]).toBe(FLOOD_PONDING_LINE_COLOR);
+    expect(FLOOD_PONDING_LINE_COLOR).toBe("#7a3f12"); // the gradient's outer stop
     expect(pondLine.def.paint!["line-width"]).toBe(FLOOD_PONDING_LINE_WIDTH);
-    expect(FLOOD_PONDING_LINE_WIDTH).toBe(1);
-    // Zones: subordinate light tint + the live-FEMA thin outline verbatim.
+    expect(FLOOD_PONDING_LINE_WIDTH).toBeGreaterThan(1); // heavier than a hairline
+    // Zones: the amber outline, subtle (the bands are dissolved shapes).
     const zoneFill = map._layers.get(FLOOD_ZONE_FILL_ID)!;
     expect(zoneFill.beforeId).toBe("hauska-parcel-tiles-fill");
-    expect(FLOOD_ZONE_FILL_OPACITY).toBeGreaterThanOrEqual(0.15);
-    expect(FLOOD_ZONE_FILL_OPACITY).toBeLessThanOrEqual(0.2);
-    expect(zoneFill.def.paint!["fill-opacity"]).toBe(FLOOD_ZONE_FILL_OPACITY);
-    expect(FLOOD_ZONE_FILL_OPACITY).toBeLessThan(FLOOD_PONDING_FILL_OPACITY);
     const zoneLine = map._layers.get(FLOOD_ZONE_LINE_ID)!;
     expect(zoneLine.def.paint!["line-color"]).toBe(FLOOD_ZONE_LINE_COLOR);
-    expect(FLOOD_ZONE_LINE_COLOR).toBe("rgba(59,130,246,0.55)"); // live-FEMA outline
     expect(zoneLine.def.paint!["line-width"]).toBe(FLOOD_ZONE_LINE_WIDTH);
-    expect(FLOOD_ZONE_LINE_WIDTH).toBe(0.8); // live-FEMA outline width
+    // Catchment + flow are the spec's amber, not the retired blue.
+    expect(FLOOD_CATCHMENT_LINE_COLOR).toBe("#a85f22");
+    expect(FLOOD_FLOW_LINE_COLOR).toBe("#a85f22");
+    expect(FLOOD_CATCHMENT_DASH).toEqual([5, 4]);
+  });
+
+  it("NOTHING in the hydro stack paints in the FEMA blue family (the whole point of FD5)", () => {
+    const map = fakeMap(styleLayers);
+    applyFloodMapOverlay(map, buildFloodMapOverlayModel(v3Study()));
+    const painted = JSON.stringify(
+      [...map._layers.entries()]
+        .filter(([id]) => id.startsWith("pe-flood-"))
+        .map(([, l]) => l.def.paint ?? {}),
+    ).toLowerCase();
+    for (const blue of ["#3b82f6", "#60a5fa", "#1d4ed8", "#7dd3fc", "59,130,246", "96,165,250"]) {
+      expect(painted).not.toContain(blue);
+    }
   });
 
   it("catchment is a single dashed line with NO fill layer and a STATIC literal dash", () => {
@@ -593,11 +779,22 @@ describe("apply/clear — FEMA-style layer stack, below-parcels anchoring, no si
     for (const id of [FLOOD_ARROW_LAYER_ID, FLOOD_EXIT_LAYER_ID]) {
       const sym = map._layers.get(id)!;
       expect(sym.def.type).toBe("symbol");
-      expect(sym.def.layout!["icon-rotate"]).toEqual(["get", "bearing"]);
       expect(sym.def.layout!["icon-rotation-alignment"]).toBe("map");
       expect(typeof sym.def.layout!["icon-size"]).toBe("number"); // small + fixed
       expect(sym.def.layout!["icon-size"] as number).toBeLessThanOrEqual(0.6);
     }
+    // Flow ARROWS keep the bearing rotation; the exit DIAMOND carries no
+    // direction, so it is deliberately NOT rotated.
+    expect(map._layers.get(FLOOD_ARROW_LAYER_ID)!.def.layout!["icon-rotate"]).toEqual([
+      "get",
+      "bearing",
+    ]);
+    expect(
+      map._layers.get(FLOOD_EXIT_LAYER_ID)!.def.layout!["icon-rotate"],
+    ).toBeUndefined();
+    expect(map._layers.get(FLOOD_EXIT_LAYER_ID)!.def.layout!["icon-size"]).toBe(
+      FLOOD_EXIT_ICON_SIZE,
+    );
   });
 
   it("no parcel layers in the style → anchors before the first symbol layer; none at all → top-of-stack", () => {

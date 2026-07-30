@@ -5,10 +5,12 @@
 // star and the report's viz moved ONTO it):
 //   map overlay  → while this section holds a study for the active property,
 //                  the drainage picture renders on the MAIN map through the
-//                  host seam (setFloodMapOverlay): FEMA-zone-style crisp
-//                  categorical fills (ponding headline, drainage zones
-//                  subordinate, dashed catchment boundary) + parcel-relevant
-//                  flow lines with a handful of small direction arrows.
+//                  host seam (setFloodMapOverlay): the FD5 WARM AMBER hydro
+//                  family (three dissolved zone concentration bands, pooled
+//                  ponding, dashed catchment boundary) + parcel-relevant
+//                  flow lines with a handful of small direction arrows and
+//                  diamond exit markers. FEMA stays blue as the reference
+//                  layer, so the two layers no longer compete.
 //                  Applied on study load; cleared on section unmount (tool
 //                  close), study replacement (re-run), and property switch
 //                  (the app shell's auto-clear, WB6 precedent).
@@ -152,14 +154,20 @@ export function FloodVizSvg({ model }: { model: FloodVizModel }) {
   );
 }
 
-// The FD4 map-overlay visual language (FEMA-zone style): solid categorical
-// fills with crisp thin outlines. Swatches mirror flood-map-overlay.ts.
-const LEGEND_PONDING_FILL = "rgba(59,130,246,0.42)";
-const LEGEND_PONDING_STROKE = "#1d4ed8";
-const LEGEND_ZONE_FILL = "rgba(96,165,250,0.18)";
-const LEGEND_ZONE_STROKE = "rgba(59,130,246,0.55)";
-const LEGEND_CATCHMENT_STROKE = "rgba(59,130,246,0.8)";
-const LEGEND_FLOW_STROKE = "#7dd3fc";
+// The FD5 map-overlay visual language (WARM AMBER hydro family): FEMA keeps
+// the blue as the REFERENCE layer; hydro sits in its own amber family so the
+// two stay legible together. Swatches mirror flood-map-overlay.ts, in the
+// spec's legend order.
+const LEGEND_FEMA_FILL = "rgba(59,130,246,0.42)";
+const LEGEND_FEMA_STROKE = "rgba(59,130,246,0.6)";
+const LEGEND_ZONE_LOW = "#e8b579";
+const LEGEND_ZONE_MED = "#d98a3d";
+const LEGEND_ZONE_HIGH = "#a85f22";
+const LEGEND_PONDING_FILL = "#c46a2b";
+const LEGEND_PONDING_STROKE = "#7a3f12";
+const LEGEND_CATCHMENT_STROKE = "#a85f22";
+const LEGEND_FLOW_STROKE = "#a85f22";
+const LEGEND_EXIT_FILL = "#7a3f12";
 
 function Legend() {
   const item = (swatch: CSSProperties, label: string) => (
@@ -180,20 +188,34 @@ function Legend() {
     <div data-testid="flood-viz-legend" style={{ marginTop: 6, lineHeight: 1.7 }}>
       {item({ border: `1.5px solid ${PARCEL_STROKE}`, background: "transparent" }, "Parcel")}
       {item(
-        { background: LEGEND_PONDING_FILL, border: `1px solid ${LEGEND_PONDING_STROKE}` },
-        "Ponding",
+        { background: LEGEND_FEMA_FILL, border: `1px solid ${LEGEND_FEMA_STROKE}` },
+        "FEMA flood zone (reference)",
       )}
+      {item({ background: LEGEND_ZONE_LOW }, "Zone — low concentration")}
+      {item({ background: LEGEND_ZONE_MED }, "Zone — medium concentration")}
+      {item({ background: LEGEND_ZONE_HIGH }, "Zone — high concentration")}
       {item(
-        { background: LEGEND_ZONE_FILL, border: `1px solid ${LEGEND_ZONE_STROKE}` },
-        "Drainage zones",
+        { background: LEGEND_PONDING_FILL, border: `1.5px solid ${LEGEND_PONDING_STROKE}` },
+        "Ponding — standing water",
       )}
       {item(
         { border: `1px dashed ${LEGEND_CATCHMENT_STROKE}`, background: "transparent" },
-        "Catchment",
+        "Catchment boundary",
       )}
       {item(
         { background: LEGEND_FLOW_STROKE, borderRadius: 5, height: 3, width: 12 },
-        "Flow direction",
+        "Flow path",
+      )}
+      {item(
+        {
+          background: LEGEND_EXIT_FILL,
+          border: "1px solid #ffffff",
+          borderRadius: 0,
+          transform: "rotate(45deg)",
+          width: 8,
+          height: 8,
+        },
+        "Exit point",
       )}
     </div>
   );
