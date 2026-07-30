@@ -5,9 +5,10 @@
 // star and the report's viz moved ONTO it):
 //   map overlay  → while this section holds a study for the active property,
 //                  the drainage picture renders on the MAIN map through the
-//                  host seam (setFloodMapOverlay): the engine's water-ramp
-//                  gradient PNG (feature-detected) or the zone/ponding
-//                  fallback fills, prominent flow arrows, catchment glow.
+//                  host seam (setFloodMapOverlay): FEMA-zone-style crisp
+//                  categorical fills (ponding headline, drainage zones
+//                  subordinate, dashed catchment boundary) + parcel-relevant
+//                  flow lines with a handful of small direction arrows.
 //                  Applied on study load; cleared on section unmount (tool
 //                  close), study replacement (re-run), and property switch
 //                  (the app shell's auto-clear, WB6 precedent).
@@ -151,6 +152,15 @@ export function FloodVizSvg({ model }: { model: FloodVizModel }) {
   );
 }
 
+// The FD4 map-overlay visual language (FEMA-zone style): solid categorical
+// fills with crisp thin outlines. Swatches mirror flood-map-overlay.ts.
+const LEGEND_PONDING_FILL = "rgba(59,130,246,0.42)";
+const LEGEND_PONDING_STROKE = "#1d4ed8";
+const LEGEND_ZONE_FILL = "rgba(96,165,250,0.18)";
+const LEGEND_ZONE_STROKE = "rgba(59,130,246,0.55)";
+const LEGEND_CATCHMENT_STROKE = "rgba(59,130,246,0.8)";
+const LEGEND_FLOW_STROKE = "#7dd3fc";
+
 function Legend() {
   const item = (swatch: CSSProperties, label: string) => (
     <span style={{ display: "inline-flex", alignItems: "center", gap: 4, marginRight: 10 }}>
@@ -170,12 +180,21 @@ function Legend() {
     <div data-testid="flood-viz-legend" style={{ marginTop: 6, lineHeight: 1.7 }}>
       {item({ border: `1.5px solid ${PARCEL_STROKE}`, background: "transparent" }, "Parcel")}
       {item(
-        { border: `1px dashed ${CATCHMENT_STROKE}`, background: "transparent" },
+        { background: LEGEND_PONDING_FILL, border: `1px solid ${LEGEND_PONDING_STROKE}` },
+        "Ponding",
+      )}
+      {item(
+        { background: LEGEND_ZONE_FILL, border: `1px solid ${LEGEND_ZONE_STROKE}` },
+        "Drainage zones",
+      )}
+      {item(
+        { border: `1px dashed ${LEGEND_CATCHMENT_STROKE}`, background: "transparent" },
         "Catchment",
       )}
-      {item({ background: `rgba(${ZONE_FILL},0.28)` }, "Drainage zones")}
-      {item({ background: PONDING_FILL, border: `1px solid ${PONDING_STROKE}` }, "Ponding")}
-      {item({ background: EXIT_COLOR, borderRadius: 5, height: 3, width: 12 }, "Flow exits")}
+      {item(
+        { background: LEGEND_FLOW_STROKE, borderRadius: 5, height: 3, width: 12 },
+        "Flow direction",
+      )}
     </div>
   );
 }
@@ -377,8 +396,8 @@ export function FloodDrainageSection() {
               data-testid="flood-map-overlay-hint"
               style={{ marginBottom: 6, fontSize: 10, color: ACCENT }}
             >
-              Drainage overlay drawn on the map — flow arrows mark where water
-              moves and exits.
+              Drainage overlay drawn on the map — arrows mark where flow
+              crosses the parcel boundary.
             </div>
           )}
           <FloodVizSvg model={model} />
