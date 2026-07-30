@@ -48,6 +48,7 @@ import { usePropertyEntitlement } from "../../lib/usePropertyEntitlement";
 import { useDockToolState, useWorkbench } from "../WorkbenchContext";
 import { attachExportToDossier } from "./reports-dossier";
 import { buildFloodVizModel, type FloodVizModel } from "./flood-viz";
+import { pondingFeatureCount } from "../../browse/flood-map-overlay";
 
 const TEXT = "#e5e7eb";
 const MUTED = "#8b97a5";
@@ -66,6 +67,14 @@ export const FLOOD_PAYWALL_MESSAGE =
   "Flood & drainage report — catchment, drainage zones, rainfall ponding, and flow exits with a Sheet-Standard PDF.";
 export const FLOOD_RUNNING_LINE =
   "Running drainage study — fetching the DEM and modeling catchment, ponding, and flow (usually 15-45 s)…";
+/**
+ * The honest empty-ponding line. A study that models NO standing water on
+ * the parcel is a real, useful result — but a legend listing "Ponding" over
+ * a map drawing none reads as a rendering failure. When the study carries
+ * zero drawable ponding polygons the dock says so in words instead.
+ */
+export const FLOOD_NO_PONDING_LINE =
+  "No modeled ponding on this parcel at the design storm — the drainage zones and flow paths below are the result.";
 
 /** JSON-serializable per-property snapshot (useDockToolState slot "flood"). */
 export interface FloodToolStoredState {
@@ -169,7 +178,7 @@ const LEGEND_CATCHMENT_STROKE = "#a85f22";
 const LEGEND_FLOW_STROKE = "#a85f22";
 const LEGEND_EXIT_FILL = "#7a3f12";
 
-function Legend() {
+function Legend({ hasPonding = true }: { hasPonding?: boolean }) {
   const item = (swatch: CSSProperties, label: string) => (
     <span style={{ display: "inline-flex", alignItems: "center", gap: 4, marginRight: 10 }}>
       <span
@@ -194,10 +203,13 @@ function Legend() {
       {item({ background: LEGEND_ZONE_LOW }, "Zone — low concentration")}
       {item({ background: LEGEND_ZONE_MED }, "Zone — medium concentration")}
       {item({ background: LEGEND_ZONE_HIGH }, "Zone — high concentration")}
-      {item(
-        { background: LEGEND_PONDING_FILL, border: `1.5px solid ${LEGEND_PONDING_STROKE}` },
-        "Ponding — standing water",
-      )}
+      {/* The ponding swatch appears only when ponding is actually drawn — a
+          legend entry with nothing on the map reads as a broken render. */}
+      {hasPonding &&
+        item(
+          { background: LEGEND_PONDING_FILL, border: `1.5px solid ${LEGEND_PONDING_STROKE}` },
+          "Ponding — standing water",
+        )}
       {item(
         { border: `1px dashed ${LEGEND_CATCHMENT_STROKE}`, background: "transparent" },
         "Catchment boundary",
@@ -313,6 +325,9 @@ export function FloodDrainageSection() {
   const study = stored?.study ?? null;
   const notice = stored?.notice ?? null;
   const model = study ? buildFloodVizModel(study) : null;
+  // Counted off the SAME validation the map overlay uses, so the dock can
+  // never claim ponding the map is not drawing (and vice versa).
+  const hasPonding = pondingFeatureCount(study) > 0;
 
   // THE MAP OVERLAY SYNC — the one study snapshot feeds the main map through
   // the host seam. Effect cleanup clears on section unmount (tool close /
@@ -423,7 +438,15 @@ export function FloodDrainageSection() {
             </div>
           )}
           <FloodVizSvg model={model} />
-          <Legend />
+          <Legend hasPonding={hasPonding} />
+          {!hasPonding && (
+            <div
+              data-testid="flood-no-ponding"
+              style={{ marginTop: 6, fontSize: 10.5, color: MUTED, lineHeight: 1.45 }}
+            >
+              {FLOOD_NO_PONDING_LINE}
+            </div>
+          )}
           <div
             data-testid="flood-provenance"
             style={{ marginTop: 6, fontSize: 10, color: MUTED, lineHeight: 1.5 }}
