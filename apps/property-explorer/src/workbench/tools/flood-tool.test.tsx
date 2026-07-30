@@ -351,6 +351,58 @@ describe("flood section — persisted study renders the mini viz (KEPT) + map-ov
     expect(html).not.toContain('data-testid="flood-download-link"');
   });
 
+  it("FD6 HONEST EMPTY PONDING: a real study with NO modeled ponding SAYS so", () => {
+    // Zero ponding is a real result, not a rendering failure — but a legend
+    // listing "Ponding" over a map drawing none reads as broken. The dock
+    // states it in words and drops the swatch.
+    primePropertyEntitlement(PARCEL, ent({ propertyUnlocked: true }));
+    const store = createWorkbenchToolStateStore({ storage: null });
+    store.set(PARCEL, "flood", {
+      study: { ...fixtureStudy(), rainfallResultGeoJson: null },
+      notice: null,
+    } satisfies FloodToolStoredState);
+    const html = render({ store });
+    // Still a full, valid study — zones, flow and the export all render.
+    expect(html).toContain('data-testid="flood-result"');
+    expect(html).toContain('data-testid="flood-viz-zone"');
+    expect(html).toContain('data-testid="flood-download-link"');
+    // …and it says WHY there is no ponding, rather than showing nothing.
+    expect(html).toContain('data-testid="flood-no-ponding"');
+    expect(html).toContain("No modeled ponding on this parcel");
+    expect(html).not.toContain("Ponding — standing water");
+  });
+
+  it("FD6: ponding SERVED but undrawable (null geometry) also reads as no ponding", () => {
+    // The dock counts what the MAP will draw, so it can never claim ponding
+    // the overlay is silently dropping.
+    primePropertyEntitlement(PARCEL, ent({ propertyUnlocked: true }));
+    const store = createWorkbenchToolStateStore({ storage: null });
+    store.set(PARCEL, "flood", {
+      study: {
+        ...fixtureStudy(),
+        rainfallResultGeoJson: {
+          type: "FeatureCollection",
+          features: [{ type: "Feature", geometry: null, properties: {} }],
+        },
+      } as FloodDrainageStudyView,
+      notice: null,
+    } satisfies FloodToolStoredState);
+    const html = render({ store });
+    expect(html).toContain('data-testid="flood-no-ponding"');
+  });
+
+  it("FD6: a study WITH ponding keeps the swatch and shows no empty-state line", () => {
+    primePropertyEntitlement(PARCEL, ent({ propertyUnlocked: true }));
+    const store = createWorkbenchToolStateStore({ storage: null });
+    store.set(PARCEL, "flood", {
+      study: fixtureStudy(),
+      notice: null,
+    } satisfies FloodToolStoredState);
+    const html = render({ store });
+    expect(html).toContain("Ponding — standing water");
+    expect(html).not.toContain('data-testid="flood-no-ponding"');
+  });
+
   it("a persisted error notice re-renders honestly", () => {
     primePropertyEntitlement(PARCEL, ent({ propertyUnlocked: true }));
     const store = createWorkbenchToolStateStore({ storage: null });

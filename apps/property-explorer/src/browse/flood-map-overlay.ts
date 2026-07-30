@@ -13,16 +13,19 @@
 //
 //   - DRAINAGE ZONES (drainageZonesGeoJson) — THREE dissolved concentration
 //     bands painted from the feature's own `concentration: 0|1|2` property:
-//     low #e8b579 @0.5, medium #d98a3d @0.6, high #a85f22 @0.55. Painted
+//     low #e8b579 @0.45, medium #d98a3d @0.5, high #a85f22 @0.55. Painted
 //     through ONE fill layer with a `["match", ["get","concentration"], ...]`
-//     expression (fewer layers than three filtered ones). FEATURE-DETECT:
-//     features with no `concentration` (older cached studies) fall back to
-//     the low tone — the client never breaks on a legacy payload;
+//     expression (fewer layers than three filtered ones), and NO stroke of
+//     any kind (see FD6 SEAM REMOVAL below). FEATURE-DETECT: features with
+//     no `concentration` (older cached studies) fall back to the low tone —
+//     the client never breaks on a legacy payload;
 //   - PONDING (rainfallResultGeoJson) — standing water, the deepest tone:
 //     the spec draws a radial gradient #c46a2b → #7a3f12, which MapLibre
 //     fills cannot express. Implemented as the closest legible equivalent:
-//     a solid #c46a2b fill with a heavier 1.6px #7a3f12 outline, so the
-//     pool reads as pooled water with a dark rim rather than a flat chip;
+//     a #c46a2b fill at the FEMA envelope TOP (0.55) with a heavy 2px
+//     #7a3f12 rim, so the pool reads as pooled water with a dark rim rather
+//     than a flat chip — the RIM is what separates ponding from the zone
+//     bands, never raw opacity (FD6: the fill was 0.8, outside the envelope);
 //   - CATCHMENT (catchmentGeoJson) — no fill; a single dashed #a85f22
 //     boundary line at 1.6px, dash [5,4];
 //   - PARCEL-RELEVANT FLOW ONLY: flow paths are filtered to those that
@@ -38,10 +41,34 @@
 //     rotated 45°): #7a3f12 fill, white stroke, no rotation. Flow-path
 //     arrows stay arrows and keep their `icon-rotate` bearing behavior.
 //
+// FD6 SEAM REMOVAL (2026-07-30 operator paint review). The zone stroke layer
+// `pe-flood-zone-line` filtered on kind=="zone" and therefore stroked EVERY
+// zone polygon's ENTIRE boundary. Adjacent same-band regions share an edge,
+// so that stroke drew a visible internal grid/seam mesh across the study —
+// the "visible internal grid lines" the operator rejected. MapLibre `line`
+// layers have no "outer edge of the union" primitive: any filter that keeps
+// a stroke keeps it on shared edges too (a lowest-band-only outline still
+// meshes wherever two low-band regions abut). The stroke is therefore
+// REMOVED outright, leaving the FEMA read the spec actually asks for —
+// smooth graded fill, no mesh. The dissolved geometry already merged on the
+// engine side means each band is one region whose own silhouette carries the
+// edge; the fill's opacity step between bands is what shows the boundary.
+// `RETIRED_FLOOD_ZONE_LINE_ID` stays only so teardown reclaims the layer if
+// a live map still carries one from a pre-FD6 apply.
+//
 // REMOVED in the FD4 restyle (operator rejection of PR #114/#116): the scrim
 // + layer-dimming dominance mechanism, the water-gradient raster image, the
 // catchment swath corridors, the strength-scaled animated ribbons, and all
 // far-field arrows. The dock mini-grid in FloodTool is untouched.
+//
+// FD6 RELIABILITY: the study payload is UNTRUSTED. Every GeoJSON field is
+// feature-detected for a real feature array, every feature must carry usable
+// geometry (`validFeatureGeometry`: known type, array coordinates, finite
+// numbers throughout) or it is DROPPED — a malformed study degrades to a
+// PARTIAL render, never a throw that blanks the map. apply() is wrapped so a
+// failure mid-stack leaves the map usable, and clear() sweeps a SUPERSET of
+// what apply adds, removing each layer independently so one bad removal
+// cannot orphan the rest.
 //
 // LAYER ORDER: zone/ponding fills + outlines insert at the same below-parcels
 // anchor the overlay always used (below parcel ring/tiles, above basemap);
@@ -70,8 +97,13 @@ import type { FloodDrainageStudyView } from "../lib/floodDrainageClient";
 
 export const FLOOD_VECTOR_SOURCE_ID = "pe-flood-src";
 export const FLOOD_ZONE_FILL_ID = "pe-flood-zone-fill";
-export const FLOOD_ZONE_LINE_ID = "pe-flood-zone-line";
 export const FLOOD_PONDING_FILL_ID = "pe-flood-ponding-fill";
+/**
+ * RETIRED in FD6 — the per-feature zone stroke that drew the internal seam
+ * mesh. Never added any more; the id survives ONLY so teardown reclaims the
+ * layer from a session that applied the pre-FD6 build against a live map.
+ */
+export const RETIRED_FLOOD_ZONE_LINE_ID = "pe-flood-zone-line";
 export const FLOOD_PONDING_LINE_ID = "pe-flood-ponding-line";
 export const FLOOD_CATCHMENT_LINE_ID = "pe-flood-catchment-line";
 export const FLOOD_FLOW_LINE_ID = "pe-flood-flow-line";
@@ -80,10 +112,10 @@ export const FLOOD_EXIT_LAYER_ID = "pe-flood-exit-arrows";
 export const FLOOD_ARROW_ICON_ID = "pe-flood-arrow-flow";
 export const FLOOD_EXIT_ICON_ID = "pe-flood-arrow-exit";
 
-/** Every layer this module may add, in add order (bottom → top). */
+/** Every layer this module may add, in add order (bottom → top). NOTE: no
+ *  zone LINE layer — FD6 removed it (see the seam note above). */
 export const FLOOD_OVERLAY_LAYER_IDS = [
   FLOOD_ZONE_FILL_ID,
-  FLOOD_ZONE_LINE_ID,
   FLOOD_PONDING_FILL_ID,
   FLOOD_PONDING_LINE_ID,
   FLOOD_CATCHMENT_LINE_ID,
@@ -92,39 +124,66 @@ export const FLOOD_OVERLAY_LAYER_IDS = [
   FLOOD_EXIT_LAYER_ID,
 ] as const;
 
+/** What TEARDOWN sweeps: everything we add, plus retired ids a previous
+ *  build may have left on a live map. Teardown is a superset of apply. */
+export const FLOOD_TEARDOWN_LAYER_IDS = [
+  ...FLOOD_OVERLAY_LAYER_IDS,
+  RETIRED_FLOOD_ZONE_LINE_ID,
+] as const;
+
 /* --------------------------- style constants ---------------------------- */
 // The FD5 WARM AMBER hydro family, taken literally from the approved spec
 // (Hydro Overlay Redesign / FloodMap SVG). FEMA keeps the blue (#3b82f6
 // family) as the reference layer; nothing here may reach into that hue.
 
-/** Zone concentration bands — the spec's three dissolved tones. */
+/**
+ * Zone concentration bands — ONE graded warm family, light → medium → deep.
+ * All three are the same amber hue walked down in lightness (hue ~28-32°),
+ * ending at the ponding tones; nothing here is a second, unrelated hue.
+ */
 export const FLOOD_ZONE_LOW_COLOR = "#e8b579";
 export const FLOOD_ZONE_MED_COLOR = "#d98a3d";
 export const FLOOD_ZONE_HIGH_COLOR = "#a85f22";
-/** Per-band opacity from the spec (0.5 / 0.6 / 0.55). */
-export const FLOOD_ZONE_LOW_OPACITY = 0.5;
-export const FLOOD_ZONE_MED_OPACITY = 0.6;
+/**
+ * Per-band opacity, all inside the FEMA 0.4-0.55 envelope. The spec's 0.6
+ * medium was above it (FD6 fix) — the ramp is now monotonic in weight, which
+ * is what makes the three bands read as one graded family rather than three
+ * chips: lightness carries the concentration, alpha only reinforces it.
+ */
+export const FLOOD_ZONE_LOW_OPACITY = 0.45;
+export const FLOOD_ZONE_MED_OPACITY = 0.5;
 export const FLOOD_ZONE_HIGH_OPACITY = 0.55;
 /** The band a feature with NO `concentration` prop falls back to (older
  *  cached studies predate the engine's banding — they must still render). */
 export const FLOOD_ZONE_FALLBACK_COLOR = FLOOD_ZONE_LOW_COLOR;
 export const FLOOD_ZONE_FALLBACK_OPACITY = FLOOD_ZONE_LOW_OPACITY;
-/** Zone outline — the amber high tone, thin; the spec's bands are dissolved
- *  smooth shapes, so the edge stays subtle. */
-export const FLOOD_ZONE_LINE_COLOR = "rgba(168,95,34,0.45)";
-export const FLOOD_ZONE_LINE_WIDTH = 0.8;
+/**
+ * The FEMA fill-opacity envelope. Every FILL this overlay paints must land
+ * inside it, so the basemap keeps reading through the study rather than the
+ * study becoming an opaque chip on top of the map.
+ */
+export const FEMA_FILL_OPACITY_MIN = 0.4;
+export const FEMA_FILL_OPACITY_MAX = 0.55;
 
 /**
  * Ponding — standing water, the deepest treatment. The spec paints a RADIAL
  * gradient (#c46a2b core → #7a3f12 rim); MapLibre `fill` layers have no
  * radial-gradient channel, so the pooled read is built from a solid core
  * fill plus a heavier dark rim outline. Documented deviation.
+ *
+ * FD6: the fill opacity was 0.8 — outside the FEMA envelope, and the reason
+ * ponding read as an opaque blot instead of water over ground. It comes down
+ * to the envelope TOP (0.55). Ponding still reads as the deepest, most
+ * separate class because (a) #c46a2b is the deepest tone in the ramp and
+ * (b) the dark #7a3f12 rim is thickened to 2px — the RIM, not raw alpha, is
+ * what distinguishes standing water from zone concentration.
  */
 export const FLOOD_PONDING_FILL_COLOR = "#c46a2b";
-export const FLOOD_PONDING_FILL_OPACITY = 0.8;
-/** The dark pooled rim (the gradient's outer stop), heavier than a hairline. */
+export const FLOOD_PONDING_FILL_OPACITY = FEMA_FILL_OPACITY_MAX;
+/** The dark pooled rim (the gradient's outer stop) — the distinguishing
+ *  treatment now that the fill sits inside the FEMA envelope. */
 export const FLOOD_PONDING_LINE_COLOR = "#7a3f12";
-export const FLOOD_PONDING_LINE_WIDTH = 1.6;
+export const FLOOD_PONDING_LINE_WIDTH = 2;
 
 /** Catchment — a single dashed boundary line, no fill (STATIC literal dash). */
 export const FLOOD_CATCHMENT_LINE_COLOR = "#a85f22";
@@ -414,11 +473,78 @@ export interface FloodMapOverlayModel {
   vectors: FC;
 }
 
+/**
+ * HONEST EMPTY STATE. Zero drawable ponding polygons is a REAL RESULT ("the
+ * model found no standing water on this parcel"), not a rendering failure —
+ * but a map that just shows nothing is indistinguishable from a broken one.
+ * The dock uses this to SAY so. It also covers the malformed case: ponding
+ * features whose geometry failed validation never reach the map, and this
+ * counts what actually renders, so the dock can never claim ponding the map
+ * is not drawing.
+ */
+export function pondingFeatureCount(study: FloodDrainageStudyView | null): number {
+  if (!study || typeof study !== "object" || study.honestEmpty) return 0;
+  let n = 0;
+  for (const f of fcFeatures(study.rainfallResultGeoJson ?? null)) {
+    if (validFeatureGeometry(f?.geometry)) n++;
+  }
+  return n;
+}
+
+/**
+ * UNTRUSTED PAYLOAD GUARD. A served study field may be null, a bare object,
+ * a string, or a FeatureCollection whose `features` is not an array (partial
+ * write, truncated cache entry, engine mid-deploy). Anything that is not a
+ * real feature array yields ZERO features — the layer simply draws nothing,
+ * which is the honest degrade. Non-object entries inside the array are also
+ * dropped so a null hole cannot reach the geometry check.
+ */
 function fcFeatures(fc: unknown): Array<{ geometry?: unknown; properties?: unknown }> {
   const f = fc as { features?: unknown } | null | undefined;
-  return Array.isArray(f?.features)
-    ? (f!.features as Array<{ geometry?: unknown; properties?: unknown }>)
-    : [];
+  if (!f || typeof f !== "object" || !Array.isArray(f.features)) return [];
+  return (f.features as unknown[]).filter(
+    (x): x is { geometry?: unknown; properties?: unknown } =>
+      !!x && typeof x === "object",
+  );
+}
+
+/** Every number nested anywhere in a coordinates tree is finite. Rejects a
+ *  NaN/Infinity/null vertex, which MapLibre turns into a hard render error. */
+function coordsAllFinite(c: unknown, depth = 0): boolean {
+  if (depth > 6) return false; // no legal GeoJSON nests deeper; bail, don't hang.
+  if (Array.isArray(c)) {
+    if (c.length === 0) return false;
+    return c.every((x) => coordsAllFinite(x, depth + 1));
+  }
+  return isFiniteNum(c);
+}
+
+const DRAWABLE_GEOMETRY_TYPES = new Set([
+  "Point",
+  "MultiPoint",
+  "LineString",
+  "MultiLineString",
+  "Polygon",
+  "MultiPolygon",
+]);
+
+/**
+ * A feature's geometry is drawable only when it is a real object with a
+ * known GeoJSON type and a coordinates tree of finite numbers. A feature
+ * with `geometry: null` (legal GeoJSON!), an unknown type, or a NaN vertex
+ * is DROPPED — the rest of the study still renders. Partial over blank, and
+ * never a throw inside MapLibre's tessellator.
+ *
+ * GeometryCollection is deliberately NOT drawable here: nothing the engine
+ * emits uses it, and accepting it would mean recursing into member geometry
+ * we have no paint path for.
+ */
+export function validFeatureGeometry(geometry: unknown): boolean {
+  const g = geometry as { type?: unknown; coordinates?: unknown } | null | undefined;
+  if (!g || typeof g !== "object") return false;
+  if (typeof g.type !== "string" || !DRAWABLE_GEOMETRY_TYPES.has(g.type)) return false;
+  if (!Array.isArray(g.coordinates)) return false;
+  return coordsAllFinite(g.coordinates);
 }
 
 /**
@@ -473,6 +599,9 @@ function validPathLike(entries: unknown): StudyFlowPathLike[] {
 export function buildFloodMapOverlayModel(
   study: FloodDrainageStudyView,
 ): FloodMapOverlayModel {
+  // A non-object study (null slipped through a cache read, a string body) is
+  // not a study — draw nothing rather than throw on a property read.
+  if (!study || typeof study !== "object") return { vectors: EMPTY_FC };
   if (study.honestEmpty) {
     return { vectors: EMPTY_FC };
   }
@@ -484,7 +613,7 @@ export function buildFloodMapOverlayModel(
   // emit one (legacy cached study) the prop is simply omitted and the paint
   // expression's fallback paints it at the low tone.
   for (const f of fcFeatures(study.drainageZonesGeoJson)) {
-    if (f?.geometry) {
+    if (validFeatureGeometry(f?.geometry)) {
       const concentration = zoneConcentrationOf(f.properties);
       features.push({
         type: "Feature",
@@ -497,9 +626,11 @@ export function buildFloodMapOverlayModel(
     }
   }
 
-  // PONDING — the headline class, always drawn when served.
+  // PONDING — the headline class, always drawn when served. A study with no
+  // modeled ponding legitimately contributes ZERO features here; the dock
+  // says so in words rather than the map silently showing nothing.
   for (const f of fcFeatures(study.rainfallResultGeoJson ?? null)) {
-    if (f?.geometry) {
+    if (validFeatureGeometry(f?.geometry)) {
       features.push({
         type: "Feature",
         geometry: f.geometry,
@@ -510,7 +641,7 @@ export function buildFloodMapOverlayModel(
 
   // CATCHMENT — the single dashed boundary line.
   for (const f of fcFeatures(study.catchmentGeoJson)) {
-    if (f?.geometry) {
+    if (validFeatureGeometry(f?.geometry)) {
       features.push({
         type: "Feature",
         geometry: f.geometry,
@@ -521,7 +652,16 @@ export function buildFloodMapOverlayModel(
 
   // FLOW — v3 flowPaths when present, else the legacy flowLinesGeoJson
   // traces; EITHER way filtered to the parcel-relevant survivors only.
-  const ring = study.parcelRingWgs84;
+  // The ring is advisory, not required: a malformed one means relevance is
+  // unprovable, and isParcelRelevantPath then KEEPS the path (honest
+  // inclusion). Filtering the vertices here keeps a NaN out of the geometry
+  // predicates, where it would silently poison every comparison.
+  const rawRing = study.parcelRingWgs84;
+  const ring = Array.isArray(rawRing)
+    ? (rawRing.filter(
+        (p) => Array.isArray(p) && isFiniteNum(p[0]) && isFiniteNum(p[1]),
+      ) as LngLat[])
+    : undefined;
   const v3Paths = validPathLike(study.flowPaths);
   const candidates: StudyFlowPathLike[] =
     v3Paths.length > 0
@@ -791,20 +931,17 @@ function addVectorLayers(map: FloodOverlayMapLike, beforeId: string | undefined)
       beforeId,
     );
   }
-  if (!map.getLayer(FLOOD_ZONE_LINE_ID)) {
-    map.addLayer(
-      {
-        id: FLOOD_ZONE_LINE_ID,
-        type: "line",
-        source: FLOOD_VECTOR_SOURCE_ID,
-        filter: kindIs("zone"),
-        paint: {
-          "line-color": FLOOD_ZONE_LINE_COLOR,
-          "line-width": FLOOD_ZONE_LINE_WIDTH,
-        },
-      },
-      beforeId,
-    );
+  // NO ZONE STROKE (FD6). A `line` layer filtered on kind=="zone" strokes
+  // every polygon's whole boundary, including edges SHARED with an adjacent
+  // same-band region — that is the internal seam mesh. The band fills carry
+  // the read on their own. If a pre-FD6 apply left one on this map, sweep it
+  // now so the mesh cannot survive a hot re-apply.
+  if (map.getLayer(RETIRED_FLOOD_ZONE_LINE_ID)) {
+    try {
+      map.removeLayer(RETIRED_FLOOD_ZONE_LINE_ID);
+    } catch {
+      /* already gone */
+    }
   }
   if (!map.getLayer(FLOOD_PONDING_FILL_ID)) {
     map.addLayer(
@@ -911,36 +1048,53 @@ export function applyFloodMapOverlay(
   map: FloodOverlayMapLike,
   model: FloodMapOverlayModel,
 ): void {
+  if (!map) return;
+  const vectors =
+    model && typeof model === "object" && Array.isArray(model.vectors?.features)
+      ? model.vectors
+      : EMPTY_FC;
   const beforeId = pickBelowParcelsBeforeId(map);
   try {
     const vecSrc = map.getSource(FLOOD_VECTOR_SOURCE_ID) as
       | { setData?: (d: unknown) => void }
       | undefined;
     if (vecSrc) {
-      vecSrc.setData?.(model.vectors);
+      vecSrc.setData?.(vectors);
     } else {
-      map.addSource(FLOOD_VECTOR_SOURCE_ID, {
-        type: "geojson",
-        data: model.vectors,
-      });
+      map.addSource(FLOOD_VECTOR_SOURCE_ID, { type: "geojson", data: vectors });
     }
     ensureArrowIcons(map);
     addVectorLayers(map, beforeId);
   } catch (err) {
+    // A partial apply (source added, layers half-built) must not leave a
+    // half-drawn overlay claiming to be the study. Roll the stack back so
+    // the map returns to a clean state and the next apply starts fresh.
     // eslint-disable-next-line no-console
     console.warn("[flood-overlay] apply failed:", err);
+    clearFloodMapOverlay(map);
   }
 }
 
-/** Remove every flood-overlay layer + source (icons stay — inert, reusable). */
+/**
+ * Remove every flood-overlay layer + source (icons stay — inert, reusable).
+ * COMPLETE AND IDEMPOTENT even after a partial/thrown apply: it sweeps the
+ * TEARDOWN superset (current ids + retired ones), and each removal is
+ * individually guarded so a single failure cannot orphan the layers behind
+ * it. Calling it on a map that never had the overlay is a no-op.
+ */
 export function clearFloodMapOverlay(map: FloodOverlayMapLike): void {
-  try {
-    for (const id of FLOOD_OVERLAY_LAYER_IDS) {
+  if (!map) return;
+  for (const id of FLOOD_TEARDOWN_LAYER_IDS) {
+    try {
       if (map.getLayer(id)) map.removeLayer(id);
+    } catch {
+      /* style already torn down / layer already gone — keep sweeping */
     }
+  }
+  try {
     if (map.getSource(FLOOD_VECTOR_SOURCE_ID)) map.removeSource(FLOOD_VECTOR_SOURCE_ID);
   } catch {
-    /* style already torn down; ignore */
+    /* a layer still references it, or the style is gone; ignore */
   }
 }
 

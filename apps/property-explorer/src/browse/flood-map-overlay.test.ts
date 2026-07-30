@@ -48,9 +48,6 @@ import {
   FLOOD_ZONE_FILL_OPACITY_EXPR,
   FLOOD_ZONE_HIGH_COLOR,
   FLOOD_ZONE_HIGH_OPACITY,
-  FLOOD_ZONE_LINE_COLOR,
-  FLOOD_ZONE_LINE_ID,
-  FLOOD_ZONE_LINE_WIDTH,
   FLOOD_ZONE_LOW_COLOR,
   FLOOD_ZONE_LOW_OPACITY,
   FLOOD_ZONE_MED_COLOR,
@@ -58,8 +55,14 @@ import {
   FLOOD_CATCHMENT_LINE_COLOR,
   FLOOD_EXIT_ICON_SIZE,
   FLOOD_FLOW_LINE_COLOR,
+  FLOOD_TEARDOWN_LAYER_IDS,
+  FEMA_FILL_OPACITY_MAX,
+  FEMA_FILL_OPACITY_MIN,
   MAX_FLOW_ARROWS,
   PARCEL_RELEVANCE_BUFFER_M,
+  RETIRED_FLOOD_ZONE_LINE_ID,
+  pondingFeatureCount,
+  validFeatureGeometry,
   applyFloodMapOverlay,
   buildArrowIconData,
   buildDiamondIconData,
@@ -247,6 +250,28 @@ function bandedZonesFc() {
   };
 }
 
+/** #rrggbb → {h: 0-360, s: 0-1, l: 0-1}; lets the hue-family pin assert on
+ *  perceptual facts (one warm arc, descending lightness) not on literals. */
+function hexToHsl(hex: string): { h: number; s: number; l: number } {
+  const m = /^#([0-9a-f]{6})$/i.exec(hex);
+  if (!m) throw new Error(`not a 6-digit hex color: ${hex}`);
+  const n = parseInt(m[1], 16);
+  const r = ((n >> 16) & 255) / 255;
+  const g = ((n >> 8) & 255) / 255;
+  const b = (n & 255) / 255;
+  const max = Math.max(r, g, b);
+  const min = Math.min(r, g, b);
+  const d = max - min;
+  const l = (max + min) / 2;
+  if (d === 0) return { h: 0, s: 0, l };
+  const s = d / (1 - Math.abs(2 * l - 1));
+  let h: number;
+  if (max === r) h = 60 * (((g - b) / d) % 6);
+  else if (max === g) h = 60 * ((b - r) / d + 2);
+  else h = 60 * ((r - g) / d + 4);
+  return { h: (h + 360) % 360, s, l };
+}
+
 function kindsOf(model: { vectors: { features: unknown[] } }): string[] {
   return (model.vectors.features as Feat[]).map((f) => String(f.properties.kind));
 }
@@ -258,7 +283,14 @@ function featuresOfKind(model: { vectors: { features: unknown[] } }, kind: strin
 /* ----------------------------- fake map -------------------------------- */
 
 interface FakeLayer {
-  def: { id: string; type: string; source?: string; paint?: Record<string, unknown>; layout?: Record<string, unknown> };
+  def: {
+    id: string;
+    type: string;
+    source?: string;
+    filter?: unknown;
+    paint?: Record<string, unknown>;
+    layout?: Record<string, unknown>;
+  };
   beforeId?: string;
 }
 
@@ -658,9 +690,43 @@ describe("zone concentration bands — three dissolved tones from ONE fill layer
       FLOOD_ZONE_HIGH_OPACITY,
       FLOOD_ZONE_LOW_OPACITY,
     ]);
-    expect([FLOOD_ZONE_LOW_OPACITY, FLOOD_ZONE_MED_OPACITY, FLOOD_ZONE_HIGH_OPACITY]).toEqual([
-      0.5, 0.6, 0.55,
-    ]);
+    // FD6: ONE graded warm family — a MONOTONIC ramp light → medium → deep,
+    // every step inside the FEMA envelope (the spec's 0.6 medium was above
+    // it and broke both the envelope and the monotonic read).
+    const ramp = [FLOOD_ZONE_LOW_OPACITY, FLOOD_ZONE_MED_OPACITY, FLOOD_ZONE_HIGH_OPACITY];
+    expect(ramp).toEqual([0.45, 0.5, 0.55]);
+    for (const o of ramp) {
+      expect(o).toBeGreaterThanOrEqual(FEMA_FILL_OPACITY_MIN);
+      expect(o).toBeLessThanOrEqual(FEMA_FILL_OPACITY_MAX);
+    }
+    expect(ramp).toEqual([...ramp].sort((a, b) => a - b));
+  });
+
+  it("FD6: the three bands + ponding are ONE warm hue family, not unrelated hues", () => {
+    // Every fill tone the overlay paints, parsed to HSL. A single graded
+    // family means every hue sits in the same narrow warm arc (orange/amber,
+    // ~20-45°) and lightness DESCENDS across the ramp. Any green/blue/violet
+    // member would fall outside the arc and fail here.
+    const ramp = [
+      FLOOD_ZONE_LOW_COLOR,
+      FLOOD_ZONE_MED_COLOR,
+      FLOOD_ZONE_HIGH_COLOR,
+      FLOOD_PONDING_FILL_COLOR,
+    ];
+    const hsl = ramp.map(hexToHsl);
+    for (const { h, s } of hsl) {
+      expect(h).toBeGreaterThanOrEqual(15);
+      expect(h).toBeLessThanOrEqual(50); // warm amber arc — no green (>=75°).
+      expect(s).toBeGreaterThan(0.2); // actually chromatic, not a grey.
+    }
+    // The whole family spans a tight hue arc: it is one hue, walked in
+    // lightness, not four separate colors.
+    const hues = hsl.map((c) => c.h);
+    expect(Math.max(...hues) - Math.min(...hues)).toBeLessThanOrEqual(20);
+    // Light → medium → deep across the three zone bands.
+    const zoneL = hsl.slice(0, 3).map((c) => c.l);
+    expect(zoneL[0]).toBeGreaterThan(zoneL[1]);
+    expect(zoneL[1]).toBeGreaterThan(zoneL[2]);
   });
 
   it("the band expressions are property READS only — never feature-state", () => {
@@ -703,12 +769,10 @@ describe("apply/clear — FEMA-style layer stack, below-parcels anchoring, no si
     expect(FLOOD_PONDING_LINE_COLOR).toBe("#7a3f12"); // the gradient's outer stop
     expect(pondLine.def.paint!["line-width"]).toBe(FLOOD_PONDING_LINE_WIDTH);
     expect(FLOOD_PONDING_LINE_WIDTH).toBeGreaterThan(1); // heavier than a hairline
-    // Zones: the amber outline, subtle (the bands are dissolved shapes).
+    // Zones: fill only, anchored below the parcel tiles. No stroke — see the
+    // seam pins below.
     const zoneFill = map._layers.get(FLOOD_ZONE_FILL_ID)!;
     expect(zoneFill.beforeId).toBe("hauska-parcel-tiles-fill");
-    const zoneLine = map._layers.get(FLOOD_ZONE_LINE_ID)!;
-    expect(zoneLine.def.paint!["line-color"]).toBe(FLOOD_ZONE_LINE_COLOR);
-    expect(zoneLine.def.paint!["line-width"]).toBe(FLOOD_ZONE_LINE_WIDTH);
     // Catchment + flow are the spec's amber, not the retired blue.
     expect(FLOOD_CATCHMENT_LINE_COLOR).toBe("#a85f22");
     expect(FLOOD_FLOW_LINE_COLOR).toBe("#a85f22");
@@ -824,6 +888,301 @@ describe("apply/clear — FEMA-style layer stack, below-parcels anchoring, no si
     clearFloodMapOverlay(map);
     for (const id of FLOOD_OVERLAY_LAYER_IDS) expect(map._layers.has(id)).toBe(false);
     expect(map._sources.has(FLOOD_VECTOR_SOURCE_ID)).toBe(false);
+  });
+});
+
+/* ------------------- FD6: no internal seams (paint cleanup) --------------- */
+
+describe("FD6 seam removal — smooth fill, NO internal grid/seam mesh", () => {
+  const styleLayers = [
+    { id: "hauska-parcel-tiles-fill", type: "fill" },
+    { id: "hauska-parcel-tiles-line", type: "line" },
+  ];
+
+  /** A study with SEVERAL zone features in the SAME band — the shape that
+   *  produced the rejected mesh: any kind=="zone" stroke would draw on the
+   *  edges these adjacent regions share. */
+  function adjacentSameBandStudy(): FloodDrainageStudyView {
+    const cell = (i: number) => {
+      const x0 = -97.322 + i * 0.001;
+      const x1 = x0 + 0.001; // each cell abuts the next EXACTLY — a shared edge.
+      return {
+        type: "Feature" as const,
+        geometry: {
+          type: "Polygon",
+          coordinates: [
+            [
+              [x0, 30.109],
+              [x1, 30.109],
+              [x1, 30.112],
+              [x0, 30.112],
+              [x0, 30.109],
+            ],
+          ],
+        },
+        properties: { concentration: 1 },
+      };
+    };
+    return fixtureStudy({
+      drainageZonesGeoJson: {
+        type: "FeatureCollection",
+        features: [cell(0), cell(1), cell(2), cell(3)],
+      },
+    });
+  }
+
+  it("NO layer strokes the zone features — the mesh cannot be drawn at all", () => {
+    const map = fakeMap(styleLayers);
+    applyFloodMapOverlay(map, buildFloodMapOverlayModel(adjacentSameBandStudy()));
+    // The decisive pin: not one LINE layer in our stack is filtered on zones.
+    // Zones are drawn by fill ONLY, so adjacent same-band regions share their
+    // edge silently — there is no per-feature outline to become a seam.
+    for (const [id, layer] of map._layers) {
+      if (!id.startsWith("pe-flood-")) continue;
+      if (layer.def.type !== "line") continue;
+      expect(JSON.stringify(layer.def.filter ?? null)).not.toContain('"zone"');
+    }
+    // And the specific retired layer is not in the stack, by id.
+    expect(map._layers.has(RETIRED_FLOOD_ZONE_LINE_ID)).toBe(false);
+    expect([...FLOOD_OVERLAY_LAYER_IDS]).not.toContain(RETIRED_FLOOD_ZONE_LINE_ID);
+    // The bands themselves still paint (removing the stroke removed the
+    // seam, NOT the study).
+    const zoneFill = map._layers.get(FLOOD_ZONE_FILL_ID)!;
+    expect(zoneFill.def.type).toBe("fill");
+    expect(zoneFill.def.paint!["fill-color"]).toEqual([...FLOOD_ZONE_FILL_COLOR_EXPR]);
+    expect(featuresOfKind(buildFloodMapOverlayModel(adjacentSameBandStudy()), "zone")).toHaveLength(
+      4,
+    );
+  });
+
+  it("no fill-outline-color either — that would reintroduce the seam by another channel", () => {
+    const map = fakeMap(styleLayers);
+    applyFloodMapOverlay(map, buildFloodMapOverlayModel(adjacentSameBandStudy()));
+    expect(
+      map._layers.get(FLOOD_ZONE_FILL_ID)!.def.paint!["fill-outline-color"],
+    ).toBeUndefined();
+  });
+
+  it("a pre-FD6 zone-line layer left on a live map is SWEPT by both apply and clear", () => {
+    // A session that applied the old build then hot-reloads into this one:
+    // the stale stroke must not survive and keep drawing the mesh.
+    const map = fakeMap(styleLayers);
+    map.addLayer({ id: RETIRED_FLOOD_ZONE_LINE_ID, type: "line", paint: {} });
+    expect(map._layers.has(RETIRED_FLOOD_ZONE_LINE_ID)).toBe(true);
+    applyFloodMapOverlay(map, buildFloodMapOverlayModel(adjacentSameBandStudy()));
+    expect(map._layers.has(RETIRED_FLOOD_ZONE_LINE_ID)).toBe(false);
+
+    const map2 = fakeMap(styleLayers);
+    applyFloodMapOverlay(map2, buildFloodMapOverlayModel(adjacentSameBandStudy()));
+    map2.addLayer({ id: RETIRED_FLOOD_ZONE_LINE_ID, type: "line", paint: {} });
+    clearFloodMapOverlay(map2);
+    expect(map2._layers.has(RETIRED_FLOOD_ZONE_LINE_ID)).toBe(false);
+    expect([...FLOOD_TEARDOWN_LAYER_IDS]).toContain(RETIRED_FLOOD_ZONE_LINE_ID);
+  });
+
+  it("EVERY fill this overlay paints sits inside the FEMA 0.4-0.55 envelope", () => {
+    const map = fakeMap(styleLayers);
+    applyFloodMapOverlay(map, buildFloodMapOverlayModel(v3Study()));
+    const opacities: number[] = [];
+    for (const [id, layer] of map._layers) {
+      if (!id.startsWith("pe-flood-") || layer.def.type !== "fill") continue;
+      const o = layer.def.paint!["fill-opacity"];
+      if (typeof o === "number") {
+        opacities.push(o);
+      } else if (Array.isArray(o) && o[0] === "match") {
+        // ["match", input, key0, out0, key1, out1, …, fallback] — the OUTPUTS
+        // are the odd slots from index 3, plus the trailing fallback. The
+        // even slots are match KEYS (0/1/2), not opacities.
+        for (let i = 3; i < o.length - 1; i += 2) opacities.push(o[i] as number);
+        opacities.push(o[o.length - 1] as number);
+      }
+    }
+    expect(opacities.length).toBeGreaterThan(0);
+    for (const o of opacities) {
+      expect(o).toBeGreaterThanOrEqual(FEMA_FILL_OPACITY_MIN);
+      expect(o).toBeLessThanOrEqual(FEMA_FILL_OPACITY_MAX);
+    }
+  });
+
+  it("PONDING is in range (was 0.8) and stays distinct via its RIM, not raw alpha", () => {
+    expect(FLOOD_PONDING_FILL_OPACITY).toBe(0.55);
+    expect(FLOOD_PONDING_FILL_OPACITY).toBeLessThanOrEqual(FEMA_FILL_OPACITY_MAX);
+    expect(FLOOD_PONDING_FILL_OPACITY).toBeGreaterThanOrEqual(FEMA_FILL_OPACITY_MIN);
+    // The distinguishing treatment: a rim heavier than any other line in the
+    // hydro stack, in the deepest tone of the ramp.
+    expect(FLOOD_PONDING_LINE_WIDTH).toBeGreaterThanOrEqual(2);
+    expect(FLOOD_PONDING_LINE_COLOR).toBe("#7a3f12");
+    const map = fakeMap(styleLayers);
+    applyFloodMapOverlay(map, buildFloodMapOverlayModel(v3Study()));
+    const pondWidth = map._layers.get(FLOOD_PONDING_LINE_ID)!.def.paint!["line-width"] as number;
+    for (const [id, layer] of map._layers) {
+      if (!id.startsWith("pe-flood-") || id === FLOOD_PONDING_LINE_ID) continue;
+      const w = layer.def.paint?.["line-width"];
+      if (typeof w === "number") expect(pondWidth).toBeGreaterThanOrEqual(w);
+    }
+  });
+});
+
+/* ------------------ FD6: reliability / honest degrade -------------------- */
+
+describe("FD6 reliability — malformed payloads degrade, they never blank the map", () => {
+  const styleLayers = [{ id: "hauska-parcel-tiles-fill", type: "fill" }];
+
+  it("validFeatureGeometry rejects null / unknown-type / NaN-coordinate geometry", () => {
+    expect(validFeatureGeometry(null)).toBe(false);
+    expect(validFeatureGeometry(undefined)).toBe(false);
+    expect(validFeatureGeometry("Polygon")).toBe(false);
+    expect(validFeatureGeometry({ type: "Polygon" })).toBe(false); // no coordinates
+    expect(validFeatureGeometry({ type: "Wormhole", coordinates: [[0, 0]] })).toBe(false);
+    expect(validFeatureGeometry({ type: "Polygon", coordinates: [] })).toBe(false);
+    expect(
+      validFeatureGeometry({ type: "Polygon", coordinates: [[[0, 0], [1, NaN], [1, 1]]] }),
+    ).toBe(false);
+    expect(
+      validFeatureGeometry({ type: "Point", coordinates: [Infinity, 30.1] }),
+    ).toBe(false);
+    expect(validFeatureGeometry({ type: "Point", coordinates: [null, 30.1] })).toBe(false);
+    // The good shapes still pass.
+    expect(validFeatureGeometry({ type: "Point", coordinates: [-97.32, 30.11] })).toBe(true);
+    expect(
+      validFeatureGeometry({
+        type: "Polygon",
+        coordinates: [[[-97.32, 30.11], [-97.31, 30.11], [-97.31, 30.12], [-97.32, 30.11]]],
+      }),
+    ).toBe(true);
+  });
+
+  it("a study with GARBAGE GeoJSON fields builds an empty model instead of throwing", () => {
+    const garbage = fixtureStudy({
+      // Every field the wrong shape: null, a bare object, a string, a
+      // non-array `features`. Nothing here may reach MapLibre.
+      drainageZonesGeoJson: null as never,
+      catchmentGeoJson: { type: "FeatureCollection" } as never,
+      rainfallResultGeoJson: "not-geojson" as never,
+      flowLinesGeoJson: { type: "FeatureCollection", features: "nope" } as never,
+      flowPaths: { bad: true } as never,
+      flowExits: "nope" as never,
+      parcelRingWgs84: "nope" as never,
+    });
+    let model!: ReturnType<typeof buildFloodMapOverlayModel>;
+    expect(() => {
+      model = buildFloodMapOverlayModel(garbage);
+    }).not.toThrow();
+    expect(model.vectors.features).toHaveLength(0);
+    // And applying that empty model is a clean no-op, not a crash.
+    const map = fakeMap(styleLayers);
+    expect(() => applyFloodMapOverlay(map, model)).not.toThrow();
+    expect(map._sources.has(FLOOD_VECTOR_SOURCE_ID)).toBe(true);
+  });
+
+  it("PARTIAL render: the bad features drop, the GOOD ones still draw", () => {
+    const good = {
+      type: "Feature" as const,
+      geometry: {
+        type: "Polygon",
+        coordinates: [
+          [
+            [-97.322, 30.109],
+            [-97.318, 30.109],
+            [-97.318, 30.112],
+            [-97.322, 30.109],
+          ],
+        ],
+      },
+      properties: { concentration: 2 },
+    };
+    const study = fixtureStudy({
+      drainageZonesGeoJson: {
+        type: "FeatureCollection",
+        features: [
+          null as never, // a null hole in the array
+          { type: "Feature", geometry: null, properties: {} } as never, // legal GeoJSON!
+          {
+            type: "Feature",
+            geometry: { type: "Polygon", coordinates: [[[-97.3, NaN], [0, 0], [1, 1]]] },
+            properties: {},
+          } as never,
+          good,
+        ],
+      },
+    });
+    const model = buildFloodMapOverlayModel(study);
+    const zones = featuresOfKind(model, "zone");
+    expect(zones).toHaveLength(1); // exactly the good one — a PARTIAL render.
+    expect(zones[0].properties.concentration).toBe(2);
+    // Every coordinate that reached the model is finite.
+    expect(JSON.stringify(model.vectors)).not.toContain("null,");
+    const map = fakeMap(styleLayers);
+    expect(() => applyFloodMapOverlay(map, model)).not.toThrow();
+    expect(map._layers.has(FLOOD_ZONE_FILL_ID)).toBe(true);
+  });
+
+  it("a NaN-poisoned parcel ring does not silently drop every flow path", () => {
+    // Relevance is unprovable without a usable ring → paths are KEPT (honest
+    // inclusion), and no NaN reaches the geometry predicates.
+    const study = v3Study({ parcelRingWgs84: [[NaN, 30.11], [-97.32, NaN]] as never });
+    let model!: ReturnType<typeof buildFloodMapOverlayModel>;
+    expect(() => {
+      model = buildFloodMapOverlayModel(study);
+    }).not.toThrow();
+    expect(featuresOfKind(model, "flow").length).toBeGreaterThan(0);
+  });
+
+  it("apply ROLLS BACK a partial stack when the map throws mid-build", () => {
+    const map = fakeMap(styleLayers);
+    let added = 0;
+    const realAdd = map.addLayer;
+    map.addLayer = (layer, beforeId) => {
+      if (added++ === 2) throw new Error("style went away mid-apply");
+      return realAdd(layer, beforeId);
+    };
+    expect(() => applyFloodMapOverlay(map, buildFloodMapOverlayModel(v3Study()))).not.toThrow();
+    // Nothing half-drawn is left claiming to be the study.
+    expect([...map._layers.keys()].filter((id) => id.startsWith("pe-flood-"))).toHaveLength(0);
+    expect(map._sources.has(FLOOD_VECTOR_SOURCE_ID)).toBe(false);
+  });
+
+  it("teardown is COMPLETE and IDEMPOTENT, even after a partial apply", () => {
+    const map = fakeMap(styleLayers);
+    applyFloodMapOverlay(map, buildFloodMapOverlayModel(v3Study()));
+    // A removal that throws must not orphan the layers behind it.
+    const realRemove = map.removeLayer;
+    let threw = false;
+    map.removeLayer = (id) => {
+      if (!threw && id === FLOOD_PONDING_FILL_ID) {
+        threw = true;
+        throw new Error("layer removal failed");
+      }
+      return realRemove(id);
+    };
+    expect(() => clearFloodMapOverlay(map)).not.toThrow();
+    map.removeLayer = realRemove;
+    clearFloodMapOverlay(map); // second sweep gets the straggler.
+    for (const id of FLOOD_TEARDOWN_LAYER_IDS) expect(map._layers.has(id)).toBe(false);
+    expect(map._sources.has(FLOOD_VECTOR_SOURCE_ID)).toBe(false);
+    // Idempotent: clearing an untouched map is a silent no-op.
+    expect(() => clearFloodMapOverlay(fakeMap(styleLayers))).not.toThrow();
+    expect(() => clearFloodMapOverlay(map)).not.toThrow();
+  });
+
+  it("pondingFeatureCount counts only what the map will ACTUALLY draw", () => {
+    expect(pondingFeatureCount(null)).toBe(0);
+    expect(pondingFeatureCount(fixtureStudy({ rainfallResultGeoJson: null as never }))).toBe(0);
+    expect(
+      pondingFeatureCount(
+        fixtureStudy({
+          rainfallResultGeoJson: {
+            type: "FeatureCollection",
+            features: [{ type: "Feature", geometry: null, properties: {} } as never],
+          },
+        }),
+      ),
+    ).toBe(0); // served, but undrawable — the dock must NOT claim ponding.
+    const withPonding = fixtureStudy();
+    expect(pondingFeatureCount(withPonding)).toBe(
+      featuresOfKind(buildFloodMapOverlayModel(withPonding), "ponding").length,
+    );
+    expect(pondingFeatureCount(withPonding)).toBeGreaterThan(0);
   });
 });
 
