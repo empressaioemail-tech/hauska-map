@@ -1,28 +1,42 @@
 // apps/property-explorer/src/browse/flood-map-overlay.ts
 //
-// FLOOD & DRAINAGE — the MAIN-MAP overlay, FEMA-ZONE STYLE (FD4 restyle,
-// 2026-07-29 operator direction: "crisp FEMA-zone-style categorical polygons;
-// small arrows are fine but I want to see how it affects the property in
-// question"). While the Flood & Drainage report is open for the active
-// property, the drainage study renders on the live map in the SAME visual
-// language as the app's live FEMA flood-zone layer (live-gis toLiveOverlays:
-// solid semi-transparent categorical fills, crisp thin outlines — no glow,
-// no gradient, no animation):
+// FLOOD & DRAINAGE — the MAIN-MAP overlay, WARM AMBER HYDRO FAMILY (FD5
+// restyle, 2026-07-30 operator direction: the blue hydro layer competed with
+// the actual FEMA flood-zone layer on the same map, so hydro moves to a
+// distinct warm amber family and both layers stay legible together). FEMA
+// stays untouched in its blue (#3b82f6 family) — it is the REFERENCE layer;
+// the whole point is that hydro no longer competes with it.
 //
-//   - PONDING (rainfallResultGeoJson) — the headline layer: solid blue fill
-//     at 0.42 opacity with a crisp 1px darker-blue outline (the payload has
-//     no graded depth classes, so ponding is one categorical class);
-//   - DRAINAGE ZONES (drainageZonesGeoJson) — light categorical tint (0.18)
-//     with the live-FEMA outline (rgba(59,130,246,0.55) at 0.8px), visually
-//     subordinate to ponding;
-//   - CATCHMENT (catchmentGeoJson) — no fill; a single dashed boundary line;
+// The paint QUALITY is unchanged from the FD4 FEMA-zone restyle (solid
+// semi-transparent categorical fills, crisp thin outlines — no glow, no
+// gradient, no animation); only the hue family and the zone banding change:
+//
+//   - DRAINAGE ZONES (drainageZonesGeoJson) — THREE dissolved concentration
+//     bands painted from the feature's own `concentration: 0|1|2` property:
+//     low #e8b579 @0.5, medium #d98a3d @0.6, high #a85f22 @0.55. Painted
+//     through ONE fill layer with a `["match", ["get","concentration"], ...]`
+//     expression (fewer layers than three filtered ones). FEATURE-DETECT:
+//     features with no `concentration` (older cached studies) fall back to
+//     the low tone — the client never breaks on a legacy payload;
+//   - PONDING (rainfallResultGeoJson) — standing water, the deepest tone:
+//     the spec draws a radial gradient #c46a2b → #7a3f12, which MapLibre
+//     fills cannot express. Implemented as the closest legible equivalent:
+//     a solid #c46a2b fill with a heavier 1.6px #7a3f12 outline, so the
+//     pool reads as pooled water with a dark rim rather than a flat chip;
+//   - CATCHMENT (catchmentGeoJson) — no fill; a single dashed #a85f22
+//     boundary line at 1.6px, dash [5,4];
 //   - PARCEL-RELEVANT FLOW ONLY: flow paths are filtered to those that
 //     matter to the subject parcel — kind "exit" paths, plus any path whose
 //     geometry intersects the parcel ring or comes within ~15 m of it.
-//     Everything else is DROPPED. Survivors draw as thin clean lines with
-//     SMALL static direction arrows (map-annotation style, sparse), plus one
-//     clear arrow at each point where flow crosses the parcel boundary.
-//     Total arrows are capped at 6, boundary-crossing arrows first.
+//     Everything else is DROPPED. Survivors draw as thin clean #a85f22 lines
+//     with SMALL static direction ARROWS (map-annotation style, sparse), plus
+//     one clear marker at each point where flow crosses the parcel boundary.
+//     Total markers are capped at 6, boundary-crossing markers first. The
+//     relevance rule, the 15 m buffer, and the cap are UNCHANGED by FD5 —
+//     the operator explicitly approved that behavior;
+//   - EXIT POINTS — per the FD5 spec these are DIAMOND markers (a square
+//     rotated 45°): #7a3f12 fill, white stroke, no rotation. Flow-path
+//     arrows stay arrows and keep their `icon-rotate` bearing behavior.
 //
 // REMOVED in the FD4 restyle (operator rejection of PR #114/#116): the scrim
 // + layer-dimming dominance mechanism, the water-gradient raster image, the
@@ -34,9 +48,10 @@
 // the catchment dash, flow lines, and arrows draw on top of the stack.
 //
 // PAINT DISCIPLINE: no feature-state anywhere. The only data-driven inputs
-// are `["get","bearing"]` (symbol icon-rotate) and layer filters on
-// `["get","kind"]` — plain property reads, never feature-state. No animated
-// dash: every dasharray is a static literal (the crash-guard safe channel).
+// are `["get","bearing"]` (arrow icon-rotate), `["get","concentration"]`
+// (the zone band match) and layer filters on `["get","kind"]` — plain
+// property reads, never feature-state. No animated dash: every dasharray is
+// a static literal (the crash-guard safe channel).
 //
 // FEATURE-DETECT: studies without the v3 `flowPaths` payload filter their
 // legacy `flowLinesGeoJson` traces through the same parcel-relevance rule;
@@ -78,38 +93,87 @@ export const FLOOD_OVERLAY_LAYER_IDS = [
 ] as const;
 
 /* --------------------------- style constants ---------------------------- */
-// The FEMA visual language, matched from the live flood layer (live-gis
-// toLiveOverlays LIVE_FEMA_KEY paint): SFHA fill hue rgb(59,130,246) /
-// X-tint hue rgb(96,165,250), fill-opacity 0.4, thin 0.8px outline
-// rgba(59,130,246,0.55). Solid categorical fills, crisp edges, no gradient.
+// The FD5 WARM AMBER hydro family, taken literally from the approved spec
+// (Hydro Overlay Redesign / FloodMap SVG). FEMA keeps the blue (#3b82f6
+// family) as the reference layer; nothing here may reach into that hue.
 
-/** Ponding — the headline class: the FEMA SFHA blue, solid. */
-export const FLOOD_PONDING_FILL_COLOR = "#3b82f6";
-export const FLOOD_PONDING_FILL_OPACITY = 0.42;
-/** Crisp 1px darker-blue ponding edge. */
-export const FLOOD_PONDING_LINE_COLOR = "#1d4ed8";
-export const FLOOD_PONDING_LINE_WIDTH = 1;
-
-/** Drainage zones — the light X-tint hue, visually subordinate to ponding. */
-export const FLOOD_ZONE_FILL_COLOR = "#60a5fa";
-export const FLOOD_ZONE_FILL_OPACITY = 0.18;
-/** The live-FEMA outline verbatim. */
-export const FLOOD_ZONE_LINE_COLOR = "rgba(59,130,246,0.55)";
+/** Zone concentration bands — the spec's three dissolved tones. */
+export const FLOOD_ZONE_LOW_COLOR = "#e8b579";
+export const FLOOD_ZONE_MED_COLOR = "#d98a3d";
+export const FLOOD_ZONE_HIGH_COLOR = "#a85f22";
+/** Per-band opacity from the spec (0.5 / 0.6 / 0.55). */
+export const FLOOD_ZONE_LOW_OPACITY = 0.5;
+export const FLOOD_ZONE_MED_OPACITY = 0.6;
+export const FLOOD_ZONE_HIGH_OPACITY = 0.55;
+/** The band a feature with NO `concentration` prop falls back to (older
+ *  cached studies predate the engine's banding — they must still render). */
+export const FLOOD_ZONE_FALLBACK_COLOR = FLOOD_ZONE_LOW_COLOR;
+export const FLOOD_ZONE_FALLBACK_OPACITY = FLOOD_ZONE_LOW_OPACITY;
+/** Zone outline — the amber high tone, thin; the spec's bands are dissolved
+ *  smooth shapes, so the edge stays subtle. */
+export const FLOOD_ZONE_LINE_COLOR = "rgba(168,95,34,0.45)";
 export const FLOOD_ZONE_LINE_WIDTH = 0.8;
 
-/** Catchment — a single dashed boundary line, no fill (STATIC literal dash). */
-export const FLOOD_CATCHMENT_LINE_COLOR = "rgba(59,130,246,0.8)";
-export const FLOOD_CATCHMENT_LINE_WIDTH = 1.4;
-export const FLOOD_CATCHMENT_DASH = [4, 3];
+/**
+ * Ponding — standing water, the deepest treatment. The spec paints a RADIAL
+ * gradient (#c46a2b core → #7a3f12 rim); MapLibre `fill` layers have no
+ * radial-gradient channel, so the pooled read is built from a solid core
+ * fill plus a heavier dark rim outline. Documented deviation.
+ */
+export const FLOOD_PONDING_FILL_COLOR = "#c46a2b";
+export const FLOOD_PONDING_FILL_OPACITY = 0.8;
+/** The dark pooled rim (the gradient's outer stop), heavier than a hairline. */
+export const FLOOD_PONDING_LINE_COLOR = "#7a3f12";
+export const FLOOD_PONDING_LINE_WIDTH = 1.6;
 
-/** Parcel-relevant flow — thin clean lines, no casing, no animation. */
-export const FLOOD_FLOW_LINE_COLOR = "#7dd3fc";
-export const FLOOD_FLOW_LINE_WIDTH = 1.5;
+/** Catchment — a single dashed boundary line, no fill (STATIC literal dash). */
+export const FLOOD_CATCHMENT_LINE_COLOR = "#a85f22";
+export const FLOOD_CATCHMENT_LINE_WIDTH = 1.6;
+export const FLOOD_CATCHMENT_DASH = [5, 4];
+
+/** Parcel-relevant flow — thin clean amber lines, no casing, no animation. */
+export const FLOOD_FLOW_LINE_COLOR = "#a85f22";
+export const FLOOD_FLOW_LINE_WIDTH = 2;
 export const FLOOD_FLOW_LINE_OPACITY = 0.85;
 
-/** Small map-annotation arrows (icons are drawn at 48px / pixelRatio 2). */
+/** Exit-point diamond — the spec's 45°-rotated square. */
+export const FLOOD_EXIT_MARKER_COLOR = "#7a3f12";
+export const FLOOD_EXIT_MARKER_STROKE = "#ffffff";
+
+/** Small map-annotation markers (icons are drawn at 48px / pixelRatio 2). */
 export const FLOOD_ARROW_ICON_SIZE = 0.4;
 export const FLOOD_EXIT_ICON_SIZE = 0.55;
+
+/**
+ * The band paint expression: read the feature's own `concentration` and map
+ * 0/1/2 to the spec tones. `["get", ...]` only — never feature-state. The
+ * `match` fallback covers BOTH a missing property and any unexpected value,
+ * so a legacy cached study still paints (at the low tone).
+ */
+export const FLOOD_ZONE_FILL_COLOR_EXPR = [
+  "match",
+  ["get", "concentration"],
+  0,
+  FLOOD_ZONE_LOW_COLOR,
+  1,
+  FLOOD_ZONE_MED_COLOR,
+  2,
+  FLOOD_ZONE_HIGH_COLOR,
+  FLOOD_ZONE_FALLBACK_COLOR,
+] as const;
+
+/** Per-band opacity, same match shape, same missing-prop fallback. */
+export const FLOOD_ZONE_FILL_OPACITY_EXPR = [
+  "match",
+  ["get", "concentration"],
+  0,
+  FLOOD_ZONE_LOW_OPACITY,
+  1,
+  FLOOD_ZONE_MED_OPACITY,
+  2,
+  FLOOD_ZONE_HIGH_OPACITY,
+  FLOOD_ZONE_FALLBACK_OPACITY,
+] as const;
 
 /** A path is parcel-relevant within this distance of the parcel ring. */
 export const PARCEL_RELEVANCE_BUFFER_M = 15;
@@ -350,9 +414,24 @@ export interface FloodMapOverlayModel {
   vectors: FC;
 }
 
-function fcFeatures(fc: unknown): Array<{ geometry?: unknown }> {
+function fcFeatures(fc: unknown): Array<{ geometry?: unknown; properties?: unknown }> {
   const f = fc as { features?: unknown } | null | undefined;
-  return Array.isArray(f?.features) ? (f!.features as Array<{ geometry?: unknown }>) : [];
+  return Array.isArray(f?.features)
+    ? (f!.features as Array<{ geometry?: unknown; properties?: unknown }>)
+    : [];
+}
+
+/**
+ * FEATURE-DETECT the engine's zone banding: `concentration` is 0 | 1 | 2 on
+ * v4 dissolved zones. Anything else (absent — every study cached before the
+ * banding shipped — or out of range) returns undefined, and the paint
+ * expression's match fallback paints it at the low tone. The client never
+ * breaks on a legacy payload.
+ */
+export function zoneConcentrationOf(properties: unknown): 0 | 1 | 2 | undefined {
+  const p = properties as { concentration?: unknown } | null | undefined;
+  const c = p?.concentration;
+  return c === 0 || c === 1 || c === 2 ? c : undefined;
 }
 
 function lineStringsOf(geometry: unknown): LngLat[][] {
@@ -400,13 +479,20 @@ export function buildFloodMapOverlayModel(
 
   const features: unknown[] = [];
 
-  // DRAINAGE ZONES — light categorical tint, always drawn when served.
+  // DRAINAGE ZONES — the three dissolved concentration bands. The band comes
+  // from the served feature's own `concentration`; when the engine did not
+  // emit one (legacy cached study) the prop is simply omitted and the paint
+  // expression's fallback paints it at the low tone.
   for (const f of fcFeatures(study.drainageZonesGeoJson)) {
     if (f?.geometry) {
+      const concentration = zoneConcentrationOf(f.properties);
       features.push({
         type: "Feature",
         geometry: f.geometry,
-        properties: { kind: "zone" },
+        properties:
+          concentration === undefined
+            ? { kind: "zone" }
+            : { kind: "zone", concentration },
       });
     }
   }
@@ -502,7 +588,7 @@ export function buildFloodMapOverlayModel(
   return { vectors: { type: "FeatureCollection", features } };
 }
 
-/* --------------------------- arrow icon (pure) -------------------------- */
+/* --------------------------- icons (pure) ------------------------------- */
 
 type Rgba = [number, number, number, number];
 
@@ -515,6 +601,18 @@ function inArrowShape(x: number, y: number): boolean {
     return Math.abs(x - 12) <= half;
   }
   return false;
+}
+
+/**
+ * The FD5 exit marker: the spec's square rotated 45°, i.e. a DIAMOND, in the
+ * same 24-unit space. |x-12| + |y-12| <= 8 is the rotated square; the outer
+ * band (<= 8, > 5.6) is the white stroke, the core is the fill.
+ */
+function diamondBand(x: number, y: number): "fill" | "stroke" | null {
+  const d = Math.abs(x - 12) + Math.abs(y - 12);
+  if (d <= 5.6) return "fill";
+  if (d <= 8) return "stroke";
+  return null;
 }
 
 /**
@@ -580,6 +678,50 @@ export function buildArrowIconData(
   return { width: size, height: size, data };
 }
 
+/**
+ * Rasterize the EXIT DIAMOND (the spec's 45°-rotated square): a `fill` core
+ * inside a `stroke` band, both 2x2 supersampled. Same pure pixel-math style
+ * as buildArrowIconData — no canvas, so it runs in node tests too. The
+ * diamond is rotationally symmetric about its axes and carries no direction,
+ * so the exit layer does NOT rotate it.
+ */
+export function buildDiamondIconData(
+  size: number,
+  fill: Rgba,
+  stroke: Rgba,
+): { width: number; height: number; data: Uint8ClampedArray } {
+  const scale = 24 / size;
+  const data = new Uint8ClampedArray(size * size * 4);
+  const OFFSETS: Array<[number, number]> = [
+    [0.25, 0.25],
+    [0.75, 0.25],
+    [0.25, 0.75],
+    [0.75, 0.75],
+  ];
+  for (let py = 0; py < size; py++) {
+    for (let px = 0; px < size; px++) {
+      let fillHits = 0;
+      let strokeHits = 0;
+      for (const [ox, oy] of OFFSETS) {
+        const band = diamondBand((px + ox) * scale, (py + oy) * scale);
+        if (band === "fill") fillHits++;
+        else if (band === "stroke") strokeHits++;
+      }
+      const covered = fillHits + strokeHits;
+      if (covered === 0) continue;
+      // The dominant band wins the hue; total coverage drives the alpha, so
+      // the diamond's outer edge antialiases against the map.
+      const v: Rgba = fillHits >= strokeHits ? fill : stroke;
+      const i = (py * size + px) * 4;
+      data[i] = v[0];
+      data[i + 1] = v[1];
+      data[i + 2] = v[2];
+      data[i + 3] = Math.round((v[3] * covered) / OFFSETS.length);
+    }
+  }
+  return { width: size, height: size, data };
+}
+
 /* --------------------------- apply / clear ------------------------------ */
 
 /** The insertion anchor for the below-parcels zone fills: the FIRST (in
@@ -606,19 +748,21 @@ export function pickBelowParcelsBeforeId(
 function ensureArrowIcons(map: FloodOverlayMapLike): void {
   if (typeof map.addImage !== "function") return;
   try {
-    // Flow arrows: bright water-blue on a dark paper-halo.
+    // Flow arrows: the amber flow tone (#a85f22) on a white paper-halo, so a
+    // small arrow stays readable over both the dark bands and the basemap.
     if (!map.hasImage?.(FLOOD_ARROW_ICON_ID)) {
       map.addImage(
         FLOOD_ARROW_ICON_ID,
-        buildArrowIconData(48, [224, 242, 254, 255], [6, 9, 13, 215]),
+        buildArrowIconData(48, [168, 95, 34, 255], [255, 255, 255, 225]),
         { pixelRatio: 2 },
       );
     }
-    // Exit arrows: amber (the dock viz exit color) on the same halo.
+    // Exit points: the spec's DIAMOND — #7a3f12 fill, white stroke, no halo
+    // (the white stroke IS the separation) and no rotation.
     if (!map.hasImage?.(FLOOD_EXIT_ICON_ID)) {
       map.addImage(
         FLOOD_EXIT_ICON_ID,
-        buildArrowIconData(48, [252, 211, 77, 255], [6, 9, 13, 215]),
+        buildDiamondIconData(48, [122, 63, 18, 255], [255, 255, 255, 255]),
         { pixelRatio: 2 },
       );
     }
@@ -629,8 +773,9 @@ function ensureArrowIcons(map: FloodOverlayMapLike): void {
 
 function addVectorLayers(map: FloodOverlayMapLike, beforeId: string | undefined): void {
   const kindIs = (k: string) => ["==", ["get", "kind"], k];
-  // BELOW the parcels: the categorical zone + ponding fills with their crisp
-  // thin outlines — the FEMA-zone visual language.
+  // BELOW the parcels: the banded zone fills + the pooled ponding fill with
+  // their outlines — the FD5 warm amber hydro language. ONE zone fill layer,
+  // three tones, driven by a match expression on `["get","concentration"]`.
   if (!map.getLayer(FLOOD_ZONE_FILL_ID)) {
     map.addLayer(
       {
@@ -639,8 +784,8 @@ function addVectorLayers(map: FloodOverlayMapLike, beforeId: string | undefined)
         source: FLOOD_VECTOR_SOURCE_ID,
         filter: kindIs("zone"),
         paint: {
-          "fill-color": FLOOD_ZONE_FILL_COLOR,
-          "fill-opacity": FLOOD_ZONE_FILL_OPACITY,
+          "fill-color": [...FLOOD_ZONE_FILL_COLOR_EXPR],
+          "fill-opacity": [...FLOOD_ZONE_FILL_OPACITY_EXPR],
         },
       },
       beforeId,
@@ -743,10 +888,11 @@ function addVectorLayers(map: FloodOverlayMapLike, beforeId: string | undefined)
       type: "symbol",
       source: FLOOD_VECTOR_SOURCE_ID,
       filter: kindIs("exit"),
+      // The exit DIAMOND carries no direction, so it is NOT rotated (the
+      // flow arrows above keep their `icon-rotate` bearing behavior).
       layout: {
         "icon-image": FLOOD_EXIT_ICON_ID,
         "icon-size": FLOOD_EXIT_ICON_SIZE,
-        "icon-rotate": ["get", "bearing"],
         "icon-rotation-alignment": "map",
         "icon-allow-overlap": true,
         "icon-ignore-placement": true,
