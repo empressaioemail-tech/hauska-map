@@ -64,6 +64,30 @@ export interface FloodDrainageStudyView {
     bbox: { westLng: number; southLat: number; eastLng: number; northLat: number }
     note?: string
   }
+  /**
+   * Engine v3 addition (feature-detect: absent on older cached studies and
+   * until the engine deploys): traced D8 flow-accumulation ridgelines,
+   * ordered downstream. `strength` is 0..1 normalized log flow accumulation
+   * (the gradient normalization); kind "exit" = the trace leaves the parcel
+   * ring. Drives the strength-scaled flow ribbons on the main-map overlay.
+   */
+  flowPaths?: Array<{
+    coordinates: Array<[number, number]>
+    strength: number
+    kind: 'interior' | 'exit'
+  }>
+  /**
+   * Engine v3 addition, index-aligned with `flowPaths`: one closed polygon
+   * ring per path — the contributing-corridor swath, widening downstream.
+   * Drives the translucent watershed corridors under the flow ribbons.
+   */
+  catchmentSwaths?: Array<{
+    coordinates: Array<[number, number]>
+    strength: number
+    kind: 'interior' | 'exit'
+  }>
+  /** Engine provenance note for flowPaths + catchmentSwaths derivation. */
+  flowPathsNote?: string
   generatedAt?: string
 }
 

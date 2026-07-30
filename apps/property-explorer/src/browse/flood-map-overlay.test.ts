@@ -23,24 +23,35 @@ import {
   FLOOD_ARROW_LAYER_ID,
   FLOOD_CATCHMENT_GLOW_ID,
   FLOOD_CATCHMENT_LINE_ID,
+  FLOOD_DIM_OPACITY,
   FLOOD_EXIT_ICON_ID,
   FLOOD_EXIT_LAYER_ID,
   FLOOD_FLOW_BASE_ID,
   FLOOD_FLOW_DASH_ID,
   FLOOD_GRADIENT_LAYER_ID,
   FLOOD_GRADIENT_SOURCE_ID,
+  FLOOD_HYDRO_THIN_WIDTH,
   FLOOD_OVERLAY_LAYER_IDS,
   FLOOD_PONDING_FILL_ID,
+  FLOOD_SCRIM_LAYER_ID,
+  FLOOD_SCRIM_SOURCE_ID,
+  FLOOD_SWATH_CASING_ID,
+  FLOOD_SWATH_FILL_ID,
   FLOOD_VECTOR_SOURCE_ID,
   FLOOD_ZONE_FILL_ID,
   FLOW_DASH_SEQUENCE,
+  applyFloodDominance,
   applyFloodMapOverlay,
   buildArrowIconData,
   buildFloodMapOverlayModel,
+  classifyFloodDominanceTargets,
   clearFloodMapOverlay,
   createFloodMapOverlayController,
+  exitCrossingPoint,
   flowArrowPoints,
+  flowArrowPointsScaled,
   pickBelowParcelsBeforeId,
+  restoreFloodDominance,
   segmentBearingDeg,
   type FloodOverlayMapLike,
 } from "./flood-map-overlay";
@@ -147,14 +158,24 @@ interface FakeLayer {
   beforeId?: string;
 }
 
-function fakeMap(styleLayers: Array<{ id: string; type?: string }> = []) {
+function fakeMap(
+  styleLayers: Array<{ id: string; type?: string; paint?: Record<string, unknown> }> = [],
+) {
   const layers = new Map<string, FakeLayer>();
+  // Pre-existing style layers are real layers too (paint mutable via
+  // set/getPaintProperty — the dominance capture/restore seam).
+  for (const l of styleLayers) {
+    layers.set(l.id, {
+      def: { id: l.id, type: l.type ?? "fill", paint: { ...(l.paint ?? {}) } },
+    });
+  }
   const sources = new Map<string, Record<string, unknown>>();
   const images = new Map<string, unknown>();
   const map: FloodOverlayMapLike & {
     _layers: Map<string, FakeLayer>;
     _sources: Map<string, Record<string, unknown>>;
     _images: Map<string, unknown>;
+    _paint: (id: string, prop: string) => unknown;
   } = {
     getLayer: (id) => layers.get(id),
     addLayer: (layer, beforeId) => {
@@ -176,12 +197,18 @@ function fakeMap(styleLayers: Array<{ id: string; type?: string }> = []) {
     },
     removeSource: (id) => sources.delete(id),
     getStyle: () => ({ layers: styleLayers }),
-    setPaintProperty: () => {},
+    setPaintProperty: (layerId, prop, value) => {
+      const layer = layers.get(layerId);
+      if (!layer) return;
+      layer.def.paint = { ...(layer.def.paint ?? {}), [prop]: value };
+    },
+    getPaintProperty: (layerId, prop) => layers.get(layerId)?.def.paint?.[prop],
     hasImage: (id) => images.has(id),
     addImage: (id, image) => images.set(id, image),
     _layers: layers,
     _sources: sources,
     _images: images,
+    _paint: (id, prop) => layers.get(id)?.def.paint?.[prop],
   };
   return map;
 }
@@ -439,6 +466,299 @@ describe("apply/clear — layer stack + below-parcels anchoring", () => {
     for (const id of FLOOD_OVERLAY_LAYER_IDS) expect(map._layers.has(id)).toBe(false);
     expect(map._sources.has(FLOOD_VECTOR_SOURCE_ID)).toBe(false);
     expect(map._sources.has(FLOOD_GRADIENT_SOURCE_ID)).toBe(false);
+  });
+});
+
+/* ------------------- v3 watershed graphics (feature-detect) ------------- */
+
+const RING: Array<[number, number]> = [
+  [-97.322, 30.108],
+  [-97.316, 30.108],
+  [-97.316, 30.114],
+  [-97.322, 30.114],
+  [-97.322, 30.108],
+];
+
+/** Exit path: starts inside RING, leaves eastward; ~330 m long. */
+const EXIT_PATH = {
+  coordinates: [
+    [-97.32, 30.11],
+    [-97.318, 30.1095],
+    [-97.3165, 30.109],
+    [-97.3155, 30.109], // first vertex OUTSIDE the ring (crossing)
+    [-97.3145, 30.1085],
+  ] as Array<[number, number]>,
+  strength: 1,
+  kind: "exit" as const,
+};
+
+const INTERIOR_PATH = {
+  coordinates: [
+    [-97.3235, 30.115],
+    [-97.3232, 30.1148],
+    [-97.323, 30.1146],
+  ] as Array<[number, number]>,
+  strength: 0.3,
+  kind: "interior" as const,
+};
+
+const SWATHS = [
+  {
+    coordinates: [
+      [-97.3201, 30.1102],
+      [-97.3144, 30.1087],
+      [-97.3146, 30.1083],
+      [-97.3199, 30.1098],
+      [-97.3201, 30.1102],
+    ] as Array<[number, number]>,
+    strength: 1,
+    kind: "exit" as const,
+  },
+  {
+    coordinates: [
+      [-97.3236, 30.1151],
+      [-97.3229, 30.1147],
+      [-97.323, 30.1145],
+      [-97.3237, 30.1149],
+      [-97.3236, 30.1151],
+    ] as Array<[number, number]>,
+    strength: 0.3,
+    kind: "interior" as const,
+  },
+];
+
+function v3Study(overrides?: Partial<FloodDrainageStudyView>): FloodDrainageStudyView {
+  return fixtureStudy({
+    gradient: GRADIENT,
+    parcelRingWgs84: RING,
+    flowPaths: [EXIT_PATH, INTERIOR_PATH],
+    catchmentSwaths: SWATHS,
+    flowPathsNote: "traced from the D8 model",
+    ...overrides,
+  });
+}
+
+describe("v3 watershed model — strength ribbons + swaths (feature-detected)", () => {
+  it("flowPaths present → swath polygons + strength/exitBoost-tagged flow ribbons; flowLinesGeoJson NOT drawn", () => {
+    const model = buildFloodMapOverlayModel(v3Study());
+    expect(model.usesFlowRibbons).toBe(true);
+    const feats = model.vectors.features as Array<{
+      geometry: { type: string; coordinates: unknown };
+      properties: Record<string, unknown>;
+    }>;
+    const swaths = feats.filter((f) => f.properties.kind === "swath");
+    expect(swaths).toHaveLength(2);
+    expect(swaths[0].geometry.type).toBe("Polygon");
+    expect(swaths[0].properties.strength).toBe(1);
+    const flows = feats.filter((f) => f.properties.kind === "flow");
+    expect(flows).toHaveLength(2); // the two paths — not the legacy flow line.
+    const exitFlow = flows.find((f) => f.properties.strength === 1)!;
+    expect(exitFlow.properties.exitBoost).toBe(1.3);
+    const interiorFlow = flows.find((f) => f.properties.strength === 0.3)!;
+    expect(interiorFlow.properties.exitBoost).toBe(1);
+    // The legacy flow line's coordinates never appear (ribbons REPLACE it).
+    expect(JSON.stringify(flows)).not.toContain("30.113");
+  });
+
+  it("arrows along ribbons carry the path strength; spacing scales with strength", () => {
+    const model = buildFloodMapOverlayModel(v3Study());
+    const arrows = (model.vectors.features as Array<{ properties: Record<string, unknown> }>)
+      .filter((f) => f.properties.kind === "arrow");
+    expect(arrows.length).toBeGreaterThan(0);
+    for (const a of arrows) {
+      expect([1, 0.3]).toContain(a.properties.strength);
+      expect(typeof a.properties.bearing).toBe("number");
+    }
+    // Direct spacing check: same long line, strong → more arrows than weak.
+    const longLine: Array<[number, number]> = [
+      [0, 0],
+      [0, 0.005], // ~550 m
+    ];
+    const strong = flowArrowPointsScaled(longLine, 1);
+    const weak = flowArrowPointsScaled(longLine, 0);
+    expect(strong.length).toBeGreaterThan(weak.length);
+    expect(weak.length).toBeGreaterThanOrEqual(1);
+  });
+
+  it("exit path → amber arrowhead AT the parcel-boundary crossing (not the engine flowExits duplicate)", () => {
+    const model = buildFloodMapOverlayModel(v3Study());
+    const exits = (model.vectors.features as Array<{
+      geometry: { coordinates: [number, number] };
+      properties: Record<string, unknown>;
+    }>).filter((f) => f.properties.kind === "exit");
+    expect(exits).toHaveLength(1);
+    // The first path vertex OUTSIDE the ring, with the crossing bearing.
+    expect(exits[0].geometry.coordinates).toEqual([-97.3155, 30.109]);
+    expect(typeof exits[0].properties.bearing).toBe("number");
+    // The fixture's engine flowExit (-97.3185, 30.1102) is NOT double-drawn.
+    expect(exits[0].geometry.coordinates).not.toEqual([-97.3185, 30.1102]);
+  });
+
+  it("no exit-kind path → the engine's own flowExits still draw (never silently dropped)", () => {
+    const model = buildFloodMapOverlayModel(
+      v3Study({ flowPaths: [INTERIOR_PATH], catchmentSwaths: [SWATHS[1]] }),
+    );
+    const exits = (model.vectors.features as Array<{
+      geometry: { coordinates: [number, number] };
+      properties: Record<string, unknown>;
+    }>).filter((f) => f.properties.kind === "exit");
+    expect(exits).toHaveLength(1);
+    expect(exits[0].geometry.coordinates).toEqual([-97.3185, 30.1102]);
+  });
+
+  it("FEATURE-DETECT fallback: absent/malformed flowPaths → the exact pre-v3 model (no swaths, no strength)", () => {
+    for (const study of [
+      fixtureStudy({ gradient: GRADIENT }),
+      v3Study({ flowPaths: [], catchmentSwaths: [] }),
+      v3Study({
+        flowPaths: [{ coordinates: [[1, 1]], strength: 0.5, kind: "interior" }], // 1 vertex = malformed
+        catchmentSwaths: [],
+      }),
+    ]) {
+      const model = buildFloodMapOverlayModel(study);
+      expect(model.usesFlowRibbons).toBe(false);
+      const feats = model.vectors.features as Array<{ properties: Record<string, unknown> }>;
+      expect(feats.some((f) => f.properties.kind === "swath")).toBe(false);
+      const flow = feats.find((f) => f.properties.kind === "flow")!;
+      expect(flow.properties.strength).toBeUndefined();
+    }
+  });
+
+  it("exitCrossingPoint: ring crossing wins; no ring → the terminal vertex stands in", () => {
+    const withRing = exitCrossingPoint(EXIT_PATH.coordinates, RING)!;
+    expect([withRing.lng, withRing.lat]).toEqual([-97.3155, 30.109]);
+    const noRing = exitCrossingPoint(EXIT_PATH.coordinates, undefined)!;
+    expect([noRing.lng, noRing.lat]).toEqual([-97.3145, 30.1085]);
+    expect(exitCrossingPoint([[0, 0]], RING)).toBeNull();
+  });
+
+  it("apply draws the swath corridor pair below the parcels with strength-driven paint", () => {
+    const map = fakeMap([
+      { id: "hauska-parcel-tiles-fill", type: "fill" },
+      { id: "some-label", type: "symbol" },
+    ]);
+    applyFloodMapOverlay(map, buildFloodMapOverlayModel(v3Study()));
+    const casing = map._layers.get(FLOOD_SWATH_CASING_ID)!;
+    const fill = map._layers.get(FLOOD_SWATH_FILL_ID)!;
+    expect(casing.def.type).toBe("line");
+    expect(casing.beforeId).toBe("hauska-parcel-tiles-fill");
+    expect(fill.def.type).toBe("fill");
+    expect(fill.beforeId).toBe("hauska-parcel-tiles-fill");
+    expect(JSON.stringify(fill.def.paint!["fill-opacity"])).toContain('"strength"');
+    // Ribbon widths are strength-driven with the exitBoost multiplier.
+    const base = map._layers.get(FLOOD_FLOW_BASE_ID)!;
+    expect(JSON.stringify(base.def.paint!["line-width"])).toContain('"strength"');
+    expect(JSON.stringify(base.def.paint!["line-width"])).toContain('"exitBoost"');
+    const dash = map._layers.get(FLOOD_FLOW_DASH_ID)!;
+    expect(JSON.stringify(dash.def.paint!["line-width"])).toContain('"strength"');
+    // The animated core still starts on the literal first dash frame.
+    expect(dash.def.paint!["line-dasharray"]).toEqual(FLOW_DASH_SEQUENCE[0]);
+  });
+});
+
+/* ------------------- overlay dominance — scrim + dim/restore ------------ */
+
+describe("overlay dominance — scrim + dim + exact paint restoration", () => {
+  const domStyle = [
+    { id: "hauska-basemap", type: "raster" },
+    { id: "hauska-ovl-live-parcels-fill", type: "fill", paint: { "fill-opacity": 0.5 } },
+    { id: "hauska-ovl-live-parcels-line", type: "line", paint: { "line-opacity": 0.9 } },
+    { id: "hauska-gis-zoning-fill", type: "fill", paint: { "fill-opacity": 0.35 } },
+    { id: "hauska-ovl-live-topography-line", type: "line", paint: { "line-opacity": 0.8 } },
+    { id: "hauska-ovl-live-hydrography-line", type: "line", paint: { "line-width": 2.4 } },
+    { id: "hauska-parcel-tiles-fill", type: "fill", paint: { "fill-opacity": 0.08 } },
+    { id: "hauska-parcel-tiles-line", type: "line", paint: { "line-opacity": 1 } },
+    { id: "some-label", type: "symbol" },
+  ];
+
+  it("classifier: zoning/land-use fills + contour lines dim; hydrography thins; parcels + our own layers untouched", () => {
+    const targets = classifyFloodDominanceTargets([
+      ...domStyle,
+      { id: "pe-flood-zone-fill", type: "fill" }, // ours — never dimmed.
+    ]);
+    const byId = new Map(targets.map((t) => [t.layerId, t]));
+    expect(byId.get("hauska-ovl-live-parcels-fill")).toEqual({
+      layerId: "hauska-ovl-live-parcels-fill",
+      prop: "fill-opacity",
+      value: FLOOD_DIM_OPACITY,
+    });
+    expect(byId.get("hauska-gis-zoning-fill")!.value).toBe(FLOOD_DIM_OPACITY);
+    expect(byId.get("hauska-ovl-live-topography-line")!.prop).toBe("line-opacity");
+    expect(byId.get("hauska-ovl-live-hydrography-line")).toEqual({
+      layerId: "hauska-ovl-live-hydrography-line",
+      prop: "line-width",
+      value: FLOOD_HYDRO_THIN_WIDTH,
+    });
+    // Parcel boundaries + tiles + basemap + labels + our own: untouched.
+    expect(byId.has("hauska-ovl-live-parcels-line")).toBe(false);
+    expect(byId.has("hauska-parcel-tiles-fill")).toBe(false);
+    expect(byId.has("hauska-parcel-tiles-line")).toBe(false);
+    expect(byId.has("hauska-basemap")).toBe(false);
+    expect(byId.has("some-label")).toBe(false);
+    expect(byId.has("pe-flood-zone-fill")).toBe(false);
+  });
+
+  it("apply inserts the scrim UNDER the flood stack at the below-parcels anchor and dims the competitors", () => {
+    const map = fakeMap(domStyle);
+    applyFloodMapOverlay(map, buildFloodMapOverlayModel(v3Study()));
+    // Scrim: first entry of the documented bottom→top stack, anchored below
+    // the parcel tiles like every below-parcels flood layer.
+    expect(FLOOD_OVERLAY_LAYER_IDS[0]).toBe(FLOOD_SCRIM_LAYER_ID);
+    const scrim = map._layers.get(FLOOD_SCRIM_LAYER_ID)!;
+    expect(scrim.def.type).toBe("fill");
+    expect(scrim.beforeId).toBe("hauska-parcel-tiles-fill");
+    expect(map._sources.has(FLOOD_SCRIM_SOURCE_ID)).toBe(true);
+    // Competitors dimmed / thinned.
+    expect(map._paint("hauska-ovl-live-parcels-fill", "fill-opacity")).toBe(FLOOD_DIM_OPACITY);
+    expect(map._paint("hauska-gis-zoning-fill", "fill-opacity")).toBe(FLOOD_DIM_OPACITY);
+    expect(map._paint("hauska-ovl-live-topography-line", "line-opacity")).toBe(FLOOD_DIM_OPACITY);
+    expect(map._paint("hauska-ovl-live-hydrography-line", "line-width")).toBe(
+      FLOOD_HYDRO_THIN_WIDTH,
+    );
+    // Untargeted layers keep their paint.
+    expect(map._paint("hauska-parcel-tiles-fill", "fill-opacity")).toBe(0.08);
+  });
+
+  it("teardown restores EVERY captured paint value exactly (capture-before-mutate, no hardcoded restores)", () => {
+    const map = fakeMap(domStyle);
+    applyFloodMapOverlay(map, buildFloodMapOverlayModel(v3Study()));
+    clearFloodMapOverlay(map);
+    expect(map._layers.has(FLOOD_SCRIM_LAYER_ID)).toBe(false);
+    expect(map._sources.has(FLOOD_SCRIM_SOURCE_ID)).toBe(false);
+    expect(map._paint("hauska-ovl-live-parcels-fill", "fill-opacity")).toBe(0.5);
+    expect(map._paint("hauska-gis-zoning-fill", "fill-opacity")).toBe(0.35);
+    expect(map._paint("hauska-ovl-live-topography-line", "line-opacity")).toBe(0.8);
+    expect(map._paint("hauska-ovl-live-hydrography-line", "line-width")).toBe(2.4);
+  });
+
+  it("re-apply while dominant never re-captures the dimmed values as original", () => {
+    const map = fakeMap(domStyle);
+    applyFloodMapOverlay(map, buildFloodMapOverlayModel(v3Study()));
+    // Second apply (study refresh) — must NOT capture 0.12 as "original".
+    applyFloodMapOverlay(map, buildFloodMapOverlayModel(v3Study()));
+    clearFloodMapOverlay(map);
+    expect(map._paint("hauska-ovl-live-parcels-fill", "fill-opacity")).toBe(0.5);
+    expect(map._paint("hauska-ovl-live-hydrography-line", "line-width")).toBe(2.4);
+  });
+
+  it("no getPaintProperty seam → dominance skipped entirely (never a restore-by-guess)", () => {
+    const map = fakeMap(domStyle);
+    // Strip the read seam: exact restoration impossible → honest no-op.
+    (map as { getPaintProperty?: unknown }).getPaintProperty = undefined;
+    applyFloodDominance(map);
+    expect(map._paint("hauska-ovl-live-parcels-fill", "fill-opacity")).toBe(0.5);
+    restoreFloodDominance(map); // no captures → no-op, no throw.
+    expect(map._paint("hauska-ovl-live-parcels-fill", "fill-opacity")).toBe(0.5);
+  });
+
+  it("controller clear path (set(null)) restores dominance too", () => {
+    const map = fakeMap(domStyle);
+    const ctl = createFloodMapOverlayController(() => map);
+    ctl.set(v3Study(), "48021:1");
+    expect(map._paint("hauska-gis-zoning-fill", "fill-opacity")).toBe(FLOOD_DIM_OPACITY);
+    ctl.set(null);
+    expect(map._paint("hauska-gis-zoning-fill", "fill-opacity")).toBe(0.35);
+    expect(map._layers.has(FLOOD_SCRIM_LAYER_ID)).toBe(false);
   });
 });
 

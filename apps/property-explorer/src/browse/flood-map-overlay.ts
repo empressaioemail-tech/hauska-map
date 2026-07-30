@@ -26,9 +26,35 @@
 //     literals are the safe channel. No rAF available (node) → the bold
 //     static dash simply stays.
 //
-// PAINT DISCIPLINE: no feature-state anywhere. The only data-driven inputs
-// are `["get","bearing"]` (symbol icon-rotate) and layer filters on
-// `["get","kind"]` — both plain property reads, never feature-state.
+// OVERLAY DOMINANCE (2026-07-29 operator feedback: "the hydro study should
+// OVERPOWER the other layers"): while the overlay is active the study OWNS
+// the map —
+//   - competing layers DIM: zoning / land-use fills and contour lines drop
+//     to FLOOD_DIM_OPACITY; hydrography stays but THIN (line-width 1). All
+//     prior paint values are CAPTURED BEFORE MUTATION (map.getPaintProperty)
+//     and restored EXACTLY on teardown — never a hardcoded restore value.
+//     Both getPaintProperty and setPaintProperty must exist on the host map
+//     or dominance is skipped entirely (exact restoration is the contract).
+//   - a SCRIM: one translucent dark-neutral world fill inserted UNDER the
+//     flood layers but OVER basemap + zoning/GIS layers (same below-parcels
+//     anchor, added first) desaturates everything beneath. The parcel ring
+//     (parcel-tile lines) and every flood layer render ABOVE it.
+//
+// WATERSHED GRAPHICS (engine v3 payload, feature-detected — fallback is the
+// exact pre-v3 look when `flowPaths`/`catchmentSwaths` are absent):
+//   - catchmentSwaths → translucent blue corridor fills feeding the flow
+//     lines, soft-edged by a wider low-opacity blurred line casing (MapLibre
+//     has no true blur on fills);
+//   - flowPaths → strength-scaled RIBBONS: a darker casing under the bright
+//     animated-dash core, line-width interpolated on `strength` (0..1
+//     normalized log flow accumulation from the engine), arrows sized and
+//     spaced by strength, and "exit" paths boosted boldest with an amber
+//     arrowhead at the parcel-boundary crossing.
+//
+// PAINT DISCIPLINE: no feature-state anywhere. The data-driven inputs are
+// `["get","bearing"]` (symbol icon-rotate), layer filters on
+// `["get","kind"]`, and width/size/opacity reads of `["get","strength"]` /
+// `["get","exitBoost"]` — all plain property reads, never feature-state.
 //
 // LIFECYCLE (the WB6 setDossierOverlay precedent): the dock tool applies the
 // overlay through the host seam when a study loads, clears it on tool
@@ -40,11 +66,15 @@ import type { FloodDrainageStudyView } from "../lib/floodDrainageClient";
 
 /* ------------------------------- ids ---------------------------------- */
 
+export const FLOOD_SCRIM_SOURCE_ID = "pe-flood-scrim-src";
+export const FLOOD_SCRIM_LAYER_ID = "pe-flood-scrim";
 export const FLOOD_GRADIENT_SOURCE_ID = "pe-flood-gradient-src";
 export const FLOOD_GRADIENT_LAYER_ID = "pe-flood-gradient";
 export const FLOOD_VECTOR_SOURCE_ID = "pe-flood-src";
 export const FLOOD_ZONE_FILL_ID = "pe-flood-zone-fill";
 export const FLOOD_PONDING_FILL_ID = "pe-flood-ponding-fill";
+export const FLOOD_SWATH_CASING_ID = "pe-flood-swath-casing";
+export const FLOOD_SWATH_FILL_ID = "pe-flood-swath-fill";
 export const FLOOD_CATCHMENT_GLOW_ID = "pe-flood-catchment-glow";
 export const FLOOD_CATCHMENT_LINE_ID = "pe-flood-catchment-line";
 export const FLOOD_FLOW_BASE_ID = "pe-flood-flow-base";
@@ -56,9 +86,12 @@ export const FLOOD_EXIT_ICON_ID = "pe-flood-arrow-exit";
 
 /** Every layer this module may add, in add order (bottom → top). */
 export const FLOOD_OVERLAY_LAYER_IDS = [
+  FLOOD_SCRIM_LAYER_ID,
   FLOOD_GRADIENT_LAYER_ID,
   FLOOD_ZONE_FILL_ID,
   FLOOD_PONDING_FILL_ID,
+  FLOOD_SWATH_CASING_ID,
+  FLOOD_SWATH_FILL_ID,
   FLOOD_CATCHMENT_GLOW_ID,
   FLOOD_CATCHMENT_LINE_ID,
   FLOOD_FLOW_BASE_ID,
@@ -66,6 +99,18 @@ export const FLOOD_OVERLAY_LAYER_IDS = [
   FLOOD_ARROW_LAYER_ID,
   FLOOD_EXIT_LAYER_ID,
 ] as const;
+
+/* -------------------------- dominance constants ------------------------- */
+
+/** Competing zoning/land-use fills + contour lines drop to this opacity. */
+export const FLOOD_DIM_OPACITY = 0.12;
+
+/** Hydrography stays visible but THIN while the study owns the map. */
+export const FLOOD_HYDRO_THIN_WIDTH = 1;
+
+/** The scrim: translucent dark-neutral wash under the flood layers. */
+export const FLOOD_SCRIM_COLOR = "#0b1016";
+export const FLOOD_SCRIM_OPACITY = 0.45;
 
 /** Parcel-line candidates the water raster slides UNDER (first present wins,
  *  in style order); labels/symbols are the generic fallback anchor. */
@@ -88,6 +133,7 @@ export interface FloodOverlayMapLike {
   removeSource(id: string): unknown;
   getStyle?(): { layers?: Array<{ id: string; type?: string }> } | undefined;
   setPaintProperty?(layerId: string, prop: string, value: unknown): unknown;
+  getPaintProperty?(layerId: string, prop: string): unknown;
   hasImage?(id: string): boolean;
   addImage?(
     id: string,
@@ -100,6 +146,112 @@ export interface FloodOverlayMapLike {
 
 type FC = { type: "FeatureCollection"; features: unknown[] };
 const EMPTY_FC: FC = { type: "FeatureCollection", features: [] };
+
+/* --------------------------- overlay dominance -------------------------- */
+
+export interface FloodDominanceTarget {
+  layerId: string;
+  prop: string;
+  value: number;
+}
+
+interface CapturedPaint {
+  layerId: string;
+  prop: string;
+  value: unknown;
+}
+
+/** Captured pre-dominance paint per map handle — keyed on the map object so
+ *  clear() restores EXACTLY what apply() mutated, and a re-apply while
+ *  already dominant never re-captures the dimmed values as "original". */
+const dominanceCaptures = new WeakMap<object, CapturedPaint[]>();
+
+/**
+ * PURE classifier: which live-style layers compete with the study, and what
+ * each gets. Matches by id convention (never our own `pe-flood-` layers):
+ *   - zoning / land-use FILLS (`hauska-ovl-live-parcels-fill` is the browse
+ *     land-use choropleth; any `*zoning*`/`*land-use*` fill) → dim;
+ *   - zoning boundary + contour LINES (`hauska-ovl-live-topography-line`,
+ *     fixture `hauska-gis-topography-contours-line`) → dim;
+ *   - hydrography LINES stay visible but thin (width 1) — real streams keep
+ *     reading under the modeled study, just quietly.
+ * The parcel-tile layers are untouched: the cadastre + parcel ring render
+ * ABOVE the scrim by insertion order.
+ */
+export function classifyFloodDominanceTargets(
+  layers: ReadonlyArray<{ id: string; type?: string }>,
+): FloodDominanceTarget[] {
+  const out: FloodDominanceTarget[] = [];
+  for (const layer of layers) {
+    if (!layer?.id || layer.id.startsWith("pe-flood-")) continue;
+    const id = layer.id.toLowerCase();
+    const zoningish = /zoning|land-?use|live-parcels-fill/.test(id);
+    const contourish = /contour|live-topography/.test(id);
+    const hydroish = /hydrograph/.test(id);
+    if (layer.type === "fill" && zoningish) {
+      out.push({ layerId: layer.id, prop: "fill-opacity", value: FLOOD_DIM_OPACITY });
+    } else if (layer.type === "line" && (contourish || /zoning|land-?use/.test(id))) {
+      out.push({ layerId: layer.id, prop: "line-opacity", value: FLOOD_DIM_OPACITY });
+    } else if (layer.type === "line" && hydroish) {
+      out.push({ layerId: layer.id, prop: "line-width", value: FLOOD_HYDRO_THIN_WIDTH });
+    }
+  }
+  return out;
+}
+
+/**
+ * Dim the competing layers, capturing every prior paint value FIRST.
+ * Requires BOTH getPaintProperty and setPaintProperty on the host map —
+ * without the read seam an exact restore is impossible, so dominance is
+ * skipped entirely (honest no-op) rather than restored-by-guess.
+ * Idempotent: a second apply while dominant is a no-op.
+ */
+export function applyFloodDominance(map: FloodOverlayMapLike): void {
+  if (
+    typeof map.setPaintProperty !== "function" ||
+    typeof map.getPaintProperty !== "function"
+  ) {
+    return;
+  }
+  if (dominanceCaptures.has(map as object)) return; // already dominant.
+  const layers = map.getStyle?.()?.layers ?? [];
+  const captured: CapturedPaint[] = [];
+  for (const target of classifyFloodDominanceTargets(layers)) {
+    try {
+      const prior = map.getPaintProperty(target.layerId, target.prop);
+      map.setPaintProperty(target.layerId, target.prop, target.value);
+      captured.push({ layerId: target.layerId, prop: target.prop, value: prior });
+    } catch {
+      /* layer vanished mid-walk; skip it */
+    }
+  }
+  dominanceCaptures.set(map as object, captured);
+}
+
+/** Restore every captured paint value exactly; no-op when never applied. */
+export function restoreFloodDominance(map: FloodOverlayMapLike): void {
+  const captured = dominanceCaptures.get(map as object);
+  if (!captured) return;
+  dominanceCaptures.delete(map as object);
+  if (typeof map.setPaintProperty !== "function") return;
+  for (const entry of captured) {
+    if (!map.getLayer(entry.layerId)) continue;
+    try {
+      map.setPaintProperty(entry.layerId, entry.prop, entry.value);
+    } catch {
+      /* style churn; the layer's own owner re-paints it */
+    }
+  }
+}
+
+/** World-covering ring for the scrim fill (web-mercator-safe latitudes). */
+const SCRIM_RING: Array<[number, number]> = [
+  [-180, -85],
+  [180, -85],
+  [180, 85],
+  [-180, 85],
+  [-180, -85],
+];
 
 /* --------------------------- pure geometry ----------------------------- */
 
@@ -133,26 +285,12 @@ export interface FlowArrowPoint {
   bearingDeg: number;
 }
 
-/**
- * PROMINENT arrows along a traced flow line: 1 arrow at the midpoint for
- * short lines, 3 spread along longer (>120 m) lines. Each arrow sits ON the
- * line and points along the CONTAINING segment's bearing (real flow
- * direction, never invented).
- */
-export function flowArrowPoints(line: LngLat[]): FlowArrowPoint[] {
-  const pts = (Array.isArray(line) ? line : []).filter(
-    (p) => Array.isArray(p) && isFiniteNum(p[0]) && isFiniteNum(p[1]),
-  );
-  if (pts.length < 2) return [];
-  const segLens: number[] = [];
-  let total = 0;
-  for (let i = 0; i < pts.length - 1; i++) {
-    const l = segmentMeters(pts[i], pts[i + 1]);
-    segLens.push(l);
-    total += l;
-  }
-  if (total <= 0) return [];
-  const fractions = total > 120 ? [0.2, 0.5, 0.8] : [0.5];
+function arrowsAtFractions(
+  pts: LngLat[],
+  segLens: number[],
+  total: number,
+  fractions: number[],
+): FlowArrowPoint[] {
   const out: FlowArrowPoint[] = [];
   for (const f of fractions) {
     let target = total * f;
@@ -173,6 +311,102 @@ export function flowArrowPoints(line: LngLat[]): FlowArrowPoint[] {
   return out;
 }
 
+function measureLine(line: LngLat[]): { pts: LngLat[]; segLens: number[]; total: number } {
+  const pts = (Array.isArray(line) ? line : []).filter(
+    (p) => Array.isArray(p) && isFiniteNum(p[0]) && isFiniteNum(p[1]),
+  );
+  const segLens: number[] = [];
+  let total = 0;
+  for (let i = 0; i < pts.length - 1; i++) {
+    const l = segmentMeters(pts[i], pts[i + 1]);
+    segLens.push(l);
+    total += l;
+  }
+  return { pts, segLens, total };
+}
+
+/**
+ * PROMINENT arrows along a traced flow line: 1 arrow at the midpoint for
+ * short lines, 3 spread along longer (>120 m) lines. Each arrow sits ON the
+ * line and points along the CONTAINING segment's bearing (real flow
+ * direction, never invented).
+ */
+export function flowArrowPoints(line: LngLat[]): FlowArrowPoint[] {
+  const { pts, segLens, total } = measureLine(line);
+  if (pts.length < 2 || total <= 0) return [];
+  const fractions = total > 120 ? [0.2, 0.5, 0.8] : [0.5];
+  return arrowsAtFractions(pts, segLens, total, fractions);
+}
+
+/** Strength-scaled arrow spacing cap — never a wall of arrows. */
+const MAX_RIBBON_ARROWS = 8;
+
+/**
+ * Arrows along a v3 flow RIBBON, SPACED BY STRENGTH: a strong channel gets
+ * an arrow roughly every 60 m, a weak one every ~180 m (always at least the
+ * midpoint arrow). Bearing stays the containing segment's — real direction.
+ */
+export function flowArrowPointsScaled(line: LngLat[], strength: number): FlowArrowPoint[] {
+  const { pts, segLens, total } = measureLine(line);
+  if (pts.length < 2 || total <= 0) return [];
+  const s = Math.min(1, Math.max(0, isFiniteNum(strength) ? strength : 0));
+  const spacingM = 180 - 120 * s;
+  const count = Math.min(MAX_RIBBON_ARROWS, Math.max(1, Math.floor(total / spacingM)));
+  const fractions: number[] = [];
+  for (let i = 0; i < count; i++) fractions.push((i + 0.5) / count);
+  return arrowsAtFractions(pts, segLens, total, fractions);
+}
+
+/** Ray-cast point-in-ring on WGS84 [lng, lat] pairs (the engine's rule). */
+function pointInRing(lng: number, lat: number, ring: ReadonlyArray<LngLat>): boolean {
+  let inside = false;
+  for (let i = 0, j = ring.length - 1; i < ring.length; j = i++) {
+    const [xi, yi] = ring[i];
+    const [xj, yj] = ring[j];
+    const intersects =
+      yi > lat !== yj > lat && lng < ((xj - xi) * (lat - yi)) / (yj - yi) + xi;
+    if (intersects) inside = !inside;
+  }
+  return inside;
+}
+
+/**
+ * The parcel-boundary CROSSING of an exit path: the first vertex outside the
+ * ring following an inside vertex (the engine's resolveFlowExits rule), with
+ * the crossing segment's bearing. Without a usable ring the path's terminal
+ * vertex + last-segment bearing stand in (the trace ends where it left).
+ */
+export function exitCrossingPoint(
+  line: LngLat[],
+  ring: ReadonlyArray<LngLat> | undefined,
+): FlowArrowPoint | null {
+  const pts = (Array.isArray(line) ? line : []).filter(
+    (p) => Array.isArray(p) && isFiniteNum(p[0]) && isFiniteNum(p[1]),
+  );
+  if (pts.length < 2) return null;
+  if (Array.isArray(ring) && ring.length >= 3) {
+    let prevIn = pointInRing(pts[0][0], pts[0][1], ring);
+    for (let i = 1; i < pts.length; i++) {
+      const curIn = pointInRing(pts[i][0], pts[i][1], ring);
+      if (prevIn && !curIn) {
+        return {
+          lng: pts[i][0],
+          lat: pts[i][1],
+          bearingDeg: Math.round(segmentBearingDeg(pts[i - 1], pts[i]) * 10) / 10,
+        };
+      }
+      prevIn = curIn;
+    }
+  }
+  const a = pts[pts.length - 2];
+  const b = pts[pts.length - 1];
+  return {
+    lng: b[0],
+    lat: b[1],
+    bearingDeg: Math.round(segmentBearingDeg(a, b) * 10) / 10,
+  };
+}
+
 /* ---------------------------- overlay model ---------------------------- */
 
 export interface FloodGradientImage {
@@ -185,11 +419,15 @@ export interface FloodGradientImage {
 export interface FloodMapOverlayModel {
   /** The engine v2 water-ramp raster, or null → fallback fills carry the water. */
   gradient: FloodGradientImage | null;
-  /** kind-tagged vector features (catchment/flow/arrow/exit + zone/ponding
-   *  fills only when gradient is absent — the feature-detect fallback). */
+  /** kind-tagged vector features (catchment/flow/arrow/exit + swath ribbons
+   *  when the v3 payload is present + zone/ponding fills only when gradient
+   *  is absent — every branch feature-detected). */
   vectors: FC;
   /** True when the below-parcels water is the polygon-fill fallback. */
   usesFallbackFills: boolean;
+  /** True when the v3 flowPaths payload drives strength-scaled ribbons
+   *  (absent payload → the exact pre-v3 flow-line look). */
+  usesFlowRibbons: boolean;
 }
 
 function fcFeatures(fc: unknown): Array<{ geometry?: unknown }> {
@@ -235,11 +473,45 @@ function validGradient(
  * study; an absent layer draws nothing (never a placeholder). honestEmpty
  * studies produce an empty model — the map stays untouched.
  */
+interface StudyFlowPathLike {
+  coordinates: LngLat[];
+  strength: number;
+  kind: "interior" | "exit";
+}
+
+/** Feature-detect + validate the v3 flowPaths/catchmentSwaths entries: at
+ *  least 2 finite vertices, finite strength clamped 0..1, kind coerced to
+ *  the enum. Anything malformed is dropped, never guessed. */
+function validPathLike(entries: unknown): StudyFlowPathLike[] {
+  if (!Array.isArray(entries)) return [];
+  const out: StudyFlowPathLike[] = [];
+  for (const entry of entries) {
+    const e = entry as {
+      coordinates?: unknown;
+      strength?: unknown;
+      kind?: unknown;
+    } | null;
+    if (!e || !Array.isArray(e.coordinates)) continue;
+    const coords = (e.coordinates as unknown[]).filter(
+      (p): p is LngLat =>
+        Array.isArray(p) && isFiniteNum((p as unknown[])[0]) && isFiniteNum((p as unknown[])[1]),
+    );
+    if (coords.length < 2) continue;
+    const strength = isFiniteNum(e.strength) ? Math.min(1, Math.max(0, e.strength)) : 0;
+    out.push({
+      coordinates: coords,
+      strength,
+      kind: e.kind === "exit" ? "exit" : "interior",
+    });
+  }
+  return out;
+}
+
 export function buildFloodMapOverlayModel(
   study: FloodDrainageStudyView,
 ): FloodMapOverlayModel {
   if (study.honestEmpty) {
-    return { gradient: null, vectors: EMPTY_FC, usesFallbackFills: false };
+    return { gradient: null, vectors: EMPTY_FC, usesFallbackFills: false, usesFlowRibbons: false };
   }
 
   const gradient = validGradient(study);
@@ -279,36 +551,98 @@ export function buildFloodMapOverlayModel(
     }
   }
 
-  // Flow lines + their along-line arrows.
-  for (const f of fcFeatures(study.flowLinesGeoJson)) {
-    if (!f?.geometry) continue;
-    features.push({
-      type: "Feature",
-      geometry: f.geometry,
-      properties: { kind: "flow" },
-    });
-    for (const line of lineStringsOf(f.geometry)) {
-      for (const a of flowArrowPoints(line)) {
+  // FEATURE-DETECT the v3 watershed payload: flowPaths drive strength-scaled
+  // ribbons + swaths; an absent payload renders the exact pre-v3 look.
+  const flowPaths = validPathLike(study.flowPaths);
+  const usesFlowRibbons = flowPaths.length > 0;
+
+  if (usesFlowRibbons) {
+    // Watershed swaths UNDER the ribbons (index-aligned with flowPaths but
+    // validated independently — a malformed swath never blocks its ribbon).
+    for (const swath of validPathLike(study.catchmentSwaths)) {
+      features.push({
+        type: "Feature",
+        geometry: { type: "Polygon", coordinates: [swath.coordinates] },
+        properties: { kind: "swath", strength: swath.strength },
+      });
+    }
+    let anyExit = false;
+    for (const path of flowPaths) {
+      const isExit = path.kind === "exit";
+      features.push({
+        type: "Feature",
+        geometry: { type: "LineString", coordinates: path.coordinates },
+        properties: {
+          kind: "flow",
+          strength: path.strength,
+          // Exit paths get the BOLDEST ribbon treatment (width multiplier).
+          exitBoost: isExit ? 1.3 : 1,
+        },
+      });
+      for (const a of flowArrowPointsScaled(path.coordinates, path.strength)) {
         features.push({
           type: "Feature",
           geometry: { type: "Point", coordinates: [a.lng, a.lat] },
-          properties: { kind: "arrow", bearing: a.bearingDeg },
+          properties: { kind: "arrow", bearing: a.bearingDeg, strength: path.strength },
+        });
+      }
+      // Amber arrowhead AT the parcel-boundary crossing of each exit path.
+      if (isExit) {
+        const crossing = exitCrossingPoint(path.coordinates, study.parcelRingWgs84);
+        if (crossing) {
+          anyExit = true;
+          features.push({
+            type: "Feature",
+            geometry: { type: "Point", coordinates: [crossing.lng, crossing.lat] },
+            properties: { kind: "exit", bearing: crossing.bearingDeg },
+          });
+        }
+      }
+    }
+    // No exit-kind path traced → the engine's own flowExits (worker-traced
+    // boundary crossings) still draw, so an exit is never silently dropped.
+    if (!anyExit) {
+      for (const e of Array.isArray(study.flowExits) ? study.flowExits : []) {
+        if (!isFiniteNum(e?.lng) || !isFiniteNum(e?.lat)) continue;
+        features.push({
+          type: "Feature",
+          geometry: { type: "Point", coordinates: [e.lng, e.lat] },
+          properties: { kind: "exit", bearing: isFiniteNum(e.bearingDeg) ? e.bearingDeg : 0 },
         });
       }
     }
-  }
+  } else {
+    // Pre-v3 fallback: flow lines + their along-line arrows, verbatim.
+    for (const f of fcFeatures(study.flowLinesGeoJson)) {
+      if (!f?.geometry) continue;
+      features.push({
+        type: "Feature",
+        geometry: f.geometry,
+        properties: { kind: "flow" },
+      });
+      for (const line of lineStringsOf(f.geometry)) {
+        for (const a of flowArrowPoints(line)) {
+          features.push({
+            type: "Feature",
+            geometry: { type: "Point", coordinates: [a.lng, a.lat] },
+            properties: { kind: "arrow", bearing: a.bearingDeg },
+          });
+        }
+      }
+    }
 
-  // Flow EXITS — the engine's own points + bearings, drawn larger.
-  for (const e of Array.isArray(study.flowExits) ? study.flowExits : []) {
-    if (!isFiniteNum(e?.lng) || !isFiniteNum(e?.lat)) continue;
-    features.push({
-      type: "Feature",
-      geometry: { type: "Point", coordinates: [e.lng, e.lat] },
-      properties: {
-        kind: "exit",
-        bearing: isFiniteNum(e.bearingDeg) ? e.bearingDeg : 0,
-      },
-    });
+    // Flow EXITS — the engine's own points + bearings, drawn larger.
+    for (const e of Array.isArray(study.flowExits) ? study.flowExits : []) {
+      if (!isFiniteNum(e?.lng) || !isFiniteNum(e?.lat)) continue;
+      features.push({
+        type: "Feature",
+        geometry: { type: "Point", coordinates: [e.lng, e.lat] },
+        properties: {
+          kind: "exit",
+          bearing: isFiniteNum(e.bearingDeg) ? e.bearingDeg : 0,
+        },
+      });
+    }
   }
 
   return {
@@ -319,6 +653,7 @@ export function buildFloodMapOverlayModel(
         ((f as { properties?: { kind?: string } }).properties?.kind) ?? "",
       ),
     ),
+    usesFlowRibbons,
   };
 }
 
@@ -546,6 +881,53 @@ function addVectorLayers(map: FloodOverlayMapLike, beforeId: string | undefined)
       beforeId,
     );
   }
+  // WATERSHED SWATHS (v3 feature-detect — empty filter match when absent):
+  // translucent corridor fills feeding the flow ribbons, soft-edged by a
+  // wider blurred low-opacity line casing (MapLibre has no blur on fills).
+  // Below the parcel lines like the water raster, so the cadastre stays crisp.
+  if (!map.getLayer(FLOOD_SWATH_CASING_ID)) {
+    map.addLayer(
+      {
+        id: FLOOD_SWATH_CASING_ID,
+        type: "line",
+        source: FLOOD_VECTOR_SOURCE_ID,
+        filter: kindIs("swath"),
+        layout: { "line-cap": "round", "line-join": "round" },
+        paint: {
+          "line-color": "#38bdf8",
+          "line-width": 14,
+          "line-blur": 10,
+          "line-opacity": 0.18,
+        },
+      },
+      beforeId,
+    );
+  }
+  if (!map.getLayer(FLOOD_SWATH_FILL_ID)) {
+    map.addLayer(
+      {
+        id: FLOOD_SWATH_FILL_ID,
+        type: "fill",
+        source: FLOOD_VECTOR_SOURCE_ID,
+        filter: kindIs("swath"),
+        paint: {
+          "fill-color": "#38bdf8",
+          // Stronger corridors read deeper — plain property read, never
+          // feature-state (the crash-guard safe channel).
+          "fill-opacity": [
+            "interpolate",
+            ["linear"],
+            ["coalesce", ["get", "strength"], 0.5],
+            0,
+            0.1,
+            1,
+            0.28,
+          ],
+        },
+      },
+      beforeId,
+    );
+  }
   // TOP of the stack: catchment glow pair, flow lines, arrows.
   if (!map.getLayer(FLOOD_CATCHMENT_GLOW_ID)) {
     map.addLayer({
@@ -577,6 +959,10 @@ function addVectorLayers(map: FloodOverlayMapLike, beforeId: string | undefined)
       },
     });
   }
+  // FLOW RIBBONS: a darker CASING under the bright animated core. Width is
+  // strength-scaled (v3 payload) via a plain `["get","strength"]` read;
+  // pre-v3 features carry NO strength → the `has` branch keeps the exact
+  // legacy widths/colors. Exit paths multiply by their `exitBoost` (boldest).
   if (!map.getLayer(FLOOD_FLOW_BASE_ID)) {
     map.addLayer({
       id: FLOOD_FLOW_BASE_ID,
@@ -584,7 +970,20 @@ function addVectorLayers(map: FloodOverlayMapLike, beforeId: string | undefined)
       source: FLOOD_VECTOR_SOURCE_ID,
       filter: kindIs("flow"),
       layout: { "line-cap": "round", "line-join": "round" },
-      paint: { "line-color": "#7dd3fc", "line-width": 3, "line-opacity": 0.55 },
+      paint: {
+        "line-color": ["case", ["has", "strength"], "#082f49", "#7dd3fc"],
+        "line-opacity": ["case", ["has", "strength"], 0.9, 0.55],
+        "line-width": [
+          "case",
+          ["has", "strength"],
+          [
+            "*",
+            ["interpolate", ["linear"], ["get", "strength"], 0, 3.5, 1, 12],
+            ["coalesce", ["get", "exitBoost"], 1],
+          ],
+          3,
+        ],
+      },
     });
   }
   if (!map.getLayer(FLOOD_FLOW_DASH_ID)) {
@@ -597,7 +996,16 @@ function addVectorLayers(map: FloodOverlayMapLike, beforeId: string | undefined)
       // Animated by literal-swap on rAF; this initial value is itself literal.
       paint: {
         "line-color": "#e0f2fe",
-        "line-width": 2.2,
+        "line-width": [
+          "case",
+          ["has", "strength"],
+          [
+            "*",
+            ["interpolate", ["linear"], ["get", "strength"], 0, 2, 1, 9],
+            ["coalesce", ["get", "exitBoost"], 1],
+          ],
+          2.2,
+        ],
         "line-dasharray": FLOW_DASH_SEQUENCE[0],
       },
     });
@@ -610,7 +1018,13 @@ function addVectorLayers(map: FloodOverlayMapLike, beforeId: string | undefined)
       filter: kindIs("arrow"),
       layout: {
         "icon-image": FLOOD_ARROW_ICON_ID,
-        "icon-size": 0.55,
+        // Strength-SIZED on the v3 payload; legacy arrows keep 0.55 exactly.
+        "icon-size": [
+          "case",
+          ["has", "strength"],
+          ["interpolate", ["linear"], ["get", "strength"], 0, 0.4, 1, 0.85],
+          0.55,
+        ],
         "icon-rotate": ["get", "bearing"],
         "icon-rotation-alignment": "map",
         "icon-allow-overlap": true,
@@ -648,6 +1062,42 @@ export function applyFloodMapOverlay(
   const beforeId = pickBelowParcelsBeforeId(map);
 
   try {
+    // DOMINANCE first: dim the competitors (capture-before-mutate) …
+    applyFloodDominance(map);
+
+    // … then the SCRIM: one translucent dark-neutral world fill added FIRST
+    // at the below-parcels anchor, so every flood layer added after it (same
+    // anchor) renders ABOVE it, while basemap + zoning/GIS sit BELOW.
+    if (!map.getSource(FLOOD_SCRIM_SOURCE_ID)) {
+      map.addSource(FLOOD_SCRIM_SOURCE_ID, {
+        type: "geojson",
+        data: {
+          type: "FeatureCollection",
+          features: [
+            {
+              type: "Feature",
+              geometry: { type: "Polygon", coordinates: [SCRIM_RING] },
+              properties: {},
+            },
+          ],
+        },
+      });
+    }
+    if (!map.getLayer(FLOOD_SCRIM_LAYER_ID)) {
+      map.addLayer(
+        {
+          id: FLOOD_SCRIM_LAYER_ID,
+          type: "fill",
+          source: FLOOD_SCRIM_SOURCE_ID,
+          paint: {
+            "fill-color": FLOOD_SCRIM_COLOR,
+            "fill-opacity": FLOOD_SCRIM_OPACITY,
+          },
+        },
+        beforeId,
+      );
+    }
+
     // The water-ramp raster (feature-detected).
     if (model.gradient) {
       const existing = map.getSource(FLOOD_GRADIENT_SOURCE_ID) as
@@ -708,7 +1158,8 @@ export function applyFloodMapOverlay(
   return startFlowDashAnimation(map);
 }
 
-/** Remove every flood-overlay layer + source (icons stay — inert, reusable). */
+/** Remove every flood-overlay layer + source (icons stay — inert, reusable)
+ *  and restore the exact pre-dominance paint on every dimmed layer. */
 export function clearFloodMapOverlay(map: FloodOverlayMapLike): void {
   try {
     for (const id of FLOOD_OVERLAY_LAYER_IDS) {
@@ -716,9 +1167,11 @@ export function clearFloodMapOverlay(map: FloodOverlayMapLike): void {
     }
     if (map.getSource(FLOOD_VECTOR_SOURCE_ID)) map.removeSource(FLOOD_VECTOR_SOURCE_ID);
     if (map.getSource(FLOOD_GRADIENT_SOURCE_ID)) map.removeSource(FLOOD_GRADIENT_SOURCE_ID);
+    if (map.getSource(FLOOD_SCRIM_SOURCE_ID)) map.removeSource(FLOOD_SCRIM_SOURCE_ID);
   } catch {
     /* style already torn down; ignore */
   }
+  restoreFloodDominance(map);
 }
 
 /* ---------------------------- the controller ---------------------------- */
