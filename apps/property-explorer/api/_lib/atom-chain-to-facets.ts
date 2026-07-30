@@ -26,6 +26,17 @@ export interface AtomChainZoningFact {
   fetchedAt?: string;
   extractedAt?: string;
   parcelNodeId?: string;
+  sourceAdapter?: string | null;
+}
+
+/** R22/R24/R25/R26 — full-field + disclosure metadata surfaced on the PE card. */
+export interface AtomChainSetbackDisplayMeta {
+  minLotSize?: string;
+  sideFireCodeDeferral?: boolean;
+  sideCityLanguage?: string;
+  resolvedDistrictCode?: string | null;
+  splitZoneMinorZones?: Array<{ districtCode: string | null; shapeArea?: number }>;
+  secondSource?: { source: string; note: string; citationUrl?: string };
 }
 
 export interface AtomChainSetbackRule {
@@ -34,6 +45,14 @@ export interface AtomChainSetbackRule {
   rear?: number;
   sideCornerFt?: number;
   districtCode?: string | null;
+  sourceAdapter?: string | null;
+  sourceCodeAtomRef?: { atomDid?: string } | null;
+  /** R24 full-field parity — surfaced on the card. */
+  maxHeightFt?: number;
+  maxImperviousPct?: number;
+  minLotSize?: string;
+  /** R22/R24/R25/R26 display + disclosure metadata. */
+  displayMeta?: AtomChainSetbackDisplayMeta | null;
   /** Future wire: per-axis not_specified from emit-setback-rule. */
   fieldProvenance?: {
     front?: { notSpecified?: boolean };
@@ -56,8 +75,37 @@ export interface AtomChainBuildableEnvelope {
   depthWarmPromotion?: string;
 }
 
-/** Depth-warm promotion marker from engine R3 (27c WDLL 6/8). */
 export const DEPTH_WARM_PROMOTION_MARKER = "depth-warm-promoted-v1";
+
+/** R13 — repealed / pre-layer-23 Bastrop city setback sources must not serve. */
+function isStaleBastropCitySetbackRule(
+  parcelNodeId: string,
+  rule: AtomChainSetbackRule | null | undefined,
+  zoningSourceAdapter?: string | null,
+): boolean {
+  if (!/^48021:[^/\s]+$/.test(parcelNodeId.trim()) || !rule) return false;
+  const zAdapter = (zoningSourceAdapter ?? "").trim();
+  const isCity =
+    zAdapter.includes("bastrop-city") ||
+    zAdapter.includes("txgio-zoning-stamp:bastrop-city-tx");
+  if (!isCity) return false;
+  const adapter = (rule.sourceAdapter ?? "").trim();
+  if (adapter === "bastrop-per-parcel-record-layer-23") return false;
+  const did = (rule.sourceCodeAtomRef?.atomDid ?? "").toLowerCase();
+  if (
+    did.includes("b3-code-april-2025") ||
+    did.includes("bastrop-b3-code-april-2025")
+  ) {
+    return true;
+  }
+  if (
+    adapter === "descriptor-fixture" ||
+    adapter === "cortex-tier1-snapshot-breadth-bake"
+  ) {
+    return true;
+  }
+  return adapter !== "bastrop-per-parcel-record-layer-23";
+}
 
 export function isDepthWarmPromoted(
   chain: PropertyAtomChain | null | undefined,
@@ -116,7 +164,19 @@ export interface PeBakedFacetPayload {
       side_ft: number;
       rear_ft: number;
       not_specified?: NotSpecifiedAxes;
+      /** R22 — side yard resolved from a building/fire-code deferral (5ft). */
+      side_fire_code_deferral?: boolean;
+      /** City's verbatim side-yard language when deferred to building/fire code. */
+      side_city_language?: string;
     };
+    /** R24 full-field parity — surfaced on the card. */
+    maxHeightFt?: number;
+    maxImperviousPct?: number;
+    minLotSize?: string;
+    /** R26 — dominant district + minor zones on a split-zoned parcel. */
+    splitZoneMinorZones?: Array<{ districtCode: string | null; shapeArea?: number }>;
+    /** R25 — conflicting second source (e.g. Bastrop layer-83 Revisions). */
+    secondSource?: { source: string; note: string; citationUrl?: string };
     buildableAreaPct?: number;
     buildableAreaSqFt?: number;
     disclosure?: string;
@@ -233,11 +293,15 @@ function mapSetbacks(
     return undefined;
   }
   const not_specified = notSpecifiedFromRule(rule, districtHint);
+  const fireCodeDeferral = rule.displayMeta?.sideFireCodeDeferral === true;
+  const sideCityLanguage = rule.displayMeta?.sideCityLanguage;
   return {
     front_ft: front,
     side_ft: side,
     rear_ft: rear,
     ...(not_specified ? { not_specified } : {}),
+    ...(fireCodeDeferral ? { side_fire_code_deferral: true } : {}),
+    ...(sideCityLanguage ? { side_city_language: sideCityLanguage } : {}),
   };
 }
 
@@ -350,7 +414,16 @@ export function adaptAtomChainToBakedFacets(
   if (!parcelNodeId) return null;
 
   const zf = c.zoningFact ?? null;
-  const rule = c.setbackRule ?? null;
+  const zoningSourceAdapter =
+    zf && typeof (zf as { sourceAdapter?: string }).sourceAdapter === "string"
+      ? (zf as { sourceAdapter: string }).sourceAdapter
+      : null;
+  let rule = c.setbackRule ?? null;
+  if (
+    isStaleBastropCitySetbackRule(parcelNodeId, rule, zoningSourceAdapter)
+  ) {
+    rule = null;
+  }
   const envAtom = c.buildableEnvelope ?? null;
   const absenceKind =
     zf?.absence && typeof zf.absence.kind === "string"
@@ -367,6 +440,25 @@ export function adaptAtomChainToBakedFacets(
   const district = hasDistrict ? (zf!.district as string).trim() : null;
 
   const setbacks = mapSetbacks(rule, district);
+  // R24/R25/R26 — full-field parity + disclosure, surfaced onto any drawn envelope.
+  const dm = rule?.displayMeta ?? null;
+  const fullFields: Partial<NonNullable<PeBakedFacetPayload["envelope"]>> = rule
+    ? {
+        ...(typeof rule.maxHeightFt === "number" && rule.maxHeightFt > 0
+          ? { maxHeightFt: rule.maxHeightFt }
+          : {}),
+        ...(typeof rule.maxImperviousPct === "number" && rule.maxImperviousPct > 0
+          ? { maxImperviousPct: rule.maxImperviousPct }
+          : {}),
+        ...(rule.minLotSize || dm?.minLotSize
+          ? { minLotSize: (rule.minLotSize || dm?.minLotSize) as string }
+          : {}),
+        ...(dm?.splitZoneMinorZones?.length
+          ? { splitZoneMinorZones: dm.splitZoneMinorZones }
+          : {}),
+        ...(dm?.secondSource ? { secondSource: dm.secondSource } : {}),
+      }
+    : {};
   const outcomeKind =
     envAtom?.outcome && typeof envAtom.outcome.kind === "string"
       ? envAtom.outcome.kind
@@ -410,7 +502,9 @@ export function adaptAtomChainToBakedFacets(
       district: district ?? undefined,
       approximate: true,
       provisional: true,
-      disclosure: "Zoning present; setback-rule atom not yet on chain.",
+      disclosure:
+        "Setbacks pending re-warm from city per-parcel record — verify with city. " +
+        "Repealed or pre-layer-23 sources are not served.",
     };
     envelopeCovered = false;
   } else if (outcomeKind === "no-buildable-area" && silentAxes) {
@@ -484,6 +578,13 @@ export function adaptAtomChainToBakedFacets(
   const apn = apnFromNodeId(parcelNodeId);
   const depthWarm = isDepthWarmPromoted(c);
 
+  // R24/R25/R26 — merge full-field parity + disclosure onto the envelope whenever
+  // the parcel has a district (present even on declined/no-buildable envelopes so
+  // the card shows height/impervious/min-lot + the honest second-source callout).
+  if (envelope && Object.keys(fullFields).length > 0) {
+    envelope = { ...envelope, ...fullFields };
+  }
+
   return {
     parcelNodeId,
     adapterKey: "property-atom-chain",
@@ -503,7 +604,7 @@ export function adaptAtomChainToBakedFacets(
         : undefined,
       zoning: district ? { district } : null,
       envelope:
-        envelope && depthWarm
+        envelope && depthWarm && setbacks
           ? {
               ...envelope,
               disclosure:
