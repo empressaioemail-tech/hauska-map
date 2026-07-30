@@ -43,6 +43,8 @@ export interface AtomChainSetbackRule {
   front?: number;
   side?: number;
   rear?: number;
+  /** Interior side yard (AMENDMENT 2 R2); legacy `side` mirrors this. */
+  sideInteriorFt?: number;
   sideCornerFt?: number;
   districtCode?: string | null;
   sourceAdapter?: string | null;
@@ -163,6 +165,9 @@ export interface PeBakedFacetPayload {
       front_ft: number;
       side_ft: number;
       rear_ft: number;
+      /** Distinct interior side when corner lot split is on the wire. */
+      side_interior_ft?: number;
+      side_corner_ft?: number;
       not_specified?: NotSpecifiedAxes;
       /** R22 — side yard resolved from a building/fire-code deferral (5ft). */
       side_fire_code_deferral?: boolean;
@@ -278,6 +283,8 @@ function mapSetbacks(
       front_ft: number;
       side_ft: number;
       rear_ft: number;
+      side_interior_ft?: number;
+      side_corner_ft?: number;
       not_specified?: NotSpecifiedAxes;
     }
   | undefined {
@@ -292,6 +299,10 @@ function mapSetbacks(
   ) {
     return undefined;
   }
+  const sideInterior =
+    typeof rule.sideInteriorFt === "number" ? rule.sideInteriorFt : side;
+  const sideCorner =
+    typeof rule.sideCornerFt === "number" ? rule.sideCornerFt : undefined;
   const not_specified = notSpecifiedFromRule(rule, districtHint);
   const fireCodeDeferral = rule.displayMeta?.sideFireCodeDeferral === true;
   const sideCityLanguage = rule.displayMeta?.sideCityLanguage;
@@ -299,6 +310,11 @@ function mapSetbacks(
     front_ft: front,
     side_ft: side,
     rear_ft: rear,
+    ...(sideCorner != null &&
+    typeof sideInterior === "number" &&
+    sideInterior !== sideCorner
+      ? { side_interior_ft: sideInterior, side_corner_ft: sideCorner }
+      : {}),
     ...(not_specified ? { not_specified } : {}),
     ...(fireCodeDeferral ? { side_fire_code_deferral: true } : {}),
     ...(sideCityLanguage ? { side_city_language: sideCityLanguage } : {}),

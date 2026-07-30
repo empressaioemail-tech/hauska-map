@@ -53,6 +53,36 @@ const bexarChain: PropertyAtomChain = {
   atoms: [{}],
 };
 
+describe("adaptAtomChainToBakedFacets — corner side split (105054 / AMENDMENT 4)", () => {
+  it("maps sideInteriorFt + sideCornerFt to distinct facet fields", () => {
+    const chain: PropertyAtomChain = {
+      parcelNodeId: "48021:105054",
+      zoningFact: { district: "SF-1" },
+      setbackRule: {
+        front: 25,
+        side: 5,
+        sideInteriorFt: 5,
+        sideCornerFt: 15,
+        rear: 25,
+        districtCode: "SF-1",
+      },
+      buildableEnvelope: {
+        outcome: { kind: "buildable", areaSqFt: 4200 },
+        depthWarmPromotion: DEPTH_WARM_PROMOTION_MARKER,
+      },
+      atoms: [{}, {}, {}],
+    };
+    const resp = adaptAtomChainToBakedFacets(chain);
+    expect(resp!.facets.envelope?.setbacks).toEqual({
+      front_ft: 25,
+      side_ft: 5,
+      rear_ft: 25,
+      side_interior_ft: 5,
+      side_corner_ft: 15,
+    });
+  });
+});
+
 describe("adaptAtomChainToBakedFacets — Hays-shaped", () => {
   it("maps RS district + setbacks; does not fabricate geojson", () => {
     const resp = adaptAtomChainToBakedFacets(haysChain);
@@ -66,6 +96,8 @@ describe("adaptAtomChainToBakedFacets — Hays-shaped", () => {
       front_ft: 25,
       side_ft: 5,
       rear_ft: 10,
+      side_interior_ft: 5,
+      side_corner_ft: 10,
     });
     expect(resp!.facets.envelope?.district).toBe("RS");
     expect(resp!.facets.envelope?.buildableAreaSqFt).toBe(5100);
