@@ -2,11 +2,15 @@ import { describe, expect, it } from "vitest";
 
 import {
   roadOverlaysFromAttachingRoads,
+  roadIsPedestrianWay,
   ROAD_CENTERLINE_LAYER_KEY,
   ROAD_ROW_BAND_LAYER_KEY,
   ROAD_EDGE_LAYER_KEY,
+  ROAD_PEDESTRIAN_LAYER_KEY,
   ROAD_BAND_GREY,
+  ROAD_PEDESTRIAN_COLOR,
   ROAD_BEFORE_PARCEL_FILL_ID,
+  PEDESTRIAN_OSM_HIGHWAY_TAGS,
 } from "./road-overlay";
 
 function isZoomInterp(expr: unknown): boolean {
@@ -21,7 +25,6 @@ function isZoomInterp(expr: unknown): boolean {
 }
 
 function interpStops(expr: unknown): { zooms: number[]; values: number[] } {
-  // ["interpolate", ["linear"], ["zoom"], z0, v0, z1, v1, ...]
   if (!Array.isArray(expr) || expr[0] !== "interpolate") {
     return { zooms: [], values: [] };
   }
@@ -42,83 +45,103 @@ function valueAtZoom(expr: unknown, zoom: number): number | null {
   return idx >= 0 ? values[idx]! : null;
 }
 
-describe("roadOverlaysFromAttachingRoads (hairline→band)", () => {
-  const sample = [
-    {
-      roadNodeId: "48021:road:123",
-      displayName: "Chestnut St",
-      centerline: {
-        type: "LineString",
-        coordinates: [
-          [-97.3153, 30.1101],
-          [-97.3153, 30.1105],
-        ] as Array<[number, number]>,
-      },
-      row: {
-        assumedWidthFt: 50,
-        provenance: { kind: "approximate-assumed-per-class" },
-        leftEdge: {
-          coordinates: [
-            [-97.31535, 30.1101],
-            [-97.31535, 30.1105],
-          ] as Array<[number, number]>,
-        },
-        rightEdge: {
-          coordinates: [
-            [-97.31525, 30.1101],
-            [-97.31525, 30.1105],
-          ] as Array<[number, number]>,
-        },
-      },
-      sourceCitation: "OpenStreetMap way/123",
+const street = {
+  roadNodeId: "48021:road:123",
+  displayName: "Chestnut St",
+  isPedestrianWay: false,
+  centerline: {
+    type: "LineString",
+    coordinates: [
+      [-97.3153, 30.1101],
+      [-97.3153, 30.1105],
+    ] as Array<[number, number]>,
+  },
+  row: {
+    assumedWidthFt: 50,
+    provenance: {
+      kind: "approximate-assumed-per-class",
+      osmHighwayTag: "residential",
     },
-  ];
+  },
+  sourceCitation: "OpenStreetMap way/123",
+};
 
-  it("emits only the ROW band beneath parcels (no edge/centerline wireframe)", () => {
-    const specs = roadOverlaysFromAttachingRoads(sample);
+const footway = {
+  roadNodeId: "48021:road:999",
+  displayName: "Sidewalk",
+  isPedestrianWay: true,
+  centerline: {
+    type: "LineString",
+    coordinates: [
+      [-97.3154, 30.1101],
+      [-97.3154, 30.1105],
+    ] as Array<[number, number]>,
+  },
+  row: {
+    assumedWidthFt: 8,
+    provenance: {
+      kind: "approximate-assumed-per-class",
+      osmHighwayTag: "footway",
+    },
+  },
+};
 
-    expect(specs.map((s) => s.layerKey)).toEqual([ROAD_ROW_BAND_LAYER_KEY]);
-    expect(specs.every((s) => s.beforeId === ROAD_BEFORE_PARCEL_FILL_ID)).toBe(
-      true,
-    );
+describe("roadOverlaysFromAttachingRoads (street vs pedestrian)", () => {
+  it("puts streets on the grey band and pedestrians on a distinct delicate layer", () => {
+    const specs = roadOverlaysFromAttachingRoads([street, footway], {
+      pedestrianVisible: true,
+    });
+    expect(specs.map((s) => s.layerKey)).toEqual([
+      ROAD_ROW_BAND_LAYER_KEY,
+      ROAD_PEDESTRIAN_LAYER_KEY,
+    ]);
     expect(specs.find((s) => s.layerKey === ROAD_EDGE_LAYER_KEY)).toBeUndefined();
     expect(
       specs.find((s) => s.layerKey === ROAD_CENTERLINE_LAYER_KEY),
     ).toBeUndefined();
 
     const band = specs.find((s) => s.layerKey === ROAD_ROW_BAND_LAYER_KEY)!;
+    const ped = specs.find((s) => s.layerKey === ROAD_PEDESTRIAN_LAYER_KEY)!;
     expect(band.paint!["line-color"]).toBe(ROAD_BAND_GREY);
-    expect(band.paint!["line-color"]).not.toBe("#1a5f9e");
-    expect(isZoomInterp(band.paint!["line-width"])).toBe(true);
-    expect(isZoomInterp(band.paint!["line-opacity"])).toBe(true);
-    expect(isZoomInterp(band.paint!["line-blur"])).toBe(true);
+    expect(ped.paint!["line-color"]).toBe(ROAD_PEDESTRIAN_COLOR);
+    expect(ped.paint!["line-color"]).not.toBe(ROAD_BAND_GREY);
+    expect(band.visible).toBe(true);
+    expect(ped.visible).toBe(true);
 
-    // Overview = hairline; close = soft band. Opacity stays modest vs chalk.
+    const bandFc = band.geojson as { features: unknown[] };
+    const pedFc = ped.geojson as { features: unknown[] };
+    expect(bandFc.features).toHaveLength(1);
+    expect(pedFc.features).toHaveLength(1);
+
     expect(valueAtZoom(band.paint!["line-width"], 12)).toBeLessThanOrEqual(2);
-    expect(valueAtZoom(band.paint!["line-width"], 16)!).toBeGreaterThan(8);
-    expect(valueAtZoom(band.paint!["line-opacity"], 12)!).toBeLessThanOrEqual(
-      0.15,
+    expect(valueAtZoom(ped.paint!["line-width"], 12)!).toBeLessThan(
+      valueAtZoom(band.paint!["line-width"], 12)!,
     );
     expect(
-      Math.max(...interpStops(band.paint!["line-opacity"]).values),
-    ).toBeLessThanOrEqual(0.35);
-    expect(
-      Math.max(...interpStops(band.paint!["line-blur"]).values),
-    ).toBeLessThanOrEqual(2);
+      Math.max(...interpStops(ped.paint!["line-opacity"]).values),
+    ).toBeLessThanOrEqual(0.2);
+    expect(ped.paint!["line-dasharray"]).toEqual([1.5, 2.5]);
+    expect(isZoomInterp(band.paint!["line-blur"])).toBe(true);
   });
 
-  it("still emits band when left/right edges are absent", () => {
-    const noEdges = [
-      {
-        ...sample[0],
-        row: {
-          assumedWidthFt: 50,
-          provenance: { kind: "approximate-assumed-per-class" },
-        },
-      },
-    ];
-    const specs = roadOverlaysFromAttachingRoads(noEdges);
+  it("keeps pedestrian overlay off by default (visible=false)", () => {
+    const specs = roadOverlaysFromAttachingRoads([street, footway]);
+    const ped = specs.find((s) => s.layerKey === ROAD_PEDESTRIAN_LAYER_KEY)!;
+    expect(ped.visible).toBe(false);
+  });
+
+  it("omits pedestrian layer when only streets are present", () => {
+    const specs = roadOverlaysFromAttachingRoads([street]);
     expect(specs.map((s) => s.layerKey)).toEqual([ROAD_ROW_BAND_LAYER_KEY]);
+  });
+
+  it("derives pedestrian from osmHighwayTag when flag is absent", () => {
+    const legacy = {
+      ...footway,
+      isPedestrianWay: undefined,
+    };
+    expect(roadIsPedestrianWay(legacy)).toBe(true);
+    expect(PEDESTRIAN_OSM_HIGHWAY_TAGS).toContain("footway");
   });
 
   it("returns empty overlays when no road-node attaches (honest absence)", () => {

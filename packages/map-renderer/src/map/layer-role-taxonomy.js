@@ -126,6 +126,16 @@ export const CONTEXT_PARCEL_FILL_NEUTRAL = "#9ec9e8";
 export const CONTEXT_ROAD = "#6b7280";
 export const CONTEXT_ROAD_BAND = "#9ca3af";
 export const CONTEXT_ROAD_EDGE = "#4b5563";
+/**
+ * CONTEXT pedestrian ways (footway/path/cycleway/…) — distinct muted khaki,
+ * NOT road grey. Finer presence than streets (tighter line/opacity budget).
+ * Must stay off SUBJECT amber and INTERACTION cyan.
+ */
+export const CONTEXT_PEDESTRIAN = {
+  line: "#9a8b6e",
+  lineOpacityMax: 0.18,
+  lineWidthMax: 2.2,
+};
 export const CONTEXT_HYDROGRAPHY = "#5b7c8a";
 export const CONTEXT_TOPO = "#7a6f5f";
 
@@ -223,6 +233,9 @@ export const LAYER_ROLE_BY_KEY = Object.freeze({
   "live-hydrography": "CONTEXT",
   "road-centerline": "CONTEXT",
   "road-band": "CONTEXT",
+  "road-node-row-band": "CONTEXT",
+  "road-node-pedestrian": "CONTEXT",
+  "pedestrian-ways": "CONTEXT",
   row: "CONTEXT",
 
   // DATA
@@ -278,6 +291,7 @@ export const LAYER_ROLE_TAXONOMY = Object.freeze({
       road: CONTEXT_ROAD,
       roadBand: CONTEXT_ROAD_BAND,
       roadEdge: CONTEXT_ROAD_EDGE,
+      pedestrian: CONTEXT_PEDESTRIAN,
       hydrography: CONTEXT_HYDROGRAPHY,
       topo: CONTEXT_TOPO,
       fillOpacityMax: ROLE_BUDGET.CONTEXT.fillOpacityMax,

@@ -1,26 +1,60 @@
 // apps/property-explorer/src/browse/road-overlay.ts
 //
-// Track B1 road render — hairline at distance, soft band when close:
-//   city overview stays thin/muted so FEMA + parcels lead; parcel zoom grows
-//   a soft ROW wash. Edge/centerline stay out of the paint stack.
-// Crash guard: line-blur only as a static/zoom literal (never feature-state
-// line-gradient / data-driven dash).
+// Track B1 road render — streets vs pedestrian ways:
+//   Streets (isPedestrianWay === false): hairline→soft grey ROW band.
+//   Pedestrian (footway/path/…): distinct muted khaki, thinner/lighter,
+//   OFF by default (LAYERS toggle `pedestrian-ways`).
+// Twin still holds pedestrian geometry — render filter ≠ data filter.
+// Crash guard: line-blur / dash only as static/zoom literals (never
+// feature-state line-gradient / data-driven dash).
 
 import type { OverlaySpec } from "@hauska/map-renderer";
 
 /** @deprecated No longer emitted — kept for callers that still import the key. */
 export const ROAD_CENTERLINE_LAYER_KEY = "road-node-centerline";
-/** Soft ROW corridor band (the only road paint we emit). */
+/** Soft ROW corridor band for street-eligible roads. */
 export const ROAD_ROW_BAND_LAYER_KEY = "road-node-row-band";
+/** Delicate pedestrian-way overlay (off by default). */
+export const ROAD_PEDESTRIAN_LAYER_KEY = "road-node-pedestrian";
+/** LAYERS-panel toggle key for the pedestrian overlay. */
+export const PEDESTRIAN_WAYS_TOGGLE_KEY = "pedestrian-ways";
 /** @deprecated No longer emitted — kept for callers that still import the key. */
 export const ROAD_EDGE_LAYER_KEY = "road-node-row-edges";
 
 /** Band fill — medium grey, readable without washing the map. */
 export const ROAD_BAND_GREY = "#9ca3af";
+/**
+ * Pedestrian hue — MUST match CONTEXT_PEDESTRIAN.line in layer-role-taxonomy.
+ * Literal (not a runtime import) so PE vitest does not require renderer dist.
+ */
+export const ROAD_PEDESTRIAN_COLOR = "#9a8b6e";
+const PEDESTRIAN_LINE_OPACITY_MAX = 0.18;
+const PEDESTRIAN_LINE_WIDTH_MAX = 2.2;
 /** @deprecated Edges/centerline are not painted; alias kept for imports. */
 export const ROAD_EDGE_GREY = "#4b5563";
 /** @deprecated Prefer ROAD_BAND_GREY. */
 export const ROAD_GREY = ROAD_BAND_GREY;
+
+/**
+ * Must match `@hauska-engine/atoms` PEDESTRIAN_OSM_HIGHWAY_TAGS /
+ * FRONT_INELIGIBLE_OSM_HIGHWAY_TAGS. Used only when the wire lacks
+ * `isPedestrianWay` (pre-flag corpus / retrieval lag). Prefer the flag.
+ */
+export const PEDESTRIAN_OSM_HIGHWAY_TAGS = [
+  "footway",
+  "path",
+  "steps",
+  "cycleway",
+  "pedestrian",
+  "bridleway",
+  "corridor",
+  "platform",
+  "bus_guideway",
+  "proposed",
+  "construction",
+] as const;
+
+const PEDESTRIAN_TAG_SET = new Set<string>(PEDESTRIAN_OSM_HIGHWAY_TAGS);
 
 /**
  * Parcel fill sits above roads. Must match map-renderer PARCEL_TILES_FILL_ID.
@@ -31,14 +65,21 @@ export const ROAD_BEFORE_PARCEL_FILL_ID = "hauska-parcel-tiles-fill";
 export interface AttachingRoadWire {
   roadNodeId?: string;
   displayName?: string;
+  /** Authoritative street-vs-pedestrian flag from engine/retrieval. */
+  isPedestrianWay?: boolean;
   centerline?: { type?: string; coordinates?: Array<[number, number]> };
   row?: {
     assumedWidthFt?: number;
-    provenance?: { kind?: string };
+    provenance?: { kind?: string; osmHighwayTag?: string };
     leftEdge?: { coordinates?: Array<[number, number]> };
     rightEdge?: { coordinates?: Array<[number, number]> };
   };
   sourceCitation?: string;
+}
+
+export interface RoadOverlayVisibility {
+  /** When false, pedestrian overlay is omitted/hidden. Default false. */
+  pedestrianVisible?: boolean;
 }
 
 type LineFeature = {
@@ -56,6 +97,13 @@ function lineFeature(
     properties,
     geometry: { type: "LineString", coordinates },
   };
+}
+
+/** Resolve pedestrian flag — prefer wire flag; else osmHighwayTag denylist. */
+export function roadIsPedestrianWay(road: AttachingRoadWire): boolean {
+  if (typeof road.isPedestrianWay === "boolean") return road.isPedestrianWay;
+  const tag = road.row?.provenance?.osmHighwayTag?.trim().toLowerCase() ?? "";
+  return tag.length > 0 && PEDESTRIAN_TAG_SET.has(tag);
 }
 
 /**
@@ -102,7 +150,6 @@ const ROW_BAND_PAINT = {
     18,
     0.3,
   ],
-  // Blur only once the band has width — hairline stays crisp.
   "line-blur": [
     "interpolate",
     ["linear"],
@@ -120,43 +167,100 @@ const ROW_BAND_PAINT = {
   ],
 } as const;
 
+/** Pedestrian — distinct hue, thinner, lighter, static dash (delicate texture). */
+const PEDESTRIAN_PAINT = {
+  "line-color": ROAD_PEDESTRIAN_COLOR,
+  "line-width": [
+    "interpolate",
+    ["linear"],
+    ["zoom"],
+    12,
+    0.55,
+    14,
+    0.8,
+    16,
+    1.4,
+    18,
+    PEDESTRIAN_LINE_WIDTH_MAX,
+  ],
+  "line-opacity": [
+    "interpolate",
+    ["linear"],
+    ["zoom"],
+    12,
+    0.08,
+    14,
+    0.11,
+    16,
+    0.15,
+    18,
+    PEDESTRIAN_LINE_OPACITY_MAX,
+  ],
+  "line-dasharray": [1.5, 2.5],
+  "line-blur": 0,
+} as const;
+
 /**
- * Build OverlaySpec[] for attaching / near-bbox road-nodes.
- * Zoom-scaled hairline→band only (beneath parcels). No edge/centerline paint.
+ * Build OverlaySpec[] for near-bbox road-nodes.
+ * Street band always when present; pedestrian layer optional (off by default).
  */
 export function roadOverlaysFromAttachingRoads(
   roads: ReadonlyArray<AttachingRoadWire>,
+  visibility: RoadOverlayVisibility = {},
 ): OverlaySpec[] {
-  const bandFeatures: LineFeature[] = [];
+  const pedestrianVisible = visibility.pedestrianVisible === true;
+  const streetFeatures: LineFeature[] = [];
+  const pedestrianFeatures: LineFeature[] = [];
 
   for (const road of roads) {
     const center = road.centerline?.coordinates;
     if (!Array.isArray(center) || center.length < 2) continue;
     const provenanceKind = road.row?.provenance?.kind ?? "unknown";
     const name = road.displayName?.trim() || road.roadNodeId || "road";
-    bandFeatures.push(
-      lineFeature(center, {
-        roadNodeId: road.roadNodeId ?? null,
-        name,
-        rowProvenanceKind: provenanceKind,
-        assumedWidthFt: road.row?.assumedWidthFt ?? null,
-        sourceCitation: road.sourceCitation ?? null,
-        role: "row-band",
-      }),
-    );
+    const pedestrian = roadIsPedestrianWay(road);
+    const props = {
+      roadNodeId: road.roadNodeId ?? null,
+      name,
+      rowProvenanceKind: provenanceKind,
+      assumedWidthFt: road.row?.assumedWidthFt ?? null,
+      sourceCitation: road.sourceCitation ?? null,
+      isPedestrianWay: pedestrian,
+      osmHighwayTag: road.row?.provenance?.osmHighwayTag ?? null,
+    };
+    if (pedestrian) {
+      pedestrianFeatures.push(
+        lineFeature(center, { ...props, role: "pedestrian-way" }),
+      );
+    } else {
+      streetFeatures.push(lineFeature(center, { ...props, role: "row-band" }));
+    }
   }
 
-  if (bandFeatures.length === 0) return [];
+  const specs: OverlaySpec[] = [];
 
-  return [
-    {
+  if (streetFeatures.length > 0) {
+    specs.push({
       layerKey: ROAD_ROW_BAND_LAYER_KEY,
       layerKind: "road-node-row-band",
       provider: "hauska-road-node",
-      geojson: { type: "FeatureCollection", features: bandFeatures },
+      geojson: { type: "FeatureCollection", features: streetFeatures },
       paint: { ...ROW_BAND_PAINT },
       beforeId: ROAD_BEFORE_PARCEL_FILL_ID,
       visible: true,
-    },
-  ];
+    });
+  }
+
+  if (pedestrianFeatures.length > 0) {
+    specs.push({
+      layerKey: ROAD_PEDESTRIAN_LAYER_KEY,
+      layerKind: "road-node-pedestrian",
+      provider: "hauska-road-node",
+      geojson: { type: "FeatureCollection", features: pedestrianFeatures },
+      paint: { ...PEDESTRIAN_PAINT },
+      beforeId: ROAD_BEFORE_PARCEL_FILL_ID,
+      visible: pedestrianVisible,
+    });
+  }
+
+  return specs;
 }

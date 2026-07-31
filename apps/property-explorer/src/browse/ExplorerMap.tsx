@@ -81,6 +81,7 @@ import {
 } from "./envelope-overlay";
 import {
   roadOverlaysFromAttachingRoads,
+  PEDESTRIAN_WAYS_TOGGLE_KEY,
   type AttachingRoadWire,
 } from "./road-overlay";
 import { countyFipsForViewportCenter } from "./county-fips-viewport";
@@ -223,9 +224,9 @@ export function ExplorerMap({
   // Holds 0..2 specs: the amber inset fill+dashed-edge (status "ok"), or a
   // dashed full-parcel outline for the honest 0%/"entirely setback" case.
   const [envelopeOverlays, setEnvelopeOverlays] = useState<OverlaySpec[]>([]);
-  // Track B1-map: viewport road-node network (centerline + ROW), not one
-  // attaching road for the inspected parcel.
-  const [roadOverlays, setRoadOverlays] = useState<OverlaySpec[]>([]);
+  // Track B1-map: viewport road-node network (streets + optional pedestrian).
+  // Raw wires kept so pedestrian visibility can flip without re-fetch.
+  const [roadWires, setRoadWires] = useState<AttachingRoadWire[]>([]);
   const roadAbortRef = useRef<AbortController | null>(null);
   // The clicked parcel's raw geometry (from the live-GIS overlay feature), kept
   // so the 0% case can outline the whole lot and the client-side inset fallback
@@ -414,26 +415,36 @@ export function ExplorerMap({
     const roadCtrl = new AbortController();
     roadAbortRef.current = roadCtrl;
     if (vp.zoom < MIN_ROAD_ZOOM) {
-      setRoadOverlays([]);
+      setRoadWires([]);
       return;
     }
     const midLat = (vp.bbox.south + vp.bbox.north) / 2;
     const midLng = (vp.bbox.west + vp.bbox.east) / 2;
     const fips = countyFipsForViewportCenter(midLat, midLng);
     if (!fips) {
-      setRoadOverlays([]);
+      setRoadWires([]);
       return;
     }
     void fetchRoadsNearBbox(vp.bbox, fips, roadCtrl.signal)
       .then((roads) => {
         if (roadCtrl.signal.aborted) return;
-        setRoadOverlays(roadOverlaysFromAttachingRoads(roads));
+        setRoadWires(roads);
       })
       .catch((err) => {
         if (roadCtrl.signal.aborted || (err as Error)?.name === "AbortError") return;
-        setRoadOverlays([]);
+        setRoadWires([]);
       });
   }, []);
+
+  const roadOverlays = useMemo(
+    () =>
+      roadOverlaysFromAttachingRoads(roadWires, {
+        pedestrianVisible: visibleLayers
+          ? visibleLayers.has(PEDESTRIAN_WAYS_TOGGLE_KEY as LayerKey)
+          : false,
+      }),
+    [roadWires, visibleLayers],
+  );
 
   // Light a parcel as INSPECTED on the LIVE map (feature-state glow) and fold it
   // into the ported node store as the `inspected` node. Clears the prior
