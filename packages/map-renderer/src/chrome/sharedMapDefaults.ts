@@ -34,15 +34,18 @@ export type TerrainRgbConfig = {
   hash: string;
   maxZoom: number;
   tileSize: number;
+  /** AOI coverage bbox [west, south, east, north] (WGS84); clips raster-dem requests. */
+  bounds: [number, number, number, number];
 };
 
 export const SHARED_TERRAIN_RGB: TerrainRgbConfig = {
   urlTemplate:
-    "https://storage.googleapis.com/hauska-map-tiles/terrain-rgb.09ee4eaa72ca/{z}/{x}/{y}.png",
+    "https://storage.googleapis.com/hauska-map-tiles/terrain-rgb.bac36819c719/{z}/{x}/{y}.png",
   encoding: "mapbox",
-  hash: "09ee4eaa72ca",
+  hash: "bac36819c719",
   maxZoom: 16,
   tileSize: 256,
+  bounds: [-97.409, 30.006, -97.231, 30.224],
 };
 
 /** Re-export taxonomy cold-open + presets for PE/CC chrome. */
