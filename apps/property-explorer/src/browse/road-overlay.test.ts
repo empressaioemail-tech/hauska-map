@@ -20,17 +20,29 @@ function isZoomInterp(expr: unknown): boolean {
   );
 }
 
-function blurStops(expr: unknown): number[] {
-  // ["interpolate", ["linear"], ["zoom"], z0, b0, z1, b1, ...]
-  if (!Array.isArray(expr) || expr[0] !== "interpolate") return [];
-  const stops: number[] = [];
-  for (let i = 4; i < expr.length; i += 2) {
-    if (typeof expr[i] === "number") stops.push(expr[i] as number);
+function interpStops(expr: unknown): { zooms: number[]; values: number[] } {
+  // ["interpolate", ["linear"], ["zoom"], z0, v0, z1, v1, ...]
+  if (!Array.isArray(expr) || expr[0] !== "interpolate") {
+    return { zooms: [], values: [] };
   }
-  return stops;
+  const zooms: number[] = [];
+  const values: number[] = [];
+  for (let i = 3; i < expr.length; i += 2) {
+    if (typeof expr[i] === "number" && typeof expr[i + 1] === "number") {
+      zooms.push(expr[i] as number);
+      values.push(expr[i + 1] as number);
+    }
+  }
+  return { zooms, values };
 }
 
-describe("roadOverlaysFromAttachingRoads (gradient band only)", () => {
+function valueAtZoom(expr: unknown, zoom: number): number | null {
+  const { zooms, values } = interpStops(expr);
+  const idx = zooms.indexOf(zoom);
+  return idx >= 0 ? values[idx]! : null;
+}
+
+describe("roadOverlaysFromAttachingRoads (hairline→band)", () => {
   const sample = [
     {
       roadNodeId: "48021:road:123",
@@ -77,10 +89,22 @@ describe("roadOverlaysFromAttachingRoads (gradient band only)", () => {
     const band = specs.find((s) => s.layerKey === ROAD_ROW_BAND_LAYER_KEY)!;
     expect(band.paint!["line-color"]).toBe(ROAD_BAND_GREY);
     expect(band.paint!["line-color"]).not.toBe("#1a5f9e");
+    expect(isZoomInterp(band.paint!["line-width"])).toBe(true);
+    expect(isZoomInterp(band.paint!["line-opacity"])).toBe(true);
     expect(isZoomInterp(band.paint!["line-blur"])).toBe(true);
-    expect(Math.max(...blurStops(band.paint!["line-blur"]))).toBeLessThanOrEqual(
-      2,
+
+    // Overview = hairline; close = soft band. Opacity stays modest vs chalk.
+    expect(valueAtZoom(band.paint!["line-width"], 12)).toBeLessThanOrEqual(2);
+    expect(valueAtZoom(band.paint!["line-width"], 16)!).toBeGreaterThan(8);
+    expect(valueAtZoom(band.paint!["line-opacity"], 12)!).toBeLessThanOrEqual(
+      0.15,
     );
+    expect(
+      Math.max(...interpStops(band.paint!["line-opacity"]).values),
+    ).toBeLessThanOrEqual(0.35);
+    expect(
+      Math.max(...interpStops(band.paint!["line-blur"]).values),
+    ).toBeLessThanOrEqual(2);
   });
 
   it("still emits band when left/right edges are absent", () => {
