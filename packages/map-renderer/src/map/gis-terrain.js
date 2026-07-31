@@ -269,6 +269,24 @@ export function terrainExaggeration() {
 export const PRODUCTION_TERRAIN_SOURCE_ID = "hauska-terrain-dem";
 export const PRODUCTION_SKY_LAYER_ID = "hauska-sky";
 
+/** Below this pitch, 3D mesh is invisible and setTerrain only hurts zoom perf. */
+export const TERRAIN_ENGAGE_PITCH_DEG = 15;
+/** Default tilt when operator enables the 3D terrain layer from top-down. */
+export const TERRAIN_DEFAULT_PITCH_DEG = 45;
+
+let terrainEngageGen = 0;
+
+function applyProductionTerrainMesh(map, enabled) {
+  if (enabled) {
+    map.setTerrain({
+      source: PRODUCTION_TERRAIN_SOURCE_ID,
+      exaggeration: PRODUCTION_TERRAIN_EXAGGERATION,
+    });
+  } else {
+    map.setTerrain(null);
+  }
+}
+
 /** Install raster-dem source + sky layer (idempotent). Does not enable setTerrain. */
 export function ensureProductionTerrainInfrastructure(map) {
   if (!map?.isStyleLoaded()) return;
@@ -294,16 +312,42 @@ export function ensureProductionTerrainInfrastructure(map) {
   }
 }
 
-/** Toggle MapLibre 3D terrain (production tiles only; fixture stack unchanged). */
-export function syncProductionTerrainVisibility(map, visible) {
+/**
+ * Toggle MapLibre 3D terrain (production tiles only; fixture stack unchanged).
+ *
+ * At pitch 0 the mesh is invisible but still taxes zoom — so we only engage
+ * setTerrain when pitched, and auto-tilt when the layer is first turned on.
+ *
+ * @param {import('maplibre-gl').Map} map
+ * @param {boolean} visible
+ * @param {{ animatePitchIfNeeded?: boolean }} [opts]
+ */
+export function syncProductionTerrainVisibility(map, visible, opts = {}) {
   if (!map?.isStyleLoaded()) return;
   ensureProductionTerrainInfrastructure(map);
-  if (visible) {
-    map.setTerrain({
-      source: PRODUCTION_TERRAIN_SOURCE_ID,
-      exaggeration: PRODUCTION_TERRAIN_EXAGGERATION,
-    });
-  } else {
-    map.setTerrain(null);
+
+  if (!visible) {
+    terrainEngageGen += 1;
+    applyProductionTerrainMesh(map, false);
+    return;
   }
+
+  const pitch = map.getPitch();
+  if (pitch < TERRAIN_ENGAGE_PITCH_DEG) {
+    if (opts.animatePitchIfNeeded) {
+      const gen = (terrainEngageGen += 1);
+      map.easeTo({ pitch: TERRAIN_DEFAULT_PITCH_DEG, duration: 700 });
+      map.once("moveend", () => {
+        if (gen !== terrainEngageGen) return;
+        if (map.getPitch() >= TERRAIN_ENGAGE_PITCH_DEG) {
+          applyProductionTerrainMesh(map, true);
+        }
+      });
+    } else {
+      applyProductionTerrainMesh(map, false);
+    }
+    return;
+  }
+
+  applyProductionTerrainMesh(map, true);
 }

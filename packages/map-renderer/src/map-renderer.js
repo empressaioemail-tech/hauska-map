@@ -161,7 +161,7 @@ export function createMapRenderer() {
   // invoked on supersession and in destroy() — this is what keeps the latch bounded
   // and leak-free.
   let subjectResolveGen = 0;
-  let subjectResolveCleanup = null;
+  let terrainLayerWasVisible = false;
 
   function ensureMap() {
     if (!slotEl || map) return;
@@ -217,7 +217,12 @@ export function createMapRenderer() {
       styleReady = true;
       ensureProductionTerrainInfrastructure(map);
       syncBasemapPitchDegrade(map);
-      map.on("pitch", () => syncBasemapPitchDegrade(map));
+      map.on("pitch", () => {
+        syncBasemapPitchDegrade(map);
+        if (visibleLayers.has("dem-hillshade")) {
+          syncProductionTerrainVisibility(map, true, { animatePitchIfNeeded: false });
+        }
+      });
       applyLayerVisibility();
       applyOverlays();
       applyParcelTiles();
@@ -437,7 +442,12 @@ export function createMapRenderer() {
 
   function applyLayerVisibility() {
     if (!map || !map.isStyleLoaded()) return;
-    syncProductionTerrainVisibility(map, visibleLayers.has("dem-hillshade"));
+    const terrainWant = visibleLayers.has("dem-hillshade");
+    const terrainToggledOn = terrainWant && !terrainLayerWasVisible;
+    syncProductionTerrainVisibility(map, terrainWant, {
+      animatePitchIfNeeded: terrainToggledOn,
+    });
+    terrainLayerWasVisible = terrainWant;
     if (!fixtureEnabled) {
       // Fixture stack OFF: hide every fixture layer that may already be drawn
       // and drop the watermark. Live overlays (setOverlays) are unaffected.

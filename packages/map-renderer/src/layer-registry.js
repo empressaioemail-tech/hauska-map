@@ -205,7 +205,7 @@ function legendEncodes(key) {
     "parcel-polygon": "Assessor parcel polygon; land-use choropleth with width-as-saturation",
     "flood-zone": "FEMA NFHL zone class",
     "rent-heat": "Rent AVM intensity (fixture fire ramp)",
-    "dem-hillshade": "3D terrain mesh from TxGIO LiDAR terrain-RGB tiles (additive viz). Toggle controls setTerrain at exaggeration 1.0. Separate from live 1-ft contour lines (topography-contours).",
+    "dem-hillshade": "3D terrain from TxGIO LiDAR tiles. Turning this on tilts the map (~45°) so relief is visible; top-down view stays flat by design. Use the compass control to adjust pitch.",
     "topography-contours": "Live elevation contours from the engine topography-1ft slot. Inside the Bastrop County footprint the AUTHORITATIVE 1-ft LiDAR contours are served; everywhere else an honest 3DEP-derived fallback. The map chip labels the TRUE tier served for the current viewport (1-ft in Bastrop, 3DEP elsewhere) — never a static claim.",
     hydrography: "Real county-mapped streams from the engine hydrography slot — the county's own GIS hydrography source, with provenance (source, layer name, vintage) on the layer row. Where the county has no configured source, or the slot is not yet served, the layer is honestly unavailable — never a derived squiggle.",
     "hydrology-flow": "Live D8 flow channels from the engine hydrology-flow slot — a real flow-accumulation over the viewport 3DEP DEM, emitting channels above the accumulation threshold. On flat terrain / no channels / DEM void it is honest-empty (draws nothing, with the reason on the chip) — never a synthetic meander.",
