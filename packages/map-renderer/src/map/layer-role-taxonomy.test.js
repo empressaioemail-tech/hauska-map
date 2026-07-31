@@ -7,6 +7,8 @@ import {
   COLD_OPEN_VISIBLE_LAYERS,
   CONTEXT_FEMA,
   CONTEXT_FLOOD_TEAL,
+  CONTEXT_PEDESTRIAN,
+  CONTEXT_ROAD_BAND,
   DATA_LAYER_KEYS,
   DATA_LAND_USE_COLORS,
   INTERACTION_CYAN,
@@ -75,6 +77,17 @@ describe("layer-role-taxonomy (T-H01)", () => {
     assert.ok(color.includes("FLD_ZONE"));
     assert.ok(opacity.includes("FLOODWAY"));
   });
+
+  it("pedestrian CONTEXT hue is distinct from road grey and reserved hues", () => {
+    assert.notEqual(CONTEXT_PEDESTRIAN.line.toLowerCase(), CONTEXT_ROAD_BAND.toLowerCase());
+    assert.notEqual(CONTEXT_PEDESTRIAN.line.toLowerCase(), SUBJECT_AMBER.toLowerCase());
+    assert.notEqual(CONTEXT_PEDESTRIAN.line.toLowerCase(), INTERACTION_CYAN.toLowerCase());
+    assert.ok(CONTEXT_PEDESTRIAN.lineOpacityMax <= ROLE_BUDGET.CONTEXT.fillOpacityMax);
+    assert.ok(CONTEXT_PEDESTRIAN.lineWidthMax < 4);
+    assert.equal(roleForLayer("pedestrian-ways"), "CONTEXT");
+    assert.equal(roleForLayer("road-node-pedestrian"), "CONTEXT");
+  });
+
 
   it("DATA land-use palette is categorical and defaultVisible is false", () => {
     assert.equal(ROLE_BUDGET.DATA.defaultVisible, false);

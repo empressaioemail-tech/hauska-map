@@ -29,6 +29,14 @@ export const LAYER_REGISTRY = [
   { key: "dem-hillshade", label: "Hillshade relief (not live)", group: "terrain", fixture: true, live: false, fuelGated: false },
   { key: "topography-contours", label: "Contours (1 ft / 3DEP)", group: "terrain", fixture: false, live: true, fuelGated: false },
   { key: "hydrography", label: "Hydrography", group: "hydrology", fixture: false, live: true, fuelGated: false },
+  {
+    key: "pedestrian-ways",
+    label: "Sidewalks / footpaths",
+    group: "parcel",
+    fixture: false,
+    live: true,
+    fuelGated: false,
+  },
   // INTERNAL/DEBUG: the derived D8 flow layer is no longer a customer layer
   // (replaced by `hydrography` on browse surfaces); CC may keep it for debug.
   { key: "hydrology-flow", label: "Hydrology flow (D8)", group: "hydrology", fixture: false, live: true, fuelGated: false },
