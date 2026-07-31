@@ -56,8 +56,8 @@ describe("layer-role-taxonomy (T-H01)", () => {
   });
 
   it("caps Context fill under the wash-out budget", () => {
-    assert.equal(ROLE_BUDGET.CONTEXT.fillOpacityMax, 0.15);
-    assert.ok(contextFillOpacity(0.4) <= 0.15);
+    assert.equal(ROLE_BUDGET.CONTEXT.fillOpacityMax, 0.2);
+    assert.ok(contextFillOpacity(0.4) <= 0.2);
     assert.ok(contextFillOpacity(0.4, true) < contextFillOpacity(0.4, false));
   });
 

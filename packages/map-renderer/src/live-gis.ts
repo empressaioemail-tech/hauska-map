@@ -20,8 +20,6 @@ import type { OverlaySpec, ParcelSelection, GisBBox } from './postMessage'
 import {
   CONTEXT_FEMA,
   CONTEXT_PARCEL_LINE,
-  ROLE_BUDGET,
-  contextFillOpacity,
 } from './map/layer-role-taxonomy.js'
 
 export type LiveLayerKey = 'parcels' | 'fema'
@@ -750,10 +748,15 @@ export function toLiveOverlays(
           'X', CONTEXT_FEMA.fillX,
           CONTEXT_FEMA.fillAe,
         ],
-        // CONTEXT role: boundary-dominant, fill capped to taxonomy budget.
-        'fill-opacity': contextFillOpacity(ROLE_BUDGET.CONTEXT.fillOpacityMax),
+        // Light visible SFHA fill (solid hue × opacity — not double-alpha).
+        'fill-opacity': [
+          'match',
+          ['get', 'FLD_ZONE'],
+          'X', CONTEXT_FEMA.fillOpacityX,
+          CONTEXT_FEMA.fillOpacityAe,
+        ],
         'line-color': CONTEXT_FEMA.line,
-        'line-width': 1.6,
+        'line-width': CONTEXT_FEMA.lineWidth,
       },
     })
   }
