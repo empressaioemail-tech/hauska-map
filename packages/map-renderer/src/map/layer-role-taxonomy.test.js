@@ -5,6 +5,7 @@ import assert from "node:assert/strict";
 import { describe, it } from "node:test";
 import {
   COLD_OPEN_VISIBLE_LAYERS,
+  CONTEXT_FEMA,
   CONTEXT_FLOOD_TEAL,
   DATA_LAYER_KEYS,
   DATA_LAND_USE_COLORS,
@@ -16,6 +17,8 @@ import {
   SUBJECT_AMBER,
   contextFillOpacity,
   enforceDataLayerMutex,
+  femaNfhlFillColorExpr,
+  femaNfhlFillOpacityExpr,
   hasDataLayerMutexViolation,
   isDataLayerVisible,
   roleForLayer,
@@ -59,6 +62,18 @@ describe("layer-role-taxonomy (T-H01)", () => {
     assert.equal(ROLE_BUDGET.CONTEXT.fillOpacityMax, 0.2);
     assert.ok(contextFillOpacity(0.4) <= 0.2);
     assert.ok(contextFillOpacity(0.4, true) < contextFillOpacity(0.4, false));
+  });
+
+  it("FEMA severity ramp keys real NFHL fields only", () => {
+    assert.ok(CONTEXT_FEMA.fillOpacityFloodway <= ROLE_BUDGET.CONTEXT.fillOpacityMax);
+    assert.ok(CONTEXT_FEMA.fillOpacityAe <= ROLE_BUDGET.CONTEXT.fillOpacityMax);
+    assert.ok(CONTEXT_FEMA.fillOpacityX < CONTEXT_FEMA.fillOpacityAe);
+    assert.ok(CONTEXT_FEMA.fillOpacityAe <= CONTEXT_FEMA.fillOpacityFloodway);
+    const color = JSON.stringify(femaNfhlFillColorExpr());
+    const opacity = JSON.stringify(femaNfhlFillOpacityExpr());
+    assert.ok(color.includes("ZONE_SUBTY"));
+    assert.ok(color.includes("FLD_ZONE"));
+    assert.ok(opacity.includes("FLOODWAY"));
   });
 
   it("DATA land-use palette is categorical and defaultVisible is false", () => {

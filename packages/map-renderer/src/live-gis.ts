@@ -20,6 +20,8 @@ import type { OverlaySpec, ParcelSelection, GisBBox } from './postMessage'
 import {
   CONTEXT_FEMA,
   CONTEXT_PARCEL_LINE,
+  femaNfhlFillColorExpr,
+  femaNfhlFillOpacityExpr,
 } from './map/layer-role-taxonomy.js'
 
 export type LiveLayerKey = 'parcels' | 'fema'
@@ -742,19 +744,10 @@ export function toLiveOverlays(
       geojson: fema.response.geojson,
       visible: visibility?.fema !== false,
       paint: {
-        'fill-color': [
-          'match',
-          ['get', 'FLD_ZONE'],
-          'X', CONTEXT_FEMA.fillX,
-          CONTEXT_FEMA.fillAe,
-        ],
-        // Light visible SFHA fill (solid hue × opacity — not double-alpha).
-        'fill-opacity': [
-          'match',
-          ['get', 'FLD_ZONE'],
-          'X', CONTEXT_FEMA.fillOpacityX,
-          CONTEXT_FEMA.fillOpacityAe,
-        ],
+        // Honest NFHL severity: floodway > SFHA (A/AE/…) > X / 500-yr.
+        // Keys FLD_ZONE + ZONE_SUBTY only — no proximity fabrication.
+        'fill-color': femaNfhlFillColorExpr(),
+        'fill-opacity': femaNfhlFillOpacityExpr(),
         'line-color': CONTEXT_FEMA.line,
         'line-width': CONTEXT_FEMA.lineWidth,
       },

@@ -11,6 +11,7 @@ import {
   CONTEXT_FEMA,
   DATA_LAND_USE_COLORS,
   ROLE_BUDGET,
+  femaNfhlIsFloodwayExpr,
 } from "./layer-role-taxonomy.js";
 
 /** Deep warm-dark canvas — data glows on top, brown signature retained. */
@@ -74,14 +75,6 @@ export const LAND_USE_MATCH = [
   ["get", "ZONE_CODE"],
   ["get", "ZONING"],
   ["get", "ZN_CODE"],
-  "",
-];
-
-const FLOOD_MATCH = [
-  "coalesce",
-  ["get", "FLD_ZONE"],
-  ["get", "ZONE_SUBTY"],
-  ["get", "FLOOD_ZONE"],
   "",
 ];
 
@@ -231,36 +224,51 @@ export function landUseLineColorExpr() {
 }
 
 export function floodFillColorExpr() {
+  // Prefer ZONE_SUBTY floodway when FLD_ZONE is still AE (common NFHL shape).
   return [
-    "match",
-    FLOOD_MATCH,
-    "AE",
-    CONTEXT_FEMA.legendAe,
-    "A",
-    CONTEXT_FEMA.legendAe,
-    "AH",
-    CONTEXT_FEMA.legendAe,
-    "AO",
-    CONTEXT_FEMA.legendAe,
-    "X",
-    CONTEXT_FEMA.legendX,
-    "X500",
-    CONTEXT_FEMA.legendX,
-    "FLOODWAY",
+    "case",
+    femaNfhlIsFloodwayExpr(),
     CONTEXT_FEMA.legendFloodway,
-    CONTEXT_FEMA.legendAe,
+    [
+      "match",
+      ["coalesce", ["get", "FLD_ZONE"], ["get", "FLOOD_ZONE"], ""],
+      "AE",
+      CONTEXT_FEMA.legendAe,
+      "A",
+      CONTEXT_FEMA.legendAe,
+      "AH",
+      CONTEXT_FEMA.legendAe,
+      "AO",
+      CONTEXT_FEMA.legendAe,
+      "VE",
+      CONTEXT_FEMA.legendAe,
+      "V",
+      CONTEXT_FEMA.legendAe,
+      "X",
+      CONTEXT_FEMA.legendX,
+      "X500",
+      CONTEXT_FEMA.legendX,
+      "FLOODWAY",
+      CONTEXT_FEMA.legendFloodway,
+      CONTEXT_FEMA.legendAe,
+    ],
   ];
 }
 
 export function floodLineColorExpr() {
   return [
-    "match",
-    FLOOD_MATCH,
-    "FLOODWAY",
+    "case",
+    femaNfhlIsFloodwayExpr(),
     CONTEXT_FEMA.legendStrokeFloodway,
-    "AE",
-    CONTEXT_FEMA.legendStrokeAe,
-    CONTEXT_FEMA.legendStrokeAe,
+    [
+      "match",
+      ["coalesce", ["get", "FLD_ZONE"], ["get", "FLOOD_ZONE"], ""],
+      "X",
+      CONTEXT_FEMA.legendStrokeX,
+      "X500",
+      CONTEXT_FEMA.legendStrokeX,
+      CONTEXT_FEMA.legendStrokeAe,
+    ],
   ];
 }
 
