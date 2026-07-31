@@ -6,7 +6,6 @@ import {
   ROAD_ROW_BAND_LAYER_KEY,
   ROAD_EDGE_LAYER_KEY,
   ROAD_BAND_GREY,
-  ROAD_EDGE_GREY,
   ROAD_BEFORE_PARCEL_FILL_ID,
 } from "./road-overlay";
 
@@ -31,7 +30,7 @@ function blurStops(expr: unknown): number[] {
   return stops;
 }
 
-describe("roadOverlaysFromAttachingRoads (defined corridor)", () => {
+describe("roadOverlaysFromAttachingRoads (gradient band only)", () => {
   const sample = [
     {
       roadNodeId: "48021:road:123",
@@ -63,43 +62,28 @@ describe("roadOverlaysFromAttachingRoads (defined corridor)", () => {
     },
   ];
 
-  it("emits ROW band + crisp edges + centerline beneath parcels", () => {
+  it("emits only the ROW band beneath parcels (no edge/centerline wireframe)", () => {
     const specs = roadOverlaysFromAttachingRoads(sample);
 
-    expect(specs.map((s) => s.layerKey)).toEqual([
-      ROAD_ROW_BAND_LAYER_KEY,
-      ROAD_EDGE_LAYER_KEY,
-      ROAD_CENTERLINE_LAYER_KEY,
-    ]);
+    expect(specs.map((s) => s.layerKey)).toEqual([ROAD_ROW_BAND_LAYER_KEY]);
     expect(specs.every((s) => s.beforeId === ROAD_BEFORE_PARCEL_FILL_ID)).toBe(
       true,
     );
+    expect(specs.find((s) => s.layerKey === ROAD_EDGE_LAYER_KEY)).toBeUndefined();
+    expect(
+      specs.find((s) => s.layerKey === ROAD_CENTERLINE_LAYER_KEY),
+    ).toBeUndefined();
 
     const band = specs.find((s) => s.layerKey === ROAD_ROW_BAND_LAYER_KEY)!;
-    const edges = specs.find((s) => s.layerKey === ROAD_EDGE_LAYER_KEY)!;
-    const center = specs.find((s) => s.layerKey === ROAD_CENTERLINE_LAYER_KEY)!;
-
     expect(band.paint!["line-color"]).toBe(ROAD_BAND_GREY);
-    expect(edges.paint!["line-color"]).toBe(ROAD_EDGE_GREY);
-    expect(center.paint!["line-color"]).toBe(ROAD_EDGE_GREY);
     expect(band.paint!["line-color"]).not.toBe("#1a5f9e");
-
-    // Band keeps a light feather; edges stay crisp (blur 0).
     expect(isZoomInterp(band.paint!["line-blur"])).toBe(true);
-    expect(Math.max(...blurStops(band.paint!["line-blur"]))).toBeLessThanOrEqual(2);
-    expect(edges.paint!["line-blur"]).toBe(0);
-
-    const edgeFc = edges.geojson as {
-      features: Array<{ properties?: { role?: string } }>;
-    };
-    expect(edgeFc.features).toHaveLength(2);
-    expect(edgeFc.features.map((f) => f.properties?.role).sort()).toEqual([
-      "leftEdge",
-      "rightEdge",
-    ]);
+    expect(Math.max(...blurStops(band.paint!["line-blur"]))).toBeLessThanOrEqual(
+      2,
+    );
   });
 
-  it("omits edge layer when left/right edges are absent (band + centerline only)", () => {
+  it("still emits band when left/right edges are absent", () => {
     const noEdges = [
       {
         ...sample[0],
@@ -110,10 +94,7 @@ describe("roadOverlaysFromAttachingRoads (defined corridor)", () => {
       },
     ];
     const specs = roadOverlaysFromAttachingRoads(noEdges);
-    expect(specs.map((s) => s.layerKey)).toEqual([
-      ROAD_ROW_BAND_LAYER_KEY,
-      ROAD_CENTERLINE_LAYER_KEY,
-    ]);
+    expect(specs.map((s) => s.layerKey)).toEqual([ROAD_ROW_BAND_LAYER_KEY]);
   });
 
   it("returns empty overlays when no road-node attaches (honest absence)", () => {

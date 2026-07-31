@@ -42,13 +42,20 @@ export const CONTEXT_FLOOD_TEAL = {
   line: "#2a5f6d",
 };
 
-/** CONTEXT FEMA muted blue — light fill + dominant boundary (readable SFHA). */
+/**
+ * CONTEXT FEMA muted blue — light fill + dominant boundary.
+ * Severity ramp keys real NFHL fields only (FLD_ZONE / ZONE_SUBTY):
+ *   floodway (darkest) → SFHA A/AE/AH/AO/VE (mid) → X / 500-yr (lightest).
+ * Do not invent proximity-based darkness. Opacities stay ≤ CONTEXT fillOpacityMax.
+ */
 export const CONTEXT_FEMA = {
   /** Solid hues; opacity is applied via fill-opacity (do not double-alpha). */
+  fillFloodway: "#1e3a8a",
   fillAe: "#3b82f6",
-  fillX: "#60a5fa",
-  fillOpacityAe: 0.18,
-  fillOpacityX: 0.1,
+  fillX: "#93c5fd",
+  fillOpacityFloodway: 0.2,
+  fillOpacityAe: 0.14,
+  fillOpacityX: 0.07,
   line: "#1d4ed8",
   lineWidth: 2,
   legendAe: "#2bb6d6",
@@ -59,11 +66,63 @@ export const CONTEXT_FEMA = {
   legendStrokeFloodway: "#5fa0e0",
 };
 
+/**
+ * True when NFHL marks the feature as floodway (FLD_ZONE or ZONE_SUBTY).
+ * Uses only published FEMA attributes — no geometry heuristics.
+ */
+export function femaNfhlIsFloodwayExpr() {
+  return [
+    "any",
+    ["==", ["get", "FLD_ZONE"], "FLOODWAY"],
+    [
+      "in",
+      "FLOODWAY",
+      ["upcase", ["to-string", ["coalesce", ["get", "ZONE_SUBTY"], ""]]],
+    ],
+  ];
+}
+
+/** Live FEMA fill-color from real zone class (floodway → SFHA → X). */
+export function femaNfhlFillColorExpr() {
+  return [
+    "case",
+    femaNfhlIsFloodwayExpr(),
+    CONTEXT_FEMA.fillFloodway,
+    [
+      "match",
+      ["coalesce", ["get", "FLD_ZONE"], ""],
+      "X",
+      CONTEXT_FEMA.fillX,
+      "X500",
+      CONTEXT_FEMA.fillX,
+      CONTEXT_FEMA.fillAe,
+    ],
+  ];
+}
+
+/** Live FEMA fill-opacity companion to femaNfhlFillColorExpr. */
+export function femaNfhlFillOpacityExpr() {
+  return [
+    "case",
+    femaNfhlIsFloodwayExpr(),
+    CONTEXT_FEMA.fillOpacityFloodway,
+    [
+      "match",
+      ["coalesce", ["get", "FLD_ZONE"], ""],
+      "X",
+      CONTEXT_FEMA.fillOpacityX,
+      "X500",
+      CONTEXT_FEMA.fillOpacityX,
+      CONTEXT_FEMA.fillOpacityAe,
+    ],
+  ];
+}
+
 /** CONTEXT parcel boundary (line-only cold-open) — muted slate, never cyan. */
 export const CONTEXT_PARCEL_LINE = "#8a9aab";
 export const CONTEXT_PARCEL_FILL_NEUTRAL = "#9ec9e8";
 
-/** CONTEXT roads / ROW — defined corridor (band + crisp edge), not washed feather. */
+/** CONTEXT roads / ROW — gradient band only (no edge/centerline wireframe). */
 export const CONTEXT_ROAD = "#6b7280";
 export const CONTEXT_ROAD_BAND = "#9ca3af";
 export const CONTEXT_ROAD_EDGE = "#4b5563";

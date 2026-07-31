@@ -122,6 +122,9 @@ export {
   hasDataLayerMutexViolation,
   isDataLayerVisible,
   contextFillOpacity,
+  femaNfhlIsFloodwayExpr,
+  femaNfhlFillColorExpr,
+  femaNfhlFillOpacityExpr,
 } from "./map/layer-role-taxonomy.js";
 
 // postMessage / overlay contract types.

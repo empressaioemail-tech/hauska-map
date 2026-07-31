@@ -149,6 +149,18 @@ describe('toLiveOverlays (overlay composition)', () => {
     expect(specs[1].interactive).toBe(true)
   })
 
+  it('ramps FEMA fill from real NFHL zone fields (floodway / SFHA / X)', () => {
+    const specs = toLiveOverlays(okParcels, okFema)
+    const paint = specs[0].paint as Record<string, unknown>
+    const color = JSON.stringify(paint['fill-color'])
+    const opacity = JSON.stringify(paint['fill-opacity'])
+    expect(color).toContain('FLOODWAY')
+    expect(color).toContain('ZONE_SUBTY')
+    expect(color).toContain('FLD_ZONE')
+    expect(opacity).toContain('FLOODWAY')
+    expect(opacity).toContain('X500')
+  })
+
   it('renders nothing for error / no-coverage / zoom-gated states (honest empty, not fixtures)', () => {
     expect(toLiveOverlays({ status: 'error', message: 'x' }, { status: 'no-coverage' })).toEqual([])
     expect(toLiveOverlays({ status: 'zoom-gated' }, { status: 'idle' })).toEqual([])
