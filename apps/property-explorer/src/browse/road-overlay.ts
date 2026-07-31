@@ -27,9 +27,9 @@ export const ROAD_BAND_GREY = "#9ca3af";
  * Pedestrian hue — MUST match CONTEXT_PEDESTRIAN.line in layer-role-taxonomy.
  * Literal (not a runtime import) so PE vitest does not require renderer dist.
  */
-export const ROAD_PEDESTRIAN_COLOR = "#9a8b6e";
-const PEDESTRIAN_LINE_OPACITY_MAX = 0.18;
-const PEDESTRIAN_LINE_WIDTH_MAX = 2.2;
+export const ROAD_PEDESTRIAN_COLOR = "#c9b88a";
+const PEDESTRIAN_LINE_OPACITY_MAX = 0.48;
+const PEDESTRIAN_LINE_WIDTH_MAX = 3.6;
 /** @deprecated Edges/centerline are not painted; alias kept for imports. */
 export const ROAD_EDGE_GREY = "#4b5563";
 /** @deprecated Prefer ROAD_BAND_GREY. */
@@ -167,7 +167,7 @@ const ROW_BAND_PAINT = {
   ],
 } as const;
 
-/** Pedestrian — distinct hue, thinner, lighter, static dash (delicate texture). */
+/** Pedestrian — distinct hue, still finer than street band, readable on dark basemap. */
 const PEDESTRIAN_PAINT = {
   "line-color": ROAD_PEDESTRIAN_COLOR,
   "line-width": [
@@ -175,11 +175,11 @@ const PEDESTRIAN_PAINT = {
     ["linear"],
     ["zoom"],
     12,
-    0.55,
+    1.2,
     14,
-    0.8,
+    1.8,
     16,
-    1.4,
+    2.6,
     18,
     PEDESTRIAN_LINE_WIDTH_MAX,
   ],
@@ -188,15 +188,15 @@ const PEDESTRIAN_PAINT = {
     ["linear"],
     ["zoom"],
     12,
-    0.08,
+    0.28,
     14,
-    0.11,
+    0.36,
     16,
-    0.15,
+    0.42,
     18,
     PEDESTRIAN_LINE_OPACITY_MAX,
   ],
-  "line-dasharray": [1.5, 2.5],
+  "line-dasharray": [2, 2],
   "line-blur": 0,
 } as const;
 
