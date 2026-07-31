@@ -565,14 +565,14 @@ describe("direction arrows — small, sparse, parcel-anchored, capped", () => {
 
 describe("icons — pure rasterization (arrows keep the halo, exits are diamonds)", () => {
   it("the flow arrow emits an RGBA buffer with fill AND halo pixels", () => {
-    const icon = buildArrowIconData(48, [168, 95, 34, 255], [255, 255, 255, 225]);
+    const icon = buildArrowIconData(48, [42, 95, 109, 255], [255, 255, 255, 225]);
     expect(icon.width).toBe(48);
     expect(icon.height).toBe(48);
     expect(icon.data.length).toBe(48 * 48 * 4);
     let fillPx = 0;
     let haloPx = 0;
     for (let i = 0; i < icon.data.length; i += 4) {
-      if (icon.data[i] === 168 && icon.data[i + 1] === 95 && icon.data[i + 3] > 0) fillPx++;
+      if (icon.data[i] === 42 && icon.data[i + 1] === 95 && icon.data[i + 3] > 0) fillPx++;
       if (icon.data[i] === 255 && icon.data[i + 3] === 225) haloPx++;
     }
     expect(fillPx).toBeGreaterThan(100);
@@ -581,8 +581,8 @@ describe("icons — pure rasterization (arrows keep the halo, exits are diamonds
     expect(icon.data[3]).toBe(0);
   });
 
-  it("the EXIT DIAMOND rasterizes a #7a3f12 core inside a white stroke, corners clear", () => {
-    const icon = buildDiamondIconData(48, [122, 63, 18, 255], [255, 255, 255, 255]);
+  it("the EXIT DIAMOND rasterizes a #0d2a33 core inside a white stroke, corners clear", () => {
+    const icon = buildDiamondIconData(48, [13, 42, 51, 255], [255, 255, 255, 255]);
     expect(icon.width).toBe(48);
     expect(icon.height).toBe(48);
     expect(icon.data.length).toBe(48 * 48 * 4);
@@ -590,12 +590,9 @@ describe("icons — pure rasterization (arrows keep the halo, exits are diamonds
       const i = (y * 48 + x) * 4;
       return [icon.data[i], icon.data[i + 1], icon.data[i + 2], icon.data[i + 3]];
     };
-    // Center is the dark fill; the mid-edge along the diagonal is white stroke.
-    expect(at(24, 24).slice(0, 3)).toEqual([122, 63, 18]);
+    expect(at(24, 24).slice(0, 3)).toEqual([13, 42, 51]);
     expect(at(24, 24)[3]).toBe(255);
-    // A point beyond the fill radius but inside the diamond → white stroke.
     expect(at(24, 10).slice(0, 3)).toEqual([255, 255, 255]);
-    // The square CORNERS are outside the rotated square → fully transparent.
     for (const [x, y] of [
       [0, 0],
       [47, 0],
@@ -607,7 +604,7 @@ describe("icons — pure rasterization (arrows keep the halo, exits are diamonds
     let fillPx = 0;
     let strokePx = 0;
     for (let i = 0; i < icon.data.length; i += 4) {
-      if (icon.data[i] === 122 && icon.data[i + 3] > 0) fillPx++;
+      if (icon.data[i] === 13 && icon.data[i + 3] > 0) fillPx++;
       if (icon.data[i] === 255 && icon.data[i + 1] === 255 && icon.data[i + 3] > 0) strokePx++;
     }
     expect(fillPx).toBeGreaterThan(100);
@@ -674,9 +671,9 @@ describe("zone concentration bands — three dissolved tones from ONE fill layer
       FLOOD_ZONE_HIGH_COLOR,
       FLOOD_ZONE_LOW_COLOR, // the missing-`concentration` fallback tone
     ]);
-    expect(FLOOD_ZONE_LOW_COLOR).toBe("#e8b579");
-    expect(FLOOD_ZONE_MED_COLOR).toBe("#d98a3d");
-    expect(FLOOD_ZONE_HIGH_COLOR).toBe("#a85f22");
+    expect(FLOOD_ZONE_LOW_COLOR).toBe("#8ebfc9");
+    expect(FLOOD_ZONE_MED_COLOR).toBe("#4f8f9e");
+    expect(FLOOD_ZONE_HIGH_COLOR).toBe("#2a5f6d");
 
     const opacity = map._layers.get(FLOOD_ZONE_FILL_ID)!.def.paint!["fill-opacity"];
     expect(opacity).toEqual([
@@ -694,7 +691,7 @@ describe("zone concentration bands — three dissolved tones from ONE fill layer
     // every step inside the FEMA envelope (the spec's 0.6 medium was above
     // it and broke both the envelope and the monotonic read).
     const ramp = [FLOOD_ZONE_LOW_OPACITY, FLOOD_ZONE_MED_OPACITY, FLOOD_ZONE_HIGH_OPACITY];
-    expect(ramp).toEqual([0.45, 0.5, 0.55]);
+    expect(ramp).toEqual([0.1, 0.125, 0.15]);
     for (const o of ramp) {
       expect(o).toBeGreaterThanOrEqual(FEMA_FILL_OPACITY_MIN);
       expect(o).toBeLessThanOrEqual(FEMA_FILL_OPACITY_MAX);
@@ -702,11 +699,10 @@ describe("zone concentration bands — three dissolved tones from ONE fill layer
     expect(ramp).toEqual([...ramp].sort((a, b) => a - b));
   });
 
-  it("FD6: the three bands + ponding are ONE warm hue family, not unrelated hues", () => {
+  it("Phase 0A: the three bands + ponding are ONE slate-teal family (NOT SUBJECT amber)", () => {
     // Every fill tone the overlay paints, parsed to HSL. A single graded
-    // family means every hue sits in the same narrow warm arc (orange/amber,
-    // ~20-45°) and lightness DESCENDS across the ramp. Any green/blue/violet
-    // member would fall outside the arc and fail here.
+    // CONTEXT family means every hue sits in the teal arc (~170-200°) and
+    // lightness DESCENDS across the ramp. Amber (SUBJECT, ~20-45°) fails.
     const ramp = [
       FLOOD_ZONE_LOW_COLOR,
       FLOOD_ZONE_MED_COLOR,
@@ -715,18 +711,23 @@ describe("zone concentration bands — three dissolved tones from ONE fill layer
     ];
     const hsl = ramp.map(hexToHsl);
     for (const { h, s } of hsl) {
-      expect(h).toBeGreaterThanOrEqual(15);
-      expect(h).toBeLessThanOrEqual(50); // warm amber arc — no green (>=75°).
-      expect(s).toBeGreaterThan(0.2); // actually chromatic, not a grey.
+      expect(h).toBeGreaterThanOrEqual(170);
+      expect(h).toBeLessThanOrEqual(205);
+      expect(s).toBeGreaterThan(0.15);
     }
-    // The whole family spans a tight hue arc: it is one hue, walked in
-    // lightness, not four separate colors.
     const hues = hsl.map((c) => c.h);
-    expect(Math.max(...hues) - Math.min(...hues)).toBeLessThanOrEqual(20);
-    // Light → medium → deep across the three zone bands.
+    expect(Math.max(...hues) - Math.min(...hues)).toBeLessThanOrEqual(25);
     const zoneL = hsl.slice(0, 3).map((c) => c.l);
     expect(zoneL[0]).toBeGreaterThan(zoneL[1]);
     expect(zoneL[1]).toBeGreaterThan(zoneL[2]);
+    // Hard ban on SUBJECT amber literals.
+    for (const c of ramp) {
+      expect(c.toLowerCase()).not.toBe("#f2a23c");
+      expect(c.toLowerCase()).not.toBe("#e8b579");
+      expect(c.toLowerCase()).not.toBe("#d98a3d");
+      expect(c.toLowerCase()).not.toBe("#a85f22");
+      expect(c.toLowerCase()).not.toBe("#c46a2b");
+    }
   });
 
   it("the band expressions are property READS only — never feature-state", () => {
@@ -753,29 +754,24 @@ describe("apply/clear — FEMA-style layer stack, below-parcels anchoring, no si
     { id: "some-label", type: "symbol" },
   ];
 
-  it("zone + ponding fills and outlines insert BELOW the parcel tiles with the AMBER paint constants", () => {
+  it("zone + ponding fills and outlines insert BELOW the parcel tiles with CONTEXT teal paint", () => {
     const map = fakeMap(styleLayers);
     applyFloodMapOverlay(map, buildFloodMapOverlayModel(v3Study()));
-    // Ponding: the pooled deep treatment — #c46a2b core + a heavier #7a3f12
-    // rim standing in for the spec's radial gradient (MapLibre has none).
     const pondFill = map._layers.get(FLOOD_PONDING_FILL_ID)!;
     expect(pondFill.def.type).toBe("fill");
     expect(pondFill.beforeId).toBe("hauska-parcel-tiles-fill");
     expect(pondFill.def.paint!["fill-color"]).toBe(FLOOD_PONDING_FILL_COLOR);
-    expect(FLOOD_PONDING_FILL_COLOR).toBe("#c46a2b");
+    expect(FLOOD_PONDING_FILL_COLOR).toBe("#1a4552");
     expect(pondFill.def.paint!["fill-opacity"]).toBe(FLOOD_PONDING_FILL_OPACITY);
     const pondLine = map._layers.get(FLOOD_PONDING_LINE_ID)!;
     expect(pondLine.def.paint!["line-color"]).toBe(FLOOD_PONDING_LINE_COLOR);
-    expect(FLOOD_PONDING_LINE_COLOR).toBe("#7a3f12"); // the gradient's outer stop
+    expect(FLOOD_PONDING_LINE_COLOR).toBe("#0d2a33");
     expect(pondLine.def.paint!["line-width"]).toBe(FLOOD_PONDING_LINE_WIDTH);
-    expect(FLOOD_PONDING_LINE_WIDTH).toBeGreaterThan(1); // heavier than a hairline
-    // Zones: fill only, anchored below the parcel tiles. No stroke — see the
-    // seam pins below.
+    expect(FLOOD_PONDING_LINE_WIDTH).toBeGreaterThan(1);
     const zoneFill = map._layers.get(FLOOD_ZONE_FILL_ID)!;
     expect(zoneFill.beforeId).toBe("hauska-parcel-tiles-fill");
-    // Catchment + flow are the spec's amber, not the retired blue.
-    expect(FLOOD_CATCHMENT_LINE_COLOR).toBe("#a85f22");
-    expect(FLOOD_FLOW_LINE_COLOR).toBe("#a85f22");
+    expect(FLOOD_CATCHMENT_LINE_COLOR).toBe("#2a5f6d");
+    expect(FLOOD_FLOW_LINE_COLOR).toBe("#2a5f6d");
     expect(FLOOD_CATCHMENT_DASH).toEqual([5, 4]);
   });
 
@@ -980,7 +976,7 @@ describe("FD6 seam removal — smooth fill, NO internal grid/seam mesh", () => {
     expect([...FLOOD_TEARDOWN_LAYER_IDS]).toContain(RETIRED_FLOOD_ZONE_LINE_ID);
   });
 
-  it("EVERY fill this overlay paints sits inside the FEMA 0.4-0.55 envelope", () => {
+  it("EVERY fill this overlay paints sits inside the CONTEXT fill budget (≤0.15)", () => {
     const map = fakeMap(styleLayers);
     applyFloodMapOverlay(map, buildFloodMapOverlayModel(v3Study()));
     const opacities: number[] = [];
@@ -1004,14 +1000,12 @@ describe("FD6 seam removal — smooth fill, NO internal grid/seam mesh", () => {
     }
   });
 
-  it("PONDING is in range (was 0.8) and stays distinct via its RIM, not raw alpha", () => {
-    expect(FLOOD_PONDING_FILL_OPACITY).toBe(0.55);
+  it("PONDING is in Context budget and stays distinct via its RIM, not raw alpha", () => {
+    expect(FLOOD_PONDING_FILL_OPACITY).toBe(0.15);
     expect(FLOOD_PONDING_FILL_OPACITY).toBeLessThanOrEqual(FEMA_FILL_OPACITY_MAX);
     expect(FLOOD_PONDING_FILL_OPACITY).toBeGreaterThanOrEqual(FEMA_FILL_OPACITY_MIN);
-    // The distinguishing treatment: a rim heavier than any other line in the
-    // hydro stack, in the deepest tone of the ramp.
     expect(FLOOD_PONDING_LINE_WIDTH).toBeGreaterThanOrEqual(2);
-    expect(FLOOD_PONDING_LINE_COLOR).toBe("#7a3f12");
+    expect(FLOOD_PONDING_LINE_COLOR).toBe("#0d2a33");
     const map = fakeMap(styleLayers);
     applyFloodMapOverlay(map, buildFloodMapOverlayModel(v3Study()));
     const pondWidth = map._layers.get(FLOOD_PONDING_LINE_ID)!.def.paint!["line-width"] as number;

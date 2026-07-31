@@ -8,6 +8,10 @@ import maplibregl from "maplibre-gl";
 import { Protocol as PMTilesProtocol } from "pmtiles";
 import { HAUSKA_MAP_STYLE } from "./map/hauska-map-style.js";
 import {
+  INTERACTION_CYAN,
+  ROLE_BUDGET,
+} from "./map/layer-role-taxonomy.js";
+import {
   addParcelTiles,
   removeParcelTiles,
   setParcelFeatureState,
@@ -338,7 +342,10 @@ export function createMapRenderer() {
         id: `${HOVER_SOURCE_ID}-fill`,
         type: "fill",
         source: HOVER_SOURCE_ID,
-        paint: { "fill-color": "#7dd3fc", "fill-opacity": 0.18 },
+        paint: {
+          "fill-color": INTERACTION_CYAN,
+          "fill-opacity": ROLE_BUDGET.INTERACTION.fillOpacity,
+        },
       });
     }
     if (!map.getLayer(`${HOVER_SOURCE_ID}-line`)) {
@@ -346,7 +353,10 @@ export function createMapRenderer() {
         id: `${HOVER_SOURCE_ID}-line`,
         type: "line",
         source: HOVER_SOURCE_ID,
-        paint: { "line-color": "#7dd3fc", "line-width": 2 },
+        paint: {
+          "line-color": INTERACTION_CYAN,
+          "line-width": ROLE_BUDGET.INTERACTION.lineWidth,
+        },
       });
     }
   }

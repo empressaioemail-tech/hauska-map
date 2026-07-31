@@ -102,6 +102,28 @@ export {
   FIXTURE_CENTER,
 } from "./map/gis-fixture-data.js";
 
+// Phase 0A layer-role taxonomy — canonical paint authority.
+export {
+  LAYER_ROLE_TAXONOMY,
+  LAYER_ROLE_BY_KEY,
+  ROLE_BUDGET,
+  DATA_LAYER_KEYS,
+  DATA_LAND_USE_COLORS,
+  CONTEXT_FEMA,
+  CONTEXT_FLOOD_TEAL,
+  CONTEXT_PARCEL_LINE,
+  SUBJECT_AMBER,
+  SUBJECT_AMBER_LINE,
+  SUBJECT_AMBER_BRIGHT,
+  SUBJECT_AMBER_SOFT,
+  INTERACTION_CYAN,
+  roleForLayer,
+  enforceDataLayerMutex,
+  hasDataLayerMutexViolation,
+  isDataLayerVisible,
+  contextFillOpacity,
+} from "./map/layer-role-taxonomy.js";
+
 // postMessage / overlay contract types.
 export type {
   LayerKey,
@@ -169,6 +191,10 @@ export {
   installMapTools,
   SHARED_DEFAULT_CENTER,
   SHARED_PARCEL_TILES,
+  COLD_OPEN_VISIBLE_LAYERS,
+  MAP_LAYER_PRESETS,
+  coldOpenVisibleLayers,
+  visibleLayersForPreset,
 } from "./chrome/index";
 export type {
   LayerStateBadge,

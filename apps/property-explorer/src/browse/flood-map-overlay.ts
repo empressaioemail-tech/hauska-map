@@ -1,97 +1,30 @@
 // apps/property-explorer/src/browse/flood-map-overlay.ts
 //
-// FLOOD & DRAINAGE — the MAIN-MAP overlay, WARM AMBER HYDRO FAMILY (FD5
-// restyle, 2026-07-30 operator direction: the blue hydro layer competed with
-// the actual FEMA flood-zone layer on the same map, so hydro moves to a
-// distinct warm amber family and both layers stay legible together). FEMA
-// stays untouched in its blue (#3b82f6 family) — it is the REFERENCE layer;
-// the whole point is that hydro no longer competes with it.
+// FLOOD & DRAINAGE — the MAIN-MAP overlay, CONTEXT SLATE-TEAL family (Phase 0A
+// T-H02: amber is RESERVED for SUBJECT / buildable envelope; hydro moves OFF
+// amber entirely. FEMA keeps its muted blue; hydro uses slate-teal so both
+// Context layers stay legible without colliding with the envelope).
 //
-// The paint QUALITY is unchanged from the FD4 FEMA-zone restyle (solid
+// The paint QUALITY is unchanged from the FD4/FD6 restyle (solid
 // semi-transparent categorical fills, crisp thin outlines — no glow, no
-// gradient, no animation); only the hue family and the zone banding change:
+// gradient, no animation); only the hue family changes:
 //
-//   - DRAINAGE ZONES (drainageZonesGeoJson) — THREE dissolved concentration
-//     bands painted from the feature's own `concentration: 0|1|2` property:
-//     low #e8b579 @0.45, medium #d98a3d @0.5, high #a85f22 @0.55. Painted
-//     through ONE fill layer with a `["match", ["get","concentration"], ...]`
-//     expression (fewer layers than three filtered ones), and NO stroke of
-//     any kind (see FD6 SEAM REMOVAL below). FEATURE-DETECT: features with
-//     no `concentration` (older cached studies) fall back to the low tone —
-//     the client never breaks on a legacy payload;
-//   - PONDING (rainfallResultGeoJson) — standing water, the deepest tone:
-//     the spec draws a radial gradient #c46a2b → #7a3f12, which MapLibre
-//     fills cannot express. Implemented as the closest legible equivalent:
-//     a #c46a2b fill at the FEMA envelope TOP (0.55) with a heavy 2px
-//     #7a3f12 rim, so the pool reads as pooled water with a dark rim rather
-//     than a flat chip — the RIM is what separates ponding from the zone
-//     bands, never raw opacity (FD6: the fill was 0.8, outside the envelope);
-//   - CATCHMENT (catchmentGeoJson) — no fill; a single dashed #a85f22
-//     boundary line at 1.6px, dash [5,4];
-//   - PARCEL-RELEVANT FLOW ONLY: flow paths are filtered to those that
-//     matter to the subject parcel — kind "exit" paths, plus any path whose
-//     geometry intersects the parcel ring or comes within ~15 m of it.
-//     Everything else is DROPPED. Survivors draw as thin clean #a85f22 lines
-//     with SMALL static direction ARROWS (map-annotation style, sparse), plus
-//     one clear marker at each point where flow crosses the parcel boundary.
-//     Total markers are capped at 6, boundary-crossing markers first. The
-//     relevance rule, the 15 m buffer, and the cap are UNCHANGED by FD5 —
-//     the operator explicitly approved that behavior;
-//   - EXIT POINTS — per the FD5 spec these are DIAMOND markers (a square
-//     rotated 45°): #7a3f12 fill, white stroke, no rotation. Flow-path
-//     arrows stay arrows and keep their `icon-rotate` bearing behavior.
+//   - DRAINAGE ZONES — THREE dissolved concentration bands from
+//     `concentration: 0|1|2`: low/med/high slate-teal @ Context fill budget
+//     (≤0.15). Painted through ONE fill layer with a match expression.
+//     NO zone stroke (FD6 seam removal). Missing `concentration` falls back
+//     to the low tone.
+//   - PONDING — deepest teal fill at Context budget TOP + heavy dark rim.
+//   - CATCHMENT — no fill; dashed teal boundary.
+//   - FLOW / EXITS — teal lines + diamond exits.
 //
-// FD6 SEAM REMOVAL (2026-07-30 operator paint review). The zone stroke layer
-// `pe-flood-zone-line` filtered on kind=="zone" and therefore stroked EVERY
-// zone polygon's ENTIRE boundary. Adjacent same-band regions share an edge,
-// so that stroke drew a visible internal grid/seam mesh across the study —
-// the "visible internal grid lines" the operator rejected. MapLibre `line`
-// layers have no "outer edge of the union" primitive: any filter that keeps
-// a stroke keeps it on shared edges too (a lowest-band-only outline still
-// meshes wherever two low-band regions abut). The stroke is therefore
-// REMOVED outright, leaving the FEMA read the spec actually asks for —
-// smooth graded fill, no mesh. The dissolved geometry already merged on the
-// engine side means each band is one region whose own silhouette carries the
-// edge; the fill's opacity step between bands is what shows the boundary.
-// `RETIRED_FLOOD_ZONE_LINE_ID` stays only so teardown reclaims the layer if
-// a live map still carries one from a pre-FD6 apply.
-//
-// REMOVED in the FD4 restyle (operator rejection of PR #114/#116): the scrim
-// + layer-dimming dominance mechanism, the water-gradient raster image, the
-// catchment swath corridors, the strength-scaled animated ribbons, and all
-// far-field arrows. The dock mini-grid in FloodTool is untouched.
-//
-// FD6 RELIABILITY: the study payload is UNTRUSTED. Every GeoJSON field is
-// feature-detected for a real feature array, every feature must carry usable
-// geometry (`validFeatureGeometry`: known type, array coordinates, finite
-// numbers throughout) or it is DROPPED — a malformed study degrades to a
-// PARTIAL render, never a throw that blanks the map. apply() is wrapped so a
-// failure mid-stack leaves the map usable, and clear() sweeps a SUPERSET of
-// what apply adds, removing each layer independently so one bad removal
-// cannot orphan the rest.
-//
-// LAYER ORDER: zone/ponding fills + outlines insert at the same below-parcels
-// anchor the overlay always used (below parcel ring/tiles, above basemap);
-// the catchment dash, flow lines, and arrows draw on top of the stack.
-//
-// PAINT DISCIPLINE: no feature-state anywhere. The only data-driven inputs
-// are `["get","bearing"]` (arrow icon-rotate), `["get","concentration"]`
-// (the zone band match) and layer filters on `["get","kind"]` — plain
-// property reads, never feature-state. No animated dash: every dasharray is
-// a static literal (the crash-guard safe channel).
-//
-// FEATURE-DETECT: studies without the v3 `flowPaths` payload filter their
-// legacy `flowLinesGeoJson` traces through the same parcel-relevance rule;
-// the zone/catchment/ponding GeoJSON fields always render. honestEmpty
-// studies produce an empty model — the map stays untouched.
-//
-// LIFECYCLE (the WB6 setDossierOverlay precedent): the dock tool applies the
-// overlay through the host seam when a study loads, clears it on tool
-// close / study replacement via its effect cleanup, and the controller ALSO
-// auto-clears when the ACTIVE property switches away from the property the
-// overlay was drawn for — the overlay never leaks across properties.
+// FD6 SEAM REMOVAL, reliability, and lifecycle notes below are unchanged.
 
 import type { FloodDrainageStudyView } from "../lib/floodDrainageClient";
+import {
+  CONTEXT_FLOOD_TEAL,
+  ROLE_BUDGET,
+} from "../../../../packages/map-renderer/src/map/layer-role-taxonomy.js";
 
 /* ------------------------------- ids ---------------------------------- */
 
@@ -132,71 +65,51 @@ export const FLOOD_TEARDOWN_LAYER_IDS = [
 ] as const;
 
 /* --------------------------- style constants ---------------------------- */
-// The FD5 WARM AMBER hydro family, taken literally from the approved spec
-// (Hydro Overlay Redesign / FloodMap SVG). FEMA keeps the blue (#3b82f6
-// family) as the reference layer; nothing here may reach into that hue.
+// Phase 0A CONTEXT slate-teal (taxonomy). Amber is SUBJECT-only; FEMA blue
+// stays on the FEMA layer. Nothing here may use SUBJECT amber or INTERACTION cyan.
 
 /**
- * Zone concentration bands — ONE graded warm family, light → medium → deep.
- * All three are the same amber hue walked down in lightness (hue ~28-32°),
- * ending at the ponding tones; nothing here is a second, unrelated hue.
+ * Zone concentration bands — ONE graded teal family, light → medium → deep.
+ * Opacities stay inside the CONTEXT fillOpacityMax budget (≤0.15).
  */
-export const FLOOD_ZONE_LOW_COLOR = "#e8b579";
-export const FLOOD_ZONE_MED_COLOR = "#d98a3d";
-export const FLOOD_ZONE_HIGH_COLOR = "#a85f22";
-/**
- * Per-band opacity, all inside the FEMA 0.4-0.55 envelope. The spec's 0.6
- * medium was above it (FD6 fix) — the ramp is now monotonic in weight, which
- * is what makes the three bands read as one graded family rather than three
- * chips: lightness carries the concentration, alpha only reinforces it.
- */
-export const FLOOD_ZONE_LOW_OPACITY = 0.45;
-export const FLOOD_ZONE_MED_OPACITY = 0.5;
-export const FLOOD_ZONE_HIGH_OPACITY = 0.55;
+export const FLOOD_ZONE_LOW_COLOR = CONTEXT_FLOOD_TEAL.low;
+export const FLOOD_ZONE_MED_COLOR = CONTEXT_FLOOD_TEAL.med;
+export const FLOOD_ZONE_HIGH_COLOR = CONTEXT_FLOOD_TEAL.high;
+export const FLOOD_ZONE_LOW_OPACITY = 0.1;
+export const FLOOD_ZONE_MED_OPACITY = 0.125;
+export const FLOOD_ZONE_HIGH_OPACITY = ROLE_BUDGET.CONTEXT.fillOpacityMax;
 /** The band a feature with NO `concentration` prop falls back to (older
  *  cached studies predate the engine's banding — they must still render). */
 export const FLOOD_ZONE_FALLBACK_COLOR = FLOOD_ZONE_LOW_COLOR;
 export const FLOOD_ZONE_FALLBACK_OPACITY = FLOOD_ZONE_LOW_OPACITY;
 /**
- * The FEMA fill-opacity envelope. Every FILL this overlay paints must land
- * inside it, so the basemap keeps reading through the study rather than the
- * study becoming an opaque chip on top of the map.
+ * CONTEXT fill-opacity envelope (taxonomy budget). Every FILL this overlay
+ * paints must land inside it.
  */
-export const FEMA_FILL_OPACITY_MIN = 0.4;
-export const FEMA_FILL_OPACITY_MAX = 0.55;
+export const FEMA_FILL_OPACITY_MIN = 0.1;
+export const FEMA_FILL_OPACITY_MAX = ROLE_BUDGET.CONTEXT.fillOpacityMax;
 
 /**
- * Ponding — standing water, the deepest treatment. The spec paints a RADIAL
- * gradient (#c46a2b core → #7a3f12 rim); MapLibre `fill` layers have no
- * radial-gradient channel, so the pooled read is built from a solid core
- * fill plus a heavier dark rim outline. Documented deviation.
- *
- * FD6: the fill opacity was 0.8 — outside the FEMA envelope, and the reason
- * ponding read as an opaque blot instead of water over ground. It comes down
- * to the envelope TOP (0.55). Ponding still reads as the deepest, most
- * separate class because (a) #c46a2b is the deepest tone in the ramp and
- * (b) the dark #7a3f12 rim is thickened to 2px — the RIM, not raw alpha, is
- * what distinguishes standing water from zone concentration.
+ * Ponding — standing water, deepest teal + heavy dark rim (rim distinguishes
+ * the class; alpha stays inside the Context budget).
  */
-export const FLOOD_PONDING_FILL_COLOR = "#c46a2b";
+export const FLOOD_PONDING_FILL_COLOR = CONTEXT_FLOOD_TEAL.pondingFill;
 export const FLOOD_PONDING_FILL_OPACITY = FEMA_FILL_OPACITY_MAX;
-/** The dark pooled rim (the gradient's outer stop) — the distinguishing
- *  treatment now that the fill sits inside the FEMA envelope. */
-export const FLOOD_PONDING_LINE_COLOR = "#7a3f12";
+export const FLOOD_PONDING_LINE_COLOR = CONTEXT_FLOOD_TEAL.pondingRim;
 export const FLOOD_PONDING_LINE_WIDTH = 2;
 
 /** Catchment — a single dashed boundary line, no fill (STATIC literal dash). */
-export const FLOOD_CATCHMENT_LINE_COLOR = "#a85f22";
+export const FLOOD_CATCHMENT_LINE_COLOR = CONTEXT_FLOOD_TEAL.line;
 export const FLOOD_CATCHMENT_LINE_WIDTH = 1.6;
 export const FLOOD_CATCHMENT_DASH = [5, 4];
 
-/** Parcel-relevant flow — thin clean amber lines, no casing, no animation. */
-export const FLOOD_FLOW_LINE_COLOR = "#a85f22";
+/** Parcel-relevant flow — thin clean teal lines, no casing, no animation. */
+export const FLOOD_FLOW_LINE_COLOR = CONTEXT_FLOOD_TEAL.line;
 export const FLOOD_FLOW_LINE_WIDTH = 2;
 export const FLOOD_FLOW_LINE_OPACITY = 0.85;
 
-/** Exit-point diamond — the spec's 45°-rotated square. */
-export const FLOOD_EXIT_MARKER_COLOR = "#7a3f12";
+/** Exit-point diamond — 45°-rotated square in the deepest teal. */
+export const FLOOD_EXIT_MARKER_COLOR = CONTEXT_FLOOD_TEAL.pondingRim;
 export const FLOOD_EXIT_MARKER_STROKE = "#ffffff";
 
 /** Small map-annotation markers (icons are drawn at 48px / pixelRatio 2). */
@@ -887,22 +800,21 @@ export function pickBelowParcelsBeforeId(
 
 function ensureArrowIcons(map: FloodOverlayMapLike): void {
   if (typeof map.addImage !== "function") return;
+  // CONTEXT teal icon RGB (taxonomy) — never SUBJECT amber.
+  const flowRgb: [number, number, number, number] = [42, 95, 109, 255]; // #2a5f6d
+  const exitRgb: [number, number, number, number] = [13, 42, 51, 255]; // #0d2a33
   try {
-    // Flow arrows: the amber flow tone (#a85f22) on a white paper-halo, so a
-    // small arrow stays readable over both the dark bands and the basemap.
     if (!map.hasImage?.(FLOOD_ARROW_ICON_ID)) {
       map.addImage(
         FLOOD_ARROW_ICON_ID,
-        buildArrowIconData(48, [168, 95, 34, 255], [255, 255, 255, 225]),
+        buildArrowIconData(48, flowRgb, [255, 255, 255, 225]),
         { pixelRatio: 2 },
       );
     }
-    // Exit points: the spec's DIAMOND — #7a3f12 fill, white stroke, no halo
-    // (the white stroke IS the separation) and no rotation.
     if (!map.hasImage?.(FLOOD_EXIT_ICON_ID)) {
       map.addImage(
         FLOOD_EXIT_ICON_ID,
-        buildDiamondIconData(48, [122, 63, 18, 255], [255, 255, 255, 255]),
+        buildDiamondIconData(48, exitRgb, [255, 255, 255, 255]),
         { pixelRatio: 2 },
       );
     }

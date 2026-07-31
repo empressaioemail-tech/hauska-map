@@ -1,9 +1,17 @@
 /**
  * Hauska dataviz paints — dark editorial canvas, luminous land-use choropleth,
  * cool FEMA water overlay, and the fire-palette rent-heat surface.
+ *
+ * Paint values read from `layer-role-taxonomy.js` (Phase 0A) — do not inline
+ * role hues here; that is how pre-0A wash-out collisions happened.
  */
 
 import { consequenceFillColorExpr, triageFillColorExpr } from "./reasoning-layers.js";
+import {
+  CONTEXT_FEMA,
+  DATA_LAND_USE_COLORS,
+  ROLE_BUDGET,
+} from "./layer-role-taxonomy.js";
 
 /** Deep warm-dark canvas — data glows on top, brown signature retained. */
 export const MAP_CANVAS_BROWN = "#16110c";
@@ -41,11 +49,11 @@ export const HAUSKA_GIS_BASE_STYLE = {
       type: "raster",
       source: "hauska-carto-light",
       paint: {
-        "raster-opacity": 0.92,
-        "raster-saturation": -0.08,
+        "raster-opacity": ROLE_BUDGET.GROUND.basemapOpacity,
+        "raster-saturation": ROLE_BUDGET.GROUND.basemapSaturation,
         "raster-brightness-min": 0.0,
-        "raster-brightness-max": 0.48,
-        "raster-contrast": 0.16,
+        "raster-brightness-max": 0.42,
+        "raster-contrast": 0.06,
         // warm the cool Carto dark toward the brown signature
         "raster-hue-rotate": 18,
       },
@@ -78,18 +86,10 @@ const FLOOD_MATCH = [
 ];
 
 /**
- * Luminous land-use palette tuned for the dark canvas. Solid hex here; the
- * fill layer carries opacity separately so colors stay vivid and consistent.
+ * DATA-role land-use palette (taxonomy). Solid hex here; the fill layer
+ * carries opacity separately so colors stay vivid and consistent.
  */
-export const LAND_USE_COLORS = {
-  singleFamily: { fill: "#2fd07a", stroke: "#7df0b0" },
-  multiFamily: { fill: "#3f8efc", stroke: "#9cc4ff" },
-  commercial: { fill: "#ff8c1a", stroke: "#ffc987" },
-  industrial: { fill: "#f0562a", stroke: "#ff9d7a" },
-  mixedCore: { fill: "#b15cff", stroke: "#d9a9ff" },
-  agricultural: { fill: "#b6d24a", stroke: "#e1f08f" },
-  other: { fill: "#c98f5e", stroke: "#e8bf99" },
-};
+export const LAND_USE_COLORS = DATA_LAND_USE_COLORS;
 
 /** Static legend keys for land-use choropleth (matches fill expression). */
 export const LAND_USE_LEGEND = [
@@ -103,9 +103,9 @@ export const LAND_USE_LEGEND = [
 ];
 
 export const FEMA_LEGEND = [
-  { key: "FEMA AE / A (100-yr)", fill: "#2bb6d6", stroke: "#7fe0f2" },
-  { key: "500-yr (X shaded)", fill: "#3a7fd9", stroke: "#8fb8f5" },
-  { key: "Floodway", fill: "#1f5fa8", stroke: "#5fa0e0" },
+  { key: "FEMA AE / A (100-yr)", fill: CONTEXT_FEMA.legendAe, stroke: CONTEXT_FEMA.legendStrokeAe },
+  { key: "500-yr (X shaded)", fill: CONTEXT_FEMA.legendX, stroke: CONTEXT_FEMA.legendStrokeX },
+  { key: "Floodway", fill: CONTEXT_FEMA.legendFloodway, stroke: CONTEXT_FEMA.legendStrokeFloodway },
 ];
 
 /** Fire ramp for the rent-heat surface — indigo → magenta → orange → white. */
@@ -235,20 +235,20 @@ export function floodFillColorExpr() {
     "match",
     FLOOD_MATCH,
     "AE",
-    "#2bb6d6",
+    CONTEXT_FEMA.legendAe,
     "A",
-    "#2bb6d6",
+    CONTEXT_FEMA.legendAe,
     "AH",
-    "#2bb6d6",
+    CONTEXT_FEMA.legendAe,
     "AO",
-    "#33a8cc",
+    CONTEXT_FEMA.legendAe,
     "X",
-    "#3a7fd9",
+    CONTEXT_FEMA.legendX,
     "X500",
-    "#3a7fd9",
+    CONTEXT_FEMA.legendX,
     "FLOODWAY",
-    "#1f5fa8",
-    "#2bb6d6",
+    CONTEXT_FEMA.legendFloodway,
+    CONTEXT_FEMA.legendAe,
   ];
 }
 
@@ -257,10 +257,10 @@ export function floodLineColorExpr() {
     "match",
     FLOOD_MATCH,
     "FLOODWAY",
-    "#5fa0e0",
+    CONTEXT_FEMA.legendStrokeFloodway,
     "AE",
-    "#7fe0f2",
-    "#7fe0f2",
+    CONTEXT_FEMA.legendStrokeAe,
+    CONTEXT_FEMA.legendStrokeAe,
   ];
 }
 
@@ -564,12 +564,12 @@ export function fillOpacityExpr(layerKey, meshMode = false) {
     return [
       "case",
       ["boolean", ["feature-state", "dim"], false],
-      0.1,
-      0.42,
+      0.06,
+      ROLE_BUDGET.CONTEXT.fillOpacityMax,
     ];
   }
   if (layerKey === "buildable-envelope") {
-    return 0.38;
+    return ROLE_BUDGET.SUBJECT.fillOpacityStrong;
   }
   if (layerKey === "consequence-choropleth") return 0.72;
   if (layerKey === "contested-ground") return 0.45;

@@ -22,7 +22,7 @@ vi.mock('@hauska/map-renderer', () => ({
   FloatingMap: React.forwardRef((props: Record<string, any>, ref) => {
     floatingMapProps.push(props)
     React.useImperativeHandle(ref, () => ({
-      getVisibleLayers: () => new Set(['zoning', 'flood']),
+      getVisibleLayers: () => new Set(['parcel-polygon']),
       getMap: () => null,
     }))
     return <div data-testid="floating-map-stub" data-usefixture={String(props.useFixture)} />
@@ -37,6 +37,12 @@ vi.mock('@hauska/map-renderer', () => ({
     sourceLayer: 'parcels',
     promoteId: 'parcel_node_id',
   },
+  LAYER_REGISTRY: [
+    { key: 'parcel-polygon', label: 'GIS Parcel Boundary', live: true },
+    { key: 'zoning', label: 'Zoning / land use', live: true },
+    { key: 'flood-zone', label: 'FEMA flood zone', live: true },
+  ],
+  coldOpenVisibleLayers: () => new Set(['parcel-polygon']),
 }))
 vi.mock('@hauska/map-renderer/styles.css', () => ({}))
 vi.mock('maplibre-gl/dist/maplibre-gl.css', () => ({}))

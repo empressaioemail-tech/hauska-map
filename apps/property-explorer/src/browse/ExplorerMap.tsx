@@ -84,7 +84,11 @@ import {
   type AttachingRoadWire,
 } from "./road-overlay";
 import { countyFipsForViewportCenter } from "./county-fips-viewport";
-import { filterConsumerLayers } from "./consumer-layers";
+import {
+  consumerKnownLayers,
+  consumerColdOpenVisible,
+  HYDROGRAPHY_TOGGLE_KEY,
+} from "./consumer-layers";
 import {
   MIN_PARCEL_ZOOM,
   MIN_TOPO_ZOOM,
@@ -115,10 +119,6 @@ import {
 /** The registry key whose LAYERS-panel toggle now controls the LIVE contour
  *  overlay. Toggling this row shows/hides the real engine contours. */
 const TOPO_TOGGLE_KEY = "topography-contours" as LayerKey;
-/** The registry key whose LAYERS-panel toggle controls the LIVE hydrography
- *  overlay (REAL county-mapped streams — replaced the derived D8 flow layer,
- *  which is no longer a customer layer on this surface). */
-const HYDROGRAPHY_TOGGLE_KEY = "hydrography" as LayerKey;
 /** PE topography BFF — free browse contour layer (engine topography-1ft slot). */
 const PE_TOPOGRAPHY_URL = "/api/pe-topography";
 /** PE hydrography BFF — free browse county-mapped streams (engine hydrography
@@ -288,24 +288,20 @@ export function ExplorerMap({
   // R1: the unified unlock flow's Pro-only variant (terrain) — set per open.
   const [paywallProOnly, setPaywallProOnly] = useState(false);
 
-  // toggle set (a copy — mutating it does not leak into renderer state).
+  // Phase 0A cold-open: parcel line-only visible; full consumer catalog known
+  // so presets / checkboxes can disclose layers. Pins are chrome (not a map layer).
   useEffect(() => {
     if (visibleLayers) return;
     const h = mapRef.current;
     if (!h) return;
-    const seed = h.getVisibleLayers();
-    if (seed && seed.size) {
-      const filtered = filterConsumerLayers(new Set(seed));
-      // WB7c: the saved-property pin layer is a PE-side row (DOM markers, not
-      // a renderer layer) — default ON; signed-out simply renders zero pins.
-      filtered.add(SAVED_PINS_KEY);
-      // Hydrography (real county-mapped streams) — PE's customer water layer.
-      // Added here because the renderer's default seed still carries only the
-      // internal D8 key (excluded above); default ON like the other live rows.
-      filtered.add(HYDROGRAPHY_TOGGLE_KEY);
-      setVisibleLayers(new Set(filtered));
-      setKnownLayers(new Set(filtered));
-    }
+    // Wait until the renderer handle is live (getVisibleLayers exists).
+    if (typeof h.getVisibleLayers !== "function") return;
+    const visible = consumerColdOpenVisible();
+    visible.add(SAVED_PINS_KEY);
+    const known = consumerKnownLayers();
+    known.add(SAVED_PINS_KEY);
+    setVisibleLayers(new Set(visible));
+    setKnownLayers(new Set(known));
   });
 
   // The renderer's visible-layer set MUST NOT carry the PE-side pins key —
@@ -634,7 +630,7 @@ export function ExplorerMap({
         geometry: { type: "Polygon", coordinates: [ring] },
       },
       paint: {
-        "line-color": "#7dd3fc",
+        "line-color": "#7dd3fc", // INTERACTION cyan (taxonomy) — search highlight only
         "line-width": 2.5,
         "line-opacity": lineOpacity,
         "fill-color": "#7dd3fc",
