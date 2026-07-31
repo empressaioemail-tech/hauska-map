@@ -4,6 +4,10 @@
  */
 
 import { FIXTURE_CENTER, meshExtent } from "./gis-fixture-data.js";
+import {
+  PRODUCTION_TERRAIN_EXAGGERATION,
+  PRODUCTION_TERRAIN_RGB,
+} from "./map-production-terrain.js";
 
 const GRID_COLS = 48;
 const GRID_ROWS = 36;
@@ -258,4 +262,48 @@ export const CONTOUR_PAINT = {
 
 export function terrainExaggeration() {
   return 1.35;
+}
+
+// --- Production TxGIO terrain-RGB (T-010) — separate from fixture image hillshade ---
+
+export const PRODUCTION_TERRAIN_SOURCE_ID = "hauska-terrain-dem";
+export const PRODUCTION_SKY_LAYER_ID = "hauska-sky";
+
+/** Install raster-dem source + sky layer (idempotent). Does not enable setTerrain. */
+export function ensureProductionTerrainInfrastructure(map) {
+  if (!map?.isStyleLoaded()) return;
+  if (!map.getSource(PRODUCTION_TERRAIN_SOURCE_ID)) {
+    map.addSource(PRODUCTION_TERRAIN_SOURCE_ID, {
+      type: "raster-dem",
+      tiles: [PRODUCTION_TERRAIN_RGB.urlTemplate],
+      tileSize: PRODUCTION_TERRAIN_RGB.tileSize,
+      encoding: PRODUCTION_TERRAIN_RGB.encoding,
+      maxzoom: PRODUCTION_TERRAIN_RGB.maxZoom,
+    });
+  }
+  if (!map.getLayer(PRODUCTION_SKY_LAYER_ID)) {
+    map.addLayer({
+      id: PRODUCTION_SKY_LAYER_ID,
+      type: "sky",
+      paint: {
+        "sky-type": "atmosphere",
+        "sky-atmosphere-sun": [0.0, 90.0],
+        "sky-atmosphere-sun-intensity": 12,
+      },
+    });
+  }
+}
+
+/** Toggle MapLibre 3D terrain (production tiles only; fixture stack unchanged). */
+export function syncProductionTerrainVisibility(map, visible) {
+  if (!map?.isStyleLoaded()) return;
+  ensureProductionTerrainInfrastructure(map);
+  if (visible) {
+    map.setTerrain({
+      source: PRODUCTION_TERRAIN_SOURCE_ID,
+      exaggeration: PRODUCTION_TERRAIN_EXAGGERATION,
+    });
+  } else {
+    map.setTerrain(null);
+  }
 }

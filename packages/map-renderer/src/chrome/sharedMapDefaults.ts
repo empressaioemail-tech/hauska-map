@@ -27,6 +27,24 @@ export const SHARED_PARCEL_TILES: ParcelTilesConfig = {
   promoteId: "parcel_node_id",
 };
 
+/** TxGIO terrain-RGB (T-009/T-010) — additive 3D viz; lockstep with map-production-terrain.js */
+export type TerrainRgbConfig = {
+  urlTemplate: string;
+  encoding: "mapbox";
+  hash: string;
+  maxZoom: number;
+  tileSize: number;
+};
+
+export const SHARED_TERRAIN_RGB: TerrainRgbConfig = {
+  urlTemplate:
+    "https://storage.googleapis.com/hauska-map-tiles/terrain-rgb.09ee4eaa72ca/{z}/{x}/{y}.png",
+  encoding: "mapbox",
+  hash: "09ee4eaa72ca",
+  maxZoom: 16,
+  tileSize: 256,
+};
+
 /** Re-export taxonomy cold-open + presets for PE/CC chrome. */
 export { COLD_OPEN_VISIBLE_LAYERS, MAP_LAYER_PRESETS };
 

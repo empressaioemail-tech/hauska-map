@@ -47,3 +47,15 @@ export const PARCEL_TILES = {
   sourceLayer: "parcels",
   promoteId: "parcel_node_id",
 };
+
+/**
+ * TxGIO terrain-RGB — same values as SHARED_TERRAIN_RGB (T-010).
+ */
+export const TERRAIN_RGB = {
+  urlTemplate:
+    "https://storage.googleapis.com/hauska-map-tiles/terrain-rgb.09ee4eaa72ca/{z}/{x}/{y}.png",
+  encoding: "mapbox" as const,
+  hash: "09ee4eaa72ca",
+  maxZoom: 16,
+  tileSize: 256,
+};

@@ -4,12 +4,8 @@
 // ExplorerMap so the panel contract is unit-testable). Drops:
 //  - AVM/valuation layers (no `rent-heat` on browse — WDLL 27).
 //  - Fixture-only terrain layers that are NOT wired to live engine data on this
-//    surface. PE runs `useFixture={false}`, so the fixture stack never draws — a
-//    toggle for an unwired layer would do nothing (the "panel doesn't work"
-//    report). We surface ONLY toggles that control a REAL layer: live parcels,
-//    live FEMA, live contours (`topography-contours` -> engine topography-1ft),
-//    and live hydrography (`hydrography` -> engine hydrography slot).
-//    `dem-hillshade` stays excluded — no live hillshade endpoint yet (honest).
+//    surface. PE runs `useFixture={false}`, so the fixture stack never draws.
+//    `dem-hillshade` now controls production TxGIO terrain-RGB setTerrain (T-010).
 //  - The derived D8 flow layer (`hydrology-flow`): RETIRED as a customer layer.
 //    Real county-mapped streams ("Hydrography") replaced the D8 squiggle; the
 //    D8 engine slot remains a report input only (no browse-map consumer).
@@ -23,7 +19,6 @@ import { COLD_OPEN_VISIBLE_LAYERS } from "../../../../packages/map-renderer/src/
 
 export const CONSUMER_EXCLUDED_LAYERS = new Set<LayerKey>([
   "rent-heat",
-  "dem-hillshade",
   "hydrology-flow",
 ]);
 
@@ -54,6 +49,7 @@ export function consumerKnownLayers(): Set<LayerKey> {
       key === "zoning" ||
       key === "flood-zone" ||
       key === "topography-contours" ||
+      key === "dem-hillshade" ||
       key === "hydrography" ||
       key === "pedestrian-ways"
     ) {

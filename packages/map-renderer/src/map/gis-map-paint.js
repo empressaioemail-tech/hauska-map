@@ -7,6 +7,7 @@
  */
 
 import { consequenceFillColorExpr, triageFillColorExpr } from "./reasoning-layers.js";
+import { HAUSKA_MAP_GLYPHS_URL } from "./map-fonts.js";
 import {
   CONTEXT_FEMA,
   DATA_LAND_USE_COLORS,
@@ -60,7 +61,7 @@ export const HAUSKA_GIS_BASE_STYLE = {
       },
     },
   ],
-  glyphs: "https://demotiles.maplibre.org/font/{fontstack}/{range}.pbf",
+  glyphs: HAUSKA_MAP_GLYPHS_URL,
 };
 
 /** Cotality Property site-location + assessor fields (joined on parcel features). */
