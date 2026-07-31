@@ -765,9 +765,11 @@ export function toLiveOverlays(
       interactive: true,
       visible: visibility?.parcels !== false,
       paint: {
-        'fill-color': parcelFillColor(parcels.response.geojson),
-        'fill-opacity': 0.08,
-        // CONTEXT parcel line — never INTERACTION cyan (Phase 0A T-H02).
+        // CONTEXT role: line-only cold-open. Fill stays transparent so the
+        // live viewport mesh cannot wash the map with a land-use choropleth
+        // (DATA role owns that via the zoning / PMTiles toggle).
+        'fill-color': CONTEXT_PARCEL_LINE,
+        'fill-opacity': 0,
         'line-color': CONTEXT_PARCEL_LINE,
         'line-width': 1.1,
       },
