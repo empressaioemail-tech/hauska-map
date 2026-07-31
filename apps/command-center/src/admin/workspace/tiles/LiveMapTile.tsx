@@ -31,6 +31,8 @@ import {
   MapTools,
   SHARED_DEFAULT_CENTER,
   SHARED_PARCEL_TILES,
+  LAYER_REGISTRY,
+  coldOpenVisibleLayers,
 } from '@hauska/map-renderer'
 import type {
   FloatingMapHandle,
@@ -153,7 +155,8 @@ function LiveMapTileInner() {
   const [hiddenOverlayIds, setHiddenOverlayIds] = useState<ReadonlySet<string>>(
     () => new Set<string>(),
   )
-  // LAYER_REGISTRY visibility — same seed + prop path as PE ExplorerMap (WDLL 7).
+  // LAYER_REGISTRY visibility — Phase 0A cold-open (parcel line-only) + full
+  // known catalog so presets can disclose layers.
   const [visibleLayers, setVisibleLayers] = useState<Set<LayerKey> | null>(null)
   const [knownLayers, setKnownLayers] = useState<Set<LayerKey> | null>(null)
   const abortRef = useRef<AbortController | null>(null)
@@ -168,17 +171,18 @@ function LiveMapTileInner() {
     [apn, lat, lng],
   )
 
-  // Seed visible layers from the live renderer handle (PE path).
+  // Seed visible = Phase 0A cold-open; known = full registry so presets work.
   useEffect(() => {
     if (visibleLayers) return
     const h = mapRef.current
     if (!h) return
-    const seed = h.getVisibleLayers?.()
-    if (seed && seed.size) {
-      const next = new Set(seed)
-      setVisibleLayers(next)
-      setKnownLayers(next)
-    }
+    if (typeof h.getVisibleLayers !== 'function') return
+    const visible = coldOpenVisibleLayers()
+    const known = new Set<LayerKey>(
+      (LAYER_REGISTRY as Array<{ key: string }>).map((e) => e.key as LayerKey),
+    )
+    setVisibleLayers(visible)
+    setKnownLayers(known)
   })
 
   const handleViewportChange = useCallback((vp: ViewportState) => {

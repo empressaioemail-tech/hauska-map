@@ -28,6 +28,13 @@
  */
 
 import { landUseFillColorExpr, landUseLineColorExpr } from "./gis-map-paint.js";
+import {
+  CONTEXT_PARCEL_FILL_NEUTRAL,
+  CONTEXT_PARCEL_LINE,
+  ROLE_BUDGET,
+  SUBJECT_AMBER_BRIGHT,
+  SUBJECT_AMBER_SOFT,
+} from "./layer-role-taxonomy.js";
 
 /** Source + layer ids for the PMTiles parcel-browse layer. */
 export const PARCEL_TILES_SOURCE_ID = "hauska-parcel-tiles";
@@ -40,13 +47,14 @@ export const PARCEL_TILES_GLOW_ID = "hauska-parcel-tiles-glow";
 export const DEFAULT_PROMOTE_ID = "parcel_node_id";
 
 /**
- * Base choropleth fill opacity, lifted for the subject and nudged for inspected.
+ * Base choropleth fill opacity (DATA role). Subject selection uses SUBJECT
+ * amber at fillOpacityStrong — never a boosted land-use wash (Phase 0A).
  * Uses ONLY fill-opacity from feature-state (safe — no dasharray/gradient).
  *
  * `zoningFill=false` (the LAYERS-panel "Zoning / land use" toggle OFF) drops the
  * base choropleth to fully transparent so unchecking the row actually removes
  * the parcel color fill. Subject/inspected are SELECTION states, not a data
- * layer — they keep a (dimmer, neutral-colored) highlight so the current
+ * layer — they keep a (dimmer, SUBJECT-colored) highlight so the current
  * selection never vanishes. Opacity-only: the fill layer stays `visible` so
  * click-to-inspect (queryRenderedFeatures on the fill) keeps working.
  */
@@ -55,7 +63,7 @@ function parcelFillOpacityExpr(zoningFill = true) {
     return [
       "case",
       ["boolean", ["feature-state", "subject"], false],
-      0.55,
+      ROLE_BUDGET.SUBJECT.fillOpacityStrong,
       ["boolean", ["feature-state", "inspected"], false],
       0.25,
       0,
@@ -64,15 +72,15 @@ function parcelFillOpacityExpr(zoningFill = true) {
   return [
     "case",
     ["boolean", ["feature-state", "subject"], false],
-    0.92,
+    ROLE_BUDGET.SUBJECT.fillOpacityStrong,
     ["boolean", ["feature-state", "inspected"], false],
-    0.6,
-    0.32,
+    ROLE_BUDGET.DATA.inspectedFillOpacity,
+    ROLE_BUDGET.DATA.baseFillOpacity,
   ];
 }
 
 /**
- * Subject = a bright fill-color boost; inspected + base = the land-use choropleth.
+ * Subject = SUBJECT amber; inspected + base = the land-use choropleth (DATA).
  * Feature-state drives only fill-color (safe).
  *
  * With `zoningFill=false` the land-use choropleth is replaced by a NEUTRAL
@@ -83,14 +91,15 @@ function parcelFillColorExpr(zoningFill = true) {
   return [
     "case",
     ["boolean", ["feature-state", "subject"], false],
-    "#fff2b0",
-    zoningFill ? landUseFillColorExpr() : "#9ec9e8",
+    SUBJECT_AMBER_SOFT,
+    zoningFill ? landUseFillColorExpr() : CONTEXT_PARCEL_FILL_NEUTRAL,
   ];
 }
 
 /**
- * Line color: subject = bright glow yellow, inspected = light outline, else the
- * land-use stroke. Feature-state drives only line-color (safe).
+ * Line color: subject = SUBJECT amber bright, inspected = light outline, else
+ * CONTEXT parcel line (never INTERACTION cyan) or land-use stroke when DATA on.
+ * Feature-state drives only line-color (safe).
  *
  * With `zoningFill=false` the base stroke goes NEUTRAL so the boundary layer
  * carries no zoning/land-use color encoding while that toggle is off.
@@ -99,10 +108,10 @@ function parcelLineColorExpr(zoningFill = true) {
   return [
     "case",
     ["boolean", ["feature-state", "subject"], false],
-    "#ffe14d",
+    SUBJECT_AMBER_BRIGHT,
     ["boolean", ["feature-state", "inspected"], false],
     "#cfe8ff",
-    zoningFill ? landUseLineColorExpr() : "rgba(154,166,178,0.75)",
+    zoningFill ? landUseLineColorExpr() : CONTEXT_PARCEL_LINE,
   ];
 }
 

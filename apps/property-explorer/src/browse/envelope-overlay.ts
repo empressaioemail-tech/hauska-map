@@ -32,18 +32,22 @@
 // when the server gave setbacks + a real parcel ring but no inset polygon).
 
 import type { OverlaySpec } from "@hauska/map-renderer";
+import {
+  ROLE_BUDGET,
+  SUBJECT_AMBER,
+  SUBJECT_AMBER_LINE,
+} from "../../../../packages/map-renderer/src/map/layer-role-taxonomy.js";
 
 /** The stable overlay key for the buildable-envelope wedge visual. */
 export const ENVELOPE_LAYER_KEY = "buildable-envelope";
 /** The overlay key for the "entirely setback" 0%-case parcel outline. */
 export const ENVELOPE_SETBACK_LINE_KEY = "buildable-envelope-setback";
 
-// Amber calibrated for the imagery/parcel to show through (extension F12/F13):
-// a low-opacity fill + a bold, STATIC-dashed boundary (the setback edge).
-const AMBER_FILL = "#f2a23c";
-const AMBER_LINE = "#f2a23c";
-const FILL_OPACITY = 0.12; // low, so the parcel/satellite shows through.
-const LINE_WIDTH = 2.2;
+// SUBJECT amber from taxonomy (Phase 0A) — reserved; flood/other must not use it.
+const AMBER_FILL = SUBJECT_AMBER;
+const AMBER_LINE = SUBJECT_AMBER_LINE;
+const FILL_OPACITY = ROLE_BUDGET.SUBJECT.fillOpacity;
+const LINE_WIDTH = ROLE_BUDGET.SUBJECT.lineWidth;
 // STATIC literal dash — the safe channel (the crash guard forbids only a
 // feature-state-driven line-dasharray; a literal [3,2] is explicitly allowed).
 const STATIC_DASH: [number, number] = [3, 2];

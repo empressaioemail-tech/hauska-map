@@ -17,6 +17,12 @@
 // notSurveyGrade. FEMA feature properties: FLD_ZONE, SFHA_TF, …
 
 import type { OverlaySpec, ParcelSelection, GisBBox } from './postMessage'
+import {
+  CONTEXT_FEMA,
+  CONTEXT_PARCEL_LINE,
+  ROLE_BUDGET,
+  contextFillOpacity,
+} from './map/layer-role-taxonomy.js'
 
 export type LiveLayerKey = 'parcels' | 'fema'
 
@@ -741,12 +747,13 @@ export function toLiveOverlays(
         'fill-color': [
           'match',
           ['get', 'FLD_ZONE'],
-          'X', 'rgba(96,165,250,0.18)',
-          'rgba(59,130,246,0.6)',
+          'X', CONTEXT_FEMA.fillX,
+          CONTEXT_FEMA.fillAe,
         ],
-        'fill-opacity': 0.4,
-        'line-color': 'rgba(59,130,246,0.55)',
-        'line-width': 0.8,
+        // CONTEXT role: boundary-dominant, fill capped to taxonomy budget.
+        'fill-opacity': contextFillOpacity(ROLE_BUDGET.CONTEXT.fillOpacityMax),
+        'line-color': CONTEXT_FEMA.line,
+        'line-width': 1.6,
       },
     })
   }
@@ -759,8 +766,9 @@ export function toLiveOverlays(
       visible: visibility?.parcels !== false,
       paint: {
         'fill-color': parcelFillColor(parcels.response.geojson),
-        'fill-opacity': 0.14,
-        'line-color': '#7dd3fc',
+        'fill-opacity': 0.08,
+        // CONTEXT parcel line — never INTERACTION cyan (Phase 0A T-H02).
+        'line-color': CONTEXT_PARCEL_LINE,
         'line-width': 1.1,
       },
     })

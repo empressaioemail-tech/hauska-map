@@ -94,15 +94,9 @@ export const LAYER_REGISTRY = [
   },
 ];
 
-/** Spine console default — cortex site-context + reasoning when inputs live. */
+/** Spine console default — Phase 0A cold-open: parcel line-only (zoning OFF). */
 export const DEFAULT_VISIBLE_LAYERS = new Set([
   "parcel-polygon",
-  "flood-zone",
-  "dem-hillshade",
-  "topography-contours",
-  "hydrology-flow",
-  "rent-heat",
-  "zoning",
 ]);
 
 export function registryEntry(key) {

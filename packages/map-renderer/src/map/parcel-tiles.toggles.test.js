@@ -92,7 +92,7 @@ test("zoning ON restores the land-use choropleth (base branch is an expression)"
   setParcelTilesToggles(map, { zoningFill: true, boundaryLines: true });
 
   const opacity = map.paint[PARCEL_TILES_FILL_ID]["fill-opacity"];
-  assert.equal(baseBranch(opacity), 0.32, "base choropleth opacity restored");
+  assert.equal(baseBranch(opacity), 0.22, "base choropleth opacity restored");
   const color = map.paint[PARCEL_TILES_FILL_ID]["fill-color"];
   assert.ok(Array.isArray(baseBranch(color)), "land-use choropleth expr restored");
 });

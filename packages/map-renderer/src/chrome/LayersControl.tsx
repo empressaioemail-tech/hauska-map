@@ -4,8 +4,16 @@
 // the substrate — this control is seeded from the renderer's own toggle set
 // (getVisibleLayers) and drives the map via the `visibleLayers` prop. No local
 // shadow paint state. Labels come from LAYER_REGISTRY.
+//
+// Phase 0A T-H03: named presets (Flood / Entitlement / Terrain) sit above the
+// checkboxes — each turns on 2–3 coherent layers via the taxonomy presets.
 
 import { LAYER_REGISTRY } from "../layer-registry.js";
+import {
+  INTERACTION_CYAN,
+  MAP_LAYER_PRESETS,
+  enforceDataLayerMutex,
+} from "../map/layer-role-taxonomy.js";
 import type { LayerKey, LayerDef } from "../postMessage";
 
 /** Registry entry lookup for a human label; fall back to the raw key. */
@@ -13,6 +21,8 @@ function labelFor(key: LayerKey): string {
   const entry = (LAYER_REGISTRY as LayerDef[]).find((l) => l.key === key);
   return entry?.label ?? key;
 }
+
+const PRESET_ORDER = ["Flood", "Entitlement", "Terrain"] as const;
 
 export function LayersControl({
   known,
@@ -37,7 +47,22 @@ export function LayersControl({
     const next = new Set(visible);
     if (next.has(key)) next.delete(key);
     else next.add(key);
-    onChange(next);
+    // DATA mutex: turning a Data layer on drops any other Data layer.
+    onChange(enforceDataLayerMutex(next, key) as Set<LayerKey>);
+  };
+
+  const applyPreset = (name: (typeof PRESET_ORDER)[number]) => {
+    const preset = MAP_LAYER_PRESETS[name];
+    // Keep known-only keys; dim = off everything else in the known set.
+    const next = new Set<LayerKey>();
+    for (const k of preset) {
+      if (known.has(k as LayerKey)) next.add(k as LayerKey);
+    }
+    // Always keep parcel-polygon when the surface knows it (cold-open spine).
+    if (known.has("parcel-polygon" as LayerKey)) {
+      next.add("parcel-polygon" as LayerKey);
+    }
+    onChange(enforceDataLayerMutex(next) as Set<LayerKey>);
   };
 
   return (
@@ -71,6 +96,35 @@ export function LayersControl({
       >
         Layers
       </div>
+      <div
+        data-testid="layers-presets"
+        style={{
+          display: "flex",
+          flexWrap: "wrap",
+          gap: 4,
+          marginBottom: 8,
+        }}
+      >
+        {PRESET_ORDER.map((name) => (
+          <button
+            key={name}
+            type="button"
+            data-testid={`layers-preset-${name.toLowerCase()}`}
+            onClick={() => applyPreset(name)}
+            style={{
+              fontSize: 10,
+              padding: "3px 7px",
+              borderRadius: 4,
+              border: "0.5px solid rgba(154,166,178,0.35)",
+              background: "rgba(255,255,255,0.04)",
+              color: "#c8d0d8",
+              cursor: "pointer",
+            }}
+          >
+            {name}
+          </button>
+        ))}
+      </div>
       {keys.map((key) => (
         <label
           key={key}
@@ -86,7 +140,7 @@ export function LayersControl({
             type="checkbox"
             checked={visible.has(key)}
             onChange={() => toggle(key)}
-            style={{ accentColor: "#7dd3fc", cursor: "pointer" }}
+            style={{ accentColor: INTERACTION_CYAN, cursor: "pointer" }}
           />
           <span>{labelFor(key)}</span>
         </label>

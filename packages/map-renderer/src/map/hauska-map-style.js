@@ -1,6 +1,9 @@
 /**
  * Hauska spatial map — light editorial basemap on deep brown canvas, rich GIS overlays.
+ * Ground-role paint from layer-role-taxonomy (Phase 0A).
  */
+
+import { ROLE_BUDGET } from "./layer-role-taxonomy.js";
 
 /** @type {import('maplibre-gl').StyleSpecification} */
 export const HAUSKA_MAP_STYLE = {
@@ -27,11 +30,11 @@ export const HAUSKA_MAP_STYLE = {
       type: "raster",
       source: "hauska-carto-light",
       paint: {
-        "raster-opacity": 0.88,
-        "raster-saturation": -0.12,
-        "raster-brightness-min": 0.08,
-        "raster-brightness-max": 0.78,
-        "raster-contrast": 0.08,
+        "raster-opacity": ROLE_BUDGET.GROUND.basemapOpacity,
+        "raster-saturation": ROLE_BUDGET.GROUND.basemapSaturation,
+        "raster-brightness-min": 0.12,
+        "raster-brightness-max": 0.72,
+        "raster-contrast": 0.02,
         "raster-hue-rotate": -6,
       },
     },
