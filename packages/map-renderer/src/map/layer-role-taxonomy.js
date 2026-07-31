@@ -132,9 +132,10 @@ export const CONTEXT_ROAD_EDGE = "#4b5563";
  * Must stay off SUBJECT amber and INTERACTION cyan.
  */
 export const CONTEXT_PEDESTRIAN = {
-  line: "#9a8b6e",
-  lineOpacityMax: 0.18,
-  lineWidthMax: 2.2,
+  /** Lighter khaki for dark basemap contrast (still not road grey). */
+  line: "#c9b88a",
+  lineOpacityMax: 0.48,
+  lineWidthMax: 3.6,
 };
 export const CONTEXT_HYDROGRAPHY = "#5b7c8a";
 export const CONTEXT_TOPO = "#7a6f5f";

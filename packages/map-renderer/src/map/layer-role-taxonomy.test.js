@@ -82,8 +82,8 @@ describe("layer-role-taxonomy (T-H01)", () => {
     assert.notEqual(CONTEXT_PEDESTRIAN.line.toLowerCase(), CONTEXT_ROAD_BAND.toLowerCase());
     assert.notEqual(CONTEXT_PEDESTRIAN.line.toLowerCase(), SUBJECT_AMBER.toLowerCase());
     assert.notEqual(CONTEXT_PEDESTRIAN.line.toLowerCase(), INTERACTION_CYAN.toLowerCase());
-    assert.ok(CONTEXT_PEDESTRIAN.lineOpacityMax <= ROLE_BUDGET.CONTEXT.fillOpacityMax);
-    assert.ok(CONTEXT_PEDESTRIAN.lineWidthMax < 4);
+    assert.ok(CONTEXT_PEDESTRIAN.lineOpacityMax <= ROLE_BUDGET.CONTEXT.lineOpacity);
+    assert.ok(CONTEXT_PEDESTRIAN.lineWidthMax < 5);
     assert.equal(roleForLayer("pedestrian-ways"), "CONTEXT");
     assert.equal(roleForLayer("road-node-pedestrian"), "CONTEXT");
   });

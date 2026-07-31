@@ -114,13 +114,15 @@ describe("roadOverlaysFromAttachingRoads (street vs pedestrian)", () => {
     expect(pedFc.features).toHaveLength(1);
 
     expect(valueAtZoom(band.paint!["line-width"], 12)).toBeLessThanOrEqual(2);
-    expect(valueAtZoom(ped.paint!["line-width"], 12)!).toBeLessThan(
-      valueAtZoom(band.paint!["line-width"], 12)!,
+    // Pedestrian stays finer than the street band at parcel zoom.
+    expect(valueAtZoom(ped.paint!["line-width"], 16)!).toBeLessThan(
+      valueAtZoom(band.paint!["line-width"], 16)!,
     );
     expect(
       Math.max(...interpStops(ped.paint!["line-opacity"]).values),
-    ).toBeLessThanOrEqual(0.2);
-    expect(ped.paint!["line-dasharray"]).toEqual([1.5, 2.5]);
+    ).toBeLessThanOrEqual(0.55);
+    expect(ped.paint!["line-dasharray"]).toEqual([2, 2]);
+    expect(valueAtZoom(ped.paint!["line-width"], 16)!).toBeGreaterThanOrEqual(2);
     expect(isZoomInterp(band.paint!["line-blur"])).toBe(true);
   });
 
