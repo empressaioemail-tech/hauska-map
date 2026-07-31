@@ -42,11 +42,15 @@ export const CONTEXT_FLOOD_TEAL = {
   line: "#2a5f6d",
 };
 
-/** CONTEXT FEMA muted blue — boundary-dominant; fill stays under budget. */
+/** CONTEXT FEMA muted blue — light fill + dominant boundary (readable SFHA). */
 export const CONTEXT_FEMA = {
-  fillAe: "rgba(59,130,246,0.22)",
-  fillX: "rgba(96,165,250,0.10)",
-  line: "rgba(37,99,235,0.75)",
+  /** Solid hues; opacity is applied via fill-opacity (do not double-alpha). */
+  fillAe: "#3b82f6",
+  fillX: "#60a5fa",
+  fillOpacityAe: 0.18,
+  fillOpacityX: 0.1,
+  line: "#1d4ed8",
+  lineWidth: 2,
   legendAe: "#2bb6d6",
   legendX: "#3a7fd9",
   legendFloodway: "#1f5fa8",
@@ -59,8 +63,10 @@ export const CONTEXT_FEMA = {
 export const CONTEXT_PARCEL_LINE = "#8a9aab";
 export const CONTEXT_PARCEL_FILL_NEUTRAL = "#9ec9e8";
 
-/** CONTEXT roads / ROW / hydrography — muted greys and cool steel. */
+/** CONTEXT roads / ROW — defined corridor (band + crisp edge), not washed feather. */
 export const CONTEXT_ROAD = "#6b7280";
+export const CONTEXT_ROAD_BAND = "#9ca3af";
+export const CONTEXT_ROAD_EDGE = "#4b5563";
 export const CONTEXT_HYDROGRAPHY = "#5b7c8a";
 export const CONTEXT_TOPO = "#7a6f5f";
 
@@ -88,7 +94,7 @@ export const ROLE_BUDGET = Object.freeze({
     forbidden: Object.freeze(["saturated-hue", "categorical-fill"]),
   }),
   CONTEXT: Object.freeze({
-    fillOpacityMax: 0.15,
+    fillOpacityMax: 0.2,
     lineOpacity: 0.85,
     /** When any DATA layer is visible, multiply Context paint by this. */
     dimWhenDataVisible: 0.45,
@@ -211,6 +217,8 @@ export const LAYER_ROLE_TAXONOMY = Object.freeze({
       parcelLine: CONTEXT_PARCEL_LINE,
       parcelFillNeutral: CONTEXT_PARCEL_FILL_NEUTRAL,
       road: CONTEXT_ROAD,
+      roadBand: CONTEXT_ROAD_BAND,
+      roadEdge: CONTEXT_ROAD_EDGE,
       hydrography: CONTEXT_HYDROGRAPHY,
       topo: CONTEXT_TOPO,
       fillOpacityMax: ROLE_BUDGET.CONTEXT.fillOpacityMax,

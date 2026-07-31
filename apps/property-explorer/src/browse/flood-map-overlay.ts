@@ -23,7 +23,6 @@
 import type { FloodDrainageStudyView } from "../lib/floodDrainageClient";
 import {
   CONTEXT_FLOOD_TEAL,
-  ROLE_BUDGET,
 } from "../../../../packages/map-renderer/src/map/layer-role-taxonomy.js";
 
 /* ------------------------------- ids ---------------------------------- */
@@ -77,17 +76,18 @@ export const FLOOD_ZONE_MED_COLOR = CONTEXT_FLOOD_TEAL.med;
 export const FLOOD_ZONE_HIGH_COLOR = CONTEXT_FLOOD_TEAL.high;
 export const FLOOD_ZONE_LOW_OPACITY = 0.1;
 export const FLOOD_ZONE_MED_OPACITY = 0.125;
-export const FLOOD_ZONE_HIGH_OPACITY = ROLE_BUDGET.CONTEXT.fillOpacityMax;
+/** Pinned under Context budget — do not track fillOpacityMax (FEMA may use more). */
+export const FLOOD_ZONE_HIGH_OPACITY = 0.15;
 /** The band a feature with NO `concentration` prop falls back to (older
  *  cached studies predate the engine's banding — they must still render). */
 export const FLOOD_ZONE_FALLBACK_COLOR = FLOOD_ZONE_LOW_COLOR;
 export const FLOOD_ZONE_FALLBACK_OPACITY = FLOOD_ZONE_LOW_OPACITY;
 /**
- * CONTEXT fill-opacity envelope (taxonomy budget). Every FILL this overlay
- * paints must land inside it.
+ * Flood-study fill envelope (pinned). FEMA live fill may sit slightly higher
+ * via CONTEXT_FEMA.fillOpacityAe; the hydro overlay stays inside this band.
  */
 export const FEMA_FILL_OPACITY_MIN = 0.1;
-export const FEMA_FILL_OPACITY_MAX = ROLE_BUDGET.CONTEXT.fillOpacityMax;
+export const FEMA_FILL_OPACITY_MAX = 0.15;
 
 /**
  * Ponding — standing water, deepest teal + heavy dark rim (rim distinguishes
