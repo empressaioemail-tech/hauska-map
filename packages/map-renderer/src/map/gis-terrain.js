@@ -268,6 +268,7 @@ export function terrainExaggeration() {
 
 export const PRODUCTION_TERRAIN_SOURCE_ID = "hauska-terrain-dem";
 export const PRODUCTION_SKY_LAYER_ID = "hauska-sky";
+export const PRODUCTION_HILLSHADE_LAYER_ID = "hauska-terrain-hillshade-prod";
 
 /** Below this pitch, 3D mesh is invisible and setTerrain only hurts zoom perf. */
 export const TERRAIN_ENGAGE_PITCH_DEG = 15;
@@ -287,6 +288,15 @@ function applyProductionTerrainMesh(map, enabled) {
   }
 }
 
+function syncProductionHillshade(map, visible) {
+  if (!map.getLayer(PRODUCTION_HILLSHADE_LAYER_ID)) return;
+  map.setLayoutProperty(
+    PRODUCTION_HILLSHADE_LAYER_ID,
+    "visibility",
+    visible ? "visible" : "none",
+  );
+}
+
 /** Install raster-dem source + sky layer (idempotent). Does not enable setTerrain. */
 export function ensureProductionTerrainInfrastructure(map) {
   if (!map?.isStyleLoaded()) return;
@@ -304,11 +314,46 @@ export function ensureProductionTerrainInfrastructure(map) {
       id: PRODUCTION_SKY_LAYER_ID,
       type: "sky",
       paint: {
-        "sky-type": "atmosphere",
-        "sky-atmosphere-sun": [0.0, 90.0],
-        "sky-atmosphere-sun-intensity": 12,
+        "sky-type": "gradient",
+        "sky-gradient-center": [0, 0],
+        "sky-gradient-radius": 90,
+        "sky-gradient": [
+          "interpolate",
+          ["linear"],
+          ["sky-radial-progress"],
+          0.0,
+          "rgba(160, 185, 210, 0.95)",
+          0.6,
+          "rgba(120, 145, 170, 0.85)",
+          1.0,
+          "rgba(70, 85, 100, 0.75)",
+        ],
       },
     });
+  }
+  if (!map.getLayer(PRODUCTION_HILLSHADE_LAYER_ID)) {
+    const beforeId =
+      ["hauska-browse-parcels-fill", "hauska-parcel-tiles-fill"].find((id) =>
+        map.getLayer(id),
+      ) || undefined;
+    map.addLayer(
+      {
+        id: PRODUCTION_HILLSHADE_LAYER_ID,
+        type: "hillshade",
+        source: PRODUCTION_TERRAIN_SOURCE_ID,
+        paint: {
+          "hillshade-illumination-direction": 315,
+          "hillshade-illumination-anchor": "viewport",
+          "hillshade-exaggeration": 0.85,
+          "hillshade-shadow-color": "#2a241c",
+          "hillshade-highlight-color": "#e8e0d4",
+          "hillshade-accent-color": "#6b5e52",
+          "hillshade-opacity": 0.55,
+        },
+        layout: { visibility: "none" },
+      },
+      beforeId,
+    );
   }
 }
 
@@ -329,8 +374,11 @@ export function syncProductionTerrainVisibility(map, visible, opts = {}) {
   if (!visible) {
     terrainEngageGen += 1;
     applyProductionTerrainMesh(map, false);
+    syncProductionHillshade(map, false);
     return;
   }
+
+  syncProductionHillshade(map, true);
 
   const pitch = map.getPitch();
   if (pitch < TERRAIN_ENGAGE_PITCH_DEG) {
