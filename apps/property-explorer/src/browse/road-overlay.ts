@@ -1,8 +1,8 @@
 // apps/property-explorer/src/browse/road-overlay.ts
 //
-// Track B1 road render — gradient band only (Phase 0A polish):
-//   soft medium-grey ROW band (pavement mass). Edge strokes and centerline
-//   stay out of the paint stack so the corridor reads as a wash, not wireframe.
+// Track B1 road render — hairline at distance, soft band when close:
+//   city overview stays thin/muted so FEMA + parcels lead; parcel zoom grows
+//   a soft ROW wash. Edge/centerline stay out of the paint stack.
 // Crash guard: line-blur only as a static/zoom literal (never feature-state
 // line-gradient / data-driven dash).
 
@@ -58,7 +58,10 @@ function lineFeature(
   };
 }
 
-/** ROW mass — light blur only; opacity high enough to read as pavement. */
+/**
+ * Hairline under ~z14 (overview), soft pavement band from ~z15.
+ * Opacity stays low so overlapping segments do not chalk at intersections.
+ */
 const ROW_BAND_PAINT = {
   "line-color": ROAD_BAND_GREY,
   "line-width": [
@@ -66,46 +69,60 @@ const ROW_BAND_PAINT = {
     ["linear"],
     ["zoom"],
     12,
-    10,
+    1.15,
+    13,
+    1.4,
     14,
-    18,
+    2.5,
+    15,
+    7,
     16,
-    28,
+    13,
+    17,
     18,
-    40,
+    18,
+    24,
   ],
   "line-opacity": [
     "interpolate",
     ["linear"],
     ["zoom"],
     12,
-    0.28,
+    0.12,
+    13,
+    0.14,
     14,
-    0.36,
+    0.16,
+    15,
+    0.2,
     16,
-    0.42,
+    0.24,
+    17,
+    0.28,
     18,
-    0.48,
+    0.3,
   ],
-  // Light feather — enough to soften, not enough to wash out the edges.
+  // Blur only once the band has width — hairline stays crisp.
   "line-blur": [
     "interpolate",
     ["linear"],
     ["zoom"],
     12,
-    0.4,
+    0,
     14,
-    0.7,
+    0.15,
+    15,
+    0.45,
     16,
-    1.0,
+    0.75,
     18,
-    1.4,
+    1.1,
   ],
 } as const;
 
 /**
  * Build OverlaySpec[] for attaching / near-bbox road-nodes.
- * Gradient band only (beneath parcels). Edge/centerline geometry is not painted.
+ * Zoom-scaled hairline→band only (beneath parcels). No edge/centerline paint.
  */
 export function roadOverlaysFromAttachingRoads(
   roads: ReadonlyArray<AttachingRoadWire>,
