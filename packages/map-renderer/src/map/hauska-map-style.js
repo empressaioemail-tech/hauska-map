@@ -4,6 +4,7 @@
  */
 
 import { ROLE_BUDGET } from "./layer-role-taxonomy.js";
+import { HAUSKA_MAP_GLYPHS_URL } from "./map-fonts.js";
 
 /** @type {import('maplibre-gl').StyleSpecification} */
 export const HAUSKA_MAP_STYLE = {
@@ -39,7 +40,7 @@ export const HAUSKA_MAP_STYLE = {
       },
     },
   ],
-  glyphs: "https://demotiles.maplibre.org/font/{fontstack}/{range}.pbf",
+  glyphs: HAUSKA_MAP_GLYPHS_URL,
 };
 
 /** Deep warm-dark dataviz canvas — data glows on top. */

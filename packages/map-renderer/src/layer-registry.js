@@ -26,7 +26,7 @@ export const LAYER_REGISTRY = [
   { key: "zoning", label: "Zoning / land use", group: "regulatory", fixture: true, live: true, fuelGated: true },
   { key: "flood-zone", label: "FEMA flood zone", group: "hazard", fixture: true, live: true, fuelGated: false },
   { key: "floodway", label: "Regulatory floodway", group: "hazard", fixture: true, live: true, fuelGated: false },
-  { key: "dem-hillshade", label: "Hillshade relief (not live)", group: "terrain", fixture: true, live: false, fuelGated: false },
+  { key: "dem-hillshade", label: "3D terrain (TxGIO LiDAR)", group: "terrain", fixture: true, live: true, fuelGated: false },
   { key: "topography-contours", label: "Contours (1 ft / 3DEP)", group: "terrain", fixture: false, live: true, fuelGated: false },
   { key: "hydrography", label: "Hydrography", group: "hydrology", fixture: false, live: true, fuelGated: false },
   {
@@ -205,7 +205,7 @@ function legendEncodes(key) {
     "parcel-polygon": "Assessor parcel polygon; land-use choropleth with width-as-saturation",
     "flood-zone": "FEMA NFHL zone class",
     "rent-heat": "Rent AVM intensity (fixture fire ramp)",
-    "dem-hillshade": "DEM relief — not wired to live engine data (fixture; honest follow-up)",
+    "dem-hillshade": "3D terrain mesh from TxGIO LiDAR terrain-RGB tiles (additive viz). Toggle controls setTerrain at exaggeration 1.0. Separate from live 1-ft contour lines (topography-contours).",
     "topography-contours": "Live elevation contours from the engine topography-1ft slot. Inside the Bastrop County footprint the AUTHORITATIVE 1-ft LiDAR contours are served; everywhere else an honest 3DEP-derived fallback. The map chip labels the TRUE tier served for the current viewport (1-ft in Bastrop, 3DEP elsewhere) — never a static claim.",
     hydrography: "Real county-mapped streams from the engine hydrography slot — the county's own GIS hydrography source, with provenance (source, layer name, vintage) on the layer row. Where the county has no configured source, or the slot is not yet served, the layer is honestly unavailable — never a derived squiggle.",
     "hydrology-flow": "Live D8 flow channels from the engine hydrology-flow slot — a real flow-accumulation over the viewport 3DEP DEM, emitting channels above the accumulation threshold. On flat terrain / no channels / DEM void it is honest-empty (draws nothing, with the reason on the chip) — never a synthetic meander.",

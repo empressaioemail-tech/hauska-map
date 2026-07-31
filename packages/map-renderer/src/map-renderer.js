@@ -8,6 +8,10 @@ import maplibregl from "maplibre-gl";
 import { Protocol as PMTilesProtocol } from "pmtiles";
 import { HAUSKA_MAP_STYLE } from "./map/hauska-map-style.js";
 import {
+  ensureProductionTerrainInfrastructure,
+  syncProductionTerrainVisibility,
+} from "./map/gis-terrain.js";
+import {
   INTERACTION_CYAN,
   ROLE_BUDGET,
 } from "./map/layer-role-taxonomy.js";
@@ -211,6 +215,9 @@ export function createMapRenderer() {
 
     map.on("load", () => {
       styleReady = true;
+      ensureProductionTerrainInfrastructure(map);
+      syncBasemapPitchDegrade(map);
+      map.on("pitch", () => syncBasemapPitchDegrade(map));
       applyLayerVisibility();
       applyOverlays();
       applyParcelTiles();
@@ -421,8 +428,16 @@ export function createMapRenderer() {
     }
   }
 
+  function syncBasemapPitchDegrade(m) {
+    if (!m?.getLayer("hauska-basemap")) return;
+    const pitch = m.getPitch();
+    const opacity = pitch > 25 ? 0.62 : 0.88;
+    m.setPaintProperty("hauska-basemap", "raster-opacity", opacity);
+  }
+
   function applyLayerVisibility() {
     if (!map || !map.isStyleLoaded()) return;
+    syncProductionTerrainVisibility(map, visibleLayers.has("dem-hillshade"));
     if (!fixtureEnabled) {
       // Fixture stack OFF: hide every fixture layer that may already be drawn
       // and drop the watermark. Live overlays (setOverlays) are unaffected.
