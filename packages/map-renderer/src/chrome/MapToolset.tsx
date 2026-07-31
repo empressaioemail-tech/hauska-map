@@ -27,6 +27,11 @@ import { GeolocateControl } from "maplibre-gl";
 import type { Map as MaplibreMap } from "maplibre-gl";
 import type { FloatingMapHandle } from "../FloatingMap";
 import { LAYER_REGISTRY } from "../layer-registry.js";
+import {
+  INTERACTION_CYAN,
+  MAP_LAYER_PRESETS,
+  enforceDataLayerMutex,
+} from "../map/layer-role-taxonomy.js";
 import type { LayerKey, LayerDef } from "../postMessage";
 import {
   asMaplibreMap,
@@ -43,7 +48,7 @@ const PANEL_BG = "rgba(13,17,23,0.9)";
 const PANEL_BORDER = "0.5px solid rgba(154,166,178,0.28)";
 const TEXT = "#e6edf3";
 const MUTED = "#8b97a5";
-const ACCENT = "#7dd3fc";
+const ACCENT = INTERACTION_CYAN;
 
 /** Persistent per-layer state surfaced on the layer row (honesty constraint:
  *  a faded toast must stay discoverable here). */
@@ -390,7 +395,19 @@ export function MapToolset({
     const next = new Set(visible);
     if (next.has(key)) next.delete(key);
     else next.add(key);
-    onLayersChange(next);
+    onLayersChange(enforceDataLayerMutex(next, key) as Set<LayerKey>);
+  };
+
+  const applyPreset = (name: "Flood" | "Entitlement" | "Terrain") => {
+    const preset = MAP_LAYER_PRESETS[name];
+    const next = new Set<LayerKey>();
+    for (const k of preset) {
+      if (known.has(k as LayerKey)) next.add(k as LayerKey);
+    }
+    if (known.has("parcel-polygon" as LayerKey)) {
+      next.add("parcel-polygon" as LayerKey);
+    }
+    onLayersChange(enforceDataLayerMutex(next) as Set<LayerKey>);
   };
 
   // Operator revision 2026-07-29: the toolset lives as a small BUBBLE in the
@@ -458,6 +475,35 @@ export function MapToolset({
           }
         >
           <div style={{ ...sectionHeaderStyle(), marginBottom: 7 }}>Layers</div>
+          <div
+            data-testid="map-toolset-presets"
+            style={{
+              display: "flex",
+              flexWrap: "wrap",
+              gap: 4,
+              marginBottom: 8,
+            }}
+          >
+            {(["Flood", "Entitlement", "Terrain"] as const).map((name) => (
+              <button
+                key={name}
+                type="button"
+                data-testid={`map-toolset-preset-${name.toLowerCase()}`}
+                onClick={() => applyPreset(name)}
+                style={{
+                  fontSize: 10,
+                  padding: "3px 7px",
+                  borderRadius: 4,
+                  border: "0.5px solid rgba(154,166,178,0.35)",
+                  background: "rgba(255,255,255,0.04)",
+                  color: "#c8d0d8",
+                  cursor: "pointer",
+                }}
+              >
+                {name}
+              </button>
+            ))}
+          </div>
           {/* Satellite / aerial BASE toggle — first row of LAYERS (it reads as
               a basemap layer). Same behavior/handler as before the move: the
               setSatelliteBase effect operates on the live map in place. */}
