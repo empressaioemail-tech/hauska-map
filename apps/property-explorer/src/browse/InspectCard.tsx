@@ -26,6 +26,8 @@
 
 import { useEffect, useState } from "react";
 import type { ParcelCardData } from "./liveGis";
+import { inspectCardShellStyle } from "./mobile-layout";
+import { useMobilePanel } from "./MobilePanelContext";
 import { fetchBuildableEnvelope } from "../lib/buildable-envelope.js";
 import {
   fetchBakedNodeFacets,
@@ -87,6 +89,7 @@ export function InspectCard({
   onResearch: () => void;
   onSaveProperty?: () => void;
 }) {
+  const { isMobile } = useMobilePanel();
   // Baked-first source state. `source` is "loading" until we know whether a
   // baked snapshot exists; then "baked" (pure read) or "live" (fallback).
   const [source, setSource] = useState<Source>("loading");
@@ -196,21 +199,12 @@ export function InspectCard({
       data-testid="inspect-card"
       data-source={source}
       style={{
-        position: "absolute",
-        top: 12,
-        left: 12,
-        zIndex: 12,
-        width: 288,
-        maxWidth: "calc(100% - 60px)",
-        padding: "13px 15px",
-        borderRadius: 10,
+        ...inspectCardShellStyle(isMobile),
         background: CARD_BG,
-        border: "0.5px solid rgba(125,211,252,0.28)",
         color: "#e6edf3",
         fontFamily: "system-ui, -apple-system, Segoe UI, Roboto, sans-serif",
         fontSize: 12,
         lineHeight: 1.5,
-        boxShadow: "0 12px 40px rgba(0,0,0,0.5)",
       }}
     >
       <div

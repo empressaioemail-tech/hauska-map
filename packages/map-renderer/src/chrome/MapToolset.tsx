@@ -271,6 +271,11 @@ export function MapToolset({
   layerStates,
   extraLabels,
   onToolsController,
+  /** `embedded` renders panel content only (mobile layers sheet). */
+  presentation = "floating",
+  isMobile = false,
+  /** When true on mobile, the layers/tools panel slides up above the bottom nav. */
+  layersSheetOpen = false,
 }: {
   mapRef: RefObject<FloatingMapHandle | null>;
   /** Full layer set this surface knows about (mount seed) — a toggled-off
@@ -289,6 +294,9 @@ export function MapToolset({
   /** WB6 dossier seam: fires with the live MapToolsController once installed
    *  (and null on teardown) so the host can capture/redraw drawings. */
   onToolsController?: (controller: MapToolsController | null) => void;
+  presentation?: "floating" | "embedded";
+  isMobile?: boolean;
+  layersSheetOpen?: boolean;
 }) {
   // The live maplibre map, resolved once the handle is ready.
   const [map, setMap] = useState<MaplibreMap | null>(null);
@@ -413,45 +421,10 @@ export function MapToolset({
   // Operator revision 2026-07-29: the toolset lives as a small BUBBLE in the
   // lower-right corner; clicking it expands the panel upward. Collapsed by
   // default so the map (and the top-right brief) own the screen.
-  const [expanded, setExpanded] = useState(false);
+  const [expanded, setExpanded] = useState(presentation === "embedded");
 
-  return (
-    <div
-      data-testid="map-toolset"
-      style={{
-        position: "absolute",
-        bottom: 16,
-        right: 12,
-        // Z-INDEX RULE: this SMALL tool console must sit IN FRONT OF the larger
-        // right-side panels (the Workbench dock / reports+detail / My-properties
-        // all render at zIndex 9). Raised from 9 → 11 so the small container is
-        // never painted behind the large one when their columns overlap.
-        zIndex: 11,
-        display: "flex",
-        flexDirection: "column",
-        alignItems: "flex-end",
-        gap: 8,
-        fontFamily: "system-ui, -apple-system, Segoe UI, Roboto, sans-serif",
-      }}
-    >
-      {/* THE unified panel: Tools section + Layers section (expanded only). */}
-      <div
-        style={{
-          display: expanded ? "flex" : "none",
-          width: 200,
-          flexDirection: "column",
-          gap: 9,
-          padding: "10px 12px",
-          borderRadius: 9,
-          background: PANEL_BG,
-          border: PANEL_BORDER,
-          color: TEXT,
-          fontSize: 11.5,
-          boxShadow: "0 10px 32px rgba(0,0,0,0.45)",
-          maxHeight: "calc(100vh - 96px)",
-          overflowY: "auto",
-        }}
-      >
+  const panelInner = (
+    <>
         {/* --- TOOLS --- */}
         {toolsReady && (
           <ToolsetToolsSection
@@ -566,9 +539,6 @@ export function MapToolset({
                     />
                   )}
                 </label>
-                {/* Persistent honest caption — the discoverable home of any
-                    state whose toast has faded (warn/error always captioned;
-                    info stays tooltip-only to keep the panel quiet). */}
                 {badge && (badge.tone === "warn" || badge.tone === "error") && (
                   <div
                     style={{
@@ -585,6 +555,101 @@ export function MapToolset({
             );
           })}
         </div>
+    </>
+  );
+
+  if (presentation === "embedded") {
+    return (
+      <div
+        data-testid="map-toolset-embedded"
+        style={{
+          display: "flex",
+          width: "100%",
+          flexDirection: "column",
+          gap: 9,
+          padding: "10px 12px 16px",
+          color: TEXT,
+          fontSize: 11.5,
+          fontFamily: "system-ui, -apple-system, Segoe UI, Roboto, sans-serif",
+          overflowY: "auto",
+          WebkitOverflowScrolling: "touch",
+        }}
+      >
+        {panelInner}
+      </div>
+    );
+  }
+
+  const mobileSheetPanel = isMobile && layersSheetOpen && (
+    <div
+      data-testid="mobile-layers-sheet"
+      style={{
+        position: "fixed",
+        left: 0,
+        right: 0,
+        bottom: 52,
+        zIndex: 13,
+        maxHeight: "calc(100vh - 52px - 56px)",
+        overflowY: "auto",
+        WebkitOverflowScrolling: "touch",
+        background: "rgba(13,17,23,0.98)",
+        borderTop: "1px solid rgba(154,166,178,0.28)",
+        boxShadow: "0 -10px 36px rgba(0,0,0,0.45)",
+        display: "flex",
+        flexDirection: "column",
+        gap: 9,
+        padding: "10px 12px 16px",
+        color: TEXT,
+        fontSize: 11.5,
+      }}
+    >
+      {panelInner}
+    </div>
+  );
+
+  if (isMobile) {
+    return (
+      <>
+        <div data-testid="map-toolset" style={{ display: "none" }} aria-hidden />
+        {mobileSheetPanel}
+      </>
+    );
+  }
+
+  return (
+    <div
+      data-testid="map-toolset"
+      style={{
+        position: "absolute",
+        bottom: 16,
+        right: 12,
+        zIndex: 11,
+        display: "flex",
+        flexDirection: "column",
+        alignItems: "flex-end",
+        gap: 8,
+        fontFamily: "system-ui, -apple-system, Segoe UI, Roboto, sans-serif",
+      }}
+    >
+      {/* THE unified panel: Tools section + Layers section (expanded only). */}
+      <div
+        style={{
+          display: expanded ? "flex" : "none",
+          width: 200,
+          flexDirection: "column",
+          gap: 9,
+          padding: "10px 12px",
+          borderRadius: 9,
+          background: PANEL_BG,
+          border: PANEL_BORDER,
+          color: TEXT,
+          fontSize: 11.5,
+          boxShadow: "0 10px 32px rgba(0,0,0,0.45)",
+          maxHeight: "calc(100vh - 96px)",
+          overflowY: "auto",
+        }}
+      >
+        {panelInner}
       </div>
 
       {/* Esri attribution while satellite is on (its terms require the credit).

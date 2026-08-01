@@ -20,6 +20,8 @@ import {
   type ChipSeverity,
   type Toast,
 } from "./transient-chips";
+import { transientChipsStyle } from "./mobile-layout";
+import { useMobilePanel } from "./MobilePanelContext";
 
 const chipStyle = (sev: ChipSeverity): React.CSSProperties => ({
   fontSize: 10.5,
@@ -59,6 +61,7 @@ function toastAnimation(t: Toast): React.CSSProperties {
 }
 
 export function TransientChips({ chips }: { chips: ChipSpec[] }) {
+  const { isMobile } = useMobilePanel();
   const [toasts, setToasts] = useState<Toast[]>([]);
   // Serialize the incoming chip set so the reconcile effect fires on CONTENT
   // change, not on every parent render producing a fresh array identity.
@@ -86,17 +89,7 @@ export function TransientChips({ chips }: { chips: ChipSpec[] }) {
   return (
     <div
       data-testid="live-chips"
-      style={{
-        position: "absolute",
-        left: 12,
-        bottom: 12,
-        zIndex: 8,
-        display: "flex",
-        flexDirection: "column",
-        alignItems: "flex-start",
-        gap: 5,
-        pointerEvents: "none",
-      }}
+      style={transientChipsStyle(isMobile)}
     >
       <style>{TOAST_KEYFRAMES}</style>
       {drawn.map((t) => (

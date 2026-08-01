@@ -22,6 +22,12 @@
 
 import { useEffect, useState } from "react";
 import type { CSSProperties, ReactNode } from "react";
+import {
+  dockLayoutStyle as resolveDockLayoutStyle,
+  mobileToolPickerStyle,
+  workbenchClusterStyle,
+} from "../browse/mobile-layout";
+import { useMobilePanel } from "../browse/MobilePanelContext";
 import type { WorkbenchHostActions, WorkbenchToolDef } from "./types";
 import { WorkbenchProvider } from "./WorkbenchContext";
 import type { WorkbenchToolStateStore } from "./tool-state-store";
@@ -54,21 +60,9 @@ export function nextOpenToolId(
  *     clearly. Extracted so the layout rule is unit-testable without a click
  *     harness (the file's `nextOpenToolId` pure-rule precedent).
  */
+/** @deprecated import from mobile-layout.ts — kept for existing tests. */
 export function dockLayoutStyle(isExpanded: boolean): CSSProperties {
-  return isExpanded
-    ? {
-        top: "5vh",
-        right: "max(4vw, 54px)",
-        width: "min(860px, 78vw)",
-        maxHeight: "90vh",
-        boxShadow: "0 18px 60px rgba(0,0,0,0.55)",
-      }
-    : {
-        top: 12,
-        right: 54,
-        width: "min(400px, calc(100vw - 78px))",
-        maxHeight: "calc(100vh - 28px)",
-      };
+  return resolveDockLayoutStyle(isExpanded, false);
 }
 
 /** 15px stroke glyph in the MapToolset icon language. */
@@ -132,6 +126,8 @@ export function Workbench({
   host,
   store,
 }: WorkbenchProps) {
+  const { isMobile, activeSheet, openSheet } = useMobilePanel();
+  const mobileResearchOpen = isMobile && activeSheet === "research";
   const openTool = openToolId
     ? (tools.find((t) => t.id === openToolId) ?? null)
     : null;
@@ -169,15 +165,7 @@ export function Workbench({
           right-side dock (zIndex 9) per the small-in-front-of-large rule. */}
       <div
         data-testid="workbench-cluster"
-        style={{
-          position: "absolute",
-          top: 118,
-          right: 12,
-          zIndex: 11,
-          display: "flex",
-          flexDirection: "column",
-          gap: 7,
-        }}
+        style={workbenchClusterStyle(isMobile)}
       >
         {tools.map((tool) => {
           const active = tool.id === openToolId;
@@ -198,6 +186,38 @@ export function Workbench({
         })}
       </div>
 
+      {/* Mobile research sheet — horizontal tool picker (replaces top-right cluster). */}
+      {isMobile && mobileResearchOpen && !isExpanded && (
+        <div
+          data-testid="workbench-mobile-picker"
+          style={mobileToolPickerStyle()}
+        >
+          {tools.map((tool) => {
+            const active = tool.id === openToolId;
+            return (
+              <button
+                key={tool.id}
+                type="button"
+                data-testid={`workbench-mobile-bubble-${tool.id}`}
+                aria-label={tool.label}
+                aria-pressed={active}
+                title={tool.label}
+                onClick={() => {
+                  openSheet("research");
+                  onOpenToolChange(nextOpenToolId(openToolId, tool.id));
+                }}
+                style={{
+                  ...bubbleStyle(active, tool.status === "coming"),
+                  flexShrink: 0,
+                }}
+              >
+                {tool.icon}
+              </button>
+            );
+          })}
+        </div>
+      )}
+
       {/* THE ONE SHARED DOCK — exactly one tool's content, or nothing.
           HEIGHT MODEL (polish wave): the dock never extends past the viewport.
           maxHeight = 100vh minus the dock's top offset (12px) minus a 16px
@@ -205,22 +225,24 @@ export function Workbench({
           (momentum scroll) while the header (title + ×) stays pinned. This is
           dock chrome, owned HERE for every tool — tools do not add their own
           outer scrollboxes. */}
-      {openTool && (
+      {openTool && (!isMobile || mobileResearchOpen) && (
         <section
           data-testid="workbench-dock"
           data-tool={openTool.id}
           data-expanded={isExpanded ? "1" : undefined}
+          data-mobile-dock={isMobile ? "1" : undefined}
           style={{
-            position: "absolute",
-            zIndex: 9,
-            ...dockLayoutStyle(isExpanded),
+            position: isMobile ? "fixed" : "absolute",
+            zIndex: isMobile ? 15 : 9,
+            ...resolveDockLayoutStyle(isExpanded, isMobile),
             display: "flex",
             flexDirection: "column",
             overflow: "hidden",
-            borderRadius: 8,
+            borderRadius: isMobile ? undefined : 8,
             color: TEXT,
             background: CARD_BG,
-            border: BORDER,
+            border: isMobile ? "none" : BORDER,
+            borderTop: isMobile ? BORDER : undefined,
             font: "12px/1.45 system-ui, -apple-system, Segoe UI, Roboto, sans-serif",
             animation: "pe-dock-in 240ms ease",
           }}
