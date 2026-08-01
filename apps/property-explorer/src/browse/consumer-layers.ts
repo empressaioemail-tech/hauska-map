@@ -56,6 +56,7 @@ export function consumerKnownLayers(): Set<LayerKey> {
       key === "topography-contours" ||
       key === "dem-hillshade" ||
       key === "hydrography" ||
+      key === "opportunity-zone-tract" ||
       key === "pedestrian-ways"
     ) {
       next.add(key);
