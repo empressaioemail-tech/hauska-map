@@ -1,6 +1,6 @@
 // Property Explorer MAP-LAYERS BFF — one function, three free browse layers.
 //
-// POST /api/pe-map-layers?layer=topography|hydrology|hydrography
+// POST /api/pe-map-layers?layer=topography|hydrology|hydrography|opportunity-zone
 //   Body: { bbox: {westLng,southLat,eastLng,northLat}, centerLat?, centerLng? }
 //
 // CONSOLIDATION (2026-07-29): pe-topography, pe-hydrology and pe-hydrography
@@ -10,6 +10,7 @@
 //   /api/pe-topography  -> /api/pe-map-layers?layer=topography
 //   /api/pe-hydrology   -> /api/pe-map-layers?layer=hydrology
 //   /api/pe-hydrography -> /api/pe-map-layers?layer=hydrography
+//   /api/pe-opportunity-zone -> /api/pe-map-layers?layer=opportunity-zone
 // Each branch below is the faithful body of its former function; the per-layer
 // cores in ./_lib are untouched (their tests pin the behavior).
 //
@@ -46,6 +47,10 @@ import {
   mapHydrographyPayload,
   parseHydrographyRequest,
 } from './_lib/pe-hydrography-core.js'
+import {
+  assembleOpportunityZoneLayer,
+  parseOpportunityZoneRequest,
+} from './_lib/pe-opportunity-zone-core.js'
 
 function missingGateResponse(res: VercelResponse): void {
   // Preview deploys without the engine key: honest DEGRADED, not a fake layer.
@@ -210,6 +215,24 @@ async function handleHydrography(req: VercelRequest, res: VercelResponse): Promi
   }
 }
 
+async function handleOpportunityZone(req: VercelRequest, res: VercelResponse): Promise<void> {
+  const parsed = parseOpportunityZoneRequest(req.body)
+  if (!parsed.ok) {
+    res.status(400).json({ error: 'invalid_request', message: parsed.message })
+    return
+  }
+  try {
+    const payload = await assembleOpportunityZoneLayer(parsed.request)
+    res.status(200).json(payload)
+  } catch (err) {
+    const message = err instanceof Error ? err.message : String(err)
+    res.status(502).json({
+      error: 'upstream_error',
+      message: `Opportunity Zone tract assembly failed (${message}).`,
+    })
+  }
+}
+
 export default async function handler(
   req: VercelRequest,
   res: VercelResponse,
@@ -227,10 +250,12 @@ export default async function handler(
       return handleHydrology(req, res)
     case 'hydrography':
       return handleHydrography(req, res)
+    case 'opportunity-zone':
+      return handleOpportunityZone(req, res)
     default:
       res.status(400).json({
         error: 'invalid_layer',
-        message: 'layer must be topography, hydrology or hydrography',
+        message: 'layer must be topography, hydrology, hydrography or opportunity-zone',
       })
   }
 }
