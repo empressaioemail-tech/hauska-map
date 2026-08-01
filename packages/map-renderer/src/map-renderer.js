@@ -161,6 +161,13 @@ export function createMapRenderer() {
   // invoked on supersession and in destroy() — this is what keeps the latch bounded
   // and leak-free.
   let subjectResolveGen = 0;
+  // Teardown for whatever listener/timer is pending for the current subject-resolve
+  // (see the latch note above). Set when a re-schedule listener is armed, invoked +
+  // nulled by clearSubjectResolve() on supersession and in destroy(). Declared here
+  // so every reference (clearSubjectResolve, the onIdle re-schedule) shares one
+  // per-instance holder — without this declaration the assignments/reads throw
+  // ReferenceError: subjectResolveCleanup is not defined.
+  let subjectResolveCleanup = null;
   let terrainLayerWasVisible = false;
 
   function ensureMap() {
