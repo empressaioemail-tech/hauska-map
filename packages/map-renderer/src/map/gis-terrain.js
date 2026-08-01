@@ -307,6 +307,12 @@ export function ensureProductionTerrainInfrastructure(map) {
       tileSize: PRODUCTION_TERRAIN_RGB.tileSize,
       encoding: PRODUCTION_TERRAIN_RGB.encoding,
       maxzoom: PRODUCTION_TERRAIN_RGB.maxZoom,
+      // Clip terrain requests to AOI coverage. Without bounds MapLibre fetches
+      // the whole pitched viewport, 404s beyond the AOI, and the far field
+      // explodes into the sky-gradient boundary (the horizontal white band).
+      ...(PRODUCTION_TERRAIN_RGB.bounds
+        ? { bounds: PRODUCTION_TERRAIN_RGB.bounds }
+        : {}),
     });
   }
   if (!map.getLayer(PRODUCTION_SKY_LAYER_ID)) {
