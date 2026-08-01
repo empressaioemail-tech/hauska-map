@@ -153,7 +153,7 @@ export interface PeBakedFacetPayload {
     landUse?: { code: string; description?: string | null } | null;
     acreage?: { value: number; sqft?: number; method?: string } | null;
   };
-  zoning?: { district: string } | null;
+  zoning?: { district: string; jurisdictionKey?: string } | null;
   envelope?: {
     status: "ok" | "no-buildable-area" | "declined";
     confidence?: number;
@@ -421,6 +421,24 @@ export function mergeBakedBaseFacts(
  * Adapt atom-chain → PE facets. Returns null when the chain is empty/unusable
  * so the BFF can fall back to cortex.
  */
+/**
+ * Derive the corpus JURISDICTION KEY from a zoning source adapter id, so chat
+ * atom-retrieval (and any consumer needing the stamped jurisdiction) can send
+ * it. The stamp adapters carry it as a suffix, e.g.
+ * `txgio-zoning-stamp:bastrop-city-tx` → `bastrop-city-tx`. Only a real
+ * stamped jurisdiction key is returned; a bare/parcel-record adapter with no
+ * jurisdiction suffix returns null (honest absence — never a fabricated key).
+ */
+export function jurisdictionKeyFromSourceAdapter(
+  sourceAdapter: string | null | undefined,
+): string | null {
+  const a = (sourceAdapter ?? "").trim();
+  if (!a) return null;
+  const m = a.match(/(?:zoning-stamp|jurisdiction)[:/]([a-z0-9][a-z0-9-]*)/i);
+  if (m && m[1]) return m[1].toLowerCase();
+  return null;
+}
+
 export function adaptAtomChainToBakedFacets(
   chain: PropertyAtomChain | null | undefined,
 ): PeBakedFacetsResponse | null {
@@ -454,6 +472,10 @@ export function adaptAtomChainToBakedFacets(
   const hasDistrict =
     !absenceKind && typeof zf?.district === "string" && zf.district.trim().length > 0;
   const district = hasDistrict ? (zf!.district as string).trim() : null;
+  // The stamped corpus jurisdiction key (from the zoning source adapter), so
+  // chat atom-retrieval sends areaContext.jurisdictionKey and the answer can
+  // carry cited atoms. Null when the adapter has no jurisdiction suffix.
+  const jurisdictionKey = jurisdictionKeyFromSourceAdapter(zoningSourceAdapter);
 
   const setbacks = mapSetbacks(rule, district);
   // R24/R25/R26 — full-field parity + disclosure, surfaced onto any drawn envelope.
@@ -618,7 +640,9 @@ export function adaptAtomChainToBakedFacets(
             situsAddress: null,
           }
         : undefined,
-      zoning: district ? { district } : null,
+      zoning: district
+        ? { district, ...(jurisdictionKey ? { jurisdictionKey } : {}) }
+        : null,
       envelope:
         envelope && depthWarm && setbacks
           ? {

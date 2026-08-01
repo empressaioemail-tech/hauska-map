@@ -122,6 +122,40 @@ describe("adaptAtomChainToBakedFacets — Bexar honest absence", () => {
   });
 });
 
+describe("adaptAtomChainToBakedFacets — jurisdictionKey from zoning source adapter", () => {
+  it("surfaces the stamped corpus jurisdiction key onto facets.zoning (chat citation retrieval seam)", () => {
+    const chain: PropertyAtomChain = {
+      parcelNodeId: "48021:105129",
+      zoningFact: {
+        district: "SF-1",
+        sourceAdapter: "txgio-zoning-stamp:bastrop-city-tx",
+      },
+      setbackRule: { front: 25, side: 5, rear: 25, districtCode: "SF-1" },
+      atoms: [{}, {}],
+    };
+    const resp = adaptAtomChainToBakedFacets(chain);
+    expect(resp!.facets.zoning).toEqual({
+      district: "SF-1",
+      jurisdictionKey: "bastrop-city-tx",
+    });
+  });
+
+  it("omits jurisdictionKey when the source adapter carries no jurisdiction suffix (honest absence)", () => {
+    const chain: PropertyAtomChain = {
+      parcelNodeId: "48021:200000",
+      zoningFact: {
+        district: "SF-1",
+        sourceAdapter: "bastrop-per-parcel-record-layer-23",
+      },
+      setbackRule: null,
+      atoms: [{}],
+    };
+    const resp = adaptAtomChainToBakedFacets(chain);
+    // District still resolves; no fabricated jurisdiction key on a bare adapter.
+    expect(resp!.facets.zoning).toEqual({ district: "SF-1" });
+  });
+});
+
 describe("atomChainIsUsable", () => {
   it("rejects empty chain (triggers cortex fallback upstream)", () => {
     expect(atomChainIsUsable(null)).toBe(false);
