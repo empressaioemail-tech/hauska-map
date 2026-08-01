@@ -21,8 +21,14 @@ export const PEDESTRIAN_WAYS_TOGGLE_KEY = "pedestrian-ways";
 /** @deprecated No longer emitted — kept for callers that still import the key. */
 export const ROAD_EDGE_LAYER_KEY = "road-node-row-edges";
 
-/** Band fill — medium grey, readable without washing the map. */
-export const ROAD_BAND_GREY = "#9ca3af";
+/**
+ * Band fill — light warm grey, chosen to read against the dark, brown-warmed
+ * Phase-0A basemap (Carto dark, brightness-max 0.42, hue-rotate 18). The prior
+ * medium grey #9ca3af at low opacity was effectively invisible on that canvas;
+ * this lighter tone plus the higher browse-zoom opacity below restores the
+ * visible street network the operator saw before the restyle.
+ */
+export const ROAD_BAND_GREY = "#c7ccd4";
 /**
  * Pedestrian hue — MUST match CONTEXT_PEDESTRIAN.line in layer-role-taxonomy.
  * Literal (not a runtime import) so PE vitest does not require renderer dist.
@@ -108,7 +114,10 @@ export function roadIsPedestrianWay(road: AttachingRoadWire): boolean {
 
 /**
  * Hairline under ~z14 (overview), soft pavement band from ~z15.
- * Opacity stays low so overlapping segments do not chalk at intersections.
+ * Opacity is high enough that the street network reads clearly against the
+ * dark brown-warmed basemap at the zooms users browse (z13-z17), but stays
+ * below full opaque so overlapping segments do not chalk at intersections.
+ * (The prior 0.12-0.30 ramp rendered streets invisible — the bug this fixes.)
  */
 const ROW_BAND_PAINT = {
   "line-color": ROAD_BAND_GREY,
@@ -119,9 +128,9 @@ const ROW_BAND_PAINT = {
     12,
     1.15,
     13,
-    1.4,
+    1.6,
     14,
-    2.5,
+    2.8,
     15,
     7,
     16,
@@ -136,19 +145,19 @@ const ROW_BAND_PAINT = {
     ["linear"],
     ["zoom"],
     12,
-    0.12,
+    0.42,
     13,
-    0.14,
+    0.5,
     14,
-    0.16,
+    0.58,
     15,
-    0.2,
+    0.62,
     16,
-    0.24,
+    0.66,
     17,
-    0.28,
+    0.68,
     18,
-    0.3,
+    0.7,
   ],
   "line-blur": [
     "interpolate",
