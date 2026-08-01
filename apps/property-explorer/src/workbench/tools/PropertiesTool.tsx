@@ -274,7 +274,11 @@ export function PropertiesList({
           const dossierBits = [
             row.snapshot?.notes ? "notes" : null,
             row.snapshot?.drawings ? "drawings" : null,
-            row.snapshot?.chatSummary || row.snapshot?.chatThread ? "chat" : null,
+            row.snapshot?.chatSummary ||
+            row.snapshot?.chatThread ||
+            row.snapshot?.chatThreads?.length
+              ? "chat"
+              : null,
             row.snapshot?.exports?.length ? "exports" : null,
           ].filter((b): b is string => b !== null);
           const status = row.snapshot?.status ?? null;

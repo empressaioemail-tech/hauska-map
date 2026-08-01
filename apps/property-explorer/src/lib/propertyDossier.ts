@@ -21,6 +21,10 @@ export const DOSSIER_CHAT_MAX_TURNS = 20;
 export const DOSSIER_CHAT_TURN_MAX_CHARS = 4_000;
 export const DOSSIER_SUMMARY_MAX_CHARS = 4_000;
 export const DOSSIER_DRAWINGS_MAX_FEATURES = 300;
+/** Multi-thread revisit: how many named/dated threads a property keeps. */
+export const DOSSIER_CHAT_THREADS_MAX = 20;
+/** Auto-title / operator-name cap for a saved thread. */
+export const DOSSIER_CHAT_THREAD_TITLE_MAX_CHARS = 80;
 /** ~11 cm at the equator — plenty for annotation geometry, keeps rows lean. */
 const COORD_DECIMALS = 6;
 
@@ -55,6 +59,23 @@ export interface DossierChatSummary {
   turnCount: number;
   /** The standing research disclaimer that rode with the summary answer. */
   disclaimer?: string | null;
+}
+
+/**
+ * A saved chat THREAD — the durable, cross-device half of the property's
+ * multi-thread revisit. Each thread is anchored to THIS property (the dossier
+ * it lives on); the id matches the client session id so re-saving updates in
+ * place and opening a saved thread continues the same session. Turns are
+ * capped exactly like the single-thread field. Attachments are NOT persisted
+ * here (tenant-private client context, not stored server-side in v1).
+ */
+export interface DossierChatThread {
+  id: string;
+  /** Auto-title (first user question) or an operator name; null = untitled. */
+  title: string | null;
+  savedAt: string;
+  turnCount: number;
+  turns: DossierChatTurn[];
 }
 
 export type DossierExportKind = "site-plan" | "terrain" | "flood-drainage";
@@ -100,6 +121,8 @@ export interface PropertyDossier {
   drawings?: DossierFeatureCollection | null;
   chatSummary?: DossierChatSummary | null;
   chatThread?: DossierChatTurn[] | null;
+  /** Multi-thread revisit — a property's list of saved chat threads. */
+  chatThreads?: DossierChatThread[] | null;
   notes?: string | null;
   exports?: DossierExportEntry[];
 }
@@ -233,6 +256,43 @@ function sanitizeChatTurns(value: unknown): DossierChatTurn[] | null {
   return turns.slice(-DOSSIER_CHAT_MAX_TURNS);
 }
 
+function sanitizeChatThread(value: unknown): DossierChatThread | null {
+  const rec = asRecord(value);
+  if (!rec) return null;
+  const id = str(rec.id);
+  if (!id) return null;
+  const turns = sanitizeChatTurns(rec.turns);
+  if (!turns) return null;
+  const rawTitle = str(rec.title);
+  const title = rawTitle ? cap(rawTitle, DOSSIER_CHAT_THREAD_TITLE_MAX_CHARS) : null;
+  return {
+    id: cap(id, 200),
+    title,
+    savedAt: str(rec.savedAt) ?? "",
+    turnCount:
+      typeof rec.turnCount === "number" && Number.isFinite(rec.turnCount)
+        ? Math.max(0, Math.floor(rec.turnCount))
+        : turns.length,
+    turns,
+  };
+}
+
+/** Sanitize the saved-threads list — drop malformed threads, keep the most
+ *  recent DOSSIER_CHAT_THREADS_MAX (by savedAt desc), never throw. */
+export function sanitizeChatThreads(value: unknown): DossierChatThread[] | null {
+  if (!Array.isArray(value)) return null;
+  const threads = value
+    .map(sanitizeChatThread)
+    .filter((t): t is DossierChatThread => t !== null);
+  if (threads.length === 0) return null;
+  // Dedupe by id (last wins), then keep the most recent N by savedAt.
+  const byId = new Map<string, DossierChatThread>();
+  for (const t of threads) byId.set(t.id, t);
+  return [...byId.values()]
+    .sort((a, b) => (a.savedAt < b.savedAt ? 1 : -1))
+    .slice(0, DOSSIER_CHAT_THREADS_MAX);
+}
+
 function sanitizeChatSummary(value: unknown): DossierChatSummary | null {
   const rec = asRecord(value);
   if (!rec) return null;
@@ -331,6 +391,8 @@ export function sanitizeDossier(input: PropertyDossier): PropertyDossier {
   if (chatSummary) out.chatSummary = chatSummary;
   const chatThread = input.chatThread ? sanitizeChatTurns(input.chatThread) : null;
   if (chatThread) out.chatThread = chatThread;
+  const chatThreads = input.chatThreads ? sanitizeChatThreads(input.chatThreads) : null;
+  if (chatThreads) out.chatThreads = chatThreads;
   const notes = str(input.notes ?? null);
   if (notes) out.notes = cap(notes, DOSSIER_NOTES_MAX_CHARS);
   const exports = sanitizeExports(input.exports);
@@ -358,4 +420,17 @@ export function upsertExportEntry(
     (e) => !(e.kind === entry.kind && e.format === entry.format),
   );
   return [...kept, entry];
+}
+
+// ---------------------------------------------------------------------------
+// Chat-threads upsert — dedupe by thread id, LATEST WINS (re-saving a thread
+// updates it in place rather than piling duplicates). Keeps the list bounded.
+// ---------------------------------------------------------------------------
+
+export function upsertChatThread(
+  current: DossierChatThread[] | undefined,
+  thread: DossierChatThread,
+): DossierChatThread[] {
+  const kept = (current ?? []).filter((t) => t.id !== thread.id);
+  return [thread, ...kept].slice(0, DOSSIER_CHAT_THREADS_MAX);
 }

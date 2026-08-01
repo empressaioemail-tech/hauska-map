@@ -89,6 +89,26 @@ import {
 import { freshnessVerdict } from "../../browse/brief-view-model";
 import { saveChatToProperty } from "./chat-dossier";
 import { savePropertyWithDossier } from "../../lib/savedPropertiesClient";
+import {
+  activeSession as selectActiveSession,
+  deleteSession,
+  readSessionsState,
+  sessionsByRecency,
+  setActiveAttachments,
+  setActiveTurns,
+  startNewSession,
+  switchSession,
+  type ChatSession,
+  type ChatSessionsState,
+  type ChatStoredTurn as SessionStoredTurn,
+} from "./chat-sessions";
+import {
+  composeMessageWithAttachments,
+  formatBytes,
+  ingestAttachment,
+  ATTACH_MAX_PER_THREAD,
+  type ChatAttachment,
+} from "./chat-attach";
 
 const TEXT = "#e5e7eb";
 const MUTED = "#9aa6b2";
@@ -100,19 +120,17 @@ const DETAIL_BG = "rgba(154,166,178,0.10)";
 
 // ---------------------------------------------------------------------------
 // Stored (per-property, JSON-serializable) thread state.
+//
+// The chassis store now holds a MULTI-SESSION shape per property
+// (ChatSessionsState — sessions[] + activeSessionId, defined in chat-sessions).
+// The legacy single-thread shape { turns } is migrated forward on read
+// (readSessionsState), so an existing saved thread is never lost. The active
+// session's turns are the working transcript. `ChatToolStoredState` /
+// `ChatStoredTurn` stay exported as the legacy shape for existing tests +
+// external callers (the store still accepts a bare { turns } and migrates it).
 // ---------------------------------------------------------------------------
 
-export interface ChatStoredTurn {
-  role: "user" | "assistant";
-  /** Plain text — rendered AND sent upstream as the history window. */
-  content: string;
-  /** Assistant-only: normalized citation refs backing the chip row. */
-  refs?: ChatRef[];
-  disclaimer?: string | null;
-  confidence?: number | null;
-  generatedAt?: string | null;
-  method?: string | null;
-}
+export type ChatStoredTurn = SessionStoredTurn;
 
 export interface ChatToolStoredState {
   turns: ChatStoredTurn[];
@@ -775,6 +793,8 @@ function AssistantTurn({
   turnIndex,
   parcelNodeId,
   cardState,
+  copied,
+  onCopy,
   onOpenCard,
   onWalk,
   onBack,
@@ -783,6 +803,8 @@ function AssistantTurn({
   turnIndex: number;
   parcelNodeId: string;
   cardState: CitationCardState | null;
+  copied?: boolean;
+  onCopy?: () => void;
   onOpenCard: (turnIndex: number, did: string) => void;
   onWalk: (did: string) => void;
   onBack: () => void;
@@ -818,6 +840,11 @@ function AssistantTurn({
           {turn.disclaimer}
         </p>
       ) : null}
+      {onCopy && (
+        <div style={{ marginTop: 3 }}>
+          <CopyMessageButton copied={!!copied} onCopy={onCopy} />
+        </div>
+      )}
     </div>
   );
 }
@@ -837,6 +864,280 @@ const starterChipStyle: CSSProperties = {
   textAlign: "left",
 };
 
+// ---------------------------------------------------------------------------
+// Session bar — "New chat" + the thread picker. Every thread here is anchored
+// to the CURRENT property; the bar switches the CONVERSATION, never the anchor.
+// ---------------------------------------------------------------------------
+
+const smallBtn: CSSProperties = {
+  fontSize: 10.5,
+  color: ACCENT,
+  background: "transparent",
+  border: "1px solid rgba(125,211,252,0.45)",
+  borderRadius: 5,
+  padding: "2px 8px",
+  cursor: "pointer",
+};
+
+export function ChatSessionBar({
+  sessions,
+  activeId,
+  pickerOpen,
+  disabled,
+  onNewChat,
+  onTogglePicker,
+  onSwitch,
+  onDelete,
+}: {
+  sessions: ChatSession[];
+  activeId: string;
+  pickerOpen: boolean;
+  disabled: boolean;
+  onNewChat: () => void;
+  onTogglePicker: () => void;
+  onSwitch: (id: string) => void;
+  onDelete: (id: string) => void;
+}) {
+  const active = sessions.find((s) => s.id === activeId) ?? sessions[0];
+  const activeLabel = active?.title ?? "New chat";
+  const multiple = sessions.length > 1;
+  return (
+    <div
+      data-testid="chat-session-bar"
+      style={{ position: "relative", display: "flex", alignItems: "center", gap: 6 }}
+    >
+      <button
+        type="button"
+        data-testid="chat-new-chat"
+        onClick={onNewChat}
+        disabled={disabled}
+        style={{ ...smallBtn, opacity: disabled ? 0.55 : 1 }}
+      >
+        + New chat
+      </button>
+      <button
+        type="button"
+        data-testid="chat-thread-picker-toggle"
+        aria-expanded={pickerOpen}
+        onClick={onTogglePicker}
+        title="Chats on this property"
+        style={{
+          flex: 1,
+          minWidth: 0,
+          display: "flex",
+          alignItems: "center",
+          justifyContent: "space-between",
+          gap: 6,
+          fontSize: 10.5,
+          color: TEXT,
+          background: "rgba(154,166,178,0.08)",
+          border: CHIP_BORDER,
+          borderRadius: 5,
+          padding: "2px 8px",
+          cursor: "pointer",
+        }}
+      >
+        <span
+          style={{ overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}
+        >
+          {activeLabel}
+          {multiple ? ` · ${sessions.length} chats` : ""}
+        </span>
+        <span style={{ color: MUTED, fontSize: 9 }}>{pickerOpen ? "▲" : "▼"}</span>
+      </button>
+
+      {pickerOpen && (
+        <div
+          data-testid="chat-thread-picker"
+          style={{
+            position: "absolute",
+            top: "100%",
+            right: 0,
+            left: 0,
+            zIndex: 5,
+            marginTop: 3,
+            maxHeight: "40vh",
+            overflowY: "auto",
+            background: "#0d1117",
+            border: CHIP_BORDER,
+            borderRadius: 6,
+            boxShadow: "0 6px 18px rgba(0,0,0,0.45)",
+          }}
+        >
+          {sessions.map((s) => {
+            const isActive = s.id === activeId;
+            const label = s.title ?? "New chat";
+            const meta = `${s.turns.length} turn${s.turns.length === 1 ? "" : "s"}${
+              s.attachments.length
+                ? ` · ${s.attachments.length} file${s.attachments.length === 1 ? "" : "s"}`
+                : ""
+            }`;
+            return (
+              <div
+                key={s.id}
+                data-testid="chat-thread-row"
+                style={{
+                  display: "flex",
+                  alignItems: "center",
+                  gap: 6,
+                  padding: "5px 8px",
+                  borderBottom: "1px solid rgba(154,166,178,0.15)",
+                  background: isActive ? "rgba(125,211,252,0.10)" : "transparent",
+                }}
+              >
+                <button
+                  type="button"
+                  data-testid="chat-thread-open"
+                  onClick={() => onSwitch(s.id)}
+                  style={{
+                    flex: 1,
+                    minWidth: 0,
+                    textAlign: "left",
+                    background: "transparent",
+                    border: "none",
+                    color: TEXT,
+                    cursor: "pointer",
+                    padding: 0,
+                  }}
+                >
+                  <span
+                    style={{
+                      display: "block",
+                      fontSize: 11,
+                      fontWeight: isActive ? 600 : 500,
+                      overflow: "hidden",
+                      textOverflow: "ellipsis",
+                      whiteSpace: "nowrap",
+                    }}
+                  >
+                    {label}
+                  </span>
+                  <span style={{ display: "block", fontSize: 9.5, color: MUTED }}>
+                    {meta}
+                    {isActive ? " · current" : ""}
+                  </span>
+                </button>
+                <button
+                  type="button"
+                  data-testid="chat-thread-delete"
+                  aria-label={`Delete ${label}`}
+                  onClick={() => onDelete(s.id)}
+                  style={{
+                    background: "transparent",
+                    border: "none",
+                    color: MUTED,
+                    cursor: "pointer",
+                    fontSize: 13,
+                    lineHeight: 1,
+                    padding: "0 2px",
+                  }}
+                >
+                  ×
+                </button>
+              </div>
+            );
+          })}
+        </div>
+      )}
+    </div>
+  );
+}
+
+/** Copy-to-clipboard affordance on a message bubble (user + assistant). */
+export function CopyMessageButton({
+  copied,
+  onCopy,
+}: {
+  copied: boolean;
+  onCopy: () => void;
+}) {
+  return (
+    <button
+      type="button"
+      data-testid="chat-copy-message"
+      aria-label="Copy message"
+      onClick={onCopy}
+      style={{
+        fontSize: 9.5,
+        color: copied ? "#4ade80" : MUTED,
+        background: "transparent",
+        border: "none",
+        padding: 0,
+        cursor: "pointer",
+      }}
+    >
+      {copied ? "Copied" : "Copy"}
+    </button>
+  );
+}
+
+/** In-thread attachment chips (per-thread; tenant-private). */
+export function AttachmentChips({
+  attachments,
+  onRemove,
+}: {
+  attachments: ChatAttachment[];
+  onRemove?: (id: string) => void;
+}) {
+  if (attachments.length === 0) return null;
+  return (
+    <div
+      data-testid="chat-attachments"
+      style={{ display: "flex", flexWrap: "wrap", gap: 5, marginTop: 6 }}
+    >
+      {attachments.map((a) => (
+        <span
+          key={a.id}
+          data-testid="chat-attachment-chip"
+          title={a.note ?? `${a.name} — passed to the AI as context`}
+          style={{
+            display: "inline-flex",
+            alignItems: "center",
+            gap: 5,
+            maxWidth: "100%",
+            fontSize: 10,
+            color: TEXT,
+            background: "rgba(154,166,178,0.10)",
+            border: CHIP_BORDER,
+            borderRadius: 10,
+            padding: "1px 7px",
+          }}
+        >
+          <span aria-hidden="true">📎</span>
+          <span
+            style={{ overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}
+          >
+            {a.name}
+          </span>
+          <span style={{ color: MUTED, fontSize: 9 }}>
+            {formatBytes(a.sizeBytes)}
+            {a.extractedText ? "" : " · not read"}
+          </span>
+          {onRemove && (
+            <button
+              type="button"
+              data-testid="chat-attachment-remove"
+              aria-label={`Remove ${a.name}`}
+              onClick={() => onRemove(a.id)}
+              style={{
+                background: "transparent",
+                border: "none",
+                color: MUTED,
+                cursor: "pointer",
+                fontSize: 12,
+                lineHeight: 1,
+                padding: 0,
+              }}
+            >
+              ×
+            </button>
+          )}
+        </span>
+      ))}
+    </div>
+  );
+}
+
 export function ChatTool() {
   const { activeParcelNodeId, host } = useWorkbench();
   // R1 PROACTIVE entitlement: chat is PARTIALLY free — 3 signed-in free
@@ -845,12 +1146,30 @@ export function ChatTool() {
   // server-402 belt stays authoritative.
   const ent = usePropertyEntitlement(activeParcelNodeId);
   const chatWalled = ent.locked && ent.freeMessagesLeft <= 0;
-  const [stored, setStored] = useDockToolState<ChatToolStoredState>("chat");
+  // The chassis store holds the MULTI-SESSION state (or a legacy { turns }
+  // shape, migrated forward on read). We read it as raw and normalize.
+  const [storedRaw, setStoredRaw] = useDockToolState<unknown>("chat");
+  const sessionsState: ChatSessionsState = readSessionsState(
+    storedRaw,
+    // A stable "now" per render is fine — helpers that need a real timestamp
+    // (send/new/delete) pass their own; this only seeds a fresh empty state.
+    new Date().toISOString(),
+  );
+  const session = selectActiveSession(sessionsState);
+  const setStored = setStoredRaw as (next: ChatSessionsState | null) => void;
   // Read-only view of the BRIEF tool's stored state for the SAME property —
   // the chassis store is shared, keyed (property, toolId). Fuels areaContext.
   const [briefStored] = useDockToolState<BriefToolStoredState>("brief");
   const [phase, setPhase] = useState<ChatPhase>({ kind: "idle" });
   const [draft, setDraft] = useState("");
+  // Attach action state (transient — never persisted).
+  const [attachBusy, setAttachBusy] = useState(false);
+  const [attachError, setAttachError] = useState<string | null>(null);
+  // Copy affordance feedback (which message index flashed "Copied").
+  const [copiedIndex, setCopiedIndex] = useState<number | null>(null);
+  // Thread picker open/closed (transient).
+  const [pickerOpen, setPickerOpen] = useState(false);
+  const fileInputRef = useRef<HTMLInputElement | null>(null);
   // WB6 save-to-property: transient action state (never persisted).
   const [saveBusy, setSaveBusy] = useState(false);
   const [saveStatus, setSaveStatus] = useState<{
@@ -868,7 +1187,8 @@ export function ChatTool() {
     };
   }, []);
 
-  const turns = stored?.turns ?? [];
+  const turns = session.turns;
+  const attachments = session.attachments;
 
   // ONE accordion card across the whole thread (shared controller) — with the
   // lineage walk stack. Transient: never persisted, resets on property switch.
@@ -879,7 +1199,17 @@ export function ChatTool() {
   useEffect(() => {
     setSaveStatus(null);
     setCardState(null);
+    setAttachError(null);
+    setPickerOpen(false);
   }, [activeParcelNodeId]);
+
+  // Switching to a different session (new chat / open a thread) resets the
+  // transient open-card + copy feedback + picker.
+  useEffect(() => {
+    setCardState(null);
+    setCopiedIndex(null);
+    setPickerOpen(false);
+  }, [session.id]);
 
   // Keep the newest turn in view as the thread grows.
   useEffect(() => {
@@ -896,9 +1226,13 @@ export function ChatTool() {
       const message = text.trim();
       if (!message || !activeParcelNodeId) return;
 
-      const priorTurns = stored?.turns ?? [];
+      const stateNow = readSessionsState(storedRaw, new Date().toISOString());
+      const activeSess = selectActiveSession(stateNow);
+      const priorTurns = activeSess.turns;
       // History = turns BEFORE this message (the question rides as `message`;
-      // the builder windows to the last 8).
+      // the builder windows to the last 8). The stored/displayed user turn is
+      // the CLEAN question — the attachment context is injected only into the
+      // upstream `message`, never into the persisted bubble or the history.
       const history: ChatTurn[] = priorTurns.map((t) => ({
         role: t.role,
         content: t.content,
@@ -908,8 +1242,20 @@ export function ChatTool() {
       const withUser: ChatStoredTurn[] = opts.isRetry
         ? priorTurns
         : [...priorTurns, { role: "user", content: message }];
-      if (!opts.isRetry) setStored({ turns: withUser });
+      const nowIso = new Date().toISOString();
+      if (!opts.isRetry) {
+        setStored(setActiveTurns(stateNow, withUser, nowIso));
+      }
       setPhase({ kind: "sending" });
+
+      // ATTACH: inject the thread's readable attachment context into the
+      // OUTGOING message (tenant-private client context passed to the model).
+      // Persisted bubble + history stay the clean question — no leakage of the
+      // wrapped block into storage or the shared layer.
+      const messageForModel = composeMessageWithAttachments(
+        message,
+        activeSess.attachments,
+      );
 
       // SELF-SUFFICIENT context: the chat sources the property's BAKED FACETS
       // itself (fetched once per property, module-cached) — zoning, setbacks,
@@ -923,7 +1269,7 @@ export function ChatTool() {
         host.getActivePropertyAddress?.() ?? null,
       );
       const outcome = await runChatTurn({
-        message,
+        message: messageForModel,
         history: opts.isRetry ? history.slice(0, -1) : history,
         subject,
         starterPromptId: meta.starterPromptId,
@@ -933,7 +1279,14 @@ export function ChatTool() {
       if (outcome.kind === "answer") {
         // Persist even if the dock closed mid-flight — setStored is bound to
         // the property this send STARTED for and the store outlives the mount.
-        setStored({ turns: [...withUser, answerTurn(outcome.answer)] });
+        // Writes the user+answer turns onto the session this send started on.
+        setStored(
+          setActiveTurns(
+            stateNow,
+            [...withUser, answerTurn(outcome.answer)],
+            new Date().toISOString(),
+          ),
+        );
         // A free (not-entitled) answer consumed a server-counted message —
         // refresh the proactive read so the remaining-messages line is true.
         if (!ent.entitled) invalidatePropertyEntitlement(activeParcelNodeId);
@@ -969,7 +1322,7 @@ export function ChatTool() {
       });
     },
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    [activeParcelNodeId, stored, briefStored, host, setStored, ent.entitled],
+    [activeParcelNodeId, storedRaw, briefStored, host, setStored, ent.entitled],
   );
 
   // WB6 — SAVE TO PROPERTY: store the thread (capped) into the saved
@@ -1012,6 +1365,9 @@ export function ChatTool() {
           address: subject.address,
           turns: turns.map((t) => ({ role: t.role, content: t.content })),
           subject,
+          // Multi-thread revisit: identify WHICH thread this is so it upserts
+          // into the dossier's chatThreads list (revisit from My-properties).
+          session: { id: session.id, title: session.title },
         });
         if (!mountedRef.current) return;
         switch (outcome.kind) {
@@ -1049,8 +1405,104 @@ export function ChatTool() {
         setSaveBusy(false);
       }
     },
-    [activeParcelNodeId, turns, saveBusy, briefStored, host],
+    [activeParcelNodeId, turns, saveBusy, briefStored, host, session.id, session.title],
   );
+
+  // --- NEW CHAT / SWITCH / DELETE session handlers. ---
+
+  const handleNewChat = useCallback(() => {
+    setStored(startNewSession(sessionsState, new Date().toISOString()));
+    setPhase({ kind: "idle" });
+    setDraft("");
+    setSaveStatus(null);
+    setPickerOpen(false);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [storedRaw, setStored]);
+
+  const handleSwitchSession = useCallback(
+    (sessionId: string) => {
+      setStored(switchSession(sessionsState, sessionId));
+      setPhase({ kind: "idle" });
+      setSaveStatus(null);
+      setPickerOpen(false);
+    },
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [storedRaw, setStored],
+  );
+
+  const handleDeleteSession = useCallback(
+    (sessionId: string) => {
+      setStored(deleteSession(sessionsState, sessionId, new Date().toISOString()));
+    },
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [storedRaw, setStored],
+  );
+
+  // --- COPY a message to the clipboard (per-bubble affordance). ---
+
+  const handleCopyMessage = useCallback(async (index: number, text: string) => {
+    try {
+      await navigator.clipboard?.writeText(text);
+      setCopiedIndex(index);
+      window.setTimeout(() => setCopiedIndex((c) => (c === index ? null : c)), 1200);
+    } catch {
+      // Clipboard blocked (permissions / insecure context) — silent; the
+      // native select-and-copy still works on the rendered text.
+    }
+  }, []);
+
+  // --- ATTACH a file as cited property context for THIS thread. ---
+
+  const handleAttachFiles = useCallback(
+    async (files: FileList | null) => {
+      if (!files || files.length === 0) return;
+      setAttachError(null);
+      setAttachBusy(true);
+      try {
+        const state = readSessionsState(storedRaw, new Date().toISOString());
+        const current = selectActiveSession(state).attachments;
+        const room = ATTACH_MAX_PER_THREAD - current.length;
+        if (room <= 0) {
+          setAttachError(`Up to ${ATTACH_MAX_PER_THREAD} attachments per chat.`);
+          return;
+        }
+        const next: ChatAttachment[] = [...current];
+        let firstError: string | null = null;
+        for (const file of Array.from(files).slice(0, room)) {
+          const result = await ingestAttachment(file);
+          if (result.ok) next.push(result.attachment);
+          else if (!firstError) firstError = result.error;
+        }
+        if (firstError) setAttachError(firstError);
+        if (next.length !== current.length) {
+          setStored(setActiveAttachments(state, next, new Date().toISOString()));
+        }
+      } finally {
+        setAttachBusy(false);
+        if (fileInputRef.current) fileInputRef.current.value = "";
+      }
+    },
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [storedRaw, setStored],
+  );
+
+  const handleRemoveAttachment = useCallback(
+    (attachmentId: string) => {
+      const state = readSessionsState(storedRaw, new Date().toISOString());
+      const current = selectActiveSession(state).attachments;
+      setStored(
+        setActiveAttachments(
+          state,
+          current.filter((a) => a.id !== attachmentId),
+          new Date().toISOString(),
+        ),
+      );
+    },
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [storedRaw, setStored],
+  );
+
+  const allSessions = sessionsByRecency(sessionsState);
 
   const submitDraft = () => {
     const text = draft.trim();
@@ -1071,6 +1523,19 @@ export function ChatTool() {
       data-testid="chat-tool"
       style={{ display: "flex", flexDirection: "column", gap: 8 }}
     >
+      {/* SESSION BAR — new chat + the thread picker (all anchored to THIS
+          property; the bar switches the conversation, never the anchor). */}
+      <ChatSessionBar
+        sessions={allSessions}
+        activeId={session.id}
+        pickerOpen={pickerOpen}
+        disabled={phase.kind === "sending"}
+        onNewChat={handleNewChat}
+        onTogglePicker={() => setPickerOpen((o) => !o)}
+        onSwitch={handleSwitchSession}
+        onDelete={handleDeleteSession}
+      />
+
       {/* THE THREAD (scrolls; the composer stays pinned below it). */}
       <div
         ref={threadRef}
@@ -1107,19 +1572,26 @@ export function ChatTool() {
 
         {turns.map((turn, i) =>
           turn.role === "user" ? (
-            <p
-              key={i}
-              data-testid="chat-turn-user"
-              style={{
-                margin: "0 0 8px",
-                padding: "5px 8px",
-                borderRadius: 6,
-                background: USER_BG,
-                color: TEXT,
-              }}
-            >
-              {turn.content}
-            </p>
+            <div key={i} style={{ margin: "0 0 8px" }}>
+              <p
+                data-testid="chat-turn-user"
+                style={{
+                  margin: 0,
+                  padding: "5px 8px",
+                  borderRadius: 6,
+                  background: USER_BG,
+                  color: TEXT,
+                }}
+              >
+                {turn.content}
+              </p>
+              <div style={{ marginTop: 2, textAlign: "right" }}>
+                <CopyMessageButton
+                  copied={copiedIndex === i}
+                  onCopy={() => void handleCopyMessage(i, turn.content)}
+                />
+              </div>
+            </div>
           ) : (
             <AssistantTurn
               key={i}
@@ -1127,6 +1599,8 @@ export function ChatTool() {
               turnIndex={i}
               parcelNodeId={activeParcelNodeId ?? ""}
               cardState={cardState}
+              copied={copiedIndex === i}
+              onCopy={() => void handleCopyMessage(i, turn.content)}
               onOpenCard={(turnIndex, did) =>
                 setCardState((cur) => openCitationCard(cur, turnIndex, did))
               }
@@ -1317,8 +1791,52 @@ export function ChatTool() {
         />
       ) : (
       <>
+      {/* ATTACHMENTS — this thread's private cited context (PDF / image /
+          text). Readable text is passed to the AI as context; unreadable
+          files attach as a named reference (honestly "not read"). Tenant-
+          private — never pooled into the shared layer. */}
+      <AttachmentChips attachments={attachments} onRemove={handleRemoveAttachment} />
+      {attachError && (
+        <p
+          data-testid="chat-attach-error"
+          style={{ margin: 0, fontSize: 10, color: AMBER }}
+        >
+          {attachError}
+        </p>
+      )}
+
       {/* THE COMPOSER — pinned at the dock bottom; Enter sends. */}
-      <div style={{ display: "flex", gap: 6 }}>
+      <div style={{ display: "flex", gap: 6, alignItems: "center" }}>
+        <input
+          ref={fileInputRef}
+          type="file"
+          data-testid="chat-attach-input"
+          accept=".pdf,image/*,.txt,.md,.csv,.json,application/pdf,text/plain,text/markdown,text/csv,application/json"
+          multiple
+          style={{ display: "none" }}
+          onChange={(e) => void handleAttachFiles(e.target.files)}
+        />
+        <button
+          type="button"
+          data-testid="chat-attach-button"
+          aria-label="Attach a file as property context"
+          title="Attach a PDF, image, or text file as context for this property"
+          disabled={phase.kind === "sending" || attachBusy}
+          onClick={() => fileInputRef.current?.click()}
+          style={{
+            fontSize: 14,
+            lineHeight: 1,
+            color: MUTED,
+            background: "transparent",
+            border: CHIP_BORDER,
+            borderRadius: 6,
+            padding: "5px 8px",
+            cursor: phase.kind === "sending" || attachBusy ? "default" : "pointer",
+            opacity: phase.kind === "sending" || attachBusy ? 0.55 : 1,
+          }}
+        >
+          {attachBusy ? "…" : "📎"}
+        </button>
         <input
           type="text"
           data-testid="chat-input"

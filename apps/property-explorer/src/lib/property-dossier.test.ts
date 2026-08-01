@@ -7,15 +7,19 @@ import { describe, expect, it } from 'vitest'
 import {
   cleanDisplayString,
   dossierFromSnapshot,
+  sanitizeChatThreads,
   sanitizeDossier,
   sanitizeDrawings,
   sanitizePin,
   sanitizeStatus,
   savedRowDisplayLabel,
+  upsertChatThread,
   upsertExportEntry,
   DOSSIER_CHAT_MAX_TURNS,
+  DOSSIER_CHAT_THREADS_MAX,
   DOSSIER_DRAWINGS_MAX_FEATURES,
   DOSSIER_NOTES_MAX_CHARS,
+  type DossierChatThread,
   type DossierExportEntry,
 } from './propertyDossier'
 
@@ -212,5 +216,69 @@ describe('upsertExportEntry — dedupe by kind+format, latest wins', () => {
   it('appends a new kind+format', () => {
     expect(upsertExportEntry(undefined, other)).toEqual([other])
     expect(upsertExportEntry([older], other)).toEqual([older, other])
+  })
+})
+
+describe('chatThreads — multi-thread revisit (additive, defensive, capped)', () => {
+  function thread(id: string, savedAt: string, turns = 2): DossierChatThread {
+    return {
+      id,
+      title: `Chat ${id}`,
+      savedAt,
+      turnCount: turns,
+      turns: Array.from({ length: turns }, (_, i) => ({
+        role: (i % 2 === 0 ? 'user' : 'assistant') as 'user' | 'assistant',
+        content: `t${i}`,
+      })),
+    }
+  }
+
+  it('sanitizeDossier keeps a valid threads list; drops malformed threads', () => {
+    const out = sanitizeDossier({
+      chatThreads: [
+        thread('a', '2026-08-01T00:00:00Z'),
+        { id: '', title: 'no id', savedAt: 'x', turnCount: 0, turns: [] } as unknown as DossierChatThread,
+        { id: 'b', turns: 'nope' } as unknown as DossierChatThread,
+      ],
+    })
+    expect(out.chatThreads).toHaveLength(1)
+    expect(out.chatThreads![0].id).toBe('a')
+  })
+
+  it('sanitizeChatThreads dedupes by id and keeps most-recent order', () => {
+    const out = sanitizeChatThreads([
+      thread('a', '2026-08-01T00:00:00Z'),
+      thread('b', '2026-08-02T00:00:00Z'),
+      thread('a', '2026-08-03T00:00:00Z'), // newer duplicate id wins
+    ])!
+    expect(out).toHaveLength(2)
+    expect(out[0].id).toBe('a') // 08-03 is the most recent
+    expect(out[1].id).toBe('b')
+  })
+
+  it('dossierFromSnapshot parses chatThreads from a server snapshot', () => {
+    const parsed = dossierFromSnapshot({
+      chatThreads: [thread('x', '2026-08-01T00:00:00Z')],
+    })
+    expect(parsed?.chatThreads).toHaveLength(1)
+    expect(parsed?.chatThreads![0].turns).toHaveLength(2)
+  })
+
+  it('upsertChatThread dedupes by id (latest wins), bounds the list', () => {
+    const t1 = thread('a', '2026-08-01T00:00:00Z')
+    const t1b = { ...thread('a', '2026-08-02T00:00:00Z'), title: 'Updated' }
+    const t2 = thread('b', '2026-08-01T00:00:00Z')
+    const out = upsertChatThread([t1, t2], t1b)
+    expect(out).toHaveLength(2)
+    expect(out[0].id).toBe('a')
+    expect(out[0].title).toBe('Updated')
+  })
+
+  it('caps the stored list to DOSSIER_CHAT_THREADS_MAX', () => {
+    const many = Array.from({ length: DOSSIER_CHAT_THREADS_MAX + 5 }, (_, i) =>
+      thread(`id${i}`, `2026-08-01T00:00:${String(i).padStart(2, '0')}Z`),
+    )
+    const out = sanitizeChatThreads(many)!
+    expect(out).toHaveLength(DOSSIER_CHAT_THREADS_MAX)
   })
 })

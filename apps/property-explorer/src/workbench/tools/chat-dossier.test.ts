@@ -127,4 +127,44 @@ describe("saveChatToProperty", () => {
     expect(runTurn).not.toHaveBeenCalled();
     expect(update).not.toHaveBeenCalled();
   });
+
+  it("with a session id → UPSERTS into chatThreads (revisit) alongside the legacy fields", async () => {
+    const runTurn = vi.fn(async () => answerOutcome);
+    // Function-form patch: assert the merged chatThreads it produces from the
+    // property's CURRENT dossier (an unrelated existing thread survives).
+    const update = vi.fn(
+      async (
+        _id: string,
+        patch:
+          | Record<string, unknown>
+          | ((current: Record<string, unknown>) => Record<string, unknown>),
+      ) => {
+        const resolved =
+          typeof patch === "function"
+            ? patch({
+                chatThreads: [
+                  { id: "other", title: "Other", savedAt: "2026-07-01T00:00:00Z", turnCount: 2, turns: [] },
+                ],
+              })
+            : patch;
+        expect(resolved.chatThread).toBeDefined();
+        const threads = resolved.chatThreads as Array<{ id: string }>;
+        expect(threads.map((t) => t.id)).toContain("session-42");
+        expect(threads.map((t) => t.id)).toContain("other");
+        return { kind: "ok" } as const;
+      },
+    );
+    const outcome = await saveChatToProperty(
+      {
+        parcelNodeId: "48021:2",
+        address: subject.address,
+        turns: turns(4),
+        subject,
+        session: { id: "session-42", title: "ADU questions" },
+      },
+      { runTurn, update, now: () => "2026-08-01T12:00:00Z" },
+    );
+    expect(outcome.kind).toBe("saved");
+    expect(update).toHaveBeenCalledTimes(1);
+  });
 });
