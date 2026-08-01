@@ -13,10 +13,10 @@
 
 import { describe, expect, it } from "vitest";
 import { renderToStaticMarkup } from "react-dom/server";
-import { Workbench, nextOpenToolId } from "./Workbench";
+import { Workbench, nextOpenToolId, dockLayoutStyle } from "./Workbench";
 import { WORKBENCH_TOOLS } from "./registry";
 import { createWorkbenchToolStateStore } from "./tool-state-store";
-import type { WorkbenchHostActions } from "./types";
+import type { WorkbenchHostActions, WorkbenchToolDef } from "./types";
 import { ZONED_BRIEF } from "../browse/__fixtures__/research-brief.fixture";
 
 const host: WorkbenchHostActions = { openPaywall: () => {} };
@@ -239,5 +239,62 @@ describe("brief in the dock — per-property persistent via the chassis store", 
     });
     expect(reopened).toContain("tx-bastrop-parcel-000123");
     expect(reopened).not.toContain("Checking access");
+  });
+});
+
+describe("expand-to-floating-box (Fix A)", () => {
+  it("dockLayoutStyle — COMPACT default hugs the top-right at the ~400px width", () => {
+    const s = dockLayoutStyle(false);
+    expect(s.top).toBe(12);
+    expect(s.right).toBe(54);
+    expect(s.width).toBe("min(400px, calc(100vw - 78px))");
+    expect(s.boxShadow).toBeUndefined();
+  });
+
+  it("dockLayoutStyle — EXPANDED is a large floating box, offset from the right (map stays visible), never full-screen", () => {
+    const s = dockLayoutStyle(true);
+    expect(s.width).toBe("min(860px, 78vw)");
+    expect(s.maxHeight).toBe("90vh");
+    // Offset from the right edge so the main map shows AROUND the box.
+    expect(s.right).toBe("max(4vw, 54px)");
+    expect(s.top).toBe("5vh");
+    // Not full-screen: width and height are capped below the viewport.
+    expect(String(s.width)).not.toContain("100vw");
+    expect(String(s.maxHeight)).not.toBe("100vh");
+  });
+
+  it("an OPEN report tool shows the expand control in the pinned header (default expandable)", () => {
+    const html = render({ openToolId: "reports", activeParcelNodeId: "p1" });
+    expect(html).toContain('data-testid="dock-expand"');
+    // Opens compact by default (SSR initial state) — the expand affordance is
+    // present but not yet toggled.
+    expect(html).toContain('data-testid="workbench-dock"');
+    expect(html).not.toContain('data-expanded="1"');
+  });
+
+  it("a tool that opts OUT (expandable:false) shows NO expand control", () => {
+    const nonExpandable: WorkbenchToolDef = {
+      id: "mini",
+      label: "Mini",
+      icon: null,
+      status: "live",
+      propertyScoped: false,
+      expandable: false,
+      render: () => "compact content",
+    };
+    const html = renderToStaticMarkup(
+      <Workbench
+        tools={[...WORKBENCH_TOOLS, nonExpandable]}
+        openToolId="mini"
+        onOpenToolChange={noop}
+        activeParcelNodeId="p1"
+        host={host}
+        store={createWorkbenchToolStateStore({ storage: null })}
+      />,
+    );
+    expect(html).toContain('data-tool="mini"');
+    expect(html).not.toContain('data-testid="dock-expand"');
+    // The close control is always present.
+    expect(html).toContain('data-testid="dock-close"');
   });
 });

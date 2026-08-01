@@ -44,6 +44,33 @@ export function nextOpenToolId(
   return current === tapped ? null : tapped;
 }
 
+/**
+ * Dock POSITION/SIZE, as a pure rule (Fix A — expand-to-floating-box):
+ *   COMPACT (default): hugs the top-right in the brief's original space
+ *     (min 400px wide, viewport-height-capped).
+ *   EXPANDED: a large floating box offset from the right edge with generous
+ *     margins so the main map stays visible AROUND it — never full-screen —
+ *     so a cramped report (the flood study map + legend especially) reads
+ *     clearly. Extracted so the layout rule is unit-testable without a click
+ *     harness (the file's `nextOpenToolId` pure-rule precedent).
+ */
+export function dockLayoutStyle(isExpanded: boolean): CSSProperties {
+  return isExpanded
+    ? {
+        top: "5vh",
+        right: "max(4vw, 54px)",
+        width: "min(860px, 78vw)",
+        maxHeight: "90vh",
+        boxShadow: "0 18px 60px rgba(0,0,0,0.55)",
+      }
+    : {
+        top: 12,
+        right: 54,
+        width: "min(400px, calc(100vw - 78px))",
+        maxHeight: "calc(100vh - 28px)",
+      };
+}
+
 /** 15px stroke glyph in the MapToolset icon language. */
 export function WorkbenchIcon({ path }: { path: string }) {
   return (
@@ -186,25 +213,7 @@ export function Workbench({
           style={{
             position: "absolute",
             zIndex: 9,
-            // COMPACT: hugs the top-right, in the brief's original space.
-            // EXPANDED: a large floating box, offset from the right edge with
-            // generous margins so the map stays visible AROUND it (never
-            // full-screen). Width/height are viewport-relative and capped so
-            // the report + its legend read comfortably at the larger size.
-            ...(isExpanded
-              ? {
-                  top: "5vh",
-                  right: "max(4vw, 54px)",
-                  width: "min(860px, 78vw)",
-                  maxHeight: "90vh",
-                  boxShadow: "0 18px 60px rgba(0,0,0,0.55)",
-                }
-              : {
-                  top: 12,
-                  right: 54,
-                  width: "min(400px, calc(100vw - 78px))",
-                  maxHeight: "calc(100vh - 28px)",
-                }),
+            ...dockLayoutStyle(isExpanded),
             display: "flex",
             flexDirection: "column",
             overflow: "hidden",
