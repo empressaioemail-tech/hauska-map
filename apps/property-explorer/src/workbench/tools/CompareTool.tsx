@@ -52,6 +52,14 @@ const ACCENT = "#7dd3fc";
 const FLAG = "#f87171";
 
 /**
+ * Dark-theme the Property A/B dropdowns: the native <option> menu paints white
+ * unless the options carry an explicit background/color, so the open list gets
+ * the dock's solid dark card bg + light text to match the rest of the app.
+ */
+const OPTION_BG = "#0d1117";
+const OPTION_STYLE: React.CSSProperties = { background: OPTION_BG, color: TEXT };
+
+/**
  * The synthetic "property" key the global compare state lives under. The
  * chassis store is strictly parcel-keyed; this key gives the one
  * non-property-scoped tool a stable slot WITHOUT touching dock internals.
@@ -189,12 +197,15 @@ export function CompareView({
                   padding: "5px 6px",
                   fontSize: 11.5,
                   color: TEXT,
-                  background: "rgba(154,166,178,0.08)",
+                  // Solid dark control + dark open-menu (options carry their own
+                  // dark bg below): the browser default paints the dropdown list
+                  // white unless the OPTIONS are colored, so both are set here.
+                  background: OPTION_BG,
                   border: "1px solid rgba(154,166,178,0.35)",
                   borderRadius: 6,
                 }}
               >
-                <option value="">Choose a saved property…</option>
+                <option value="" style={OPTION_STYLE}>Choose a saved property…</option>
                 {items
                   // A property can occupy only one slot — no self-compare.
                   .filter(
@@ -202,7 +213,7 @@ export function CompareView({
                       row.parcelNodeId !== slots[slot === "a" ? "b" : "a"],
                   )
                   .map((row) => (
-                    <option key={row.parcelNodeId} value={row.parcelNodeId}>
+                    <option key={row.parcelNodeId} value={row.parcelNodeId} style={OPTION_STYLE}>
                       {savedRowDisplayLabel(row)}
                     </option>
                   ))}

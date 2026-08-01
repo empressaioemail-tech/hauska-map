@@ -116,14 +116,20 @@ export function Workbench({
       host={host}
       store={store}
     >
-      {/* THE BUBBLE CLUSTER — the only always-on workbench element. */}
+      {/* THE BUBBLE CLUSTER — the only always-on workbench element. Pushed
+          DOWN below the MapLibre zoom/compass NavigationControl (added
+          top-right in map-renderer.js): the control stack is ~10px margin +
+          three ~29px buttons ≈ 100px, so the cluster starts at top:118 to
+          clear it and the two upper-right chrome elements no longer overlap.
+          zIndex raised 9 → 11 so these SMALL bubbles sit in front of the large
+          right-side dock (zIndex 9) per the small-in-front-of-large rule. */}
       <div
         data-testid="workbench-cluster"
         style={{
           position: "absolute",
-          top: 12,
+          top: 118,
           right: 12,
-          zIndex: 9,
+          zIndex: 11,
           display: "flex",
           flexDirection: "column",
           gap: 7,

@@ -314,7 +314,7 @@ export function PropertyDossierDetail({
           gates it server-side (402 → paywall). */}
       {onExportDossier && (
         <>
-          {sectionHeader("Dossier PDF")}
+          {sectionHeader("X-ray")}
           <div data-testid="dossier-export-pdf">
             <p style={{ margin: "0 0 6px", fontSize: 10.5, color: MUTED }}>
               One PDF for this property — verdict, cited brief facts, the AI
@@ -328,7 +328,7 @@ export function PropertyDossierDetail({
               disabled={busy}
               style={actionButtonStyle(busy)}
             >
-              {busy ? "Working…" : "Export dossier PDF"}
+              {busy ? "Working…" : "Export X-ray PDF"}
             </button>
           </div>
         </>
