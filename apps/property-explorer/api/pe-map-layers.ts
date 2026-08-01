@@ -2,6 +2,8 @@
 //
 // POST /api/pe-map-layers?layer=topography|hydrology|hydrography|opportunity-zone
 //   Body: { bbox: {westLng,southLat,eastLng,northLat}, centerLat?, centerLng? }
+//   Opportunity Zone also accepts { scope: "texas", simplify?: boolean } for the
+//   one-shot statewide (STATE=48) regional-pattern LOD — no bbox required.
 //
 // CONSOLIDATION (2026-07-29): pe-topography, pe-hydrology and pe-hydrography
 // were three serverless functions with an identical skeleton; the Vercel Hobby

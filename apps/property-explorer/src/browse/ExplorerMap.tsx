@@ -101,13 +101,14 @@ import {
   MIN_PARCEL_ZOOM,
   MIN_TOPO_ZOOM,
   MIN_HYDROGRAPHY_ZOOM,
-  MIN_OPPORTUNITY_ZONE_ZOOM,
+  DETAIL_OPPORTUNITY_ZONE_ZOOM,
   LIVE_PARCELS_KEY,
   layersForZoom,
   fetchGisLayer,
   fetchTopographyLayer,
   fetchHydrographyLayer,
   fetchOpportunityZoneLayer,
+  fetchTexasOpportunityZoneLayer,
   contourTierLabel,
   hydrographyHonestReason,
   hydrographyProvenanceLabel,
@@ -457,31 +458,68 @@ function ExplorerMapSurface({
         });
     }
 
-    // Live Opportunity Zone tracts — CDFI designated list × Census 2010 TIGER.
+    // Live Opportunity Zone tracts — Texas statewide LOD (cached once) at any
+    // zoom for the regional pocket pattern; full-detail viewport join when
+    // zoomed in. No zoom→empty gate (OZ is a statewide pattern layer).
     opportunityZoneAbortRef.current?.abort();
     const ozCtrl = new AbortController();
     opportunityZoneAbortRef.current = ozCtrl;
-    if (vp.zoom < MIN_OPPORTUNITY_ZONE_ZOOM) {
-      setOpportunityZone({ fetch: { status: "zoom-gated" }, data: null });
-    } else {
-      setOpportunityZone((s) => ({ ...s, fetch: { status: "loading" } }));
-      const ozCenter = {
-        lat: (vp.bbox.south + vp.bbox.north) / 2,
-        lng: (vp.bbox.west + vp.bbox.east) / 2,
-      };
-      fetchOpportunityZoneLayer(PE_OPPORTUNITY_ZONE_URL, vp.bbox, ozCenter, ozCtrl.signal)
-        .then((state) => {
-          if (ozCtrl.signal.aborted) return;
-          setOpportunityZone({ fetch: state, data: state.status === "ok" ? state.response : null });
-        })
-        .catch((err) => {
-          if (ozCtrl.signal.aborted || (err as Error)?.name === "AbortError") return;
+    const wantOzDetail = vp.zoom >= DETAIL_OPPORTUNITY_ZONE_ZOOM;
+    const applyOz = (state: OpportunityZoneLayerState) => {
+      if (ozCtrl.signal.aborted) return;
+      setOpportunityZone({
+        fetch: state,
+        data: state.status === "ok" ? state.response : null,
+      });
+    };
+    void (async () => {
+      try {
+        const texas = await fetchTexasOpportunityZoneLayer(
+          PE_OPPORTUNITY_ZONE_URL,
+          ozCtrl.signal,
+        );
+        if (ozCtrl.signal.aborted) return;
+        if (!wantOzDetail) {
+          applyOz(texas);
+          return;
+        }
+        // Keep statewide pockets visible while the detail fetch lands.
+        if (texas.status === "ok") applyOz(texas);
+        else setOpportunityZone((s) => ({ ...s, fetch: { status: "loading" } }));
+
+        const ozCenter = {
+          lat: (vp.bbox.south + vp.bbox.north) / 2,
+          lng: (vp.bbox.west + vp.bbox.east) / 2,
+        };
+        const detail = await fetchOpportunityZoneLayer(
+          PE_OPPORTUNITY_ZONE_URL,
+          vp.bbox,
+          ozCenter,
+          ozCtrl.signal,
+        );
+        if (ozCtrl.signal.aborted) return;
+        if (detail.status === "ok") {
+          applyOz(detail);
+        } else if (texas.status === "ok") {
+          // Detail degraded — keep Texas pockets, surface the detail error.
           setOpportunityZone({
-            fetch: { status: "error", message: `opportunity-zone: ${(err as Error)?.message}` },
-            data: null,
+            fetch: detail,
+            data: texas.response,
           });
+        } else {
+          applyOz(detail);
+        }
+      } catch (err) {
+        if (ozCtrl.signal.aborted || (err as Error)?.name === "AbortError") return;
+        setOpportunityZone({
+          fetch: {
+            status: "error",
+            message: `opportunity-zone: ${(err as Error)?.message}`,
+          },
+          data: null,
         });
-    }
+      }
+    })();
 
     // Road NETWORK in view (Track B1-map reopen) — not per-parcel attaching.
     roadAbortRef.current?.abort();

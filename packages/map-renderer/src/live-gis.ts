@@ -59,9 +59,17 @@ export const MIN_HYDRO_ZOOM = 14
 /** County-mapped hydrography is real (coarse-fetchable) vector data like FEMA
  *  polygons — fetchable wider out than the DEM-derived layers. */
 export const MIN_HYDROGRAPHY_ZOOM = 11
-/** Opportunity Zone tracts are coarse choropleth polygons like FEMA — fetchable
- *  at regional zoom. */
-export const MIN_OPPORTUNITY_ZONE_ZOOM = 11
+/**
+ * No zoom floor for Opportunity Zone — Texas OZ is a regional-pattern layer
+ * (statewide pockets must be visible at CTX/Texas glance). Kept at 0 so any
+ * lingering zoom-gate callers do not blank the layer.
+ */
+export const MIN_OPPORTUNITY_ZONE_ZOOM = 0
+/**
+ * At/above this zoom the client prefers full-detail viewport tracts (CDFI ×
+ * Census TIGER join). Below it, the cached Texas statewide simplified LOD.
+ */
+export const DETAIL_OPPORTUNITY_ZONE_ZOOM = 11
 
 export interface GeoJsonFeature {
   type: 'Feature'
@@ -695,11 +703,12 @@ export function toHydrographyOverlay(
 // --- Live Opportunity Zone tracts (CDFI × Census TIGER/Line) ----------------
 //
 // REAL designated census tracts. Geometry is fetched from the PE Opportunity
-// Zone BFF (POST /api/pe-opportunity-zone), which joins:
-//   - CDFI Fund Opportunity Zones FeatureServer (designated GEOID10 list), and
-//   - U.S. Census Bureau TIGER/Line 2010 census tract polygons.
-// HONEST: an ok response with zero tracts is honest-empty (no designated tracts
-// in this viewport) — never a synthetic fill.
+// Zone BFF (POST /api/pe-opportunity-zone):
+//   - scope=texas — one-shot Texas (STATE=48) CDFI polygons, simplified LOD,
+//     cached client-side for the regional pattern at any zoom;
+//   - viewport bbox — CDFI designation list × Census TIGER/Line 2010 polygons
+//     for full-detail geometry when zoomed in.
+// HONEST: an ok response with zero tracts is honest-empty — never a synthetic fill.
 
 export interface OpportunityZoneProvenance {
   designationSource?: string | null
@@ -708,6 +717,8 @@ export interface OpportunityZoneProvenance {
   geometrySource?: string | null
   geometryVintage?: string | null
   retrievedAt?: string | null
+  scope?: 'texas' | 'viewport' | null
+  simplified?: boolean | null
 }
 
 export interface OpportunityZoneLayerResponse {
@@ -728,14 +739,19 @@ export type OpportunityZoneLayerState =
   | { status: 'no-coverage'; detail?: string }
   | { status: 'error'; message: string }
 
-/**
- * POST the viewport bbox to the Opportunity Zone BFF. Maps HTTP + envelope
- * outcomes onto honest tile states — NEVER a silent fixture fallback.
- */
-export async function fetchOpportunityZoneLayer(
+/** Module-level Texas statewide cache — fetch once per page lifetime. */
+let texasOzCache: OpportunityZoneLayerResponse | null = null
+let texasOzInflight: Promise<OpportunityZoneLayerState> | null = null
+
+/** Test/reset helper — clears the Texas statewide OZ cache. */
+export function clearTexasOpportunityZoneCache(): void {
+  texasOzCache = null
+  texasOzInflight = null
+}
+
+async function postOpportunityZoneRequest(
   bboxUrl: string,
-  bbox: GisBBox,
-  center: { lat: number; lng: number },
+  body: Record<string, unknown>,
   signal?: AbortSignal,
 ): Promise<OpportunityZoneLayerState> {
   let res: Response
@@ -743,16 +759,7 @@ export async function fetchOpportunityZoneLayer(
     res = await fetch(bboxUrl, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        bbox: {
-          westLng: bbox.west,
-          southLat: bbox.south,
-          eastLng: bbox.east,
-          northLat: bbox.north,
-        },
-        centerLat: center.lat,
-        centerLng: center.lng,
-      }),
+      body: JSON.stringify(body),
       signal,
     })
   } catch (err) {
@@ -763,13 +770,13 @@ export async function fetchOpportunityZoneLayer(
     }
   }
 
-  let body: unknown = null
+  let parsed: unknown = null
   try {
-    body = await res.json()
+    parsed = await res.json()
   } catch {
     /* non-JSON — handled by status below */
   }
-  const rec = (body ?? {}) as Record<string, unknown>
+  const rec = (parsed ?? {}) as Record<string, unknown>
 
   if (res.status === 404) {
     return { status: 'no-coverage', detail: typeof rec.message === 'string' ? rec.message : undefined }
@@ -786,6 +793,65 @@ export async function fetchOpportunityZoneLayer(
     return { status: 'error', message: `opportunity-zone: ${response.detail || response.status}` }
   }
   return { status: 'ok', response }
+}
+
+/**
+ * POST the viewport bbox to the Opportunity Zone BFF (full-detail path).
+ * Maps HTTP + envelope outcomes onto honest tile states — NEVER a silent
+ * fixture fallback.
+ */
+export async function fetchOpportunityZoneLayer(
+  bboxUrl: string,
+  bbox: GisBBox,
+  center: { lat: number; lng: number },
+  signal?: AbortSignal,
+): Promise<OpportunityZoneLayerState> {
+  return postOpportunityZoneRequest(
+    bboxUrl,
+    {
+      scope: 'viewport',
+      bbox: {
+        westLng: bbox.west,
+        southLat: bbox.south,
+        eastLng: bbox.east,
+        northLat: bbox.north,
+      },
+      centerLat: center.lat,
+      centerLng: center.lng,
+    },
+    signal,
+  )
+}
+
+/**
+ * Fetch the Texas statewide OZ set once (scope=texas) and cache it. Used for
+ * the regional-pattern LOD at any zoom — NOT per-viewport.
+ */
+export async function fetchTexasOpportunityZoneLayer(
+  bboxUrl: string,
+  signal?: AbortSignal,
+): Promise<OpportunityZoneLayerState> {
+  if (texasOzCache) return { status: 'ok', response: texasOzCache }
+  if (texasOzInflight) return texasOzInflight
+
+  const run = (async (): Promise<OpportunityZoneLayerState> => {
+    const state = await postOpportunityZoneRequest(
+      bboxUrl,
+      { scope: 'texas', simplify: true },
+      signal,
+    )
+    if (state.status === 'ok') {
+      texasOzCache = state.response
+    }
+    return state
+  })()
+
+  texasOzInflight = run
+  try {
+    return await run
+  } finally {
+    texasOzInflight = null
+  }
 }
 
 /** True when the served OZ layer is ok but has NO designated tracts in view. */
