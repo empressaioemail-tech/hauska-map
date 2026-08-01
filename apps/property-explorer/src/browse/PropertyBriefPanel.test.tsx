@@ -43,15 +43,15 @@ describe("PropertyBriefPanel — zoned parcel", () => {
   });
 
   it("facts carry source lines and appendix references", () => {
-    expect(html).toContain("Zoning_Districts (bastrop-city-tx)");
+    expect(html).toContain("City zoning districts map (Bastrop, TX)");
     expect(html).toContain("FEMA NFHL");
     expect(html).toContain('data-testid="brief-citations"');
   });
 
-  it("has the close control and the Export PDF button", () => {
+  it("has the close control and the Export X-ray PDF button", () => {
     expect(html).toContain('aria-label="Close"');
     expect(html).toContain('data-testid="brief-close"');
-    expect(html).toContain("Export PDF");
+    expect(html).toContain("Export X-ray PDF");
   });
 
   it("renders the concept explanations (static copy, no parcel claims)", () => {
