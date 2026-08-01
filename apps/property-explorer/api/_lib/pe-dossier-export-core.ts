@@ -209,7 +209,7 @@ export function buildDossierDownloadPath(parcelNodeId: string): string {
 }
 
 export function dossierFilename(parcelNodeId: string): string {
-  return `${parcelNodeId.replace(':', '_')}_dossier.pdf`
+  return `${parcelNodeId.replace(':', '_')}_smart_site_xray.pdf`
 }
 
 export interface DossierExportBffResponse {
