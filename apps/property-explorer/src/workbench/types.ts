@@ -141,6 +141,14 @@ export interface WorkbenchToolDef {
    * renders the honest "select a property first" state instead of `render`.
    */
   propertyScoped: boolean;
+  /**
+   * Whether the dock offers the EXPAND-TO-FLOATING-BOX control for this tool
+   * (the large, readable, map-still-visible view — the flood study map + legend
+   * especially). Defaults to true (the chassis reads `expandable !== false`);
+   * set false to suppress the control on a tool whose content is already
+   * compact (e.g. a one-line action) and gains nothing from enlarging.
+   */
+  expandable?: boolean;
   /** Dock content for live tools. Omit for "coming" entries. */
   render?: (ctx: WorkbenchToolContext) => ReactNode;
 }
