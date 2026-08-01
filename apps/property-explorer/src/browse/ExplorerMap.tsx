@@ -36,6 +36,7 @@ import type {
 } from "@hauska/map-renderer";
 import "@hauska/map-renderer/styles.css";
 import "maplibre-gl/dist/maplibre-gl.css";
+import "./pe-mobile.css";
 import { DEFAULT_CENTER, PARCEL_TILES } from "../lib/config";
 import { cortexClient } from "../lib/cortexClient";
 import { parcelNodes } from "../lib/parcel-node-store.js";
@@ -67,6 +68,12 @@ import { TransientChips } from "./TransientChips";
 import type { ChipSpec } from "./transient-chips";
 import { SearchBar } from "./SearchBar";
 import { PaywallGate } from "./PaywallGate";
+import {
+  MobilePanelProvider,
+  MobileSheet,
+  useMobilePanel,
+} from "./MobilePanelContext";
+import { useMobileViewport } from "./useMobileViewport";
 import {
   deepLinkLookupQuery,
   resolveParcelLookup,
@@ -214,6 +221,20 @@ export function ExplorerMap({
    *  uses (runParcelLookup — never a second resolver). Null → normal app. */
   share?: ShareFunnelBinding | null;
 } = {}) {
+  const isMobileViewport = useMobileViewport();
+  return (
+    <MobilePanelProvider isMobile={isMobileViewport}>
+      <ExplorerMapSurface share={share} />
+    </MobilePanelProvider>
+  );
+}
+
+function ExplorerMapSurface({
+  share = null,
+}: {
+  share?: ShareFunnelBinding | null;
+}) {
+  const { isMobile, activeSheet, openSheet } = useMobilePanel();
   const mapRef = useRef<FloatingMapHandle>(null);
   const [parcels, setParcels] = useState<LayerSlot>(IDLE);
   const [fema, setFema] = useState<LayerSlot>(IDLE);
@@ -272,8 +293,15 @@ export function ExplorerMap({
   // SUBJECT's node id as state (mirror of subjectNodeIdRef) so the workbench
   // active-property binding re-renders when the subject changes. A share
   // landing opens with the shared-analysis dock already docked.
-  const [openWorkbenchTool, setOpenWorkbenchTool] = useState<string | null>(
+  const [openWorkbenchTool, setOpenWorkbenchToolState] = useState<string | null>(
     share ? SHARED_ANALYSIS_TOOL_ID : null,
+  );
+  const setOpenWorkbenchTool = useCallback(
+    (next: string | null) => {
+      setOpenWorkbenchToolState(next);
+      if (isMobile && next) openSheet("research");
+    },
+    [isMobile, openSheet],
   );
   const [subjectNodeId, setSubjectNodeId] = useState<string | null>(null);
   // Render-time mirror of the workbench active property so the stable host
@@ -524,6 +552,7 @@ export function ExplorerMap({
       inspectedRef.current = { card: next, parcelNodeId };
       setCard(next);
       setCardNodeId(parcelNodeId);
+      if (isMobile) openSheet("property");
       parcelNodes.setInspected(
         {
           id:
@@ -546,7 +575,7 @@ export function ExplorerMap({
         "inspect-parcel",
       );
     },
-    [],
+    [isMobile, openSheet],
   );
 
   // Reachability: search bar + deep-link (?parcelNodeId= | ?parcel= | ?address=)
@@ -1222,7 +1251,8 @@ export function ExplorerMap({
       parcelNodeId: nodeId,
     });
     setOpenWorkbenchTool("brief");
-  }, [cardNodeId]);
+    if (isMobile) openSheet("research");
+  }, [cardNodeId, isMobile, openSheet]);
 
   // W2: latest inspect-card display facts for the Reports tool's site-plan
   // sheet header (mutable-latest ref so the memoized host stays stable).
@@ -1348,16 +1378,26 @@ export function ExplorerMap({
       })();
     }
     setOpenWorkbenchTool("properties");
-  }, [cardNodeId]);
+  }, [cardNodeId, setOpenWorkbenchTool]);
 
   // R1: checkout handling moved INTO the unified unlock flow (UnlockFlow.tsx
   // useUnlockChoices actions) — the modal is self-contained; ExplorerMap only
   // owns open/close + the value line + the Pro-only variant flag.
 
+  // SHARE FUNNEL: on mobile, open the research sheet when landing with share.
+  useEffect(() => {
+    if (share && isMobile) openSheet("research");
+  }, [share, isMobile, openSheet]);
+
   // Two-products: PE is map + inspect card + exports only. County ledger /
   // node-graph balance sheet stays in Command Center (operator), never here.
   return (
-    <div style={{ position: "absolute", inset: 0 }}>
+    <div
+      style={{ position: "absolute", inset: 0 }}
+      data-mobile-research-open={
+        isMobile && activeSheet === "research" ? "1" : undefined
+      }
+    >
       <FloatingMap
         ref={mapRef}
         floating={false}
@@ -1390,6 +1430,8 @@ export function ExplorerMap({
           layerStates={layerStates}
           extraLabels={{ [SAVED_PINS_KEY]: SAVED_PINS_LAYER_LABEL }}
           onToolsController={handleToolsController}
+          isMobile={isMobile}
+          layersSheetOpen={isMobile && activeSheet === "layers"}
         />
       )}
 
@@ -1433,7 +1475,7 @@ export function ExplorerMap({
         getBias={getSearchBias}
       />
 
-      {card && (
+      {card && !isMobile && (
         <InspectCard
           card={card}
           parcelNodeId={cardNodeId}
@@ -1444,6 +1486,27 @@ export function ExplorerMap({
           onResearch={handleResearch}
           onSaveProperty={handleSaveProperty}
         />
+      )}
+
+      {card && isMobile && (
+        <MobileSheet
+          open={activeSheet === "property"}
+          testId="mobile-property-sheet"
+        >
+          <InspectCard
+            card={card}
+            parcelNodeId={cardNodeId}
+            isSubject={isSubject}
+            onClose={() => {
+              closeInspect();
+              openSheet("map");
+            }}
+            onEnvelope={handleEnvelope}
+            onMakeSubject={handleMakeSubject}
+            onResearch={handleResearch}
+            onSaveProperty={handleSaveProperty}
+          />
+        </MobileSheet>
       )}
 
       {/* R1: the unified two-choice unlock flow (replaces the Pro-hardcoded

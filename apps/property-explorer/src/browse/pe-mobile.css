@@ -1,0 +1,23 @@
+/* PE browse — additive mobile overrides (max-width: 767px).
+   Desktop layout is unchanged; these rules only apply below the breakpoint. */
+
+@media (max-width: 767px) {
+  /* MapLibre zoom / compass — move to lower-left above the bottom nav so they
+     do not collide with the workbench column or search bar. */
+  .spine-map-canvas .maplibregl-ctrl-top-right {
+    top: auto !important;
+    right: auto !important;
+    left: 10px !important;
+    bottom: calc(var(--pe-mobile-nav-height, 52px) + 56px) !important;
+  }
+
+  /* Keep attribution compact and above the nav. */
+  .spine-map-canvas .maplibregl-ctrl-bottom-left {
+    bottom: calc(var(--pe-mobile-nav-height, 52px) + 4px) !important;
+  }
+
+  /* Research sheet open — dim map taps behind the dock (visual hierarchy). */
+  [data-pe-mobile="1"][data-mobile-research-open="1"] .spine-map-canvas {
+    pointer-events: auto;
+  }
+}

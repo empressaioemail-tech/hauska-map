@@ -38,6 +38,8 @@ import {
   loadRecents,
   saveRecents,
 } from "../lib/search-recents";
+import { searchBarWrapStyle, searchDropdownStyle } from "./mobile-layout";
+import { useMobilePanel } from "./MobilePanelContext";
 
 export interface SearchBarProps {
   busy?: boolean;
@@ -57,19 +59,6 @@ export interface SearchBarProps {
 }
 
 const FONT = "system-ui, -apple-system, Segoe UI, Roboto, sans-serif";
-
-const wrap: CSSProperties = {
-  position: "absolute",
-  top: 12,
-  left: "50%",
-  transform: "translateX(-50%)",
-  zIndex: 12,
-  width: "min(440px, calc(100vw - 24px))",
-  display: "flex",
-  flexDirection: "column",
-  gap: 6,
-  pointerEvents: "auto",
-};
 
 const form: CSSProperties = {
   display: "flex",
@@ -106,16 +95,6 @@ const errStyle: CSSProperties = {
   font: `11px/1.3 ${FONT}`,
   color: "#fcd34d",
   padding: "0 4px",
-};
-
-const dropdown: CSSProperties = {
-  borderRadius: 8,
-  background: "rgba(13,17,23,0.96)",
-  border: "1px solid rgba(154,166,178,0.35)",
-  boxShadow: "0 8px 24px rgba(0,0,0,0.45)",
-  overflow: "hidden",
-  display: "flex",
-  flexDirection: "column",
 };
 
 const groupHeader: CSSProperties = {
@@ -277,7 +256,8 @@ export function SuggestDropdown({
   onPick,
   onHover,
   onClearRecents,
-}: SuggestDropdownProps) {
+  isMobile = false,
+}: SuggestDropdownProps & { isMobile?: boolean }) {
   if (!snap.open) return null;
   const rows = snap.showingRecents ? snap.recents : snap.items;
 
@@ -359,7 +339,7 @@ export function SuggestDropdown({
   return (
     <div
       data-testid="search-suggest-dropdown"
-      style={dropdown}
+      style={searchDropdownStyle(isMobile)}
       // Keep input focus while clicking rows (blur would close before click).
       onMouseDown={(e) => e.preventDefault()}
     >
@@ -378,6 +358,7 @@ export function SearchBar({
   initialValue = "",
   fetchSuggestionsImpl,
 }: SearchBarProps) {
+  const { isMobile, setSearchFocused } = useMobilePanel();
   const [value, setValue] = useState(initialValue);
   const inputRef = useRef<HTMLInputElement>(null);
   const getBiasRef = useRef(getBias);
@@ -442,7 +423,7 @@ export function SearchBar({
   };
 
   return (
-    <div data-testid="parcel-lookup-bar" style={wrap}>
+    <div data-testid="parcel-lookup-bar" style={searchBarWrapStyle(isMobile)}>
       <div style={form}>
         <input
           ref={inputRef}
@@ -460,8 +441,14 @@ export function SearchBar({
             setValue(e.target.value);
             controller.input(e.target.value);
           }}
-          onFocus={() => controller.focus()}
-          onBlur={() => controller.close()}
+          onFocus={() => {
+            controller.focus();
+            setSearchFocused(true);
+          }}
+          onBlur={() => {
+            controller.close();
+            setSearchFocused(false);
+          }}
           onKeyDown={handleKeyDown}
           style={input}
           autoComplete="off"
@@ -494,6 +481,7 @@ export function SearchBar({
       {snap && (
         <SuggestDropdown
           snap={snap}
+          isMobile={isMobile}
           onPick={(i) => pick(i)}
           onHover={(i) => controller.setHighlight(i)}
           onClearRecents={() => {
