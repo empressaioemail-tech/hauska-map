@@ -39,6 +39,7 @@ import {
   floodDrainageDownloadPath,
   floodDrainageFilename,
   floodProvenanceLine,
+  isCurrentStyledFloodStudy,
   requestFloodDrainageRefresh,
   type FloodDrainageStudyView,
 } from "../../lib/floodDrainageClient";
@@ -314,6 +315,14 @@ export function FloodDrainageSection() {
     probedRef.current.add(activeParcelNodeId);
     void fetchFloodDrainageStudy(activeParcelNodeId).then((resp) => {
       if (resp.ok) {
+        // FIX C — STALE-STYLE GATE: a cached study produced before the current
+        // visual language shipped is missing its data markers and would render
+        // in the OLD look. Those markers live in the study DATA, so a re-run
+        // (not a re-render) is the only way to get the current styling. Fail
+        // CLOSED: do NOT hydrate an old-styled cached study — leave the section
+        // as "not run yet" so the user re-runs and gets the current-styled
+        // study. honestEmpty studies pass (nothing to style).
+        if (!isCurrentStyledFloodStudy(resp.study)) return;
         // Seed the attach memory: a cached study already attached when it
         // was generated — hydration must not re-fire the dossier write.
         attachedRef.current.set(activeParcelNodeId, resp.study);
@@ -322,7 +331,14 @@ export function FloodDrainageSection() {
     });
   }, [activeParcelNodeId, stored, busy, ent.status, ent.signedOut, ent.locked, setStored]);
 
-  const study = stored?.study ?? null;
+  // FIX C — a study PERSISTED client-side in a prior session (useDockToolState)
+  // can also be old-styled. Treat a stored study that is NOT current-styled as
+  // absent so the section shows its "generate" state and the user re-runs into
+  // the current styling — never render or overlay a stale-styled study.
+  const storedStudy = stored?.study ?? null;
+  const study =
+    storedStudy && isCurrentStyledFloodStudy(storedStudy) ? storedStudy : null;
+  const staleStyledStored = !!storedStudy && !study;
   const notice = stored?.notice ?? null;
   const model = study ? buildFloodVizModel(study) : null;
   // Counted off the SAME validation the map overlay uses, so the dock can
@@ -363,6 +379,16 @@ export function FloodDrainageSection() {
           runoff, where water concentrates, modeled ponding at the design
           storm, and where it exits — drawn on the map.
         </p>
+      )}
+
+      {staleStyledStored && !busy && (
+        <div
+          data-testid="flood-stale-style"
+          style={{ margin: "0 0 8px", fontSize: 10.5, color: MUTED, lineHeight: 1.45 }}
+        >
+          A drainage study was run on this parcel in an earlier build — re-run it
+          to redraw with the current severity bands and flow paths.
+        </div>
       )}
 
       <button

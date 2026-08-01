@@ -45,7 +45,7 @@ export interface BakedFacetPayload {
     } | null;
     acreage?: { value: number; sqft?: number; method?: string } | null;
   };
-  zoning?: { district: string } | null;
+  zoning?: { district: string; jurisdictionKey?: string } | null;
   envelope?: {
     status: "ok" | "no-buildable-area" | "declined";
     confidence?: number;
