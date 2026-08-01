@@ -157,6 +157,7 @@ export function PropertyDossierDetail({
   const drawingsCount = dossier.drawings?.features.length ?? 0;
   const chatSummary = dossier.chatSummary ?? null;
   const thread = dossier.chatThread ?? [];
+  const chatThreads = dossier.chatThreads ?? [];
   const exports = dossier.exports ?? [];
 
   return (
@@ -249,10 +250,60 @@ export function PropertyDossierDetail({
         </div>
       </div>
 
-      {/* CHAT — AI summary (labeled, never verified fact) + saved thread. */}
-      {(chatSummary || thread.length > 0) && (
+      {/* CHAT — AI summary (labeled, never verified fact) + saved thread(s).
+          MULTI-THREAD: a property keeps a LIST of chat threads; each is an
+          expandable transcript here (the durable, cross-device record). The
+          live ChatTool's own thread picker continues any of them. */}
+      {(chatSummary || thread.length > 0 || chatThreads.length > 0) && (
         <>
           {sectionHeader("Chat research")}
+
+          {chatThreads.length > 0 && (
+            <div data-testid="dossier-chat-threads" style={{ marginBottom: 6 }}>
+              <div style={{ fontSize: 10, color: MUTED, marginBottom: 4 }}>
+                {chatThreads.length} saved chat
+                {chatThreads.length === 1 ? "" : "s"} on this property
+              </div>
+              {chatThreads.map((t) => (
+                <details
+                  key={t.id}
+                  data-testid="dossier-chat-thread-item"
+                  style={{ marginBottom: 4 }}
+                >
+                  <summary
+                    style={{ fontSize: 11, color: TEXT, cursor: "pointer", fontWeight: 600 }}
+                  >
+                    {t.title ?? "Untitled chat"}
+                    <span style={{ color: MUTED, fontWeight: 400, fontSize: 9.5 }}>
+                      {" "}
+                      · {t.turnCount} turn{t.turnCount === 1 ? "" : "s"}
+                      {fmtDate(t.savedAt) ? ` · ${fmtDate(t.savedAt)}` : ""}
+                    </span>
+                  </summary>
+                  <div
+                    style={{ marginTop: 4, borderLeft: SECTION_BORDER, paddingLeft: 8 }}
+                  >
+                    {t.turns.map((turn, i) => (
+                      <p
+                        key={i}
+                        style={{
+                          margin: "0 0 5px",
+                          fontSize: 10.5,
+                          color: turn.role === "user" ? ACCENT : TEXT,
+                        }}
+                      >
+                        <span style={{ fontWeight: 600 }}>
+                          {turn.role === "user" ? "You: " : "AI: "}
+                        </span>
+                        {turn.content}
+                      </p>
+                    ))}
+                  </div>
+                </details>
+              ))}
+            </div>
+          )}
+
           {chatSummary && (
             <div data-testid="dossier-chat-summary" style={{ marginBottom: 6 }}>
               <div style={{ fontSize: 10, color: AMBER, fontWeight: 600 }}>
@@ -277,7 +328,10 @@ export function PropertyDossierDetail({
               </p>
             </div>
           )}
-          {thread.length > 0 && (
+          {/* Legacy single-thread record — shown only when a dossier predates
+              the multi-thread list (older saves carry chatThread but no
+              chatThreads), so the same thread never renders twice. */}
+          {thread.length > 0 && chatThreads.length === 0 && (
             <details data-testid="dossier-chat-thread">
               <summary style={{ fontSize: 10.5, color: MUTED, cursor: "pointer" }}>
                 Saved thread · {chatSummary?.turnCount ?? thread.length} turns

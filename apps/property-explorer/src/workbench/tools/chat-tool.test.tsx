@@ -22,12 +22,17 @@ import { WORKBENCH_TOOLS } from "../registry";
 import { createWorkbenchToolStateStore } from "../tool-state-store";
 import type { WorkbenchHostActions } from "../types";
 import {
+  AttachmentChips,
   AtomCardView,
   ChatCitationChips,
+  ChatSessionBar,
+  CopyMessageButton,
   FreshnessBadge,
   InlineAnswerText,
   type ChatToolStoredState,
 } from "./ChatTool";
+import type { ChatSession } from "./chat-sessions";
+import type { ChatAttachment } from "./chat-attach";
 import { ATOM_ACCENT, type ChatRef } from "./chat-citations";
 import type { AtomCardModel, AtomLineage } from "./chat-atom-card";
 
@@ -463,6 +468,123 @@ describe("RESERVED atom color — audit (the accent means atoms, nothing else)",
       <ChatCitationChips refs={[chatRef({})]} openDid={null} onToggle={noop} />,
     );
     expect(chips).toContain(ATOM_ACCENT);
+  });
+});
+
+describe("sessions + attach + copy — the regular-chatbot ergonomics", () => {
+  it("the tool renders the session bar (new chat + thread picker) and the attach control", () => {
+    const html = renderChat({});
+    expect(html).toContain('data-testid="chat-session-bar"');
+    expect(html).toContain('data-testid="chat-new-chat"');
+    expect(html).toContain('data-testid="chat-thread-picker-toggle"');
+    expect(html).toContain('data-testid="chat-attach-button"');
+    expect(html).toContain('data-testid="chat-attach-input"');
+  });
+
+  it("a legacy { turns } thread still renders (migrated forward, nothing lost)", () => {
+    // The store holds the OLD single-thread shape; the tool migrates it into a
+    // session on read and renders the transcript exactly as before.
+    const store = createWorkbenchToolStateStore({ storage: null });
+    store.set("48021:123", "chat", THREAD);
+    const html = renderChat({ store });
+    expect(html).toContain("Can I add an ADU?");
+    expect(html).toContain("Likely yes, subject to P-2 standards.");
+    // Copy affordance rides on rendered bubbles.
+    expect(html).toContain('data-testid="chat-copy-message"');
+  });
+
+  it("multiple sessions → the picker shows the chat count", () => {
+    const store = createWorkbenchToolStateStore({ storage: null });
+    store.set("48021:123", "chat", {
+      version: 2,
+      sessions: [
+        { id: "a", title: "ADU questions", createdAt: "t", updatedAt: "t2", turns: [{ role: "user", content: "q" }], attachments: [] },
+        { id: "b", title: "Flood", createdAt: "t", updatedAt: "t1", turns: [], attachments: [] },
+      ],
+      activeSessionId: "a",
+    });
+    const html = renderChat({ store });
+    expect(html).toContain("ADU questions");
+    expect(html).toContain("2 chats");
+  });
+
+  describe("ChatSessionBar (presentational)", () => {
+    const sessions: ChatSession[] = [
+      { id: "a", title: "First chat", createdAt: "t", updatedAt: "t2", turns: [{ role: "user", content: "q" }], attachments: [] },
+      { id: "b", title: null, createdAt: "t", updatedAt: "t1", turns: [], attachments: [] },
+    ];
+    it("closed: shows the active title + the count, no dropdown", () => {
+      const html = renderToStaticMarkup(
+        <ChatSessionBar
+          sessions={sessions}
+          activeId="a"
+          pickerOpen={false}
+          disabled={false}
+          onNewChat={noop}
+          onTogglePicker={noop}
+          onSwitch={noop}
+          onDelete={noop}
+        />,
+      );
+      expect(html).toContain("First chat");
+      expect(html).toContain("2 chats");
+      expect(html).not.toContain('data-testid="chat-thread-picker"');
+    });
+    it("open: lists every thread with a delete affordance; untitled → 'New chat'", () => {
+      const html = renderToStaticMarkup(
+        <ChatSessionBar
+          sessions={sessions}
+          activeId="a"
+          pickerOpen={true}
+          disabled={false}
+          onNewChat={noop}
+          onTogglePicker={noop}
+          onSwitch={noop}
+          onDelete={noop}
+        />,
+      );
+      expect(html).toContain('data-testid="chat-thread-picker"');
+      expect(html.match(/data-testid="chat-thread-row"/g)).toHaveLength(2);
+      expect(html.match(/data-testid="chat-thread-delete"/g)).toHaveLength(2);
+      expect(html).toContain("New chat"); // the untitled second thread
+    });
+  });
+
+  describe("CopyMessageButton", () => {
+    it("renders 'Copy', flips to 'Copied' when copied", () => {
+      expect(
+        renderToStaticMarkup(<CopyMessageButton copied={false} onCopy={noop} />),
+      ).toContain("Copy");
+      expect(
+        renderToStaticMarkup(<CopyMessageButton copied={true} onCopy={noop} />),
+      ).toContain("Copied");
+    });
+  });
+
+  describe("AttachmentChips", () => {
+    const readable: ChatAttachment = {
+      id: "1", name: "survey.pdf", kind: "pdf", mimeType: "application/pdf",
+      sizeBytes: 2048, extractedText: "rear setback 20 ft", note: null, addedAt: "t",
+    };
+    const unread: ChatAttachment = {
+      id: "2", name: "site.jpg", kind: "image", mimeType: "image/jpeg",
+      sizeBytes: 5120, extractedText: null, note: "not read", addedAt: "t",
+    };
+    it("no attachments → renders nothing", () => {
+      expect(
+        renderToStaticMarkup(<AttachmentChips attachments={[]} />),
+      ).toBe("");
+    });
+    it("renders a chip per attachment; unreadable ones are honestly flagged 'not read'", () => {
+      const html = renderToStaticMarkup(
+        <AttachmentChips attachments={[readable, unread]} onRemove={noop} />,
+      );
+      expect(html.match(/data-testid="chat-attachment-chip"/g)).toHaveLength(2);
+      expect(html).toContain("survey.pdf");
+      expect(html).toContain("site.jpg");
+      expect(html).toContain("not read");
+      expect(html.match(/data-testid="chat-attachment-remove"/g)).toHaveLength(2);
+    });
   });
 });
 

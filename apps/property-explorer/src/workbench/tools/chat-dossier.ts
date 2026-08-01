@@ -17,9 +17,12 @@ import {
 } from "../../lib/savedPropertiesClient";
 import {
   DOSSIER_CHAT_MAX_TURNS,
+  DOSSIER_CHAT_THREAD_TITLE_MAX_CHARS,
   DOSSIER_CHAT_TURN_MAX_CHARS,
   DOSSIER_SUMMARY_MAX_CHARS,
+  upsertChatThread,
   type DossierChatSummary,
+  type DossierChatThread,
   type DossierChatTurn,
 } from "../../lib/propertyDossier";
 
@@ -80,6 +83,14 @@ export async function saveChatToProperty(
     address: string | null;
     turns: Array<{ role: "user" | "assistant"; content: string }>;
     subject: ChatSubjectContext;
+    /**
+     * Multi-thread revisit: when the caller identifies WHICH thread this is
+     * (the client session id + its title), the thread is upserted into the
+     * dossier's `chatThreads` list (keyed by id, latest wins) IN ADDITION to
+     * the legacy single `chatThread` (kept for the dossier-PDF export + older
+     * UI). Absent → legacy single-thread behavior only.
+     */
+    session?: { id: string; title: string | null };
   },
   deps: {
     runTurn?: typeof runChatTurn;
@@ -130,11 +141,33 @@ export async function saveChatToProperty(
   }
 
   // Store thread (+ summary when it landed; an older stored summary survives
-  // a failed regeneration — the patch simply omits the field).
-  const outcome = await update(input.parcelNodeId, {
-    chatThread: capThreadForDossier(input.turns),
-    ...(summary ? { chatSummary: summary } : {}),
-  });
+  // a failed regeneration — the patch simply omits the field). When a session
+  // is identified, ALSO upsert it into the multi-thread `chatThreads` list.
+  const cappedTurns = capThreadForDossier(input.turns);
+  const savedThread: DossierChatThread | null = input.session
+    ? {
+        id: input.session.id,
+        title: input.session.title
+          ? input.session.title.slice(0, DOSSIER_CHAT_THREAD_TITLE_MAX_CHARS)
+          : null,
+        savedAt: now(),
+        turnCount: input.turns.length,
+        turns: cappedTurns,
+      }
+    : null;
+  const outcome = savedThread
+    ? // Multi-thread save: function-form patch to upsert into chatThreads
+      // (dedupe by id, latest wins) alongside the legacy single fields.
+      await update(input.parcelNodeId, (current) => ({
+        chatThread: cappedTurns,
+        ...(summary ? { chatSummary: summary } : {}),
+        chatThreads: upsertChatThread(current.chatThreads ?? undefined, savedThread),
+      }))
+    : // Legacy single-thread save (unchanged shape/behavior).
+      await update(input.parcelNodeId, {
+        chatThread: cappedTurns,
+        ...(summary ? { chatSummary: summary } : {}),
+      });
 
   if (outcome.kind === "ok") {
     return { kind: "saved", summarized: summary !== null, summaryNote };
