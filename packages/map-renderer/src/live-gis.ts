@@ -41,6 +41,9 @@ export const LIVE_HYDRO_KEY = 'live-hydrology-flow'
  *  `hydrography` slot) — the customer water layer that replaced the D8 flow
  *  squiggle on browse surfaces. */
 export const LIVE_HYDROGRAPHY_KEY = 'live-hydrography'
+/** Live Opportunity Zone tract overlay key (CDFI designation × Census 2010
+ *  TIGER/Line tract polygons — public federal data only). */
+export const LIVE_OPPORTUNITY_ZONE_KEY = 'live-opportunity-zone-tract'
 
 /** Parcels are bbox-capped (~200 features upstream); below this zoom we show
  *  a "zoom in" hint instead of hammering the API with huge viewports. */
@@ -56,6 +59,9 @@ export const MIN_HYDRO_ZOOM = 14
 /** County-mapped hydrography is real (coarse-fetchable) vector data like FEMA
  *  polygons — fetchable wider out than the DEM-derived layers. */
 export const MIN_HYDROGRAPHY_ZOOM = 11
+/** Opportunity Zone tracts are coarse choropleth polygons like FEMA — fetchable
+ *  at regional zoom. */
+export const MIN_OPPORTUNITY_ZONE_ZOOM = 11
 
 export interface GeoJsonFeature {
   type: 'Feature'
@@ -681,6 +687,159 @@ export function toHydrographyOverlay(
         'line-opacity': 0.85,
         // Soft water feather — line-blur is the SAFE channel (crash-guard).
         'line-blur': 0.4,
+      },
+    },
+  ]
+}
+
+// --- Live Opportunity Zone tracts (CDFI × Census TIGER/Line) ----------------
+//
+// REAL designated census tracts. Geometry is fetched from the PE Opportunity
+// Zone BFF (POST /api/pe-opportunity-zone), which joins:
+//   - CDFI Fund Opportunity Zones FeatureServer (designated GEOID10 list), and
+//   - U.S. Census Bureau TIGER/Line 2010 census tract polygons.
+// HONEST: an ok response with zero tracts is honest-empty (no designated tracts
+// in this viewport) — never a synthetic fill.
+
+export interface OpportunityZoneProvenance {
+  designationSource?: string | null
+  designationVintage?: string | null
+  designationListUrl?: string | null
+  geometrySource?: string | null
+  geometryVintage?: string | null
+  retrievedAt?: string | null
+}
+
+export interface OpportunityZoneLayerResponse {
+  geojson?: FeatureCollectionLike
+  provider?: string | null
+  provenance?: OpportunityZoneProvenance
+  honestEmptyReason?: string | null
+  featureCount?: number
+  status?: string
+  detail?: string
+}
+
+export type OpportunityZoneLayerState =
+  | { status: 'idle' }
+  | { status: 'zoom-gated' }
+  | { status: 'loading' }
+  | { status: 'ok'; response: OpportunityZoneLayerResponse }
+  | { status: 'no-coverage'; detail?: string }
+  | { status: 'error'; message: string }
+
+/**
+ * POST the viewport bbox to the Opportunity Zone BFF. Maps HTTP + envelope
+ * outcomes onto honest tile states — NEVER a silent fixture fallback.
+ */
+export async function fetchOpportunityZoneLayer(
+  bboxUrl: string,
+  bbox: GisBBox,
+  center: { lat: number; lng: number },
+  signal?: AbortSignal,
+): Promise<OpportunityZoneLayerState> {
+  let res: Response
+  try {
+    res = await fetch(bboxUrl, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        bbox: {
+          westLng: bbox.west,
+          southLat: bbox.south,
+          eastLng: bbox.east,
+          northLat: bbox.north,
+        },
+        centerLat: center.lat,
+        centerLng: center.lng,
+      }),
+      signal,
+    })
+  } catch (err) {
+    if ((err as Error)?.name === 'AbortError') throw err
+    return {
+      status: 'error',
+      message: `opportunity-zone: ${(err as Error)?.message || 'network error'}`,
+    }
+  }
+
+  let body: unknown = null
+  try {
+    body = await res.json()
+  } catch {
+    /* non-JSON — handled by status below */
+  }
+  const rec = (body ?? {}) as Record<string, unknown>
+
+  if (res.status === 404) {
+    return { status: 'no-coverage', detail: typeof rec.message === 'string' ? rec.message : undefined }
+  }
+  if (!res.ok) {
+    const detail =
+      (typeof rec.message === 'string' && rec.message) ||
+      (typeof rec.error === 'string' && rec.error) ||
+      `HTTP ${res.status}`
+    return { status: 'error', message: `opportunity-zone: ${detail}` }
+  }
+  const response = rec as unknown as OpportunityZoneLayerResponse
+  if (response.status && response.status !== 'ok') {
+    return { status: 'error', message: `opportunity-zone: ${response.detail || response.status}` }
+  }
+  return { status: 'ok', response }
+}
+
+/** True when the served OZ layer is ok but has NO designated tracts in view. */
+export function isOpportunityZoneHonestEmpty(state: OpportunityZoneLayerState): boolean {
+  return (
+    state.status === 'ok' &&
+    (state.response.featureCount ?? state.response.geojson?.features?.length ?? 0) === 0
+  )
+}
+
+/** Honest reason text for an empty OZ response, or null when tracts are present. */
+export function opportunityZoneHonestReason(state: OpportunityZoneLayerState): string | null {
+  if (state.status !== 'ok') return null
+  const r = state.response
+  if ((r.featureCount ?? r.geojson?.features?.length ?? 0) > 0) return null
+  return r.honestEmptyReason || 'no designated Opportunity Zone tracts in this view'
+}
+
+/** Provenance label for served OZ tracts — cites designation + geometry sources. */
+export function opportunityZoneProvenanceLabel(
+  resp: OpportunityZoneLayerResponse | undefined,
+): string {
+  if (!resp) return 'Opportunity Zone tract'
+  if (resp.provider) return resp.provider
+  const p = resp.provenance
+  if (!p?.designationSource) return 'Opportunity Zone tract'
+  const geom = p.geometrySource ? `; geometry: ${p.geometrySource}` : ''
+  const dv = p.designationVintage ? ` (${p.designationVintage})` : ''
+  const gv = p.geometryVintage ? ` (${p.geometryVintage})` : ''
+  return `Opportunity Zone — ${p.designationSource}${dv}${geom}${gv}`
+}
+
+/**
+ * Compose the live Opportunity Zone tract OverlaySpec (or none). `visible`
+ * binds the overlay to the LAYERS-panel `opportunity-zone-tract` toggle.
+ */
+export function toOpportunityZoneOverlay(
+  state: OpportunityZoneLayerState,
+  visible: boolean,
+): OverlaySpec[] {
+  if (state.status !== 'ok' || !state.response.geojson) return []
+  const fc = state.response.geojson
+  if (!fc.features || fc.features.length === 0) return []
+  return [
+    {
+      layerKey: LIVE_OPPORTUNITY_ZONE_KEY,
+      provider: state.response.provider ?? undefined,
+      geojson: fc,
+      visible,
+      paint: {
+        'fill-color': 'rgba(63,114,86,0.36)',
+        'fill-opacity': 0.72,
+        'line-color': '#2d5a40',
+        'line-width': 1.5,
       },
     },
   ]

@@ -611,7 +611,7 @@ export function PropertiesTool() {
         const url = URL.createObjectURL(blob);
         const a = document.createElement("a");
         a.href = url;
-        a.download = `${row.parcelNodeId.replace(":", "_")}_dossier.pdf`;
+        a.download = `${row.parcelNodeId.replace(":", "_")}_smart_site_xray.pdf`;
         document.body.appendChild(a);
         a.click();
         a.remove();

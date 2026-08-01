@@ -633,10 +633,10 @@ export function AtomCardView({
               {model.sourceCitation.slice(0, 300)}
             </p>
           )}
-          {model?.sourceUrl && (
+          {(model?.sourceUrl ?? localRef?.sourceUrl) && (
             <a
               data-testid="atom-card-source-link"
-              href={model.sourceUrl}
+              href={model?.sourceUrl ?? localRef?.sourceUrl ?? undefined}
               target="_blank"
               rel="noreferrer"
               style={{
@@ -1511,12 +1511,26 @@ export function ChatTool() {
     void send(text);
   };
 
-  const onInputKeyDown = (e: KeyboardEvent<HTMLInputElement>) => {
-    if (e.key === "Enter") {
+  const onInputKeyDown = (e: KeyboardEvent<HTMLTextAreaElement>) => {
+    if (e.key === "Enter" && !e.shiftKey) {
       e.preventDefault();
       submitDraft();
     }
   };
+
+  const chatInputRef = useRef<HTMLTextAreaElement | null>(null);
+  const CHAT_INPUT_MAX_ROWS = 6;
+
+  useEffect(() => {
+    const el = chatInputRef.current;
+    if (!el) return;
+    el.style.height = "auto";
+    const lineHeight = Number.parseInt(getComputedStyle(el).lineHeight, 10) || 18;
+    const maxHeight = lineHeight * CHAT_INPUT_MAX_ROWS;
+    const next = Math.min(el.scrollHeight, maxHeight);
+    el.style.height = `${next}px`;
+    el.style.overflowY = el.scrollHeight > maxHeight ? "auto" : "hidden";
+  }, [draft]);
 
   return (
     <div
@@ -1837,8 +1851,9 @@ export function ChatTool() {
         >
           {attachBusy ? "…" : "📎"}
         </button>
-        <input
-          type="text"
+        <textarea
+          ref={chatInputRef}
+          rows={1}
           data-testid="chat-input"
           value={draft}
           placeholder="Ask about this property…"
@@ -1848,13 +1863,16 @@ export function ChatTool() {
           style={{
             flex: 1,
             minWidth: 0,
+            resize: "none",
             fontSize: 11.5,
+            lineHeight: 1.45,
             color: TEXT,
             background: "rgba(154,166,178,0.08)",
             border: CHIP_BORDER,
             borderRadius: 6,
             padding: "6px 8px",
             outline: "none",
+            fontFamily: "inherit",
           }}
         />
         <button

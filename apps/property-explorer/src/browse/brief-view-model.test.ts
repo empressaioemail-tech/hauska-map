@@ -48,7 +48,9 @@ describe("deriveBriefViewModel — zoned parcel (all sections)", () => {
     expect(zoning.kind).toBe("facts");
     const district = zoning.facts.find((f) => f.label === "District")!;
     expect(district.value).toBe("P-2");
-    expect(district.provenance?.source).toBe("Zoning_Districts (bastrop-city-tx)");
+    expect(district.provenance?.source).toBe(
+      "City zoning districts map (Bastrop, TX)",
+    );
     expect(district.provenance?.vintage).toBe("2026-07-10T00:00:00.000Z");
     expect(district.provenance?.url).toContain("Zoning_Districts/FeatureServer");
     expect(district.citationIndex).not.toBeNull();

@@ -101,17 +101,22 @@ import {
   MIN_PARCEL_ZOOM,
   MIN_TOPO_ZOOM,
   MIN_HYDROGRAPHY_ZOOM,
+  MIN_OPPORTUNITY_ZONE_ZOOM,
   LIVE_PARCELS_KEY,
   layersForZoom,
   fetchGisLayer,
   fetchTopographyLayer,
   fetchHydrographyLayer,
+  fetchOpportunityZoneLayer,
   contourTierLabel,
   hydrographyHonestReason,
   hydrographyProvenanceLabel,
+  opportunityZoneHonestReason,
+  opportunityZoneProvenanceLabel,
   toLiveOverlays,
   toTopoOverlay,
   toHydrographyOverlay,
+  toOpportunityZoneOverlay,
   selectionToCard,
   parcelNodeIdFromSelection,
   type GisLayerResponse,
@@ -121,6 +126,8 @@ import {
   type TopoLayerState,
   type HydrographyLayerResponse,
   type HydrographyLayerState,
+  type OpportunityZoneLayerResponse,
+  type OpportunityZoneLayerState,
   type ParcelCardData,
 } from "./liveGis";
 
@@ -133,6 +140,10 @@ const PE_TOPOGRAPHY_URL = "/api/pe-topography";
  *  slot). Feature-detected: until the engine leg deploys, the layer reports an
  *  honest "Hydrography not yet available" state, never an error. */
 const PE_HYDROGRAPHY_URL = "/api/pe-hydrography";
+/** PE Opportunity Zone BFF — CDFI designated tracts × Census 2010 TIGER/Line. */
+const PE_OPPORTUNITY_ZONE_URL = "/api/pe-opportunity-zone";
+/** LAYERS-panel registry key for Opportunity Zone tracts. */
+const OPPORTUNITY_ZONE_TOGGLE_KEY = "opportunity-zone-tract" as LayerKey;
 
 /** Zoom gate for viewport road-node layer (same altitude as parcels). */
 const MIN_ROAD_ZOOM = MIN_PARCEL_ZOOM;
@@ -178,6 +189,12 @@ interface HydrographySlot {
   data: HydrographyLayerResponse | null;
 }
 const HYDROGRAPHY_IDLE: HydrographySlot = { fetch: { status: "idle" }, data: null };
+
+interface OpportunityZoneSlot {
+  fetch: OpportunityZoneLayerState;
+  data: OpportunityZoneLayerResponse | null;
+}
+const OPPORTUNITY_ZONE_IDLE: OpportunityZoneSlot = { fetch: { status: "idle" }, data: null };
 
 // Consumer-honest layer filter: lives in consumer-layers.ts so the panel
 // contract — including the D8 `hydrology-flow` retirement — is unit-testable
@@ -225,6 +242,8 @@ function ExplorerMapSurface({
   const topoAbortRef = useRef<AbortController | null>(null);
   const [hydrography, setHydrography] = useState<HydrographySlot>(HYDROGRAPHY_IDLE);
   const hydrographyAbortRef = useRef<AbortController | null>(null);
+  const [opportunityZone, setOpportunityZone] = useState<OpportunityZoneSlot>(OPPORTUNITY_ZONE_IDLE);
+  const opportunityZoneAbortRef = useRef<AbortController | null>(null);
   const [zoom, setZoom] = useState<number | null>(null);
   const [card, setCard] = useState<ParcelCardData | null>(null);
   // The clicked parcel's stable baked-node id, kept alongside `card` so the
@@ -433,6 +452,32 @@ function ExplorerMapSurface({
           if (hydrographyCtrl.signal.aborted || (err as Error)?.name === "AbortError") return;
           setHydrography({
             fetch: { status: "error", message: `hydrography: ${(err as Error)?.message}` },
+            data: null,
+          });
+        });
+    }
+
+    // Live Opportunity Zone tracts — CDFI designated list × Census 2010 TIGER.
+    opportunityZoneAbortRef.current?.abort();
+    const ozCtrl = new AbortController();
+    opportunityZoneAbortRef.current = ozCtrl;
+    if (vp.zoom < MIN_OPPORTUNITY_ZONE_ZOOM) {
+      setOpportunityZone({ fetch: { status: "zoom-gated" }, data: null });
+    } else {
+      setOpportunityZone((s) => ({ ...s, fetch: { status: "loading" } }));
+      const ozCenter = {
+        lat: (vp.bbox.south + vp.bbox.north) / 2,
+        lng: (vp.bbox.west + vp.bbox.east) / 2,
+      };
+      fetchOpportunityZoneLayer(PE_OPPORTUNITY_ZONE_URL, vp.bbox, ozCenter, ozCtrl.signal)
+        .then((state) => {
+          if (ozCtrl.signal.aborted) return;
+          setOpportunityZone({ fetch: state, data: state.status === "ok" ? state.response : null });
+        })
+        .catch((err) => {
+          if (ozCtrl.signal.aborted || (err as Error)?.name === "AbortError") return;
+          setOpportunityZone({
+            fetch: { status: "error", message: `opportunity-zone: ${(err as Error)?.message}` },
             data: null,
           });
         });
@@ -963,6 +1008,12 @@ function ExplorerMapSurface({
           : hydrography.fetch,
         visibleLayers ? visibleLayers.has(HYDROGRAPHY_TOGGLE_KEY) : true,
       ),
+      ...toOpportunityZoneOverlay(
+        opportunityZone.data
+          ? { status: "ok", response: opportunityZone.data }
+          : opportunityZone.fetch,
+        visibleLayers ? visibleLayers.has(OPPORTUNITY_ZONE_TOGGLE_KEY) : true,
+      ),
       ...toLiveOverlays(
         parcels.data ? { status: "ok", response: parcels.data } : parcels.fetch,
         fema.data ? { status: "ok", response: fema.data } : fema.fetch,
@@ -980,7 +1031,7 @@ function ExplorerMapSurface({
       // Brief street-search highlight (temporary, self-fading).
       ...searchOverlays,
     ],
-    [parcels, fema, topo, hydrography, roadOverlays, envelopeOverlays, searchOverlays, visibleLayers],
+    [parcels, fema, topo, hydrography, opportunityZone, roadOverlays, envelopeOverlays, searchOverlays, visibleLayers],
   );
 
   // Chips are now TRANSIENT notifications (item 2): each entry appears when its
@@ -1046,6 +1097,33 @@ function ExplorerMapSurface({
           text: `${hydrographyProvenanceLabel(hydrography.data)} — ${
             hydrography.data.featureCount ?? 0
           } streams${dz}`,
+        });
+      }
+    }
+  }
+  const opportunityZoneToggledOn = visibleLayers
+    ? visibleLayers.has(OPPORTUNITY_ZONE_TOGGLE_KEY)
+    : true;
+  if (opportunityZoneToggledOn) {
+    if (opportunityZone.fetch.status === "error") {
+      chips.push({
+        key: "oz-err",
+        sev: "warn",
+        text: `Opportunity Zone degraded — ${opportunityZone.fetch.message}`,
+      });
+    } else if (opportunityZone.fetch.status === "no-coverage") {
+      chips.push({ key: "oz-nc", sev: "warn", text: "No Opportunity Zone coverage here" });
+    } else if (opportunityZone.fetch.status === "ok" && opportunityZone.data) {
+      const emptyReason = opportunityZoneHonestReason(opportunityZone.fetch);
+      if (emptyReason) {
+        chips.push({ key: "oz-empty", sev: "info", text: `Opportunity Zone — none: ${emptyReason}` });
+      } else {
+        chips.push({
+          key: "oz-ok",
+          sev: "info",
+          text: `${opportunityZoneProvenanceLabel(opportunityZone.data)} — ${
+            opportunityZone.data.featureCount ?? 0
+          } tracts`,
         });
       }
     }
@@ -1129,6 +1207,29 @@ function ExplorerMapSurface({
             note: `${hydrographyProvenanceLabel(hydrography.data)} — ${
               hydrography.data.featureCount ?? 0
             } streams${hydrography.data.degraded ? " · degraded" : ""}`,
+          };
+    }
+  }
+  if (opportunityZoneToggledOn) {
+    if (opportunityZone.fetch.status === "error") {
+      layerStates[OPPORTUNITY_ZONE_TOGGLE_KEY] = {
+        tone: "warn",
+        note: `Opportunity Zone degraded — ${opportunityZone.fetch.message}`,
+      };
+    } else if (opportunityZone.fetch.status === "no-coverage") {
+      layerStates[OPPORTUNITY_ZONE_TOGGLE_KEY] = {
+        tone: "warn",
+        note: opportunityZone.fetch.detail || "No Opportunity Zone coverage here",
+      };
+    } else if (opportunityZone.fetch.status === "ok" && opportunityZone.data) {
+      const emptyReason = opportunityZoneHonestReason(opportunityZone.fetch);
+      layerStates[OPPORTUNITY_ZONE_TOGGLE_KEY] = emptyReason
+        ? { tone: "info", note: `Opportunity Zone — none: ${emptyReason}` }
+        : {
+            tone: "ok",
+            note: `${opportunityZoneProvenanceLabel(opportunityZone.data)} — ${
+              opportunityZone.data.featureCount ?? 0
+            } tracts`,
           };
     }
   }

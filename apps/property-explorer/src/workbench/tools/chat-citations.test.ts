@@ -24,6 +24,7 @@ function ref(overrides: Partial<ChatRef>): ChatRef {
     edition: null,
     vintage: null,
     n: null,
+    sourceUrl: null,
     ...overrides,
   };
 }
