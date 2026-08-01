@@ -7,13 +7,11 @@
 // freshness chips sits at the bottom, and honest-absent sections say so in the
 // app's "not verified here" idiom.
 //
-// Export PDF: no server round-trip — the brief renders into a hidden iframe
-// styled with the ported Alder @page print CSS (Letter, margin boxes,
-// page-break rules, cover-style header) and calls print(). "Save as PDF" in
-// the browser's dialog produces the clean multi-section document, no map
-// chrome. Dependency-free.
+// Export PDF: routes through the engine X-ray dossier assembler (same
+// SHEET_STANDARD PDF as Properties → Export X-ray PDF), not the legacy Alder
+// iframe print path.
 
-import { useEffect, useMemo, useRef } from "react";
+import { useMemo, useState } from "react";
 import {
   deriveBriefViewModel,
   type BriefFact,
@@ -22,7 +20,12 @@ import {
   type FreshnessVerdict,
   type ResearchBriefPayload,
 } from "./brief-view-model";
-import { renderBriefPrintHtml } from "./brief-print-html";
+import { humanizeCitationLabel } from "../lib/citation-labels";
+import {
+  downloadDossierExportResult,
+  dossierExportNotice,
+  exportBriefAsXrayPdf,
+} from "../lib/brief-xray-export";
 import { composeBriefVerdict, type BriefVerdictTone } from "./brief-verdict";
 
 const MUTED = "#9aa6b2";
@@ -141,7 +144,7 @@ function CitationAppendix({ citations }: { citations: CitationEntry[] }) {
                   rel="noreferrer"
                   style={{ color: "#7dd3fc", wordBreak: "break-all" }}
                 >
-                  {row.label}
+                  {humanizeCitationLabel(row.label)}
                 </a>
               ) : (
                 row.label
@@ -172,6 +175,12 @@ function CitationAppendix({ citations }: { citations: CitationEntry[] }) {
 export interface PropertyBriefPanelProps {
   brief: ResearchBriefPayload;
   onClose: () => void;
+  /** Required for X-ray PDF export (engine dossier route). */
+  parcelNodeId?: string;
+  /** Optional address/county for the dossier cover sheet. */
+  facts?: { address: string | null; countyName: string | null } | null;
+  /** When export hits 402, open the unified paywall. */
+  onPaywall?: () => void;
   /**
    * WB1: render as DOCK CONTENT inside the workbench dock (static flow, full
    * width, no own chrome — the dock provides position/background/border and
@@ -185,51 +194,40 @@ export function PropertyBriefPanel({
   brief,
   onClose,
   embedded = false,
+  parcelNodeId,
+  facts = null,
+  onPaywall,
 }: PropertyBriefPanelProps) {
   const vm = useMemo(() => deriveBriefViewModel(brief), [brief]);
-  // W2: the deterministic one-line verdict that LEADS the brief (no LLM —
-  // pure composition over the payload; absences stay absences).
   const verdict = useMemo(() => composeBriefVerdict(brief), [brief]);
-  const printFrameRef = useRef<HTMLIFrameElement | null>(null);
-
-  // Drop the hidden print iframe on unmount so an exported frame never leaks.
-  useEffect(() => {
-    return () => {
-      printFrameRef.current?.remove();
-      printFrameRef.current = null;
-    };
-  }, []);
+  const [exportBusy, setExportBusy] = useState(false);
+  const [exportNotice, setExportNotice] = useState<string | null>(null);
 
   const handleExportPdf = () => {
-    const html = renderBriefPrintHtml(vm, new Date());
-    // Hidden same-origin iframe: write the ported Alder print document into it
-    // and print. The browser dialog's "Save as PDF" produces the file — no
-    // popup blocker involved, no server round-trip, no pdf lib.
-    printFrameRef.current?.remove();
-    const frame = document.createElement("iframe");
-    frame.style.position = "fixed";
-    frame.style.right = "0";
-    frame.style.bottom = "0";
-    frame.style.width = "0";
-    frame.style.height = "0";
-    frame.style.border = "0";
-    frame.setAttribute("aria-hidden", "true");
-    document.body.appendChild(frame);
-    printFrameRef.current = frame;
-    const doc = frame.contentDocument;
-    if (!doc) {
-      frame.remove();
-      printFrameRef.current = null;
+    const nodeId = parcelNodeId ?? brief.parcelNodeId;
+    if (!nodeId) {
+      setExportNotice("Parcel id not recorded — X-ray export unavailable.");
       return;
     }
-    doc.open();
-    doc.write(html);
-    doc.close();
-    // Give the freshly-written document a beat to lay out before printing.
-    window.setTimeout(() => {
-      frame.contentWindow?.focus();
-      frame.contentWindow?.print();
-    }, 150);
+    setExportBusy(true);
+    setExportNotice("Building the X-ray PDF…");
+    void exportBriefAsXrayPdf({ parcelNodeId: nodeId, brief, facts }).then(
+      async (result) => {
+        setExportBusy(false);
+        if (!result.ok && result.status === 402) {
+          setExportNotice(dossierExportNotice(result));
+          onPaywall?.();
+          return;
+        }
+        setExportNotice(dossierExportNotice(result));
+        if (!result.ok) return;
+        try {
+          await downloadDossierExportResult(result, nodeId);
+        } catch {
+          setExportNotice("X-ray downloaded response could not be saved — try again.");
+        }
+      },
+    );
   };
 
   const headerLine = (label: string, value: string | null) => (
@@ -287,6 +285,7 @@ export function PropertyBriefPanel({
             type="button"
             data-testid="brief-export-pdf"
             onClick={handleExportPdf}
+            disabled={exportBusy}
             style={{
               background: "rgba(125,211,252,0.12)",
               border: "0.5px solid rgba(125,211,252,0.4)",
@@ -298,7 +297,7 @@ export function PropertyBriefPanel({
               cursor: "pointer",
             }}
           >
-            Export PDF
+            Export X-ray PDF
           </button>
           {/* Embedded (dock) mode: the dock header owns the × — no double close. */}
           {!embedded && (
@@ -322,6 +321,15 @@ export function PropertyBriefPanel({
           )}
         </div>
       </div>
+
+      {exportNotice && (
+        <p
+          data-testid="brief-export-notice"
+          style={{ margin: "6px 0 0", fontSize: 10.5, color: MUTED }}
+        >
+          {exportNotice}
+        </p>
+      )}
 
       {/* W2 VERDICT LINE — the plain-English glance, visually LEADING the
           brief content before any cited detail. Deterministic, payload-only. */}

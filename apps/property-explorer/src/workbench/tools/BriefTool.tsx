@@ -101,7 +101,13 @@ export function BriefTool() {
 
   if (stored?.brief) {
     return (
-      <PropertyBriefPanel embedded brief={stored.brief} onClose={closeDock} />
+      <PropertyBriefPanel
+        embedded
+        brief={stored.brief}
+        parcelNodeId={activeParcelNodeId ?? undefined}
+        onClose={closeDock}
+        onPaywall={() => host.openPaywall(BRIEF_PAYWALL_MESSAGE)}
+      />
     );
   }
   // R1: the proactive LOCKED / sign-in-first states — value line + the

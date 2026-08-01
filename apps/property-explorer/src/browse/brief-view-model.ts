@@ -22,6 +22,7 @@
 // falls back to JSON.stringify.
 
 import { formatSetbackDisplay } from "../../api/_lib/setback-not-specified";
+import { humanizeGisZoningSourceLabel } from "../lib/citation-labels";
 
 // ---------------------------------------------------------------------------
 // Wire types (mirrors the R1 response; all fields defensive-optional).
@@ -264,9 +265,7 @@ function deriveZoning(
   const sourceUrl = prov ? str(prov.sourceUrl) : null;
   const stampedAt = prov ? str(prov.stampedAt) : null;
   const sourceLabel = layerName
-    ? cityKey
-      ? `${layerName} (${cityKey})`
-      : layerName
+    ? humanizeGisZoningSourceLabel(layerName, cityKey)
     : sourceUrl
       ? urlHost(sourceUrl)
       : null;

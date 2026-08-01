@@ -1,4 +1,4 @@
-// apps/property-explorer/src/workbench/tools/chat-citations.ts
+import { humanizeCitationLabel } from "../../lib/citation-labels";
 //
 // W3 — citation → chip data, a PE-native port of the extension's inline-atom
 // mechanism (src/lib/inline-atoms.js) MINUS the deprecated markup path:
@@ -35,6 +35,8 @@ export interface ChatRef {
    * this). Null for refs that arrived without a number (sources/inlineRefs).
    */
   n: number | null;
+  /** Municipal code / GIS source URL when the backend carries one. */
+  sourceUrl: string | null;
 }
 
 interface RawRefLike {
@@ -47,6 +49,7 @@ interface RawRefLike {
   edition?: unknown;
   vintage?: unknown;
   n?: unknown;
+  sourceUrl?: unknown;
 }
 
 /** The chat response fields this module reads (all defensive-optional). */
@@ -98,7 +101,7 @@ export function normalizeChatRef(raw: unknown): ChatRef | null {
   const type = entityType ?? "code-section";
   const id = entityId ?? did!;
   const resolvedDid = did ?? `did:hauska:${type}:${id}`;
-  let label = s(r.label) ?? id;
+  let label = humanizeCitationLabel(s(r.label) ?? id);
   if (type === LEGACY_PARCEL_ENTITY_TYPE) label = NEUTRAL_PARCEL_LABEL;
 
   return {
@@ -109,6 +112,7 @@ export function normalizeChatRef(raw: unknown): ChatRef | null {
     snippet: s(r.snippet),
     edition: s(r.edition),
     vintage: s(r.vintage),
+    sourceUrl: s(r.sourceUrl),
     n:
       typeof r.n === "number" && Number.isInteger(r.n) && r.n > 0 ? r.n : null,
   };
@@ -135,6 +139,7 @@ export function refsFromChatResponse(payload: ChatResponsePayload): ChatRef[] {
     if (existing) {
       if (!existing.snippet && ref.snippet) existing.snippet = ref.snippet;
       if (existing.n == null && ref.n != null) existing.n = ref.n;
+      if (!existing.sourceUrl && ref.sourceUrl) existing.sourceUrl = ref.sourceUrl;
       continue;
     }
     byDid.set(ref.did, ref);

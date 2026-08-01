@@ -245,7 +245,7 @@ describe('MCP dossier payload mapping', () => {
   })
 
   it('builds the dossier filename', () => {
-    expect(dossierFilename('48029:105129')).toBe('48029_105129_dossier.pdf')
+    expect(dossierFilename('48029:105129')).toBe('48029_105129_smart_site_xray.pdf')
     expect(buildDossierDownloadPath('48029:105129')).toContain('kind=dossier')
   })
 })
