@@ -422,7 +422,11 @@ export function MapToolset({
         position: "absolute",
         bottom: 16,
         right: 12,
-        zIndex: 9,
+        // Z-INDEX RULE: this SMALL tool console must sit IN FRONT OF the larger
+        // right-side panels (the Workbench dock / reports+detail / My-properties
+        // all render at zIndex 9). Raised from 9 → 11 so the small container is
+        // never painted behind the large one when their columns overlap.
+        zIndex: 11,
         display: "flex",
         flexDirection: "column",
         alignItems: "flex-end",

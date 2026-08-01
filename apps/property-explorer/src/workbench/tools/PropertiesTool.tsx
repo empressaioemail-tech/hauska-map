@@ -50,7 +50,7 @@ import {
 
 /** R1 value line for the dossier-PDF paywall (property unlock clears it). */
 export const DOSSIER_PAYWALL_MESSAGE =
-  "The property dossier PDF — verdict, cited brief facts, your notes and AI research summary, with the site-plan sheets appended.";
+  "The property X-ray PDF — verdict, cited brief facts, your notes and AI research summary, with the site-plan sheets appended.";
 
 const MUTED = "#9aa6b2";
 const AMBER = "#fcd34d";
@@ -556,7 +556,7 @@ export function PropertiesTool() {
   const handleExportDossier = useCallback(
     async (row: SavedPropertyRow) => {
       setBusy(true);
-      setDossierNotice("Building the dossier PDF…");
+      setDossierNotice("Building the X-ray PDF…");
       // Best-effort brief: any non-ready outcome (sign-in / paywall / no
       // snapshot / unreachable) omits verdict+brief honestly — the export
       // gate itself is enforced server-side by the BFF.
@@ -613,7 +613,7 @@ export function PropertiesTool() {
         a.remove();
         URL.revokeObjectURL(url);
       } catch {
-        setDossierNotice("Dossier downloaded response could not be saved — try again.");
+        setDossierNotice("X-ray downloaded response could not be saved — try again.");
       }
     },
     [activeParcelNodeId, host],

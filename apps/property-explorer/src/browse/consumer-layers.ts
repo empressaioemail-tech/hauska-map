@@ -20,6 +20,11 @@ import { COLD_OPEN_VISIBLE_LAYERS } from "../../../../packages/map-renderer/src/
 export const CONSUMER_EXCLUDED_LAYERS = new Set<LayerKey>([
   "rent-heat",
   "hydrology-flow",
+  // 3D terrain (TxGIO LiDAR) toggle removed from the PE layers panel: the 3D
+  // push is PAUSED (operator decision, doc_repo 40_hauska_map_3d_implementation_
+  // brief.md 2026-08-01). The underlying terrain-RGB / setTerrain code stays
+  // banked for resume; only the user-facing toggle is withdrawn here.
+  "dem-hillshade",
 ]);
 
 /** Always-available PE water layer (not in DEFAULT_VISIBLE after Phase 0A). */

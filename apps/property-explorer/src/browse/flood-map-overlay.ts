@@ -96,24 +96,32 @@ export const FEMA_FILL_OPACITY_MAX = 0.15;
 export const FLOOD_PONDING_FILL_COLOR = CONTEXT_FLOOD_TEAL.pondingFill;
 export const FLOOD_PONDING_FILL_OPACITY = FEMA_FILL_OPACITY_MAX;
 export const FLOOD_PONDING_LINE_COLOR = CONTEXT_FLOOD_TEAL.pondingRim;
-export const FLOOD_PONDING_LINE_WIDTH = 2;
+/** Ponding rim stays the WIDEST flood line (the class distinguisher) — bumped
+ *  to 3.5 to stay at/above the widened flow line below (test-enforced rim
+ *  dominance). */
+export const FLOOD_PONDING_LINE_WIDTH = 3.5;
 
 /** Catchment — a single dashed boundary line, no fill (STATIC literal dash). */
 export const FLOOD_CATCHMENT_LINE_COLOR = CONTEXT_FLOOD_TEAL.line;
 export const FLOOD_CATCHMENT_LINE_WIDTH = 1.6;
 export const FLOOD_CATCHMENT_DASH = [5, 4];
 
-/** Parcel-relevant flow — thin clean teal lines, no casing, no animation. */
+/** Parcel-relevant flow — clean teal lines, no casing, no animation. Width
+ *  bumped from 2 to 3 so the flow path reads clearly on the overlay (FD
+ *  flow-read legibility fix); still a static literal width (crash-guard safe
+ *  channel) and kept at/below the ponding rim so ponding stays the widest. */
 export const FLOOD_FLOW_LINE_COLOR = CONTEXT_FLOOD_TEAL.line;
-export const FLOOD_FLOW_LINE_WIDTH = 2;
+export const FLOOD_FLOW_LINE_WIDTH = 3;
 export const FLOOD_FLOW_LINE_OPACITY = 0.85;
 
 /** Exit-point diamond — 45°-rotated square in the deepest teal. */
 export const FLOOD_EXIT_MARKER_COLOR = CONTEXT_FLOOD_TEAL.pondingRim;
 export const FLOOD_EXIT_MARKER_STROKE = "#ffffff";
 
-/** Small map-annotation markers (icons are drawn at 48px / pixelRatio 2). */
-export const FLOOD_ARROW_ICON_SIZE = 0.4;
+/** Map-annotation markers (icons are drawn at 48px / pixelRatio 2). Flow arrow
+ *  bumped from 0.4 so the direction marker reads clearly alongside the wider
+ *  flow line (FD flow-read legibility fix). */
+export const FLOOD_ARROW_ICON_SIZE = 0.6;
 export const FLOOD_EXIT_ICON_SIZE = 0.55;
 
 /**

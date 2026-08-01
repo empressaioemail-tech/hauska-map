@@ -185,13 +185,13 @@ export function dossierExportNotice(result: DossierExportClientResult): string {
               : ""
           }.`
         : "";
-    return `Dossier PDF ready${pages}.${sitePlanNote}`;
+    return `X-ray PDF ready${pages}.${sitePlanNote}`;
   }
   if (result.status === 402) {
-    return "Unlock this property (or Pro) to export its dossier PDF.";
+    return "Unlock this property (or Pro) to export its X-ray PDF.";
   }
   if (result.status === 401) {
-    return "Sign in to export the property dossier.";
+    return "Sign in to export the property X-ray.";
   }
-  return result.message ?? "Dossier export failed — try again.";
+  return result.message ?? "X-ray export failed — try again.";
 }
