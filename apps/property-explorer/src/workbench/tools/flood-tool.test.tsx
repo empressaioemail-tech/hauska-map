@@ -130,7 +130,10 @@ function fixtureStudy(): FloodDrainageStudyView {
               ],
             ],
           },
-          properties: { zone: "catchment" },
+          // Current visual language marker (v4 dissolved severity band) — a
+          // fixtureStudy() represents a CURRENT-STYLED study so the stale-style
+          // gate (Fix C) passes it through to the mini-viz render.
+          properties: { zone: "catchment", concentration: 1 },
         },
       ],
     },

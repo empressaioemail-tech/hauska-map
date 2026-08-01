@@ -95,6 +95,45 @@ export type FloodDrainageClientResult =
   | { ok: true; study: FloodDrainageStudyView }
   | { ok: false; status: number; error: string; message?: string; retryable?: boolean }
 
+/**
+ * STALE-STYLE GATE (Fix C). The flood-drainage study is CACHED by the engine
+ * (the study GET serves the last-refreshed stored study). Studies produced
+ * before the current visual language shipped are missing its data markers and
+ * render in the OLD look (raw flow lines, un-dissolved zones, no severity
+ * bands). Those markers live in the study DATA, so re-running is the only way
+ * to get the current styling — a client re-render cannot upgrade a legacy
+ * payload.
+ *
+ * A study is CURRENT-STYLED when it carries at least one current-era marker:
+ *   - `flowPaths`      (engine v3 — traced flow ribbons)
+ *   - `catchmentSwaths`(engine v3 — contributing-corridor swaths)
+ *   - `gradient`       (engine v2 — drainage-field water ramp PNG)
+ *   - any drainage-zone feature with a numeric `concentration` (v4 dissolved
+ *     severity bands)
+ * honestEmpty studies are exempt — they draw no geometry, so there is nothing
+ * to style. Anything else is treated as an OLD-STYLED stale study.
+ */
+export function isCurrentStyledFloodStudy(
+  study: FloodDrainageStudyView | null | undefined,
+): boolean {
+  if (!study || typeof study !== 'object') return false
+  if (study.honestEmpty) return true
+  if (Array.isArray(study.flowPaths) && study.flowPaths.length > 0) return true
+  if (Array.isArray(study.catchmentSwaths) && study.catchmentSwaths.length > 0) {
+    return true
+  }
+  if (study.gradient && typeof study.gradient.pngBase64 === 'string') return true
+  const zoneFeatures = study.drainageZonesGeoJson?.features
+  if (Array.isArray(zoneFeatures)) {
+    for (const f of zoneFeatures) {
+      const c = (f?.properties as { concentration?: unknown } | null | undefined)
+        ?.concentration
+      if (c === 0 || c === 1 || c === 2) return true
+    }
+  }
+  return false
+}
+
 function asStudy(body: Record<string, unknown>): FloodDrainageStudyView | null {
   const study = body.study as FloodDrainageStudyView | undefined
   if (!study || typeof study !== 'object') return null
