@@ -1,0 +1,16 @@
+---
+description: Fleet memory — capture build knowledge in a per-workstream scratchpad (Tier 2), promote verified lessons to durable memory (Tier 1) through a planner-gated mechanical gate
+alwaysApply: true
+---
+
+# Fleet memory (all agents)
+
+Build knowledge dies at context roll unless it is captured. Capture it.
+
+1. Tier 2 (scratchpad, cheap, can be wrong): as you work, write entries to `_scratch/<workstream>.md`, four kinds — LESSON (a hard-won fact worth a test/note), DEAD-END (a tried-and-failed path + the reason, so it is not retried), GROUND-TRUTH (a live-verified state WITH its timestamp — no timestamp = invalid), OPEN (a live thread the next context must pick up).
+2. Read a workstream's scratch file FIRST, before re-deriving from archaeology.
+3. Nearing your context ceiling: FLUSH — write open threads, live ground-truths, and lessons to the scratch file before compaction. The file is continuity; the agent is disposable.
+4. Do NOT promote to durable memory (MEMORY.md, tests, docs) yourself. Leave the LESSON in the scratch file; the planner gates promotion. An autonomous memory-writer is the drift shape this practice exists to kill.
+5. Promotion prefers a MECHANICAL GUARD (a failing test / fail-closed gate) over prose — prose rots, a test cannot be silently violated. Prose only where a guard is impossible.
+
+Capture aggressively at Tier 2; the planner-gated promotion is what keeps it honest.
