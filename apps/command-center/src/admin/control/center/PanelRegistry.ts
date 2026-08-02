@@ -11,6 +11,7 @@
 import React from 'react'
 import { AtomInspector } from '../panels/AtomInspector'
 import { RunMonitor } from '../panels/RunMonitor'
+import { CountyLedger } from '../panels/CountyLedger'
 import { SurfaceGateInspector } from '../panels/SurfaceGateInspector'
 import { CalibrationTracker } from '../panels/CalibrationTracker'
 import { McpInspector } from '../panels/McpInspector'
@@ -62,6 +63,10 @@ export const PANELS: PanelDef[] = [
   { id: 'lineage-audit', label: 'Lineage & Audit', group: 'Substrate', stub: true,
     Component: makeStub('Lineage & Audit', 'retrieval-api atom lineage / supersession chain') },
   // Engines
+  // County Ledger — the factory-floor performance layer (R-FND-6, OPS-6). The
+  // operator's headline view of the rewarmable factory: onboarded / certified /
+  // stale / rewarm-unsafe per jurisdiction. Reads /api/county-ledger.
+  { id: 'county-ledger', label: 'County Ledger', group: 'Engines', probe: 'cortex-coverage', Component: CountyLedger },
   { id: 'resolver', label: 'Resolver', group: 'Engines', stub: true,
     Component: makeStub('Resolver', 'place/resolve + node resolution status') },
   { id: 'engine-console', label: 'Autonomous Engines', group: 'Engines', stub: true,
