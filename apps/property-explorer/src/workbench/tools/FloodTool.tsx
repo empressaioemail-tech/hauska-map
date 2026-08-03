@@ -49,7 +49,18 @@ import { usePropertyEntitlement } from "../../lib/usePropertyEntitlement";
 import { useDockToolState, useWorkbench } from "../WorkbenchContext";
 import { attachExportToDossier } from "./reports-dossier";
 import { buildFloodVizModel, type FloodVizModel } from "./flood-viz";
-import { pondingFeatureCount } from "../../browse/flood-map-overlay";
+import {
+  pondingFeatureCount,
+  FLOOD_ZONE_LOW_COLOR,
+  FLOOD_ZONE_MED_COLOR,
+  FLOOD_ZONE_HIGH_COLOR,
+  FLOOD_PONDING_FILL_COLOR,
+  FLOOD_PONDING_LINE_COLOR,
+  FLOOD_CATCHMENT_LINE_COLOR,
+  FLOOD_FLOW_LINE_COLOR,
+  FLOOD_EXIT_MARKER_COLOR,
+  FLOOD_EXIT_MARKER_STROKE,
+} from "../../browse/flood-map-overlay";
 
 const TEXT = "#e5e7eb";
 const MUTED = "#8b97a5";
@@ -164,69 +175,102 @@ export function FloodVizSvg({ model }: { model: FloodVizModel }) {
   );
 }
 
-// The FD5 map-overlay visual language (WARM AMBER hydro family): FEMA keeps
-// the blue as the REFERENCE layer; hydro sits in its own amber family so the
-// two stay legible together. Swatches mirror flood-map-overlay.ts, in the
-// spec's legend order.
-const LEGEND_FEMA_FILL = "rgba(59,130,246,0.42)";
-const LEGEND_FEMA_STROKE = "rgba(59,130,246,0.6)";
-const LEGEND_ZONE_LOW = "#e8b579";
-const LEGEND_ZONE_MED = "#d98a3d";
-const LEGEND_ZONE_HIGH = "#a85f22";
-const LEGEND_PONDING_FILL = "#c46a2b";
-const LEGEND_PONDING_STROKE = "#7a3f12";
-const LEGEND_CATCHMENT_STROKE = "#a85f22";
-const LEGEND_FLOW_STROKE = "#a85f22";
-const LEGEND_EXIT_FILL = "#7a3f12";
+// The map-overlay visual language is the CONTEXT SLATE-TEAL family (Phase 0A
+// T-H02): FEMA keeps its muted blue as the REFERENCE layer; the drainage-study
+// hydro layers sit in the slate-teal family so the two stay legible together.
+// Every swatch below is BOUND to the render constants in flood-map-overlay.ts
+// (imported, not hand-copied) so the legend can never drift from the render
+// again. Legend order mirrors the render's paint stack.
+//
+// FEMA reference swatch keeps the muted blue of the FEMA render (fill #3b82f6 /
+// boundary #1d4ed8 from CONTEXT_FEMA); it is the only non-teal entry, on
+// purpose — FEMA is the reference layer.
+const LEGEND_FEMA_FILL = "rgba(59,130,246,0.55)";
+const LEGEND_FEMA_STROKE = "#1d4ed8";
 
 function Legend({ hasPonding = true }: { hasPonding?: boolean }) {
   const item = (swatch: CSSProperties, label: string) => (
-    <span style={{ display: "inline-flex", alignItems: "center", gap: 4, marginRight: 10 }}>
+    <span
+      style={{
+        display: "inline-flex",
+        alignItems: "center",
+        gap: 6,
+        marginRight: 12,
+        marginBottom: 2,
+      }}
+    >
       <span
         style={{
           display: "inline-block",
-          width: 10,
-          height: 10,
-          borderRadius: 2,
+          width: 13,
+          height: 13,
+          borderRadius: 3,
+          flex: "0 0 auto",
           ...swatch,
         }}
       />
-      <span style={{ fontSize: 9.5, color: MUTED }}>{label}</span>
+      <span
+        style={{
+          fontSize: 11,
+          color: "var(--surface-muted, #94A3B8)",
+          whiteSpace: "nowrap",
+        }}
+      >
+        {label}
+      </span>
     </span>
   );
   return (
-    <div data-testid="flood-viz-legend" style={{ marginTop: 6, lineHeight: 1.7 }}>
-      {item({ border: `1.5px solid ${PARCEL_STROKE}`, background: "transparent" }, "Parcel")}
+    <div
+      data-testid="flood-viz-legend"
+      style={{
+        marginTop: 8,
+        lineHeight: 1.9,
+        display: "flex",
+        flexWrap: "wrap",
+        alignItems: "center",
+      }}
+    >
+      {item({ border: `2px solid ${PARCEL_STROKE}`, background: "transparent" }, "Parcel")}
       {item(
-        { background: LEGEND_FEMA_FILL, border: `1px solid ${LEGEND_FEMA_STROKE}` },
+        { background: LEGEND_FEMA_FILL, border: `1.5px solid ${LEGEND_FEMA_STROKE}` },
         "FEMA flood zone (reference)",
       )}
-      {item({ background: LEGEND_ZONE_LOW }, "Zone — low concentration")}
-      {item({ background: LEGEND_ZONE_MED }, "Zone — medium concentration")}
-      {item({ background: LEGEND_ZONE_HIGH }, "Zone — high concentration")}
+      {/* Drainage-zone concentration bands — render teal fills, low → high. */}
+      {item({ background: FLOOD_ZONE_LOW_COLOR }, "Zone — low concentration")}
+      {item({ background: FLOOD_ZONE_MED_COLOR }, "Zone — medium concentration")}
+      {item({ background: FLOOD_ZONE_HIGH_COLOR }, "Zone — high concentration")}
       {/* The ponding swatch appears only when ponding is actually drawn — a
-          legend entry with nothing on the map reads as a broken render. */}
+          legend entry with nothing on the map reads as a broken render. Render:
+          deepest teal fill + heavy dark rim. */}
       {hasPonding &&
         item(
-          { background: LEGEND_PONDING_FILL, border: `1.5px solid ${LEGEND_PONDING_STROKE}` },
+          {
+            background: FLOOD_PONDING_FILL_COLOR,
+            border: `2px solid ${FLOOD_PONDING_LINE_COLOR}`,
+          },
           "Ponding — standing water",
         )}
+      {/* Catchment — dashed teal boundary, no fill (render: dashed line). */}
       {item(
-        { border: `1px dashed ${LEGEND_CATCHMENT_STROKE}`, background: "transparent" },
+        { border: `1.5px dashed ${FLOOD_CATCHMENT_LINE_COLOR}`, background: "transparent" },
         "Catchment boundary",
       )}
+      {/* Flow path — solid teal line (render: teal line). */}
       {item(
-        { background: LEGEND_FLOW_STROKE, borderRadius: 5, height: 3, width: 12 },
+        { background: FLOOD_FLOW_LINE_COLOR, borderRadius: 6, height: 4, width: 15 },
         "Flow path",
       )}
+      {/* Exit point — 45°-rotated square (DIAMOND) in the render: deepest teal
+          fill + white stroke. */}
       {item(
         {
-          background: LEGEND_EXIT_FILL,
-          border: "1px solid #ffffff",
+          background: FLOOD_EXIT_MARKER_COLOR,
+          border: `1.5px solid ${FLOOD_EXIT_MARKER_STROKE}`,
           borderRadius: 0,
           transform: "rotate(45deg)",
-          width: 8,
-          height: 8,
+          width: 10,
+          height: 10,
         },
         "Exit point",
       )}
