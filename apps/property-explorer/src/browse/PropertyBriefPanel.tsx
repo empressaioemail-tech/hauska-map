@@ -329,10 +329,10 @@ export function PropertyBriefPanel({
             onClick={handleExportPdf}
             disabled={exportBusy}
             style={{
-              // HERO export CTA — gold (brand + hero spend, one per surface).
-              background: "var(--brand-gold, #E8963B)",
-              border: "0.5px solid var(--brand-gold, #E8963B)",
-              color: "#0d1117",
+              // HERO export CTA — blue (actions are blue; gold is brand-mark only).
+              background: "var(--brand-blue, #3B82F6)",
+              border: "0.5px solid var(--brand-blue, #3B82F6)",
+              color: "#f8fafc",
               borderRadius: "var(--btn-radius, 9px)",
               padding: "2px 8px",
               fontSize: 10.5,

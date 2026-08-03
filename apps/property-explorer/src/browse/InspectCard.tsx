@@ -378,7 +378,7 @@ export function InspectCard({
           card keeps its data rows + Research/Make subject/Save actions. */}
 
       {/* DISTINCT explicit action: make this inspected parcel the SUBJECT.
-          Active = primary (gold fill); once it IS the subject the control goes
+          Active = primary (blue fill); once it IS the subject the control goes
           inert (secondary, disabled). */}
       <Button
         variant={isSubject ? "secondary" : "primary"}

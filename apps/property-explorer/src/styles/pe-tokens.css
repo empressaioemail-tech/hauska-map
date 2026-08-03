@@ -4,9 +4,9 @@
    Brand / semantic / atom are separate namespaces on purpose. */
 :root{
   /* brand (logo-sourced) */
-  --brand-gold:#E8963B;          /* buttons, mark center dot, active fills */
-  --brand-gold-light:#F5B95C;    /* SITE wordmark, small text/icons */
-  --brand-blue:#3B82F6;          /* PRIMARY / interactive: links, active, selected, focus, dense CTAs */
+  --brand-gold:#E8963B;          /* BRAND MARK ONLY — crosshair center dot. Never an action/button color. */
+  --brand-gold-light:#F5B95C;    /* BRAND MARK ONLY — SITE wordmark, small brand text/icons. */
+  --brand-blue:#3B82F6;          /* PRIMARY / interactive: buttons/CTAs, links, active, selected, focus */
   --brand-white:#F8FAFC;
   /* blue at alpha — the interactive tints (was the reserved cyan #7dd3fc) */
   --brand-blue-bg:rgba(59,130,246,0.12);

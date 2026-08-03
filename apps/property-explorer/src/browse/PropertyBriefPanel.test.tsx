@@ -57,8 +57,8 @@ describe("PropertyBriefPanel — zoned parcel", () => {
     // A fact whose provenance has a URL links the source label out.
     expect(html).toContain('data-testid="brief-fact-source-link"');
     expect(html).toContain("library.municode.com");
-    // Links/citations use brand-blue (the Export-PDF button keeps its cyan UI
-    // affordance — interaction-cyan is untouched there, per the design system).
+    // Links/citations use brand-blue; the Export X-ray PDF hero CTA is now
+    // blue too (actions are blue; gold is reserved for the brand mark).
     expect(html).toContain("var(--brand-blue, #3B82F6)");
   });
 

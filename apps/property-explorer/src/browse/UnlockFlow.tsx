@@ -37,7 +37,7 @@ import {
 const TEXT = "var(--text-body, #e5e7eb)";
 const MUTED = "var(--surface-muted, #94A3B8)";
 // (accent hue now applied inline via --brand-blue tokens; the hero unlock CTA
-//  uses --brand-gold. No standalone ACCENT const needed here.)
+//  uses --brand-blue. Actions are blue; gold is brand-mark only.)
 const AMBER = "var(--semantic-warning, #F59E0B)"; // caution notice (was raw yellow #fcd34d)
 
 const choiceButtonBase = {
@@ -148,16 +148,16 @@ export function UnlockChoices({
           ...choiceButtonBase,
           marginTop: proOnly ? 0 : 8,
           border: "none",
-          // HERO purchase CTA — gold (brand + hero spend, one per surface).
-          background: "var(--brand-gold, #E8963B)",
-          color: "#0d1117",
+          // HERO purchase CTA — blue (actions are blue; gold is brand-mark only).
+          background: "var(--brand-blue, #3B82F6)",
+          color: "#f8fafc",
           opacity: busy === "pro" ? 0.7 : 1,
         }}
       >
         <span style={{ display: "block", fontWeight: 700, fontSize: 13 }}>
           {busy === "pro" ? "Starting checkout…" : proChoiceLabel()}
         </span>
-        <span style={{ display: "block", fontSize: 11, color: "#22303c" }}>
+        <span style={{ display: "block", fontSize: 11, color: "rgba(248,250,252,0.82)" }}>
           {PE_PRICING.pro.blurb}
         </span>
       </button>

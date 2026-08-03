@@ -3,13 +3,13 @@ import type { ButtonHTMLAttributes, CSSProperties } from "react";
 // Smart Site — one Button component, four variants, styled from pe-tokens.css.
 // This replaces the ad-hoc inline-styled action buttons scattered across the
 // app (InspectCard, SearchBar, export sections). Styling only — labels and
-// behavior come from the call site. Brand/semantic separation lives in the
-// tokens; this component never hardcodes a brand hue.
+// behavior come from the call site. Actions are BLUE or NEUTRAL only; gold is
+// reserved for the brand mark (crosshair/wordmark) and never renders an action.
 //
-//   primary   — gold fill (Make subject, Export, Find)
+//   primary   — blue fill (Make subject, Export, Find) — the default action
 //   secondary — outline neutral (Save property)
-//   ghost     — gold-light text, no fill (Research this →)
-//   subtle    — faint fill (export-format rows / toolbars)
+//   ghost     — blue text, no fill (Research this →)
+//   subtle    — faint blue tint fill (export-format rows / toolbars)
 
 export type ButtonVariant = "primary" | "secondary" | "ghost" | "subtle";
 
@@ -23,8 +23,8 @@ interface ButtonProps extends ButtonHTMLAttributes<HTMLButtonElement> {
 
 const VARIANT_STYLE: Record<ButtonVariant, CSSProperties> = {
   primary: {
-    color: "#0d1117",
-    background: "var(--brand-gold)",
+    color: "#f8fafc",
+    background: "var(--brand-blue)",
     border: "none",
   },
   secondary: {
@@ -33,14 +33,14 @@ const VARIANT_STYLE: Record<ButtonVariant, CSSProperties> = {
     border: "0.5px solid var(--surface-border-soft)",
   },
   ghost: {
-    color: "var(--brand-gold-light)",
+    color: "var(--brand-blue)",
     background: "transparent",
-    border: "0.5px solid rgba(245,185,92,0.35)",
+    border: "0.5px solid var(--brand-blue-border-soft)",
   },
   subtle: {
-    color: "var(--brand-gold-light)",
-    background: "rgba(232,150,59,0.12)",
-    border: "0.5px solid rgba(232,150,59,0.3)",
+    color: "var(--brand-blue)",
+    background: "var(--brand-blue-bg)",
+    border: "0.5px solid var(--brand-blue-border-soft)",
   },
 };
 
