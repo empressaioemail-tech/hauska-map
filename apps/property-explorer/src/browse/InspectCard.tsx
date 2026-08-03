@@ -39,7 +39,7 @@ import { CORTEX_PROXY_BASE, PE_FACETS_PROXY_BASE } from "../lib/config";
 
 const CARD_BG = "rgba(13,17,23,0.94)";
 const MUTED = "#8b97a5";
-const ACCENT = "#7dd3fc";
+const ACCENT = "#F5B95C";
 const ABSENT = "#c98b3a"; // honest-absence "not verified here" treatment.
 
 interface EnvelopeState {
@@ -391,7 +391,7 @@ export function InspectCard({
           fontSize: 12.5,
           fontWeight: 600,
           color: isSubject ? MUTED : "#0d1117",
-          background: isSubject ? "transparent" : ACCENT,
+          background: isSubject ? "transparent" : "#E8963B",
           border: isSubject ? "0.5px solid rgba(125,211,252,0.35)" : "none",
           borderRadius: 7,
           cursor: isSubject ? "default" : "pointer",

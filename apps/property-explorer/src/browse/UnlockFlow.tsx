@@ -36,7 +36,7 @@ import {
 
 const TEXT = "#e5e7eb";
 const MUTED = "#8b97a5";
-const ACCENT = "#7dd3fc";
+const ACCENT = "#E8963B";
 const AMBER = "#fcd34d";
 
 const choiceButtonBase = {

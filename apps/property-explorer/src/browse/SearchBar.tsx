@@ -88,7 +88,7 @@ const button: CSSProperties = {
   cursor: "pointer",
   font: `600 12px/1.2 ${FONT}`,
   color: "#0b0e13",
-  background: "#7dd3fc",
+  background: "#E8963B",
 };
 
 const errStyle: CSSProperties = {

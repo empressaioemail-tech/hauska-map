@@ -88,7 +88,7 @@ function MobileBottomNav({
               flex: 1,
               border: "none",
               background: "transparent",
-              color: selected ? "#7dd3fc" : "#9aa6b2",
+              color: selected ? "#F5B95C" : "#9aa6b2",
               fontSize: 11,
               fontWeight: selected ? 700 : 600,
               cursor: "pointer",

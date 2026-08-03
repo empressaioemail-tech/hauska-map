@@ -53,7 +53,7 @@ function FactRow({ fact }: { fact: BriefFact }) {
         <span style={{ color: MUTED }}>{fact.label}: </span>
         <span style={{ color: TEXT, fontWeight: 600 }}>{fact.value}</span>
         {fact.citationIndex !== null && (
-          <sup style={{ color: "#7dd3fc", fontSize: 9, marginLeft: 2 }}>
+          <sup style={{ color: "#F5B95C", fontSize: 9, marginLeft: 2 }}>
             [{fact.citationIndex}]
           </sup>
         )}
@@ -142,7 +142,7 @@ function CitationAppendix({ citations }: { citations: CitationEntry[] }) {
                   href={row.url}
                   target="_blank"
                   rel="noreferrer"
-                  style={{ color: "#7dd3fc", wordBreak: "break-all" }}
+                  style={{ color: "#F5B95C", wordBreak: "break-all" }}
                 >
                   {humanizeCitationLabel(row.label)}
                 </a>
@@ -289,7 +289,7 @@ export function PropertyBriefPanel({
             style={{
               background: "rgba(125,211,252,0.12)",
               border: "0.5px solid rgba(125,211,252,0.4)",
-              color: "#7dd3fc",
+              color: "#F5B95C",
               borderRadius: 5,
               padding: "2px 8px",
               fontSize: 10.5,

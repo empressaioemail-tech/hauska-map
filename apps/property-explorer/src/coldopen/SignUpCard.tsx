@@ -14,7 +14,7 @@ import {
 import { recordPeGtmEvent } from "../lib/gtmClient";
 
 const CARD_BG = "rgba(17, 21, 28, 0.92)";
-const ACCENT = "#7dd3fc";
+const ACCENT = "#F5B95C";
 
 export function SignUpCard({ onDismiss }: { onDismiss: () => void }) {
   const [busy, setBusy] = useState<"google" | "microsoft" | null>(null);

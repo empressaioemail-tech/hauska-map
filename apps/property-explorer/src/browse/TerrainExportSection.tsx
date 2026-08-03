@@ -8,7 +8,7 @@ import {
 import { googleSignInUrl } from "../lib/auth";
 
 const MUTED = "#8b97a5";
-const ACCENT = "#7dd3fc";
+const ACCENT = "#F5B95C";
 const WARN = "#c98b3a";
 
 function filenameFor(parcelNodeId: string, format: string): string {
