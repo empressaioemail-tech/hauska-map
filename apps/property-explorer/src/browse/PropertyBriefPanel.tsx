@@ -28,9 +28,9 @@ import {
 } from "../lib/brief-xray-export";
 import { composeBriefVerdict, type BriefVerdictTone } from "./brief-verdict";
 
-const MUTED = "#9aa6b2";
-const AMBER = "#fcd34d";
-const TEXT = "#e5e7eb";
+const MUTED = "var(--surface-muted, #94A3B8)";
+const AMBER = "var(--semantic-warning, #F59E0B)"; // caution verdict tone (was raw yellow #fcd34d)
+const TEXT = "var(--text-body, #e5e7eb)";
 // Design system: blue = links/citations (--brand-blue). Every clickable
 // reference (fact [n] anchor, source link, appendix link) uses this ONE hue so
 // the data-inspection loop reads coherently. Interaction-cyan (#7dd3fc) stays
@@ -46,7 +46,7 @@ const VERDICT_COLOR: Record<BriefVerdictTone, string> = {
 
 const FRESHNESS_COLOR: Record<FreshnessVerdict, string> = {
   fresh: "#4ade80",
-  aging: "#fcd34d",
+  aging: "var(--semantic-warning, #F59E0B)",
   stale: "#fca5a5",
   unknown: MUTED,
 };
@@ -329,10 +329,11 @@ export function PropertyBriefPanel({
             onClick={handleExportPdf}
             disabled={exportBusy}
             style={{
-              background: "rgba(125,211,252,0.12)",
-              border: "0.5px solid rgba(125,211,252,0.4)",
-              color: "#7dd3fc",
-              borderRadius: 5,
+              // HERO export CTA — gold (brand + hero spend, one per surface).
+              background: "var(--brand-gold, #E8963B)",
+              border: "0.5px solid var(--brand-gold, #E8963B)",
+              color: "#0d1117",
+              borderRadius: "var(--btn-radius, 9px)",
               padding: "2px 8px",
               fontSize: 10.5,
               fontWeight: 600,

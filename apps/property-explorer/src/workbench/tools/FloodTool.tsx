@@ -62,11 +62,15 @@ import {
   FLOOD_EXIT_MARKER_STROKE,
 } from "../../browse/flood-map-overlay";
 
-const TEXT = "#e5e7eb";
-const MUTED = "#8b97a5";
-const ACCENT = "#7dd3fc";
+const TEXT = "var(--text-body, #e5e7eb)";
+const MUTED = "var(--surface-muted, #94A3B8)";
+const ACCENT = "var(--brand-blue, #3B82F6)"; // PRIMARY interactive hue for tool CHROME (was cyan #7dd3fc)
 
 // Water palette — one hue family, graded; parcel ring stays the neutral star.
+// NOTE: this flood-analysis map palette (catchment/flow/ponding/exit) is the
+// hydro CONTEXT palette flagged out-of-scope for the rebrand sweep — left as-is
+// pending a cross-package taxonomy design decision. Only the tool's UI chrome
+// (TEXT/MUTED/ACCENT above) is tokenized here.
 const PARCEL_STROKE = "#e6edf3";
 const CATCHMENT_STROKE = "rgba(125,211,252,0.55)";
 const ZONE_FILL = "56,132,255"; // rgb triplet; alpha graded per zone
@@ -443,9 +447,9 @@ export function FloodDrainageSection() {
         style={{
           width: "100%",
           padding: "7px 10px",
-          borderRadius: 7,
-          border: "0.5px solid rgba(125,211,252,0.35)",
-          background: busy ? "transparent" : "rgba(125,211,252,0.12)",
+          borderRadius: "var(--btn-radius, 9px)",
+          border: "0.5px solid var(--brand-blue-border-soft, rgba(59,130,246,0.28))",
+          background: busy ? "transparent" : "var(--brand-blue-bg, rgba(59,130,246,0.12))",
           color: ACCENT,
           fontWeight: 600,
           fontSize: 12,
@@ -542,8 +546,8 @@ export function FloodDrainageSection() {
               display: "inline-block",
               marginTop: 10,
               padding: "6px 10px",
-              borderRadius: 7,
-              border: "0.5px solid rgba(125,211,252,0.35)",
+              borderRadius: "var(--btn-radius, 9px)",
+              border: "0.5px solid var(--brand-blue-border-soft, rgba(59,130,246,0.28))",
               color: ACCENT,
               fontSize: 11.5,
               fontWeight: 600,

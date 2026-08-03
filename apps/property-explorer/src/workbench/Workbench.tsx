@@ -32,12 +32,12 @@ import type { WorkbenchHostActions, WorkbenchToolDef } from "./types";
 import { WorkbenchProvider } from "./WorkbenchContext";
 import type { WorkbenchToolStateStore } from "./tool-state-store";
 
-const CARD_BG = "rgba(13,17,23,0.94)";
-const BORDER = "1px solid rgba(154,166,178,0.35)";
-const TEXT = "#e5e7eb";
-const MUTED = "#9aa6b2";
-const ACCENT = "#7dd3fc";
-const AMBER = "#fcd34d";
+const CARD_BG = "var(--surface-card-translucent, rgba(13,17,23,0.94))";
+const BORDER = "1px solid var(--surface-border-rgba, rgba(154,166,178,0.3))";
+const TEXT = "var(--text-body, #e5e7eb)";
+const MUTED = "var(--surface-muted, #94A3B8)";
+const ACCENT = "var(--brand-blue, #3B82F6)"; // PRIMARY interactive hue (was cyan #7dd3fc)
+const AMBER = "var(--semantic-warning, #F59E0B)"; // caution/notice (was raw yellow #fcd34d)
 
 /**
  * Dock single-tenancy, as a pure rule: tapping the active bubble closes the

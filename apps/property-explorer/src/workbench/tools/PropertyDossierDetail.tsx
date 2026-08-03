@@ -18,10 +18,10 @@ import {
 } from "../../lib/propertyDossier";
 import { pinAccent } from "../../lib/saved-pins";
 
-const MUTED = "#9aa6b2";
-const AMBER = "#fcd34d";
-const TEXT = "#e5e7eb";
-const ACCENT = "#7dd3fc";
+const MUTED = "var(--surface-muted, #94A3B8)";
+const AMBER = "var(--semantic-warning, #F59E0B)"; // caution notice (was raw yellow #fcd34d)
+const TEXT = "var(--text-body, #e5e7eb)";
+const ACCENT = "var(--brand-blue, #3B82F6)"; // PRIMARY interactive hue (was cyan #7dd3fc)
 const SECTION_BORDER = "1px solid rgba(154,166,178,0.2)";
 
 /** Debounce delay for notes autosave (ms). Exported for tests. */
@@ -443,7 +443,7 @@ function actionButtonStyle(busy: boolean): React.CSSProperties {
     fontWeight: 600,
     color: ACCENT,
     background: "transparent",
-    border: "1px solid rgba(125,211,252,0.45)",
+    border: "1px solid var(--brand-blue-border, rgba(59,130,246,0.4))",
     borderRadius: 5,
     padding: "3px 9px",
     cursor: busy ? "default" : "pointer",

@@ -14,7 +14,7 @@ import {
 import { recordPeGtmEvent } from "../lib/gtmClient";
 
 const CARD_BG = "rgba(17, 21, 28, 0.92)";
-const ACCENT = "#7dd3fc";
+const ACCENT = "var(--brand-blue, #3B82F6)"; // PRIMARY interactive hue (was cyan #7dd3fc)
 
 export function SignUpCard({ onDismiss }: { onDismiss: () => void }) {
   const [busy, setBusy] = useState<"google" | "microsoft" | null>(null);
@@ -71,7 +71,7 @@ export function SignUpCard({ onDismiss }: { onDismiss: () => void }) {
           padding: "28px 28px 24px",
           borderRadius: 16,
           background: CARD_BG,
-          border: "0.5px solid rgba(125,211,252,0.35)",
+          border: "0.5px solid var(--brand-blue-border-soft, rgba(59,130,246,0.28))",
           boxShadow: "0 24px 80px rgba(0,0,0,0.55)",
           color: "#e9eef5",
           fontFamily:
@@ -136,7 +136,7 @@ export function SignUpCard({ onDismiss }: { onDismiss: () => void }) {
         </ul>
 
         {loadError && (
-          <p data-testid="auth-load-error" style={{ color: "#c98b3a", fontSize: 13, marginBottom: 12 }}>
+          <p data-testid="auth-load-error" style={{ color: "var(--semantic-error, #EF4444)", fontSize: 13, marginBottom: 12 }}>
             {loadError}
           </p>
         )}
@@ -150,7 +150,7 @@ export function SignUpCard({ onDismiss }: { onDismiss: () => void }) {
               marginBottom: 14,
               padding: "10px 12px",
               borderRadius: 8,
-              border: "0.5px solid rgba(174,184,196,0.28)",
+              border: "0.5px solid var(--surface-border-rgba, rgba(154,166,178,0.3))",
               background: "rgba(0,0,0,0.2)",
             }}
           >
@@ -199,7 +199,7 @@ export function SignUpCard({ onDismiss }: { onDismiss: () => void }) {
             fontWeight: 500,
             color: "#aeb8c4",
             background: "transparent",
-            border: "0.5px solid rgba(174,184,196,0.28)",
+            border: "0.5px solid var(--surface-border-rgba, rgba(154,166,178,0.3))",
             borderRadius: 10,
             cursor: "pointer",
           }}
@@ -212,7 +212,7 @@ export function SignUpCard({ onDismiss }: { onDismiss: () => void }) {
             margin: "14px 0 0",
             fontSize: 10.5,
             lineHeight: 1.45,
-            color: "#8b97a5",
+            color: "var(--surface-muted, #94A3B8)",
           }}
         >
           Coverage varies by county and city. Comal countywide land-use remains an

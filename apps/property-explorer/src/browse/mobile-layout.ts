@@ -140,7 +140,7 @@ export function inspectCardShellStyle(isMobile: boolean): CSSProperties {
     padding: "13px 15px",
     borderRadius: 10,
     boxShadow: "0 12px 40px rgba(0,0,0,0.5)",
-    border: "0.5px solid rgba(125,211,252,0.28)",
+    border: "0.5px solid var(--brand-blue-border-soft, rgba(59,130,246,0.28))",
   };
 }
 

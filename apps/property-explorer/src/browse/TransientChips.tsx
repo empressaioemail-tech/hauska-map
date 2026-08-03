@@ -31,14 +31,19 @@ const chipStyle = (sev: ChipSeverity): React.CSSProperties => ({
   borderRadius: 5,
   pointerEvents: "none",
   whiteSpace: "nowrap",
-  color: sev === "error" ? "#fca5a5" : sev === "warn" ? "#fcd34d" : "#9aa6b2",
+  color:
+    sev === "error"
+      ? "#fca5a5"
+      : sev === "warn"
+        ? "var(--semantic-warning, #F59E0B)"
+        : "var(--surface-muted, #94A3B8)",
   background: "rgba(13,17,23,0.82)",
   border: `0.5px solid ${
     sev === "error"
       ? "rgba(248,113,113,0.55)"
       : sev === "warn"
-        ? "rgba(252,211,77,0.5)"
-        : "rgba(154,166,178,0.35)"
+        ? "rgba(245,158,11,0.5)"
+        : "var(--surface-border-rgba, rgba(154,166,178,0.3))"
   }`,
 });
 

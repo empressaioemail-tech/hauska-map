@@ -91,17 +91,21 @@ test("map mounts with default attribution OFF and a compact bottom-left Attribut
   const map = mapInstances[mapInstances.length - 1];
   assert.ok(map, "a Map was constructed");
 
-  // 1. Default control suppressed (it would carry the "MapLibre |" prefix and
-  //    sit bottom-right, colliding with the toolset bubble).
+  // 1. Default control suppressed (it would carry the "MapLibre |" prefix);
+  //    we add an explicit compact control below instead.
   assert.equal(map.opts.attributionControl, false);
 
-  // 2. Explicit compact attribution at bottom-LEFT — the required OSM/CARTO
-  //    credits stay mounted; the lower-right corner stays free.
+  // 2. Explicit compact attribution at bottom-RIGHT — the required OSM/CARTO
+  //    credits stay mounted; moved off bottom-left (2026-08-03 rebrand sweep)
+  //    where the collapsed © CARTO credit collided with / sat behind the
+  //    lower-left Smart Site badge and read as a stray "cart.com". The credit is
+  //    REQUIRED (cannot be deleted); bottom-right co-locates it with the
+  //    source/attribution cluster (MapSourceInfo ⓘ + layers bubble).
   const attrib = map.controls.find(
     (c) => c.ctrl instanceof FakeAttributionControl,
   );
   assert.ok(attrib, "an AttributionControl is added (licensing requires it)");
-  assert.equal(attrib.position, "bottom-left");
+  assert.equal(attrib.position, "bottom-right");
   assert.equal(attrib.ctrl.opts.compact, true);
 
   // 3. No customAttribution → no "MapLibre |" prefix; source credits intact.

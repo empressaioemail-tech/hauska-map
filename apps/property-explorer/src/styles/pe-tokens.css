@@ -6,16 +6,28 @@
   /* brand (logo-sourced) */
   --brand-gold:#E8963B;          /* buttons, mark center dot, active fills */
   --brand-gold-light:#F5B95C;    /* SITE wordmark, small text/icons */
-  --brand-blue:#3B82F6;          /* eyebrow, links, info affordance */
+  --brand-blue:#3B82F6;          /* PRIMARY / interactive: links, active, selected, focus, dense CTAs */
   --brand-white:#F8FAFC;
+  /* blue at alpha — the interactive tints (was the reserved cyan #7dd3fc) */
+  --brand-blue-bg:rgba(59,130,246,0.12);
+  --brand-blue-bg-soft:rgba(59,130,246,0.08);
+  --brand-blue-border:rgba(59,130,246,0.4);
+  --brand-blue-border-soft:rgba(59,130,246,0.28);
 
   /* surfaces — PE app ink, kept as-is */
   --surface-ink:#0b0e13;
   --surface-card:#141928;
+  --surface-card-translucent:rgba(13,17,23,0.94); /* the app-wide translucent card ink */
+  --surface-panel-translucent:rgba(13,17,23,0.9); /* map-chrome / floating panels */
   --surface-border:#1E293B;
   --surface-border-soft:#243247;
+  --surface-border-rgba:rgba(154,166,178,0.3);    /* the app-wide hairline border at alpha */
   --surface-muted:#94A3B8;
   --surface-muted-2:#64748B;
+
+  /* body text — was the untokenized TEXT #e5e7eb copied across 12 files */
+  --text-body:#e5e7eb;
+  --text-strong:#e6edf3;
 
   /* semantic — state only, never brand */
   --semantic-success:#10B981;      /* verified / gate-passed */
@@ -41,8 +53,12 @@
   --btn-pad-y-dense:7px; --btn-pad-x-dense:12px;
   --btn-focus-ring:0 0 0 2px var(--surface-ink), 0 0 0 4px var(--brand-blue);
 
-  /* type + spacing (PE body stays system-ui; Oxygen for display only) */
-  --font-display:'Oxygen', ui-sans-serif, system-ui, sans-serif;
+  /* type + spacing. Oxygen (--font-display) was a DEAD token: no @font-face, no
+     CDN link, no self-hosted file, so headings silently fell back to system-ui.
+     No inlinable Oxygen is available and the CSP forbids an external CDN, so the
+     display face is dropped to the system stack rather than kept as a broken
+     pretense (headings render identically to before — Oxygen never loaded). */
+  --font-display: ui-sans-serif, system-ui, -apple-system, 'Segoe UI', sans-serif;
   --font-body: ui-sans-serif, system-ui, -apple-system, 'Segoe UI', sans-serif;
   --font-mono: ui-monospace, 'SF Mono', Menlo, monospace;
   --space-1:4px; --space-2:8px; --space-3:16px; --space-4:24px; --space-5:32px; --space-6:48px; --space-7:64px; --space-8:80px;

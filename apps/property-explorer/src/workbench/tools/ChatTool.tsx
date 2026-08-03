@@ -110,12 +110,12 @@ import {
   type ChatAttachment,
 } from "./chat-attach";
 
-const TEXT = "#e5e7eb";
-const MUTED = "#9aa6b2";
-const ACCENT = "#7dd3fc";
-const AMBER = "#fcd34d";
-const CHIP_BORDER = "1px solid rgba(154,166,178,0.35)";
-const USER_BG = "rgba(125,211,252,0.12)";
+const TEXT = "var(--text-body, #e5e7eb)";
+const MUTED = "var(--surface-muted, #94A3B8)";
+const ACCENT = "var(--brand-blue, #3B82F6)"; // PRIMARY interactive hue (was cyan #7dd3fc)
+const AMBER = "var(--semantic-warning, #F59E0B)"; // outdated/notice caution (was raw yellow #fcd34d)
+const CHIP_BORDER = "1px solid var(--surface-border-rgba, rgba(154,166,178,0.3))";
+const USER_BG = "var(--brand-blue-bg, rgba(59,130,246,0.12))";
 const DETAIL_BG = "rgba(154,166,178,0.10)";
 
 // ---------------------------------------------------------------------------
@@ -172,7 +172,7 @@ export function FreshnessBadge({ chatRef }: { chatRef: ChatRef }) {
         letterSpacing: 0.3,
         textTransform: "uppercase",
         color: outdated ? AMBER : MUTED,
-        border: `1px solid ${outdated ? "rgba(252,211,77,0.5)" : "rgba(154,166,178,0.4)"}`,
+        border: `1px solid ${outdated ? "rgba(245,158,11,0.5)" : "rgba(154,166,178,0.4)"}`,
         borderRadius: 3,
         padding: "0 3px",
         marginLeft: 4,
@@ -428,7 +428,7 @@ function AsOfLine({ model }: { model: AtomCardModel }) {
             color: stale ? AMBER : verdict === "fresh" ? "#4ade80" : MUTED,
             border: `1px solid ${
               stale
-                ? "rgba(252,211,77,0.5)"
+                ? "rgba(245,158,11,0.5)"
                 : verdict === "fresh"
                   ? "rgba(74,222,128,0.45)"
                   : "rgba(154,166,178,0.4)"
@@ -873,7 +873,7 @@ const smallBtn: CSSProperties = {
   fontSize: 10.5,
   color: ACCENT,
   background: "transparent",
-  border: "1px solid rgba(125,211,252,0.45)",
+  border: "1px solid var(--brand-blue-border, rgba(59,130,246,0.4))",
   borderRadius: 5,
   padding: "2px 8px",
   cursor: "pointer",
@@ -982,7 +982,7 @@ export function ChatSessionBar({
                   gap: 6,
                   padding: "5px 8px",
                   borderBottom: "1px solid rgba(154,166,178,0.15)",
-                  background: isActive ? "rgba(125,211,252,0.10)" : "transparent",
+                  background: isActive ? "var(--brand-blue-bg-soft, rgba(59,130,246,0.08))" : "transparent",
                 }}
               >
                 <button
@@ -1673,7 +1673,7 @@ export function ChatTool() {
                   fontSize: 10.5,
                   color: ACCENT,
                   background: "transparent",
-                  border: "1px solid rgba(125,211,252,0.45)",
+                  border: "1px solid var(--brand-blue-border, rgba(59,130,246,0.4))",
                   borderRadius: 5,
                   padding: "2px 8px",
                   cursor: "pointer",
@@ -1715,7 +1715,7 @@ export function ChatTool() {
               fontSize: 10.5,
               color: ACCENT,
               background: "transparent",
-              border: "1px solid rgba(125,211,252,0.45)",
+              border: "1px solid var(--brand-blue-border, rgba(59,130,246,0.4))",
               borderRadius: 5,
               padding: "2px 8px",
               cursor: saveBusy ? "default" : "pointer",
@@ -1886,7 +1886,7 @@ export function ChatTool() {
             color: "#0b0f14",
             background: ACCENT,
             border: `1px solid ${ACCENT}`,
-            borderRadius: 6,
+            borderRadius: "var(--btn-radius, 9px)",
             padding: "5px 10px",
             cursor: phase.kind === "sending" ? "default" : "pointer",
             opacity: phase.kind === "sending" || !draft.trim() ? 0.55 : 1,

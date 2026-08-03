@@ -37,10 +37,10 @@ export const SAVED_PINS_LAYER_LABEL = "My properties";
 // ---------------------------------------------------------------------------
 
 export const PIN_STATUS_ACCENTS: Record<DossierStatus | "unset", string> = {
-  researching: "#fcd34d", // amber
+  researching: "#F59E0B", // amber — status ramp (was #fcd34d, aligned to --semantic-warning)
   offer: "#4ade80", // green
-  passed: "#9aa6b2", // muted gray
-  unset: "#7dd3fc", // PE accent blue (default)
+  passed: "#94A3B8", // muted gray — aligned to --surface-muted
+  unset: "#3B82F6", // PE PRIMARY blue (default) — was cyan #7dd3fc
 };
 
 export function pinAccent(status: DossierStatus | null): string {

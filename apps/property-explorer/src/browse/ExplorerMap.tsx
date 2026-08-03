@@ -1431,6 +1431,9 @@ function ExplorerMapSurface({
           onToolsController={handleToolsController}
           isMobile={isMobile}
           layersSheetOpen={isMobile && activeSheet === "layers"}
+          // Aerial ON by default on landing — makes a better first impression
+          // than the dark basemap (operator decision, 2026-08-03).
+          defaultSatellite={true}
         />
       )}
 

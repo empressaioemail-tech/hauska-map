@@ -22,9 +22,9 @@ import {
   type SharePhase,
 } from "./ShareView";
 
-const MUTED = "#9aa6b2";
-const AMBER = "#fcd34d";
-const ACCENT = "#7dd3fc";
+const MUTED = "var(--surface-muted, #94A3B8)";
+const AMBER = "var(--semantic-warning, #F59E0B)"; // caution notice (was raw yellow #fcd34d)
+const ACCENT = "var(--brand-blue, #3B82F6)"; // PRIMARY interactive hue (was cyan #7dd3fc)
 
 /** The workbench tool id (registry key) for the shared-analysis dock tool. */
 export const SHARED_ANALYSIS_TOOL_ID = "shared-analysis";
@@ -45,8 +45,8 @@ export function ShareReadOnlyBanner({ expiresAt }: { expiresAt: string | null })
         margin: "0 0 10px",
         padding: "6px 9px",
         borderRadius: 6,
-        background: "rgba(125,211,252,0.08)",
-        border: "1px solid rgba(125,211,252,0.3)",
+        background: "var(--brand-blue-bg-soft, rgba(59,130,246,0.08))",
+        border: "1px solid var(--brand-blue-border, rgba(59,130,246,0.4))",
         fontSize: 10.5,
         letterSpacing: 0.3,
         color: ACCENT,

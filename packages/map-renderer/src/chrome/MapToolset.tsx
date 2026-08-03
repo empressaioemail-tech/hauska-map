@@ -276,6 +276,9 @@ export function MapToolset({
   isMobile = false,
   /** When true on mobile, the layers/tools panel slides up above the bottom nav. */
   layersSheetOpen = false,
+  /** Initial satellite/aerial base state on mount. Default OFF (dark basemap);
+   *  PE passes `true` so aerial is the default first impression (2026-08-03). */
+  defaultSatellite = false,
 }: {
   mapRef: RefObject<FloatingMapHandle | null>;
   /** Full layer set this surface knows about (mount seed) — a toggled-off
@@ -297,6 +300,7 @@ export function MapToolset({
   presentation?: "floating" | "embedded";
   isMobile?: boolean;
   layersSheetOpen?: boolean;
+  defaultSatellite?: boolean;
 }) {
   // The live maplibre map, resolved once the handle is ready.
   const [map, setMap] = useState<MaplibreMap | null>(null);
@@ -308,7 +312,7 @@ export function MapToolset({
     measureMode: "line",
     readout: null,
   });
-  const [satellite, setSatellite] = useState(false);
+  const [satellite, setSatellite] = useState(defaultSatellite);
   // True while the hidden GeolocateControl is tracking the user's location —
   // drives the pressed state of the in-panel "My location" button.
   const [tracking, setTracking] = useState(false);

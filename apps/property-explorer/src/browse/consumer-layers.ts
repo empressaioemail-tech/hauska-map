@@ -65,22 +65,38 @@ export function consumerKnownLayers(): Set<LayerKey> {
   return next;
 }
 
+/** Layers that stay OFF by default on cold-open (still toggle-able in the panel). */
+export const COLD_OPEN_OFF_BY_DEFAULT = new Set<LayerKey>([
+  // Zoning / land-use initializes UNCHECKED — the operator's default is
+  // "all layers except zoning" plus aerial ON (2026-08-03). The TOGGLE stays,
+  // so a user can turn zoning on; only the landing default changes.
+  "zoning" as LayerKey,
+]);
+
 /**
  * Cold-open visible set for PE.
  *
- * Operator want (REBRAND map-chrome, 2026-08-03): when a user lands, EVERY
- * consumer layer initializes ON by default EXCEPT the satellite/aerial base
- * (which is a separate basemap toggle that stays default-OFF, not a member of
- * this set). So cold-open visible == the full consumer-eligible catalog. The
- * previous Phase 0A parcel-line-only default (`COLD_OPEN_VISIBLE_LAYERS`) is
- * withdrawn on this surface; it stays exported/imported only to keep the shared
- * taxonomy contract intact.
+ * Operator want (REBRAND map-chrome, updated 2026-08-03): when a user lands,
+ * EVERY consumer layer initializes ON by default EXCEPT zoning/land-use (which
+ * starts OFF/unchecked). The satellite/aerial base is a SEPARATE basemap toggle
+ * (not a member of this set) and now defaults ON via MapToolset's
+ * `defaultSatellite` prop. So cold-open visible == the full consumer-eligible
+ * catalog minus `COLD_OPEN_OFF_BY_DEFAULT`.
+ *
+ * Net on landing: Satellite/aerial, Contours, FEMA flood, GIS Parcel,
+ * Hydrography, My properties, Opportunity Zone, Regulatory floodway,
+ * Sidewalks — ON; Zoning/land use — OFF.
  *
  * This changes DEFAULTS only — every toggle in the LAYERS panel still works, so
- * a user can turn any layer off. `consumerKnownLayers()` already applies the
+ * a user can turn any layer on/off. `consumerKnownLayers()` already applies the
  * `CONSUMER_EXCLUDED_LAYERS` filter (drops rent-heat, hydrology-flow,
- * dem-hillshade), so no extra filter pass is needed here.
+ * dem-hillshade); we additionally drop the off-by-default keys here.
  */
 export function consumerColdOpenVisible(): Set<LayerKey> {
-  return consumerKnownLayers();
+  const next = new Set<LayerKey>();
+  for (const key of consumerKnownLayers()) {
+    if (COLD_OPEN_OFF_BY_DEFAULT.has(key)) continue;
+    next.add(key);
+  }
+  return next;
 }

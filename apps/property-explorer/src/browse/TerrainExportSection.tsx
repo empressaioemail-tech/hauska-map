@@ -8,9 +8,9 @@ import {
 import { googleSignInUrl } from "../lib/auth";
 import { Button } from "../components/Button";
 
-const MUTED = "#8b97a5";
-const ACCENT = "#7dd3fc";
-const WARN = "#c98b3a";
+const MUTED = "var(--surface-muted, #94A3B8)";
+const ACCENT = "var(--brand-blue, #3B82F6)"; // PRIMARY interactive hue (was cyan #7dd3fc)
+const WARN = "var(--semantic-warning, #F59E0B)"; // caution notice (was ochre #c98b3a)
 
 function filenameFor(parcelNodeId: string, format: string): string {
   const stem = parcelNodeId.replace(":", "_");

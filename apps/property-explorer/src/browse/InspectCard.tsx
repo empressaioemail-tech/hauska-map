@@ -38,8 +38,8 @@ import {
 import { CORTEX_PROXY_BASE, PE_FACETS_PROXY_BASE } from "../lib/config";
 import { Button } from "../components/Button";
 
-const CARD_BG = "rgba(13,17,23,0.94)";
-const MUTED = "#8b97a5";
+const CARD_BG = "var(--surface-card-translucent, rgba(13,17,23,0.94))";
+const MUTED = "var(--surface-muted, #94A3B8)";
 const ABSENT = "var(--semantic-absence)"; // honest-absence "not verified here" treatment (recolored off amber).
 
 interface EnvelopeState {
@@ -306,7 +306,7 @@ export function InspectCard({
         baked.buildableDisplayKind === "declined-consume" && (
           <div
             data-testid="no-buildable-area"
-            style={{ marginTop: 8, fontSize: 10.5, color: "#fcd34d" }}
+            style={{ marginTop: 8, fontSize: 10.5, color: "var(--semantic-warning, #F59E0B)" }}
           >
             {baked.envelopeEmptyReason ||
               "No buildable area after setbacks — the setbacks consume the lot."}
@@ -320,7 +320,7 @@ export function InspectCard({
         </div>
       )}
       {source === "live" && env.status === "empty" && (
-        <div style={{ marginTop: 8, fontSize: 10.5, color: "#fcd34d" }}>
+        <div style={{ marginTop: 8, fontSize: 10.5, color: "var(--semantic-warning, #F59E0B)" }}>
           {env.reason || "No buildable area — setbacks consume the lot."}
         </div>
       )}

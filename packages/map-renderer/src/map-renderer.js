@@ -207,7 +207,7 @@ export function createMapRenderer() {
 
     map.addControl(new maplibregl.NavigationControl({ showCompass: true, visualizePitch: true }), "top-right");
 
-    // REQUIRED basemap attribution — compact, bottom-left. OSM (ODbL) and the
+    // REQUIRED basemap attribution — compact, bottom-RIGHT. OSM (ODbL) and the
     // CARTO basemap terms REQUIRE visible attribution, so this control must
     // never be removed; `compact: true` collapses it to the ⓘ toggle so it
     // stays out of the way. Passing an explicit options object (no
@@ -215,9 +215,16 @@ export function createMapRenderer() {
     // MapLibre itself does not require credit. Tile-source credits (© OSM
     // © CARTO, plus the Esri line while the satellite base raster is visible)
     // flow in automatically from each source's `attribution` string.
+    //
+    // MOVED from "bottom-left" (2026-08-03 rebrand sweep): the collapsed © CARTO
+    // credit collided with / sat behind the lower-left SmartSiteBadge, and read
+    // as a stray "cart.com". The credit is REQUIRED so it cannot be deleted;
+    // repositioning to bottom-right frees the badge corner and puts the tile
+    // credit in the same corner as the MapSourceInfo ⓘ / layers cluster, which
+    // is the single source-of-attribution corner for the app.
     map.addControl(
       new maplibregl.AttributionControl({ compact: true }),
-      "bottom-left",
+      "bottom-right",
     );
 
     map.on("load", () => {

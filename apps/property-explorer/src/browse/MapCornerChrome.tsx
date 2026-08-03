@@ -10,8 +10,9 @@
 //
 //  - MapSourceInfo — the REQUIRED source/attribution tag, moved from the
 //    lower-left (and from the fading transient toasts) to a small circular ⓘ
-//    bubble in the LOWER-RIGHT next to the layers bubble. Collapsed by default;
-//    clicking the ⓘ expands the attribution. Styled to match the layers bubble
+//    bubble in the LOWER-RIGHT, BESIDE (to the left of) the layers bubble on the
+//    same row (repositioned 2026-08-03 from above-the-layers-bubble). Collapsed
+//    by default; clicking the ⓘ expands the attribution. Styled to match the layers bubble
 //    (same 44px circle / border / shadow / panel chrome). The ⓘ uses
 //    --brand-blue per the design system (blue = info affordance).
 //
@@ -68,7 +69,7 @@ export function SmartSiteBadge({ isMobile }: { isMobile: boolean }) {
       <span
         style={{
           fontFamily:
-            "'Oxygen', system-ui, -apple-system, Segoe UI, Roboto, sans-serif",
+            "var(--font-display, ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, sans-serif)",
           fontWeight: 700,
           fontSize: 11.5,
           letterSpacing: 0.5,
@@ -104,10 +105,13 @@ export function MapSourceInfo({
       data-testid="map-source-info"
       style={{
         position: "absolute",
-        // sit just above the layers bubble (bottom:16 / 44px tall) in the same
-        // lower-right column so the two bubbles stack, not overlap.
-        right: 12,
-        bottom: 68,
+        // sit BESIDE (to the LEFT of) the layers bubble on the SAME row
+        // (operator want, 2026-08-03). The layers bubble is 44px wide at
+        // right:12 / bottom:16; place the ⓘ one bubble-width + 8px gap to its
+        // left (right:64) at the same bottom, so the two bubbles share a row.
+        // The expanded attribution panel still opens upward from here.
+        right: 64,
+        bottom: 16,
         zIndex: 11,
         display: "flex",
         flexDirection: "column",
