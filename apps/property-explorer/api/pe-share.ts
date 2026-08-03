@@ -49,7 +49,8 @@ export default async function handler(
     }),
   })
   if (!gate.ok) {
-    res.status(gate.status).json({ error: gate.error, message: gate.message })
+    const _g = gate as { status: number; error: string; message?: string }
+    res.status(_g.status).json({ error: _g.error, message: _g.message })
     return
   }
 
