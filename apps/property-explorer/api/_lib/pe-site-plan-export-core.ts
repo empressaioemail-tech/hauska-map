@@ -411,14 +411,14 @@ export function resolveSitePlanExportAuth(input: {
   if (!input.entitlement.ok) {
     return {
       ok: false,
-      status: input.entitlement.status,
+      status: (input.entitlement as {status:503|402|401;message?:string}).status,
       error:
         input.entitlement.status === 401
           ? 'authentication_required'
           : input.entitlement.status === 402
             ? 'payment_required'
             : 'entitlement_unavailable',
-      message: input.entitlement.message,
+      message: (input.entitlement as {status:503|402|401;message?:string}).message,
     }
   }
   if (input.entitlement.tier !== 'paid') {
