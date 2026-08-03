@@ -108,6 +108,11 @@ export function isTransientAtomChainReason(reason: string): boolean {
   return TRANSIENT_ATOM_CHAIN.test(reason);
 }
 
+/** Auth/config mismatch — never fall back to cortex snapshot (would lie about envelope). */
+export function isRetrievalAuthFailure(reason: string): boolean {
+  return /^atom-chain HTTP 401$/i.test(reason.trim());
+}
+
 async function fetchAtomChainOnce(
   parcelNodeId: string,
 ): Promise<{ ok: true; chain: PropertyAtomChain } | { ok: false; reason: string }> {
@@ -332,6 +337,21 @@ export async function handlePropertyAtomsFacets(
       res.status(200).json(payload);
       return;
     }
+  }
+
+  // BLOCKING: auth failure is a deploy/config defect — never serve cortex snapshot lies.
+  if (!atom.ok && isRetrievalAuthFailure(atom.reason)) {
+    res.setHeader("X-PE-Read-Path", "atom-pending" satisfies PeReadPathHeader);
+    res.setHeader("Content-Type", "application/json");
+    res.status(503).json({
+      error: "retrieval_auth_failed",
+      retryable: false,
+      message:
+        "Property atom chain retrieval returned HTTP 401 — HAUSKA_RETRIEVAL_API_KEY must match retrieval-api RETRIEVAL_API_KEY.",
+      atomPathReason: atom.reason,
+      parcelNodeId,
+    });
+    return;
   }
 
   // BLOCKING: a transient retrieval failure must NOT become "not verified"
