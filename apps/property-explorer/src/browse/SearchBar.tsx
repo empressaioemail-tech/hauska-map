@@ -40,6 +40,7 @@ import {
 } from "../lib/search-recents";
 import { searchBarWrapStyle, searchDropdownStyle } from "./mobile-layout";
 import { useMobilePanel } from "./MobilePanelContext";
+import { Button } from "../components/Button";
 
 export interface SearchBarProps {
   busy?: boolean;
@@ -79,16 +80,6 @@ const input: CSSProperties = {
   color: "#e5e7eb",
   font: `13px/1.3 ${FONT}`,
   padding: "6px 8px",
-};
-
-const button: CSSProperties = {
-  border: "none",
-  borderRadius: 6,
-  padding: "6px 12px",
-  cursor: "pointer",
-  font: `600 12px/1.2 ${FONT}`,
-  color: "#0b0e13",
-  background: "#7dd3fc",
 };
 
 const errStyle: CSSProperties = {
@@ -453,7 +444,9 @@ export function SearchBar({
           style={input}
           autoComplete="off"
         />
-        <button
+        <Button
+          variant="primary"
+          dense
           data-testid="parcel-lookup-submit"
           type="button"
           disabled={busy || !value.trim()}
@@ -469,14 +462,9 @@ export function SearchBar({
               onSubmitRaw(q);
             }
           }}
-          style={{
-            ...button,
-            opacity: busy || !value.trim() ? 0.55 : 1,
-            cursor: busy || !value.trim() ? "not-allowed" : "pointer",
-          }}
         >
           {busy ? "…" : "Find"}
-        </button>
+        </Button>
       </div>
       {snap && (
         <SuggestDropdown

@@ -36,11 +36,11 @@ import {
   type CardFacet,
 } from "../lib/baked-facets";
 import { CORTEX_PROXY_BASE, PE_FACETS_PROXY_BASE } from "../lib/config";
+import { Button } from "../components/Button";
 
 const CARD_BG = "rgba(13,17,23,0.94)";
 const MUTED = "#8b97a5";
-const ACCENT = "#7dd3fc";
-const ABSENT = "#c98b3a"; // honest-absence "not verified here" treatment.
+const ABSENT = "var(--semantic-absence)"; // honest-absence "not verified here" treatment (recolored off amber).
 
 interface EnvelopeState {
   status: "idle" | "loading" | "ok" | "empty" | "error";
@@ -377,71 +377,46 @@ export function InspectCard({
           this card into the workbench "Reports & exports" bubble/dock — the
           card keeps its data rows + Research/Make subject/Save actions. */}
 
-      {/* DISTINCT explicit action: make this inspected parcel the SUBJECT. */}
-      <button
+      {/* DISTINCT explicit action: make this inspected parcel the SUBJECT.
+          Active = primary (gold fill); once it IS the subject the control goes
+          inert (secondary, disabled). */}
+      <Button
+        variant={isSubject ? "secondary" : "primary"}
+        fullWidth
         type="button"
         data-testid="make-subject"
         onClick={onMakeSubject}
         disabled={isSubject}
         aria-pressed={isSubject}
-        style={{
-          width: "100%",
-          marginTop: 11,
-          padding: "8px 12px",
-          fontSize: 12.5,
-          fontWeight: 600,
-          color: isSubject ? MUTED : "#0d1117",
-          background: isSubject ? "transparent" : ACCENT,
-          border: isSubject ? "0.5px solid rgba(125,211,252,0.35)" : "none",
-          borderRadius: 7,
-          cursor: isSubject ? "default" : "pointer",
-        }}
+        style={{ marginTop: 11 }}
       >
         {isSubject ? "Subject property" : "Make subject"}
-      </button>
+      </Button>
 
       {onSaveProperty && (
-        <button
+        <Button
+          variant="secondary"
+          fullWidth
           type="button"
           data-testid="save-property"
           onClick={onSaveProperty}
-          style={{
-            width: "100%",
-            marginTop: 8,
-            padding: "8px 12px",
-            fontSize: 12.5,
-            fontWeight: 600,
-            color: "#e6edf3",
-            background: "transparent",
-            border: "0.5px solid rgba(154,166,178,0.35)",
-            borderRadius: 7,
-            cursor: "pointer",
-          }}
+          style={{ marginTop: 8 }}
         >
           Save property
-        </button>
+        </Button>
       )}
 
       {/* Paywalled deep research seam (auth + spine reports). */}
-      <button
+      <Button
+        variant="ghost"
+        fullWidth
         type="button"
         data-testid="research-this"
         onClick={onResearch}
-        style={{
-          width: "100%",
-          marginTop: 8,
-          padding: "8px 12px",
-          fontSize: 12.5,
-          fontWeight: 600,
-          color: ACCENT,
-          background: "transparent",
-          border: "0.5px solid rgba(125,211,252,0.35)",
-          borderRadius: 7,
-          cursor: "pointer",
-        }}
+        style={{ marginTop: 8 }}
       >
         Research this →
-      </button>
+      </Button>
     </div>
   );
 }

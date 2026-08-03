@@ -6,6 +6,7 @@ import {
   type SitePlanExportFormat,
 } from "../lib/sitePlanExportClient";
 import { googleSignInUrl } from "../lib/auth";
+import { Button } from "../components/Button";
 
 const MUTED = "#8b97a5";
 const ACCENT = "#7dd3fc";
@@ -207,26 +208,16 @@ export function SitePlanExportSection({
         ))}
       </select>
 
-      <button
+      <Button
+        variant="primary"
+        fullWidth
         type="button"
         data-testid="site-plan-export-run"
         disabled={busy}
         onClick={() => void handleExport()}
-        style={{
-          width: "100%",
-          padding: "7px 10px",
-          borderRadius: 7,
-          border: "0.5px solid rgba(125,211,252,0.35)",
-          background: busy ? "transparent" : "rgba(125,211,252,0.12)",
-          color: ACCENT,
-          fontWeight: 600,
-          fontSize: 12,
-          cursor: busy ? "default" : "pointer",
-          opacity: busy ? 0.7 : 1,
-        }}
       >
         {busy ? "Building…" : "Export site plan"}
-      </button>
+      </Button>
 
       {notice && (
         <div

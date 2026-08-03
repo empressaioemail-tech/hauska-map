@@ -48,3 +48,10 @@
   --space-1:4px; --space-2:8px; --space-3:16px; --space-4:24px; --space-5:32px; --space-6:48px; --space-7:64px; --space-8:80px;
   --radius-card:8px; --radius-chip:4px;
 }
+
+/* Unified Button focus ring — keyboard-accessible only (:focus-visible),
+   so mouse clicks stay quiet. Uses --btn-focus-ring (--brand-blue). */
+.pe-btn:focus-visible{
+  outline:none;
+  box-shadow:var(--btn-focus-ring);
+}

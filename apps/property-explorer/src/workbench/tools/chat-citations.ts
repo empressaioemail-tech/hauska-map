@@ -228,15 +228,17 @@ export function freshnessTitle(f: ChipFreshness): string {
 // family is ALREADY semantic here — #fcd34d is the chat warning/notice tone
 // and the Outdated badge, #f2a23c is the envelope map overlay, #c98b3a is
 // honest-absence/warn — so the trading app's amber precedent would collide
-// with warning semantics ON THIS SURFACE. Violet is unused anywhere in PE and
-// reads distinctly against both: atoms get violet. Numbers, plain links, and
-// web-search/unverified sources stay NON-violet forever.
+// with warning semantics ON THIS SURFACE. The reserved atom hue reads
+// distinctly against both: atoms get the Smart Site atom teal (#4CC9C0,
+// --atom-accent — recolored off the earlier violet). Numbers, plain links,
+// and web-search/unverified sources stay NON-atom-accent forever.
 // ---------------------------------------------------------------------------
 
-/** The one reserved atom hue. Never reuse outside atom chips/lineage chips. */
-export const ATOM_ACCENT = "#c4b5fd";
-export const ATOM_ACCENT_BORDER = "rgba(196,181,253,0.5)";
-export const ATOM_ACCENT_BG = "rgba(196,181,253,0.14)";
+/** The one reserved atom hue. Never reuse outside atom chips/lineage chips.
+ *  Recolored off purple to the Smart Site atom teal (--atom-accent #4CC9C0). */
+export const ATOM_ACCENT = "#4CC9C0";
+export const ATOM_ACCENT_BORDER = "rgba(76,201,192,0.5)";
+export const ATOM_ACCENT_BG = "rgba(76,201,192,0.14)";
 /** Text color when a chip is filled with the accent (open state). */
 export const ATOM_ACCENT_CONTRAST = "#0b0f14";
 

@@ -6,6 +6,7 @@ import {
   type TerrainExportFormat,
 } from "../lib/terrainExportClient";
 import { googleSignInUrl } from "../lib/auth";
+import { Button } from "../components/Button";
 
 const MUTED = "#8b97a5";
 const ACCENT = "#7dd3fc";
@@ -191,26 +192,16 @@ export function TerrainExportSection({
         </option>
       </select>
 
-      <button
+      <Button
+        variant="primary"
+        fullWidth
         type="button"
         data-testid="terrain-export-run"
         disabled={busy}
         onClick={() => void handleExport()}
-        style={{
-          width: "100%",
-          padding: "7px 10px",
-          borderRadius: 7,
-          border: "0.5px solid rgba(125,211,252,0.35)",
-          background: busy ? "transparent" : "rgba(125,211,252,0.12)",
-          color: ACCENT,
-          fontWeight: 600,
-          fontSize: 12,
-          cursor: busy ? "default" : "pointer",
-          opacity: busy ? 0.7 : 1,
-        }}
       >
         {busy ? "Exportingâ€¦" : "Export terrain"}
-      </button>
+      </Button>
 
       {notice && (
         <div

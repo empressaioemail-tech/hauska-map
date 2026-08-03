@@ -393,7 +393,7 @@ export function ShareAnalysisContent({
         {verdict.length > 0 ? (
           <div style={{ fontSize: 13.5, fontWeight: 600 }}>{verdict.join(" · ")}</div>
         ) : (
-          <div style={{ fontSize: 12, color: AMBER }}>{VERDICT_FALLBACK}</div>
+          <div style={{ fontSize: 12, color: "var(--semantic-absence)" }}>{VERDICT_FALLBACK}</div>
         )}
         <div style={{ marginTop: 6, fontSize: 10, color: MUTED }}>
           Public-record-derived · approximate, not survey grade · every fact

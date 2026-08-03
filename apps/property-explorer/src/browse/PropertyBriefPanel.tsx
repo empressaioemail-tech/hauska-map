@@ -97,7 +97,7 @@ function SectionBlock({ section }: { section: BriefSectionVM }) {
       {section.kind === "absent" ? (
         <p
           data-testid="brief-absent"
-          style={{ margin: "6px 0 0", color: AMBER, fontSize: 11.5 }}
+          style={{ margin: "6px 0 0", color: "var(--semantic-absence)", fontSize: 11.5 }}
         >
           {section.absentMessage ?? "Not verified here."}
         </p>
