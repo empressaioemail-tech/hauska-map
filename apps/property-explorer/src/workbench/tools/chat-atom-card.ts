@@ -29,6 +29,18 @@
 //     never dressed as a calibrated number.
 
 import { PE_RETRIEVAL_PROXY_BASE } from "../../lib/config";
+// W-CHIP — the atom fetch-on-tap primitive (fetchAtomByDid + its cache) now
+// lives in shared/atom-chip/atom-fetch.ts so browse/InspectCard.tsx's
+// provenance chips can reuse it without a browse/ -> workbench/tools/
+// import. Re-exported here UNCHANGED (same names, same cache instance) — a
+// mechanical extraction, no behavior change; this module's and ChatTool's
+// tests keep passing against the same fetch/cache semantics.
+import { resetAtomFetchCache } from "../../shared/atom-chip/atom-fetch";
+export {
+  fetchAtomByDid,
+  type AtomFetchOutcome,
+  type AtomFetcher,
+} from "../../shared/atom-chip/atom-fetch";
 
 // ---------------------------------------------------------------------------
 // Small defensive readers.
@@ -48,63 +60,9 @@ function num(v: unknown): number | null {
   return typeof v === "number" && Number.isFinite(v) ? v : null;
 }
 
-// ---------------------------------------------------------------------------
-// Atom fetch-on-tap (cached per did; non-200 cached as unavailable).
-// ---------------------------------------------------------------------------
-
-export type AtomFetchOutcome =
-  | { kind: "ok"; atom: Record<string, unknown> }
-  | { kind: "unavailable" };
-
-export type AtomFetcher = (did: string) => Promise<Response>;
-
-const defaultAtomFetcher: AtomFetcher = (did) =>
-  fetch(`${PE_RETRIEVAL_PROXY_BASE}/atoms/${encodeURIComponent(did)}`, {
-    method: "GET",
-    headers: { Accept: "application/json" },
-  });
-
-const atomCache = new Map<string, Promise<AtomFetchOutcome>>();
-
-/**
- * Fetch an atom by did through the spine proxy. One in-flight/settled promise
- * per did; ANY non-200 resolves (and stays cached) as "unavailable" — the
- * caller degrades to local BRIEF content, the chip never breaks. A thrown
- * network error also resolves "unavailable" but is EVICTED so a later tap can
- * retry (transient failure is not a dead record).
- */
-export function fetchAtomByDid(
-  did: string,
-  fetcher: AtomFetcher = defaultAtomFetcher,
-): Promise<AtomFetchOutcome> {
-  const cached = atomCache.get(did);
-  if (cached) return cached;
-  const inFlight: Promise<AtomFetchOutcome> = (async () => {
-    let res: Response;
-    try {
-      res = await fetcher(did);
-    } catch {
-      atomCache.delete(did);
-      return { kind: "unavailable" as const };
-    }
-    if (!res.ok) return { kind: "unavailable" as const };
-    let body: unknown;
-    try {
-      body = await res.json();
-    } catch {
-      return { kind: "unavailable" as const };
-    }
-    const atom = rec(rec(body)?.atom);
-    if (!atom) return { kind: "unavailable" as const };
-    return { kind: "ok" as const, atom };
-  })();
-  atomCache.set(did, inFlight);
-  return inFlight;
-}
-
 /** Test seam. */
 export function resetAtomCardCaches(): void {
-  atomCache.clear();
+  resetAtomFetchCache();
   chainCache.clear();
 }
 

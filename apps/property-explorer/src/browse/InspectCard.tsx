@@ -28,7 +28,10 @@ import { useEffect, useState } from "react";
 import type { ParcelCardData } from "./liveGis";
 import { inspectCardShellStyle } from "./mobile-layout";
 import { useMobilePanel } from "./MobilePanelContext";
-import { fetchBuildableEnvelope } from "../lib/buildable-envelope.js";
+import {
+  fetchBuildableEnvelope,
+  type EnvelopeProvenanceRefs,
+} from "../lib/buildable-envelope.js";
 import {
   fetchBakedNodeFacets,
   deriveBakedCardModel,
@@ -37,6 +40,7 @@ import {
 } from "../lib/baked-facets";
 import { CORTEX_PROXY_BASE, PE_FACETS_PROXY_BASE } from "../lib/config";
 import { Button } from "../components/Button";
+import { AtomChip, AtomDetailPopover } from "../shared/atom-chip";
 
 const CARD_BG = "var(--surface-card-translucent, rgba(13,17,23,0.94))";
 const MUTED = "var(--surface-muted, #94A3B8)";
@@ -56,9 +60,70 @@ interface EnvelopeState {
   disclosure?: string | null;
   reason?: string | null;
   district?: string | null;
+  provenanceRefs?: EnvelopeProvenanceRefs | null;
 }
 
 type Source = "loading" | "baked" | "live";
+
+/** One provenance chip: a labeled atom reference tappable to open detail. */
+interface ProvenanceChip {
+  did: string;
+  label: string;
+}
+
+/**
+ * Provenance chips for one row, derived from the unified provenanceRefs
+ * block (whichever source served it). Absent ref / absent block → empty
+ * array → the row renders exactly as it does today (graceful absence).
+ *
+ * Exported (test seam, chat-tool.test.tsx precedent): renderToStaticMarkup
+ * doesn't run effects, so a fixture-driven render of the full InspectCard
+ * can't reach source==="baked"/"live" — this + FacetRow/Row let the
+ * provenance-chip contract be pinned directly, the same way ChatTool.tsx's
+ * presentational pieces are tested.
+ */
+export function chipsForRow(
+  refs: EnvelopeProvenanceRefs | null | undefined,
+  row: "zoning" | "setback" | "buildable",
+): ProvenanceChip[] {
+  if (!refs) return [];
+  const chips: ProvenanceChip[] = [];
+  if (row === "zoning" && refs.zoning?.atomDid) {
+    chips.push({ did: refs.zoning.atomDid, label: "zoning" });
+  }
+  if (row === "setback" && refs.setback?.atomDid) {
+    chips.push({ did: refs.setback.atomDid, label: "setback" });
+  }
+  if (row === "buildable" && refs.envelope?.atomDid) {
+    chips.push({ did: refs.envelope.atomDid, label: "envelope" });
+  }
+  // Code-section refs apply to every row they support citing — the setback
+  // and buildable rows both draw from setback-rule + code sections, so
+  // surface code-section chips alongside setback and buildable (never
+  // zoning, which is a district lookup with no code-section citation here).
+  if ((row === "setback" || row === "buildable") && refs.codeSections?.length) {
+    for (const cs of refs.codeSections) {
+      if (!cs?.atomDid || !cs.sectionNumber) continue;
+      chips.push({ did: cs.atomDid, label: cs.sectionNumber });
+    }
+  }
+  return chips;
+}
+
+/** Find the tapped chip's label across all rows, for the popover title. */
+function findOpenChip(
+  refs: EnvelopeProvenanceRefs | null,
+  did: string,
+): ProvenanceChip | null {
+  const all = [
+    ...chipsForRow(refs, "zoning"),
+    ...chipsForRow(refs, "setback"),
+    ...chipsForRow(refs, "buildable"),
+  ];
+  const seen = new Map<string, ProvenanceChip>();
+  for (const c of all) if (!seen.has(c.did)) seen.set(c.did, c);
+  return seen.get(did) ?? null;
+}
 
 export function InspectCard({
   card,
@@ -95,6 +160,11 @@ export function InspectCard({
   const [source, setSource] = useState<Source>("loading");
   const [baked, setBaked] = useState<BakedCardModel | null>(null);
   const [env, setEnv] = useState<EnvelopeState>({ status: "idle" });
+  // One provenance-chip popover open at a time (did of the open chip, else
+  // null) — chip tap toggles; re-tapping the open chip closes it.
+  const [openChipDid, setOpenChipDid] = useState<string | null>(null);
+  const toggleChip = (did: string) =>
+    setOpenChipDid((cur) => (cur === did ? null : did));
 
   // Effect: PREFER the baked snapshot; fall back to the live envelope ONLY when
   // the node isn't baked. NO AI on either path — the baked read is a pure DB
@@ -116,6 +186,7 @@ export function InspectCard({
             summary: result.summary,
             disclosure: result.disclosure,
             district: result.setbacks?.district ?? null,
+            provenanceRefs: result.provenanceRefs ?? null,
           });
         } else if (result?.status === "no-buildable-area") {
           setEnv({
@@ -123,6 +194,7 @@ export function InspectCard({
             setbacks: result.setbacks,
             reason: result.reason,
             district: result.setbacks?.district ?? null,
+            provenanceRefs: result.provenanceRefs ?? null,
           });
         } else {
           setEnv({ status: "error", reason: result?.reason });
@@ -194,6 +266,20 @@ export function InspectCard({
       : card.situsAddress) ||
     (card.apn ? `Parcel ${card.apn}` : "Parcel");
 
+  // Unified provenance refs: whichever source served this card carries them
+  // (or doesn't — both branches degrade to zero chips identically). Live
+  // fallback backend PR and baked bake are independent; the card doesn't
+  // care which one populated it.
+  const provenanceRefs: EnvelopeProvenanceRefs | null =
+    source === "baked"
+      ? (baked?.provenanceRefs ?? null)
+      : source === "live"
+        ? (env.provenanceRefs ?? null)
+        : null;
+  const openChip = openChipDid
+    ? findOpenChip(provenanceRefs, openChipDid)
+    : null;
+
   return (
     <div
       data-testid="inspect-card"
@@ -248,9 +334,29 @@ export function InspectCard({
             <FacetRow label="Land use" facet={baked.landUse} testid="inspect-landuse" />
             <FacetRow label="County" facet={baked.county} />
             <FacetRow label="Acreage" facet={baked.acreage} />
-            <FacetRow label="Zoning" facet={baked.zoning} testid="inspect-zoning" />
-            <FacetRow label="Setbacks" facet={baked.setbacks} testid="inspect-setbacks" />
-            <FacetRow label="Buildable" facet={baked.buildablePct} />
+            <FacetRow
+              label="Zoning"
+              facet={baked.zoning}
+              testid="inspect-zoning"
+              chips={chipsForRow(provenanceRefs, "zoning")}
+              openChipDid={openChipDid}
+              onChipToggle={toggleChip}
+            />
+            <FacetRow
+              label="Setbacks"
+              facet={baked.setbacks}
+              testid="inspect-setbacks"
+              chips={chipsForRow(provenanceRefs, "setback")}
+              openChipDid={openChipDid}
+              onChipToggle={toggleChip}
+            />
+            <FacetRow
+              label="Buildable"
+              facet={baked.buildablePct}
+              chips={chipsForRow(provenanceRefs, "buildable")}
+              openChipDid={openChipDid}
+              onChipToggle={toggleChip}
+            />
           </>
         ) : (
           <>
@@ -270,16 +376,35 @@ export function InspectCard({
               label="Zoning"
               value={env.district ?? (env.status === "loading" ? "…" : null)}
               testid="inspect-zoning"
+              chips={chipsForRow(provenanceRefs, "zoning")}
+              openChipDid={openChipDid}
+              onChipToggle={toggleChip}
             />
             <Row
               label="Setbacks"
               value={liveSetbackLine(env) ?? (env.status === "loading" ? "…" : null)}
               testid="inspect-setbacks"
+              chips={chipsForRow(provenanceRefs, "setback")}
+              openChipDid={openChipDid}
+              onChipToggle={toggleChip}
             />
-            <Row label="Buildable" value={liveBuildablePct(env)} />
+            <Row
+              label="Buildable"
+              value={liveBuildablePct(env)}
+              chips={chipsForRow(provenanceRefs, "buildable")}
+              openChipDid={openChipDid}
+              onChipToggle={toggleChip}
+            />
           </>
         )}
       </dl>
+
+      {/* Provenance chip detail — one popover open at a time, tap a chip to
+          open, re-tap to close. Absent when no provenance ref is open (the
+          overwhelming default — no provenanceRefs on the response). */}
+      {openChip && (
+        <AtomDetailPopover did={openChip.did} label={openChip.label} />
+      )}
 
       {/* Honest coverage / disclosure states. */}
       {source === "loading" && (
@@ -469,17 +594,60 @@ function liveBuildablePct(env: EnvelopeState): string | null {
     : null;
 }
 
+/** Inline provenance chips appended to a row's value — absent when the row
+ *  carries no refs, so a row with no chips renders byte-identical to before
+ *  this feature (graceful absence). */
+function RowChips({
+  chips,
+  openChipDid,
+  onChipToggle,
+}: {
+  chips: ProvenanceChip[];
+  openChipDid: string | null;
+  onChipToggle: (did: string) => void;
+}) {
+  if (chips.length === 0) return null;
+  return (
+    <span
+      style={{
+        display: "inline-flex",
+        flexWrap: "wrap",
+        gap: 3,
+        marginLeft: 6,
+        verticalAlign: "middle",
+      }}
+    >
+      {chips.map((c) => (
+        <AtomChip
+          key={c.did}
+          label={c.label}
+          isOpen={c.did === openChipDid}
+          onClick={() => onChipToggle(c.did)}
+          testId="inspect-provenance-chip"
+        />
+      ))}
+    </span>
+  );
+}
+
 /** A baked-facet row (QA-3): present → value; absent → specific honest-absence
  *  label or "not verified here"; pending → derived-field-pending copy (never
- *  "not verified"); unknown → hidden. */
-function FacetRow({
+ *  "not verified"); unknown → hidden. Exported — see chipsForRow test-seam
+ *  note above. */
+export function FacetRow({
   label,
   facet,
   testid,
+  chips = [],
+  openChipDid = null,
+  onChipToggle,
 }: {
   label: string;
   facet: CardFacet<string>;
   testid?: string;
+  chips?: ProvenanceChip[];
+  openChipDid?: string | null;
+  onChipToggle?: (did: string) => void;
 }) {
   if (facet.state === "unknown") return null;
   const isAbsent = facet.state === "absent";
@@ -504,19 +672,33 @@ function FacetRow({
         data-pending={isPending ? "true" : undefined}
       >
         {display}
+        {onChipToggle && (
+          <RowChips
+            chips={chips}
+            openChipDid={openChipDid}
+            onChipToggle={onChipToggle}
+          />
+        )}
       </dd>
     </>
   );
 }
 
-function Row({
+/** Exported — see chipsForRow test-seam note above. */
+export function Row({
   label,
   value,
   testid,
+  chips = [],
+  openChipDid = null,
+  onChipToggle,
 }: {
   label: string;
   value: string | null | undefined;
   testid?: string;
+  chips?: ProvenanceChip[];
+  openChipDid?: string | null;
+  onChipToggle?: (did: string) => void;
 }) {
   if (!value) return null;
   return (
@@ -524,6 +706,13 @@ function Row({
       <dt style={{ color: MUTED }}>{label}</dt>
       <dd style={{ margin: 0 }} data-testid={testid}>
         {value}
+        {onChipToggle && (
+          <RowChips
+            chips={chips}
+            openChipDid={openChipDid}
+            onChipToggle={onChipToggle}
+          />
+        )}
       </dd>
     </>
   );

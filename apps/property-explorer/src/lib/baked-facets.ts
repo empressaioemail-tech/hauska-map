@@ -26,6 +26,9 @@
 
 import { formatSetbackDisplay } from "../../api/_lib/setback-not-specified";
 import { mapBuildableDisplay } from "./buildable-display-vocab";
+import type { EnvelopeProvenanceRefs } from "./buildable-envelope.js";
+
+export type { EnvelopeProvenanceRefs };
 
 /** The baked Tier-1 facet payload, mirrored from the backend contract. */
 export interface BakedFacetPayload {
@@ -72,6 +75,15 @@ export interface BakedFacetPayload {
     emptyReason?: string;
     citationUrl?: string;
     geojson?: unknown;
+    /**
+     * Forward-compat, type-only (no baked backend serves this today): the
+     * same atom-provenance shape as the live buildable-envelope path
+     * (legacy-design-tools feat/envelope-provenance-refs), anticipated here
+     * because the payload's `source: "baked-snapshot" | "atom-chain"`
+     * discriminant already names an atom-chain-backed bake as a future
+     * source. Optional — absent on every payload the current bake writes.
+     */
+    provenanceRefs?: EnvelopeProvenanceRefs;
   } | null;
   facetCoverage?: {
     baseFacts?: boolean;
@@ -166,6 +178,12 @@ export interface BakedCardModel {
   };
   /** The bake timestamp, for the "as of" citation line. */
   bakedAt: string | null;
+  /**
+   * Forward-compat, type-only atom-provenance refs threaded straight from
+   * the envelope facet (see BakedFacetPayload.envelope.provenanceRefs).
+   * Null on every payload today — no baked backend serves it yet.
+   */
+  provenanceRefs: EnvelopeProvenanceRefs | null;
 }
 
 function present<T>(value: T): CardFacet<T> {
@@ -357,6 +375,7 @@ export function deriveBakedCardModel(payload: BakedFacetPayload): BakedCardModel
       vintage: payload.provenance?.parcelVintage ?? null,
     },
     bakedAt: payload.bakedAt ?? null,
+    provenanceRefs: env?.provenanceRefs ?? null,
   };
 }
 

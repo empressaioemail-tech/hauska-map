@@ -309,3 +309,54 @@ describe("deriveBakedCardModel — honest absence", () => {
     expect(m.zoning.value).toBe("no zoning stamp here");
   });
 });
+
+describe("deriveBakedCardModel — provenanceRefs (forward-compat, type-only)", () => {
+  it("threads envelope.provenanceRefs straight through when present", () => {
+    const withRefs: BakedFacetPayload = {
+      ...fullPayload,
+      envelope: {
+        ...fullPayload.envelope!,
+        provenanceRefs: {
+          zoning: { atomDid: "did:hauska:zoning-fact:48055:10068" },
+          setback: { atomDid: "did:hauska:setback-rule:48055:10068" },
+          envelope: { atomDid: "did:hauska:buildable-envelope:48055:10068" },
+          codeSections: [
+            {
+              atomDid: "did:hauska:code-section:caldwell-udc-4-2",
+              sectionNumber: "4.2",
+              title: "Setback standards",
+            },
+          ],
+        },
+      },
+    };
+    const m = deriveBakedCardModel(withRefs);
+    expect(m.provenanceRefs).toEqual({
+      zoning: { atomDid: "did:hauska:zoning-fact:48055:10068" },
+      setback: { atomDid: "did:hauska:setback-rule:48055:10068" },
+      envelope: { atomDid: "did:hauska:buildable-envelope:48055:10068" },
+      codeSections: [
+        {
+          atomDid: "did:hauska:code-section:caldwell-udc-4-2",
+          sectionNumber: "4.2",
+          title: "Setback standards",
+        },
+      ],
+    });
+  });
+
+  it("GRACEFUL ABSENCE: no provenanceRefs on the payload -> null, everything else unchanged", () => {
+    const m = deriveBakedCardModel(fullPayload);
+    expect(m.provenanceRefs).toBeNull();
+    // The rest of the model renders exactly as the pre-existing assertion
+    // above (present facets) — this fixture carries no provenanceRefs at all
+    // and the model must not fabricate or infer one.
+    expect(m.zoning).toEqual({ state: "present", value: "R-1" });
+    expect(m.setbacks).toEqual({ state: "present", value: "F 35′ · S 20′ · R 30′" });
+  });
+
+  it("no envelope at all -> provenanceRefs is null, not an error", () => {
+    const m = deriveBakedCardModel({ parcelNodeId: "48021:1" });
+    expect(m.provenanceRefs).toBeNull();
+  });
+});
