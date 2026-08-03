@@ -224,7 +224,7 @@ export function freshnessTitle(f: ChipFreshness): string {
 // ---------------------------------------------------------------------------
 // RESERVED ATOM ACCENT (R2). ONE hue means "openable recorded atom evidence"
 // and is used for NOTHING else in the app. Audit findings (2026-07-29): the
-// general cyan accent (#7dd3fc) carries buttons/links app-wide; the amber
+// general brand accent (#F5B95C gold) carries buttons/links app-wide; the amber
 // family is ALREADY semantic here — #fcd34d is the chat warning/notice tone
 // and the Outdated badge, #f2a23c is the envelope map overlay, #c98b3a is
 // honest-absence/warn — so the trading app's amber precedent would collide

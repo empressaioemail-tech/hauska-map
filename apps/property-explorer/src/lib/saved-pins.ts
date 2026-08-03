@@ -40,7 +40,7 @@ export const PIN_STATUS_ACCENTS: Record<DossierStatus | "unset", string> = {
   researching: "#fcd34d", // amber
   offer: "#4ade80", // green
   passed: "#9aa6b2", // muted gray
-  unset: "#7dd3fc", // PE accent blue (default)
+  unset: "#F5B95C", // PE accent gold (default)
 };
 
 export function pinAccent(status: DossierStatus | null): string {

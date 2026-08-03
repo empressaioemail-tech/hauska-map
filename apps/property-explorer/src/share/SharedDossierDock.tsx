@@ -24,7 +24,7 @@ import {
 
 const MUTED = "#9aa6b2";
 const AMBER = "#fcd34d";
-const ACCENT = "#7dd3fc";
+const ACCENT = "#F5B95C";
 
 /** The workbench tool id (registry key) for the shared-analysis dock tool. */
 export const SHARED_ANALYSIS_TOOL_ID = "shared-analysis";

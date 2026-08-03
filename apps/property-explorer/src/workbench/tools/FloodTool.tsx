@@ -53,7 +53,7 @@ import { pondingFeatureCount } from "../../browse/flood-map-overlay";
 
 const TEXT = "#e5e7eb";
 const MUTED = "#8b97a5";
-const ACCENT = "#7dd3fc";
+const ACCENT = "#F5B95C";
 
 // Water palette — one hue family, graded; parcel ring stays the neutral star.
 const PARCEL_STROKE = "#e6edf3";

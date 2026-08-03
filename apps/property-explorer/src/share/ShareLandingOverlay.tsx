@@ -19,7 +19,7 @@ import type { SharePhase } from "./ShareView";
 const CARD_BG = "rgba(13,17,23,0.94)";
 const TEXT = "#e5e7eb";
 const MUTED = "#9aa6b2";
-const ACCENT = "#7dd3fc";
+const ACCENT = "#F5B95C";
 const AMBER = "#fcd34d";
 
 export function ShareLandingOverlay({

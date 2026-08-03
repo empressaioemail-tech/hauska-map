@@ -16,7 +16,7 @@ import { UnlockChoices } from "../../browse/UnlockFlow";
 const TEXT = "#e5e7eb";
 const MUTED = "#9aa6b2";
 const AMBER = "#fcd34d";
-const ACCENT = "#7dd3fc";
+const ACCENT = "#F5B95C";
 
 export function LockedToolPanel({
   parcelNodeId,

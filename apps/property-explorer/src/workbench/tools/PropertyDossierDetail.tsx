@@ -21,7 +21,7 @@ import { pinAccent } from "../../lib/saved-pins";
 const MUTED = "#9aa6b2";
 const AMBER = "#fcd34d";
 const TEXT = "#e5e7eb";
-const ACCENT = "#7dd3fc";
+const ACCENT = "#F5B95C";
 const SECTION_BORDER = "1px solid rgba(154,166,178,0.2)";
 
 /** Debounce delay for notes autosave (ms). Exported for tests. */

@@ -36,7 +36,7 @@ const CARD_BG = "rgba(13,17,23,0.94)";
 const BORDER = "1px solid rgba(154,166,178,0.35)";
 const TEXT = "#e5e7eb";
 const MUTED = "#9aa6b2";
-const ACCENT = "#7dd3fc";
+const ACCENT = "#E8963B";
 const AMBER = "#fcd34d";
 
 /**

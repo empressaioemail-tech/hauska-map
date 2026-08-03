@@ -31,7 +31,7 @@ export const SHARE_LOCKED_VALUE_LINE =
 const MUTED = "#9aa6b2";
 const AMBER = "#fcd34d";
 const TEXT = "#e5e7eb";
-const ACCENT = "#7dd3fc";
+const ACCENT = "#F5B95C";
 
 /** The chassis-stored (per-property, JSON-serializable) share tool state. */
 export interface ShareToolStoredState {
@@ -101,7 +101,7 @@ export function ShareBody({
                 fontSize: 11.5,
                 fontWeight: 600,
                 color: "#0d1117",
-                background: ACCENT,
+                background: "#E8963B",
                 border: "none",
                 borderRadius: 6,
                 cursor: "pointer",
@@ -152,7 +152,7 @@ export function ShareBody({
               fontSize: 12,
               fontWeight: 600,
               color: "#0d1117",
-              background: ACCENT,
+              background: "#E8963B",
               border: "none",
               borderRadius: 6,
               cursor: phase.kind === "minting" ? "default" : "pointer",

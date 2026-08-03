@@ -112,7 +112,7 @@ import {
 
 const TEXT = "#e5e7eb";
 const MUTED = "#9aa6b2";
-const ACCENT = "#7dd3fc";
+const ACCENT = "#F5B95C";
 const AMBER = "#fcd34d";
 const CHIP_BORDER = "1px solid rgba(154,166,178,0.35)";
 const USER_BG = "rgba(125,211,252,0.12)";
@@ -1748,8 +1748,8 @@ export function ChatTool() {
               style={{
                 fontSize: 10.5,
                 color: "#0b0f14",
-                background: ACCENT,
-                border: `1px solid ${ACCENT}`,
+                background: "#E8963B",
+                border: "1px solid #E8963B",
                 borderRadius: 5,
                 padding: "2px 8px",
                 cursor: saveBusy ? "default" : "pointer",
@@ -1884,8 +1884,8 @@ export function ChatTool() {
             fontSize: 11.5,
             fontWeight: 600,
             color: "#0b0f14",
-            background: ACCENT,
-            border: `1px solid ${ACCENT}`,
+            background: "#E8963B",
+            border: "1px solid #E8963B",
             borderRadius: 6,
             padding: "5px 10px",
             cursor: phase.kind === "sending" ? "default" : "pointer",
