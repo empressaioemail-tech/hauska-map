@@ -1,0 +1,50 @@
+/* Smart Site — Property Explorer design tokens
+   Adds to (does not replace) tokens/colors.css. PE keeps its own near-black
+   chrome (--surface-ink) — do NOT apply --color-navy-* surfaces to the map.
+   Brand / semantic / atom are separate namespaces on purpose. */
+:root{
+  /* brand (logo-sourced) */
+  --brand-gold:#E8963B;          /* buttons, mark center dot, active fills */
+  --brand-gold-light:#F5B95C;    /* SITE wordmark, small text/icons */
+  --brand-blue:#3B82F6;          /* eyebrow, links, info affordance */
+  --brand-white:#F8FAFC;
+
+  /* surfaces — PE app ink, kept as-is */
+  --surface-ink:#0b0e13;
+  --surface-card:#141928;
+  --surface-border:#1E293B;
+  --surface-border-soft:#243247;
+  --surface-muted:#94A3B8;
+  --surface-muted-2:#64748B;
+
+  /* semantic — state only, never brand */
+  --semantic-success:#10B981;      /* verified / gate-passed */
+  --semantic-warning:#F59E0B;      /* provisional / caution */
+  --semantic-error:#EF4444;        /* failure only */
+  --semantic-absence:#7C8BA0;      /* "not verified here" — recolored off yellow */
+  --semantic-absence-bg:rgba(124,139,160,0.12);
+  --semantic-absence-border:rgba(124,139,160,0.35);
+
+  /* atom chip — recolored off purple */
+  --atom-accent:#4CC9C0;
+  --atom-accent-bg:rgba(76,201,192,0.14);
+  --atom-accent-border:rgba(76,201,192,0.5);
+  --atom-accent-contrast:#0b0f14;
+
+  /* leave untouched (documented, not redefined here) */
+  /* interaction-cyan #7dd3fc — map search-highlight */
+  /* pdf print blue #00b4d8 */
+
+  /* button scale */
+  --btn-radius:9px;
+  --btn-pad-y:10px; --btn-pad-x:18px;
+  --btn-pad-y-dense:7px; --btn-pad-x-dense:12px;
+  --btn-focus-ring:0 0 0 2px var(--surface-ink), 0 0 0 4px var(--brand-blue);
+
+  /* type + spacing (PE body stays system-ui; Oxygen for display only) */
+  --font-display:'Oxygen', ui-sans-serif, system-ui, sans-serif;
+  --font-body: ui-sans-serif, system-ui, -apple-system, 'Segoe UI', sans-serif;
+  --font-mono: ui-monospace, 'SF Mono', Menlo, monospace;
+  --space-1:4px; --space-2:8px; --space-3:16px; --space-4:24px; --space-5:32px; --space-6:48px; --space-7:64px; --space-8:80px;
+  --radius-card:8px; --radius-chip:4px;
+}
