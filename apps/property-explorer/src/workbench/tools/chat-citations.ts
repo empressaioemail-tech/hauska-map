@@ -229,18 +229,22 @@ export function freshnessTitle(f: ChipFreshness): string {
 // and the Outdated badge, #f2a23c is the envelope map overlay, #c98b3a is
 // honest-absence/warn — so the trading app's amber precedent would collide
 // with warning semantics ON THIS SURFACE. The reserved atom hue reads
-// distinctly against both: atoms get the Smart Site atom teal (#4CC9C0,
-// --atom-accent — recolored off the earlier violet). Numbers, plain links,
+// distinctly against both: atoms get the Smart Site atom teal (see
+// --atom-accent in shared/atom-chip/atom-accent.ts — recolored off the
+// earlier violet). Numbers, plain links,
 // and web-search/unverified sources stay NON-atom-accent forever.
+//
+// W-CHIP: the constants now live in shared/atom-chip/atom-accent.ts so
+// browse/InspectCard.tsx's provenance chips share the exact hue without a
+// browse/ -> workbench/tools/ import. Re-exported here UNCHANGED.
 // ---------------------------------------------------------------------------
 
-/** The one reserved atom hue. Never reuse outside atom chips/lineage chips.
- *  Recolored off purple to the Smart Site atom teal (--atom-accent #4CC9C0). */
-export const ATOM_ACCENT = "#4CC9C0";
-export const ATOM_ACCENT_BORDER = "rgba(76,201,192,0.5)";
-export const ATOM_ACCENT_BG = "rgba(76,201,192,0.14)";
-/** Text color when a chip is filled with the accent (open state). */
-export const ATOM_ACCENT_CONTRAST = "#0b0f14";
+export {
+  ATOM_ACCENT,
+  ATOM_ACCENT_BORDER,
+  ATOM_ACCENT_BG,
+  ATOM_ACCENT_CONTRAST,
+} from "../../shared/atom-chip/atom-accent";
 
 // ---------------------------------------------------------------------------
 // WEB-UNVERIFIED classifier. The brief's out-of-coverage fallback grounds on

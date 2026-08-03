@@ -5,6 +5,23 @@ export interface EnvelopeSelection {
   lng?: number | null;
 }
 
+/**
+ * Optional atom-provenance references the backend attaches to the
+ * brokeragePlaceBuildableEnvelope atom-chain response (legacy-design-tools
+ * `feat/envelope-provenance-refs`). Additive / hand-written — no field here
+ * is ever required, so a response without it renders identically to today.
+ */
+export interface EnvelopeProvenanceRefs {
+  zoning?: { atomDid: string };
+  setback?: { atomDid: string };
+  envelope?: { atomDid: string };
+  codeSections?: Array<{
+    atomDid: string;
+    sectionNumber: string;
+    title?: string;
+  }>;
+}
+
 export interface BuildableEnvelopeResult {
   ok: boolean;
   status: string;
@@ -25,6 +42,7 @@ export interface BuildableEnvelopeResult {
   approximate?: boolean;
   citationUrl?: string | null;
   parcelNodeId?: string | null;
+  provenanceRefs?: EnvelopeProvenanceRefs;
   [k: string]: unknown;
 }
 

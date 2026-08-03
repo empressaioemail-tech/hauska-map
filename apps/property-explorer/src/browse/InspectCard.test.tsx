@@ -8,8 +8,9 @@
 
 import { describe, expect, it } from "vitest";
 import { renderToStaticMarkup } from "react-dom/server";
-import { InspectCard } from "./InspectCard";
+import { FacetRow, InspectCard, Row, chipsForRow } from "./InspectCard";
 import type { ParcelCardData } from "./liveGis";
+import type { EnvelopeProvenanceRefs } from "../lib/buildable-envelope.js";
 
 const noop = () => {};
 
@@ -90,5 +91,192 @@ describe("InspectCard — export sections moved to the workbench (W2)", () => {
     expect(withNodeId).toContain('data-testid="research-this"');
     expect(withNodeId).toContain('data-testid="make-subject"');
     expect(withNodeId).toContain('data-testid="save-property"');
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Provenance chips (feat/inspect-card-provenance-chips). renderToStaticMarkup
+// never runs effects, so the full InspectCard can't be driven past
+// source==="loading" in this harness (same constraint every other InspectCard
+// test above already lives with) — these tests pin the row-level contract
+// directly (chat-tool.test.tsx precedent: FacetRow/Row/chipsForRow exported
+// as a test seam, same as ChatCitationChips/AtomCardView are for chat), plus
+// prove the full card's default (no-provenanceRefs) render is untouched.
+// ---------------------------------------------------------------------------
+
+const REFS: EnvelopeProvenanceRefs = {
+  zoning: { atomDid: "did:hauska:zoning-fact:48021:141209" },
+  setback: { atomDid: "did:hauska:setback-rule:48021:141209" },
+  envelope: { atomDid: "did:hauska:buildable-envelope:48021:141209" },
+  codeSections: [
+    {
+      atomDid: "did:hauska:code-section:bastrop-udc-4-2",
+      sectionNumber: "4.2",
+      title: "Setback standards",
+    },
+  ],
+};
+
+describe("chipsForRow — provenanceRefs -> per-row chip derivation", () => {
+  it("zoning row gets the zoning ref only (no code sections)", () => {
+    const chips = chipsForRow(REFS, "zoning");
+    expect(chips).toEqual([
+      { did: "did:hauska:zoning-fact:48021:141209", label: "zoning" },
+    ]);
+  });
+
+  it("setback row gets the setback ref + code-section chips labeled by sectionNumber", () => {
+    const chips = chipsForRow(REFS, "setback");
+    expect(chips).toEqual([
+      { did: "did:hauska:setback-rule:48021:141209", label: "setback" },
+      { did: "did:hauska:code-section:bastrop-udc-4-2", label: "4.2" },
+    ]);
+  });
+
+  it("buildable row gets the envelope ref + code-section chips", () => {
+    const chips = chipsForRow(REFS, "buildable");
+    expect(chips).toEqual([
+      { did: "did:hauska:buildable-envelope:48021:141209", label: "envelope" },
+      { did: "did:hauska:code-section:bastrop-udc-4-2", label: "4.2" },
+    ]);
+  });
+
+  it("GRACEFUL ABSENCE: null refs -> empty array for every row", () => {
+    expect(chipsForRow(null, "zoning")).toEqual([]);
+    expect(chipsForRow(null, "setback")).toEqual([]);
+    expect(chipsForRow(null, "buildable")).toEqual([]);
+  });
+
+  it("a ref block with only SOME refs present -> only those chips, no fabrication", () => {
+    const partial: EnvelopeProvenanceRefs = {
+      zoning: { atomDid: "did:hauska:zoning-fact:x" },
+    };
+    expect(chipsForRow(partial, "zoning")).toEqual([
+      { did: "did:hauska:zoning-fact:x", label: "zoning" },
+    ]);
+    expect(chipsForRow(partial, "setback")).toEqual([]);
+    expect(chipsForRow(partial, "buildable")).toEqual([]);
+  });
+});
+
+describe("FacetRow / Row — provenance chips render on the value cell", () => {
+  it("FacetRow (baked branch) with chips renders the DIDs via AtomChip", () => {
+    const html = renderToStaticMarkup(
+      <dl>
+        <FacetRow
+          label="Zoning"
+          facet={{ state: "present", value: "R-1" }}
+          testid="inspect-zoning"
+          chips={chipsForRow(REFS, "zoning")}
+          openChipDid={null}
+          onChipToggle={() => {}}
+        />
+      </dl>,
+    );
+    expect(html).toContain('data-testid="inspect-zoning"');
+    expect(html).toContain("R-1");
+    expect(html).toContain('data-testid="inspect-provenance-chip"');
+    expect(html).toContain("zoning");
+  });
+
+  it("FacetRow with NO chips (empty array) renders byte-identical to a plain FacetRow", () => {
+    const withEmptyChips = renderToStaticMarkup(
+      <dl>
+        <FacetRow
+          label="Zoning"
+          facet={{ state: "present", value: "R-1" }}
+          testid="inspect-zoning"
+          chips={[]}
+          openChipDid={null}
+          onChipToggle={() => {}}
+        />
+      </dl>,
+    );
+    const plain = renderToStaticMarkup(
+      <dl>
+        <FacetRow
+          label="Zoning"
+          facet={{ state: "present", value: "R-1" }}
+          testid="inspect-zoning"
+        />
+      </dl>,
+    );
+    expect(withEmptyChips).toBe(plain);
+    expect(withEmptyChips).not.toContain('data-testid="inspect-provenance-chip"');
+  });
+
+  it("Row (live branch) with chips renders the DIDs via AtomChip", () => {
+    const html = renderToStaticMarkup(
+      <dl>
+        <Row
+          label="Setbacks"
+          value="F 25′ · S 10′ · R 20′"
+          testid="inspect-setbacks"
+          chips={chipsForRow(REFS, "setback")}
+          openChipDid={null}
+          onChipToggle={() => {}}
+        />
+      </dl>,
+    );
+    expect(html).toContain('data-testid="inspect-setbacks"');
+    expect(html).toContain('data-testid="inspect-provenance-chip"');
+    expect(html).toContain("4.2");
+  });
+
+  it("Row with NO chips prop at all renders byte-identical to today (no onChipToggle passed)", () => {
+    const untouched = renderToStaticMarkup(
+      <dl>
+        <Row label="Setbacks" value="F 25′ · S 10′ · R 20′" testid="inspect-setbacks" />
+      </dl>,
+    );
+    expect(untouched).not.toContain('data-testid="inspect-provenance-chip"');
+    expect(untouched).toContain("F 25′ · S 10′ · R 20′");
+  });
+
+  it("the OPEN chip renders aria-expanded=true; others false", () => {
+    const html = renderToStaticMarkup(
+      <dl>
+        <Row
+          label="Setbacks"
+          value="F 25′ · S 10′ · R 20′"
+          chips={chipsForRow(REFS, "setback")}
+          openChipDid="did:hauska:setback-rule:48021:141209"
+          onChipToggle={() => {}}
+        />
+      </dl>,
+    );
+    const chipBlocks = html.split('data-testid="inspect-provenance-chip"');
+    // First split segment is before the first chip; chip 1 (setback, OPEN)
+    // is the tag immediately following segment[0].
+    expect(chipBlocks[1]).toContain('aria-expanded="true"');
+    expect(chipBlocks[2]).toContain('aria-expanded="false"');
+  });
+});
+
+describe("InspectCard full render — provenance chips do not disturb the default card", () => {
+  it("no parcelNodeId, no live envelope resolved yet -> zero provenance chips, card unchanged", () => {
+    const html = renderToStaticMarkup(
+      <InspectCard
+        card={CARD}
+        parcelNodeId={null}
+        onClose={noop}
+        onMakeSubject={noop}
+        onResearch={noop}
+      />,
+    );
+    expect(html).not.toContain('data-testid="inspect-provenance-chip"');
+    expect(html).not.toContain('data-testid="atom-detail-popover"');
+    // Identical to the baseline render captured at module load (same props).
+    expect(html).toBe(
+      renderToStaticMarkup(
+        <InspectCard
+          card={CARD}
+          parcelNodeId={null}
+          onClose={noop}
+          onMakeSubject={noop}
+          onResearch={noop}
+        />,
+      ),
+    );
   });
 });

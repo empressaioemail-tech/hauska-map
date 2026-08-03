@@ -255,5 +255,11 @@ export async function fetchBuildableEnvelope(sel, cortexBase, fetchImpl = fetch)
     citationUrl: props?.citationUrl ?? payload.citationUrl ?? null,
     parcel: payload.parcel ?? null,
     parcelNodeId,
+    // Optional atom-provenance refs (legacy-design-tools
+    // feat/envelope-provenance-refs) — explicit passthrough, same pattern as
+    // citationUrl/disclosure above, so callers read result.provenanceRefs
+    // without reaching into .properties. Absent on responses the backend PR
+    // hasn't reached yet (undefined, never fabricated).
+    provenanceRefs: props?.provenanceRefs ?? payload.provenanceRefs ?? undefined,
   };
 }
