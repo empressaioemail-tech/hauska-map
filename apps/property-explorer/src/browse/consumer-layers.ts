@@ -15,7 +15,6 @@
 
 import type { LayerKey } from "@hauska/map-renderer";
 import { LAYER_REGISTRY } from "../../../../packages/map-renderer/src/layer-registry.js";
-import { COLD_OPEN_VISIBLE_LAYERS } from "../../../../packages/map-renderer/src/map/layer-role-taxonomy.js";
 
 export const CONSUMER_EXCLUDED_LAYERS = new Set<LayerKey>([
   "rent-heat",
@@ -66,9 +65,22 @@ export function consumerKnownLayers(): Set<LayerKey> {
   return next;
 }
 
-/** Phase 0A cold-open visible set for PE (≤3 map layers; pins are chrome). */
+/**
+ * Cold-open visible set for PE.
+ *
+ * Operator want (REBRAND map-chrome, 2026-08-03): when a user lands, EVERY
+ * consumer layer initializes ON by default EXCEPT the satellite/aerial base
+ * (which is a separate basemap toggle that stays default-OFF, not a member of
+ * this set). So cold-open visible == the full consumer-eligible catalog. The
+ * previous Phase 0A parcel-line-only default (`COLD_OPEN_VISIBLE_LAYERS`) is
+ * withdrawn on this surface; it stays exported/imported only to keep the shared
+ * taxonomy contract intact.
+ *
+ * This changes DEFAULTS only — every toggle in the LAYERS panel still works, so
+ * a user can turn any layer off. `consumerKnownLayers()` already applies the
+ * `CONSUMER_EXCLUDED_LAYERS` filter (drops rent-heat, hydrology-flow,
+ * dem-hillshade), so no extra filter pass is needed here.
+ */
 export function consumerColdOpenVisible(): Set<LayerKey> {
-  return filterConsumerLayers(
-    new Set(COLD_OPEN_VISIBLE_LAYERS as readonly LayerKey[]),
-  );
+  return consumerKnownLayers();
 }

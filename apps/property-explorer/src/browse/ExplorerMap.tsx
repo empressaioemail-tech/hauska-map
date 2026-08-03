@@ -64,8 +64,7 @@ import { MapToolset, type LayerStateBadge } from "./MapToolset";
 import type { MapToolsController } from "./mapToolsController";
 import { asMaplibreMap } from "./satelliteBase";
 import { createFloodMapOverlayController } from "./flood-map-overlay";
-import { TransientChips } from "./TransientChips";
-import type { ChipSpec } from "./transient-chips";
+import { SmartSiteBadge, MapSourceInfo } from "./MapCornerChrome";
 import { SearchBar } from "./SearchBar";
 import { PaywallGate } from "./PaywallGate";
 import {
@@ -245,7 +244,10 @@ function ExplorerMapSurface({
   const hydrographyAbortRef = useRef<AbortController | null>(null);
   const [opportunityZone, setOpportunityZone] = useState<OpportunityZoneSlot>(OPPORTUNITY_ZONE_IDLE);
   const opportunityZoneAbortRef = useRef<AbortController | null>(null);
-  const [zoom, setZoom] = useState<number | null>(null);
+  // Viewport zoom re-render trigger. The value itself is no longer read (the
+  // old transient zoom chip was removed in the REBRAND map-chrome pass); the
+  // setter is kept because zoom-gated layer fetches re-run on the state change.
+  const setZoom = useState<number | null>(null)[1];
   const [card, setCard] = useState<ParcelCardData | null>(null);
   // The clicked parcel's stable baked-node id, kept alongside `card` so the
   // InspectCard can read its baked facet snapshot (the preferred pure-read
@@ -253,9 +255,12 @@ function ExplorerMapSurface({
   const [cardNodeId, setCardNodeId] = useState<string | null>(null);
   const [lookupBusy, setLookupBusy] = useState(false);
   const [lookupError, setLookupError] = useState<string | null>(null);
-  // Type-ahead search landing state: transient honest chip (coverage miss) and
-  // the brief fading street-extent highlight overlay.
-  const [searchChip, setSearchChip] = useState<string | null>(null);
+  // Type-ahead search landing state: the brief fading street-extent highlight
+  // overlay. The coverage-miss "chip" value is no longer rendered (the transient
+  // notifications were removed in the REBRAND map-chrome pass); the setter is
+  // kept so the existing search-landing plumbing (showSearchChip) still runs
+  // without change.
+  const setSearchChip = useState<string | null>(null)[1];
   const [searchOverlays, setSearchOverlays] = useState<OverlaySpec[]>([]);
   const abortRef = useRef<AbortController | null>(null);
   const deepLinkDoneRef = useRef(false);
@@ -1072,112 +1077,68 @@ function ExplorerMapSurface({
     [parcels, fema, topo, hydrography, opportunityZone, roadOverlays, envelopeOverlays, searchOverlays, visibleLayers],
   );
 
-  // Chips are now TRANSIENT notifications (item 2): each entry appears when its
-  // state key/text changes, stays long enough to read, then fades. Persistent
-  // honest states (degraded, not-survey-grade, honest-empty) are ALSO written
-  // into `layerStates` below so they stay discoverable in the merged toolset's
-  // layer rows after the toast fades — honesty is never lost, only the toast.
-  const chips: ChipSpec[] = [];
-  if (zoom != null && zoom < MIN_PARCEL_ZOOM) {
-    chips.push({ key: "zoom", sev: "info", text: "Zoom in for parcels" });
+  // REBRAND map-chrome (2026-08-03): the transient scroll notifications
+  // (TransientChips) were removed as redundant chrome. What SURVIVES is the
+  // REQUIRED source/attribution — now a persistent, collapsible ⓘ bubble in the
+  // lower-right (MapSourceInfo) rather than fading toasts. `sourceLines` are the
+  // live provenance strings for whatever is currently served + toggled on
+  // (parcel provider + not-survey-grade, contour tier, hydrography provenance,
+  // Opportunity Zone provenance). Transient STATE notices (zoom/loading/
+  // no-coverage/error/degraded/honest-empty) are NOT source attribution; their
+  // persistent home is the per-layer `layerStates` badges built below.
+  const sourceLines: string[] = [];
+  // Parcel provider + not-survey-grade disclosure.
+  if (parcels.fetch.status === "ok" && parcels.fetch.response.provider) {
+    sourceLines.push(
+      `${parcels.fetch.response.provider}${
+        parcels.fetch.response.notSurveyGrade ? " · not survey grade" : ""
+      }`,
+    );
   }
-  if (parcels.fetch.status === "loading" || fema.fetch.status === "loading") {
-    chips.push({ key: "loading", sev: "info", text: "Loading live layers…" });
-  }
-  if (parcels.fetch.status === "no-coverage") {
-    chips.push({ key: "nc", sev: "warn", text: "No parcel coverage here" });
-  }
-  if (parcels.fetch.status === "error") {
-    chips.push({ key: "err", sev: "error", text: `Parcels failed — ${parcels.fetch.message}` });
-  }
-  // Honest contour state — only when the topo toggle is on (don't nag when off).
-  // The label FOLLOWS the served tier per viewport: 1-ft in Bastrop, 3DEP
-  // elsewhere (contourTierLabel reads topo.data.tier). Never a static claim.
+  // Contour source — only when the topo toggle is on and served. The label
+  // FOLLOWS the served tier per viewport (1-ft in Bastrop, 3DEP elsewhere).
   const topoToggledOn = visibleLayers ? visibleLayers.has(TOPO_TOGGLE_KEY) : true;
-  if (topoToggledOn) {
-    if (topo.fetch.status === "error") {
-      chips.push({ key: "topo-err", sev: "warn", text: `Contours degraded — ${topo.fetch.message}` });
-    } else if (topo.fetch.status === "no-coverage") {
-      chips.push({ key: "topo-nc", sev: "warn", text: "No contour coverage here" });
-    } else if (topo.fetch.status === "ok" && topo.data) {
-      const dz = topo.data.degraded ? " · degraded" : "";
-      chips.push({
-        key: "topo-ok",
-        sev: "info",
-        text: `${contourTierLabel(topo.data)}${dz}`,
-      });
-    }
+  if (
+    topoToggledOn &&
+    topo.fetch.status === "ok" &&
+    topo.data
+  ) {
+    const dz = topo.data.degraded ? " · degraded" : "";
+    sourceLines.push(`${contourTierLabel(topo.data)}${dz}`);
   }
-  // Honest hydrography state — only when the toggle is on. Real county-mapped
-  // streams (with source provenance) where the county maps them; honest-empty /
-  // honest-unavailable (with the served reason) where it doesn't; and the
-  // feature-detect "not yet available" state until the engine slot deploys.
+  // Hydrography source — only when the toggle is on and real streams are served
+  // (source provenance). Honest-empty / unavailable carry no source line.
   const hydrographyToggledOn = visibleLayers
     ? visibleLayers.has(HYDROGRAPHY_TOGGLE_KEY)
     : true;
-  if (hydrographyToggledOn) {
-    if (hydrography.fetch.status === "error") {
-      chips.push({ key: "hydrography-err", sev: "warn", text: `Hydrography degraded — ${hydrography.fetch.message}` });
-    } else if (hydrography.fetch.status === "no-coverage") {
-      chips.push({ key: "hydrography-nc", sev: "warn", text: "No county hydrography source here" });
-    } else if (hydrography.fetch.status === "unavailable") {
-      chips.push({ key: "hydrography-na", sev: "info", text: "Hydrography not yet available" });
-    } else if (hydrography.fetch.status === "ok" && hydrography.data) {
-      const emptyReason = hydrographyHonestReason(hydrography.fetch);
-      if (emptyReason) {
-        // Honest-empty: no mapped streams — surface the reason, draw nothing.
-        chips.push({ key: "hydrography-empty", sev: "info", text: `Hydrography — none: ${emptyReason}` });
-      } else {
-        const dz = hydrography.data.degraded ? " · degraded" : "";
-        chips.push({
-          key: "hydrography-ok",
-          sev: "info",
-          text: `${hydrographyProvenanceLabel(hydrography.data)} — ${
-            hydrography.data.featureCount ?? 0
-          } streams${dz}`,
-        });
-      }
-    }
+  if (
+    hydrographyToggledOn &&
+    hydrography.fetch.status === "ok" &&
+    hydrography.data &&
+    !hydrographyHonestReason(hydrography.fetch)
+  ) {
+    const dz = hydrography.data.degraded ? " · degraded" : "";
+    sourceLines.push(
+      `${hydrographyProvenanceLabel(hydrography.data)} — ${
+        hydrography.data.featureCount ?? 0
+      } streams${dz}`,
+    );
   }
+  // Opportunity Zone source — only when on and served (provenance).
   const opportunityZoneToggledOn = visibleLayers
     ? visibleLayers.has(OPPORTUNITY_ZONE_TOGGLE_KEY)
     : true;
-  if (opportunityZoneToggledOn) {
-    if (opportunityZone.fetch.status === "error") {
-      chips.push({
-        key: "oz-err",
-        sev: "warn",
-        text: `Opportunity Zone degraded — ${opportunityZone.fetch.message}`,
-      });
-    } else if (opportunityZone.fetch.status === "no-coverage") {
-      chips.push({ key: "oz-nc", sev: "warn", text: "No Opportunity Zone coverage here" });
-    } else if (opportunityZone.fetch.status === "ok" && opportunityZone.data) {
-      const emptyReason = opportunityZoneHonestReason(opportunityZone.fetch);
-      if (emptyReason) {
-        chips.push({ key: "oz-empty", sev: "info", text: `Opportunity Zone — none: ${emptyReason}` });
-      } else {
-        chips.push({
-          key: "oz-ok",
-          sev: "info",
-          text: `${opportunityZoneProvenanceLabel(opportunityZone.data)} — ${
-            opportunityZone.data.featureCount ?? 0
-          } tracts`,
-        });
-      }
-    }
-  }
-  const attribution =
-    parcels.fetch.status === "ok" && parcels.fetch.response.provider
-      ? `${parcels.fetch.response.provider}${
-          parcels.fetch.response.notSurveyGrade ? " · not survey grade" : ""
-        }`
-      : null;
-  if (attribution) {
-    chips.push({ key: "attribution", sev: "info", text: attribution });
-  }
-  // Honest search-landing chip (e.g. address outside parcel coverage).
-  if (searchChip) {
-    chips.push({ key: "search-coverage", sev: "warn", text: searchChip });
+  if (
+    opportunityZoneToggledOn &&
+    opportunityZone.fetch.status === "ok" &&
+    opportunityZone.data &&
+    !opportunityZoneHonestReason(opportunityZone.fetch)
+  ) {
+    sourceLines.push(
+      `${opportunityZoneProvenanceLabel(opportunityZone.data)} — ${
+        opportunityZone.data.featureCount ?? 0
+      } tracts`,
+    );
   }
 
   // PERSISTENT per-layer honesty for the merged toolset (item 2 constraint):
@@ -1483,10 +1444,16 @@ function ExplorerMapSurface({
         onOpenProperty={(id) => void runParcelLookup(id)}
       />
 
-      {/* Transient notification area (item 2): layer-state chips appear on
-          change, stay long enough to read, then fade — never stacking stale
-          entries. Persistent honesty lives in the toolset's layer rows. */}
-      <TransientChips chips={chips} />
+      {/* Lower-left: the ONLY corner element now is the Smart Site brand chip.
+          The transient scroll notifications were removed (redundant chrome —
+          per-layer honest state lives in the toolset's layer rows / inspect
+          card). */}
+      <SmartSiteBadge isMobile={isMobile} />
+
+      {/* Lower-right: the REQUIRED source/attribution, collapsed by default into
+          a circular ⓘ bubble next to the layers bubble (MapToolset). Clicking
+          the ⓘ expands the live source lines. */}
+      <MapSourceInfo lines={sourceLines} isMobile={isMobile} />
 
       {/* PE WORKBENCH (WB1): top-right bubble cluster + the ONE shared dock.
           One tool open at a time; per-property persistent state via the
