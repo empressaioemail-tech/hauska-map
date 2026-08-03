@@ -26,11 +26,11 @@ import { shareTokenFromLocation } from "./share-landing";
 // Kept as a ShareView export — the historical home of the token parser.
 export { shareTokenFromLocation };
 
-const MUTED = "#9aa6b2";
-const AMBER = "#fcd34d";
-const TEXT = "#e5e7eb";
-const ACCENT = "#7dd3fc";
-const CARD_BG = "rgba(13,17,23,0.94)";
+const MUTED = "var(--surface-muted, #94A3B8)";
+const AMBER = "var(--semantic-warning, #F59E0B)"; // caution notice (was raw yellow #fcd34d)
+const TEXT = "var(--text-body, #e5e7eb)";
+const ACCENT = "var(--brand-blue, #3B82F6)"; // PRIMARY interactive hue (was cyan #7dd3fc)
+const CARD_BG = "var(--surface-card-translucent, rgba(13,17,23,0.94))";
 
 export interface ShareBriefResponse {
   property: {
@@ -176,7 +176,7 @@ export function DownloadButton({
           fontWeight: 600,
           color: ACCENT,
           background: "transparent",
-          border: "0.5px solid rgba(125,211,252,0.4)",
+          border: "0.5px solid var(--brand-blue-border, rgba(59,130,246,0.4))",
           borderRadius: 6,
           cursor: state.kind === "busy" ? "default" : "pointer",
         }}
@@ -240,7 +240,7 @@ export function ShareDossierSection({ dossier }: { dossier: ShareDossierData }) 
                   <path
                     key={i}
                     d={p.d}
-                    fill={p.closed ? "rgba(125,211,252,0.15)" : "none"}
+                    fill={p.closed ? "rgba(59,130,246,0.15)" : "none"}
                     stroke={ACCENT}
                     strokeWidth={1.2}
                     strokeLinejoin="round"
@@ -385,7 +385,7 @@ export function ShareAnalysisContent({
           padding: "12px 14px",
           borderRadius: 8,
           background: CARD_BG,
-          border: "1px solid rgba(125,211,252,0.3)",
+          border: "1px solid var(--brand-blue-border, rgba(59,130,246,0.4))",
           marginBottom: 14,
         }}
       >
@@ -393,7 +393,7 @@ export function ShareAnalysisContent({
         {verdict.length > 0 ? (
           <div style={{ fontSize: 13.5, fontWeight: 600 }}>{verdict.join(" · ")}</div>
         ) : (
-          <div style={{ fontSize: 12, color: AMBER }}>{VERDICT_FALLBACK}</div>
+          <div style={{ fontSize: 12, color: "var(--semantic-absence)" }}>{VERDICT_FALLBACK}</div>
         )}
         <div style={{ marginTop: 6, fontSize: 10, color: MUTED }}>
           Public-record-derived · approximate, not survey grade · every fact

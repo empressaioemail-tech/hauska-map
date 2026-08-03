@@ -1,0 +1,9 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 320 76" fill="none">
+  <circle cx="38" cy="38" r="30" stroke="#ffffff" stroke-width="4"></circle>
+  <circle cx="38" cy="38" r="6" fill="#E8963B"></circle>
+  <line x1="38" y1="0" x2="38" y2="18" stroke="#ffffff" stroke-width="4"></line>
+  <line x1="38" y1="58" x2="38" y2="76" stroke="#ffffff" stroke-width="4"></line>
+  <line x1="0" y1="38" x2="18" y2="38" stroke="#ffffff" stroke-width="4"></line>
+  <line x1="58" y1="38" x2="76" y2="38" stroke="#ffffff" stroke-width="4"></line>
+  <text x="86" y="48" font-family="Oxygen, sans-serif" font-weight="700" font-size="34" letter-spacing="0.5" fill="#ffffff">SMART <tspan fill="#F5B95C">SITE</tspan></text>
+</svg>

@@ -33,7 +33,7 @@ export default async function handler(
 
   const parsed = parseGeocodeParams(req.query as Record<string, unknown>)
   if (!parsed.ok) {
-    res.status(400).json({ error: 'invalid_request', message: parsed.message })
+    res.status(400).json({ error: 'invalid_request', message: 'message' in parsed ? parsed.message : 'invalid request' })
     return
   }
 

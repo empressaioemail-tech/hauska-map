@@ -28,10 +28,10 @@ import {
 export const SHARE_LOCKED_VALUE_LINE =
   "Share links carry this property's full analysis — the verdict and cited brief plus the site-plan and terrain downloads — readable by anyone you send them to.";
 
-const MUTED = "#9aa6b2";
-const AMBER = "#fcd34d";
-const TEXT = "#e5e7eb";
-const ACCENT = "#7dd3fc";
+const MUTED = "var(--surface-muted, #94A3B8)";
+const AMBER = "var(--semantic-warning, #F59E0B)"; // caution notice (was raw yellow #fcd34d)
+const TEXT = "var(--text-body, #e5e7eb)";
+const ACCENT = "var(--brand-blue, #3B82F6)"; // PRIMARY interactive hue (was cyan #7dd3fc)
 
 /** The chassis-stored (per-property, JSON-serializable) share tool state. */
 export interface ShareToolStoredState {
@@ -82,7 +82,7 @@ export function ShareBody({
               fontSize: 10.5,
               color: ACCENT,
               wordBreak: "break-all",
-              border: "1px solid rgba(125,211,252,0.25)",
+              border: "1px solid var(--brand-blue-border-soft, rgba(59,130,246,0.28))",
               borderRadius: 6,
               padding: "6px 8px",
               marginBottom: 8,
@@ -103,7 +103,7 @@ export function ShareBody({
                 color: "#0d1117",
                 background: ACCENT,
                 border: "none",
-                borderRadius: 6,
+                borderRadius: "var(--btn-radius, 9px)",
                 cursor: "pointer",
               }}
             >
@@ -154,7 +154,7 @@ export function ShareBody({
               color: "#0d1117",
               background: ACCENT,
               border: "none",
-              borderRadius: 6,
+              borderRadius: "var(--btn-radius, 9px)",
               cursor: phase.kind === "minting" ? "default" : "pointer",
               opacity: phase.kind === "minting" ? 0.6 : 1,
             }}

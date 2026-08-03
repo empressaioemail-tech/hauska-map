@@ -409,16 +409,17 @@ export function resolveSitePlanExportAuth(input: {
     return { ok: true, devBypass: true }
   }
   if (!input.entitlement.ok) {
+    const denied = input.entitlement as { status: 503 | 402 | 401; message?: string }
     return {
       ok: false,
-      status: input.entitlement.status,
+      status: denied.status,
       error:
-        input.entitlement.status === 401
+        denied.status === 401
           ? 'authentication_required'
-          : input.entitlement.status === 402
+          : denied.status === 402
             ? 'payment_required'
             : 'entitlement_unavailable',
-      message: input.entitlement.message,
+      message: denied.message,
     }
   }
   if (input.entitlement.tier !== 'paid') {

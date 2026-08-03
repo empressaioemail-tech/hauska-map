@@ -13,10 +13,10 @@
 import { googleSignInUrl } from "../../lib/auth";
 import { UnlockChoices } from "../../browse/UnlockFlow";
 
-const TEXT = "#e5e7eb";
-const MUTED = "#9aa6b2";
-const AMBER = "#fcd34d";
-const ACCENT = "#7dd3fc";
+const TEXT = "var(--text-body, #e5e7eb)";
+const MUTED = "var(--surface-muted, #94A3B8)";
+const AMBER = "var(--semantic-warning, #F59E0B)"; // locked-state caution (was raw yellow #fcd34d)
+const ACCENT = "var(--brand-blue, #3B82F6)"; // PRIMARY interactive hue (was cyan #7dd3fc)
 
 export function LockedToolPanel({
   parcelNodeId,

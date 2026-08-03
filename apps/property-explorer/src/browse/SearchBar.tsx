@@ -40,6 +40,7 @@ import {
 } from "../lib/search-recents";
 import { searchBarWrapStyle, searchDropdownStyle } from "./mobile-layout";
 import { useMobilePanel } from "./MobilePanelContext";
+import { Button } from "../components/Button";
 
 export interface SearchBarProps {
   busy?: boolean;
@@ -76,24 +77,14 @@ const input: CSSProperties = {
   border: "none",
   outline: "none",
   background: "transparent",
-  color: "#e5e7eb",
+  color: "var(--text-body, #e5e7eb)",
   font: `13px/1.3 ${FONT}`,
   padding: "6px 8px",
 };
 
-const button: CSSProperties = {
-  border: "none",
-  borderRadius: 6,
-  padding: "6px 12px",
-  cursor: "pointer",
-  font: `600 12px/1.2 ${FONT}`,
-  color: "#0b0e13",
-  background: "#7dd3fc",
-};
-
 const errStyle: CSSProperties = {
   font: `11px/1.3 ${FONT}`,
-  color: "#fcd34d",
+  color: "var(--semantic-warning, #F59E0B)",
   padding: "0 4px",
 };
 
@@ -101,7 +92,7 @@ const groupHeader: CSSProperties = {
   font: `600 9.5px/1 ${FONT}`,
   letterSpacing: "0.08em",
   textTransform: "uppercase",
-  color: "#8b97a5",
+  color: "var(--surface-muted, #94A3B8)",
   padding: "8px 12px 4px",
 };
 
@@ -121,13 +112,13 @@ const rowBase: CSSProperties = {
 
 const rowActive: CSSProperties = {
   ...rowBase,
-  background: "rgba(125,211,252,0.12)",
-  color: "#e5e7eb",
+  background: "var(--brand-blue-bg, rgba(59,130,246,0.12))",
+  color: "var(--text-body, #e5e7eb)",
 };
 
 const sublabelStyle: CSSProperties = {
   font: `11px/1.2 ${FONT}`,
-  color: "#8b97a5",
+  color: "var(--surface-muted, #94A3B8)",
   marginLeft: "auto",
   whiteSpace: "nowrap",
   overflow: "hidden",
@@ -137,7 +128,7 @@ const sublabelStyle: CSSProperties = {
 
 const infoRow: CSSProperties = {
   font: `12px/1.4 ${FONT}`,
-  color: "#9aa6b2",
+  color: "var(--surface-muted, #94A3B8)",
   padding: "10px 12px",
 };
 
@@ -228,7 +219,7 @@ function HighlightedLabel({ label, query }: { label: string; query: string }) {
   ranges.forEach((r, i) => {
     if (r.start > cursor) parts.push(label.slice(cursor, r.start));
     parts.push(
-      <span key={i} style={{ fontWeight: 700, color: "#e5e7eb" }}>
+      <span key={i} style={{ fontWeight: 700, color: "var(--text-body, #e5e7eb)" }}>
         {label.slice(r.start, r.end)}
       </span>,
     );
@@ -273,7 +264,7 @@ export function SuggestDropdown({
     );
   } else if (snap.unavailable) {
     body = (
-      <div data-testid="search-unavailable" style={{ ...infoRow, color: "#fcd34d" }}>
+      <div data-testid="search-unavailable" style={{ ...infoRow, color: "var(--semantic-warning, #F59E0B)" }}>
         Search unavailable — could not reach the geocoder. Parcel ids (48021:34177)
         still open directly.
       </div>
@@ -326,7 +317,7 @@ export function SuggestDropdown({
           key="clear-recents"
           type="button"
           data-testid="search-clear-recents"
-          style={{ ...rowBase, color: "#8b97a5", font: `11px/1.2 ${FONT}` }}
+          style={{ ...rowBase, color: "var(--surface-muted, #94A3B8)", font: `11px/1.2 ${FONT}` }}
           onClick={() => onClearRecents()}
         >
           Clear recent searches
@@ -453,7 +444,9 @@ export function SearchBar({
           style={input}
           autoComplete="off"
         />
-        <button
+        <Button
+          variant="primary"
+          dense
           data-testid="parcel-lookup-submit"
           type="button"
           disabled={busy || !value.trim()}
@@ -469,14 +462,9 @@ export function SearchBar({
               onSubmitRaw(q);
             }
           }}
-          style={{
-            ...button,
-            opacity: busy || !value.trim() ? 0.55 : 1,
-            cursor: busy || !value.trim() ? "not-allowed" : "pointer",
-          }}
         >
           {busy ? "…" : "Find"}
-        </button>
+        </Button>
       </div>
       {snap && (
         <SuggestDropdown

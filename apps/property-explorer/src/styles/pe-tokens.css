@@ -1,0 +1,73 @@
+/* Smart Site — Property Explorer design tokens
+   Adds to (does not replace) tokens/colors.css. PE keeps its own near-black
+   chrome (--surface-ink) — do NOT apply --color-navy-* surfaces to the map.
+   Brand / semantic / atom are separate namespaces on purpose. */
+:root{
+  /* brand (logo-sourced) */
+  --brand-gold:#E8963B;          /* BRAND MARK ONLY — crosshair center dot. Never an action/button color. */
+  --brand-gold-light:#F5B95C;    /* BRAND MARK ONLY — SITE wordmark, small brand text/icons. */
+  --brand-blue:#3B82F6;          /* PRIMARY / interactive: buttons/CTAs, links, active, selected, focus */
+  --brand-white:#F8FAFC;
+  /* blue at alpha — the interactive tints (was the reserved cyan #7dd3fc) */
+  --brand-blue-bg:rgba(59,130,246,0.12);
+  --brand-blue-bg-soft:rgba(59,130,246,0.08);
+  --brand-blue-border:rgba(59,130,246,0.4);
+  --brand-blue-border-soft:rgba(59,130,246,0.28);
+
+  /* surfaces — PE app ink, kept as-is */
+  --surface-ink:#0b0e13;
+  --surface-card:#141928;
+  --surface-card-translucent:rgba(13,17,23,0.94); /* the app-wide translucent card ink */
+  --surface-panel-translucent:rgba(13,17,23,0.9); /* map-chrome / floating panels */
+  --surface-border:#1E293B;
+  --surface-border-soft:#243247;
+  --surface-border-rgba:rgba(154,166,178,0.3);    /* the app-wide hairline border at alpha */
+  --surface-muted:#94A3B8;
+  --surface-muted-2:#64748B;
+
+  /* body text — was the untokenized TEXT #e5e7eb copied across 12 files */
+  --text-body:#e5e7eb;
+  --text-strong:#e6edf3;
+
+  /* semantic — state only, never brand */
+  --semantic-success:#10B981;      /* verified / gate-passed */
+  --semantic-warning:#F59E0B;      /* provisional / caution */
+  --semantic-error:#EF4444;        /* failure only */
+  --semantic-absence:#7C8BA0;      /* "not verified here" — recolored off yellow */
+  --semantic-absence-bg:rgba(124,139,160,0.12);
+  --semantic-absence-border:rgba(124,139,160,0.35);
+
+  /* atom chip — recolored off purple */
+  --atom-accent:#4CC9C0;
+  --atom-accent-bg:rgba(76,201,192,0.14);
+  --atom-accent-border:rgba(76,201,192,0.5);
+  --atom-accent-contrast:#0b0f14;
+
+  /* leave untouched (documented, not redefined here) */
+  /* interaction-cyan #7dd3fc — map search-highlight */
+  /* pdf print blue #00b4d8 */
+
+  /* button scale */
+  --btn-radius:9px;
+  --btn-pad-y:10px; --btn-pad-x:18px;
+  --btn-pad-y-dense:7px; --btn-pad-x-dense:12px;
+  --btn-focus-ring:0 0 0 2px var(--surface-ink), 0 0 0 4px var(--brand-blue);
+
+  /* type + spacing. Oxygen (--font-display) was a DEAD token: no @font-face, no
+     CDN link, no self-hosted file, so headings silently fell back to system-ui.
+     No inlinable Oxygen is available and the CSP forbids an external CDN, so the
+     display face is dropped to the system stack rather than kept as a broken
+     pretense (headings render identically to before — Oxygen never loaded). */
+  --font-display: ui-sans-serif, system-ui, -apple-system, 'Segoe UI', sans-serif;
+  --font-body: ui-sans-serif, system-ui, -apple-system, 'Segoe UI', sans-serif;
+  --font-mono: ui-monospace, 'SF Mono', Menlo, monospace;
+  --space-1:4px; --space-2:8px; --space-3:16px; --space-4:24px; --space-5:32px; --space-6:48px; --space-7:64px; --space-8:80px;
+  --radius-card:8px; --radius-chip:4px;
+}
+
+/* Unified Button focus ring — keyboard-accessible only (:focus-visible),
+   so mouse clicks stay quiet. Uses --btn-focus-ring (--brand-blue). */
+.pe-btn:focus-visible{
+  outline:none;
+  box-shadow:var(--btn-focus-ring);
+}

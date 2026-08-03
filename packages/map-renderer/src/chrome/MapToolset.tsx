@@ -36,7 +36,6 @@ import type { LayerKey, LayerDef } from "../postMessage";
 import {
   asMaplibreMap,
   setSatelliteBase,
-  SATELLITE_ATTRIBUTION,
 } from "./satelliteBase";
 import {
   installMapTools,
@@ -276,6 +275,9 @@ export function MapToolset({
   isMobile = false,
   /** When true on mobile, the layers/tools panel slides up above the bottom nav. */
   layersSheetOpen = false,
+  /** Initial satellite/aerial base state on mount. Default OFF (dark basemap);
+   *  PE passes `true` so aerial is the default first impression (2026-08-03). */
+  defaultSatellite = false,
 }: {
   mapRef: RefObject<FloatingMapHandle | null>;
   /** Full layer set this surface knows about (mount seed) — a toggled-off
@@ -297,6 +299,7 @@ export function MapToolset({
   presentation?: "floating" | "embedded";
   isMobile?: boolean;
   layersSheetOpen?: boolean;
+  defaultSatellite?: boolean;
 }) {
   // The live maplibre map, resolved once the handle is ready.
   const [map, setMap] = useState<MaplibreMap | null>(null);
@@ -308,7 +311,7 @@ export function MapToolset({
     measureMode: "line",
     readout: null,
   });
-  const [satellite, setSatellite] = useState(false);
+  const [satellite, setSatellite] = useState(defaultSatellite);
   // True while the hidden GeolocateControl is tracking the user's location —
   // drives the pressed state of the in-panel "My location" button.
   const [tracking, setTracking] = useState(false);
@@ -652,26 +655,12 @@ export function MapToolset({
         {panelInner}
       </div>
 
-      {/* Esri attribution while satellite is on (its terms require the credit).
-          Shown even while collapsed — the credit must stay visible whenever
-          the satellite base is. */}
-      {satellite && (
-        <div
-          style={{
-            maxWidth: 200,
-            padding: "3px 9px",
-            borderRadius: 5,
-            background: "rgba(13,17,23,0.82)",
-            border: "0.5px solid rgba(154,166,178,0.35)",
-            color: MUTED,
-            fontSize: 9.5,
-            fontWeight: 600,
-            pointerEvents: "none",
-          }}
-        >
-          {SATELLITE_ATTRIBUTION}
-        </div>
-      )}
+      {/* The required Esri imagery credit is NOT rendered here as a standing chip
+          anymore — it produced a dark "Imagery: Esri…" strip above this bubble on
+          load (satellite is on by default), colliding with the ⓘ / layers cluster.
+          The credit now lives, collapse-only, inside the app's MapSourceInfo ⓘ
+          "Sources" panel (© OSM / © CARTO + SATELLITE_ATTRIBUTION), which is the
+          single attribution place. See MapCornerChrome.tsx / ExplorerMap.tsx. */}
 
       {/* The bubble: always visible, toggles the panel. */}
       <button

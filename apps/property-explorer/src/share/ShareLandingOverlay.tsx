@@ -16,11 +16,11 @@ import { googleSignInUrl } from "../lib/auth";
 import { recordPeGtmEvent } from "../lib/gtmClient";
 import type { SharePhase } from "./ShareView";
 
-const CARD_BG = "rgba(13,17,23,0.94)";
-const TEXT = "#e5e7eb";
-const MUTED = "#9aa6b2";
-const ACCENT = "#7dd3fc";
-const AMBER = "#fcd34d";
+const CARD_BG = "var(--surface-card-translucent, rgba(13,17,23,0.94))";
+const TEXT = "var(--text-body, #e5e7eb)";
+const MUTED = "var(--surface-muted, #94A3B8)";
+const ACCENT = "var(--brand-blue, #3B82F6)"; // PRIMARY interactive hue (was cyan #7dd3fc)
+const AMBER = "var(--semantic-warning, #F59E0B)"; // caution notice (was raw yellow #fcd34d)
 
 export function ShareLandingOverlay({
   phase,
@@ -56,7 +56,7 @@ export function ShareLandingOverlay({
             padding: "8px 12px",
             borderRadius: 8,
             background: CARD_BG,
-            border: "1px solid rgba(252,211,77,0.45)",
+            border: "1px solid rgba(245,158,11,0.45)",
             color: AMBER,
             fontSize: 11.5,
           }}
@@ -78,7 +78,7 @@ export function ShareLandingOverlay({
             padding: "12px 14px",
             borderRadius: 10,
             background: CARD_BG,
-            border: "1px solid rgba(125,211,252,0.35)",
+            border: "1px solid var(--brand-blue-border-soft, rgba(59,130,246,0.28))",
             boxShadow: "0 10px 32px rgba(0,0,0,0.45)",
             color: TEXT,
           }}

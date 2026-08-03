@@ -28,9 +28,14 @@ import {
 } from "../lib/brief-xray-export";
 import { composeBriefVerdict, type BriefVerdictTone } from "./brief-verdict";
 
-const MUTED = "#9aa6b2";
-const AMBER = "#fcd34d";
-const TEXT = "#e5e7eb";
+const MUTED = "var(--surface-muted, #94A3B8)";
+const AMBER = "var(--semantic-warning, #F59E0B)"; // caution verdict tone (was raw yellow #fcd34d)
+const TEXT = "var(--text-body, #e5e7eb)";
+// Design system: blue = links/citations (--brand-blue). Every clickable
+// reference (fact [n] anchor, source link, appendix link) uses this ONE hue so
+// the data-inspection loop reads coherently. Interaction-cyan (#7dd3fc) stays
+// reserved for the map search-highlight and non-link UI affordances.
+const LINK = "var(--brand-blue, #3B82F6)";
 
 /** W2 verdict tones: red flag leads red-ish; caution amber; clean earns green. */
 const VERDICT_COLOR: Record<BriefVerdictTone, string> = {
@@ -41,27 +46,54 @@ const VERDICT_COLOR: Record<BriefVerdictTone, string> = {
 
 const FRESHNESS_COLOR: Record<FreshnessVerdict, string> = {
   fresh: "#4ade80",
-  aging: "#fcd34d",
+  aging: "var(--semantic-warning, #F59E0B)",
   stale: "#fca5a5",
   unknown: MUTED,
 };
 
+/** DATA-INSPECTION LOOP — the fact-level references.
+ *  [n] → anchors to its citation appendix row (#brief-cite-<n>).
+ *  Source line → the source label links out to provenance.url when the payload
+ *  carries one; when it doesn't, the source shows as plain text and, when there
+ *  is no provenance at all, the honest "source not recorded" state. Never a
+ *  fabricated URL, never an inert [n]. */
 function FactRow({ fact }: { fact: BriefFact }) {
+  const sourceLabel = fact.provenance?.source ?? fact.provenance?.url ?? null;
+  const sourceUrl = fact.provenance?.url ?? null;
   return (
     <div style={{ margin: "6px 0 8px" }} data-testid="brief-fact">
       <div>
         <span style={{ color: MUTED }}>{fact.label}: </span>
         <span style={{ color: TEXT, fontWeight: 600 }}>{fact.value}</span>
         {fact.citationIndex !== null && (
-          <sup style={{ color: "#7dd3fc", fontSize: 9, marginLeft: 2 }}>
-            [{fact.citationIndex}]
+          <sup style={{ fontSize: 9, marginLeft: 2 }}>
+            <a
+              href={`#brief-cite-${fact.citationIndex}`}
+              data-testid="brief-fact-citeref"
+              style={{ color: LINK, textDecoration: "none" }}
+            >
+              [{fact.citationIndex}]
+            </a>
           </sup>
         )}
       </div>
       <div style={{ fontSize: 10, color: MUTED }}>
         {fact.provenance ? (
           <>
-            Source: {fact.provenance.source ?? fact.provenance.url}
+            Source:{" "}
+            {sourceUrl ? (
+              <a
+                href={sourceUrl}
+                target="_blank"
+                rel="noreferrer"
+                data-testid="brief-fact-source-link"
+                style={{ color: LINK, wordBreak: "break-all" }}
+              >
+                {sourceLabel}
+              </a>
+            ) : (
+              sourceLabel
+            )}
             {fact.provenance.vintage ? ` · vintage ${fact.provenance.vintage}` : ""}
           </>
         ) : (
@@ -97,7 +129,7 @@ function SectionBlock({ section }: { section: BriefSectionVM }) {
       {section.kind === "absent" ? (
         <p
           data-testid="brief-absent"
-          style={{ margin: "6px 0 0", color: AMBER, fontSize: 11.5 }}
+          style={{ margin: "6px 0 0", color: "var(--semantic-absence)", fontSize: 11.5 }}
         >
           {section.absentMessage ?? "Not verified here."}
         </p>
@@ -135,19 +167,29 @@ function CitationAppendix({ citations }: { citations: CitationEntry[] }) {
             {sectionTitle}
           </div>
           {rows.map((row) => (
-            <div key={row.index} style={{ fontSize: 10.5, color: TEXT, margin: "3px 0" }}>
+            <div
+              key={row.index}
+              id={`brief-cite-${row.index}`}
+              data-testid="brief-cite-row"
+              style={{ fontSize: 10.5, color: TEXT, margin: "3px 0", scrollMarginTop: 8 }}
+            >
               [{row.index}]{" "}
               {row.url ? (
                 <a
                   href={row.url}
                   target="_blank"
                   rel="noreferrer"
-                  style={{ color: "#7dd3fc", wordBreak: "break-all" }}
+                  data-testid="brief-cite-link"
+                  style={{ color: LINK, wordBreak: "break-all" }}
                 >
                   {humanizeCitationLabel(row.label)}
                 </a>
               ) : (
-                row.label
+                // Honest "source not linked" state — the appendix carries a
+                // label but the payload gave no URL. Never a fabricated href.
+                <span data-testid="brief-cite-unlinked" title="source not linked">
+                  {humanizeCitationLabel(row.label)}
+                </span>
               )}
               {" · "}
               <span style={{ color: MUTED }}>
@@ -287,10 +329,11 @@ export function PropertyBriefPanel({
             onClick={handleExportPdf}
             disabled={exportBusy}
             style={{
-              background: "rgba(125,211,252,0.12)",
-              border: "0.5px solid rgba(125,211,252,0.4)",
-              color: "#7dd3fc",
-              borderRadius: 5,
+              // HERO export CTA — blue (actions are blue; gold is brand-mark only).
+              background: "var(--brand-blue, #3B82F6)",
+              border: "0.5px solid var(--brand-blue, #3B82F6)",
+              color: "#f8fafc",
+              borderRadius: "var(--btn-radius, 9px)",
               padding: "2px 8px",
               fontSize: 10.5,
               fontWeight: 600,

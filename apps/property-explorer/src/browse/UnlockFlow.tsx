@@ -34,10 +34,11 @@ import {
   propertyChoiceLabel,
 } from "../lib/pricing";
 
-const TEXT = "#e5e7eb";
-const MUTED = "#8b97a5";
-const ACCENT = "#7dd3fc";
-const AMBER = "#fcd34d";
+const TEXT = "var(--text-body, #e5e7eb)";
+const MUTED = "var(--surface-muted, #94A3B8)";
+// (accent hue now applied inline via --brand-blue tokens; the hero unlock CTA
+//  uses --brand-blue. Actions are blue; gold is brand-mark only.)
+const AMBER = "var(--semantic-warning, #F59E0B)"; // caution notice (was raw yellow #fcd34d)
 
 const choiceButtonBase = {
   width: "100%",
@@ -124,8 +125,8 @@ export function UnlockChoices({
           onClick={() => void handleProperty()}
           style={{
             ...choiceButtonBase,
-            border: "1px solid rgba(125,211,252,0.5)",
-            background: "rgba(125,211,252,0.10)",
+            border: "1px solid var(--brand-blue-border, rgba(59,130,246,0.4))",
+            background: "var(--brand-blue-bg-soft, rgba(59,130,246,0.08))",
             color: TEXT,
             opacity: busy === "property" ? 0.7 : 1,
           }}
@@ -147,15 +148,16 @@ export function UnlockChoices({
           ...choiceButtonBase,
           marginTop: proOnly ? 0 : 8,
           border: "none",
-          background: ACCENT,
-          color: "#0d1117",
+          // HERO purchase CTA — blue (actions are blue; gold is brand-mark only).
+          background: "var(--brand-blue, #3B82F6)",
+          color: "#f8fafc",
           opacity: busy === "pro" ? 0.7 : 1,
         }}
       >
         <span style={{ display: "block", fontWeight: 700, fontSize: 13 }}>
           {busy === "pro" ? "Starting checkout…" : proChoiceLabel()}
         </span>
-        <span style={{ display: "block", fontSize: 11, color: "#22303c" }}>
+        <span style={{ display: "block", fontSize: 11, color: "rgba(248,250,252,0.82)" }}>
           {PE_PRICING.pro.blurb}
         </span>
       </button>

@@ -45,10 +45,10 @@ import {
   type CompareStoredState,
 } from "./compare-facts";
 
-const MUTED = "#9aa6b2";
-const AMBER = "#fcd34d";
-const TEXT = "#e5e7eb";
-const ACCENT = "#7dd3fc";
+const MUTED = "var(--surface-muted, #94A3B8)";
+const AMBER = "var(--semantic-warning, #F59E0B)"; // caution tone (was raw yellow #fcd34d)
+const TEXT = "var(--text-body, #e5e7eb)";
+const ACCENT = "var(--brand-blue, #3B82F6)"; // PRIMARY interactive hue (was cyan #7dd3fc)
 const FLAG = "#f87171";
 
 /**

@@ -232,7 +232,7 @@ export function resolveShareViewAccess(opts: {
   }
   const validated = validateShareToken(opts.token, opts.secret, opts.nowMs)
   if (!validated.ok) {
-    return validated.reason === 'expired'
+    return (validated as { ok: false; reason?: string }).reason === 'expired'
       ? {
           ok: false,
           status: 403,

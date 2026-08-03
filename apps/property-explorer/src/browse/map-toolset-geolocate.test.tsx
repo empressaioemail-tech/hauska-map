@@ -104,6 +104,27 @@ describe("satellite / aerial toggle — lives in LAYERS, not TOOLS", () => {
     expect(parcelRowAt).toBeGreaterThan(satelliteAt);
     expect(html).toContain("Satellite / aerial");
   });
+
+  it("does NOT render a standing 'Imagery: Esri…' attribution strip even with satellite ON by default", () => {
+    // Regression: PE lands with defaultSatellite=true. The Esri credit used to
+    // render as an always-visible chip above the bubble, producing a dark strip
+    // that collided with the ⓘ / layers cluster. The credit now lives collapse-
+    // only inside MapSourceInfo's ⓘ panel — MapToolset must render NONE of it.
+    const mapRef = createRef<FloatingMapHandle>();
+    const known = new Set<LayerKey>(["parcel-polygon" as LayerKey]);
+    const html = renderToStaticMarkup(
+      <MapToolset
+        mapRef={mapRef}
+        known={known}
+        visible={new Set<LayerKey>(known)}
+        onLayersChange={noop}
+        layerStates={{}}
+        defaultSatellite
+      />,
+    );
+    expect(html).not.toContain("Imagery: Esri");
+    expect(html).not.toContain("Earthstar Geographics");
+  });
 });
 
 describe("parcel layer row — GIS Parcel Boundary, no persistent disclaimer", () => {

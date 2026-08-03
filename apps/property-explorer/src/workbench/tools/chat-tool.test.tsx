@@ -438,9 +438,13 @@ describe("the accordion card (BRIEF → more → FULL, lineage walk)", () => {
 });
 
 describe("RESERVED atom color — audit (the accent means atoms, nothing else)", () => {
-  it("the accent hex appears in exactly ONE source module (the token definition)", () => {
-    // Walk the app source; the reserved hue may be DEFINED once
-    // (chat-citations.ts ATOM_ACCENT) and referenced only via the token.
+  it("the accent hex is confined to the constant module + the design token", () => {
+    // Walk the app source; the reserved hue may live in exactly two places:
+    // the TS constant module (chat-citations.ts ATOM_ACCENT, used in inline
+    // render styles + asserted by the render tests) and the design-system
+    // token definition (styles/pe-tokens.css --atom-accent). It must never be
+    // scattered into individual components — that scattering is the smell this
+    // audit guards. Both are single sources of truth by design.
     const here = fileURLToPath(new URL(".", import.meta.url));
     const srcRoot = join(here, "..", "..");
     const hits: string[] = [];
@@ -460,7 +464,7 @@ describe("RESERVED atom color — audit (the accent means atoms, nothing else)",
       }
     };
     walk(srcRoot);
-    expect(hits).toEqual(["chat-citations.ts"]);
+    expect(hits.sort()).toEqual(["chat-citations.ts", "pe-tokens.css"]);
   });
 
   it("chips + lineage chips render with the token; numbers/links stay non-atom", () => {

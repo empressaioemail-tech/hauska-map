@@ -71,6 +71,30 @@ describe("renderBriefPrintHtml — zoned parcel", () => {
   it("disclosures render verbatim", () => {
     expect(html).toContain("build-to-line governs");
   });
+
+  it("carries the Smart Site brand header (crosshair + lockup + report name)", () => {
+    // Branded header band + crosshair mark + SMART/SITE lockup.
+    expect(html).toContain('data-testid="brand-header"');
+    expect(html).toContain("brand-lockup");
+    expect(html).toContain("<svg"); // inline crosshair mark, print-safe
+    expect(html).toContain('class="brand-smart">SMART');
+    expect(html).toContain('class="brand-site">SITE');
+    // Ratified report name is the header; old descriptor stays as subtitle.
+    expect(html).toContain("SMART SITE X-RAY");
+    expect(html).toContain("Property Intel Brief");
+    // Brand palette, not the old cyan.
+    expect(html).not.toContain("#00b4d8");
+    expect(html).toContain("#E8963B"); // brand gold accent
+    expect(html).toContain("#3B82F6"); // brand-blue links/citations
+  });
+
+  it("wires the data-inspection loop in print (cite [n] → appendix anchor)", () => {
+    // Fact [n] is an in-document anchor to its appendix row id.
+    expect(html).toContain('class="cite-ref" href="#cite-1"');
+    expect(html).toContain('id="cite-1"');
+    // Appendix source URL is a real link; missing URLs show honest unlinked.
+    expect(html).toContain("<a href=");
+  });
 });
 
 describe("renderBriefPrintHtml — unzoned parcel", () => {

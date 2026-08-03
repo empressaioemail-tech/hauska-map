@@ -66,6 +66,7 @@ export interface AtomChainSetbackRule {
 export interface AtomChainEnvelopeOutcome {
   kind?: string;
   areaSqFt?: number;
+  reason?: string;
 }
 
 export interface AtomChainBuildableEnvelope {
@@ -75,6 +76,9 @@ export interface AtomChainBuildableEnvelope {
   extractedAt?: string;
   sourceCitation?: string;
   depthWarmPromotion?: string;
+  /** depth-warm honest decline — must surface on PE before generic pending. */
+  warmVerifyDecline?: string;
+  warmVerifyDeclineCode?: string;
 }
 
 export const DEPTH_WARM_PROMOTION_MARKER = "depth-warm-promoted-v1";
@@ -439,6 +443,34 @@ export function jurisdictionKeyFromSourceAdapter(
   return null;
 }
 
+function mapWarmVerifyDeclineEnvelope(
+  envAtom: AtomChainBuildableEnvelope,
+  district: string | null,
+): PeBakedFacetPayload["envelope"] | null {
+  const code = (envAtom.warmVerifyDeclineCode ?? "").trim();
+  const message = (envAtom.warmVerifyDecline ?? "").trim();
+  const outcomeReason =
+    envAtom.outcome &&
+    typeof envAtom.outcome === "object" &&
+    typeof envAtom.outcome.reason === "string"
+      ? envAtom.outcome.reason.trim()
+      : "";
+  const declineReason = code || "warm-verify-decline";
+  const disclosure =
+    message ||
+    outcomeReason ||
+    "Depth-warm verified honest decline — no envelope geometry served.";
+  if (!code && !message && !outcomeReason) return null;
+  return {
+    status: "declined",
+    declineReason,
+    district: district ?? undefined,
+    approximate: true,
+    provisional: true,
+    disclosure,
+  };
+}
+
 export function adaptAtomChainToBakedFacets(
   chain: PropertyAtomChain | null | undefined,
 ): PeBakedFacetsResponse | null {
@@ -533,7 +565,14 @@ export function adaptAtomChainToBakedFacets(
       disclosure: absenceReason,
     };
     envelopeCovered = false;
-  } else if (!setbacks) {
+  } else if (envAtom) {
+    const warmDecline = mapWarmVerifyDeclineEnvelope(envAtom, district);
+    if (warmDecline) {
+      envelope = warmDecline;
+      envelopeCovered = false;
+    }
+  }
+  if (!envelope && !setbacks) {
     envelope = {
       status: "declined",
       declineReason: "setback-rule-pending",
@@ -545,7 +584,7 @@ export function adaptAtomChainToBakedFacets(
         "Repealed or pre-layer-23 sources are not served.",
     };
     envelopeCovered = false;
-  } else if (outcomeKind === "no-buildable-area" && silentAxes) {
+  } else if (!envelope && outcomeKind === "no-buildable-area" && silentAxes) {
     // Stale breadth bake treated not_specified zeros as real 0 → "consume lot".
     // Remap: keep setbacks, drop the false empty claim; never fabricate geometry.
     envelope = {
@@ -557,7 +596,7 @@ export function adaptAtomChainToBakedFacets(
       disclosure: buildToLineDisclosure(ns),
     };
     envelopeCovered = true;
-  } else if (outcomeKind === "no-buildable-area") {
+  } else if (!envelope && outcomeKind === "no-buildable-area") {
     envelope = {
       status: "no-buildable-area",
       district: district ?? undefined,
@@ -571,7 +610,7 @@ export function adaptAtomChainToBakedFacets(
       ...(geojson !== undefined ? { geojson } : {}),
     };
     envelopeCovered = true;
-  } else if (outcomeKind === "buildable" || setbacks) {
+  } else if (!envelope && (outcomeKind === "buildable" || setbacks)) {
     // Proof atoms may omit geojson / pct — honest partial OK; do not fabricate.
     // When pct is absent, baked-facets marks buildable as pending (QA-3).
     // When silent axes exist, never publish a pct that treated them as 0 ft.

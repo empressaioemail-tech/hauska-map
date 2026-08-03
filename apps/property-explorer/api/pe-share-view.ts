@@ -278,7 +278,8 @@ export default async function handler(
     secret: peShareSecret(),
   })
   if (!access.ok) {
-    res.status(access.status).json({ error: access.error, message: access.message })
+    const _d = access as { status: number; error: string; message?: string }
+    res.status(_d.status).json({ error: _d.error, message: _d.message })
     return
   }
 

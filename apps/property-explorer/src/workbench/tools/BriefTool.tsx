@@ -28,8 +28,8 @@ import {
   runBriefResearch,
 } from "./brief-research";
 
-const MUTED = "#9aa6b2";
-const AMBER = "#fcd34d";
+const MUTED = "var(--surface-muted, #94A3B8)";
+const AMBER = "var(--semantic-warning, #F59E0B)"; // caution/progress notice (was raw yellow #fcd34d)
 
 /** The chassis-stored (per-property, JSON-serializable) brief tool state. */
 export interface BriefToolStoredState {

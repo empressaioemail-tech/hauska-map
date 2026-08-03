@@ -9,8 +9,8 @@
 
 import { UnlockChoices } from "./UnlockFlow";
 
-const PANEL_BG = "rgba(13,17,23,0.96)";
-const MUTED = "#8b97a5";
+const PANEL_BG = "var(--surface-panel-translucent, rgba(13,17,23,0.9))";
+const MUTED = "var(--surface-muted, #94A3B8)";
 
 export function PaywallGate({
   parcelNodeId,
@@ -52,8 +52,8 @@ export function PaywallGate({
           padding: "20px 18px",
           borderRadius: 12,
           background: PANEL_BG,
-          border: "0.5px solid rgba(125,211,252,0.35)",
-          color: "#e6edf3",
+          border: "0.5px solid var(--brand-blue-border-soft, rgba(59,130,246,0.28))",
+          color: "var(--text-strong, #e6edf3)",
           fontFamily: "system-ui, sans-serif",
         }}
       >

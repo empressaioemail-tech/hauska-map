@@ -52,10 +52,10 @@ import {
 export const DOSSIER_PAYWALL_MESSAGE =
   "The property X-ray PDF — verdict, cited brief facts, your notes and AI research summary, with the site-plan sheets appended.";
 
-const MUTED = "#9aa6b2";
-const AMBER = "#fcd34d";
-const TEXT = "#e5e7eb";
-const ACCENT = "#7dd3fc";
+const MUTED = "var(--surface-muted, #94A3B8)";
+const AMBER = "var(--semantic-warning, #F59E0B)"; // sign-in / caution notice (was raw yellow #fcd34d)
+const TEXT = "var(--text-body, #e5e7eb)";
+const ACCENT = "var(--brand-blue, #3B82F6)"; // PRIMARY interactive hue (was cyan #7dd3fc)
 
 type ListPhase =
   | { kind: "loading" }
@@ -214,7 +214,7 @@ export function PropertiesList({
             color: "#0d1117",
             background: ACCENT,
             border: "none",
-            borderRadius: 6,
+            borderRadius: "var(--btn-radius, 9px)",
             cursor: busy ? "default" : "pointer",
             opacity: busy ? 0.6 : 1,
           }}

@@ -15,7 +15,6 @@
 
 import type { LayerKey } from "@hauska/map-renderer";
 import { LAYER_REGISTRY } from "../../../../packages/map-renderer/src/layer-registry.js";
-import { COLD_OPEN_VISIBLE_LAYERS } from "../../../../packages/map-renderer/src/map/layer-role-taxonomy.js";
 
 export const CONSUMER_EXCLUDED_LAYERS = new Set<LayerKey>([
   "rent-heat",
@@ -66,9 +65,38 @@ export function consumerKnownLayers(): Set<LayerKey> {
   return next;
 }
 
-/** Phase 0A cold-open visible set for PE (≤3 map layers; pins are chrome). */
+/** Layers that stay OFF by default on cold-open (still toggle-able in the panel). */
+export const COLD_OPEN_OFF_BY_DEFAULT = new Set<LayerKey>([
+  // Zoning / land-use initializes UNCHECKED — the operator's default is
+  // "all layers except zoning" plus aerial ON (2026-08-03). The TOGGLE stays,
+  // so a user can turn zoning on; only the landing default changes.
+  "zoning" as LayerKey,
+]);
+
+/**
+ * Cold-open visible set for PE.
+ *
+ * Operator want (REBRAND map-chrome, updated 2026-08-03): when a user lands,
+ * EVERY consumer layer initializes ON by default EXCEPT zoning/land-use (which
+ * starts OFF/unchecked). The satellite/aerial base is a SEPARATE basemap toggle
+ * (not a member of this set) and now defaults ON via MapToolset's
+ * `defaultSatellite` prop. So cold-open visible == the full consumer-eligible
+ * catalog minus `COLD_OPEN_OFF_BY_DEFAULT`.
+ *
+ * Net on landing: Satellite/aerial, Contours, FEMA flood, GIS Parcel,
+ * Hydrography, My properties, Opportunity Zone, Regulatory floodway,
+ * Sidewalks — ON; Zoning/land use — OFF.
+ *
+ * This changes DEFAULTS only — every toggle in the LAYERS panel still works, so
+ * a user can turn any layer on/off. `consumerKnownLayers()` already applies the
+ * `CONSUMER_EXCLUDED_LAYERS` filter (drops rent-heat, hydrology-flow,
+ * dem-hillshade); we additionally drop the off-by-default keys here.
+ */
 export function consumerColdOpenVisible(): Set<LayerKey> {
-  return filterConsumerLayers(
-    new Set(COLD_OPEN_VISIBLE_LAYERS as readonly LayerKey[]),
-  );
+  const next = new Set<LayerKey>();
+  for (const key of consumerKnownLayers()) {
+    if (COLD_OPEN_OFF_BY_DEFAULT.has(key)) continue;
+    next.add(key);
+  }
+  return next;
 }
