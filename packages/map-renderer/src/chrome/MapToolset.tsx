@@ -36,7 +36,6 @@ import type { LayerKey, LayerDef } from "../postMessage";
 import {
   asMaplibreMap,
   setSatelliteBase,
-  SATELLITE_ATTRIBUTION,
 } from "./satelliteBase";
 import {
   installMapTools,
@@ -656,26 +655,12 @@ export function MapToolset({
         {panelInner}
       </div>
 
-      {/* Esri attribution while satellite is on (its terms require the credit).
-          Shown even while collapsed — the credit must stay visible whenever
-          the satellite base is. */}
-      {satellite && (
-        <div
-          style={{
-            maxWidth: 200,
-            padding: "3px 9px",
-            borderRadius: 5,
-            background: "rgba(13,17,23,0.82)",
-            border: "0.5px solid rgba(154,166,178,0.35)",
-            color: MUTED,
-            fontSize: 9.5,
-            fontWeight: 600,
-            pointerEvents: "none",
-          }}
-        >
-          {SATELLITE_ATTRIBUTION}
-        </div>
-      )}
+      {/* The required Esri imagery credit is NOT rendered here as a standing chip
+          anymore — it produced a dark "Imagery: Esri…" strip above this bubble on
+          load (satellite is on by default), colliding with the ⓘ / layers cluster.
+          The credit now lives, collapse-only, inside the app's MapSourceInfo ⓘ
+          "Sources" panel (© OSM / © CARTO + SATELLITE_ATTRIBUTION), which is the
+          single attribution place. See MapCornerChrome.tsx / ExplorerMap.tsx. */}
 
       {/* The bubble: always visible, toggles the panel. */}
       <button
