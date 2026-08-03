@@ -1,14 +1,22 @@
 /**
- * Attribution control placement fence (map polish, 2026-07-29).
+ * Attribution control placement fence (map polish, 2026-07-29; attribution-fold
+ * 2026-08-03).
  *
  * LICENSING CONSTRAINT: OSM (ODbL) and the CARTO basemap terms REQUIRE visible
- * attribution — the control must exist. This test pins the implementation:
- *   1. The Map is constructed with `attributionControl: false` (no default
- *      bottom-right control carrying the "MapLibre |" prefix).
- *   2. An explicit AttributionControl IS added — compact: true, at
- *      "bottom-left" — so the credits stay visible while the lower-right
- *      corner belongs solely to the toolset bubble.
- *   3. No customAttribution is passed (drops the optional "MapLibre |" prefix;
+ * attribution — the credit must exist SOMEWHERE. This test pins the
+ * implementation:
+ *   1. The Map is ALWAYS constructed with `attributionControl: false` (no
+ *      default bottom-right control carrying the "MapLibre |" prefix).
+ *   2. DEFAULT path (e.g. Command Center's LiveMapTile, which does NOT surface
+ *      the basemap credit in its own chrome): an explicit AttributionControl IS
+ *      added — compact: true, at "bottom-right" — so the required credits stay
+ *      visible.
+ *   3. SUPPRESSED path (createMapRenderer({ suppressAttributionControl: true }),
+ *      used by Property Explorer): NO AttributionControl is mounted, because PE
+ *      folds the exact © OSM / © CARTO / Esri credits into its MapSourceInfo ⓘ
+ *      "Sources" panel — mounting the control too would pile two attribution UIs
+ *      into the same lower-right corner.
+ *   4. No customAttribution is passed (drops the optional "MapLibre |" prefix;
  *      MapLibre does not require credit). The © OSM © CARTO / Esri credits
  *      flow from the style/source `attribution` strings, which stay intact.
  *
@@ -83,7 +91,7 @@ globalThis.ResizeObserver = class {
 
 const { createMapRenderer } = await import("./map-renderer.js");
 
-test("map mounts with default attribution OFF and a compact bottom-left AttributionControl", () => {
+test("DEFAULT path: default attribution OFF, a compact bottom-right AttributionControl mounted", () => {
   const r = createMapRenderer();
   r.bindContext({ useFixture: false });
   r.mount(fakeEl());
@@ -96,11 +104,9 @@ test("map mounts with default attribution OFF and a compact bottom-left Attribut
   assert.equal(map.opts.attributionControl, false);
 
   // 2. Explicit compact attribution at bottom-RIGHT — the required OSM/CARTO
-  //    credits stay mounted; moved off bottom-left (2026-08-03 rebrand sweep)
-  //    where the collapsed © CARTO credit collided with / sat behind the
-  //    lower-left Smart Site badge and read as a stray "cart.com". The credit is
-  //    REQUIRED (cannot be deleted); bottom-right co-locates it with the
-  //    source/attribution cluster (MapSourceInfo ⓘ + layers bubble).
+  //    credits stay mounted for consumers that do NOT surface them in their own
+  //    chrome (e.g. Command Center's LiveMapTile). The credit is REQUIRED
+  //    (cannot be deleted); bottom-right co-locates it with the toolset cluster.
   const attrib = map.controls.find(
     (c) => c.ctrl instanceof FakeAttributionControl,
   );
@@ -112,6 +118,37 @@ test("map mounts with default attribution OFF and a compact bottom-left Attribut
   assert.equal(attrib.ctrl.opts.customAttribution, undefined);
 
   // Navigation control unaffected (still top-right).
+  const nav = map.controls.find((c) => c.ctrl instanceof FakeNavigationControl);
+  assert.ok(nav);
+  assert.equal(nav.position, "top-right");
+
+  r.destroy();
+});
+
+test("SUPPRESSED path: no AttributionControl mounted (consumer folds the credits into its own chrome)", () => {
+  const r = createMapRenderer({ suppressAttributionControl: true });
+  r.bindContext({ useFixture: false });
+  r.mount(fakeEl());
+
+  const map = mapInstances[mapInstances.length - 1];
+  assert.ok(map, "a Map was constructed");
+
+  // Default control still off (no "MapLibre |" prefix control anywhere).
+  assert.equal(map.opts.attributionControl, false);
+
+  // NO explicit AttributionControl — PE renders the required © OSM / © CARTO /
+  // Esri credits in its MapSourceInfo ⓘ panel, so mounting the control too would
+  // pile two attribution UIs into the same lower-right corner.
+  const attrib = map.controls.find(
+    (c) => c.ctrl instanceof FakeAttributionControl,
+  );
+  assert.equal(
+    attrib,
+    undefined,
+    "no AttributionControl is mounted on the suppressed path",
+  );
+
+  // Navigation control still mounted (suppression is attribution-scoped only).
   const nav = map.controls.find((c) => c.ctrl instanceof FakeNavigationControl);
   assert.ok(nav);
   assert.equal(nav.position, "top-right");

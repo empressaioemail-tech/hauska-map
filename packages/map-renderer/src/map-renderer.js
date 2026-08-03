@@ -96,6 +96,10 @@ const SUBJECT_FALLBACK_ZOOM = 16.5;
 const EMPTY_FC = { type: "FeatureCollection", features: [] };
 
 /**
+ * @param {{ suppressAttributionControl?: boolean }} [options] When
+ *   `suppressAttributionControl` is true the renderer does NOT mount MapLibre's
+ *   AttributionControl; the consumer is responsible for surfacing the required
+ *   © OSM / © CARTO / Esri credits in its own chrome (see MapSourceInfo in PE).
  * @returns {{
  *   mount: (slot: HTMLElement) => void,
  *   resize: (width?: number, height?: number) => void,
@@ -116,7 +120,16 @@ const EMPTY_FC = { type: "FeatureCollection", features: [] };
  *   getSlots: () => object[],
  * }}
  */
-export function createMapRenderer() {
+export function createMapRenderer(options = {}) {
+  // When true, the consumer renders the REQUIRED tile attribution (© OSM /
+  // © CARTO, and the Esri imagery credit when satellite is on) in its OWN
+  // chrome — so this renderer must NOT also mount MapLibre's AttributionControl
+  // or the two attribution UIs pile up in the same corner. Property Explorer
+  // sets this (it folds the credits into the MapSourceInfo ⓘ "Sources" panel).
+  // Consumers that do NOT surface the credits themselves (e.g. Command Center's
+  // LiveMapTile, which only credits the parcel provider) leave this false so the
+  // MapLibre control keeps carrying the legally-required basemap credits.
+  const suppressAttributionControl = options.suppressAttributionControl === true;
   let slotEl = null;
   let mapEl = null;
   let map = null;
@@ -208,24 +221,28 @@ export function createMapRenderer() {
     map.addControl(new maplibregl.NavigationControl({ showCompass: true, visualizePitch: true }), "top-right");
 
     // REQUIRED basemap attribution — compact, bottom-RIGHT. OSM (ODbL) and the
-    // CARTO basemap terms REQUIRE visible attribution, so this control must
-    // never be removed; `compact: true` collapses it to the ⓘ toggle so it
-    // stays out of the way. Passing an explicit options object (no
-    // customAttribution) drops maplibre's default "MapLibre |" prefix —
-    // MapLibre itself does not require credit. Tile-source credits (© OSM
+    // CARTO basemap terms REQUIRE visible attribution; `compact: true` collapses
+    // it to the ⓘ toggle so it stays out of the way. Passing an explicit options
+    // object (no customAttribution) drops maplibre's default "MapLibre |" prefix
+    // — MapLibre itself does not require credit. Tile-source credits (© OSM
     // © CARTO, plus the Esri line while the satellite base raster is visible)
     // flow in automatically from each source's `attribution` string.
     //
-    // MOVED from "bottom-left" (2026-08-03 rebrand sweep): the collapsed © CARTO
-    // credit collided with / sat behind the lower-left SmartSiteBadge, and read
-    // as a stray "cart.com". The credit is REQUIRED so it cannot be deleted;
-    // repositioning to bottom-right frees the badge corner and puts the tile
-    // credit in the same corner as the MapSourceInfo ⓘ / layers cluster, which
-    // is the single source-of-attribution corner for the app.
-    map.addControl(
-      new maplibregl.AttributionControl({ compact: true }),
-      "bottom-right",
-    );
+    // SUPPRESSED for consumers that render the required credits in their own
+    // chrome (suppressAttributionControl): Property Explorer folds the exact
+    // credit lines into its MapSourceInfo ⓘ "Sources" panel, so mounting this
+    // control too would pile TWO attribution UIs into the same lower-right corner
+    // (a free-floating "Imagery: Esri…" strip overlapping the ⓘ / layers
+    // bubbles). One attribution place, not two. Consumers that do NOT surface the
+    // credits themselves (Command Center's LiveMapTile) leave the flag false so
+    // this control keeps carrying the legally-required © OSM / © CARTO / Esri
+    // credits.
+    if (!suppressAttributionControl) {
+      map.addControl(
+        new maplibregl.AttributionControl({ compact: true }),
+        "bottom-right",
+      );
+    }
 
     map.on("load", () => {
       styleReady = true;

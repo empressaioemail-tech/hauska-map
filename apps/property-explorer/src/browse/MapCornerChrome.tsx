@@ -8,11 +8,14 @@
 //    transient scroll notifications (TransientChips) were removed as redundant
 //    chrome (the inspect card already carries the honest-absence signal).
 //
-//  - MapSourceInfo — the REQUIRED source/attribution tag, moved from the
-//    lower-left (and from the fading transient toasts) to a small circular ⓘ
-//    bubble in the LOWER-RIGHT, BESIDE (to the left of) the layers bubble on the
-//    same row (repositioned 2026-08-03 from above-the-layers-bubble). Collapsed
-//    by default; clicking the ⓘ expands the attribution. Styled to match the layers bubble
+//  - MapSourceInfo — the REQUIRED source/attribution tag AND the single
+//    attribution place for the map (the map-renderer no longer mounts MapLibre's
+//    AttributionControl on the PE mount path, so the two attribution UIs no
+//    longer pile up in the lower-right corner). A small circular ⓘ bubble in the
+//    LOWER-RIGHT, BESIDE (to the left of) the layers bubble on the same row.
+//    Collapsed by default; clicking the ⓘ expands the panel, which shows the
+//    live per-parcel/layer provenance PLUS the required basemap/imagery credit
+//    (© OSM / © CARTO, Esri World Imagery). Styled to match the layers bubble
 //    (same 44px circle / border / shadow / panel chrome). The ⓘ uses
 //    --brand-blue per the design system (blue = info affordance).
 //
@@ -20,10 +23,24 @@
 // source lines are the live provenance strings the map already computed.
 
 import { useState } from "react";
+import { SATELLITE_ATTRIBUTION } from "./satelliteBase";
 
 /** PANEL chrome matched to the lower-right layers bubble (MapToolset). */
 const PANEL_BG = "rgba(13,17,23,0.9)";
 const PANEL_BORDER = "0.5px solid rgba(154,166,178,0.28)";
+
+// REQUIRED tile/basemap attribution — folded here so this ⓘ "Sources" panel is
+// the SINGLE attribution place for the map. The map-renderer no longer mounts
+// MapLibre's AttributionControl on the PE mount path (suppressAttributionControl),
+// so these credits must live in the app chrome. OSM (ODbL) and the CARTO basemap
+// terms require the © OSM / © CARTO credit whenever the basemap is shown (always);
+// Esri's terms require the imagery credit whenever World Imagery CAN be shown.
+// Both basemaps are always mountable on this surface, so both are always credited
+// (always-showing the required credit is safe + compliant, per the design ruling).
+const BASEMAP_ATTRIBUTION = "© OpenStreetMap © CARTO";
+// SATELLITE_ATTRIBUTION = "Imagery: Esri, Maxar, Earthstar Geographics, GIS User
+// Community" — the exact string the suppressed MapLibre control used to carry.
+const REQUIRED_ATTRIBUTION_LINES = [BASEMAP_ATTRIBUTION, SATELLITE_ATTRIBUTION];
 
 /**
  * Lower-left Smart Site brand chip. Static, non-interactive; pointer-events
@@ -98,7 +115,8 @@ export function MapSourceInfo({
 }) {
   const [open, setOpen] = useState(false);
   if (isMobile) return null; // the layers sheet owns the lower-right on mobile
-  if (lines.length === 0) return null;
+  // NOTE: no early-return on empty `lines` — the REQUIRED tile/basemap
+  // attribution below must always be reachable, so the ⓘ bubble always renders.
 
   return (
     <div
@@ -159,6 +177,35 @@ export function MapSourceInfo({
             {line}
           </div>
         ))}
+
+        {/* REQUIRED tile/basemap attribution — the single attribution place
+            (the MapLibre control is suppressed on this mount path). Separated
+            from the live provenance lines by a hairline so it reads as the
+            standing basemap/imagery credit, not per-parcel provenance. */}
+        <div
+          data-testid="map-source-info-attribution"
+          style={{
+            marginTop: lines.length > 0 ? 6 : 0,
+            paddingTop: lines.length > 0 ? 6 : 0,
+            borderTop: lines.length > 0 ? PANEL_BORDER : "none",
+            display: "flex",
+            flexDirection: "column",
+            gap: 3,
+          }}
+        >
+          {REQUIRED_ATTRIBUTION_LINES.map((line, i) => (
+            <div
+              key={i}
+              style={{
+                fontSize: 10,
+                lineHeight: 1.35,
+                color: "var(--surface-muted, #94A3B8)",
+              }}
+            >
+              {line}
+            </div>
+          ))}
+        </div>
       </div>
 
       {/* The ⓘ bubble — always visible, toggles the panel. Same size/shape/

@@ -1401,6 +1401,12 @@ function ExplorerMapSurface({
         ref={mapRef}
         floating={false}
         useFixture={false}
+        // The required © OSM / © CARTO / Esri credits are folded into the
+        // MapSourceInfo ⓘ "Sources" panel below, so MapLibre's own
+        // AttributionControl is suppressed — otherwise TWO attribution UIs pile
+        // into the same lower-right corner (a floating imagery strip overlapping
+        // the ⓘ / layers bubbles). One attribution place, not two.
+        suppressAttributionControl
         // Mount-time seed ONLY (stable identity). Subject changes re-point the
         // live handle via rebindProperty — the center prop never re-points.
         center={DEFAULT_CENTER}
@@ -1453,9 +1459,13 @@ function ExplorerMapSurface({
           card). */}
       <SmartSiteBadge isMobile={isMobile} />
 
-      {/* Lower-right: the REQUIRED source/attribution, collapsed by default into
-          a circular ⓘ bubble next to the layers bubble (MapToolset). Clicking
-          the ⓘ expands the live source lines. */}
+      {/* Lower-right: the REQUIRED source/attribution AND the single attribution
+          place for the map, collapsed by default into a circular ⓘ bubble next
+          to the layers bubble (MapToolset). Clicking the ⓘ expands the live
+          source lines PLUS the required basemap/imagery credit (© OSM / © CARTO,
+          Esri) — MapLibre's own AttributionControl is suppressed on this mount
+          path (suppressAttributionControl above) so there is one credit UI, not
+          two overlapping in this corner. */}
       <MapSourceInfo lines={sourceLines} isMobile={isMobile} />
 
       {/* PE WORKBENCH (WB1): top-right bubble cluster + the ONE shared dock.
