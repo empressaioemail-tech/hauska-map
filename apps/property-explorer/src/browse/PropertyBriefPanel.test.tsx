@@ -48,6 +48,20 @@ describe("PropertyBriefPanel — zoned parcel", () => {
     expect(html).toContain('data-testid="brief-citations"');
   });
 
+  it("data-inspection loop: fact [n] anchors to its appendix row, source URL links out", () => {
+    // The fact [n] is a real anchor to its appendix row (not an inert <sup>).
+    expect(html).toContain('data-testid="brief-fact-citeref"');
+    expect(html).toContain('href="#brief-cite-1"');
+    // The appendix row carries the matching anchor target.
+    expect(html).toContain('id="brief-cite-1"');
+    // A fact whose provenance has a URL links the source label out.
+    expect(html).toContain('data-testid="brief-fact-source-link"');
+    expect(html).toContain("library.municode.com");
+    // Links/citations use brand-blue (the Export-PDF button keeps its cyan UI
+    // affordance — interaction-cyan is untouched there, per the design system).
+    expect(html).toContain("var(--brand-blue, #3B82F6)");
+  });
+
   it("has the close control and the Export X-ray PDF button", () => {
     expect(html).toContain('aria-label="Close"');
     expect(html).toContain('data-testid="brief-close"');
