@@ -1,5 +1,15 @@
 import { describe, it, expect } from "vitest";
-import { stripCortexEnvelopeProductTruth } from "../../api/_lib/pe-property-atoms";
+import {
+  isRetrievalAuthFailure,
+  stripCortexEnvelopeProductTruth,
+} from "../../api/_lib/pe-property-atoms";
+
+describe("isRetrievalAuthFailure", () => {
+  it("detects atom-chain HTTP 401 as auth/config failure", () => {
+    expect(isRetrievalAuthFailure("atom-chain HTTP 401")).toBe(true);
+    expect(isRetrievalAuthFailure("atom-chain HTTP 503")).toBe(false);
+  });
+});
 
 describe("stripCortexEnvelopeProductTruth (anti-zombie)", () => {
   it("nulls cortex envelope product truth and sets atom_path_pending", () => {
