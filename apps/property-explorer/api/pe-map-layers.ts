@@ -66,7 +66,7 @@ function missingGateResponse(res: VercelResponse): void {
 async function handleTopography(req: VercelRequest, res: VercelResponse): Promise<void> {
   const parsed = parseTopoRequest(req.body)
   if (!parsed.ok) {
-    res.status(400).json({ error: 'invalid_request', message: 'message' in parsed ? parsed.message : 'invalid request' })
+    res.status(400).json({ error: 'invalid_request', message: parsed.message })
     return
   }
   const gateToken = engineApiGateToken()
@@ -115,7 +115,7 @@ async function handleTopography(req: VercelRequest, res: VercelResponse): Promis
 async function handleHydrology(req: VercelRequest, res: VercelResponse): Promise<void> {
   const parsed = parseHydrologyRequest(req.body)
   if (!parsed.ok) {
-    res.status(400).json({ error: 'invalid_request', message: 'message' in parsed ? parsed.message : 'invalid request' })
+    res.status(400).json({ error: 'invalid_request', message: parsed.message })
     return
   }
   const gateToken = engineApiGateToken()
@@ -164,7 +164,7 @@ async function handleHydrology(req: VercelRequest, res: VercelResponse): Promise
 async function handleHydrography(req: VercelRequest, res: VercelResponse): Promise<void> {
   const parsed = parseHydrographyRequest(req.body)
   if (!parsed.ok) {
-    res.status(400).json({ error: 'invalid_request', message: 'message' in parsed ? parsed.message : 'invalid request' })
+    res.status(400).json({ error: 'invalid_request', message: parsed.message })
     return
   }
   const gateToken = engineApiGateToken()
@@ -220,7 +220,7 @@ async function handleHydrography(req: VercelRequest, res: VercelResponse): Promi
 async function handleOpportunityZone(req: VercelRequest, res: VercelResponse): Promise<void> {
   const parsed = parseOpportunityZoneRequest(req.body)
   if (!parsed.ok) {
-    res.status(400).json({ error: 'invalid_request', message: 'message' in parsed ? parsed.message : 'invalid request' })
+    res.status(400).json({ error: 'invalid_request', message: parsed.message })
     return
   }
   try {
