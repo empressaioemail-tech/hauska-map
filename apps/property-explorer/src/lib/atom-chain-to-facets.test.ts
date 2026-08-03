@@ -407,6 +407,40 @@ describe("mergeBakedBaseFacts — atom path + baked base facts (item 6)", () => 
   });
 });
 
+describe("adaptAtomChainToBakedFacets — warm verify honest decline (141364 / superseded-prop-id)", () => {
+  it("surfaces named superseded-prop-id decline instead of setback-rule-pending", () => {
+    const chain: PropertyAtomChain = {
+      parcelNodeId: "48021:141364",
+      zoningFact: {
+        district: "MU",
+        sourceAdapter: "txgio-zoning-stamp:bastrop-city-tx",
+        extractedAt: "2026-07-30T02:29:02.155Z",
+      },
+      setbackRule: null,
+      buildableEnvelope: {
+        outcome: {
+          kind: "no-buildable-area",
+          reason: "prop_id 141364 absent from county cadastral — superseded",
+        },
+        warmVerifyDeclineCode: "superseded-prop-id",
+        warmVerifyDecline:
+          "prop_id 141364 absent from county cadastral — superseded; re-key manifest to successor parcel(s)",
+        sourceCitation: "depth-warm-verify-decline",
+        extractedAt: "2026-08-03T15:11:03.320Z",
+      },
+      atoms: [{}, {}],
+    };
+    const resp = adaptAtomChainToBakedFacets(chain);
+    expect(resp).not.toBeNull();
+    expect(resp!.snapshotAt).toBe("2026-08-03T15:11:03.320Z");
+    expect(resp!.facets.envelope?.status).toBe("declined");
+    expect(resp!.facets.envelope?.declineReason).toBe("superseded-prop-id");
+    expect(resp!.facets.envelope?.disclosure).toMatch(/superseded/i);
+    expect(resp!.facets.facetCoverage?.envelope).toBe(false);
+    expect(JSON.stringify(resp)).not.toMatch(/setback-rule-pending/);
+  });
+});
+
 describe("adaptAtomChainToBakedFacets — P-5 silent axes keep warm area (Track B3)", () => {
   it("publishes buildableAreaSqFt when outcome is buildable even if side/rear not_specified", () => {
     const resp = adaptAtomChainToBakedFacets(bastropGold34785Chain);
