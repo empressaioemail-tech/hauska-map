@@ -20,6 +20,7 @@ import {
 } from "./share/share-landing";
 import { fetchSession } from "./lib/auth";
 import { recordPeGtmEvent } from "./lib/gtmClient";
+import { SmartSiteLockup } from "./brand/SmartSiteLockup";
 
 const COLD_OPEN_DISMISSED_KEY = "pe_cold_open_dismissed";
 
@@ -128,6 +129,33 @@ function MapApp() {
     >
       {/* The live map is ALWAYS mounted underneath — it boots first. */}
       <ExplorerMap />
+
+      {/* Quiet Smart Site brand chip — bottom-left of the map viewport. A
+          decorative brand anchor: above the map, below the cold-open scrim
+          (zIndex 15) and modals (SignUpCard zIndex 20). Non-interactive for
+          v1 (no onClick). Sibling to the map — never inside it. */}
+      <div
+        data-testid="smart-site-brand-chip"
+        aria-hidden={coldOpen}
+        style={{
+          position: "absolute",
+          left: 12,
+          bottom: 12,
+          zIndex: 14,
+          display: "inline-flex",
+          alignItems: "center",
+          padding: "6px 12px",
+          borderRadius: 10,
+          background: "rgba(17,21,28,0.85)",
+          border: "0.5px solid rgba(154,166,178,0.28)",
+          boxShadow: "0 4px 14px rgba(0,0,0,0.35)",
+          backdropFilter: "blur(6px)",
+          pointerEvents: "none",
+          userSelect: "none",
+        }}
+      >
+        <SmartSiteLockup size={24} fontSize={13} gap={8} />
+      </div>
 
       {coldOpen && (
         <>

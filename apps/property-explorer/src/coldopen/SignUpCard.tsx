@@ -12,6 +12,7 @@ import {
   type AuthStatus,
 } from "../lib/auth";
 import { recordPeGtmEvent } from "../lib/gtmClient";
+import { SmartSiteLockup } from "../brand/SmartSiteLockup";
 
 const CARD_BG = "rgba(17, 21, 28, 0.92)";
 const ACCENT = "#7dd3fc";
@@ -71,7 +72,7 @@ export function SignUpCard({ onDismiss }: { onDismiss: () => void }) {
           padding: "28px 28px 24px",
           borderRadius: 16,
           background: CARD_BG,
-          border: "0.5px solid rgba(125,211,252,0.35)",
+          border: "0.5px solid rgba(245,185,92,0.35)",
           boxShadow: "0 24px 80px rgba(0,0,0,0.55)",
           color: "#e9eef5",
           fontFamily:
@@ -80,15 +81,12 @@ export function SignUpCard({ onDismiss }: { onDismiss: () => void }) {
         }}
       >
         <div
+          data-testid="signup-eyebrow"
           style={{
-            fontSize: 12,
-            fontWeight: 700,
-            letterSpacing: "0.16em",
-            color: ACCENT,
             marginBottom: 14,
           }}
         >
-          EMPRESSA
+          <SmartSiteLockup size={14} fontSize={12} gap={7} />
         </div>
 
         <h1

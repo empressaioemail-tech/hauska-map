@@ -31,6 +31,7 @@ import { useMobilePanel } from "../browse/MobilePanelContext";
 import type { WorkbenchHostActions, WorkbenchToolDef } from "./types";
 import { WorkbenchProvider } from "./WorkbenchContext";
 import type { WorkbenchToolStateStore } from "./tool-state-store";
+import { SmartSiteMark } from "../brand/SmartSiteMark";
 
 const CARD_BG = "rgba(13,17,23,0.94)";
 const BORDER = "1px solid rgba(154,166,178,0.35)";
@@ -265,7 +266,15 @@ export function Workbench({
               borderBottom: "1px solid rgba(154,166,178,0.2)",
             }}
           >
-            <strong style={{ fontSize: 12.5 }}>{openTool.label}</strong>
+            {/* Smart Site brand anchor — the crosshair mark sits first in the
+                dock header, to the LEFT of the active tool label. Decorative
+                only (non-interactive for v1). */}
+            <div
+              style={{ display: "flex", alignItems: "center", gap: 8, minWidth: 0 }}
+            >
+              <SmartSiteMark size={14} />
+              <strong style={{ fontSize: 12.5 }}>{openTool.label}</strong>
+            </div>
             <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
               {canExpand && (
                 <button
