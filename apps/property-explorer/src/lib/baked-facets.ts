@@ -26,9 +26,13 @@
 
 import { formatSetbackDisplay } from "../../api/_lib/setback-not-specified";
 import { mapBuildableDisplay } from "./buildable-display-vocab";
-import type { EnvelopeProvenanceRefs } from "./buildable-envelope.js";
+import type {
+  EnvelopeProvenanceRefs,
+  SetbackFieldProvenance,
+  SetbackFieldNotes,
+} from "./buildable-envelope.js";
 
-export type { EnvelopeProvenanceRefs };
+export type { EnvelopeProvenanceRefs, SetbackFieldProvenance, SetbackFieldNotes };
 
 /** The baked Tier-1 facet payload, mirrored from the backend contract. */
 export interface BakedFacetPayload {
@@ -68,6 +72,21 @@ export interface BakedFacetPayload {
         rear?: boolean;
         sideCorner?: boolean;
       };
+      /**
+       * Per-axis governing-rule references for a not_specified cell (Elgin
+       * setback-table ratification, 2026-08-04 directive 1). Present only
+       * once a served table carries them — a conditional cell without this
+       * still renders the pre-existing "not specified (build-to-line
+       * governs)" treatment, never a bare dash claiming more than the data
+       * supports.
+       */
+      governedBy?: SetbackFieldProvenance | null;
+      /**
+       * Per-axis provenance notes (ratification directive 2: "details spell
+       * out in the X-ray") — the fuller rule text (story-split side yards,
+       * corner cases, formula rears) behind the modeled minimum scalar.
+       */
+      fieldNotes?: SetbackFieldNotes | null;
     };
     buildableAreaPct?: number;
     buildableAreaSqFt?: number;
@@ -184,6 +203,12 @@ export interface BakedCardModel {
    * Null on every payload today — no baked backend serves it yet.
    */
   provenanceRefs: EnvelopeProvenanceRefs | null;
+  /** Per-axis governing-rule references, threaded from
+   *  envelope.setbacks.governedBy. Null when the payload carries none. */
+  setbackGovernedBy: SetbackFieldProvenance | null;
+  /** Per-axis provenance notes for the X-ray/detail surface, threaded from
+   *  envelope.setbacks.fieldNotes. Null when the payload carries none. */
+  setbackFieldNotes: SetbackFieldNotes | null;
 }
 
 function present<T>(value: T): CardFacet<T> {
@@ -315,7 +340,7 @@ export function deriveBakedCardModel(payload: BakedFacetPayload): BakedCardModel
   );
   const setbacks =
     hasEnvelope && s
-      ? present(formatSetbackDisplay(s))
+      ? present(formatSetbackDisplay(s, s.governedBy ?? null))
       : zoningDecline === "atom_path_pending"
         ? pending("Loading setbacks…")
         : absent<string>();
@@ -376,6 +401,8 @@ export function deriveBakedCardModel(payload: BakedFacetPayload): BakedCardModel
     },
     bakedAt: payload.bakedAt ?? null,
     provenanceRefs: env?.provenanceRefs ?? null,
+    setbackGovernedBy: s?.governedBy ?? null,
+    setbackFieldNotes: s?.fieldNotes ?? null,
   };
 }
 

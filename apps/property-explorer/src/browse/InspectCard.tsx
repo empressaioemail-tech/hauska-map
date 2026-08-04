@@ -31,6 +31,8 @@ import { useMobilePanel } from "./MobilePanelContext";
 import {
   fetchBuildableEnvelope,
   type EnvelopeProvenanceRefs,
+  type SetbackFieldProvenance,
+  type SetbackFieldNotes,
 } from "../lib/buildable-envelope.js";
 import {
   fetchBakedNodeFacets,
@@ -40,7 +42,11 @@ import {
 } from "../lib/baked-facets";
 import { CORTEX_PROXY_BASE, PE_FACETS_PROXY_BASE } from "../lib/config";
 import { Button } from "../components/Button";
-import { AtomChip, AtomDetailPopover } from "../shared/atom-chip";
+import {
+  AtomChip,
+  AtomDetailPopover,
+  ATOM_ACCENT_BORDER,
+} from "../shared/atom-chip";
 
 const CARD_BG = "var(--surface-card-translucent, rgba(13,17,23,0.94))";
 const MUTED = "var(--surface-muted, #94A3B8)";
@@ -55,6 +61,8 @@ interface EnvelopeState {
     side_interior_ft?: number | null;
     side_corner_ft?: number | null;
     district: string | null;
+    governedBy?: SetbackFieldProvenance | null;
+    fieldNotes?: SetbackFieldNotes | null;
   } | null;
   summary?: Record<string, unknown> | null;
   disclosure?: string | null;
@@ -165,6 +173,9 @@ export function InspectCard({
   const [openChipDid, setOpenChipDid] = useState<string | null>(null);
   const toggleChip = (did: string) =>
     setOpenChipDid((cur) => (cur === did ? null : did));
+  // X-ray rule-details disclosure (ratification directive 2): collapsed by
+  // default, independent of the provenance-chip popover state above.
+  const [xrayOpen, setXrayOpen] = useState(false);
 
   // Effect: PREFER the baked snapshot; fall back to the live envelope ONLY when
   // the node isn't baked. NO AI on either path — the baked read is a pure DB
@@ -279,6 +290,19 @@ export function InspectCard({
   const openChip = openChipDid
     ? findOpenChip(provenanceRefs, openChipDid)
     : null;
+
+  // Unified setback field-notes, same baked/live pattern as provenanceRefs
+  // above — whichever source served the card carries them, or doesn't (both
+  // branches degrade to "no X-ray detail" identically).
+  const setbackFieldNotes: SetbackFieldNotes | null =
+    source === "baked"
+      ? (baked?.setbackFieldNotes ?? null)
+      : source === "live"
+        ? (env.setbacks?.fieldNotes ?? null)
+        : null;
+  const hasSetbackXrayDetail =
+    !!setbackFieldNotes &&
+    Object.values(setbackFieldNotes).some((n) => typeof n === "string" && n.trim());
 
   return (
     <div
@@ -404,6 +428,20 @@ export function InspectCard({
           overwhelming default — no provenanceRefs on the response). */}
       {openChip && (
         <AtomDetailPopover did={openChip.did} label={openChip.label} />
+      )}
+
+      {/* X-ray rule details (ratification directive 2, 2026-08-04): the
+          modeled minimum setback scalar stays as-is above; the fuller rule
+          text (one-vs-two-story side-yard splits, corner cases, formula
+          rears) carried in the ratified table's per-field provenance notes
+          renders here, collapsed by default. Absent whenever the served
+          setback has no field notes — graceful, no empty affordance shown. */}
+      {hasSetbackXrayDetail && (
+        <SetbackXrayDetail
+          notes={setbackFieldNotes}
+          isOpen={xrayOpen}
+          onToggle={() => setXrayOpen((v) => !v)}
+        />
       )}
 
       {/* Honest coverage / disclosure states. */}
@@ -572,26 +610,144 @@ function honestAbsenceLine(m: BakedCardModel): string {
   return `Not verified in this area: ${list}${why}.`;
 }
 
-function liveSetbackLine(env: EnvelopeState): string | null {
+/**
+ * Governed-by fragment for the live-fallback line, same citation shape as
+ * setback-not-specified.ts#formatGovernedByFragment but not importing that
+ * (API-route-adjacent) module from this client path — a small structural
+ * duplicate, same as GovernedByAxis's own note there. Returns null when the
+ * axis carries no governed_by or the reference has no section_number (no
+ * cite, no renderable answer — falls back to the bare "—" dash, honest).
+ */
+function liveGovernedByFragment(
+  g: SetbackFieldProvenance["front"] | null | undefined,
+): string | null {
+  if (!g) return null;
+  const entries = g.conditions?.length ? g.conditions : [g];
+  const rendered = entries
+    .map((c) => {
+      if (!c.section_number) return null;
+      const value = typeof c.value_ft === "number" ? `${c.value_ft} ft` : null;
+      const routed = c.district ? `${c.district} governs` : null;
+      const head = value ?? routed;
+      if (!head) return null;
+      const condition = c.condition ? ` ${c.condition}` : "";
+      return `${head}${condition} (§${c.section_number})`;
+    })
+    .filter((s): s is string => Boolean(s));
+  return rendered.length ? rendered.join("; ") : null;
+}
+
+/** Exported test seam — the live-fallback path is only reachable through the
+ *  async effect, which renderToStaticMarkup can't drive; pin the pure
+ *  formatter directly, same rationale as chipsForRow/FacetRow/Row above. */
+export function liveSetbackLine(env: EnvelopeState): string | null {
   const s = env.setbacks;
   if (!s || (s.front_ft == null && s.side_ft == null && s.rear_ft == null)) {
     return null;
   }
   const sideInterior = s.side_interior_ft ?? s.side_ft;
   const sideCorner = s.side_corner_ft;
-  const sideLabel =
-    sideCorner != null &&
-    sideInterior != null &&
-    sideInterior !== sideCorner
+  const gb = s.governedBy;
+  const frontGoverned = s.front_ft == null ? liveGovernedByFragment(gb?.front) : null;
+  const sideGoverned = s.side_ft == null ? liveGovernedByFragment(gb?.side) : null;
+  const rearGoverned = s.rear_ft == null ? liveGovernedByFragment(gb?.rear) : null;
+  const sideLabel = sideGoverned
+    ? `S ${sideGoverned}`
+    : sideCorner != null &&
+        sideInterior != null &&
+        sideInterior !== sideCorner
       ? `S ${fmtFt(sideInterior)} · Corner ${fmtFt(sideCorner)}`
       : `S ${fmtFt(s.side_ft)}`;
-  return `F ${fmtFt(s.front_ft)} · ${sideLabel} · R ${fmtFt(s.rear_ft)}`;
+  const frontLabel = frontGoverned ? `F ${frontGoverned}` : `F ${fmtFt(s.front_ft)}`;
+  const rearLabel = rearGoverned ? `R ${rearGoverned}` : `R ${fmtFt(s.rear_ft)}`;
+  return `${frontLabel} · ${sideLabel} · ${rearLabel}`;
 }
 
 function liveBuildablePct(env: EnvelopeState): string | null {
   return env.summary && typeof env.summary.buildableAreaPct === "number"
     ? `${Math.round(env.summary.buildableAreaPct as number)}%`
     : null;
+}
+
+const XRAY_FIELD_LABELS: Record<keyof SetbackFieldNotes, string> = {
+  front: "Front",
+  side: "Side",
+  rear: "Rear",
+  sideCorner: "Side (corner)",
+};
+
+/**
+ * X-ray rule-details disclosure (ratification directive 2, 2026-08-04):
+ * "minimums display as modeled; details spell out in the X-ray." The
+ * modeled minimum setback scalar renders unchanged in the Setbacks row
+ * above; this surfaces the fuller rule text (one-vs-two-story side-yard
+ * splits, corner cases, formula rears) carried in the ratified table's
+ * per-field provenance notes. Collapsed by default — a tap expands it,
+ * same disclosure idiom as the provenance-chip popover (reuses
+ * ATOM_ACCENT_BORDER, no new visual system). Renders only fields that
+ * actually carry a note — graceful per-field absence, never a placeholder
+ * row for a field with nothing to say.
+ *
+ * Exported — same test-seam precedent as chipsForRow/FacetRow/Row above:
+ * renderToStaticMarkup never runs effects, so isOpen must be driven directly
+ * as a prop to pin both the collapsed and expanded render.
+ */
+export function SetbackXrayDetail({
+  notes,
+  isOpen,
+  onToggle,
+}: {
+  notes: SetbackFieldNotes | null;
+  isOpen: boolean;
+  onToggle: () => void;
+}) {
+  if (!notes) return null;
+  const entries = (Object.keys(XRAY_FIELD_LABELS) as Array<keyof SetbackFieldNotes>)
+    .map((key) => ({ key, label: XRAY_FIELD_LABELS[key], note: notes[key] }))
+    .filter((e): e is { key: keyof SetbackFieldNotes; label: string; note: string } =>
+      typeof e.note === "string" && e.note.trim().length > 0,
+    );
+  if (!entries.length) return null;
+  return (
+    <div style={{ marginTop: 6 }}>
+      <button
+        type="button"
+        data-testid="setback-xray-toggle"
+        aria-expanded={isOpen}
+        onClick={onToggle}
+        style={{
+          background: "transparent",
+          border: "none",
+          color: MUTED,
+          cursor: "pointer",
+          fontSize: 10.5,
+          padding: 0,
+          textDecoration: "underline",
+        }}
+      >
+        {isOpen ? "Hide setback rule details" : "Setback rule details"}
+      </button>
+      {isOpen && (
+        <div
+          data-testid="setback-xray-detail"
+          style={{
+            marginTop: 4,
+            padding: "5px 7px",
+            borderRadius: 6,
+            background: "rgba(154,166,178,0.10)",
+            border: `1px solid ${ATOM_ACCENT_BORDER}`,
+            fontSize: 10,
+          }}
+        >
+          {entries.map((e) => (
+            <p key={e.key} style={{ margin: "2px 0 0", color: MUTED }}>
+              <strong style={{ color: "#e6edf3" }}>{e.label}:</strong> {e.note}
+            </p>
+          ))}
+        </div>
+      )}
+    </div>
+  );
 }
 
 /** Inline provenance chips appended to a row's value — absent when the row
