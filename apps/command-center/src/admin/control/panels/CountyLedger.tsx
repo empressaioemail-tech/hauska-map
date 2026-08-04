@@ -150,9 +150,13 @@ export const CountyLedger: React.FC = () => {
                     </td>
                     <td style={{ padding: '4px 8px' }}>{f.facet}</td>
                     <td style={{ padding: '4px 8px', textAlign: 'right' }}>
+                      {/* honest_coverage_pct (numeric(5,2)) is ALREADY a 0..100
+                          percent value, not a 0..1 fraction — do not multiply
+                          by 100 here (that produced a 9801.0% render bug on a
+                          98.01 value). */}
                       {f.honestCoveragePct === null
                         ? '—'
-                        : `${(f.honestCoveragePct * 100).toFixed(1)}%`}
+                        : `${f.honestCoveragePct.toFixed(1)}%`}
                     </td>
                     <td style={{ padding: '4px 8px' }}>
                       <Pill sev={certSev(f.certState)}>{f.certState ?? 'uncerted'}</Pill>
