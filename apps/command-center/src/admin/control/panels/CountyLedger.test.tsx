@@ -6,7 +6,7 @@
 // must render "98.0%", not "9801.0%" (the old `* 100` bug).
 
 import { describe, it, expect, vi, beforeEach } from 'vitest'
-import { render, screen, waitFor } from '@testing-library/react'
+import { render, screen, waitFor, fireEvent, within } from '@testing-library/react'
 import { CountyLedger } from './CountyLedger'
 
 vi.mock('../../api/spineClient')
@@ -313,5 +313,279 @@ describe('CountyLedger', () => {
     expect(screen.queryByText(/uncerted/i)).not.toBeInTheDocument()
     // Zero registry rows carry cert.blockPass true, so the pill reads 0/1.
     expect(screen.getByText('0/1 certified')).toBeInTheDocument()
+  })
+})
+
+// ── Focused-fix expand: GET /api/onboarding-ledger/events (ldt PR #383) ──
+//
+// The v2 fixture above only exercises the closed-pill render (count > 0,
+// never expanded — the fetch is lazy and must not fire until the operator
+// opens the row). These fixtures drive the expand interaction itself:
+// grouped-by-defectClass render, pagination math, error state, and the
+// "no open findings" empty state distinct from "failed to load".
+
+const ONE_ROW_LEDGER_PAYLOAD = {
+  counties: [
+    {
+      countyFips: '48021',
+      countyName: 'Elgin',
+      onboarded: true,
+      hasStale: false,
+      rewarmUnsafe: false,
+      recipeVersions: ['1.0.0'],
+      certStates: [],
+      facets: [],
+      rows: [
+        {
+          rowId: 'Elgin',
+          countyName: 'Elgin',
+          gate: { passCount: 2, declineCount: 1, checks: [] },
+          cert: null,
+          openDefectClasses: [{ defectClass: 'ADAPTER-NEEDED', count: 3 }],
+          focusedFixCount: 3,
+        },
+      ],
+    },
+  ],
+  summary: { onboardedCount: 1, totalCounties: 1, staleCount: 0, rewarmUnsafeCount: 0 },
+}
+
+function mkEvent(overrides: Partial<{
+  id: string
+  ts: string
+  fips: string
+  rowId: string
+  parcelNodeId: string | null
+  sourceKind: string
+  railOrCheck: string | null
+  checkId: string | null
+  sweepId: string | null
+  declineReason: string | null
+  defectClass: string
+  severity: string | null
+  evidence: unknown
+  artifactRef: string | null
+  status: string
+  firstSeenAt: string
+  lastSeenAt: string
+  resolvedAt: string | null
+}>) {
+  return {
+    id: 'evt-1',
+    ts: '2026-08-01T00:00:00.000Z',
+    fips: '48021',
+    rowId: 'Elgin',
+    parcelNodeId: null,
+    sourceKind: 'preflight',
+    railOrCheck: 'railASourceReachable',
+    checkId: null,
+    sweepId: null,
+    declineReason: 'no Rail A layer wired',
+    defectClass: 'ADAPTER-NEEDED',
+    severity: null,
+    evidence: null,
+    artifactRef: null,
+    status: 'open',
+    firstSeenAt: '2026-08-01T00:00:00.000Z',
+    lastSeenAt: '2026-08-01T00:00:00.000Z',
+    resolvedAt: null,
+    ...overrides,
+  }
+}
+
+/** Opens the (only) focused-fix `<details>` on the page by firing `toggle`
+ *  directly — jsdom doesn't run native `<details>` disclosure triggers from
+ *  a plain click, so the component's onToggle handler is driven this way. */
+function openFocusedFixDetails(container: HTMLElement) {
+  const summary = within(container).getByText('3')
+  const details = summary.closest('details')
+  if (!details) throw new Error('focused-fix <details> not found')
+  Object.defineProperty(details, 'open', { value: true, writable: true, configurable: true })
+  fireEvent(details, new Event('toggle', { bubbles: false }))
+  return details
+}
+
+describe('CountyLedger — focused-fix expand', () => {
+  const mockLoadConfig = vi.mocked(spineClientModule.loadConfig)
+  const mockApiBase = vi.mocked(spineClientModule.apiBase)
+  const mockGetJson = vi.mocked(spineClientModule.getJson)
+
+  beforeEach(() => {
+    vi.clearAllMocks()
+    mockLoadConfig.mockReturnValue({
+      cortexApiUrl: '/api/spine/cortex',
+      mcpUrl: '/api/spine/mcp',
+      retrievalApiUrl: '/api/spine/retrieval',
+      hauskaKey: '',
+      installId: 'test',
+    })
+    mockApiBase.mockReturnValue('/api/spine/cortex')
+  })
+
+  it('does not fetch events until the row is expanded', async () => {
+    mockGetJson.mockResolvedValue({ ok: true, status: 200, json: ONE_ROW_LEDGER_PAYLOAD })
+
+    render(<CountyLedger />)
+    await waitFor(() => expect(screen.getByText('County Ledger')).toBeInTheDocument())
+
+    // Only the county-ledger call has fired — no /events call yet.
+    expect(mockGetJson).toHaveBeenCalledTimes(1)
+    expect(mockGetJson).toHaveBeenCalledWith(
+      expect.stringContaining('/api/county-ledger'),
+      expect.anything(),
+      expect.anything(),
+    )
+  })
+
+  it('expanding the row lazily fetches and renders events grouped by defectClass', async () => {
+    mockGetJson.mockImplementation(async (url: string) => {
+      if (url.includes('/api/county-ledger')) {
+        return { ok: true, status: 200, json: ONE_ROW_LEDGER_PAYLOAD }
+      }
+      if (url.includes('/api/onboarding-ledger/events')) {
+        return {
+          ok: true,
+          status: 200,
+          json: {
+            rowId: 'Elgin',
+            total: 3,
+            limit: 50,
+            offset: 0,
+            events: [
+              mkEvent({ id: 'evt-1', defectClass: 'ADAPTER-NEEDED', parcelNodeId: '48021:100' }),
+              mkEvent({ id: 'evt-2', defectClass: 'ADAPTER-NEEDED', parcelNodeId: '48021:101' }),
+              mkEvent({ id: 'evt-3', defectClass: 'BLOCK13-QUARANTINE', checkId: 'block13', declineReason: null }),
+            ],
+          },
+        }
+      }
+      return { ok: false, status: 404, json: null, error: 'unexpected url' }
+    })
+
+    const { container } = render(<CountyLedger />)
+    await waitFor(() => expect(screen.getByText('County Ledger')).toBeInTheDocument())
+
+    openFocusedFixDetails(container)
+
+    await waitFor(() => {
+      expect(mockGetJson).toHaveBeenCalledWith(
+        expect.stringContaining('/api/onboarding-ledger/events'),
+        expect.anything(),
+        expect.anything(),
+      )
+    })
+
+    const eventsCall = mockGetJson.mock.calls.find((c) => (c[0] as string).includes('/api/onboarding-ledger/events'))
+    expect(eventsCall?.[0]).toContain('rowId=Elgin')
+    expect(eventsCall?.[0]).toContain('status=open')
+    expect(eventsCall?.[0]).toContain('limit=50')
+    expect(eventsCall?.[0]).toContain('offset=0')
+
+    await waitFor(() => {
+      expect(screen.getByText('ADAPTER-NEEDED')).toBeInTheDocument()
+    })
+    expect(screen.getByText('BLOCK13-QUARANTINE')).toBeInTheDocument()
+    expect(screen.getByText('48021:100')).toBeInTheDocument()
+    expect(screen.getByText('48021:101')).toBeInTheDocument()
+    expect(screen.getByText('block13')).toBeInTheDocument()
+    expect(screen.getByText('1-3 of 3')).toBeInTheDocument()
+  })
+
+  it('shows an honest "no open findings" empty state, not an error, when the page comes back empty', async () => {
+    mockGetJson.mockImplementation(async (url: string) => {
+      if (url.includes('/api/county-ledger')) {
+        return { ok: true, status: 200, json: ONE_ROW_LEDGER_PAYLOAD }
+      }
+      if (url.includes('/api/onboarding-ledger/events')) {
+        return { ok: true, status: 200, json: { rowId: 'Elgin', total: 0, limit: 50, offset: 0, events: [] } }
+      }
+      return { ok: false, status: 404, json: null, error: 'unexpected url' }
+    })
+
+    const { container } = render(<CountyLedger />)
+    await waitFor(() => expect(screen.getByText('County Ledger')).toBeInTheDocument())
+
+    openFocusedFixDetails(container)
+
+    await waitFor(() => {
+      expect(screen.getByText('no open findings')).toBeInTheDocument()
+    })
+  })
+
+  it('shows "failed to load: <reason>", not a silent blank, on a fetch error', async () => {
+    mockGetJson.mockImplementation(async (url: string) => {
+      if (url.includes('/api/county-ledger')) {
+        return { ok: true, status: 200, json: ONE_ROW_LEDGER_PAYLOAD }
+      }
+      if (url.includes('/api/onboarding-ledger/events')) {
+        return { ok: false, status: 500, json: null, error: 'onboarding_ledger_events_read_failed' }
+      }
+      return { ok: false, status: 404, json: null, error: 'unexpected url' }
+    })
+
+    const { container } = render(<CountyLedger />)
+    await waitFor(() => expect(screen.getByText('County Ledger')).toBeInTheDocument())
+
+    openFocusedFixDetails(container)
+
+    await waitFor(() => {
+      expect(screen.getByText(/failed to load: onboarding_ledger_events_read_failed/)).toBeInTheDocument()
+    })
+  })
+
+  it('paginates: the next-page control fetches offset=50 and is absent once every event is on the page', async () => {
+    const page0 = {
+      rowId: 'Elgin',
+      total: 60,
+      limit: 50,
+      offset: 0,
+      events: Array.from({ length: 50 }, (_, i) =>
+        mkEvent({ id: `evt-${i}`, defectClass: 'ADAPTER-NEEDED', parcelNodeId: `48021:${i}` }),
+      ),
+    }
+    const page1 = {
+      rowId: 'Elgin',
+      total: 60,
+      limit: 50,
+      offset: 50,
+      events: Array.from({ length: 10 }, (_, i) =>
+        mkEvent({ id: `evt-${50 + i}`, defectClass: 'ADAPTER-NEEDED', parcelNodeId: `48021:${50 + i}` }),
+      ),
+    }
+    mockGetJson.mockImplementation(async (url: string) => {
+      if (url.includes('/api/county-ledger')) {
+        return { ok: true, status: 200, json: ONE_ROW_LEDGER_PAYLOAD }
+      }
+      if (url.includes('/api/onboarding-ledger/events')) {
+        return { ok: true, status: 200, json: url.includes('offset=50') ? page1 : page0 }
+      }
+      return { ok: false, status: 404, json: null, error: 'unexpected url' }
+    })
+
+    const { container } = render(<CountyLedger />)
+    await waitFor(() => expect(screen.getByText('County Ledger')).toBeInTheDocument())
+
+    openFocusedFixDetails(container)
+
+    await waitFor(() => {
+      expect(screen.getByText('1-50 of 60')).toBeInTheDocument()
+    })
+    // hasNextPage: offset(0) + events.length(50) < total(60) -> next control present.
+    const nextBtn = screen.getByText('next →')
+    expect(nextBtn).toBeInTheDocument()
+    expect(screen.queryByText('← prev')).not.toBeInTheDocument()
+
+    fireEvent.click(nextBtn)
+
+    await waitFor(() => {
+      expect(screen.getByText('51-60 of 60')).toBeInTheDocument()
+    })
+    // hasNextPage: offset(50) + events.length(10) == total(60) -> no further page.
+    expect(screen.queryByText('next →')).not.toBeInTheDocument()
+    expect(screen.getByText('← prev')).toBeInTheDocument()
+
+    const eventsCalls = mockGetJson.mock.calls.filter((c) => (c[0] as string).includes('/api/onboarding-ledger/events'))
+    expect(eventsCalls.some((c) => (c[0] as string).includes('offset=0'))).toBe(true)
+    expect(eventsCalls.some((c) => (c[0] as string).includes('offset=50'))).toBe(true)
   })
 })
