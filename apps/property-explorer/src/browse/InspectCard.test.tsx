@@ -8,9 +8,19 @@
 
 import { describe, expect, it } from "vitest";
 import { renderToStaticMarkup } from "react-dom/server";
-import { FacetRow, InspectCard, Row, chipsForRow } from "./InspectCard";
+import {
+  FacetRow,
+  InspectCard,
+  Row,
+  chipsForRow,
+  SetbackXrayDetail,
+  liveSetbackLine,
+} from "./InspectCard";
 import type { ParcelCardData } from "./liveGis";
-import type { EnvelopeProvenanceRefs } from "../lib/buildable-envelope.js";
+import type {
+  EnvelopeProvenanceRefs,
+  SetbackFieldNotes,
+} from "../lib/buildable-envelope.js";
 
 const noop = () => {};
 
@@ -278,5 +288,141 @@ describe("InspectCard full render — provenance chips do not disturb the defaul
         />,
       ),
     );
+  });
+
+  it("no setback field notes anywhere -> zero X-ray toggle affordance, card unchanged from before this feature", () => {
+    const html = renderToStaticMarkup(
+      <InspectCard
+        card={CARD}
+        parcelNodeId={null}
+        onClose={noop}
+        onMakeSubject={noop}
+        onResearch={noop}
+      />,
+    );
+    expect(html).not.toContain('data-testid="setback-xray-toggle"');
+    expect(html).not.toContain('data-testid="setback-xray-detail"');
+  });
+});
+
+// ---------------------------------------------------------------------------
+// X-ray rule details (ratification directive 2, 2026-08-04). Same
+// renderToStaticMarkup-can't-reach-effects constraint as the provenance-chip
+// suite above — SetbackXrayDetail is exported as a direct test seam so both
+// the collapsed and expanded states can be pinned without driving the full
+// card past source==="loading".
+// ---------------------------------------------------------------------------
+
+const FIELD_NOTES: SetbackFieldNotes = {
+  side:
+    "One-story: 10 ft. Two-story: 15 ft on the second story only, per §4.02.005(b).",
+  rear: "Formula rear: 20 ft plus 1 ft per additional story above two.",
+};
+
+describe("SetbackXrayDetail — collapsed by default, expands to the field notes", () => {
+  it("null notes -> renders nothing", () => {
+    const html = renderToStaticMarkup(
+      <SetbackXrayDetail notes={null} isOpen={false} onToggle={() => {}} />,
+    );
+    expect(html).toBe("");
+  });
+
+  it("notes present but all empty strings -> renders nothing (no placeholder affordance)", () => {
+    const html = renderToStaticMarkup(
+      <SetbackXrayDetail
+        notes={{ front: "", side: undefined }}
+        isOpen={false}
+        onToggle={() => {}}
+      />,
+    );
+    expect(html).toBe("");
+  });
+
+  it("collapsed (isOpen=false): shows the toggle affordance, not the detail body", () => {
+    const html = renderToStaticMarkup(
+      <SetbackXrayDetail notes={FIELD_NOTES} isOpen={false} onToggle={() => {}} />,
+    );
+    expect(html).toContain('data-testid="setback-xray-toggle"');
+    expect(html).toContain('aria-expanded="false"');
+    expect(html).not.toContain('data-testid="setback-xray-detail"');
+    expect(html).not.toContain("Formula rear");
+  });
+
+  it("expanded (isOpen=true): shows the per-field notes, labeled by axis", () => {
+    const html = renderToStaticMarkup(
+      <SetbackXrayDetail notes={FIELD_NOTES} isOpen={true} onToggle={() => {}} />,
+    );
+    expect(html).toContain('data-testid="setback-xray-detail"');
+    expect(html).toContain('aria-expanded="true"');
+    expect(html).toContain("Side:");
+    expect(html).toContain("One-story: 10 ft");
+    expect(html).toContain("Rear:");
+    expect(html).toContain("Formula rear: 20 ft plus 1 ft per additional story above two.");
+    // Front/sideCorner carry no note in this fixture — not rendered as empty rows.
+    expect(html).not.toContain("Front:");
+    expect(html).not.toContain("Side (corner):");
+  });
+});
+
+describe("liveSetbackLine — governed_by resolution on the live-fallback path (un-baked nodes)", () => {
+  it("no governedBy -> unchanged pre-existing dash behavior for a null axis", () => {
+    const line = liveSetbackLine({
+      status: "ok",
+      setbacks: { front_ft: null, side_ft: 10, rear_ft: 20, district: "R-1" },
+    });
+    expect(line).toBe("F — · S 10′ · R 20′");
+  });
+
+  it("a null front_ft WITH governedBy resolves to the cited governing value instead of a bare dash", () => {
+    const line = liveSetbackLine({
+      status: "ok",
+      setbacks: {
+        front_ft: null,
+        side_ft: 10,
+        rear_ft: 20,
+        district: "C-2",
+        governedBy: {
+          front: {
+            district: "C-1",
+            section_number: "4.03.010",
+          },
+        },
+      },
+    });
+    expect(line).toBe("F C-1 governs (§4.03.010) · S 10′ · R 20′");
+  });
+
+  it("governedBy present but NO section_number on the reference -> still the bare dash (no uncited claim)", () => {
+    const line = liveSetbackLine({
+      status: "ok",
+      setbacks: {
+        front_ft: null,
+        side_ft: 10,
+        rear_ft: 20,
+        district: "C-2",
+        governedBy: { front: { district: "C-1" } },
+      },
+    });
+    expect(line).toBe("F — · S 10′ · R 20′");
+  });
+
+  it("governedBy on an axis that DOES have a real value is ignored (never overrides a present number)", () => {
+    const line = liveSetbackLine({
+      status: "ok",
+      setbacks: {
+        front_ft: 25,
+        side_ft: 10,
+        rear_ft: 20,
+        district: "R-1",
+        governedBy: {
+          front: { value_ft: 999, section_number: "0.0.0" },
+        },
+      },
+    });
+    expect(line).toBe("F 25′ · S 10′ · R 20′");
+  });
+
+  it("no setbacks at all -> null (unchanged)", () => {
+    expect(liveSetbackLine({ status: "loading" })).toBeNull();
   });
 });

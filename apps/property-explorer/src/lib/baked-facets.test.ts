@@ -360,3 +360,73 @@ describe("deriveBakedCardModel — provenanceRefs (forward-compat, type-only)", 
     expect(m.provenanceRefs).toBeNull();
   });
 });
+
+describe("deriveBakedCardModel — governed_by resolution + X-ray field notes (Elgin ratification, 2026-08-04)", () => {
+  it("a not_specified axis with governedBy resolves in the rendered setbacks string, citing the section", () => {
+    const withGovernedBy: BakedFacetPayload = {
+      ...fullPayload,
+      envelope: {
+        status: "ok",
+        setbacks: {
+          front_ft: 0,
+          side_ft: 10,
+          rear_ft: 20,
+          not_specified: { front: true },
+          governedBy: {
+            front: {
+              value_ft: 25,
+              condition: "if adjoining a dwelling district",
+              section_number: "4.02.003",
+            },
+          },
+        },
+      },
+      facetCoverage: { ...fullPayload.facetCoverage, envelope: true },
+    };
+    const m = deriveBakedCardModel(withGovernedBy);
+    expect(m.setbacks.state).toBe("present");
+    expect(m.setbacks.value).toContain("F 25 ft if adjoining a dwelling district (§4.02.003)");
+    expect(m.setbackGovernedBy).toEqual(withGovernedBy.envelope!.setbacks!.governedBy);
+  });
+
+  it("GRACEFUL ABSENCE: no governedBy on the payload -> setbackGovernedBy null, setbacks render unchanged", () => {
+    const m = deriveBakedCardModel(fullPayload);
+    expect(m.setbackGovernedBy).toBeNull();
+    expect(m.setbacks).toEqual({ state: "present", value: "F 35′ · S 20′ · R 30′" });
+  });
+
+  it("fieldNotes thread onto the model for the X-ray surface, independent of governedBy", () => {
+    const withNotes: BakedFacetPayload = {
+      ...fullPayload,
+      envelope: {
+        status: "ok",
+        setbacks: {
+          front_ft: 25,
+          side_ft: 10,
+          rear_ft: 20,
+          fieldNotes: {
+            side: "One-story: 10 ft. Two-story: 15 ft on the second story only.",
+          },
+        },
+      },
+      facetCoverage: { ...fullPayload.facetCoverage, envelope: true },
+    };
+    const m = deriveBakedCardModel(withNotes);
+    // The modeled minimum scalar is UNCHANGED — the note doesn't alter the display value.
+    expect(m.setbacks).toEqual({ state: "present", value: "F 25′ · S 10′ · R 20′" });
+    expect(m.setbackFieldNotes).toEqual({
+      side: "One-story: 10 ft. Two-story: 15 ft on the second story only.",
+    });
+  });
+
+  it("GRACEFUL ABSENCE: no fieldNotes -> setbackFieldNotes null", () => {
+    const m = deriveBakedCardModel(fullPayload);
+    expect(m.setbackFieldNotes).toBeNull();
+  });
+
+  it("no envelope at all -> setbackGovernedBy and setbackFieldNotes are both null, not an error", () => {
+    const m = deriveBakedCardModel({ parcelNodeId: "48021:1" });
+    expect(m.setbackGovernedBy).toBeNull();
+    expect(m.setbackFieldNotes).toBeNull();
+  });
+});

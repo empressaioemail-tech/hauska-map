@@ -106,6 +106,11 @@ export function parcelNodeIdFromEnvelope(json, payload, props) {
 /**
  * The setbacks SLOT patched onto the subject node (front/side/rear/district),
  * matching the BE areaContext contract field names exactly. Null when absent.
+ *
+ * governedBy / fieldNotes are explicit passthroughs (same pattern as
+ * provenanceRefs below): undefined when the backend hasn't attached them
+ * (every response before the Elgin-shaped table lands), never fabricated.
+ * See buildable-envelope.d.ts GovernedBy / SetbackFieldNotes for shape.
  */
 export function setbacksFromProps(props) {
   const s = props?.setbacks;
@@ -116,6 +121,8 @@ export function setbacksFromProps(props) {
     side_ft: num(s.side_ft),
     rear_ft: num(s.rear_ft),
     district: typeof s.district === "string" ? s.district : null,
+    governedBy: s.governedBy ?? s.governed_by ?? undefined,
+    fieldNotes: s.fieldNotes ?? s.field_notes ?? undefined,
   };
 }
 
