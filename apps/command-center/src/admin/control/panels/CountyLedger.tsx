@@ -12,7 +12,7 @@
 // This is where the operator WATCHES Bastrop come online (the first subject) and
 // where staleness (the retirement rung) surfaces before it poisons the surface.
 import React, { useEffect, useState } from 'react'
-import { loadConfig, apiBase, getJson } from '../../api/spineClient'
+import { loadConfig, apiBase, getJson, type SpineConfig } from '../../api/spineClient'
 import { Panel, Pill, Loading, ErrorState, sectionHeader, mono, type Severity } from '../primitives'
 
 interface FacetRow {
@@ -52,6 +52,40 @@ interface OpenDefectClass {
   defectClass: string
   count: number
 }
+
+/** One onboarding_ledger_event row, as served by GET /api/onboarding-ledger/events
+ *  (ldt PR #383, OPS-9 S1 follow-on). Empty-string storage sentinels are already
+ *  normalized to null on the wire by that route — this type mirrors that contract. */
+interface LedgerEvent {
+  id: string
+  ts: string
+  fips: string
+  rowId: string
+  parcelNodeId: string | null
+  sourceKind: string
+  railOrCheck: string | null
+  checkId: string | null
+  sweepId: string | null
+  declineReason: string | null
+  defectClass: string
+  severity: string | null
+  evidence: unknown
+  artifactRef: string | null
+  status: string
+  firstSeenAt: string
+  lastSeenAt: string
+  resolvedAt: string | null
+}
+
+interface LedgerEventsResponse {
+  rowId: string
+  total: number
+  limit: number
+  offset: number
+  events: LedgerEvent[]
+}
+
+const EVENTS_PAGE_SIZE = 50
 
 /** OPS-9 S1 — one jurisdiction_registry_row_mirror row's onboarding-ledger state. */
 interface RegistryRowLedgerView {
@@ -236,32 +270,214 @@ const DefectClassesCell: React.FC<{ classes: OpenDefectClass[] }> = ({ classes }
   )
 }
 
+/** Truncate a one-line evidence/reason summary; the full JSON is available behind a click-to-expand `<details>`. */
+function truncate(s: string, maxLen = 140): string {
+  return s.length > maxLen ? `${s.slice(0, maxLen - 1)}…` : s
+}
+
+function summarizeEvidence(evidence: unknown): string | null {
+  if (evidence == null) return null
+  if (typeof evidence === 'string') return truncate(evidence)
+  try {
+    return truncate(JSON.stringify(evidence))
+  } catch {
+    return String(evidence)
+  }
+}
+
+/** One open-finding row inside a defectClass group. */
+const EventRow: React.FC<{ ev: LedgerEvent }> = ({ ev }) => {
+  const evidenceSummary = summarizeEvidence(ev.evidence)
+  const hasFullEvidence = ev.evidence != null && typeof ev.evidence !== 'string'
+  return (
+    <li
+      style={{
+        display: 'flex',
+        flexDirection: 'column',
+        gap: 2,
+        padding: '4px 0',
+        borderTop: '1px solid rgba(255,255,255,0.06)',
+      }}
+    >
+      <span style={{ display: 'flex', gap: 6, alignItems: 'baseline', flexWrap: 'wrap' }}>
+        {ev.parcelNodeId ? <span style={{ ...mono, fontSize: 'var(--type-caption)' }}>{ev.parcelNodeId}</span> : null}
+        <span style={{ ...mono, fontSize: 'var(--type-caption)', color: 'var(--color-text-secondary)' }}>
+          {ev.checkId || ev.railOrCheck || 'unknown check'}
+        </span>
+      </span>
+      {ev.declineReason ? (
+        <span style={{ fontSize: 'var(--type-caption)', color: 'var(--color-text-tertiary)' }}>
+          {truncate(ev.declineReason)}
+        </span>
+      ) : null}
+      {evidenceSummary ? (
+        hasFullEvidence ? (
+          <details>
+            <summary style={{ cursor: 'pointer', listStyle: 'none', fontSize: 'var(--type-caption)', color: 'var(--color-text-tertiary)' }}>
+              {evidenceSummary}
+            </summary>
+            <pre
+              style={{
+                margin: '4px 0 0',
+                padding: 6,
+                fontSize: 'var(--type-caption)',
+                background: 'var(--color-background-tertiary)',
+                borderRadius: 4,
+                overflow: 'auto',
+                maxHeight: 200,
+                whiteSpace: 'pre-wrap',
+                wordBreak: 'break-all',
+              }}
+            >
+              {JSON.stringify(ev.evidence, null, 2)}
+            </pre>
+          </details>
+        ) : (
+          <span style={{ fontSize: 'var(--type-caption)', color: 'var(--color-text-tertiary)' }}>{evidenceSummary}</span>
+        )
+      ) : null}
+      <span style={{ ...mono, fontSize: 'var(--type-caption)', color: 'var(--color-text-tertiary)' }}>
+        first {fmtDate(ev.firstSeenAt)} · last {fmtDate(ev.lastSeenAt)}
+      </span>
+    </li>
+  )
+}
+
+/** Events grouped by defectClass, in first-seen order of each group's first event on the current page. */
+function groupByDefectClass(events: LedgerEvent[]): Array<{ defectClass: string; events: LedgerEvent[] }> {
+  const order: string[] = []
+  const groups = new Map<string, LedgerEvent[]>()
+  for (const ev of events) {
+    if (!groups.has(ev.defectClass)) {
+      groups.set(ev.defectClass, [])
+      order.push(ev.defectClass)
+    }
+    groups.get(ev.defectClass)!.push(ev)
+  }
+  return order.map((defectClass) => ({ defectClass, events: groups.get(defectClass)! }))
+}
+
 /**
- * FOCUSED-FIX cell: the wire contract only carries a count
- * (`focusedFixCount`), not a per-parcel/per-finding list — the
- * onboarding_ledger_event rows behind that count are not in the
- * GET /api/county-ledger response. Render what the payload provides and
- * say so on expand rather than fabricate a list.
+ * FOCUSED-FIX cell: expandable per-finding list backed by
+ * GET /api/onboarding-ledger/events?rowId=<id>&status=open (ldt PR #383,
+ * OPS-9 S1 follow-on). Lazily fetches the first page on expand — the count
+ * alone (`focusedFixCount`) still renders as a closed pill so the table
+ * stays cheap to render at scale.
  */
-const FocusedFixCell: React.FC<{ count: number }> = ({ count }) => {
+const FocusedFixCell: React.FC<{ rowId: string; count: number; config: SpineConfig }> = ({ rowId, count, config }) => {
+  const [open, setOpen] = useState(false)
+  const [loading, setLoading] = useState(false)
+  const [error, setError] = useState<string | null>(null)
+  const [data, setData] = useState<LedgerEventsResponse | null>(null)
+  const [page, setPage] = useState(0)
+
+  const fetchPage = async (offset: number) => {
+    setLoading(true)
+    setError(null)
+    try {
+      const base = apiBase(config)
+      const res = await getJson<LedgerEventsResponse>(
+        `${base}/api/onboarding-ledger/events?rowId=${encodeURIComponent(rowId)}&status=open&limit=${EVENTS_PAGE_SIZE}&offset=${offset}`,
+        config,
+        12_000,
+      )
+      if (res.ok && res.json) {
+        setData(res.json)
+      } else {
+        setError(res.error ?? `failed to load (HTTP ${res.status})`)
+      }
+    } catch (e) {
+      setError(e instanceof Error ? e.message : String(e))
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  const handleToggle: React.ReactEventHandler<HTMLDetailsElement> = (e) => {
+    const nowOpen = e.currentTarget.open
+    setOpen(nowOpen)
+    if (nowOpen && data === null && !loading) {
+      void fetchPage(0)
+    }
+  }
+
   if (count === 0) {
     return <span style={{ fontSize: 'var(--type-caption)', color: 'var(--color-text-tertiary)' }}>0</span>
   }
+
+  const groups = data ? groupByDefectClass(data.events) : []
+  const hasNextPage = data != null && data.offset + data.events.length < data.total
+
   return (
-    <details>
+    <details open={open} onToggle={handleToggle}>
       <summary style={{ cursor: 'pointer', listStyle: 'none' }}>
         <Pill sev="warn">{count}</Pill>
       </summary>
-      <div style={{ marginTop: 6, fontSize: 'var(--type-caption)', color: 'var(--color-text-tertiary)', maxWidth: 220 }}>
-        {count} open finding{count === 1 ? '' : 's'} for this row. The per-finding list (onboarding_ledger_event rows)
-        is not yet in the county-ledger payload — this is a count only, pending a future wire extension.
+      <div style={{ marginTop: 6, maxWidth: 360 }}>
+        {loading ? (
+          <span style={{ fontSize: 'var(--type-caption)', color: 'var(--color-text-tertiary)' }}>Loading…</span>
+        ) : error ? (
+          <span style={{ fontSize: 'var(--type-caption)', color: 'var(--color-text-danger)' }}>
+            failed to load: {error}
+          </span>
+        ) : data && data.events.length === 0 ? (
+          <span style={{ fontSize: 'var(--type-caption)', color: 'var(--color-text-tertiary)' }}>
+            no open findings
+          </span>
+        ) : data ? (
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+            {groups.map((g) => (
+              <div key={g.defectClass}>
+                <Pill sev="warn" title={`${g.events.length} on this page`}>
+                  {g.defectClass}
+                </Pill>
+                <ul style={{ margin: '4px 0 0', padding: 0, listStyle: 'none' }}>
+                  {g.events.map((ev) => (
+                    <EventRow key={ev.id} ev={ev} />
+                  ))}
+                </ul>
+              </div>
+            ))}
+            <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
+              <span style={{ fontSize: 'var(--type-caption)', color: 'var(--color-text-tertiary)' }}>
+                {data.offset + 1}-{data.offset + data.events.length} of {data.total}
+              </span>
+              {page > 0 ? (
+                <button
+                  type="button"
+                  onClick={() => {
+                    const prev = page - 1
+                    setPage(prev)
+                    void fetchPage(prev * EVENTS_PAGE_SIZE)
+                  }}
+                  style={{ cursor: 'pointer', fontSize: 'var(--type-caption)' }}
+                >
+                  ← prev
+                </button>
+              ) : null}
+              {hasNextPage ? (
+                <button
+                  type="button"
+                  onClick={() => {
+                    const next = page + 1
+                    setPage(next)
+                    void fetchPage(next * EVENTS_PAGE_SIZE)
+                  }}
+                  style={{ cursor: 'pointer', fontSize: 'var(--type-caption)' }}
+                >
+                  next →
+                </button>
+              ) : null}
+            </div>
+          </div>
+        ) : null}
       </div>
     </details>
   )
 }
 
 /** One jurisdiction row (from `rows`), nested under its county. */
-const JurisdictionRow: React.FC<{ row: RegistryRowLedgerView }> = ({ row }) => (
+const JurisdictionRow: React.FC<{ row: RegistryRowLedgerView; config: SpineConfig }> = ({ row, config }) => (
   <tr style={{ borderTop: '1px solid rgba(255,255,255,0.06)' }}>
     <td style={{ ...cellStyle, ...mono, paddingLeft: 20 }}>{row.rowId}</td>
     <td style={cellStyle}>
@@ -274,7 +490,7 @@ const JurisdictionRow: React.FC<{ row: RegistryRowLedgerView }> = ({ row }) => (
       <DefectClassesCell classes={row.openDefectClasses} />
     </td>
     <td style={cellStyle}>
-      <FocusedFixCell count={row.focusedFixCount} />
+      <FocusedFixCell rowId={row.rowId} count={row.focusedFixCount} config={config} />
     </td>
   </tr>
 )
@@ -315,7 +531,7 @@ const FacetCoverageRow: React.FC<{ facet: FacetRow }> = ({ facet: f }) => (
 )
 
 /** One county block: header row + nested jurisdiction rows + nested legacy facet rows. */
-const CountyBlock: React.FC<{ county: CountyRow }> = ({ county: c }) => {
+const CountyBlock: React.FC<{ county: CountyRow; config: SpineConfig }> = ({ county: c, config }) => {
   const rows = c.rows ?? []
   const hasAnyChildren = rows.length > 0 || c.facets.length > 0
   return (
@@ -342,7 +558,7 @@ const CountyBlock: React.FC<{ county: CountyRow }> = ({ county: c }) => {
         </tr>
       ) : null}
       {rows.map((r) => (
-        <JurisdictionRow key={r.rowId} row={r} />
+        <JurisdictionRow key={r.rowId} row={r} config={config} />
       ))}
       {c.facets.map((f) => (
         <FacetCoverageRow key={f.facet} facet={f} />
@@ -355,13 +571,17 @@ export const CountyLedger: React.FC = () => {
   const [data, setData] = useState<LedgerResponse | null>(null)
   const [error, setError] = useState<string | null>(null)
   const [loading, setLoading] = useState(true)
+  // Held so the focused-fix expand can lazily fetch GET /api/onboarding-ledger/events
+  // through the same proxy config, without re-deriving it per row.
+  const [config, setConfig] = useState<SpineConfig | null>(null)
 
   useEffect(() => {
     let cancelled = false
     ;(async () => {
       try {
-        const config = await loadConfig()
-        const api = apiBase(config)
+        const cfg = await loadConfig()
+        if (!cancelled) setConfig(cfg)
+        const api = apiBase(cfg)
         if (!api) {
           if (!cancelled) {
             setError('No cortex-api base configured for the county ledger.')
@@ -371,7 +591,7 @@ export const CountyLedger: React.FC = () => {
         }
         const res = await getJson<LedgerResponse>(
           `${api}/api/county-ledger`,
-          config,
+          cfg,
           12_000,
         )
         if (!cancelled) {
@@ -397,6 +617,7 @@ export const CountyLedger: React.FC = () => {
   if (loading) return <Loading />
   if (error) return <ErrorState msg={error} />
   if (!data) return <ErrorState msg="No ledger data." />
+  if (!config) return <ErrorState msg="No spine config resolved for the county ledger." />
 
   const { summary, counties } = data
   const { certified, totalRows } = countCertifiedRows(counties)
@@ -442,7 +663,7 @@ export const CountyLedger: React.FC = () => {
             </thead>
             <tbody>
               {counties.map((c) => (
-                <CountyBlock key={c.countyFips} county={c} />
+                <CountyBlock key={c.countyFips} county={c} config={config} />
               ))}
             </tbody>
           </table>
