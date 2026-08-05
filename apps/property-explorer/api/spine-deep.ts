@@ -36,6 +36,9 @@ const DEEP_POST_EXACT = new Set([
   // without it yet → the client feature-detects back to the honest "coming"
   // state (WA1/WA2 coordination — see 2026-08-05 WDLL + WA1 dispatch).
   'api/property-explorer/v1/entitlement/checkout',
+  // WDLL item 1 — user-authenticated Pro subscription checkout (pe_user_id
+  // in Stripe metadata; distinct from install-scoped brokerage checkout).
+  'api/property-explorer/v1/billing/checkout',
   // WDLL item 6 — anonymous → authenticated claim, fired once on sign-in.
   'api/property-explorer/v1/claim-session',
   'api/property-explorer/v1/claim-local-state',

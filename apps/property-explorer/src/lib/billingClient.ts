@@ -25,6 +25,67 @@ export async function startPeCheckout(input?: {
     typeof window !== "undefined"
       ? window.location.origin
       : "https://property-explorer.vercel.app";
+  const successUrl =
+    input?.successUrl ??
+    `${origin}/?checkout=success${
+      input?.parcelNodeId
+        ? `&parcelNodeId=${encodeURIComponent(input.parcelNodeId)}`
+        : ""
+    }`;
+  const cancelUrl = input?.cancelUrl ?? `${origin}/?checkout=cancel`;
+
+  // User-authenticated Pro subscription checkout (WDLL item 1). The legacy
+  // install-scoped brokerage seam only updates brokerage_wallets — PE gates
+  // read pe_user_entitlements, so Pro checkout MUST go through the signed-in
+  // deep proxy route that carries pe_user_id in Stripe metadata.
+  try {
+    const res = await fetch(
+      `${CORTEX_DEEP_PROXY_BASE}/api/property-explorer/v1/billing/checkout`,
+      {
+        method: "POST",
+        credentials: "include",
+        headers: {
+          "Content-Type": "application/json",
+          "X-Hauska-Install-Id": getInstallId(),
+        },
+        body: JSON.stringify({
+          successUrl,
+          cancelUrl,
+        }),
+      },
+    );
+    if (res.status === 404 || res.status === 403) {
+      // FEATURE-DETECT: fall back to install-scoped seam until WA1 is live.
+      return startPeCheckoutInstallScoped({ successUrl, cancelUrl });
+    }
+    const json = (await res.json()) as PeCheckoutResult & {
+      error?: string;
+      message?: string;
+    };
+    if (!res.ok) {
+      return {
+        ok: false,
+        message: json.message ?? json.error ?? `checkout failed (${res.status})`,
+      };
+    }
+    return {
+      ok: true,
+      mode: json.mode,
+      checkoutUrl: json.checkoutUrl,
+      sessionId: json.sessionId,
+      stripeConfigured: json.stripeConfigured,
+      honestNote: json.honestNote,
+    };
+  } catch (err) {
+    return { ok: false, message: (err as Error).message };
+  }
+}
+
+/** Legacy install-scoped checkout — retained for feature-detect fallback only. */
+async function startPeCheckoutInstallScoped(input: {
+  successUrl: string;
+  cancelUrl: string;
+}): Promise<PeCheckoutResult> {
   try {
     const res = await fetch(
       `${CORTEX_PROXY_BASE}/brokerage/v1/property-explorer/billing/checkout`,
@@ -36,15 +97,8 @@ export async function startPeCheckout(input?: {
         },
         body: JSON.stringify({
           tier: "pro",
-          parcelNodeId: input?.parcelNodeId ?? null,
-          successUrl:
-            input?.successUrl ??
-            `${origin}/?checkout=success${
-              input?.parcelNodeId
-                ? `&parcelNodeId=${encodeURIComponent(input.parcelNodeId)}`
-                : ""
-            }`,
-          cancelUrl: input?.cancelUrl ?? `${origin}/?checkout=cancel`,
+          successUrl: input.successUrl,
+          cancelUrl: input.cancelUrl,
         }),
       },
     );
