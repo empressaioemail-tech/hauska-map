@@ -1,6 +1,6 @@
 // apps/property-explorer/src/App.tsx
 //
-// Empressa Property Explorer — the map-first consumer shell.
+// Smart Site (Property Explorer) — the map-first consumer shell.
 //
 // COLD OPEN: the LIVE map boots FIRST (anonymous, no auth), full-bleed. A
 // sign-up card floats over it with the real app DIMMED behind it via a CSS

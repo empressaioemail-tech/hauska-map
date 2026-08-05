@@ -1,8 +1,8 @@
-# Property Explorer (Empressa)
+# Property Explorer (Smart Site)
 
 Map-first consumer web app SKELETON. Boots a live Central-Texas map with a
 sign-up card over it; anonymous browse of parcels, zoning, setbacks, and the
-buildable envelope. Empressa consumer brand — this surface carries zero
+buildable envelope. Smart Site consumer brand — this surface carries zero
 substrate-vendor strings in user-facing text.
 
 ## What it is

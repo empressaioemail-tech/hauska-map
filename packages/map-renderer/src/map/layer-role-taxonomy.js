@@ -127,15 +127,18 @@ export const CONTEXT_ROAD = "#6b7280";
 export const CONTEXT_ROAD_BAND = "#9ca3af";
 export const CONTEXT_ROAD_EDGE = "#4b5563";
 /**
- * CONTEXT pedestrian ways (footway/path/cycleway/…) — distinct muted khaki,
- * NOT road grey. Finer presence than streets (tighter line/opacity budget).
+ * CONTEXT pedestrian ways (footway/path/cycleway/…) — brighter blue dots,
+ * NOT road grey and NOT INTERACTION cyan. Finer presence than streets
+ * (tighter line/opacity budget; dotted dasharray, not solid/dash strokes).
  * Must stay off SUBJECT amber and INTERACTION cyan.
  */
 export const CONTEXT_PEDESTRIAN = {
-  /** Lighter khaki for dark basemap contrast (still not road grey). */
-  line: "#c9b88a",
-  lineOpacityMax: 0.48,
+  /** Bright blue for dark basemap contrast (distinct from interaction cyan). */
+  line: "#60b4ff",
+  lineOpacityMax: 0.75,
   lineWidthMax: 3.6,
+  /** Dot pattern (short on / longer gap) — not a dash stroke. */
+  lineDasharray: Object.freeze([0.5, 2]),
 };
 export const CONTEXT_HYDROGRAPHY = "#5b7c8a";
 export const CONTEXT_TOPO = "#7a6f5f";

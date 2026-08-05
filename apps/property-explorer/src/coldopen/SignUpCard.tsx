@@ -88,7 +88,7 @@ export function SignUpCard({ onDismiss }: { onDismiss: () => void }) {
             marginBottom: 14,
           }}
         >
-          EMPRESSA
+          SMART SITE
         </div>
 
         <h1

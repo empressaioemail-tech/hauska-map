@@ -1,5 +1,12 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 192 192" role="img" aria-label="Empressa">
-  <rect width="192" height="192" rx="32" fill="#0b0e13"/>
-  <path d="M48 128V64h24c22 0 36 12 36 32s-14 32-36 32H48zm24-20h8c10 0 16-5 16-12s-6-12-16-12h-8v24z" fill="#7dd3fc"/>
-  <path d="M120 128V64h16v48h32v16H120z" fill="#e9eef5"/>
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 192 192" role="img" aria-label="Smart Site">
+  <rect width="192" height="192" rx="36" fill="#0b0e13"/>
+  <!-- smart-site-mark-crosshair.svg scaled into the icon canvas -->
+  <g transform="translate(20,20) scale(2)">
+    <circle cx="38" cy="38" r="30" stroke="#ffffff" stroke-width="4" fill="none"/>
+    <circle cx="38" cy="38" r="6" fill="#E8963B"/>
+    <line x1="38" y1="0" x2="38" y2="18" stroke="#ffffff" stroke-width="4"/>
+    <line x1="38" y1="58" x2="38" y2="76" stroke="#ffffff" stroke-width="4"/>
+    <line x1="0" y1="38" x2="18" y2="38" stroke="#ffffff" stroke-width="4"/>
+    <line x1="58" y1="38" x2="76" y2="38" stroke="#ffffff" stroke-width="4"/>
+  </g>
 </svg>
