@@ -19,7 +19,7 @@ const html = await res.text();
 
 const checks = [
   ["HTTP 200", res.status === 200],
-  ["title present", /<title>Empressa/i.test(html)],
+  ["title present", /<title>Smart Site/i.test(html)],
   ["manifest linked", /manifest\.webmanifest/i.test(html)],
   ["viewport mobile", /viewport-fit=cover/i.test(html)],
 ];

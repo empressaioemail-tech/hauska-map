@@ -2,7 +2,7 @@
 //
 // Track B1 road render — streets vs pedestrian ways:
 //   Streets (isPedestrianWay === false): hairline→soft grey ROW band.
-//   Pedestrian (footway/path/…): distinct muted khaki, thinner/lighter,
+//   Pedestrian (footway/path/…): brighter blue DOTS (not dashes), thinner,
 //   OFF by default (LAYERS toggle `pedestrian-ways`).
 // Twin still holds pedestrian geometry — render filter ≠ data filter.
 // Crash guard: line-blur / dash only as static/zoom literals (never
@@ -32,9 +32,12 @@ export const ROAD_BAND_GREY = "#c7ccd4";
 /**
  * Pedestrian hue — MUST match CONTEXT_PEDESTRIAN.line in layer-role-taxonomy.
  * Literal (not a runtime import) so PE vitest does not require renderer dist.
+ * Bright blue (not khaki, not INTERACTION cyan #7dd3fc).
  */
-export const ROAD_PEDESTRIAN_COLOR = "#c9b88a";
-const PEDESTRIAN_LINE_OPACITY_MAX = 0.48;
+export const ROAD_PEDESTRIAN_COLOR = "#60b4ff";
+/** Dot pattern — MUST match CONTEXT_PEDESTRIAN.lineDasharray. */
+export const ROAD_PEDESTRIAN_DASHARRAY = [0.5, 2] as const;
+const PEDESTRIAN_LINE_OPACITY_MAX = 0.75;
 const PEDESTRIAN_LINE_WIDTH_MAX = 3.6;
 /** @deprecated Edges/centerline are not painted; alias kept for imports. */
 export const ROAD_EDGE_GREY = "#4b5563";
@@ -176,7 +179,7 @@ const ROW_BAND_PAINT = {
   ],
 } as const;
 
-/** Pedestrian — distinct hue, still finer than street band, readable on dark basemap. */
+/** Pedestrian — brighter blue dots, still finer than street band on dark basemap. */
 const PEDESTRIAN_PAINT = {
   "line-color": ROAD_PEDESTRIAN_COLOR,
   "line-width": [
@@ -197,15 +200,15 @@ const PEDESTRIAN_PAINT = {
     ["linear"],
     ["zoom"],
     12,
-    0.28,
+    0.45,
     14,
-    0.36,
+    0.55,
     16,
-    0.42,
+    0.65,
     18,
     PEDESTRIAN_LINE_OPACITY_MAX,
   ],
-  "line-dasharray": [2, 2],
+  "line-dasharray": [...ROAD_PEDESTRIAN_DASHARRAY],
   "line-blur": 0,
 } as const;
 

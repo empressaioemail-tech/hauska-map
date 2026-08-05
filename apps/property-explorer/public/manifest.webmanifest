@@ -1,6 +1,6 @@
 {
-  "name": "Empressa Property Explorer",
-  "short_name": "Empressa",
+  "name": "Smart Site",
+  "short_name": "Smart Site",
   "description": "Explore Central Texas parcels — zoning and buildable envelope where verified.",
   "start_url": "/",
   "display": "standalone",

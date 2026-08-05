@@ -9,6 +9,7 @@ import {
   ROAD_PEDESTRIAN_LAYER_KEY,
   ROAD_BAND_GREY,
   ROAD_PEDESTRIAN_COLOR,
+  ROAD_PEDESTRIAN_DASHARRAY,
   ROAD_BEFORE_PARCEL_FILL_ID,
   PEDESTRIAN_OSM_HIGHWAY_TAGS,
 } from "./road-overlay";
@@ -120,8 +121,15 @@ describe("roadOverlaysFromAttachingRoads (street vs pedestrian)", () => {
     );
     expect(
       Math.max(...interpStops(ped.paint!["line-opacity"]).values),
-    ).toBeLessThanOrEqual(0.55);
-    expect(ped.paint!["line-dasharray"]).toEqual([2, 2]);
+    ).toBeLessThanOrEqual(0.85);
+    expect(ped.paint!["line-dasharray"]).toEqual([...ROAD_PEDESTRIAN_DASHARRAY]);
+    // Dots: short on-segment (≤0.5) vs prior dash stroke [2, 2].
+    expect((ped.paint!["line-dasharray"] as number[])[0]).toBeLessThanOrEqual(0.5);
+    expect((ped.paint!["line-dasharray"] as number[])[0]).toBeLessThan(
+      (ped.paint!["line-dasharray"] as number[])[1]!,
+    );
+    expect(ROAD_PEDESTRIAN_COLOR.toLowerCase()).not.toBe("#c9b88a");
+    expect(ROAD_PEDESTRIAN_COLOR.toLowerCase()).not.toBe("#7dd3fc");
     expect(valueAtZoom(ped.paint!["line-width"], 16)!).toBeGreaterThanOrEqual(2);
     expect(isZoomInterp(band.paint!["line-blur"])).toBe(true);
   });
