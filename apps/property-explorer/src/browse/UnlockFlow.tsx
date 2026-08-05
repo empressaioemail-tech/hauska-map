@@ -11,12 +11,13 @@
 // here. TERRAIN (and any Pro-only feature) renders the proOnly variant: ONLY
 // the Pro choice, with copy saying the $15 unlock never includes it.
 //
-// Selecting a choice calls the billingClient seam:
-//   - Pro → the EXISTING Stripe subscription checkout wiring (startPeCheckout);
-//   - $15 → startPropertyUnlock: a stub seam, clearly marked "checkout wiring
-//     follows" — dev-bypass environments may hit the cortex dev-unlock; prod
-//     shows the honest "purchase flow coming — contact us" state. NEVER a
-//     fake success.
+// Selecting a choice calls the billingClient seam — BOTH choices redirect to
+// a real Stripe Checkout session:
+//   - Pro → the subscription checkout (startPeCheckout);
+//   - $15 → the one-time per-property unlock checkout (startPropertyUnlock,
+//     WDLL item 3). A cortex build without the route yet feature-detects to
+//     the honest "purchase flow coming — contact us" state. NEVER a fake
+//     success.
 //
 // Used inline by the in-dock LockedToolPanel AND inside the PaywallGate modal
 // (the reactive server-402 belt) — one flow, never a different wall per bubble.
@@ -79,19 +80,33 @@ export function UnlockChoices({
       parcelNodeId,
     });
     const result = await startPropertyUnlock(parcelNodeId);
-    setBusy(null);
     switch (result.kind) {
       case "unlocked":
-        // REAL server-side unlock (dev-bypass) — refresh the proactive read.
+        // REAL server-side unlock (test-seam dev-bypass) — refresh the read.
+        setBusy(null);
         invalidatePropertyEntitlement(parcelNodeId);
         setNote({ text: "Property unlocked.", tone: "muted" });
         onUnlocked?.();
         return;
+      case "checkout":
+        // Real Stripe Checkout — stay "busy" through the redirect so the
+        // button never looks re-clickable mid-navigation.
+        window.location.assign(result.checkoutUrl);
+        return;
+      case "sign-in":
+        setBusy(null);
+        setNote({
+          text: "Your session expired — sign in again to unlock this property.",
+          tone: "amber",
+        });
+        return;
       case "coming":
         // The honest pre-payments state — never a fake success.
+        setBusy(null);
         setNote({ text: result.message, tone: "muted" });
         return;
       case "error":
+        setBusy(null);
         setNote({ text: result.message, tone: "amber" });
         return;
     }

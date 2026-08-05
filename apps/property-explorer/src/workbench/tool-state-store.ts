@@ -49,7 +49,9 @@ export interface WorkbenchToolStateStore {
   clearAll(): void;
 }
 
-const STORAGE_KEY = "pe:workbench:tool-state:v1";
+/** Exported so the anonymous→auth claim client (WDLL item 6) reads the same key. */
+export const WORKBENCH_TOOL_STATE_STORAGE_KEY = "pe:workbench:tool-state:v1";
+const STORAGE_KEY = WORKBENCH_TOOL_STATE_STORAGE_KEY;
 const DEFAULT_MAX_PROPERTIES = 10;
 
 function defaultStorage(): StorageLike | null {

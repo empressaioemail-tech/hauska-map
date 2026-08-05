@@ -6,7 +6,15 @@
 //   GET api/property-explorer/v1/entitlement?parcelNodeId=<id>
 //   (session Bearer via the deep proxy) →
 //   { authenticated, tier: "free"|"paid", tenantId, userId,
+//     devRole?: boolean, entitlementSource?: "stripe_sub"|"stripe_promo"|
+//       "stripe_unlock"|"dev"|null,
 //     property?: { parcelNodeId, unlocked, freeMessagesUsed, freeMessagesLimit } }
+//
+// SINGLE ENTITLEMENT SOURCE (WDLL item 5): `devRole` is the server-granted
+// internal role (operator flips a DB field — no deploy, no env allowlist).
+// It is a USER-level grant, not per-property, so it entitles every property
+// exactly like a Pro subscription. There is no client-only paid check
+// anywhere in this module — every state below traces to a server read.
 //
 // FEATURE-DETECT FALLBACK (CLIENT-SOFT): an older backend without the
 // `property` block is treated as { unlocked: false, freeMessagesUsed: 0 } —
@@ -43,6 +51,18 @@ export interface PropertyEntitlementState {
    * server 402s stay authoritative.
    */
   softFallback: boolean;
+  /**
+   * Server-granted internal dev role (WDLL item 4/5) — a user-level grant,
+   * so it entitles every property exactly like Pro. Read from the server
+   * only; there is no client-side dev flag or env allowlist here.
+   */
+  devRole: boolean;
+  /**
+   * Provenance of the entitlement when the server reports one (e.g.
+   * "stripe_sub", "stripe_promo", "stripe_unlock", "dev"); null for free or
+   * when the server hasn't shipped the field yet (feature-detect).
+   */
+  entitlementSource: string | null;
 }
 
 /** Pro subscription? */
@@ -50,9 +70,9 @@ export function isPro(s: PropertyEntitlementState): boolean {
   return s.tier === "paid";
 }
 
-/** Entitled to this property's paid bubbles (per-property unlock OR Pro). */
+/** Entitled to this property's paid bubbles (per-property unlock, Pro, or dev role). */
 export function isEntitled(s: PropertyEntitlementState): boolean {
-  return isPro(s) || s.propertyUnlocked;
+  return isPro(s) || s.propertyUnlocked || s.devRole;
 }
 
 export function freeMessagesLeft(s: PropertyEntitlementState): number {
@@ -68,6 +88,8 @@ function signedOutState(): PropertyEntitlementState {
     freeMessagesUsed: 0,
     freeMessagesLimit: PE_PRICING.freeMessages.limit,
     softFallback: false,
+    devRole: false,
+    entitlementSource: null,
   };
 }
 
@@ -80,6 +102,8 @@ function softFreeState(status: "ready" | "error"): PropertyEntitlementState {
     freeMessagesUsed: 0,
     freeMessagesLimit: PE_PRICING.freeMessages.limit,
     softFallback: true,
+    devRole: false,
+    entitlementSource: null,
   };
 }
 
@@ -123,6 +147,11 @@ export async function fetchPropertyEntitlement(
     const tier: PeEntitlementTier =
       body.tier === "paid" || legacy?.tier === "paid" ? "paid" : "free";
     const authenticated = body.authenticated !== false;
+    // devRole is a USER-level grant (not per-property) — read at top level
+    // regardless of whether the property block is present.
+    const devRole = body.devRole === true || legacy?.devRole === true;
+    const sourceRaw = body.entitlementSource ?? legacy?.entitlementSource;
+    const entitlementSource = typeof sourceRaw === "string" ? sourceRaw : null;
     const property = asRecord(body.property);
     if (!property) {
       // FEATURE-DETECT: older backend without the property block — CLIENT-SOFT.
@@ -134,6 +163,8 @@ export async function fetchPropertyEntitlement(
         freeMessagesUsed: 0,
         freeMessagesLimit: PE_PRICING.freeMessages.limit,
         softFallback: true,
+        devRole,
+        entitlementSource,
       };
     }
     return {
@@ -145,6 +176,8 @@ export async function fetchPropertyEntitlement(
       freeMessagesLimit:
         num(property.freeMessagesLimit) ?? PE_PRICING.freeMessages.limit,
       softFallback: false,
+      devRole,
+      entitlementSource,
     };
   } catch {
     return softFreeState("error");

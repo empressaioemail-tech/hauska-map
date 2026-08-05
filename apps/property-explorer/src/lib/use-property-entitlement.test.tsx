@@ -28,6 +28,7 @@ function Probe({ parcelNodeId }: { parcelNodeId: string | null }) {
       data-locked={String(ent.locked)}
       data-left={String(ent.freeMessagesLeft)}
       data-soft={String(ent.softFallback)}
+      data-dev-role={String(ent.devRole)}
     />
   );
 }
@@ -47,6 +48,8 @@ function state(
     freeMessagesUsed: 0,
     freeMessagesLimit: 3,
     softFallback: false,
+    devRole: false,
+    entitlementSource: null,
     ...overrides,
   };
 }
@@ -86,6 +89,15 @@ describe("usePropertyEntitlement", () => {
     const html = probe("48021:1");
     expect(html).toContain('data-pro="true"');
     expect(html).toContain('data-entitled="true"');
+  });
+
+  it("devRole (WDLL item 4/5) → entitled, not locked, not pro — a server-granted role, not a subscription", () => {
+    primePropertyEntitlement("48021:1", state({ devRole: true }));
+    const html = probe("48021:1");
+    expect(html).toContain('data-dev-role="true"');
+    expect(html).toContain('data-entitled="true"');
+    expect(html).toContain('data-locked="false"');
+    expect(html).toContain('data-pro="false"');
   });
 
   it("read error NEVER locks (feature-detect / outage soft path — server 402s stay the belt)", () => {
