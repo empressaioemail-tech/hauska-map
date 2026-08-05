@@ -19,7 +19,9 @@ import {
   type ShareLanding,
 } from "./share/share-landing";
 import { fetchSession } from "./lib/auth";
+import { claimAnonymousStateOnSignIn } from "./lib/claimClient";
 import { recordPeGtmEvent } from "./lib/gtmClient";
+import { usePostCheckoutRefresh } from "./lib/usePostCheckoutRefresh";
 
 const COLD_OPEN_DISMISSED_KEY = "pe_cold_open_dismissed";
 
@@ -32,6 +34,9 @@ function readInitialColdOpen(): boolean {
   }
   const params = new URLSearchParams(window.location.search);
   if (params.get("signed_in") === "1") return false;
+  // Mid-checkout-flow / just returned from Stripe — already engaged, never
+  // bury the reconcile behind the cold-open sign-up card.
+  if (params.get("checkout") === "success") return false;
   // Deep-link / share URLs open inspect immediately — don't bury under cold-open.
   if (
     params.get("parcelNodeId")?.trim() ||
@@ -74,6 +79,9 @@ export function App() {
 
 function MapApp() {
   const [coldOpen, setColdOpen] = useState(readInitialColdOpen);
+  // WDLL item 7 — clears the entitlement cache and reconciles the post-Stripe
+  // state; renders an honest "confirming" note while `checking`.
+  const checkoutStatus = usePostCheckoutRefresh();
 
   useEffect(() => {
     void recordPeGtmEvent({ eventType: "pe_browse_started" });
@@ -90,6 +98,10 @@ function MapApp() {
       }
       setColdOpen(false);
       stripSignedInParam();
+      // WDLL item 6 — claim this browser's anonymous install history + any
+      // local-only workbench state onto the freshly authenticated user.
+      // Never blocks or reverts sign-in on failure (see claimClient.ts).
+      void claimAnonymousStateOnSignIn();
       return;
     }
 
@@ -128,6 +140,29 @@ function MapApp() {
     >
       {/* The live map is ALWAYS mounted underneath — it boots first. */}
       <ExplorerMap />
+
+      {checkoutStatus === "checking" && (
+        <div
+          data-testid="checkout-reconcile-banner"
+          role="status"
+          style={{
+            position: "absolute",
+            top: 16,
+            left: "50%",
+            transform: "translateX(-50%)",
+            zIndex: 40,
+            padding: "8px 16px",
+            borderRadius: 999,
+            background: "rgba(13,17,23,0.92)",
+            border: "0.5px solid rgba(59,130,246,0.4)",
+            color: "#e5e7eb",
+            fontFamily: "system-ui, sans-serif",
+            fontSize: 12.5,
+          }}
+        >
+          Confirming your purchase…
+        </div>
+      )}
 
       {coldOpen && (
         <>

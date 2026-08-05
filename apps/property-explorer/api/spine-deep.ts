@@ -26,11 +26,22 @@ const DEEP_POST_EXACT = new Set([
   // W3 workbench chat — same user-session Bearer as research/brief (never the
   // service key, never the extension's install-id/public-key wedge).
   'api/brokerage/v1/research/chat',
-  // R1 paywall: the cortex DEV-UNLOCK for the $15 property unlock stub seam.
-  // Server-side guarded (cortex dev-bypass only; 404/403 on a backend without
-  // it → the client degrades to the honest "purchase flow coming" state).
-  // Live checkout wiring follows in the payments wave — never through here.
+  // R1 paywall LEGACY test seam: the cortex dev-unlock the $15 stub used
+  // before real checkout wiring. Kept on the allowlist for the billingClient
+  // `armed` test seam only — the client never reaches this path in
+  // production (see billingClient.ts startPropertyUnlock).
   'api/property-explorer/v1/entitlement/dev-unlock',
+  // LIVE-PAYMENTS wave (WDLL item 3): the real, authenticated, user-scoped
+  // $15 one-time property-unlock Stripe checkout. 404/403 on a cortex build
+  // without it yet → the client feature-detects back to the honest "coming"
+  // state (WA1/WA2 coordination — see 2026-08-05 WDLL + WA1 dispatch).
+  'api/property-explorer/v1/entitlement/checkout',
+  // WDLL item 1 — user-authenticated Pro subscription checkout (pe_user_id
+  // in Stripe metadata; distinct from install-scoped brokerage checkout).
+  'api/property-explorer/v1/billing/checkout',
+  // WDLL item 6 — anonymous → authenticated claim, fired once on sign-in.
+  'api/property-explorer/v1/claim-session',
+  'api/property-explorer/v1/claim-local-state',
 ])
 
 // W4 My Properties: PUT (upsert) / DELETE on exactly ONE path segment after

@@ -60,6 +60,8 @@ describe("fetchPropertyEntitlement — the pinned contract", () => {
       freeMessagesUsed: 2,
       freeMessagesLimit: 3,
       softFallback: false,
+      devRole: false,
+      entitlementSource: null,
     });
     expect(isEntitled(state)).toBe(true); // per-property unlock counts
     expect(isPro(state)).toBe(false);
@@ -81,6 +83,42 @@ describe("fetchPropertyEntitlement — the pinned contract", () => {
       }),
     );
     expect(isPro(state)).toBe(true);
+    expect(isEntitled(state)).toBe(true);
+  });
+
+  it("devRole (WDLL item 4/5) entitles regardless of tier or the property flag — a user-level grant", async () => {
+    const state = await fetchPropertyEntitlement(
+      "48021:123",
+      fakeFetch(200, {
+        authenticated: true,
+        tier: "free",
+        devRole: true,
+        entitlementSource: "dev",
+        property: {
+          parcelNodeId: "48021:123",
+          unlocked: false,
+          freeMessagesUsed: 0,
+          freeMessagesLimit: 3,
+        },
+      }),
+    );
+    expect(state.devRole).toBe(true);
+    expect(state.entitlementSource).toBe("dev");
+    expect(isPro(state)).toBe(false);
+    expect(isEntitled(state)).toBe(true);
+  });
+
+  it("entitlementSource surfaces stripe provenance even when devRole is false", async () => {
+    const state = await fetchPropertyEntitlement(
+      "48021:123",
+      fakeFetch(200, {
+        authenticated: true,
+        tier: "paid",
+        entitlementSource: "stripe_promo",
+      }),
+    );
+    expect(state.devRole).toBe(false);
+    expect(state.entitlementSource).toBe("stripe_promo");
     expect(isEntitled(state)).toBe(true);
   });
 
@@ -149,6 +187,8 @@ describe("cache + invalidate", () => {
     freeMessagesUsed: 1,
     freeMessagesLimit: 3,
     softFallback: false,
+    devRole: false,
+    entitlementSource: null,
   };
 
   it("ensure fetches once per property; snapshot serves the cached state", async () => {

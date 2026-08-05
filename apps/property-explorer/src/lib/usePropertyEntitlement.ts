@@ -48,6 +48,10 @@ export interface UsePropertyEntitlement {
   signedOut: boolean;
   /** Ready + authenticated + NOT entitled → paid bubbles show LOCKED. */
   locked: boolean;
+  /** Server-granted internal dev role — entitles every property. */
+  devRole: boolean;
+  /** Provenance of the entitlement when known (see entitlementClient.ts). */
+  entitlementSource: string | null;
   /** Drop this property's cached read and re-fetch. */
   refresh: () => void;
 }
@@ -64,6 +68,8 @@ const LOADING: UsePropertyEntitlement = {
   softFallback: false,
   signedOut: false,
   locked: false,
+  devRole: false,
+  entitlementSource: null,
   refresh: () => {},
 };
 
@@ -105,6 +111,8 @@ export function usePropertyEntitlement(
     signedOut: ready && !snapshot.authenticated,
     // "error" never locks — tools run optimistically; the server 402 decides.
     locked: ready && snapshot.authenticated && !entitled,
+    devRole: snapshot.devRole,
+    entitlementSource: snapshot.entitlementSource,
     refresh: () => invalidatePropertyEntitlement(parcelNodeId),
   };
 }
