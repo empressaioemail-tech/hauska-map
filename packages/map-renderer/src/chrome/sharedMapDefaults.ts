@@ -22,7 +22,7 @@ export const SHARED_DEFAULT_CENTER: Center = {
  * surfaces mount so attribution / parcel click / feature-state stay aligned.
  */
 export const SHARED_PARCEL_TILES: ParcelTilesConfig = {
-  url: "https://storage.googleapis.com/hauska-map-tiles/parcels.4af31e1901e2.pmtiles",
+  url: "https://storage.googleapis.com/hauska-map-tiles/parcels.3431529a2e8d.pmtiles",
   sourceLayer: "parcels",
   promoteId: "parcel_node_id",
 };
