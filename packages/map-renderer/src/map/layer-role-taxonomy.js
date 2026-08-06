@@ -128,17 +128,17 @@ export const CONTEXT_ROAD_BAND = "#9ca3af";
 export const CONTEXT_ROAD_EDGE = "#4b5563";
 /**
  * CONTEXT pedestrian ways (footway/path/cycleway/…) — brighter blue dots,
- * NOT road grey and NOT INTERACTION cyan. Finer presence than streets
- * (tighter line/opacity budget; dotted dasharray, not solid/dash strokes).
+ * NOT road grey and NOT INTERACTION cyan. Stronger presence on aerial
+ * (wider line/opacity budget; dotted dasharray, not solid/dash strokes).
  * Must stay off SUBJECT amber and INTERACTION cyan.
  */
 export const CONTEXT_PEDESTRIAN = {
-  /** Bright blue for dark basemap contrast (distinct from interaction cyan). */
-  line: "#60b4ff",
-  lineOpacityMax: 0.75,
-  lineWidthMax: 3.6,
+  /** Brighter blue for aerial/dark basemap contrast (distinct from interaction cyan). */
+  line: "#8fd0ff",
+  lineOpacityMax: 0.9,
+  lineWidthMax: 4.5,
   /** Dot pattern (short on / longer gap) — not a dash stroke. */
-  lineDasharray: Object.freeze([0.5, 2]),
+  lineDasharray: Object.freeze([0.8, 1.2]),
 };
 export const CONTEXT_HYDROGRAPHY = "#5b7c8a";
 export const CONTEXT_TOPO = "#7a6f5f";
@@ -168,7 +168,7 @@ export const ROLE_BUDGET = Object.freeze({
   }),
   CONTEXT: Object.freeze({
     fillOpacityMax: 0.2,
-    lineOpacity: 0.85,
+    lineOpacity: 0.9,
     /** When any DATA layer is visible, multiply Context paint by this. */
     dimWhenDataVisible: 0.45,
     permitted: Object.freeze(["line", "dash", "hatch", "texture", "muted-hue"]),
