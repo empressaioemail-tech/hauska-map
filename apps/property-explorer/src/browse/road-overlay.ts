@@ -34,11 +34,11 @@ export const ROAD_BAND_GREY = "#c7ccd4";
  * Literal (not a runtime import) so PE vitest does not require renderer dist.
  * Bright blue (not khaki, not INTERACTION cyan #7dd3fc).
  */
-export const ROAD_PEDESTRIAN_COLOR = "#60b4ff";
+export const ROAD_PEDESTRIAN_COLOR = "#8fd0ff";
 /** Dot pattern — MUST match CONTEXT_PEDESTRIAN.lineDasharray. */
-export const ROAD_PEDESTRIAN_DASHARRAY = [0.5, 2] as const;
-const PEDESTRIAN_LINE_OPACITY_MAX = 0.75;
-const PEDESTRIAN_LINE_WIDTH_MAX = 3.6;
+export const ROAD_PEDESTRIAN_DASHARRAY = [0.8, 1.2] as const;
+const PEDESTRIAN_LINE_OPACITY_MAX = 0.9;
+const PEDESTRIAN_LINE_WIDTH_MAX = 4.5;
 /** @deprecated Edges/centerline are not painted; alias kept for imports. */
 export const ROAD_EDGE_GREY = "#4b5563";
 /** @deprecated Prefer ROAD_BAND_GREY. */
@@ -179,7 +179,7 @@ const ROW_BAND_PAINT = {
   ],
 } as const;
 
-/** Pedestrian — brighter blue dots, still finer than street band on dark basemap. */
+/** Pedestrian — brighter blue dots for aerial contrast; still finer than street band. */
 const PEDESTRIAN_PAINT = {
   "line-color": ROAD_PEDESTRIAN_COLOR,
   "line-width": [
@@ -187,11 +187,11 @@ const PEDESTRIAN_PAINT = {
     ["linear"],
     ["zoom"],
     12,
-    1.2,
-    14,
     1.8,
-    16,
+    14,
     2.6,
+    16,
+    3.6,
     18,
     PEDESTRIAN_LINE_WIDTH_MAX,
   ],
@@ -200,11 +200,11 @@ const PEDESTRIAN_PAINT = {
     ["linear"],
     ["zoom"],
     12,
-    0.45,
-    14,
     0.55,
+    14,
+    0.7,
     16,
-    0.65,
+    0.8,
     18,
     PEDESTRIAN_LINE_OPACITY_MAX,
   ],

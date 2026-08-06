@@ -86,7 +86,7 @@ describe("layer-role-taxonomy (T-H01)", () => {
     assert.ok(CONTEXT_PEDESTRIAN.lineOpacityMax <= ROLE_BUDGET.CONTEXT.lineOpacity);
     assert.ok(CONTEXT_PEDESTRIAN.lineWidthMax < 5);
     assert.ok(Array.isArray(CONTEXT_PEDESTRIAN.lineDasharray));
-    assert.ok(CONTEXT_PEDESTRIAN.lineDasharray[0] <= 0.5, "dot on-segment ≤ 0.5");
+    assert.ok(CONTEXT_PEDESTRIAN.lineDasharray[0] <= 0.8, "dot on-segment ≤ 0.8");
     assert.ok(
       CONTEXT_PEDESTRIAN.lineDasharray[0] < CONTEXT_PEDESTRIAN.lineDasharray[1],
       "dot gap longer than on-segment",
