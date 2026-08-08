@@ -12,6 +12,7 @@ import React from 'react'
 import { AtomInspector } from '../panels/AtomInspector'
 import { RunMonitor } from '../panels/RunMonitor'
 import { CountyLedger } from '../panels/CountyLedger'
+import { CountyManifestGrid } from '../panels/CountyManifestGrid'
 import { SurfaceGateInspector } from '../panels/SurfaceGateInspector'
 import { CalibrationTracker } from '../panels/CalibrationTracker'
 import { McpInspector } from '../panels/McpInspector'
@@ -67,6 +68,9 @@ export const PANELS: PanelDef[] = [
   // operator's headline view of the rewarmable factory: onboarded / certified /
   // stale / rewarm-unsafe per jurisdiction. Reads /api/county-ledger.
   { id: 'county-ledger', label: 'County Ledger', group: 'Engines', probe: 'cortex-coverage', Component: CountyLedger },
+  // County Manifest — the operator's primary statewide 254×13 grid (manifestCells).
+  // Sibling to County Ledger (registry-row gate/cert view), not a tab inside it.
+  { id: 'county-manifest', label: 'County Manifest', group: 'Engines', probe: 'cortex-coverage', Component: CountyManifestGrid },
   { id: 'resolver', label: 'Resolver', group: 'Engines', stub: true,
     Component: makeStub('Resolver', 'place/resolve + node resolution status') },
   { id: 'engine-console', label: 'Autonomous Engines', group: 'Engines', stub: true,
