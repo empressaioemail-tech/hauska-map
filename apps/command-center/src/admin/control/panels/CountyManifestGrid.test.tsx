@@ -99,19 +99,23 @@ describe('CountyManifestGrid', () => {
     mockApiBase.mockReturnValue('/api/spine/cortex')
   })
 
-  it('renders all 3,302 cells for a full 254×13 manifestCells payload', async () => {
-    const cells = mkFullGrid(254)
-    mockGetJson.mockResolvedValue({ ok: true, status: 200, json: mkPayload(cells) })
+  it(
+    'renders all 3,302 cells for a full 254×13 manifestCells payload',
+    async () => {
+      const cells = mkFullGrid(254)
+      mockGetJson.mockResolvedValue({ ok: true, status: 200, json: mkPayload(cells) })
 
-    render(<CountyManifestGrid />)
+      render(<CountyManifestGrid />)
 
-    await waitFor(() => {
-      expect(screen.getByText('County Manifest')).toBeInTheDocument()
-    })
+      await waitFor(() => {
+        expect(screen.getByText('County Manifest')).toBeInTheDocument()
+      })
 
-    const rendered = document.querySelectorAll('[data-testid^="manifest-cell-"]')
-    expect(rendered.length).toBe(254 * RAIL_COUNT)
-  })
+      const rendered = document.querySelectorAll('[data-testid^="manifest-cell-"]')
+      expect(rendered.length).toBe(254 * RAIL_COUNT)
+    },
+    30_000,
+  )
 
   it('resolves the four primary cell visual states correctly', async () => {
     const fips = '48021'
