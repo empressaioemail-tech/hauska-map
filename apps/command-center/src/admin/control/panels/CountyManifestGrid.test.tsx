@@ -289,4 +289,42 @@ describe('CountyManifestGrid', () => {
       expect(screen.getByText('no artifact path recorded')).toBeInTheDocument()
     })
   })
+
+  it('cell drawer renders absenceBasis when the API supplies scope-qualified doctrine text', async () => {
+    const fips = '48201'
+    const basis =
+      "SCOPE-LIMITED — roster doctrine 'PASS — county unincorporated = honest absence' establishes..."
+    const cells = MANIFEST_RAILS.map((rail) =>
+      mkCell(fips, rail.key, rail.key === 'zoning' ? { displayState: 'satisfied-absent', absenceBasis: basis } : {}),
+    )
+    mockGetJson.mockResolvedValue({ ok: true, status: 200, json: mkPayload(cells) })
+
+    render(<CountyManifestGrid />)
+
+    await waitFor(() => expect(screen.getByTestId('manifest-row-48201')).toBeInTheDocument())
+
+    const cellBtn = document.querySelector('[data-testid="manifest-cell-48201-zoning"]') as HTMLElement
+    fireEvent.click(cellBtn)
+
+    await waitFor(() => {
+      expect(screen.getByText(basis)).toBeInTheDocument()
+    })
+  })
+
+  it('cell drawer shows absence basis honestly as "no basis recorded" when null', async () => {
+    const fips = '48021'
+    const cells = MANIFEST_RAILS.map((rail) => mkCell(fips, rail.key))
+    mockGetJson.mockResolvedValue({ ok: true, status: 200, json: mkPayload(cells) })
+
+    render(<CountyManifestGrid />)
+
+    await waitFor(() => expect(screen.getByTestId('manifest-row-48021')).toBeInTheDocument())
+
+    const cellBtn = document.querySelector('[data-testid="manifest-cell-48021-zoning"]') as HTMLElement
+    fireEvent.click(cellBtn)
+
+    await waitFor(() => {
+      expect(screen.getByText('no basis recorded')).toBeInTheDocument()
+    })
+  })
 })

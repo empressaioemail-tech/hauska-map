@@ -244,6 +244,10 @@ const CellDrawer: React.FC<{
         <dd style={mono}>{cell.honestCoveragePct == null ? '—' : `${cell.honestCoveragePct.toFixed(2)}%`}</dd>
         <dt style={{ ...typeCaption, textTransform: 'uppercase' }}>Threshold</dt>
         <dd style={mono}>{cell.thresholdPct == null ? '—' : `${cell.thresholdPct}%`}</dd>
+        <dt style={{ ...typeCaption, textTransform: 'uppercase' }}>Absence basis</dt>
+        <dd style={cell.absenceBasis ? mono : { ...mono, color: 'var(--color-text-warning)' }}>
+          {cell.absenceBasis ?? 'no basis recorded'}
+        </dd>
         <dt style={{ ...typeCaption, textTransform: 'uppercase' }}>Source</dt>
         <dd style={mono}>{cell.source ?? '—'}</dd>
         <dt style={{ ...typeCaption, textTransform: 'uppercase' }}>Vintage</dt>
