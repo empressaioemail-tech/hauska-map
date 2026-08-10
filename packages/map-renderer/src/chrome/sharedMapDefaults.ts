@@ -17,12 +17,22 @@ export const SHARED_DEFAULT_CENTER: Center = {
   longitude: -97.3184,
 };
 
+/** Rollback: set VITE_PARCEL_PMTILES_HASH=3431529a2e8d (Central-TX 19-county). */
+const PARCEL_PMTILES_HASH =
+  (typeof import.meta !== "undefined" &&
+    (import.meta as ImportMeta & { env?: Record<string, string> }).env
+      ?.VITE_PARCEL_PMTILES_HASH) ||
+  "b692c6534d26";
+
+const PARCEL_PMTILES_BASE =
+  "https://storage.googleapis.com/hauska-map-tiles/parcels";
+
 /**
- * PMTiles browse-parcel layer — Central-TX parcel corpus. Same archive both
- * surfaces mount so attribution / parcel click / feature-state stay aligned.
+ * PMTiles browse-parcel layer — statewide TX parcel corpus (2026-08-09).
+ * Same archive both surfaces mount so attribution / parcel click / feature-state stay aligned.
  */
 export const SHARED_PARCEL_TILES: ParcelTilesConfig = {
-  url: "https://storage.googleapis.com/hauska-map-tiles/parcels.3431529a2e8d.pmtiles",
+  url: `${PARCEL_PMTILES_BASE}.${PARCEL_PMTILES_HASH}.pmtiles`,
   sourceLayer: "parcels",
   promoteId: "parcel_node_id",
 };
