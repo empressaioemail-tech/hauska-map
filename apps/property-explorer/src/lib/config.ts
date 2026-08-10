@@ -39,11 +39,21 @@ export const DEFAULT_CENTER = { latitude: 30.1105, longitude: -97.3184 };
 /** Zoom the cold-open map settles at — close enough that live parcels load. */
 export const DEFAULT_ZOOM = 15;
 
+/** Rollback: set VITE_PARCEL_PMTILES_HASH=3431529a2e8d (Central-TX 19-county). */
+const PARCEL_PMTILES_HASH =
+  (typeof import.meta !== "undefined" &&
+    (import.meta as ImportMeta & { env?: Record<string, string> }).env
+      ?.VITE_PARCEL_PMTILES_HASH) ||
+  "b692c6534d26";
+
+const PARCEL_PMTILES_BASE =
+  "https://storage.googleapis.com/hauska-map-tiles/parcels";
+
 /**
  * PMTiles browse-parcel layer — same archive as SHARED_PARCEL_TILES (CC-A WDLL 7).
  */
 export const PARCEL_TILES = {
-  url: "https://storage.googleapis.com/hauska-map-tiles/parcels.3431529a2e8d.pmtiles",
+  url: `${PARCEL_PMTILES_BASE}.${PARCEL_PMTILES_HASH}.pmtiles`,
   sourceLayer: "parcels",
   promoteId: "parcel_node_id",
 };
