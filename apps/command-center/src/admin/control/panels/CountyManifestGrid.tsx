@@ -1,4 +1,8 @@
-// County Manifest Grid — the operator's primary statewide console (254 x 13).
+// County Manifest Grid — the operator's primary statewide console.
+//
+// Grid dimensions and the column set are DERIVED from GET /api/county-ledger
+// (`railCapabilities` / `manifestCells` / `summary`). Nothing about the rail set is
+// asserted in this file: no rail names, no column count, no grid dimension label.
 //
 // Reads GET /api/county-ledger `manifestCells` (County Manifest Sprint 1).
 // Sibling to CountyLedger (registry-row gate/cert view); not a tab inside it —
@@ -20,8 +24,7 @@ import {
   Button,
 } from '../primitives'
 import {
-  MANIFEST_RAILS,
-  RAIL_COUNT,
+  deriveRails,
   atomTag,
   writerTag,
   cellLabel,
@@ -33,6 +36,7 @@ import {
   isSatisfiedCell,
   rawCellsCompletenessPct,
   type ManifestCell,
+  type RailDef,
   type ManifestCountyRow,
   type ManifestLedgerResponse,
 } from './countyManifestTypes'
@@ -79,7 +83,8 @@ const RollupStrip: React.FC<{
   satisfiedCells: number
   totalCells: number
   totalCounties: number
-}> = ({ weightedPct, rawPct, satisfiedCells, totalCells, totalCounties }) => (
+  totalRails: number
+}> = ({ weightedPct, rawPct, satisfiedCells, totalCells, totalCounties, totalRails }) => (
   <div
     style={{
       display: 'flex',
@@ -104,7 +109,7 @@ const RollupStrip: React.FC<{
     </div>
     <div style={{ padding: '10px 16px', borderRight: '0.5px solid var(--color-border-tertiary)', minWidth: 120 }}>
       <div style={{ ...typeCaption, textTransform: 'uppercase', letterSpacing: '0.08em' }}>Grid</div>
-      <div style={{ ...mono, fontSize: 20, fontWeight: 600 }}>{totalCounties}×{RAIL_COUNT}</div>
+      <div style={{ ...mono, fontSize: 20, fontWeight: 600 }}>{totalCounties}×{totalRails}</div>
       <div style={{ ...typeCaption }}>{totalCells.toLocaleString()} cells</div>
     </div>
   </div>
@@ -296,9 +301,14 @@ const CellDrawer: React.FC<{
   )
 }
 
-const IntakeSection: React.FC<{ counties: ManifestCountyRow[]; cellsByCounty: Map<string, ManifestCell[]> }> = ({
+const IntakeSection: React.FC<{
+  counties: ManifestCountyRow[]
+  cellsByCounty: Map<string, ManifestCell[]>
+  railCount: number
+}> = ({
   counties,
   cellsByCounty,
+  railCount,
 }) => {
   const ranked = useMemo(() => {
     return counties
@@ -332,7 +342,7 @@ const IntakeSection: React.FC<{ counties: ManifestCountyRow[]; cellsByCounty: Ma
                 <span style={{ ...mono, color: 'var(--color-text-tertiary)', marginLeft: 6 }}>{county.countyFips}</span>
               </td>
               <td style={{ ...mono, textAlign: 'right', padding: '4px 8px' }}>
-                {sat}/{RAIL_COUNT}
+                {sat}/{railCount}
               </td>
               <td style={{ padding: '4px 8px' }}>
                 {blockers.length === 0 ? (
@@ -457,9 +467,16 @@ export const CountyManifestGrid: React.FC = () => {
   }, [])
 
   const manifestCells = data?.manifestCells
+  // Column set derived from the API — never a hardcoded list. If a rail splits or is
+  // added server-side, the grid picks it up with no frontend change.
+  const rails = useMemo<RailDef[]>(
+    () => deriveRails(data?.railCapabilities, manifestCells),
+    [data?.railCapabilities, manifestCells],
+  )
+  const railCount = rails.length
   const cellsByCounty = useMemo(
-    () => (manifestCells ? groupCellsByCounty(manifestCells) : new Map()),
-    [manifestCells],
+    () => (manifestCells ? groupCellsByCounty(manifestCells, rails) : new Map()),
+    [manifestCells, rails],
   )
   const countyByFips = useMemo(() => {
     const m = new Map<string, ManifestCountyRow>()
@@ -470,7 +487,7 @@ export const CountyManifestGrid: React.FC = () => {
   const railStats = useMemo(() => {
     const stats = new Map<string, { satisfied: number; sample: ManifestCell | undefined }>()
     if (!manifestCells) return stats
-    for (const rail of MANIFEST_RAILS) {
+    for (const rail of rails) {
       const railCells = manifestCells.filter((c) => c.railKey === rail.key)
       stats.set(rail.key, {
         satisfied: railCells.filter(isSatisfiedCell).length,
@@ -478,7 +495,7 @@ export const CountyManifestGrid: React.FC = () => {
       })
     }
     return stats
-  }, [manifestCells])
+  }, [manifestCells, rails])
 
   const filteredFips = useMemo(() => {
     const fipsList = [...cellsByCounty.keys()].sort()
@@ -501,7 +518,7 @@ export const CountyManifestGrid: React.FC = () => {
 
   if (!manifestCells || manifestCells.length === 0) {
     return (
-      <Panel title="County Manifest" subtitle="254 counties × 13 rails — statewide completeness grid">
+      <Panel title="County Manifest" subtitle="statewide completeness grid">
         <ErrorState msg="manifest not served by this deployment — GET /api/county-ledger returned no manifestCells array" />
       </Panel>
     )
@@ -516,7 +533,7 @@ export const CountyManifestGrid: React.FC = () => {
   return (
     <Panel
       title="County Manifest"
-      subtitle="254 counties × 13 rails — see everything, where it is, and what is broken"
+      subtitle={`${summary.totalCounties} counties × ${railCount} rails — see everything, where it is, and what is broken`}
       right={
         <Pill sev="ok">
           {satisfiedCells}/{totalCells} satisfied
@@ -529,6 +546,7 @@ export const CountyManifestGrid: React.FC = () => {
         satisfiedCells={satisfiedCells}
         totalCells={totalCells}
         totalCounties={summary.totalCounties}
+        totalRails={railCount}
       />
       <Legend />
       <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', alignItems: 'center', marginBottom: 8 }}>
@@ -572,7 +590,7 @@ export const CountyManifestGrid: React.FC = () => {
                 <th style={{ ...stickyScore, ...sectionHeader, top: 0, zIndex: 40, padding: '6px 4px' }}>
                   Sat
                 </th>
-                {MANIFEST_RAILS.map((rail) => {
+                {rails.map((rail) => {
                   const st = railStats.get(rail.key)
                   const sample = st?.sample
                   return (
@@ -591,7 +609,7 @@ export const CountyManifestGrid: React.FC = () => {
                     >
                       <div style={{ fontSize: 10, fontWeight: 600, color: 'var(--color-text-primary)' }}>{rail.short}</div>
                       <div style={{ ...mono, fontSize: 9, color: 'var(--color-text-tertiary)' }}>
-                        {st ? `${st.satisfied}/254` : '—'}
+                        {st ? `${st.satisfied}/${summary.totalCounties}` : '—'}
                       </div>
                       <div style={{ display: 'flex', gap: 2, flexWrap: 'wrap', marginTop: 2 }}>
                         {sample && atomTag(sample.atomFamilyState) ? (
@@ -634,13 +652,13 @@ export const CountyManifestGrid: React.FC = () => {
                         <div
                           style={{
                             height: '100%',
-                            width: `${(100 * sat) / RAIL_COUNT}%`,
+                            width: `${railCount > 0 ? (100 * sat) / railCount : 0}%`,
                             background: 'var(--color-text-success)',
                           }}
                         />
                       </div>
                     </td>
-                    {MANIFEST_RAILS.map((rail) => {
+                    {rails.map((rail) => {
                       const cell = cellIndex.get(`${fips}:${rail.key}`)
                       if (!cell) {
                         return (
@@ -674,7 +692,7 @@ export const CountyManifestGrid: React.FC = () => {
         </Card>
       </div>
 
-      <IntakeSection counties={data.counties} cellsByCounty={cellsByCounty} />
+      <IntakeSection counties={data.counties} cellsByCounty={cellsByCounty} railCount={railCount} />
       <MaintenanceSection counties={data.counties} />
     </Panel>
   )

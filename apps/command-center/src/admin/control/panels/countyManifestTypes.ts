@@ -1,9 +1,13 @@
-// countyManifestTypes.ts — shared types and rail dimension for the County Manifest grid.
+// countyManifestTypes.ts — shared types and rail derivation for the County Manifest grid.
 //
-// Rail metadata mirrors the 13 ruled rails (doc_repo
-// `_decisions/2026-08-08_county_shape_thirteen_rails_and_geometry_first.md`).
-// Display names and short headers are stable UI labels; cell state comes from
-// GET /api/county-ledger `manifestCells`, not from this table.
+// THE RAIL SET IS DERIVED FROM THE API, NEVER DECLARED HERE. GET /api/county-ledger
+// serves `railCapabilities` (ordered, authoritative) and `manifestCells`; the grid's
+// columns, column count, and grid dimension label all come from that response.
+// RAIL_LABELS below is a presentation-only lookup for short headers and long names;
+// a rail absent from it still renders, using a derived fallback label. That keeps the
+// console from ever showing a rail set that differs from the one the API serves — the
+// defect that let the console print 13 columns (with a stale `join` and a collapsed
+// `rrc`) while the API served 14 after the 2026-08-09 R1 rail split.
 
 import type { Severity } from '../primitives'
 
@@ -40,7 +44,19 @@ export interface ManifestSummary {
   totalRails?: number
   totalCells?: number
   satisfiedCells?: number
+  /** Present + partial breakdown — served by the API; previously missing from these types. */
+  satisfiedPresentCells?: number
+  satisfiedPresentPartialCells?: number
+  satisfiedAbsentCells?: number
   texasCompletenessPct?: number
+}
+
+/** Ordered, authoritative rail list served by GET /api/county-ledger. */
+export interface RailCapability {
+  railKey: string
+  maxCountiesReachable: number | null
+  reachPct: number | null
+  sourceBasis: string | null
 }
 
 export interface ManifestCountyRow {
@@ -64,6 +80,7 @@ export interface ManifestCountyRow {
 export interface ManifestLedgerResponse {
   counties: ManifestCountyRow[]
   manifestCells?: ManifestCell[]
+  railCapabilities?: RailCapability[]
   summary: ManifestSummary
 }
 
@@ -74,24 +91,60 @@ export interface RailDef {
   kind: 'spine' | 'derived'
 }
 
-/** Ruled rail order — 13 columns left-to-right after the frozen county column. */
-export const MANIFEST_RAILS: RailDef[] = [
-  { key: 'geometry', label: 'Parcel geometry', short: 'GEOM', kind: 'spine' },
-  { key: 'cad', label: 'CAD attributes', short: 'CAD', kind: 'spine' },
-  { key: 'join', label: 'Join quality', short: 'JOIN', kind: 'spine' },
-  { key: 'zoning', label: 'Zoning + setback', short: 'ZON', kind: 'spine' },
-  { key: 'roads', label: 'Roads / frontage', short: 'ROAD', kind: 'spine' },
-  { key: 'flood', label: 'Flood / terrain', short: 'FLD', kind: 'spine' },
-  { key: 'envelope', label: 'Buildable envelope', short: 'ENV', kind: 'derived' },
-  { key: 'landuse', label: 'Land use', short: 'LU', kind: 'derived' },
-  { key: 'footprint', label: 'Building footprints', short: 'BFP', kind: 'derived' },
-  { key: 'easement', label: 'Utility easements', short: 'ESMT', kind: 'derived' },
-  { key: 'owner', label: 'Owner facet', short: 'OWN', kind: 'derived' },
-  { key: 'rrc', label: 'RRC wells / pipe', short: 'RRC', kind: 'derived' },
-  { key: 'mud', label: 'MUD / districts', short: 'MUD', kind: 'derived' },
-]
+/**
+ * Presentation-only labels. NOT the column set — the column set is derived from the
+ * API response by `deriveRails`. Adding a rail server-side needs no change here; the
+ * column simply renders with a derived label until a nicer one is added.
+ */
+const RAIL_LABELS: Record<string, { label: string; short: string; kind: 'spine' | 'derived' }> = {
+  geometry: { label: 'Parcel geometry', short: 'GEOM', kind: 'spine' },
+  cad: { label: 'CAD attributes', short: 'CAD', kind: 'spine' },
+  zoning: { label: 'Zoning + setback', short: 'ZON', kind: 'spine' },
+  roads: { label: 'Roads / frontage', short: 'ROAD', kind: 'spine' },
+  flood: { label: 'Flood / terrain', short: 'FLD', kind: 'spine' },
+  envelope: { label: 'Buildable envelope', short: 'ENV', kind: 'derived' },
+  landuse: { label: 'Land use', short: 'LU', kind: 'derived' },
+  footprint: { label: 'Building footprints', short: 'BFP', kind: 'derived' },
+  easement: { label: 'Utility easements', short: 'ESMT', kind: 'derived' },
+  owner: { label: 'Owner facet', short: 'OWN', kind: 'derived' },
+  'rrc-wells': { label: 'RRC wells', short: 'WELL', kind: 'derived' },
+  'rrc-pipelines': { label: 'RRC pipelines', short: 'PIPE', kind: 'derived' },
+  'rail-corridor': { label: 'Rail corridors', short: 'RAIL', kind: 'derived' },
+  mud: { label: 'MUD / districts', short: 'MUD', kind: 'derived' },
+}
 
-export const RAIL_COUNT = MANIFEST_RAILS.length
+/** Derive a short header for a rail key with no declared label. */
+function fallbackShort(railKey: string): string {
+  const tail = railKey.split(/[-_]/).pop() ?? railKey
+  return tail.slice(0, 4).toUpperCase()
+}
+
+export function railDef(railKey: string): RailDef {
+  const known = RAIL_LABELS[railKey]
+  if (known) return { key: railKey, ...known }
+  return { key: railKey, label: railKey, short: fallbackShort(railKey), kind: 'derived' }
+}
+
+/**
+ * The single source of the column set. Prefers the API's ordered `railCapabilities`;
+ * falls back to first-appearance order of `manifestCells` when the deployment does not
+ * serve capabilities. Returns [] when neither is present — the caller must degrade
+ * honestly rather than substitute a hardcoded list.
+ */
+export function deriveRails(
+  railCapabilities: RailCapability[] | undefined,
+  manifestCells: ManifestCell[] | undefined,
+): RailDef[] {
+  const keys: string[] = []
+  const push = (k: string) => {
+    if (k && !keys.includes(k)) keys.push(k)
+  }
+  if (railCapabilities && railCapabilities.length > 0) {
+    for (const rc of railCapabilities) push(rc.railKey)
+  }
+  for (const cell of manifestCells ?? []) push(cell.railKey)
+  return keys.map(railDef)
+}
 
 export function isSatisfiedCell(cell: ManifestCell): boolean {
   return (
@@ -151,19 +204,19 @@ export function writerTag(hasWriter: boolean): string | null {
   return hasWriter ? null : 'NO WRITER'
 }
 
-export function groupCellsByCounty(cells: ManifestCell[]): Map<string, ManifestCell[]> {
+export function groupCellsByCounty(
+  cells: ManifestCell[],
+  rails: RailDef[],
+): Map<string, ManifestCell[]> {
   const map = new Map<string, ManifestCell[]>()
   for (const cell of cells) {
     const list = map.get(cell.countyFips) ?? []
     list.push(cell)
     map.set(cell.countyFips, list)
   }
+  const order = new Map(rails.map((r, i) => [r.key, i]))
   for (const list of map.values()) {
-    list.sort((a, b) => {
-      const ai = MANIFEST_RAILS.findIndex((r) => r.key === a.railKey)
-      const bi = MANIFEST_RAILS.findIndex((r) => r.key === b.railKey)
-      return ai - bi
-    })
+    list.sort((a, b) => (order.get(a.railKey) ?? 999) - (order.get(b.railKey) ?? 999))
   }
   return map
 }
