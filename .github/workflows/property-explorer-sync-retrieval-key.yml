@@ -7,7 +7,7 @@
 # redeploys so a rotation cannot strand PE.
 #
 # Traps baked in (see _STATE.md 2026-08-10 PE outage notes):
-#   1) Always vercel link --project property-explorer and assert project.json
+#   1) Assert VERCEL_PROJECT_ID == property-explorer (never cmdcenter)
 #   2) Wire BOTH HAUSKA_RETRIEVAL_API_KEY and RETRIEVAL_API_KEY (do not rename code)
 #   3) Write key with printf '%s' and assert byte length (no stdin newline)
 #   4) Workflow deploy is intentional authoritative-replace of manual env
@@ -15,9 +15,11 @@
 #   6) Live verify is a gated PE facets probe, not a bare 200 on /
 #
 # Required GitHub secrets (repo empressaioemail-tech/hauska-map):
-#   VERCEL_TOKEN
+#   VERCEL_TOKEN           — MUST be a personal token from
+#                            https://vercel.com/account/tokens
+#                            (CLI OAuth auth.json token is NOT valid for --token)
 #   VERCEL_ORG_ID          (= team_4TH5lNnFHcBGx4EKNapJ2MVG)
-#   VERCEL_PROJECT_ID      (= prj_vcZGXbqdffk5C20WzaplEpzFynK3)
+#   VERCEL_PROJECT_ID      (= prj_vcZGXbqdffk5C20WzaplEpzFynK3)  # property-explorer ONLY
 #   GCP_SA_KEY_HAUSKA_PROD (JSON SA key with secretmanager.secretAccessor on HAUSKA_ENGINE_API_KEY)
 #
 # Rotation path: add SM version → redeploy retrieval-api → redeploy MCP → run this workflow.
@@ -35,6 +37,12 @@ on:
 
 permissions:
   contents: read
+
+env:
+  # Hard-pin the property-explorer project id (trap 1). Do not change without
+  # re-reading .vercel/project.json after `vercel link --project property-explorer`.
+  EXPECTED_VERCEL_PROJECT_ID: prj_vcZGXbqdffk5C20WzaplEpzFynK3
+  EXPECTED_VERCEL_ORG_ID: team_4TH5lNnFHcBGx4EKNapJ2MVG
 
 jobs:
   sync:
@@ -59,36 +67,70 @@ jobs:
             --secret=HAUSKA_ENGINE_API_KEY \
             --project=hauska-prod-497015 \
             | tr -d '\r\n' > /tmp/retrieval.key
-          # printf '%s' path — byte length must match live secret (59 as of 2026-08-12)
           KEY_BYTES=$(wc -c < /tmp/retrieval.key | tr -d ' ')
           echo "key_bytes=${KEY_BYTES}"
           if [ "$KEY_BYTES" -lt 32 ]; then
             echo "retrieval key too short (${KEY_BYTES}) — abort"
             exit 1
           fi
-          # expose for later steps without printing value
           echo "key_bytes=${KEY_BYTES}" >> "$GITHUB_OUTPUT"
 
       - name: Install Vercel CLI
         run: npm install -g vercel@54.20.1
 
-      - name: Link Vercel project property-explorer (trap 1)
+      - name: Assert property-explorer project ids (trap 1) + write .vercel/project.json
         env:
-          VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
           VERCEL_ORG_ID: ${{ secrets.VERCEL_ORG_ID }}
           VERCEL_PROJECT_ID: ${{ secrets.VERCEL_PROJECT_ID }}
         run: |
           set -euo pipefail
-          vercel link --project property-explorer --yes --token "$VERCEL_TOKEN"
-          PROJECT_NAME=$(python3 -c "import json; print(json.load(open('.vercel/project.json'))['projectName'])")
-          echo "linked_project=${PROJECT_NAME}"
-          if [ "$PROJECT_NAME" != "property-explorer" ]; then
-            echo "REFUSING: linked project is '${PROJECT_NAME}', expected property-explorer (cmdcenter trap)"
+          if [ "$VERCEL_PROJECT_ID" != "$EXPECTED_VERCEL_PROJECT_ID" ]; then
+            echo "REFUSING: VERCEL_PROJECT_ID=${VERCEL_PROJECT_ID} is not property-explorer (${EXPECTED_VERCEL_PROJECT_ID}). cmdcenter trap."
             exit 1
           fi
-          LINKED_ID=$(python3 -c "import json; print(json.load(open('.vercel/project.json'))['projectId'])")
-          if [ "$LINKED_ID" != "$VERCEL_PROJECT_ID" ]; then
-            echo "REFUSING: projectId ${LINKED_ID} != expected ${VERCEL_PROJECT_ID}"
+          if [ "$VERCEL_ORG_ID" != "$EXPECTED_VERCEL_ORG_ID" ]; then
+            echo "REFUSING: VERCEL_ORG_ID=${VERCEL_ORG_ID} != ${EXPECTED_VERCEL_ORG_ID}"
+            exit 1
+          fi
+          mkdir -p .vercel
+          python3 - <<'PY'
+          import json, os
+          doc = {
+            "projectId": os.environ["VERCEL_PROJECT_ID"],
+            "orgId": os.environ["VERCEL_ORG_ID"],
+            "projectName": "property-explorer",
+          }
+          open(".vercel/project.json", "w", encoding="utf-8").write(json.dumps(doc))
+          print("wrote", doc)
+          PY
+          # Re-read and refuse if name/id drift
+          python3 - <<'PY'
+          import json, os, sys
+          d = json.load(open(".vercel/project.json", encoding="utf-8"))
+          if d.get("projectName") != "property-explorer":
+              print("REFUSING projectName", d.get("projectName"), file=sys.stderr)
+              sys.exit(1)
+          if d.get("projectId") != os.environ["EXPECTED_VERCEL_PROJECT_ID"]:
+              print("REFUSING projectId", d.get("projectId"), file=sys.stderr)
+              sys.exit(1)
+          print("project_assert_ok", d)
+          PY
+
+      - name: Preflight VERCEL_TOKEN (must be dashboard personal token)
+        env:
+          VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
+        run: |
+          set -euo pipefail
+          CODE=$(curl -sS -o /tmp/vercel_whoami.json -w "%{http_code}" \
+            -H "Authorization: Bearer ${VERCEL_TOKEN}" \
+            https://api.vercel.com/v2/user)
+          echo "vercel_whoami_http=${CODE}"
+          if [ "$CODE" != "200" ]; then
+            echo "VERCEL_TOKEN rejected by api.vercel.com (HTTP ${CODE})."
+            echo "Create a personal token at https://vercel.com/account/tokens"
+            echo "and set GitHub secret VERCEL_TOKEN on empressaioemail-tech/hauska-map."
+            echo "CLI OAuth tokens from auth.json are NOT valid for --token / Bearer."
+            head -c 300 /tmp/vercel_whoami.json || true
             exit 1
           fi
 
@@ -99,10 +141,8 @@ jobs:
           VERCEL_PROJECT_ID: ${{ secrets.VERCEL_PROJECT_ID }}
         run: |
           set -euo pipefail
-          # Wire BOTH names — PE code reads HAUSKA_RETRIEVAL_API_KEY with RETRIEVAL_API_KEY fallback.
           for VAR in HAUSKA_RETRIEVAL_API_KEY RETRIEVAL_API_KEY; do
             vercel env rm "$VAR" production --yes --token "$VERCEL_TOKEN" || true
-            # printf '%s' — no trailing newline (PS5.1 / shell stdin trap)
             printf '%s' "$(cat /tmp/retrieval.key)" | vercel env add "$VAR" production --token "$VERCEL_TOKEN"
             echo "set ${VAR}"
           done
@@ -121,7 +161,6 @@ jobs:
       - name: Live verify PE facets gold Bastrop 34137 (exit-bounded)
         run: |
           set -euo pipefail
-          # Production alias (property-explorer.vercel.app is NOT the live host)
           URL="https://property-explorer-xi.vercel.app/api/spine/property-atoms/48021:34137/facets"
           CODE=$(curl -sS -o /tmp/facets.json -w "%{http_code}" --max-time 60 "$URL")
           echo "http=${CODE}"
