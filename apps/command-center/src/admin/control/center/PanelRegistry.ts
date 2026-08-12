@@ -68,7 +68,8 @@ export const PANELS: PanelDef[] = [
   // operator's headline view of the rewarmable factory: onboarded / certified /
   // stale / rewarm-unsafe per jurisdiction. Reads /api/county-ledger.
   { id: 'county-ledger', label: 'County Ledger', group: 'Engines', probe: 'cortex-coverage', Component: CountyLedger },
-  // County Manifest — the operator's primary statewide 254×13 grid (manifestCells).
+  // County Manifest — the operator's primary statewide county×rail grid (manifestCells).
+  // Grid dimensions derive from the API; no rail count is asserted in the console.
   // Sibling to County Ledger (registry-row gate/cert view), not a tab inside it.
   { id: 'county-manifest', label: 'County Manifest', group: 'Engines', probe: 'cortex-coverage', Component: CountyManifestGrid },
   { id: 'resolver', label: 'Resolver', group: 'Engines', stub: true,

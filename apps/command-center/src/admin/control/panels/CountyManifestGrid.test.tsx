@@ -1,14 +1,46 @@
-// CountyManifestGrid.test.tsx — pins the 254×13 manifest grid against manifestCells.
+// CountyManifestGrid.test.tsx — pins the manifest grid against manifestCells.
+//
+// The rail set here is a TEST FIXTURE mirroring the live API's 14 rails, NOT a
+// declaration the component reads. The component derives its columns from the API
+// response; the derivation tests below prove the grid follows a payload whose rail
+// set differs from this fixture.
 
 import { describe, it, expect, vi, beforeEach } from 'vitest'
 import { render, screen, waitFor, within, fireEvent } from '@testing-library/react'
 import { CountyManifestGrid } from './CountyManifestGrid'
 import {
-  MANIFEST_RAILS,
-  RAIL_COUNT,
   type ManifestCell,
   type ManifestLedgerResponse,
+  type RailCapability,
 } from './countyManifestTypes'
+
+/** Fixture mirroring GET /api/county-ledger railCapabilities as served 2026-08-12. */
+const FIXTURE_RAILS: Array<{ key: string; kind: 'spine' | 'derived' }> = [
+  { key: 'geometry', kind: 'spine' },
+  { key: 'cad', kind: 'spine' },
+  { key: 'zoning', kind: 'spine' },
+  { key: 'roads', kind: 'spine' },
+  { key: 'flood', kind: 'spine' },
+  { key: 'envelope', kind: 'derived' },
+  { key: 'landuse', kind: 'derived' },
+  { key: 'footprint', kind: 'derived' },
+  { key: 'easement', kind: 'derived' },
+  { key: 'owner', kind: 'derived' },
+  { key: 'rrc-wells', kind: 'derived' },
+  { key: 'rrc-pipelines', kind: 'derived' },
+  { key: 'rail-corridor', kind: 'derived' },
+  { key: 'mud', kind: 'derived' },
+]
+const FIXTURE_RAIL_COUNT = FIXTURE_RAILS.length
+
+function mkCaps(keys: string[]): RailCapability[] {
+  return keys.map((railKey) => ({
+    railKey,
+    maxCountiesReachable: null,
+    reachPct: null,
+    sourceBasis: null,
+  }))
+}
 
 vi.mock('../../api/spineClient')
 
@@ -19,7 +51,7 @@ function fipsForIndex(i: number): string {
 }
 
 function mkCell(countyFips: string, railKey: string, overrides: Partial<ManifestCell> = {}): ManifestCell {
-  const rail = MANIFEST_RAILS.find((r) => r.key === railKey)!
+  const rail = FIXTURE_RAILS.find((r) => r.key === railKey) ?? { key: railKey, kind: 'derived' as const }
   const isNoAtom = rail.key === 'geometry'
   const isNoWriter = rail.key === 'roads'
   return {
@@ -46,7 +78,7 @@ function mkFullGrid(countyCount = 254): ManifestCell[] {
   const cells: ManifestCell[] = []
   for (let i = 0; i < countyCount; i++) {
     const fips = fipsForIndex(i)
-    for (const rail of MANIFEST_RAILS) {
+    for (const rail of FIXTURE_RAILS) {
       cells.push(mkCell(fips, rail.key))
     }
   }
@@ -68,12 +100,13 @@ function mkPayload(cells: ManifestCell[], summaryOverrides: Partial<ManifestLedg
   return {
     counties,
     manifestCells: cells,
+    railCapabilities: mkCaps(FIXTURE_RAILS.map((r) => r.key)),
     summary: {
       onboardedCount: 0,
       totalCounties: counties.length,
       staleCount: 0,
       rewarmUnsafeCount: 0,
-      totalRails: RAIL_COUNT,
+      totalRails: FIXTURE_RAIL_COUNT,
       totalCells: cells.length,
       satisfiedCells,
       texasCompletenessPct: 4.72,
@@ -100,7 +133,7 @@ describe('CountyManifestGrid', () => {
   })
 
   it(
-    'renders all 3,302 cells for a full 254×13 manifestCells payload',
+    'renders every county-by-rail cell for a full manifestCells payload',
     async () => {
       const cells = mkFullGrid(254)
       mockGetJson.mockResolvedValue({ ok: true, status: 200, json: mkPayload(cells) })
@@ -112,7 +145,7 @@ describe('CountyManifestGrid', () => {
       })
 
       const rendered = document.querySelectorAll('[data-testid^="manifest-cell-"]')
-      expect(rendered.length).toBe(254 * RAIL_COUNT)
+      expect(rendered.length).toBe(254 * FIXTURE_RAIL_COUNT)
     },
     30_000,
   )
@@ -131,7 +164,7 @@ describe('CountyManifestGrid', () => {
       mkCell(fips, 'roads', { displayState: 'no-writer', hasWriter: false }),
     ]
     // Fill remaining rails for the one county so the row is complete
-    for (const rail of MANIFEST_RAILS) {
+    for (const rail of FIXTURE_RAILS) {
       if (!cells.some((c) => c.railKey === rail.key)) {
         cells.push(mkCell(fips, rail.key))
       }
@@ -163,7 +196,7 @@ describe('CountyManifestGrid', () => {
 
   it('renders PARTIAL with coverage number and zero credit (visual partial state)', async () => {
     const fips = '48491'
-    const cells = MANIFEST_RAILS.map((rail) =>
+    const cells = FIXTURE_RAILS.map((rail) =>
       mkCell(fips, rail.key, {
         displayState: rail.key === 'zoning' ? 'satisfied-present' : 'no-atom',
         atomFamilyState: rail.key === 'zoning' ? 'present' : 'missing',
@@ -188,9 +221,9 @@ describe('CountyManifestGrid', () => {
     expect(within(partialCell as HTMLElement).getByText('34%')).toBeInTheDocument()
   })
 
-  it('shows 13 cells for a county with zero legacy facet coverage rows', async () => {
+  it('shows one cell per API rail for a county with zero legacy facet coverage rows', async () => {
     const fips = '48129'
-    const cells = MANIFEST_RAILS.map((rail) => mkCell(fips, rail.key, { displayState: 'not-yet' }))
+    const cells = FIXTURE_RAILS.map((rail) => mkCell(fips, rail.key, { displayState: 'not-yet' }))
 
     mockGetJson.mockResolvedValue({
       ok: true,
@@ -207,13 +240,14 @@ describe('CountyManifestGrid', () => {
           },
         ],
         manifestCells: cells,
+        railCapabilities: mkCaps(FIXTURE_RAILS.map((r) => r.key)),
         summary: {
           onboardedCount: 0,
           totalCounties: 1,
           staleCount: 0,
           rewarmUnsafeCount: 0,
-          totalRails: RAIL_COUNT,
-          totalCells: RAIL_COUNT,
+          totalRails: FIXTURE_RAIL_COUNT,
+          totalCells: FIXTURE_RAIL_COUNT,
           satisfiedCells: 0,
           texasCompletenessPct: 0,
         },
@@ -225,7 +259,7 @@ describe('CountyManifestGrid', () => {
     await waitFor(() => expect(screen.getByTestId(`manifest-row-${fips}`)).toBeInTheDocument())
 
     const rowCells = document.querySelectorAll(`[data-testid^="manifest-cell-${fips}-"]`)
-    expect(rowCells.length).toBe(RAIL_COUNT)
+    expect(rowCells.length).toBe(FIXTURE_RAIL_COUNT)
   })
 
   it('renders explicit degraded state when manifestCells is absent', async () => {
@@ -258,7 +292,7 @@ describe('CountyManifestGrid', () => {
       status: 200,
       json: mkPayload(cells, {
         totalCounties: 2,
-        totalCells: 26,
+        totalCells: 2 * FIXTURE_RAIL_COUNT,
         satisfiedCells: 2,
         texasCompletenessPct: 4.72,
       }),
@@ -270,12 +304,12 @@ describe('CountyManifestGrid', () => {
     expect(screen.getByText('4.72%')).toBeInTheDocument()
     expect(screen.getByText('parcel-weighted · headline')).toBeInTheDocument()
     expect(screen.getByText('Cells satisfied')).toBeInTheDocument()
-    expect(screen.getByText('2/26 · secondary')).toBeInTheDocument()
+    expect(screen.getByText(`2/${2 * FIXTURE_RAIL_COUNT} · secondary`)).toBeInTheDocument()
   })
 
   it('cell drawer shows artifact path absence honestly', async () => {
     const fips = '48021'
-    const cells = MANIFEST_RAILS.map((rail) => mkCell(fips, rail.key))
+    const cells = FIXTURE_RAILS.map((rail) => mkCell(fips, rail.key))
     mockGetJson.mockResolvedValue({ ok: true, status: 200, json: mkPayload(cells) })
 
     render(<CountyManifestGrid />)
@@ -294,7 +328,7 @@ describe('CountyManifestGrid', () => {
     const fips = '48201'
     const basis =
       "SCOPE-LIMITED — roster doctrine 'PASS — county unincorporated = honest absence' establishes..."
-    const cells = MANIFEST_RAILS.map((rail) =>
+    const cells = FIXTURE_RAILS.map((rail) =>
       mkCell(fips, rail.key, rail.key === 'zoning' ? { displayState: 'satisfied-absent', absenceBasis: basis } : {}),
     )
     mockGetJson.mockResolvedValue({ ok: true, status: 200, json: mkPayload(cells) })
@@ -313,7 +347,7 @@ describe('CountyManifestGrid', () => {
 
   it('cell drawer shows absence basis honestly as "no basis recorded" when null', async () => {
     const fips = '48021'
-    const cells = MANIFEST_RAILS.map((rail) => mkCell(fips, rail.key))
+    const cells = FIXTURE_RAILS.map((rail) => mkCell(fips, rail.key))
     mockGetJson.mockResolvedValue({ ok: true, status: 200, json: mkPayload(cells) })
 
     render(<CountyManifestGrid />)
@@ -327,4 +361,71 @@ describe('CountyManifestGrid', () => {
       expect(screen.getByText('no basis recorded')).toBeInTheDocument()
     })
   })
+  it('derives the column set from the API, including the rrc split and rail-corridor', async () => {
+    const fips = '48021'
+    const cells = FIXTURE_RAILS.map((rail) => mkCell(fips, rail.key))
+    mockGetJson.mockResolvedValue({ ok: true, status: 200, json: mkPayload(cells) })
+
+    render(<CountyManifestGrid />)
+    await waitFor(() => expect(screen.getByTestId(`manifest-row-${fips}`)).toBeInTheDocument())
+
+    expect(document.querySelector(`[data-testid="manifest-cell-${fips}-rrc-wells"]`)).toBeTruthy()
+    expect(document.querySelector(`[data-testid="manifest-cell-${fips}-rrc-pipelines"]`)).toBeTruthy()
+    expect(document.querySelector(`[data-testid="manifest-cell-${fips}-rail-corridor"]`)).toBeTruthy()
+    expect(document.querySelector(`[data-testid="manifest-cell-${fips}-rrc"]`)).toBeNull()
+    expect(document.querySelector(`[data-testid="manifest-cell-${fips}-join"]`)).toBeNull()
+
+    const rowCells = document.querySelectorAll(`[data-testid^="manifest-cell-${fips}-"]`)
+    expect(rowCells.length).toBe(FIXTURE_RAIL_COUNT)
+  })
+
+  it('follows the API when it serves a rail set this file does not declare', async () => {
+    const fips = '48021'
+    const apiRails = ['geometry', 'cad', 'a-brand-new-rail']
+    const cells = apiRails.map((key) => mkCell(fips, key))
+    mockGetJson.mockResolvedValue({
+      ok: true,
+      status: 200,
+      json: {
+        counties: [
+          { countyFips: fips, countyName: 'Bastrop', hasStale: false, rewarmUnsafe: false, rows: [], facets: [] },
+        ],
+        manifestCells: cells,
+        railCapabilities: mkCaps(apiRails),
+        summary: {
+          onboardedCount: 0,
+          totalCounties: 1,
+          staleCount: 0,
+          rewarmUnsafeCount: 0,
+          totalRails: apiRails.length,
+          totalCells: apiRails.length,
+          satisfiedCells: 0,
+          texasCompletenessPct: 0,
+        },
+      },
+    })
+
+    render(<CountyManifestGrid />)
+    await waitFor(() => expect(screen.getByTestId(`manifest-row-${fips}`)).toBeInTheDocument())
+
+    const rowCells = document.querySelectorAll(`[data-testid^="manifest-cell-${fips}-"]`)
+    expect(rowCells.length).toBe(3)
+    expect(document.querySelector(`[data-testid="manifest-cell-${fips}-a-brand-new-rail"]`)).toBeTruthy()
+    expect(screen.getByText('1×3')).toBeInTheDocument()
+  })
+
+  it(
+    'grid dimension label always agrees with the served cell count',
+    async () => {
+      const cells = mkFullGrid(254)
+      mockGetJson.mockResolvedValue({ ok: true, status: 200, json: mkPayload(cells) })
+
+      render(<CountyManifestGrid />)
+      await waitFor(() => expect(screen.getByText('County Manifest')).toBeInTheDocument())
+
+      expect(screen.getByText(`254×${FIXTURE_RAIL_COUNT}`)).toBeInTheDocument()
+      expect(screen.getByText((254 * FIXTURE_RAIL_COUNT).toLocaleString() + ' cells')).toBeInTheDocument()
+    },
+    30_000,
+  )
 })
