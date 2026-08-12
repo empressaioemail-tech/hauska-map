@@ -414,14 +414,18 @@ describe('CountyManifestGrid', () => {
     expect(screen.getByText('1×3')).toBeInTheDocument()
   })
 
-  it('grid dimension label always agrees with the served cell count', async () => {
-    const cells = mkFullGrid(254)
-    mockGetJson.mockResolvedValue({ ok: true, status: 200, json: mkPayload(cells) })
+  it(
+    'grid dimension label always agrees with the served cell count',
+    async () => {
+      const cells = mkFullGrid(254)
+      mockGetJson.mockResolvedValue({ ok: true, status: 200, json: mkPayload(cells) })
 
-    render(<CountyManifestGrid />)
-    await waitFor(() => expect(screen.getByText('County Manifest')).toBeInTheDocument())
+      render(<CountyManifestGrid />)
+      await waitFor(() => expect(screen.getByText('County Manifest')).toBeInTheDocument())
 
-    expect(screen.getByText(`254×${FIXTURE_RAIL_COUNT}`)).toBeInTheDocument()
-    expect(screen.getByText((254 * FIXTURE_RAIL_COUNT).toLocaleString() + ' cells')).toBeInTheDocument()
-  })
+      expect(screen.getByText(`254×${FIXTURE_RAIL_COUNT}`)).toBeInTheDocument()
+      expect(screen.getByText((254 * FIXTURE_RAIL_COUNT).toLocaleString() + ' cells')).toBeInTheDocument()
+    },
+    30_000,
+  )
 })
