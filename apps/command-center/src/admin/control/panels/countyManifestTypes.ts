@@ -49,6 +49,29 @@ export interface ManifestSummary {
   satisfiedPresentPartialCells?: number
   satisfiedAbsentCells?: number
   texasCompletenessPct?: number
+  /** L18: when the snapshot was written. Always shown on the grid. */
+  computedAt?: string
+  /** L18: when this GET was served. */
+  servedAt?: string
+  /** L18: servedAt - computedAt in ms. */
+  materializationAgeMs?: number
+}
+
+/** Materialization older than this is STALE on the County Manifest page (L18 addendum). */
+export const LEDGER_STALE_AFTER_MS = 15 * 60 * 1000
+
+export function isLedgerMaterializationStale(
+  summary: ManifestSummary,
+  nowMs = Date.now(),
+): boolean {
+  if (!summary.computedAt) return true
+  const parsed = Date.parse(summary.computedAt)
+  if (!Number.isFinite(parsed)) return true
+  const age =
+    typeof summary.materializationAgeMs === 'number' && Number.isFinite(summary.materializationAgeMs)
+      ? summary.materializationAgeMs
+      : nowMs - parsed
+  return age > LEDGER_STALE_AFTER_MS
 }
 
 /** Ordered, authoritative rail list served by GET /api/county-ledger. */

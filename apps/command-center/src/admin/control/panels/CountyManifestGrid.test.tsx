@@ -12,6 +12,8 @@ import {
   type ManifestCell,
   type ManifestLedgerResponse,
   type RailCapability,
+  isLedgerMaterializationStale,
+  LEDGER_STALE_AFTER_MS,
 } from './countyManifestTypes'
 
 /** Fixture mirroring GET /api/county-ledger railCapabilities as served 2026-08-12. */
@@ -110,6 +112,9 @@ function mkPayload(cells: ManifestCell[], summaryOverrides: Partial<ManifestLedg
       totalCells: cells.length,
       satisfiedCells,
       texasCompletenessPct: 4.72,
+      computedAt: new Date().toISOString(),
+      servedAt: new Date().toISOString(),
+      materializationAgeMs: 0,
       ...summaryOverrides,
     },
   }
@@ -428,4 +433,52 @@ describe('CountyManifestGrid', () => {
     },
     30_000,
   )
+
+  it('always renders computedAt and shows the STALE banner when the snapshot is old', async () => {
+    const staleAt = new Date(Date.now() - LEDGER_STALE_AFTER_MS - 60_000).toISOString()
+    const cells = FIXTURE_RAILS.map((rail) => mkCell('48021', rail.key))
+    mockGetJson.mockResolvedValue({
+      ok: true,
+      status: 200,
+      json: mkPayload(cells, {
+        computedAt: staleAt,
+        servedAt: new Date().toISOString(),
+        materializationAgeMs: LEDGER_STALE_AFTER_MS + 60_000,
+      }),
+    })
+
+    render(<CountyManifestGrid />)
+    await waitFor(() => expect(screen.getByTestId('manifest-computed-at')).toBeInTheDocument())
+    expect(screen.getByTestId('manifest-computed-at')).toHaveTextContent(staleAt)
+    expect(screen.getByTestId('manifest-stale-banner')).toHaveTextContent(`STALE — materialized at ${staleAt}`)
+    expect(screen.getByText('manifest stale')).toBeInTheDocument()
+  })
+
+  it('does not show the STALE banner when computedAt is fresh', async () => {
+    const cells = FIXTURE_RAILS.map((rail) => mkCell('48021', rail.key))
+    mockGetJson.mockResolvedValue({ ok: true, status: 200, json: mkPayload(cells) })
+
+    render(<CountyManifestGrid />)
+    await waitFor(() => expect(screen.getByTestId('manifest-computed-at')).toBeInTheDocument())
+    expect(screen.queryByTestId('manifest-stale-banner')).toBeNull()
+  })
+})
+
+describe('isLedgerMaterializationStale', () => {
+  it('fail-closed: missing computedAt is stale', () => {
+    expect(isLedgerMaterializationStale({ onboardedCount: 0, totalCounties: 0, staleCount: 0, rewarmUnsafeCount: 0 })).toBe(true)
+  })
+
+  it('fresh snapshot is not stale', () => {
+    expect(
+      isLedgerMaterializationStale({
+        onboardedCount: 0,
+        totalCounties: 0,
+        staleCount: 0,
+        rewarmUnsafeCount: 0,
+        computedAt: new Date().toISOString(),
+        materializationAgeMs: 0,
+      }),
+    ).toBe(false)
+  })
 })
