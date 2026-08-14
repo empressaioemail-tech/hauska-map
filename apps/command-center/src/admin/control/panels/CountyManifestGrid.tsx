@@ -35,6 +35,7 @@ import {
   indexCells,
   isSatisfiedCell,
   rawCellsCompletenessPct,
+  isLedgerMaterializationStale,
   type ManifestCell,
   type RailDef,
   type ManifestCountyRow,
@@ -84,7 +85,8 @@ const RollupStrip: React.FC<{
   totalCells: number
   totalCounties: number
   totalRails: number
-}> = ({ weightedPct, rawPct, satisfiedCells, totalCells, totalCounties, totalRails }) => (
+  computedAt: string | null
+}> = ({ weightedPct, rawPct, satisfiedCells, totalCells, totalCounties, totalRails, computedAt }) => (
   <div
     style={{
       display: 'flex',
@@ -111,6 +113,13 @@ const RollupStrip: React.FC<{
       <div style={{ ...typeCaption, textTransform: 'uppercase', letterSpacing: '0.08em' }}>Grid</div>
       <div style={{ ...mono, fontSize: 20, fontWeight: 600 }}>{totalCounties}×{totalRails}</div>
       <div style={{ ...typeCaption }}>{totalCells.toLocaleString()} cells</div>
+    </div>
+    <div style={{ padding: '10px 16px', minWidth: 180 }}>
+      <div style={{ ...typeCaption, textTransform: 'uppercase', letterSpacing: '0.08em' }}>Materialized</div>
+      <div data-testid="manifest-computed-at" style={{ ...mono, fontSize: 14, fontWeight: 600 }}>
+        {computedAt ?? 'no computedAt'}
+      </div>
+      <div style={{ ...typeCaption }}>computedAt · never silent</div>
     </div>
   </div>
 )
@@ -529,17 +538,34 @@ export const CountyManifestGrid: React.FC = () => {
   const totalCells = summary.totalCells ?? manifestCells.length
   const weightedPct = summary.texasCompletenessPct ?? null
   const rawPct = rawCellsCompletenessPct(satisfiedCells, totalCells)
+  const stale = isLedgerMaterializationStale(summary)
+  const computedAt = summary.computedAt ?? null
 
   return (
     <Panel
       title="County Manifest"
       subtitle={`${summary.totalCounties} counties × ${railCount} rails — see everything, where it is, and what is broken`}
       right={
-        <Pill sev="ok">
-          {satisfiedCells}/{totalCells} satisfied
+        <Pill sev={stale ? 'warn' : 'ok'}>
+          {stale ? 'manifest stale' : `${satisfiedCells}/${totalCells} satisfied`}
         </Pill>
       }
     >
+      {stale ? (
+        <div
+          data-testid="manifest-stale-banner"
+          style={{
+            ...typeCaption,
+            color: 'var(--color-text-warning)',
+            background: 'var(--color-background-warning)',
+            border: '0.5px solid var(--color-border-warning)',
+            padding: '8px 12px',
+            marginBottom: 12,
+          }}
+        >
+          STALE — materialized at {computedAt ?? 'unknown'} (showing snapshot, not a live recompute).
+        </div>
+      ) : null}
       <RollupStrip
         weightedPct={weightedPct}
         rawPct={rawPct}
@@ -547,6 +573,7 @@ export const CountyManifestGrid: React.FC = () => {
         totalCells={totalCells}
         totalCounties={summary.totalCounties}
         totalRails={railCount}
+        computedAt={computedAt}
       />
       <Legend />
       <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', alignItems: 'center', marginBottom: 8 }}>
