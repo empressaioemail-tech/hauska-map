@@ -20,7 +20,6 @@ import { AgentView } from '../panels/AgentView'
 import { LayerRegistryView } from '../panels/LayerRegistryView'
 import { ParcelTrace } from '../panels/ParcelTrace'
 import { NodeGraph } from '../panels/NodeGraph'
-import { SmartFiles } from '../panels/SmartFiles'
 import { Settings } from '../panels/Settings'
 import { RevenueMeter } from '../panels/RevenueMeter'
 import { SpineHealth } from '../panels/SpineHealth'
@@ -73,7 +72,6 @@ export const PANELS: PanelDef[] = [
   // Grid dimensions derive from the API; no rail count is asserted in the console.
   // Sibling to County Ledger (registry-row gate/cert view), not a tab inside it.
   { id: 'county-manifest', label: 'County Manifest', group: 'Engines', probe: 'cortex-coverage', Component: CountyManifestGrid },
-  { id: 'smart-files', label: 'Smart Files', group: 'Engines', probe: 'cortex-coverage', Component: SmartFiles },
   { id: 'resolver', label: 'Resolver', group: 'Engines', stub: true,
     Component: makeStub('Resolver', 'place/resolve + node resolution status') },
   { id: 'engine-console', label: 'Autonomous Engines', group: 'Engines', stub: true,
