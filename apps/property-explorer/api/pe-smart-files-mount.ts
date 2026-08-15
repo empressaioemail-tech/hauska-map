@@ -3,7 +3,7 @@ import type { VercelRequest, VercelResponse } from "@vercel/node";
 import {
   ISOLATION_PROBE,
   resolveFilesMount,
-} from "./_lib/pe-smart-files-mount";
+} from "./_lib/pe-smart-files-mount.js";
 
 /**
  * SmartSite / PE mount of Smart Files (G-58 item 8).
