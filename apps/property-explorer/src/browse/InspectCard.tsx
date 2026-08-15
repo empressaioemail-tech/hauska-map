@@ -42,6 +42,7 @@ import {
 } from "../lib/baked-facets";
 import { CORTEX_PROXY_BASE, PE_FACETS_PROXY_BASE } from "../lib/config";
 import { Button } from "../components/Button";
+import { SmartFilesMountStub } from "./SmartFilesMountStub";
 import {
   AtomChip,
   AtomDetailPopover,
@@ -580,6 +581,8 @@ export function InspectCard({
       >
         Research this →
       </Button>
+
+      <SmartFilesMountStub />
     </div>
   );
 }
