@@ -40,16 +40,32 @@ const RecordPane: React.FC<{ records: SmartFileRecordAtom[] }> = ({ records }) =
     {records.length === 0 ? (
       <Empty msg="No non-file atoms on this folder." />
     ) : (
-      records.map((r) => (
-        <AtomListRow
-          key={r.recordEntityId}
-          claimType={r.entityType}
-          atomId={r.recordEntityId}
-          title={String(r.payload.title ?? r.entityType)}
-          accessPolicy={r.accessPolicy}
-          preview={String(r.payload.claim ?? r.payload.source ?? '—')}
-        />
-      ))
+      records.map((r) => {
+        const recordTitle = String(r.payload.title ?? r.entityType)
+        return (
+          <div key={r.recordEntityId}>
+            <span
+              style={{
+                ...mono,
+                fontSize: 'var(--type-body)',
+                fontWeight: 600,
+                color: 'var(--color-text-primary)',
+                display: 'block',
+                marginBottom: 4,
+              }}
+            >
+              {recordTitle}
+            </span>
+            <AtomListRow
+              claimType={r.entityType}
+              atomId={r.recordEntityId}
+              accessPolicy={r.accessPolicy}
+              preview={String(r.payload.claim ?? r.payload.source ?? '—')}
+              meta={[{ label: 'record', value: recordTitle }]}
+            />
+          </div>
+        )
+      })
     )}
   </div>
 )
