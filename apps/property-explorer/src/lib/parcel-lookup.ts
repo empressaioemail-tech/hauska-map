@@ -1,18 +1,20 @@
-// Parcel lookup resolve helpers — address OR parcelNodeId → inspect target.
-// Reachability gate for the atom-chain inspect card (no full search index).
+// apps/property-explorer/src/lib/parcel-lookup.ts
+//
+// QUERY -> PARCEL NODE ID. That is all this module does now.
+//
+// It used to build a whole inspect card here: it read the baked facets, shaped
+// them into a ParcelCardData, resolved a buildable envelope, and geocoded the
+// situs ADDRESS to decide where to fly. That made it one of the five paths that
+// each answered the same parcel questions separately, and its own comment
+// admitted the consequence — "the inspect card opens but the map does not
+// move" whenever no centre resolved.
+//
+// Facts now come from ONE place, `fact-sheet-resolver.ts`, keyed on the parcel
+// node id this module produces. Navigation comes from the sheet's geometry
+// centroid, never from an address (invariant I5).
 
-import type { ParcelCardData } from "../browse/liveGis";
-import {
-  fetchBakedNodeFacets,
-  type BakedFacetsResponse,
-} from "./baked-facets";
-import {
-  fetchBuildableEnvelope,
-  parsePlaceKey,
-  type BuildableEnvelopeResult,
-} from "./buildable-envelope.js";
-import { CORTEX_PROXY_BASE, PE_FACETS_PROXY_BASE } from "./config";
-import { fetchGeocodeSuggestions } from "./geocodeClient";
+import { fetchBuildableEnvelope } from "./buildable-envelope.js";
+import { CORTEX_PROXY_BASE } from "./config";
 import { isValidParcelNodeId, normalizeParcelNodeId } from "./parcel-node-id";
 
 export type LookupKind = "parcel-node-id" | "address";
@@ -32,211 +34,33 @@ export function isParcelNodeIdQuery(raw: string): boolean {
   return classifyLookupQuery(raw)?.kind === "parcel-node-id";
 }
 
-export interface LookupInspectTarget {
-  parcelNodeId: string;
-  card: ParcelCardData;
-  /** Optional geometry for envelope outline (address path may carry it). */
-  geometry?: unknown;
-  source: "parcel-node-id" | "address";
-}
-
 export type LookupResult =
-  | { ok: true; target: LookupInspectTarget }
+  | { ok: true; parcelNodeId: string; source: LookupKind }
   | { ok: false; reason: string };
 
-function cardFromFacets(resp: BakedFacetsResponse, parcelNodeId: string): ParcelCardData {
-  const f = resp.facets ?? {};
-  const base = f.baseFacts ?? {};
-  const fips = f.countyFips ?? parcelNodeId.split(":")[0] ?? null;
-  const propId = parcelNodeId.split(":")[1] ?? null;
-  return {
-    apn: base.apn ?? propId,
-    situsAddress: base.situsAddress ?? null,
-    owner: null,
-    landUseDescription: base.landUse?.description ?? base.landUse?.code ?? null,
-    county: f.countyName
-      ? fips
-        ? `${f.countyName} County (${fips})`
-        : `${f.countyName} County`
-      : fips
-        ? `FIPS ${fips}`
-        : null,
-    provider: f.provenance?.parcelSource ?? resp.source ?? null,
-    notSurveyGrade: true,
-    retrievedAt: f.bakedAt ?? resp.snapshotAt ?? null,
-    lat: null,
-    lng: null,
-  };
-}
-
 /**
- * The backend's AUTHORITATIVE geocode for the resolved parcel — the
- * `coord:<lat>:<lng>` placeKey the envelope resolve returns. Source of truth
- * for "where is this property" (the same resolution that produced the
- * parcel_node_id). Null when the response carries no parseable placeKey.
+ * Resolve a query to a PARCEL NODE ID and nothing else.
+ *
+ * A parcel id is already the answer. An address is put to the backend's
+ * situs-matching resolve, which pins it to exactly one parcel — that is the one
+ * thing this path is authoritative for, and the only thing it is asked for now.
  */
-function centerFromEnvelope(
-  env: BuildableEnvelopeResult,
-): { lat: number; lng: number } | null {
-  const envRec = env as unknown as Record<string, unknown>;
-  const parcelRec =
-    env.parcel && typeof env.parcel === "object"
-      ? (env.parcel as Record<string, unknown>)
-      : null;
-  const placeKey =
-    typeof envRec.placeKey === "string"
-      ? envRec.placeKey
-      : typeof parcelRec?.placeKey === "string"
-        ? parcelRec.placeKey
-        : null;
-  return parsePlaceKey(placeKey);
-}
-
-function cardFromEnvelope(
-  env: BuildableEnvelopeResult,
-  parcelNodeId: string,
-  address: string,
-): ParcelCardData {
-  const center = centerFromEnvelope(env);
-  const propId = parcelNodeId.split(":")[1] ?? null;
-  const fips = parcelNodeId.split(":")[0] ?? null;
-  const summary = (env.summary ?? {}) as Record<string, unknown>;
-  const apn =
-    typeof summary.apn === "string"
-      ? summary.apn
-      : typeof (env.parcel as { apn?: unknown } | null | undefined)?.apn === "string"
-        ? String((env.parcel as { apn: string }).apn)
-        : propId;
-  return {
-    apn,
-    situsAddress: address,
-    owner: null,
-    landUseDescription: null,
-    county: fips ? `FIPS ${fips}` : null,
-    provider: "buildable-envelope-resolve",
-    notSurveyGrade: env.notSurveyGrade !== false,
-    retrievedAt: null,
-    lat: center?.lat ?? null,
-    lng: center?.lng ?? null,
-  };
-}
-
-/**
- * Resolve a lookup query to an inspect target.
- * Parcel-node-id path uses the dual-serve facets BFF (atom-chain when flagged).
- * Address path uses allowlisted buildable-envelope resolve (may return parcel
- * even when envelope is declined).
- */
-export async function resolveParcelLookup(
+export async function resolveLookupToParcelNodeId(
   raw: string,
-  opts?: {
-    facetsBase?: string;
-    cortexBase?: string;
-    fetchImpl?: typeof fetch;
-  },
+  opts?: { cortexBase?: string; fetchImpl?: typeof fetch },
 ): Promise<LookupResult> {
   const classified = classifyLookupQuery(raw);
   if (!classified) {
     return { ok: false, reason: "Enter a parcel id (48209:156346) or a street address." };
   }
-
-  const facetsBase = opts?.facetsBase ?? PE_FACETS_PROXY_BASE;
-  const cortexBase = opts?.cortexBase ?? CORTEX_PROXY_BASE;
-  const fetchImpl = opts?.fetchImpl ?? fetch;
-
   if (classified.kind === "parcel-node-id") {
-    const resp = await fetchBakedNodeFacets(classified.value, facetsBase);
-    if (resp.kind === "not_found") {
-      return {
-        ok: false,
-        reason: `No parcel found for ${classified.value}.`,
-      };
-    }
-    if (resp.kind !== "ok") {
-      return {
-        ok: false,
-        reason:
-          resp.kind === "transient"
-            ? `Parcel facts temporarily unreachable for ${classified.value} — retry.`
-            : `Could not load parcel ${classified.value}.`,
-      };
-    }
-    const card = cardFromFacets(resp.data, classified.value);
-
-    // NAVIGATION SEAM (workbench polish): baked facets carry NO coordinates,
-    // so a card built purely from facets leaves lat/lng null and the caller's
-    // camera block (rebindProperty + resolveSubjectAndFit) silently never
-    // fires — the inspect card opens but the map does not move. When the
-    // facets carry a situs address, resolve the backend's AUTHORITATIVE
-    // geocode for it through the same buildable-envelope path the address
-    // lookup uses, and adopt its center (+ parcel geometry when returned) so
-    // saved-property reopen and the search bar's parcel-id fast path both FLY
-    // the live map to the parcel. Best-effort: any failure here degrades to
-    // today's behavior (card opens, no fly) — never a lookup failure.
-    let geometry: unknown = null;
-    if (card.lat == null || card.lng == null) {
-      const situs = card.situsAddress?.trim();
-      if (situs) {
-        try {
-          const env = await fetchBuildableEnvelope(
-            { address: situs },
-            cortexBase,
-            fetchImpl,
-          );
-          const center = centerFromEnvelope(env);
-          if (center) {
-            card.lat = center.lat;
-            card.lng = center.lng;
-          }
-          const envNodeId =
-            typeof env.parcelNodeId === "string" ? env.parcelNodeId.trim() : "";
-          // Geometry is only trustworthy when it is THIS parcel's geometry.
-          if (envNodeId === classified.value && env.geometry != null) {
-            geometry = env.geometry;
-          }
-        } catch {
-          /* honest degrade — the geocode fallback below may still center */
-        }
-      }
-      // FALLBACK: declined-envelope jurisdictions return no placeKey — geocode
-      // the situs address (same-origin Photon BFF) purely for CAMERA targeting.
-      // Never parcel data: the card stays facets-truth; a geocode miss keeps
-      // today's behavior (card opens, no fly).
-      if ((card.lat == null || card.lng == null) && situs) {
-        try {
-          const suggestions = await fetchGeocodeSuggestions(
-            situs,
-            null,
-            new AbortController().signal,
-            { limit: 1, fetchImpl },
-          );
-          const hit = suggestions.find(
-            (s) => s.lat != null && s.lng != null,
-          );
-          if (hit && hit.lat != null && hit.lng != null) {
-            card.lat = hit.lat;
-            card.lng = hit.lng;
-          }
-        } catch {
-          /* honest degrade: no center resolved — card still opens */
-        }
-      }
-    }
-    return {
-      ok: true,
-      target: {
-        parcelNodeId: classified.value,
-        card,
-        ...(geometry != null ? { geometry } : {}),
-        source: "parcel-node-id",
-      },
-    };
+    return { ok: true, parcelNodeId: classified.value, source: "parcel-node-id" };
   }
 
   const env = await fetchBuildableEnvelope(
     { address: classified.value },
-    cortexBase,
-    fetchImpl,
+    opts?.cortexBase ?? CORTEX_PROXY_BASE,
+    opts?.fetchImpl ?? fetch,
   );
   const parcelNodeId =
     typeof env.parcelNodeId === "string" && env.parcelNodeId.trim()
@@ -250,29 +74,7 @@ export async function resolveParcelLookup(
         `Address not found or not pinned to a single parcel: ${classified.value}`,
     };
   }
-
-  // Prefer atom/cortex facets card once we have the id (zoning + honest absence).
-  const facetsResult = await fetchBakedNodeFacets(parcelNodeId, facetsBase);
-  const facets = facetsResult.kind === "ok" ? facetsResult.data : null;
-  const card = facets
-    ? {
-        ...cardFromFacets(facets, parcelNodeId),
-        situsAddress:
-          cardFromFacets(facets, parcelNodeId).situsAddress ?? classified.value,
-        lat: cardFromEnvelope(env, parcelNodeId, classified.value).lat,
-        lng: cardFromEnvelope(env, parcelNodeId, classified.value).lng,
-      }
-    : cardFromEnvelope(env, parcelNodeId, classified.value);
-
-  return {
-    ok: true,
-    target: {
-      parcelNodeId,
-      card,
-      geometry: env.geometry ?? null,
-      source: "address",
-    },
-  };
+  return { ok: true, parcelNodeId, source: "address" };
 }
 
 /** Read deep-link query from a URLSearchParams (parcelNodeId | parcel | address). */

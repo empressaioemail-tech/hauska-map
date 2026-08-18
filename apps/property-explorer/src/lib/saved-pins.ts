@@ -11,7 +11,8 @@
 // panel. Clicking a pin reuses host.openProperty (the #104 reopen flight) —
 // no second surface, no duplicated flow.
 
-import { resolveParcelLookup, type LookupResult } from "./parcel-lookup";
+import type { ParcelFactSheet } from "@hauska/parcel-fact-sheet";
+import { factSheetResolver } from "./fact-sheet-resolver";
 import {
   sanitizePin,
   savedRowDisplayLabel,
@@ -155,27 +156,27 @@ export function savedPinElement(
 
 // ---------------------------------------------------------------------------
 // Save-time pin resolution — the coordinate the save flow already touches
-// (inspect card / facets center), else ONE pass through the #104
-// center-resolution chain (resolveParcelLookup). Still unknown → null,
-// honestly no pin.
+// (inspect card), else the parcel's own GEOMETRY CENTROID from the one sealed
+// fact sheet (invariant I5; it used to run a bespoke address-geocode chain).
+// Still unknown → null, honestly no pin.
 // ---------------------------------------------------------------------------
 
 export async function resolvePinForSave(
   parcelNodeId: string,
   lat: number | null | undefined,
   lng: number | null | undefined,
-  resolveImpl: (query: string) => Promise<LookupResult> = resolveParcelLookup,
+  resolveImpl: (
+    parcelNodeId: string,
+  ) => Promise<ParcelFactSheet> = (id) => factSheetResolver.resolve(id),
 ): Promise<DossierPin | null> {
   const direct = sanitizePin({ lat, lng });
   if (direct) return direct;
   try {
-    const result = await resolveImpl(parcelNodeId);
-    if (result.ok) {
-      return sanitizePin({
-        lat: result.target.card.lat,
-        lng: result.target.card.lng,
-      });
-    }
+    const sheet = await resolveImpl(parcelNodeId);
+    return sanitizePin({
+      lat: sheet.geometry.centroid.lat,
+      lng: sheet.geometry.centroid.lng,
+    });
   } catch {
     /* honest absence — a save never fails because the pin could not resolve */
   }
