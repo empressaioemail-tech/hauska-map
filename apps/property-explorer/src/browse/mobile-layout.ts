@@ -302,12 +302,36 @@ const ACTION_TAGS = new Set(["button", "a", "summary"]);
  * a selection the menu needs to collapse."
  */
 export function shouldDismissSheetOnClick(chain: SheetClickNode[]): boolean {
+  // A keep-open marker ANYWHERE on the path wins, so a whole region can opt
+  // out with one attribute instead of every control inside it.
+  if (chain.some((node) => node.keepOpen)) return false;
   for (const node of chain) {
-    if (node.keepOpen) return false;
     if (node.dismiss) return true;
     const tag = node.tag.toLowerCase();
     if (IN_PLACE_TAGS.has(tag)) return false;
     if (ACTION_TAGS.has(tag)) return !node.stateful;
   }
   return false;
+}
+
+/** Tapping the tab you are already on collapses its sheet. */
+export function nextSheetOnToggle(
+  current: MobileSheetId,
+  incoming: MobileSheetId,
+): MobileSheetId {
+  if (current === incoming) return "map";
+  return resolveMobileSheetConflict(current, incoming);
+}
+
+/**
+ * The navigation guard. A selection inside a sheet collapses THAT sheet, but
+ * only if nothing has navigated since: an in-sheet control that opened another
+ * sheet (InspectCard's Research button opens the research sheet) must keep its
+ * result. Applied one tick after the click, against the CURRENT sheet.
+ */
+export function nextSheetOnDismiss(
+  current: MobileSheetId,
+  from: MobileSheetId,
+): MobileSheetId {
+  return current === from ? "map" : current;
 }

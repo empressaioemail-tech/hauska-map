@@ -34,6 +34,8 @@ import {
 import {
   PE_MOBILE_NAV_HEIGHT_PX,
   MAP_PANEL_Z,
+  nextSheetOnDismiss,
+  nextSheetOnToggle,
   resolveMobileSheetConflict,
   shouldDismissSheetOnClick,
   type MobileSheetId,
@@ -248,9 +250,7 @@ export function MobilePanelProvider({
   const toggleSheet = useCallback(
     (id: MobileSheetId) => {
       if (!isMobile) return;
-      setActiveSheet((cur) =>
-        cur === id ? "map" : resolveMobileSheetConflict(cur, id),
-      );
+      setActiveSheet((cur) => nextSheetOnToggle(cur, id));
       if (id !== "map") setSearchFocusedState(false);
     },
     [isMobile],
@@ -263,7 +263,7 @@ export function MobilePanelProvider({
       // functional update reads the CURRENT sheet, so there is no stale
       // closure to get this wrong.
       setTimeout(() => {
-        setActiveSheet((cur) => (cur === from ? "map" : cur));
+        setActiveSheet((cur) => nextSheetOnDismiss(cur, from));
       }, 0);
     },
     [isMobile],
