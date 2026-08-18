@@ -13,8 +13,14 @@
 import React, { createContext, useCallback, useContext, useEffect, useMemo, useState } from 'react'
 import { DEFAULT_PANEL_ID, PANELS } from './PanelRegistry'
 import { CONTEXT_PARAM_KEYS } from '../../workspace/activeContext'
+import { PANEL_HASH_PREFIX, buildPanelHash } from './panelHash'
 
-const PREFIX = 'panel='
+// Re-exported so existing importers keep their path. The implementation lives in
+// panelHash.ts, which imports nothing — a leaf panel that only needs to WRITE a hash
+// must not drag PanelRegistry (and map-renderer's stylesheet) in behind it.
+export { buildPanelHash }
+
+const PREFIX = PANEL_HASH_PREFIX
 
 export interface PanelHash {
   panelId: string
@@ -47,19 +53,6 @@ export function parseHash(): PanelHash {
     params[k] = v
   }
   return { panelId, params }
-}
-
-/** Build a canonical hash string for a panel + optional params. */
-export function buildPanelHash(panelId: string, params?: Record<string, string>): string {
-  let hash = `#${PREFIX}${panelId}`
-  if (params) {
-    for (const [k, v] of Object.entries(params)) {
-      if (v !== undefined && v !== null && v !== '') {
-        hash += `&${encodeURIComponent(k)}=${encodeURIComponent(v)}`
-      }
-    }
-  }
-  return hash
 }
 
 type SelectPanel = (id: string, params?: Record<string, string>) => void

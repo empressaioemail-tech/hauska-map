@@ -74,12 +74,21 @@ export function isLedgerMaterializationStale(
   return age > LEDGER_STALE_AFTER_MS
 }
 
-/** Ordered, authoritative rail list served by GET /api/county-ledger. */
+/** Ordered, authoritative rail list served by GET /api/county-ledger.
+ *
+ *  `maxCountiesReachable` is the rail's own REACHABLE CEILING and it is not always
+ *  254: as served 2026-08-18 rrc-wells is 1 (its source is a single-county mirror),
+ *  owner 15, mud 186, rail-corridor 253, footprint 254, and 9 of 14 rails carry null
+ *  with sourceBasis "no capability probe defined for this rail". Scoring every rail
+ *  against 254 manufactures statewide holes that are really source ceilings, so the
+ *  grid renders both denominators and says plainly where no probe defines one. */
 export interface RailCapability {
   railKey: string
   maxCountiesReachable: number | null
   reachPct: number | null
   sourceBasis: string | null
+  /** Served for some rails; names why the theoretical ceiling is not the practical one. */
+  limitation?: string | null
 }
 
 export interface ManifestCountyRow {
