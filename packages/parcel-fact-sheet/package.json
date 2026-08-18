@@ -1,0 +1,30 @@
+{
+  "name": "@hauska/parcel-fact-sheet",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "The frozen parcel fact-sheet contract — one parcel, one resolve, one sealed sheet. Consumed by property-explorer (Smart Site) and command-center.",
+  "main": "./dist/index.cjs",
+  "module": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "files": [
+    "dist"
+  ],
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js",
+      "require": "./dist/index.cjs"
+    }
+  },
+  "devDependencies": {
+    "tsup": "^8.3.5",
+    "typescript": "^5.6.3",
+    "vitest": "^3.2.4"
+  },
+  "scripts": {
+    "build": "tsup",
+    "typecheck": "tsc --noEmit",
+    "test": "vitest run"
+  }
+}

@@ -1,0 +1,306 @@
+// packages/parcel-fact-sheet/src/index.test.ts
+//
+// The two contract implementations, tested against the DEFECTS that produced
+// the contract (2026-08-18 QA pass), not against their own prose:
+//
+//   - one X-ray PDF printed "Zone AO" on sheet 1 and "Flood zone AE" on
+//     sheet 4  ->  a multi-zone determination must name EVERY zone (I6);
+//   - the same PDF said "buildable envelope not derived here" on sheet 1 and
+//     measured 6,325 sq ft on sheet 4  ->  the three envelope outcomes are
+//     exclusive variants of ONE field, so a verdict can only ever speak one;
+//   - three grey "not verified here" rows read as errors  ->  a FAILED lookup
+//     must not share wording or tone with an honest absence (I4);
+//   - elevation printed in metres beside a layer control that said feet  ->
+//     formatMeasurement is the only place a measurement becomes text (I6).
+
+import { describe, expect, it } from "vitest";
+import {
+  composeVerdict,
+  composeVerdictTone,
+  formatMeasurement,
+  isFailure,
+  isPresent,
+  type BuildableEnvelope,
+  type Fact,
+  type FloodDetermination,
+  type ParcelFactSheet,
+  type Provenance,
+  type Setbacks,
+} from "./index";
+
+const PROV: Provenance = {
+  source: "cad-roll",
+  sourceLabel: "Bastrop County appraisal roll",
+  vintage: "data-export-01.14.2026",
+  method: null,
+  retrievedAt: "2026-08-18T00:00:00.000Z",
+  confidence: null,
+  confidenceBasis: "asserted",
+  sourceUrl: null,
+};
+
+const SETBACKS: Setbacks = {
+  front: { value: 25, unit: "ft" },
+  side: { value: 5, unit: "ft" },
+  rear: { value: 10, unit: "ft" },
+  cornerSide: null,
+};
+
+const DERIVED_ENVELOPE: BuildableEnvelope = {
+  kind: "derived",
+  area: { value: 6325, unit: "sqft" },
+  areaPctOfLot: 58,
+  rings: [],
+  setbacksUsed: SETBACKS,
+  subtractions: [],
+  approximate: false,
+  provenance: PROV,
+};
+
+function sheet(overrides: Partial<ParcelFactSheet> = {}): ParcelFactSheet {
+  return {
+    factSheetId: "fs_test",
+    resolverVersion: "test-1",
+    sealedAt: "2026-08-18T00:00:00.000Z",
+    identity: {
+      parcelNodeId: "48021:36521",
+      county: { fips: "48021", name: "Bastrop" },
+      apn: { state: "present", value: "R12345", provenance: PROV },
+      situsAddress: {
+        state: "absent-covered",
+        reason: "no situs address on the county roll for this parcel",
+        provenance: PROV,
+      },
+      owner: {
+        state: "absent-covered",
+        reason: "owner is never served",
+        provenance: PROV,
+      },
+    },
+    geometry: {
+      rings: [],
+      centroid: { lat: 30.1105, lng: -97.3184 },
+      bbox: [-97.32, 30.11, -97.31, 30.12],
+      lotArea: { value: 10906, unit: "sqft" },
+      crs: "EPSG:4326",
+    },
+    landUse: {
+      state: "present",
+      value: { code: "A1", description: "Single-family residential" },
+      provenance: PROV,
+    },
+    zoning: {
+      state: "present",
+      value: { code: "R-1", name: "Single family", jurisdiction: "bastrop_city_tx" },
+      provenance: PROV,
+    },
+    setbacks: { state: "present", value: SETBACKS, provenance: PROV },
+    envelope: DERIVED_ENVELOPE,
+    flood: {
+      state: "present",
+      value: {
+        zones: [{ zone: "X", subtype: null, isSfha: false, areaShare: 1 }],
+        primaryZone: "X",
+        inSfha: false,
+        baseFloodElevation: null,
+      },
+      provenance: PROV,
+    },
+    site: {
+      elevationRange: null,
+      contourInterval: null,
+      frontage: {
+        state: "absent-uncovered",
+        reason: "road centerlines are not stamped for this county",
+        wouldBeFilledBy: "road-node ingest for 48021",
+      },
+    },
+    verdict: "",
+    ...overrides,
+  };
+}
+
+const floodFact = (value: FloodDetermination): Fact<FloodDetermination> => ({
+  state: "present",
+  value,
+  provenance: PROV,
+});
+
+describe("Fact state guards", () => {
+  it("separates a FAILED lookup from an honest absence (I4)", () => {
+    const failed: Fact<string> = {
+      state: "unresolved",
+      reason: "facets upstream 503",
+      retryable: true,
+    };
+    const absent: Fact<string> = {
+      state: "absent-uncovered",
+      reason: "zoning is not stamped here",
+      wouldBeFilledBy: "city zoning layer for 48021",
+    };
+    expect(isFailure(failed)).toBe(true);
+    expect(isFailure(absent)).toBe(false);
+    expect(isPresent(absent)).toBe(false);
+  });
+});
+
+describe("composeVerdict — the ONE headline", () => {
+  it("earns the clean tail only when every core fact is present and clean", () => {
+    const s = sheet();
+    expect(composeVerdict(s)).toBe(
+      "Buildable, 58% of the lot · outside mapped flood hazard · zoned R-1 · single-family residential per county record — no red flags.",
+    );
+    expect(composeVerdictTone(s)).toBe("clear");
+  });
+
+  it("never earns the clean tail when a fact is honestly absent", () => {
+    const s = sheet({
+      zoning: {
+        state: "absent-uncovered",
+        reason: "no zoning stamp here",
+        wouldBeFilledBy: "city zoning layer",
+      },
+    });
+    const line = composeVerdict(s);
+    expect(line).toContain("zoning not verified here");
+    expect(line).not.toContain("no red flags");
+    expect(composeVerdictTone(s)).toBe("caution");
+  });
+
+  it("never earns the clean tail when a lookup FAILED", () => {
+    const s = sheet({
+      flood: { state: "unresolved", reason: "NFHL timeout", retryable: true },
+    });
+    const line = composeVerdict(s);
+    // "could not be checked" is an ERROR sentence, distinct from the
+    // honest-absence "not verified here" wording (I4).
+    expect(line).toContain("flood could not be checked");
+    expect(line).not.toContain("flood not verified here");
+    expect(line).not.toContain("no red flags");
+    expect(composeVerdictTone(s)).toBe("caution");
+  });
+
+  it("leads with the red flag and stamps tone flag when inside the SFHA", () => {
+    const s = sheet({
+      flood: floodFact({
+        zones: [{ zone: "AE", subtype: null, isSfha: true, areaShare: 1 }],
+        primaryZone: "AE",
+        inSfha: true,
+        baseFloodElevation: { value: 412.5, unit: "ft" },
+      }),
+    });
+    expect(composeVerdict(s)).toBe(
+      "Inside the FEMA flood hazard area (Zone AE) · buildable, 58% of the lot · zoned R-1 · single-family residential per county record.",
+    );
+    expect(composeVerdictTone(s)).toBe("flag");
+  });
+
+  it("names EVERY zone when a parcel is in more than one (I6)", () => {
+    // The exact defect: sheet 1 said AO, sheet 4 said AE, same parcel.
+    const s = sheet({
+      flood: floodFact({
+        zones: [
+          { zone: "AE", subtype: null, isSfha: true, areaShare: 0.62 },
+          { zone: "AO", subtype: null, isSfha: true, areaShare: 0.3 },
+          { zone: "X500", subtype: null, isSfha: false, areaShare: 0.08 },
+        ],
+        primaryZone: "AE",
+        inSfha: true,
+        baseFloodElevation: null,
+      }),
+    });
+    const line = composeVerdict(s);
+    expect(line).toContain("(Zones AE, AO and X500)");
+    expect(line).toContain("Inside the FEMA flood hazard area");
+  });
+
+  it("calls a 500-year-only parcel a mapped zone outside the SFHA", () => {
+    const s = sheet({
+      flood: floodFact({
+        zones: [{ zone: "X500", subtype: null, isSfha: false, areaShare: 1 }],
+        primaryZone: "X500",
+        inSfha: false,
+        baseFloodElevation: null,
+      }),
+    });
+    const line = composeVerdict(s);
+    expect(line).toContain("in a mapped FEMA flood zone (Zone X500), outside the SFHA");
+    expect(composeVerdictTone(s)).toBe("caution");
+  });
+
+  it("cannot say 'not derived' and carry an area at the same time (I2)", () => {
+    const notDerived = sheet({
+      envelope: {
+        kind: "not-derived",
+        reason: "no setback table for this district",
+        missing: ["setbacks"],
+      },
+    });
+    const derived = sheet();
+    expect(composeVerdict(notDerived)).toContain(
+      "Buildable envelope not derived here (missing setbacks)",
+    );
+    expect(composeVerdict(notDerived)).not.toMatch(/\d+% of the lot/);
+    expect(composeVerdict(derived)).toContain("58% of the lot");
+    expect(composeVerdict(derived)).not.toContain("not derived");
+  });
+
+  it("says a consumed lot plainly, never softened", () => {
+    const s = sheet({
+      envelope: {
+        kind: "consumed",
+        reason: "setbacks exceed the lot",
+        setbacksUsed: SETBACKS,
+        provenance: PROV,
+      },
+    });
+    expect(composeVerdict(s)).toContain("No buildable area after setbacks");
+    expect(composeVerdictTone(s)).toBe("caution");
+  });
+
+  it("marks an approximate envelope as a caution", () => {
+    const s = sheet({
+      envelope: { ...DERIVED_ENVELOPE, approximate: true },
+    });
+    expect(composeVerdict(s)).toContain("Buildable (approximate), 58% of the lot");
+    expect(composeVerdictTone(s)).toBe("caution");
+  });
+
+  it("is pure — same sheet, same sentence", () => {
+    const s = sheet();
+    expect(composeVerdict(s)).toBe(composeVerdict(s));
+  });
+});
+
+describe("formatMeasurement — the ONE formatter", () => {
+  it("formats US lengths and areas", () => {
+    expect(formatMeasurement({ value: 25, unit: "ft" }, "us")).toBe("25 ft");
+    expect(formatMeasurement({ value: 6325, unit: "sqft" }, "us")).toBe("6,325 sq ft");
+    // 705 vs 707 Laurel from the contract: 0.2345 vs 0.2519 ac.
+    expect(formatMeasurement({ value: 0.2519, unit: "acre" }, "us")).toBe("0.252 ac");
+  });
+
+  it("converts rather than relabelling when the system flips", () => {
+    // The DXF-into-a-Revit-US-template defect: the number must change with
+    // the unit word, never just the word.
+    expect(formatMeasurement({ value: 10, unit: "m" }, "us")).toBe("32.8 ft");
+    expect(formatMeasurement({ value: 100, unit: "ft" }, "metric")).toBe("30.5 m");
+    expect(formatMeasurement({ value: 1076.391, unit: "sqft" }, "metric")).toBe("100 m²");
+    expect(formatMeasurement({ value: 1, unit: "acre" }, "metric")).toBe("0.405 ha");
+  });
+
+  it("groups thousands without a locale", () => {
+    expect(formatMeasurement({ value: 1234567, unit: "sqft" }, "us")).toBe(
+      "1,234,567 sq ft",
+    );
+  });
+
+  it("never prints a non-finite value as zero", () => {
+    expect(formatMeasurement({ value: Number.NaN, unit: "ft" }, "us")).toBe(
+      "not measured",
+    );
+    expect(
+      formatMeasurement({ value: Number.POSITIVE_INFINITY, unit: "sqft" }, "us"),
+    ).toBe("not measured");
+  });
+});
