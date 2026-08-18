@@ -1,0 +1,31 @@
+name: Source encoding
+
+# Runs on EVERY pull request with no path filter, deliberately. The defect this
+# guards against (UTF-8 source re-saved as Windows-1252 and committed with the
+# corruption baked in) is not confined to one app: it hit a property-explorer
+# component and both copies of api/spine.ts. A path-filtered job would have let
+# the api/ occurrences through.
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+
+permissions:
+  contents: read
+
+jobs:
+  encoding:
+    name: No double-encoded source
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+      # Prove the detector can FIRE before trusting its verdict (DEV_PROCESS
+      # 2.2). A gate that silently cannot fail is worse than no gate.
+      - name: Guard self-test (must fire on known-bad, must not fire on known-good)
+        run: node scripts/check-source-encoding.mjs --self-test
+      - name: Scan tracked source
+        run: node scripts/check-source-encoding.mjs
