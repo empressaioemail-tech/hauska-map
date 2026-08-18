@@ -6,6 +6,7 @@ import type {
   TerrainExportBffResponse,
   TerrainExportFormat,
 } from './terrainExportTypes.js'
+import { ExportTargetError, resolveExportTarget } from './export-target'
 
 export type { TerrainExportFormat, TerrainExportBffResponse }
 
@@ -23,15 +24,31 @@ export type TerrainExportClientResult =
   | { ok: true; data: TerrainExportBffResponse }
   | { ok: false; status: number; error: string; message?: string }
 
+/** I1: keyed on the SUBJECT'S sheet id, never on a panel-local parcel id. */
 export async function requestTerrainExport(
   parcelNodeId: string,
   format: TerrainExportFormat,
 ): Promise<TerrainExportClientResult> {
+  let target
+  try {
+    target = resolveExportTarget(parcelNodeId)
+  } catch (err) {
+    return {
+      ok: false,
+      status: 409,
+      error: err instanceof ExportTargetError ? err.kind : 'export_target_error',
+      message: (err as Error).message,
+    }
+  }
   try {
     const res = await fetch('/api/pe-terrain-export', {
       method: 'POST',
       credentials: 'include',
-      body: JSON.stringify({ parcelNodeId, format }),
+      body: JSON.stringify({
+        factSheetId: target.factSheetId,
+        parcelNodeId: target.parcelNodeId,
+        format,
+      }),
       headers: { 'Content-Type': 'application/json' },
     })
     const body = (await res.json().catch(() => ({}))) as {

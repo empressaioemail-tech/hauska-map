@@ -97,6 +97,9 @@ importers:
       '@hauska/map-renderer':
         specifier: workspace:*
         version: link:../../packages/map-renderer
+      '@hauska/parcel-fact-sheet':
+        specifier: workspace:*
+        version: link:../../packages/parcel-fact-sheet
       maplibre-gl:
         specifier: ^5.24.0
         version: 5.24.0

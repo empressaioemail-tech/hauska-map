@@ -137,6 +137,12 @@ export function resolveFloodDrainageAuth(input: {
 
 export interface FloodDrainageRefreshRequest {
   parcelNodeId: string
+  /**
+   * The SUBJECT'S sealed fact-sheet id (I1). The study that came back for
+   * 48027:498770 while 498778 was selected is why the study is keyed on the
+   * sheet the user is looking at, and why the artifact prints the id.
+   */
+  factSheetId?: string
   address?: string
   countyName?: string
   rainfallDepthInches?: number
@@ -160,6 +166,9 @@ export function parseFloodDrainageRefreshBody(
   }
   const request: FloodDrainageRefreshRequest = {
     parcelNodeId: b.parcelNodeId as string,
+  }
+  if (typeof b.factSheetId === 'string' && b.factSheetId.trim()) {
+    request.factSheetId = b.factSheetId.trim().slice(0, 64)
   }
   if (typeof b.address === 'string' && b.address.trim()) {
     request.address = b.address.slice(0, 200)
@@ -190,6 +199,7 @@ export function buildEngineRefreshBody(
   req: FloodDrainageRefreshRequest,
 ): Record<string, unknown> {
   return {
+    ...(req.factSheetId ? { factSheetId: req.factSheetId } : {}),
     ...(req.address ? { address: req.address } : {}),
     ...(req.countyName ? { countyName: req.countyName } : {}),
     ...(req.rainfallDepthInches !== undefined

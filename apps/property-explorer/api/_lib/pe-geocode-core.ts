@@ -99,6 +99,26 @@ export interface GeocodeWireResponse {
   attribution: 'search © OSM'
 }
 
+/**
+ * The ONLY country this surface serves, and therefore the whole exclusion set.
+ *
+ * Photon is a worldwide index and `buildPhotonUrl` sends no country filter, so
+ * "Bastrop" or "Spring Street" returned matches on other continents. Every
+ * downstream path here is a US jurisdictional lookup — a parcel node id is a
+ * US county FIPS plus a prop id — so a non-US hit can only ever be a dead end.
+ *
+ * A feature with NO countrycode is also dropped, deliberately: this is a filter
+ * on what we can PLACE in a US jurisdiction, and an uncountried OSM node is not
+ * something we can. Photon populates the field for addressable results.
+ */
+export const GEOCODE_ALLOWED_COUNTRY_CODES: ReadonlySet<string> = new Set(['US'])
+
+/** True when a mapped wire feature is inside the served country set. */
+export function isServedCountry(feature: GeocodeWireFeature): boolean {
+  const code = feature.countrycode
+  return code !== null && GEOCODE_ALLOWED_COUNTRY_CODES.has(code.toUpperCase())
+}
+
 function str(v: unknown): string | null {
   return typeof v === 'string' && v.trim() ? v.trim() : null
 }
@@ -155,7 +175,12 @@ export function mapPhotonResponse(payload: unknown): GeocodeWireResponse {
       extent,
     })
   }
-  return { features: out, attribution: 'search © OSM' }
+  // US-only, filtered HERE (server side) rather than in the dropdown, so the
+  // limit the client asked for is spent on results it can actually open.
+  return {
+    features: out.filter(isServedCountry),
+    attribution: 'search © OSM',
+  }
 }
 
 /** The honest error wire shape the handler returns on upstream failure. */

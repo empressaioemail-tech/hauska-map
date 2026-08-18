@@ -90,10 +90,9 @@ export function SitePlanExportSection({
     setBusy(true);
     setNotice("Building site plan…");
     setResult(null);
-    const resp = await requestSitePlanExport(parcelNodeId, format, {
-      address,
-      countyName,
-    });
+    // P-39: address and county come off the SUBJECT'S sealed fact sheet inside
+    // the client, so a panel can no longer hand an export a stale header.
+    const resp = await requestSitePlanExport(parcelNodeId, format);
     setBusy(false);
 
     if (!resp.ok) {

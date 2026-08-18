@@ -172,7 +172,12 @@ async function handleRefresh(req: VercelRequest, res: VercelResponse): Promise<v
       res.status(502).json({ error: 'upstream_error', message: mapped.message })
       return
     }
-    res.status(200).json(mapped.response)
+    res.status(200).json({
+      ...mapped.response,
+      ...(parsed.request.factSheetId
+        ? { factSheetId: parsed.request.factSheetId }
+        : {}),
+    })
   } catch (err) {
     const message = err instanceof Error ? err.message : String(err)
     engineFailure(res, { message }, { error: 'upstream_error' })

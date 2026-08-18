@@ -45,6 +45,12 @@ export interface SitePlanExportInlineDownload {
 export interface SitePlanExportBffResponse {
   ok: true
   parcelNodeId: string
+  /**
+   * The fact sheet this artifact was rendered from (I1/I2). Echoed back so the
+   * sheet id printed on the artifact and the one the app holds can be compared
+   * — one PDF carrying two different sheet ids is a visible defect.
+   */
+  factSheetId?: string
   atom: SitePlanExportAtomView
   selectedFormat: SitePlanExportFormat
   downloadUrl: string
