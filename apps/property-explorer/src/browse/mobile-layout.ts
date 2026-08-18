@@ -5,6 +5,12 @@
 // existing absolute-positioned panels unchanged.
 
 import type { CSSProperties } from "react";
+// ONE z-order table for the whole map chrome, shared with the renderer package
+// (packages/map-renderer/src/chrome/panelLayering.ts). Before W4 this file and
+// four others hand-wrote z-index literals with no table saying which panel wins.
+import { MAP_PANEL_Z } from "../../../../packages/map-renderer/src/chrome/panelLayering";
+
+export { MAP_PANEL_Z };
 
 /** Mobile vs tablet/desktop split — tests pin 390px (iPhone-class). */
 export const PE_MOBILE_BREAKPOINT_PX = 768;
@@ -88,7 +94,7 @@ export function workbenchClusterStyle(isMobile: boolean): CSSProperties {
     position: "absolute",
     top: 118,
     right: 12,
-    zIndex: 11,
+    zIndex: MAP_PANEL_Z.toolset,
     display: "flex",
     flexDirection: "column",
     gap: 7,
@@ -102,7 +108,7 @@ export function mobileToolPickerStyle(): CSSProperties {
     left: 0,
     right: 0,
     bottom: PE_MOBILE_NAV_HEIGHT_PX,
-    zIndex: 14,
+    zIndex: MAP_PANEL_Z.overlay,
     display: "flex",
     flexWrap: "nowrap",
     gap: 6,
@@ -134,7 +140,7 @@ export function inspectCardShellStyle(isMobile: boolean): CSSProperties {
     position: "absolute",
     top: 12,
     left: 12,
-    zIndex: 12,
+    zIndex: MAP_PANEL_Z.card,
     width: 288,
     maxWidth: "calc(100% - 60px)",
     padding: "13px 15px",
@@ -151,7 +157,7 @@ export function searchBarWrapStyle(isMobile: boolean): CSSProperties {
     top: 12,
     left: "50%",
     transform: "translateX(-50%)",
-    zIndex: 14,
+    zIndex: MAP_PANEL_Z.overlay,
     display: "flex",
     flexDirection: "column",
     gap: 6,
@@ -199,7 +205,7 @@ export function transientChipsStyle(isMobile: boolean): CSSProperties {
       position: "absolute",
       left: 12,
       bottom: PE_MOBILE_NAV_HEIGHT_PX + 8,
-      zIndex: 8,
+      zIndex: MAP_PANEL_Z.ambient,
       display: "flex",
       flexDirection: "column",
       alignItems: "flex-start",
@@ -212,7 +218,7 @@ export function transientChipsStyle(isMobile: boolean): CSSProperties {
     position: "absolute",
     left: 12,
     bottom: 12,
-    zIndex: 8,
+    zIndex: MAP_PANEL_Z.ambient,
     display: "flex",
     flexDirection: "column",
     alignItems: "flex-start",
@@ -230,7 +236,7 @@ export function mapToolsetRootStyle(isMobile: boolean): CSSProperties {
     position: "absolute",
     bottom: 16,
     right: 12,
-    zIndex: 11,
+    zIndex: MAP_PANEL_Z.toolset,
     display: "flex",
     flexDirection: "column",
     alignItems: "flex-end",
@@ -252,4 +258,56 @@ export function embeddedToolsetPanelStyle(): CSSProperties {
     overflowY: "auto",
     WebkitOverflowScrolling: "touch",
   };
+}
+
+/* ------------------------------------------------------------------ */
+/* Mobile sheet dismissal — the pure rule, so it is testable in node.  */
+/* ------------------------------------------------------------------ */
+
+/**
+ * One element on the path from the clicked node up to the sheet root. The DOM
+ * adapter in MobilePanelContext builds these; the RULE below is pure so it can
+ * be proven able to fire in a node test with no browser (DEV_PROCESS 2.2 — a
+ * gate that has never been shown to fire is not a gate).
+ */
+export interface SheetClickNode {
+  /** Lowercased tag name, e.g. "button". */
+  tag: string;
+  /** Element carries `data-sheet-dismiss` — always collapses the sheet. */
+  dismiss?: boolean;
+  /** Element carries `data-sheet-keep-open` — never collapses the sheet. */
+  keepOpen?: boolean;
+  /**
+   * Element declares `aria-expanded` or `aria-pressed`: it is a STATE TOGGLE,
+   * not a selection. Collapsing the sheet under a disclosure would hide the
+   * thing the user just asked to see.
+   */
+  stateful?: boolean;
+}
+
+/** Controls that change something IN PLACE — a sheet must stay open for them. */
+const IN_PLACE_TAGS = new Set(["input", "select", "textarea", "label", "option"]);
+
+/** Controls that ACT — pressing one is the "selection" the operator meant. */
+const ACTION_TAGS = new Set(["button", "a", "summary"]);
+
+/**
+ * Should a click inside a mobile sheet collapse it?
+ *
+ * `chain` runs target-first, outward, stopping at the sheet root. The first
+ * node that matches a rule decides; a click that matches nothing (plain text,
+ * padding, a scroll drag) leaves the sheet open.
+ *
+ * Operator, verbatim: "In the mobile version when i pull up the menus and make
+ * a selection the menu needs to collapse."
+ */
+export function shouldDismissSheetOnClick(chain: SheetClickNode[]): boolean {
+  for (const node of chain) {
+    if (node.keepOpen) return false;
+    if (node.dismiss) return true;
+    const tag = node.tag.toLowerCase();
+    if (IN_PLACE_TAGS.has(tag)) return false;
+    if (ACTION_TAGS.has(tag)) return !node.stateful;
+  }
+  return false;
 }

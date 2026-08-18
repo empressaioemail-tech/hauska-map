@@ -4,26 +4,61 @@
 // active sheet. Search suggestions occupy their own overlay band below the
 // Find bar (does not stack with other panels). Desktop consumers ignore this
 // context (isMobile=false → sheets inert, children render as today).
+//
+// W4 (2026-08-18). Operator, verbatim: "In the mobile version when i pull up
+// the menus and make a selection the menu needs to collapse." The root cause
+// was in the API, not in any call site: this context exposed `openSheet` and
+// NO close primitive at all, and exactly one place in the app (the inspect
+// card's own Close button) got back to the map by calling openSheet("map").
+// A sheet therefore could not dismiss itself because the vocabulary could not
+// express it. Added here: `closeSheet`, `toggleSheet`, and an auto-collapse
+// that fires when a selection inside a sheet did NOT navigate somewhere else.
+//
+// THE NAVIGATION GUARD, and why it is not optional: several in-sheet controls
+// already move to another sheet (Research opens the research sheet). A naive
+// "any button closes the sheet" would run AFTER that handler and undo it. So
+// the dismissal is deferred one tick and applied with a functional state
+// update that only collapses if the active sheet is still the one that was
+// open when the click happened. A handler that navigated always wins.
 
 import {
   createContext,
   useCallback,
   useContext,
+  useEffect,
   useMemo,
   useState,
+  type MouseEvent as ReactMouseEvent,
   type ReactNode,
 } from "react";
 import {
   PE_MOBILE_NAV_HEIGHT_PX,
+  MAP_PANEL_Z,
   resolveMobileSheetConflict,
+  shouldDismissSheetOnClick,
   type MobileSheetId,
+  type SheetClickNode,
 } from "./mobile-layout";
+import {
+  MAP_PANEL_DISMISS_EVENT,
+  type MapPanelDismissDetail,
+} from "../../../../packages/map-renderer/src/chrome/panelLayering";
 
 export interface MobilePanelContextValue {
   isMobile: boolean;
   activeSheet: MobileSheetId;
   searchFocused: boolean;
   openSheet: (id: MobileSheetId) => void;
+  /** Collapse whatever sheet is open, back to the bare map. */
+  closeSheet: () => void;
+  /** Open `id`, or collapse it when it is already the open sheet. */
+  toggleSheet: (id: MobileSheetId) => void;
+  /**
+   * Collapse the sheet that was open when a selection was made — but ONLY if
+   * nothing else has since navigated. Deferred a tick so in-sheet handlers
+   * that open another sheet keep their result.
+   */
+  dismissSheetIfUnchanged: (from: MobileSheetId) => void;
   setSearchFocused: (focused: boolean) => void;
 }
 
@@ -37,6 +72,9 @@ export function useMobilePanel(): MobilePanelContextValue {
       activeSheet: "map",
       searchFocused: false,
       openSheet: () => {},
+      closeSheet: () => {},
+      toggleSheet: () => {},
+      dismissSheetIfUnchanged: () => {},
       setSearchFocused: () => {},
     };
   }
@@ -67,7 +105,7 @@ function MobileBottomNav({
         right: 0,
         bottom: 0,
         height: PE_MOBILE_NAV_HEIGHT_PX,
-        zIndex: 20,
+        zIndex: MAP_PANEL_Z.nav,
         display: "flex",
         borderTop: "1px solid rgba(154,166,178,0.35)",
         background: "rgba(13,17,23,0.96)",
@@ -103,26 +141,70 @@ function MobileBottomNav({
   );
 }
 
+/**
+ * Walk from the clicked node up to the sheet root, describing each element for
+ * the pure rule in mobile-layout.ts. The DOM lives here; the DECISION does not.
+ */
+function sheetClickChain(
+  target: EventTarget | null,
+  root: HTMLElement,
+): SheetClickNode[] {
+  const chain: SheetClickNode[] = [];
+  let node = target as HTMLElement | null;
+  let guard = 0;
+  while (node && guard < 40) {
+    guard += 1;
+    if (typeof node.getAttribute !== "function") break;
+    chain.push({
+      tag: node.tagName ? node.tagName.toLowerCase() : "",
+      dismiss: node.hasAttribute("data-sheet-dismiss"),
+      keepOpen: node.hasAttribute("data-sheet-keep-open"),
+      stateful:
+        node.hasAttribute("aria-expanded") || node.hasAttribute("aria-pressed"),
+    });
+    if (node === root) break;
+    node = node.parentElement;
+  }
+  return chain;
+}
+
 /** Backdrop + scroll region for sheet content (property / layers). */
 export function MobileSheet({
   open,
   testId,
   children,
+  /**
+   * Collapse the sheet when a selection is made inside it. Default ON — this
+   * is the operator-reported behaviour. Controls that must NOT collapse it
+   * mark themselves `data-sheet-keep-open`; controls that always should mark
+   * themselves `data-sheet-dismiss`. Form controls and anything carrying
+   * aria-expanded / aria-pressed are already exempt.
+   */
+  dismissOnSelect = true,
 }: {
   open: boolean;
   testId: string;
   children: ReactNode;
+  dismissOnSelect?: boolean;
 }) {
+  const { isMobile, activeSheet, dismissSheetIfUnchanged } = useMobilePanel();
   if (!open) return null;
+  const onClick = (event: ReactMouseEvent<HTMLDivElement>) => {
+    if (!dismissOnSelect || !isMobile) return;
+    const chain = sheetClickChain(event.target, event.currentTarget);
+    if (!shouldDismissSheetOnClick(chain)) return;
+    dismissSheetIfUnchanged(activeSheet);
+  };
   return (
     <div
       data-testid={testId}
+      onClick={onClick}
       style={{
         position: "fixed",
         left: 0,
         right: 0,
         bottom: PE_MOBILE_NAV_HEIGHT_PX,
-        zIndex: 13,
+        zIndex: MAP_PANEL_Z.sheet,
         maxHeight: `calc(100vh - ${PE_MOBILE_NAV_HEIGHT_PX}px - 56px)`,
         overflowY: "auto",
         WebkitOverflowScrolling: "touch",
@@ -158,6 +240,35 @@ export function MobilePanelProvider({
     [isMobile],
   );
 
+  const closeSheet = useCallback(() => {
+    if (!isMobile) return;
+    setActiveSheet("map");
+  }, [isMobile]);
+
+  const toggleSheet = useCallback(
+    (id: MobileSheetId) => {
+      if (!isMobile) return;
+      setActiveSheet((cur) =>
+        cur === id ? "map" : resolveMobileSheetConflict(cur, id),
+      );
+      if (id !== "map") setSearchFocusedState(false);
+    },
+    [isMobile],
+  );
+
+  const dismissSheetIfUnchanged = useCallback(
+    (from: MobileSheetId) => {
+      if (!isMobile) return;
+      // One tick later, and only if nothing navigated in the meantime. The
+      // functional update reads the CURRENT sheet, so there is no stale
+      // closure to get this wrong.
+      setTimeout(() => {
+        setActiveSheet((cur) => (cur === from ? "map" : cur));
+      }, 0);
+    },
+    [isMobile],
+  );
+
   const setSearchFocused = useCallback(
     (focused: boolean) => {
       if (!isMobile) return;
@@ -167,15 +278,44 @@ export function MobilePanelProvider({
     [isMobile],
   );
 
+  // The map chrome lives in the shared renderer package and cannot import this
+  // context, so it asks for a dismissal over a window event instead. Activating
+  // a map tool from the layers sheet fires this — you cannot draw on a map that
+  // a sheet is covering. Inert on desktop and in Command Center.
+  useEffect(() => {
+    if (!isMobile || typeof window === "undefined") return;
+    const onDismiss = (event: Event) => {
+      const detail = (event as CustomEvent<MapPanelDismissDetail>).detail;
+      // Layer checkboxes deliberately do NOT dispatch this — you could never
+      // turn two layers on. Only tool activation and an explicit hide do.
+      if (detail && detail.reason === "layer-toggled") return;
+      setActiveSheet("map");
+    };
+    window.addEventListener(MAP_PANEL_DISMISS_EVENT, onDismiss);
+    return () => window.removeEventListener(MAP_PANEL_DISMISS_EVENT, onDismiss);
+  }, [isMobile]);
+
   const value = useMemo<MobilePanelContextValue>(
     () => ({
       isMobile,
       activeSheet: isMobile ? activeSheet : "map",
       searchFocused: isMobile && searchFocused,
       openSheet,
+      closeSheet,
+      toggleSheet,
+      dismissSheetIfUnchanged,
       setSearchFocused,
     }),
-    [isMobile, activeSheet, searchFocused, openSheet, setSearchFocused],
+    [
+      isMobile,
+      activeSheet,
+      searchFocused,
+      openSheet,
+      closeSheet,
+      toggleSheet,
+      dismissSheetIfUnchanged,
+      setSearchFocused,
+    ],
   );
 
   return (
@@ -194,7 +334,9 @@ export function MobilePanelProvider({
         {isMobile && (
           <MobileBottomNav
             active={activeSheet}
-            onSelect={(id) => openSheet(id)}
+            // Tapping the tab you are already on collapses its sheet — the
+            // second way out, next to any in-sheet selection.
+            onSelect={(id) => toggleSheet(id)}
           />
         )}
       </div>

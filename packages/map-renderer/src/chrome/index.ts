@@ -3,19 +3,29 @@
 
 export { LayersControl } from "./LayersControl";
 export { MapTools } from "./MapTools";
-export { MapToolset, ToolsetToolsSection } from "./MapToolset";
-export type { LayerStateBadge } from "./MapToolset";
+export { MapToolset, ToolsetToolsSection, LOCATE_ZOOM } from "./MapToolset";
+export type { LayerStateBadge, LocatedPosition } from "./MapToolset";
+export {
+  MAP_PANEL_Z,
+  MAP_PANEL_DISMISS_EVENT,
+  dispatchPanelDismiss,
+} from "./panelLayering";
+export type { MapPanelLayer, MapPanelDismissDetail } from "./panelLayering";
 export {
   asMaplibreMap,
   setSatelliteBase,
   SATELLITE_ATTRIBUTION,
 } from "./satelliteBase";
-export { installMapTools } from "./mapToolsController";
+export { installMapTools, EMPTY_TOOLS_SNAPSHOT } from "./mapToolsController";
 export type {
   MapToolsController,
   ToolsSnapshot,
   ToolKind,
   MeasureMode,
+  MeasureSummary,
+  ShapeSummary,
+  NoteSummary,
+  NoteScope,
 } from "./mapToolsController";
 export {
   SHARED_DEFAULT_CENTER,

@@ -1,18 +1,26 @@
 // packages/map-renderer/src/chrome/MapTools.tsx
 //
 // Shared PE + CC map toolbar (CC-A WDLL 7): satellite/aerial base toggle,
-// measure, draw, marker, clear, GeolocateControl. Operates on the LIVE map
-// via FloatingMapHandle.getMap() — never remounts FloatingMap.
+// measure, draw, marker, note, undo/finish, clear, GeolocateControl. Operates
+// on the LIVE map via FloatingMapHandle.getMap() — never remounts FloatingMap.
+//
+// This is the SPLIT toolbar (bottom-right) that Command Center's LiveMapTile
+// still uses; Property Explorer uses the unified MapToolset. Both drive the
+// SAME controller, so the W4 instrument rebuild — committed measurements,
+// explicit finish, undo, per-item removal, area on shapes — reaches both
+// surfaces rather than only the one that was QA'd.
 
 import { useEffect, useRef, useState, type RefObject } from "react";
 import { GeolocateControl } from "maplibre-gl";
 import type { Map as MaplibreMap } from "maplibre-gl";
 import type { FloatingMapHandle } from "../FloatingMap";
 import { asMaplibreMap, setSatelliteBase, SATELLITE_ATTRIBUTION } from "./satelliteBase";
+import { MAP_PANEL_Z } from "./panelLayering";
 import {
   installMapTools,
   type MapToolsController,
   type ToolsSnapshot,
+  EMPTY_TOOLS_SNAPSHOT,
 } from "./mapToolsController";
 
 const PANEL_BG = "rgba(13,17,23,0.9)";
@@ -26,6 +34,9 @@ const ICONS = {
     "M3 15l6 6 12-12-6-6L3 15Zm5-5 2 2m1-5 2 2m1-5 2 2",
   draw: "M12 19l7-7 3 3-7 7-3-3Zm6-6-1.5-7.5L2 2l3.5 14.5L13 18l5-5ZM2 2l7.6 7.6",
   marker: "M12 21s7-6.5 7-12a7 7 0 1 0-14 0c0 5.5 7 12 7 12Zm0-9a2.5 2.5 0 1 0 0-5 2.5 2.5 0 0 0 0 5Z",
+  note: "M14 3H6a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V9l-6-6Zm0 0v6h6M8 13h7M8 17h5",
+  undo: "M9 14 4 9l5-5M4 9h10a6 6 0 0 1 0 12h-3",
+  finish: "M20 6 9 17l-5-5",
   clear: "M3 6h18M8 6V4h8v2M6 6l1 14h10l1-14",
 } as const;
 
@@ -47,7 +58,7 @@ function ToolIcon({ path }: { path: string }) {
   );
 }
 
-function toolButtonStyle(active: boolean): React.CSSProperties {
+function toolButtonStyle(active: boolean, disabled = false): React.CSSProperties {
   return {
     display: "inline-flex",
     alignItems: "center",
@@ -55,7 +66,8 @@ function toolButtonStyle(active: boolean): React.CSSProperties {
     width: 30,
     height: 30,
     borderRadius: 7,
-    cursor: "pointer",
+    cursor: disabled ? "default" : "pointer",
+    opacity: disabled ? 0.38 : 1,
     color: active ? "#0b0f14" : TEXT,
     background: active ? ACCENT : "rgba(154,166,178,0.12)",
     border: active ? `0.5px solid ${ACCENT}` : "0.5px solid rgba(154,166,178,0.22)",
@@ -69,12 +81,11 @@ export function MapTools({ mapRef }: { mapRef: RefObject<FloatingMapHandle | nul
   const controllerRef = useRef<MapToolsController | null>(null);
   const geolocateRef = useRef<GeolocateControl | null>(null);
 
-  const [snap, setSnap] = useState<ToolsSnapshot>({
-    active: null,
-    measureMode: "line",
-    readout: null,
-  });
+  const [snap, setSnap] = useState<ToolsSnapshot>(EMPTY_TOOLS_SNAPSHOT);
   const [satellite, setSatellite] = useState(false);
+  // W4: the panel folds away — "How do i make the tools disappear so I can
+  // read this" applies to the operator console too.
+  const [open, setOpen] = useState(true);
 
   // Resolve the live map from the renderer handle. FloatingMap mounts the map
   // asynchronously, so poll briefly until getMap() returns a usable instance.
@@ -133,6 +144,12 @@ export function MapTools({ mapRef }: { mapRef: RefObject<FloatingMapHandle | nul
 
   const active = snap.active;
   const controller = () => controllerRef.current;
+  const hasAnything =
+    snap.measurements.length > 0 ||
+    snap.shapes.length > 0 ||
+    snap.notes.length > 0 ||
+    snap.markerCount > 0 ||
+    snap.draftPoints > 0;
 
   return (
     <div
@@ -141,7 +158,7 @@ export function MapTools({ mapRef }: { mapRef: RefObject<FloatingMapHandle | nul
         position: "absolute",
         right: 12,
         bottom: 12,
-        zIndex: 9,
+        zIndex: MAP_PANEL_Z.toolset,
         display: "flex",
         flexDirection: "column",
         alignItems: "flex-end",
@@ -150,7 +167,7 @@ export function MapTools({ mapRef }: { mapRef: RefObject<FloatingMapHandle | nul
       }}
     >
       {/* Running measure/draw readout chip. */}
-      {snap.readout && (
+      {open && snap.readout && (
         <div
           style={{
             maxWidth: 260,
@@ -168,8 +185,77 @@ export function MapTools({ mapRef }: { mapRef: RefObject<FloatingMapHandle | nul
         </div>
       )}
 
+      {/* Committed measurements / shapes / notes, each removable on its own. */}
+      {open && (snap.measurements.length > 0 || snap.shapes.length > 0) && (
+        <div
+          data-testid="map-tools-results"
+          style={{
+            maxWidth: 260,
+            padding: "5px 10px",
+            borderRadius: 7,
+            background: PANEL_BG,
+            border: PANEL_BORDER,
+            color: TEXT,
+            fontSize: 10.5,
+            boxShadow: "0 8px 24px rgba(0,0,0,0.4)",
+            display: "flex",
+            flexDirection: "column",
+            gap: 3,
+          }}
+        >
+          {snap.measurements.map((m) => (
+            <div key={m.id} style={{ display: "flex", alignItems: "center", gap: 6 }}>
+              <span style={{ color: MUTED, width: 12, textAlign: "right" }}>{m.index}</span>
+              <span style={{ flex: 1, fontWeight: 700 }}>{m.primary}</span>
+              <span style={{ color: MUTED }}>{m.secondary}</span>
+              <button
+                type="button"
+                aria-label={`Remove ${m.primary}`}
+                onClick={() => controller()?.removeMeasurement(m.id)}
+                style={{
+                  width: 18,
+                  height: 18,
+                  borderRadius: 4,
+                  border: "0.5px solid rgba(154,166,178,0.25)",
+                  background: "transparent",
+                  color: MUTED,
+                  cursor: "pointer",
+                  lineHeight: 1,
+                }}
+              >
+                ×
+              </button>
+            </div>
+          ))}
+          {snap.shapes.map((s) => (
+            <div key={s.id} style={{ display: "flex", alignItems: "center", gap: 6 }}>
+              <span style={{ color: MUTED, width: 12, textAlign: "right" }}>{s.index}</span>
+              <span style={{ flex: 1, fontWeight: 700 }}>{s.primary}</span>
+              <span style={{ color: MUTED }}>{s.secondary}</span>
+              <button
+                type="button"
+                aria-label={`Remove shape ${s.index}`}
+                onClick={() => controller()?.removeShape(s.id)}
+                style={{
+                  width: 18,
+                  height: 18,
+                  borderRadius: 4,
+                  border: "0.5px solid rgba(154,166,178,0.25)",
+                  background: "transparent",
+                  color: MUTED,
+                  cursor: "pointer",
+                  lineHeight: 1,
+                }}
+              >
+                ×
+              </button>
+            </div>
+          ))}
+        </div>
+      )}
+
       {/* Measure sub-mode (distance / area), only while measuring. */}
-      {active === "measure" && (
+      {open && active === "measure" && (
         <div
           style={{
             display: "inline-flex",
@@ -216,83 +302,147 @@ export function MapTools({ mapRef }: { mapRef: RefObject<FloatingMapHandle | nul
           boxShadow: "0 10px 32px rgba(0,0,0,0.45)",
         }}
       >
-        <div
-          style={{
-            fontSize: 10,
-            fontWeight: 700,
-            letterSpacing: 0.4,
-            textTransform: "uppercase",
-            color: MUTED,
-          }}
-        >
-          Tools
-        </div>
-
-        <div style={{ display: "flex", gap: 6 }}>
+        <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
+          <span
+            style={{
+              flex: 1,
+              fontSize: 10,
+              fontWeight: 700,
+              letterSpacing: 0.4,
+              textTransform: "uppercase",
+              color: MUTED,
+            }}
+          >
+            Tools
+          </span>
           <button
             type="button"
-            title="Measure distance / area"
-            aria-label="Measure distance or area"
-            aria-pressed={active === "measure"}
-            onClick={() => controller()?.activate("measure")}
-            style={toolButtonStyle(active === "measure")}
+            data-testid="map-tools-collapse"
+            aria-label={open ? "Collapse map tools" : "Expand map tools"}
+            aria-expanded={open}
+            onClick={() => setOpen((v) => !v)}
+            style={{
+              width: 20,
+              height: 20,
+              borderRadius: 4,
+              border: "0.5px solid rgba(154,166,178,0.25)",
+              background: "transparent",
+              color: MUTED,
+              cursor: "pointer",
+              lineHeight: 1,
+              fontSize: 12,
+            }}
           >
-            <ToolIcon path={ICONS.measure} />
-          </button>
-          <button
-            type="button"
-            title="Draw / annotate"
-            aria-label="Draw or annotate"
-            aria-pressed={active === "draw"}
-            onClick={() => controller()?.activate("draw")}
-            style={toolButtonStyle(active === "draw")}
-          >
-            <ToolIcon path={ICONS.draw} />
-          </button>
-          <button
-            type="button"
-            title="Drop a marker"
-            aria-label="Drop a marker"
-            aria-pressed={active === "marker"}
-            onClick={() => controller()?.activate("marker")}
-            style={toolButtonStyle(active === "marker")}
-          >
-            <ToolIcon path={ICONS.marker} />
-          </button>
-          <button
-            type="button"
-            title="Clear measure / draw"
-            aria-label="Clear measure and draw"
-            onClick={() => controller()?.clear()}
-            style={toolButtonStyle(false)}
-          >
-            <ToolIcon path={ICONS.clear} />
+            {open ? "−" : "+"}
           </button>
         </div>
 
-        {/* Satellite / aerial base toggle. */}
-        <label
-          style={{
-            display: "flex",
-            alignItems: "center",
-            gap: 8,
-            cursor: "pointer",
-            fontSize: 11.5,
-            color: TEXT,
-          }}
-        >
-          <input
-            type="checkbox"
-            checked={satellite}
-            onChange={(e) => setSatellite(e.target.checked)}
-            style={{ accentColor: ACCENT, cursor: "pointer" }}
-          />
-          <span>Satellite / aerial</span>
-        </label>
+        {open && (
+          <>
+            <div style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>
+              <button
+                type="button"
+                title="Measure distance / area"
+                aria-label="Measure distance or area"
+                aria-pressed={active === "measure"}
+                onClick={() => controller()?.activate("measure")}
+                style={toolButtonStyle(active === "measure")}
+              >
+                <ToolIcon path={ICONS.measure} />
+              </button>
+              <button
+                type="button"
+                title="Draw / annotate"
+                aria-label="Draw or annotate"
+                aria-pressed={active === "draw"}
+                onClick={() => controller()?.activate("draw")}
+                style={toolButtonStyle(active === "draw")}
+              >
+                <ToolIcon path={ICONS.draw} />
+              </button>
+              <button
+                type="button"
+                title="Drop a marker"
+                aria-label="Drop a marker"
+                aria-pressed={active === "marker"}
+                onClick={() => controller()?.activate("marker")}
+                style={toolButtonStyle(active === "marker")}
+              >
+                <ToolIcon path={ICONS.marker} />
+              </button>
+              <button
+                type="button"
+                title="Pin a note"
+                aria-label="Pin a note"
+                aria-pressed={active === "note"}
+                onClick={() => controller()?.activate("note")}
+                style={toolButtonStyle(active === "note")}
+              >
+                <ToolIcon path={ICONS.note} />
+              </button>
+            </div>
+
+            <div style={{ display: "flex", gap: 6 }}>
+              <button
+                type="button"
+                data-testid="map-tools-finish"
+                title="Finish this measurement"
+                aria-label="Finish this measurement"
+                disabled={!snap.canFinish}
+                onClick={() => controller()?.finish()}
+                style={toolButtonStyle(false, !snap.canFinish)}
+              >
+                <ToolIcon path={ICONS.finish} />
+              </button>
+              <button
+                type="button"
+                data-testid="map-tools-undo"
+                title="Undo the last point"
+                aria-label="Undo the last point"
+                disabled={!snap.canUndo}
+                onClick={() => controller()?.undo()}
+                style={toolButtonStyle(false, !snap.canUndo)}
+              >
+                <ToolIcon path={ICONS.undo} />
+              </button>
+              <button
+                type="button"
+                data-testid="map-tools-clear-all"
+                title="Clear everything on the map"
+                aria-label="Clear everything on the map"
+                disabled={!hasAnything}
+                onClick={() => controller()?.clear()}
+                style={toolButtonStyle(false, !hasAnything)}
+              >
+                <ToolIcon path={ICONS.clear} />
+              </button>
+            </div>
+
+            {/* Satellite / aerial base toggle. */}
+            <label
+              style={{
+                display: "flex",
+                alignItems: "center",
+                gap: 8,
+                cursor: "pointer",
+                fontSize: 11.5,
+                color: TEXT,
+              }}
+            >
+              <input
+                type="checkbox"
+                checked={satellite}
+                onChange={(e) => setSatellite(e.target.checked)}
+                style={{ accentColor: ACCENT, cursor: "pointer" }}
+              />
+              <span>Satellite / aerial</span>
+            </label>
+          </>
+        )}
       </div>
 
       {/* Esri attribution while satellite is on (its terms require the credit). */}
-      {satellite && (
+      {open && satellite && (
         <div
           style={{
             maxWidth: 260,
