@@ -482,3 +482,210 @@ describe('isLedgerMaterializationStale', () => {
     ).toBe(false)
   })
 })
+
+// ── SS-W6: subtabs, re-read verdict, derivation audit, derived denominators ────
+//
+// Added 2026-08-18 (P-44). These pin the four things the County Manifest was getting
+// wrong against the payload it was already being served: a hardcoded rail count in the
+// filter label, a column tag sampled from one county, a reachable ceiling that never
+// reached the screen, and a refresh that could not distinguish a re-read from a
+// recompute.
+
+describe('CountyManifestGrid — SS-W6 subtabs and derivation', () => {
+  const mockLoadConfig = vi.mocked(spineClientModule.loadConfig)
+  const mockApiBase = vi.mocked(spineClientModule.apiBase)
+  const mockGetJson = vi.mocked(spineClientModule.getJson)
+
+  beforeEach(() => {
+    vi.clearAllMocks()
+    mockLoadConfig.mockReturnValue({
+      cortexApiUrl: '/api/spine/cortex',
+      mcpUrl: '/api/spine/mcp',
+      retrievalApiUrl: '/api/spine/retrieval',
+      hauskaKey: '',
+      installId: 'test',
+    })
+    mockApiBase.mockReturnValue('/api/spine/cortex')
+  })
+
+  it('derives the gap-filter denominator from the API instead of hardcoding it', async () => {
+    const cells = FIXTURE_RAILS.map((rail) => mkCell('48021', rail.key))
+    mockGetJson.mockResolvedValue({ ok: true, status: 200, json: mkPayload(cells) })
+
+    render(<CountyManifestGrid />)
+    await waitFor(() => expect(screen.getByTestId('manifest-gap-filter-label')).toBeInTheDocument())
+    // The label read "below 3/13" while the API served 14 rails.
+    expect(screen.getByTestId('manifest-gap-filter-label')).toHaveTextContent(
+      `below 3 of ${FIXTURE_RAIL_COUNT} rails satisfied`,
+    )
+    expect(screen.queryByText('below 3/13')).toBeNull()
+  })
+
+  it('shows a rail reachable ceiling when the capability probe defines one below the county count', async () => {
+    const fips = '48021'
+    const cells = FIXTURE_RAILS.map((rail) => mkCell(fips, rail.key))
+    const caps = mkCaps(FIXTURE_RAILS.map((r) => r.key)).map((c) =>
+      c.railKey === 'rrc-wells'
+        ? { ...c, maxCountiesReachable: 1, sourceBasis: 'RRC public GIS Harris County mirror' }
+        : c,
+    )
+    mockGetJson.mockResolvedValue({
+      ok: true,
+      status: 200,
+      // totalCounties 254 mirrors the live grid denominator; the rrc-wells source can
+      // reach exactly one county, so 0/254 and 0/1 are different findings.
+      json: { ...mkPayload(cells, { totalCounties: 254 }), railCapabilities: caps },
+    })
+
+    render(<CountyManifestGrid />)
+    await waitFor(() => expect(screen.getByTestId(`manifest-row-${fips}`)).toBeInTheDocument())
+    expect(screen.getByTestId('rail-ceiling-rrc-wells')).toHaveTextContent('ceil 1')
+    // A rail with no ceiling served must not invent one.
+    expect(screen.queryByTestId('rail-ceiling-geometry')).toBeNull()
+  })
+
+  it('reports a re-read that does not move computedAt as upstream staleness, not a refresh', async () => {
+    const computedAt = new Date().toISOString()
+    const cells = FIXTURE_RAILS.map((rail) => mkCell('48021', rail.key))
+    mockGetJson.mockResolvedValue({
+      ok: true,
+      status: 200,
+      json: mkPayload(cells, { computedAt, servedAt: computedAt, materializationAgeMs: 0 }),
+    })
+
+    render(<CountyManifestGrid />)
+    await waitFor(() => expect(screen.getByTestId('manifest-read-strip')).toBeInTheDocument())
+    expect(screen.getByTestId('manifest-reread-verdict')).toHaveTextContent('first read of this session')
+
+    fireEvent.click(screen.getByRole('button', { name: /re-read manifest/i }))
+    await waitFor(() =>
+      expect(screen.getByTestId('manifest-reread-verdict')).toHaveTextContent('computedAt did NOT move'),
+    )
+    expect(screen.getByTestId('manifest-reread-verdict')).toHaveTextContent('cannot recompute')
+    expect(mockGetJson).toHaveBeenCalledTimes(2)
+  })
+
+  it('reports a re-read that DOES move computedAt as a new materialization', async () => {
+    const first = '2026-08-14T17:41:22.500Z'
+    const second = new Date().toISOString()
+    const cells = FIXTURE_RAILS.map((rail) => mkCell('48021', rail.key))
+    mockGetJson
+      .mockResolvedValueOnce({
+        ok: true,
+        status: 200,
+        json: mkPayload(cells, { computedAt: first, servedAt: first, materializationAgeMs: 0 }),
+      })
+      .mockResolvedValueOnce({
+        ok: true,
+        status: 200,
+        json: mkPayload(cells, { computedAt: second, servedAt: second, materializationAgeMs: 0 }),
+      })
+
+    render(<CountyManifestGrid />)
+    await waitFor(() => expect(screen.getByTestId('manifest-read-strip')).toBeInTheDocument())
+    fireEvent.click(screen.getByRole('button', { name: /re-read manifest/i }))
+    await waitFor(() =>
+      expect(screen.getByTestId('manifest-reread-verdict')).toHaveTextContent('computedAt moved'),
+    )
+  })
+
+  it('names the hand-declared indicators that cannot fire on the served payload', async () => {
+    // Live shape: hasWriter true and atomFamilyState present on every cell.
+    const cells = FIXTURE_RAILS.map((rail) =>
+      mkCell('48021', rail.key, { hasWriter: true, atomFamilyState: 'present', displayState: 'not-yet' }),
+    )
+    mockGetJson.mockResolvedValue({ ok: true, status: 200, json: mkPayload(cells) })
+
+    render(<CountyManifestGrid />)
+    await waitFor(() => expect(screen.getByTestId('manifest-derivation')).toBeInTheDocument())
+    // hasWriter, atomFamilyState and isPartial are all constant on this payload, which
+    // is the live shape: three legend/tag controls that are switched off and look on.
+    expect(screen.getByTestId('manifest-derivation')).toHaveTextContent('3 indicators cannot fire')
+
+    fireEvent.click(screen.getByTestId('manifest-derivation-toggle'))
+    const panel = screen.getByTestId('manifest-derivation')
+    expect(panel).toHaveTextContent('hasWriter')
+    expect(panel).toHaveTextContent('atomFamilyState')
+    expect(panel).toHaveTextContent('isPartial')
+    expect(panel).toHaveTextContent('declared-upstream')
+    expect(panel).toHaveTextContent('derived-api')
+    // The legend says so too, at the point of use.
+    expect(screen.getByTestId('legend-cannot-fire-no-atom')).toBeInTheDocument()
+  })
+
+  it('surfaces a cell whose coverage clears its threshold while its state says unacquired', async () => {
+    const cells = FIXTURE_RAILS.map((rail) =>
+      mkCell('48021', rail.key, {
+        displayState: 'not-yet',
+        honestCoveragePct: rail.key === 'envelope' ? 99.77 : null,
+        thresholdPct: 90,
+        hasWriter: true,
+        atomFamilyState: 'present',
+      }),
+    )
+    mockGetJson.mockResolvedValue({ ok: true, status: 200, json: mkPayload(cells) })
+
+    render(<CountyManifestGrid />)
+    await waitFor(() => expect(screen.getByTestId('manifest-derivation')).toBeInTheDocument())
+    expect(screen.getByTestId('manifest-derivation')).toHaveTextContent('1 self-contradicting cells')
+
+    fireEvent.click(screen.getByTestId('manifest-derivation-toggle'))
+    expect(screen.getByTestId('manifest-derivation')).toHaveTextContent('48021:envelope')
+  })
+
+  it('counts county names by origin instead of silently backfilling them', async () => {
+    const cells = ['48021', '48001'].flatMap((fips) => FIXTURE_RAILS.map((rail) => mkCell(fips, rail.key)))
+    // mkPayload names only 48021; 48001 arrives with countyName null.
+    mockGetJson.mockResolvedValue({ ok: true, status: 200, json: mkPayload(cells, { totalCounties: 2 }) })
+
+    render(<CountyManifestGrid />)
+    await waitFor(() => expect(screen.getByTestId('manifest-row-48001')).toBeInTheDocument())
+    // The roster fills the display name...
+    expect(screen.getByTestId('manifest-row-48001')).toHaveTextContent('Anderson')
+
+    fireEvent.click(screen.getByTestId('manifest-derivation-toggle'))
+    // ...and the split is stated with its denominator.
+    expect(screen.getByTestId('manifest-derivation')).toHaveTextContent(
+      '1 served by the API, 1 filled from the local roster, 0 unresolved',
+    )
+  })
+
+  it('switches to the serving sweep subtab and shows an honest not-probed state', async () => {
+    const cells = FIXTURE_RAILS.map((rail) => mkCell('48021', rail.key))
+    mockGetJson.mockResolvedValue({ ok: true, status: 200, json: mkPayload(cells) })
+
+    render(<CountyManifestGrid />)
+    await waitFor(() => expect(screen.getByTestId('manifest-subtabs')).toBeInTheDocument())
+    expect(screen.getByTestId('manifest-grid-table')).toBeInTheDocument()
+
+    fireEvent.click(screen.getByTestId('manifest-subtab-sweep'))
+    expect(screen.getByTestId('serving-sweep-panel')).toBeInTheDocument()
+    expect(screen.queryByTestId('manifest-grid-table')).toBeNull()
+    expect(screen.getByText('not probed yet')).toBeInTheDocument()
+    // The pairing note is available before any sweep data exists.
+    expect(screen.getByTestId('sweep-pairing-note')).toHaveTextContent(`7 of ${FIXTURE_RAIL_COUNT} rails pair`)
+
+    fireEvent.click(screen.getByTestId('manifest-subtab-manifest'))
+    expect(screen.getByTestId('manifest-grid-table')).toBeInTheDocument()
+  })
+
+  it('column tags count the whole column rather than sampling the first county', async () => {
+    // 3 counties; only one lacks a writer on roads. Sampling railCells[0] would show
+    // either NO WRITER for all three or for none.
+    const fipsList = ['48001', '48003', '48005']
+    const cells = fipsList.flatMap((fips) =>
+      FIXTURE_RAILS.map((rail) =>
+        mkCell(fips, rail.key, {
+          hasWriter: !(rail.key === 'roads' && fips === '48005'),
+          atomFamilyState: 'present',
+          displayState: 'not-yet',
+        }),
+      ),
+    )
+    mockGetJson.mockResolvedValue({ ok: true, status: 200, json: mkPayload(cells, { totalCounties: 3 }) })
+
+    render(<CountyManifestGrid />)
+    await waitFor(() => expect(screen.getByTestId('manifest-row-48005')).toBeInTheDocument())
+    expect(screen.getByText('NO WRITER 1')).toBeInTheDocument()
+  })
+})
