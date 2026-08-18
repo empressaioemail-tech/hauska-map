@@ -1340,7 +1340,11 @@ export function FactRow({
       break;
     case "pending":
       text = fact.label;
-      style = { ...style, color: MUTED };
+      // Muted AND held back, so an in-flight row cannot be mistaken for a
+      // settled one. Without the opacity this rendered byte-identical to
+      // absent-covered, which would have told the user "nothing on record"
+      // while the value was still on its way.
+      style = { ...style, color: MUTED, opacity: 0.7 };
       break;
     case "absent-covered":
       text = fact.reason;

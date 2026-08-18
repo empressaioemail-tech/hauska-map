@@ -220,13 +220,15 @@ describe("SS-W2 item 4 / I4 — three absences, three registers", () => {
     expect(unresolved).toContain('data-state="unresolved"');
   });
 
-  it("VISUALLY distinct: no two of the three share a treatment", () => {
-    const a = ddStyle(covered);
-    const b = ddStyle(uncovered);
-    const c = ddStyle(unresolved);
-    expect(a).not.toBe(b);
-    expect(b).not.toBe(c);
-    expect(a).not.toBe(c);
+  it("VISUALLY distinct: ALL FIVE states render a different treatment", () => {
+    // Stronger than I4 requires on purpose. absent-covered and pending were
+    // byte-identical in the first cut of this renderer, which would have read
+    // as "nothing on record" while the value was still loading. Pinning all
+    // five pairwise stops any future state collapsing into another.
+    const present = render1({ state: "present", value: "R-1", provenance: null });
+    const pending = render1({ state: "pending", label: "Loading zoning…" });
+    const styles = [present, pending, covered, uncovered, unresolved].map(ddStyle);
+    expect(new Set(styles).size).toBe(5);
   });
 
   it("only `unresolved` wears the error hue — an honest absence never does", () => {
