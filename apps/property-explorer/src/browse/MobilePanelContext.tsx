@@ -285,10 +285,13 @@ export function MobilePanelProvider({
   useEffect(() => {
     if (!isMobile || typeof window === "undefined") return;
     const onDismiss = (event: Event) => {
+      // Only two things dispatch this: activating a map tool, and the panel's
+      // own hide-all control. Layer checkboxes deliberately do NOT — you could
+      // never turn two layers on. The reason is carried for the log rather
+      // than filtered on here, because a filter for a reason nothing sends is
+      // a branch that can never fire.
       const detail = (event as CustomEvent<MapPanelDismissDetail>).detail;
-      // Layer checkboxes deliberately do NOT dispatch this — you could never
-      // turn two layers on. Only tool activation and an explicit hide do.
-      if (detail && detail.reason === "layer-toggled") return;
+      void detail;
       setActiveSheet("map");
     };
     window.addEventListener(MAP_PANEL_DISMISS_EVENT, onDismiss);
