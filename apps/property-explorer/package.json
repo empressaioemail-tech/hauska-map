@@ -15,6 +15,7 @@
     "@empressaio/cortex-client": "^0.1.2",
     "@empressaio/cortex-tiles": "^0.1.4",
     "@hauska/map-renderer": "workspace:*",
+    "@hauska/parcel-fact-sheet": "workspace:*",
     "maplibre-gl": "^5.24.0",
     "react": "^18.3.1",
     "react-dom": "^18.3.1"
