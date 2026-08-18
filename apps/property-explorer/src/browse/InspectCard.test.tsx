@@ -68,8 +68,15 @@ describe("InspectCard — persona UI removed (map UX cluster item 4)", () => {
     expect(html).toContain('data-testid="inspect-apn"');
     expect(html).toContain('data-testid="make-subject"');
     expect(html).toContain('data-testid="research-this"');
-    // Live-fallback provenance line (honest, not persona copy) survives.
-    expect(html).toContain("Source: Bastrop County GIS");
+    // SS-W2 / invariant I3: the provenance line survives but is DEMOTED. The
+    // card face carries the verification statement and the record date; the
+    // provider key itself moved behind the Sources disclosure. It used to read
+    // "Source: Bastrop County GIS" on the card face.
+    expect(html).toContain('data-testid="inspect-provenance"');
+    expect(html).toContain("Checked against the county record");
+    expect(html).toContain("as of 2026-07-25");
+    expect(html).toContain('data-testid="inspect-sources-toggle"');
+    expect(html).not.toContain("Source: Bastrop County GIS");
   });
 });
 
