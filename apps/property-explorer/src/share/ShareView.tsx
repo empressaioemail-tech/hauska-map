@@ -16,7 +16,7 @@
 import { useEffect, useState } from "react";
 import { PropertyBriefPanel } from "../browse/PropertyBriefPanel";
 import type { ResearchBriefPayload } from "../browse/brief-view-model";
-import { deriveShareVerdict, VERDICT_FALLBACK } from "./share-verdict";
+import { useSheetVerdict } from "../lib/sheet-verdict";
 import {
   drawingsSummaryLine,
   drawingsToSketch,
@@ -351,7 +351,10 @@ export function ShareAnalysisContent({
 }) {
   const { property, report, share } = data;
   const title = property.situsAddress ?? `Parcel ${property.parcelNodeId}`;
-  const verdict = deriveShareVerdict(report);
+  // ONE composer (I2). The share view used to derive its own fragment list,
+  // which is how a shared link could headline a parcel differently from the
+  // card the sender was looking at.
+  const verdict = useSheetVerdict(property.parcelNodeId);
   const downloadBase = `/api/pe-share-view?token=${encodeURIComponent(token)}`;
   const dock = variant === "dock";
 
@@ -390,10 +393,15 @@ export function ShareAnalysisContent({
         }}
       >
         <div style={{ fontSize: 10.5, color: MUTED, marginBottom: 4 }}>Verdict</div>
-        {verdict.length > 0 ? (
-          <div style={{ fontSize: 13.5, fontWeight: 600 }}>{verdict.join(" · ")}</div>
+        {verdict ? (
+          <div style={{ fontSize: 13.5, fontWeight: 600 }} data-tone={verdict.tone}>
+            {verdict.line}
+          </div>
         ) : (
-          <div style={{ fontSize: 12, color: "var(--semantic-absence)" }}>{VERDICT_FALLBACK}</div>
+          <div style={{ fontSize: 12, color: "var(--semantic-absence)" }}>
+            No verified facts to headline — see the brief below for what is and
+            is not verified for this parcel.
+          </div>
         )}
         <div style={{ marginTop: 6, fontSize: 10, color: MUTED }}>
           Public-record-derived · approximate, not survey grade · every fact

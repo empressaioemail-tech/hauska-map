@@ -1,5 +1,11 @@
 // WB7 compare — pure fact-column derivation tests. Pins:
-//   - the R1-shaped adapter feeds the REUSED verdict composer (same section
+//   - UPDATED (P-39): the R1-shaped adapter and the second verdict composer it
+//     fed are both DELETED. A column's headline is the sealed sheet's own
+//     sentence, composed once by @hauska/parcel-fact-sheet. What used to be
+//     tested here — that the adapter mapped four sections correctly — no longer
+//     exists to test. What replaces it: the column CARRIES the composed verdict
+//     and never re-derives one.
+//   - (historical) the R1-shaped adapter feeds the REUSED verdict composer (same section
 //     mapping as the share view; red flag leads, honest absences survive);
 //   - fact cells carry the CARD's honesty idioms (present / absent "not
 //     verified here" / pending / provisional) — fixture matrix incl. absents
@@ -17,7 +23,6 @@ import type {
   BakedFacetsFetchResult,
 } from "../../lib/baked-facets";
 import {
-  briefPayloadFromFacets,
   cellsDiffer,
   COMPARE_ROWS,
   deriveCompareColumn,
@@ -136,38 +141,31 @@ const PROVISIONAL: CompareSlotData = {
 };
 
 // ---------------------------------------------------------------------------
-// Verdict reuse through the adapter.
+// The headline: carried, never re-derived (I2).
 // ---------------------------------------------------------------------------
 
-describe("briefPayloadFromFacets → composeBriefVerdict (reuse, not fork)", () => {
-  it("maps the four share-brief sections from facets + tier2", () => {
-    const payload = briefPayloadFromFacets(ZONED);
-    expect(payload.brief.sections.map((s) => s.id)).toEqual([
-      "zoning",
-      "setbacks-envelope",
-      "flood",
-      "land-use",
-    ]);
-    expect(payload.brief.sections[0].data).toBe(ZONED_FACETS.zoning);
-    expect(payload.brief.sections[2].data).toBe(FLOODWAY_TIER2.flood);
+describe("deriveCompareColumn — the carried verdict", () => {
+  it("renders the sheet's own sealed sentence and tone", () => {
+    const col = deriveCompareColumn({
+      ...ZONED,
+      factSheetId: "fs_abc",
+      verdict: {
+        line: "Inside the FEMA flood hazard area (Zone AE) · buildable · zoned P-2.",
+        tone: "flag",
+      },
+    });
+    expect(col.verdict).toEqual({
+      line: "Inside the FEMA flood hazard area (Zone AE) · buildable · zoned P-2.",
+      tone: "flag",
+    });
   });
 
-  it("floodway red flag LEADS the zoned verdict (composer semantics intact)", () => {
-    const { verdict } = deriveCompareColumn(ZONED);
-    expect(verdict.tone).toBe("flag");
-    expect(verdict.line).toBe(
-      "Inside a FEMA floodway (Zone AE) · buildable · zoned P-2 · single family residence per county record.",
-    );
-  });
-
-  it("all-absent parcel gets the honest caution verdict — never a clean bill", () => {
-    const { verdict } = deriveCompareColumn(ABSENT);
-    expect(verdict.tone).toBe("caution");
-    // Sentence-cased because the envelope segment LEADS the caution line.
-    expect(verdict.line).toContain("Buildable envelope not derived here");
-    expect(verdict.line).toContain("flood not verified here");
-    expect(verdict.line).toContain("zoning not verified here");
-    expect(verdict.line).not.toContain("no red flags");
+  it("says so honestly when no sheet resolved, never a neutral headline", () => {
+    const col = deriveCompareColumn(ABSENT);
+    expect(col.verdict.tone).toBe("caution");
+    expect(col.verdict.line).toContain("has not resolved a fact sheet");
+    // The earned clean tail can never appear on an unresolved column.
+    expect(col.verdict.line).not.toContain("no red flags");
   });
 });
 
@@ -313,7 +311,9 @@ describe("fetchComparePayload", () => {
           tier2: FLOODWAY_TIER2,
         } as never,
       }) as BakedFacetsFetchResult;
-    const outcome = await fetchComparePayload("48021:123", fetcher);
+    const outcome = await fetchComparePayload("48021:123", fetcher, async () => {
+      throw new Error("no sheet in this unit test");
+    });
     expect(outcome.kind).toBe("ok");
     if (outcome.kind === "ok") {
       expect(outcome.data.tier2).toBe(FLOODWAY_TIER2);
@@ -323,15 +323,18 @@ describe("fetchComparePayload", () => {
   });
 
   it("not_found → no-snapshot; transient → unavailable with the message", async () => {
+    const noSheet = async () => {
+      throw new Error("no sheet in this unit test");
+    };
     expect(
-      await fetchComparePayload("x", async () => ({ kind: "not_found" })),
+      await fetchComparePayload("x", async () => ({ kind: "not_found" }), noSheet),
     ).toEqual({ kind: "no-snapshot" });
     expect(
-      await fetchComparePayload("x", async () => ({
-        kind: "transient",
-        message: "HTTP 503",
-        status: 503,
-      })),
+      await fetchComparePayload(
+        "x",
+        async () => ({ kind: "transient", message: "HTTP 503", status: 503 }),
+        noSheet,
+      ),
     ).toEqual({ kind: "unavailable", message: "HTTP 503" });
   });
 });

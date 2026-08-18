@@ -74,9 +74,13 @@ describe("PropertyBriefPanel — zoned parcel", () => {
 
   it("W2: the verdict line LEADS the brief, before the cited detail", () => {
     expect(html).toContain('data-testid="brief-verdict"');
-    // ZONED_BRIEF carries in-SFHA + FLOODWAY — the red flag leads the line.
-    expect(html).toContain("Inside a FEMA floodway (Zone AE)");
-    expect(html).toContain('data-tone="flag"');
+    // UPDATED (P-39): the headline is the SUBJECT'S sealed verdict, composed
+    // once by @hauska/parcel-fact-sheet, not a second composition over this
+    // brief payload. A static render sets no subject, so the panel shows the
+    // honest unresolved line — it never invents a neutral headline.
+    expect(html).toContain("has not resolved a fact sheet");
+    expect(html).toContain('data-tone="caution"');
+    expect(html).not.toContain("no red flags");
     // Leading = the verdict appears BEFORE the provenance block and sections.
     const verdictAt = html.indexOf('data-testid="brief-verdict"');
     const provenanceAt = html.indexOf('data-testid="brief-provenance"');
@@ -106,9 +110,8 @@ describe("PropertyBriefPanel — unzoned parcel", () => {
     expect(html).toContain("No sources are recorded");
   });
 
-  it("W2: the verdict renders absences AS absences (no clean tail)", () => {
+  it("W2: the verdict never earns a clean tail (no clean bill without a sheet)", () => {
     expect(html).toContain('data-testid="brief-verdict"');
-    expect(html).toContain("flood not verified here");
     expect(html).toContain('data-tone="caution"');
     expect(html).not.toContain("no red flags");
   });

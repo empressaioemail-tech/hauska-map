@@ -5,13 +5,11 @@
 // second surface).
 //
 // REUSE, DON'T FORK (the standing rule):
-//   - VERDICT: `composeBriefVerdict` (src/browse/brief-verdict.ts) is called
-//     over an R1-SHAPED payload assembled here from the property's baked
-//     facets + tier2 flood — the section mapping mirrors the share view's
-//     `buildShareBriefPayload` (api/_lib/pe-share-brief.ts, itself a mirror of
-//     cortex buildR1Brief). Only the ADAPTER lives here; the verdict wording,
-//     red-flag ordering, and the earned "no red flags" tail stay in the one
-//     composer.
+//   - VERDICT: `composeVerdict` (@hauska/parcel-fact-sheet) over the parcel's
+//     ONE sealed fact sheet. This module used to assemble an R1-SHAPED payload
+//     here purely to feed a second composer; that adapter is gone with the
+//     composer it fed. A compare column and an inspect card now read the same
+//     sentence because there IS only one.
 //   - PER-FACT HONESTY: zoning / setbacks / buildable / land use / acreage
 //     come from `deriveBakedCardModel` (src/lib/baked-facets.ts) — the same
 //     present / absent / pending idioms the inspect card renders ("not
@@ -32,10 +30,17 @@ import {
 } from "../../lib/baked-facets";
 import { PE_FACETS_PROXY_BASE } from "../../lib/config";
 import {
-  composeBriefVerdict,
-  type BriefVerdict,
-} from "../../browse/brief-verdict";
-import type { ResearchBriefPayload } from "../../browse/brief-view-model";
+  composeVerdictTone,
+  type ParcelFactSheet,
+  type VerdictTone,
+} from "@hauska/parcel-fact-sheet";
+import { factSheetResolver } from "../../lib/fact-sheet-resolver";
+
+/** The composed headline for one compare column. */
+export interface CompareVerdict {
+  line: string;
+  tone: VerdictTone;
+}
 
 // ---------------------------------------------------------------------------
 // Stored state (JSON-serializable — persisted through the chassis store).
@@ -44,6 +49,10 @@ import type { ResearchBriefPayload } from "../../browse/brief-view-model";
 /** One property's fetched compare payload (facets + the tier2 flood sibling). */
 export interface CompareSlotData {
   parcelNodeId: string;
+  /** The sealed sheet this column's headline was composed from (I1/I2). */
+  factSheetId?: string;
+  /** Composed ONCE, at fetch, by the one composer. */
+  verdict?: CompareVerdict;
   facets: BakedFacetPayload;
   /** The wire response's `tier2` sibling (flood rides here); null when absent. */
   tier2: unknown;
@@ -57,49 +66,6 @@ export interface CompareStoredState {
   b: string | null;
   /** Fetched payloads keyed by parcelNodeId (kept for the selected slots). */
   payloads: Record<string, CompareSlotData>;
-}
-
-// ---------------------------------------------------------------------------
-// Facets → R1-shaped payload (the verdict-composer adapter).
-// ---------------------------------------------------------------------------
-
-/**
- * Assemble the R1-shaped payload `composeBriefVerdict` expects from the baked
- * facets + tier2. Section ids/data mirror buildShareBriefPayload exactly
- * (zoning / setbacks-envelope / flood / land-use); runId is a local synthetic
- * (the composer never reads it) so this stays browser-safe (no Buffer).
- */
-export function briefPayloadFromFacets(data: CompareSlotData): ResearchBriefPayload {
-  const facets = data.facets ?? {};
-  const tier2 =
-    data.tier2 !== null && typeof data.tier2 === "object" && !Array.isArray(data.tier2)
-      ? (data.tier2 as Record<string, unknown>)
-      : null;
-  return {
-    runId: `pe-compare-${data.parcelNodeId}`,
-    reportFamily: "R1",
-    mode: "baked-facet-intel-v1",
-    parcelNodeId: data.parcelNodeId,
-    brief: {
-      sections: [
-        { id: "zoning", title: "Zoning", data: facets.zoning ?? null },
-        {
-          id: "setbacks-envelope",
-          title: "Setbacks and buildable envelope",
-          data: facets.envelope ?? null,
-        },
-        { id: "flood", title: "Flood", data: tier2?.flood ?? null },
-        {
-          id: "land-use",
-          title: "Land use",
-          data: facets.baseFacts?.landUse ?? null,
-        },
-      ],
-      disclosure: [],
-    },
-    bakedAt: facets.bakedAt ?? data.snapshotAt ?? null,
-    source: "baked-snapshot",
-  };
 }
 
 // ---------------------------------------------------------------------------
@@ -137,7 +103,7 @@ export interface CompareColumn {
   parcelNodeId: string;
   /** Situs address from the facets when present (column header fallback). */
   address: string | null;
-  verdict: BriefVerdict;
+  verdict: CompareVerdict;
   cells: Record<CompareRowId, CompareCell>;
 }
 
@@ -244,7 +210,11 @@ export function floodCell(tier2: unknown): CompareCell {
  */
 export function deriveCompareColumn(data: CompareSlotData): CompareColumn {
   const card = deriveBakedCardModel(data.facets ?? {});
-  const verdict = composeBriefVerdict(briefPayloadFromFacets(data));
+  // Composed at FETCH from the sealed sheet; never re-derived here (I2).
+  const verdict: CompareVerdict = data.verdict ?? {
+    line: "This property has not resolved a fact sheet yet.",
+    tone: "caution",
+  };
   const envCaption = envelopeSourceCaption(data.facets ?? {});
 
   // Buildable: the card facet already carries the honest vocabulary
@@ -310,15 +280,33 @@ export async function fetchComparePayload(
     parcelNodeId: string,
     base: string,
   ) => Promise<BakedFacetsFetchResult> = fetchBakedNodeFacets,
+  /** Test seam: the ONE resolver, injectable so a unit test never hits fetch. */
+  resolveSheet: (
+    parcelNodeId: string,
+  ) => Promise<ParcelFactSheet> = (id) => factSheetResolver.resolve(id),
 ): Promise<ComparePayloadOutcome> {
   const result = await fetcher(parcelNodeId, PE_FACETS_PROXY_BASE);
   if (result.kind === "ok") {
     // tier2 rides the wire response beside `facets` (not in the typed shape).
     const root = rec(result.data as unknown) ?? {};
+    // The headline comes from the ONE sealed sheet, composed once. A resolve
+    // failure leaves the column's facts intact and its headline honestly
+    // unavailable — it never falls back to a second composer.
+    let verdict: CompareVerdict | undefined;
+    let factSheetId: string | undefined;
+    try {
+      const sheet = await resolveSheet(parcelNodeId);
+      verdict = { line: sheet.verdict, tone: composeVerdictTone(sheet) };
+      factSheetId = sheet.factSheetId;
+    } catch {
+      /* honest absence — deriveCompareColumn renders the unresolved headline */
+    }
     return {
       kind: "ok",
       data: {
         parcelNodeId,
+        ...(factSheetId ? { factSheetId } : {}),
+        ...(verdict ? { verdict } : {}),
         facets: result.data.facets ?? {},
         tier2: root.tier2 ?? null,
         snapshotAt: result.data.snapshotAt ?? null,
