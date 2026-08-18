@@ -149,7 +149,7 @@ describe('toLiveOverlays (overlay composition)', () => {
     expect(specs[1].interactive).toBe(true)
   })
 
-  it('ramps FEMA fill from real NFHL zone fields (floodway / SFHA / X)', () => {
+  it('ramps FEMA fill from real NFHL zone fields (floodway / SFHA / shaded X / minimal)', () => {
     const specs = toLiveOverlays(okParcels, okFema)
     const paint = specs[0].paint as Record<string, unknown>
     const color = JSON.stringify(paint['fill-color'])
@@ -158,7 +158,36 @@ describe('toLiveOverlays (overlay composition)', () => {
     expect(color).toContain('ZONE_SUBTY')
     expect(color).toContain('FLD_ZONE')
     expect(opacity).toContain('FLOODWAY')
-    expect(opacity).toContain('X500')
+    // W3 2026-08-18: this used to assert the literal 'X500'. That is not a
+    // published NFHL FLD_ZONE value — the 500-year band is FLD_ZONE 'X' with
+    // ZONE_SUBTY '0.2 PCT ANNUAL CHANCE FLOOD HAZARD' (86 of 204 features in a
+    // live Bastrop probe), and unshaded X with subtype 'AREA OF MINIMAL FLOOD
+    // HAZARD' is the OUT class. The ramp now keys the real fields, and the
+    // authoritative in/out flag SFHA_TF as the catch-all.
+    expect(opacity).toContain('0.2 PCT')
+    expect(opacity).toContain('MINIMAL')
+    expect(opacity).toContain('SFHA_TF')
+  })
+
+  it('paints minimal-hazard land with NO fill so in-versus-out reads at a glance', () => {
+    // The operator could not tell which sections were in and which were out,
+    // because shaded X (a real 0.2% hazard) and unshaded X (outside the mapped
+    // floodplain) were the same colour at the same opacity.
+    const outside: LiveLayerState = {
+      status: 'ok',
+      response: {
+        layer: 'fema',
+        provider: 'FEMA NFHL',
+        geojson: fc([{ FLD_ZONE: 'X', ZONE_SUBTY: 'AREA OF MINIMAL FLOOD HAZARD', SFHA_TF: 'F' }]),
+      },
+    }
+    const paint = toLiveOverlays(okParcels, outside)[0].paint as Record<string, unknown>
+    const opacity = JSON.stringify(paint['fill-opacity'])
+    expect(opacity).toContain('"minimal",0')
+    // …and the line channel carries the class too, since a 20% fill alone does
+    // not survive over satellite imagery.
+    expect(Array.isArray(paint['line-color'])).toBe(true)
+    expect(Array.isArray(paint['line-width'])).toBe(true)
   })
 
   it('renders nothing for error / no-coverage / zoom-gated states (honest empty, not fixtures)', () => {

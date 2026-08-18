@@ -18,10 +18,11 @@
 
 import type { OverlaySpec, ParcelSelection, GisBBox } from './postMessage'
 import {
-  CONTEXT_FEMA,
   CONTEXT_PARCEL_LINE,
   femaNfhlFillColorExpr,
   femaNfhlFillOpacityExpr,
+  femaNfhlLineColorExpr,
+  femaNfhlLineWidthExpr,
 } from './map/layer-role-taxonomy.js'
 
 export type LiveLayerKey = 'parcels' | 'fema'
@@ -969,12 +970,19 @@ export function toLiveOverlays(
       geojson: fema.response.geojson,
       visible: visibility?.fema !== false,
       paint: {
-        // Honest NFHL severity: floodway > SFHA (A/AE/…) > X / 500-yr.
-        // Keys FLD_ZONE + ZONE_SUBTY only — no proximity fabrication.
+        // Honest NFHL severity across the FULL zone set: floodway > V/VE >
+        // AE/AH > AO > A/A99/AR > 0.2% shaded X, with minimal-hazard land
+        // carrying NO fill so in-versus-out reads at a glance, and an
+        // undetermined grey for Zone D. Keys FLD_ZONE + ZONE_SUBTY + SFHA_TF
+        // only — no proximity fabrication. See map/fema-zones.js.
+        //
+        // The LINE is per-zone too, because the fills sit inside the CONTEXT
+        // 0.2 opacity budget and a 20% tint alone does not carry identity over
+        // satellite imagery.
         'fill-color': femaNfhlFillColorExpr(),
         'fill-opacity': femaNfhlFillOpacityExpr(),
-        'line-color': CONTEXT_FEMA.line,
-        'line-width': CONTEXT_FEMA.lineWidth,
+        'line-color': femaNfhlLineColorExpr(),
+        'line-width': femaNfhlLineWidthExpr(),
       },
     })
   }

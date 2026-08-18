@@ -32,6 +32,12 @@ jobs:
           node-version: "22"
           cache: pnpm
       - run: pnpm install --frozen-lockfile
+      # The shared renderer's own node:test suite was not run by ANY workflow
+      # before 2026-08-18, so its guards (palette separation floors, the
+      # classifier divergence tests, the crash-guard assertions) existed but
+      # were never enforced. A control nobody runs is not a control.
+      - name: Shared map-renderer unit tests
+        run: pnpm --filter @hauska/map-renderer test
       - name: Unit + RED smoke (WDLL 7–8)
         run: pnpm --filter command-center test
       - name: Live GREEN smoke (WDLL 8)
