@@ -19,7 +19,7 @@ import {
   type PinElementLike,
   type SavedPin,
 } from './saved-pins'
-import type { ParcelFactSheet } from '@hauska/parcel-fact-sheet'
+import type { ParcelFactSheet } from '@empressaio/parcel-fact-sheet'
 import type { SavedPropertyRow } from './savedPropertiesClient'
 
 function row(overrides: Partial<SavedPropertyRow>): SavedPropertyRow {

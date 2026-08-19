@@ -165,6 +165,18 @@ function installFetchStub(opts: StubOpts = {}) {
   return { impl: impl as unknown as typeof fetch, calls };
 }
 
+/** AMENDMENT 1: resolve() returns a union. Narrow to the sheet or fail loudly. */
+async function sheetOf(
+  resolver: PeFactSheetResolver,
+  parcelNodeId: string,
+) {
+  const result = await resolver.resolve(parcelNodeId);
+  if (result.kind !== "sheet") {
+    throw new Error(`expected a sheet, got ${result.kind}`);
+  }
+  return result;
+}
+
 function makeResolver(stub: { impl: typeof fetch }) {
   return new PeFactSheetResolver({
     facetsBase: FACETS_BASE,
@@ -266,15 +278,23 @@ describe("PeFactSheetResolver.resolve", () => {
   it("returns the SAME sheet by id, and null for an unknown id (I1)", async () => {
     const stub = installFetchStub({ gisFeatures: [SUBJECT_FEATURE] });
     const resolver = makeResolver(stub);
-    const sheet = await resolver.resolve(NODE_ID);
-    expect(await resolver.bySheetId(sheet.factSheetId)).toBe(sheet);
+    const sheet = await sheetOf(resolver, NODE_ID);
+    const byId = await resolver.bySheetId(sheet.factSheetId);
+    expect(byId?.factSheetId).toBe(sheet.factSheetId);
+    // The SAME sealed sheet, not a re-resolve.
+    expect(byId).toBe(await resolver.bySheetId(sheet.factSheetId));
     expect(await resolver.bySheetId("fs_deadbeefdeadbeef")).toBeNull();
+    // resolveSheet is the sheet-or-null convenience for callers with nothing
+    // to render for an unplaceable parcel.
+    expect((await resolver.resolveSheet(NODE_ID))?.factSheetId).toBe(
+      sheet.factSheetId,
+    );
   });
 
   it("centres on the parcel RING, not on the address (I5)", async () => {
     const stub = installFetchStub({ gisFeatures: [NEIGHBOUR_FEATURE, SUBJECT_FEATURE] });
     const resolver = makeResolver(stub);
-    const sheet = await resolver.resolve(NODE_ID);
+    const sheet = await sheetOf(resolver, NODE_ID);
     expect(sheet.geometry.rings).toHaveLength(1);
     expect(sheet.geometry.centroid.lat).toBeCloseTo(SUBJECT_CENTRE.lat, 6);
     expect(sheet.geometry.centroid.lng).toBeCloseTo(SUBJECT_CENTRE.lng, 6);
@@ -293,7 +313,7 @@ describe("PeFactSheetResolver.resolve", () => {
     (wire.facets.baseFacts as Record<string, unknown>).situsAddress = null;
     const stub = installFetchStub({ facets: wire, gisFeatures: [] });
     const resolver = makeResolver(stub);
-    const sheet = await resolver.resolve(NODE_ID);
+    const sheet = await sheetOf(resolver, NODE_ID);
     expect(sheet.identity.situsAddress.state).toBe("absent-covered");
     expect(Number.isFinite(sheet.geometry.centroid.lat)).toBe(true);
     expect(sheet.geometry.centroid.lng).toBeCloseTo(SUBJECT_CENTRE.lng, 4);
@@ -307,13 +327,13 @@ describe("PeFactSheetResolver.resolve", () => {
     const wire = facetsWire();
     delete (wire.facets as Record<string, unknown>).countyName;
     const stub = installFetchStub({ facets: wire, gisFeatures: [SUBJECT_FEATURE] });
-    const sheet = await makeResolver(stub).resolve(NODE_ID);
+    const sheet = await sheetOf(makeResolver(stub), NODE_ID);
     expect(sheet.identity.county).toEqual({ fips: "48021", name: "Bastrop" });
   });
 
   it("carries provenance as a SIBLING of the value, never inside it (I3)", async () => {
     const stub = installFetchStub({ gisFeatures: [SUBJECT_FEATURE] });
-    const sheet = await makeResolver(stub).resolve(NODE_ID);
+    const sheet = await sheetOf(makeResolver(stub), NODE_ID);
     expect(sheet.landUse.state).toBe("present");
     if (sheet.landUse.state !== "present") throw new Error("unreachable");
     // The old formatLandUseDisplay returned "A1 — Single-family residential
@@ -326,11 +346,15 @@ describe("PeFactSheetResolver.resolve", () => {
 
   it("makes 'not derived' and an area mutually exclusive (I2)", async () => {
     const withEnvelope = installFetchStub({ gisFeatures: [SUBJECT_FEATURE] });
-    const derived = await makeResolver(withEnvelope).resolve(NODE_ID);
+    const derived = await sheetOf(makeResolver(withEnvelope), NODE_ID);
     expect(derived.envelope.kind).toBe("derived");
     if (derived.envelope.kind !== "derived") throw new Error("unreachable");
     expect(derived.envelope.area.value).toBe(6325);
-    expect(derived.envelope.setbacksUsed.front).toEqual({ value: 25, unit: "ft" });
+    // AMENDMENT 1: an axis carries its own governance, note and provenance.
+    expect(derived.envelope.setbacksUsed.front.distance).toEqual({
+      value: 25,
+      unit: "ft",
+    });
     // Tier-1 envelopes are shape-only: always approximate.
     expect(derived.envelope.approximate).toBe(true);
 
@@ -341,7 +365,7 @@ describe("PeFactSheetResolver.resolve", () => {
       declineReason: "no-setback-table",
     };
     const declined = installFetchStub({ facets: declinedWire, gisFeatures: [SUBJECT_FEATURE] });
-    const sheet = await makeResolver(declined).resolve(NODE_ID);
+    const sheet = await sheetOf(makeResolver(declined), NODE_ID);
     expect(sheet.envelope.kind).toBe("not-derived");
     if (sheet.envelope.kind !== "not-derived") throw new Error("unreachable");
     expect(sheet.envelope.missing).toContain("setbacks");
@@ -357,13 +381,13 @@ describe("PeFactSheetResolver.resolve", () => {
       emptyReason: "Setbacks consume the lot.",
     };
     const stub = installFetchStub({ facets: wire, gisFeatures: [SUBJECT_FEATURE] });
-    const sheet = await makeResolver(stub).resolve(NODE_ID);
+    const sheet = await sheetOf(makeResolver(stub), NODE_ID);
     expect(sheet.envelope.kind).toBe("consumed");
   });
 
   it("widens the served scalar flood zone into a SET (I6)", async () => {
     const stub = installFetchStub({ gisFeatures: [SUBJECT_FEATURE] });
-    const sheet = await makeResolver(stub).resolve(NODE_ID);
+    const sheet = await sheetOf(makeResolver(stub), NODE_ID);
     expect(sheet.flood.state).toBe("present");
     if (sheet.flood.state !== "present") throw new Error("unreachable");
     expect(sheet.flood.value.zones).toEqual([
@@ -386,7 +410,7 @@ describe("PeFactSheetResolver.resolve", () => {
       ],
     };
     const multi = installFetchStub({ facets: wire, gisFeatures: [SUBJECT_FEATURE] });
-    const sheet = await makeResolver(multi).resolve(NODE_ID);
+    const sheet = await sheetOf(makeResolver(multi), NODE_ID);
     if (sheet.flood.state !== "present") throw new Error("unreachable");
     expect(sheet.flood.value.zones.map((z) => z.zone)).toEqual(["AE", "AO"]);
     expect(sheet.flood.value.primaryZone).toBe("AE");
@@ -397,7 +421,7 @@ describe("PeFactSheetResolver.resolve", () => {
 
   it("seals the verdict onto the sheet, composed once", async () => {
     const stub = installFetchStub({ gisFeatures: [SUBJECT_FEATURE] });
-    const sheet = await makeResolver(stub).resolve(NODE_ID);
+    const sheet = await sheetOf(makeResolver(stub), NODE_ID);
     expect(sheet.verdict).toContain("Inside the FEMA flood hazard area (Zone AE)");
     expect(sheet.verdict).toContain("zoned R-1");
     expect(sheet.sealedAt).toBe("2026-08-18T12:00:00.000Z");
@@ -422,5 +446,149 @@ describe("PeFactSheetResolver.resolve", () => {
     await expect(makeResolver(stub).resolve(NODE_ID)).rejects.toMatchObject({
       kind: "unresolved",
     });
+  });
+});
+
+// ---------------------------------------------------------------------------
+// AMENDMENT 1 (2026-08-18): atom DIDs, setback axes, and the unplaceable result.
+// ---------------------------------------------------------------------------
+
+describe("AMENDMENT 1 — Provenance.atomDids", () => {
+  it("names the atoms behind each fact, and is EMPTY rather than absent", async () => {
+    const wire = facetsWire();
+    (wire.facets.envelope as Record<string, unknown>).provenanceRefs = {
+      zoning: { atomDid: "did:atom:zoning-1" },
+      setback: { atomDid: "did:atom:setback-1" },
+      envelope: { atomDid: "did:atom:envelope-1" },
+      codeSections: [{ atomDid: "did:atom:code-1", sectionNumber: "4.2.1" }],
+    };
+    const stub = installFetchStub({ facets: wire, gisFeatures: [SUBJECT_FEATURE] });
+    const sheet = await sheetOf(makeResolver(stub), NODE_ID);
+    if (sheet.zoning.state !== "present") throw new Error("unreachable");
+    if (sheet.setbacks.state !== "present") throw new Error("unreachable");
+    if (sheet.envelope.kind !== "derived") throw new Error("unreachable");
+    expect(sheet.zoning.provenance.atomDids).toEqual(["did:atom:zoning-1"]);
+    expect(sheet.setbacks.provenance.atomDids).toEqual([
+      "did:atom:setback-1",
+      "did:atom:code-1",
+    ]);
+    expect(sheet.envelope.provenance.atomDids).toEqual([
+      "did:atom:envelope-1",
+      "did:atom:code-1",
+    ]);
+    // An empty list means NO atom backs the fact. It never means unknown.
+    expect(sheet.landUse.state).toBe("present");
+    if (sheet.landUse.state !== "present") throw new Error("unreachable");
+    expect(sheet.landUse.provenance.atomDids).toEqual([]);
+  });
+});
+
+describe("AMENDMENT 1 — SetbackAxis", () => {
+  it("carries the governing rule and the X-ray note per axis", async () => {
+    const wire = facetsWire();
+    (wire.facets.envelope as Record<string, unknown>).setbacks = {
+      front_ft: 25,
+      side_ft: 5,
+      rear_ft: 10,
+      side_corner_ft: 15,
+      fieldNotes: { front: "Measured from the right-of-way line." },
+    };
+    const stub = installFetchStub({ facets: wire, gisFeatures: [SUBJECT_FEATURE] });
+    const sheet = await sheetOf(makeResolver(stub), NODE_ID);
+    if (sheet.setbacks.state !== "present") throw new Error("unreachable");
+    expect(sheet.setbacks.value.front.note).toBe(
+      "Measured from the right-of-way line.",
+    );
+    expect(sheet.setbacks.value.cornerSide?.distance.value).toBe(15);
+    expect(sheet.setbacks.value.rear.provenance.source).toBe("setback-table");
+  });
+
+  it("carries a NOT-SPECIFIED axis as not-measured, never as a real 0 ft", async () => {
+    // The B3 / Elgin case: no scalar on the axis, but a governing rule that
+    // routes the reader to the answer. Rendering that as 0 ft is the defect the
+    // not-specified treatment exists to prevent.
+    const wire = facetsWire();
+    (wire.facets.envelope as Record<string, unknown>).setbacks = {
+      front_ft: 0,
+      side_ft: 5,
+      rear_ft: 10,
+      not_specified: { front: true },
+      governedBy: {
+        front: { section_number: "4.2.1", district: "C-1" },
+      },
+    };
+    const stub = installFetchStub({ facets: wire, gisFeatures: [SUBJECT_FEATURE] });
+    const sheet = await sheetOf(makeResolver(stub), NODE_ID);
+    if (sheet.setbacks.state !== "present") throw new Error("unreachable");
+    const front = sheet.setbacks.value.front;
+    expect(Number.isFinite(front.distance.value)).toBe(false);
+    expect(front.distance.value).not.toBe(0);
+    expect(front.governedBy).toBe("C-1 governs (§4.2.1)");
+    // A specified axis is unaffected.
+    expect(sheet.setbacks.value.side.distance.value).toBe(5);
+  });
+});
+
+describe("AMENDMENT 1 — UnplaceableParcel", () => {
+  function unplaceableWire() {
+    const wire = facetsWire();
+    // No baked envelope polygon and no situs address: nothing can seed a
+    // location, and the ring probe therefore never runs.
+    (wire.facets.baseFacts as Record<string, unknown>).situsAddress = null;
+    (wire.facets as Record<string, unknown>).envelope = {
+      status: "declined",
+      declineReason: "no-setback-table",
+    };
+    return wire;
+  }
+
+  it("returns a RESULT, never a throw and never a vanished parcel", async () => {
+    const stub = installFetchStub({
+      facets: unplaceableWire(),
+      gisFeatures: [],
+      geocodeHit: null,
+    });
+    const result = await makeResolver(stub).resolve(NODE_ID);
+    expect(result.kind).toBe("unplaceable");
+    if (result.kind !== "unplaceable") throw new Error("unreachable");
+    expect(result.parcelNodeId).toBe(NODE_ID);
+    // It carries the record we DO hold …
+    expect(result.identity.county).toEqual({ fips: "48021", name: "Bastrop" });
+    expect(result.identity.parcelNodeId).toBe(NODE_ID);
+    // … a customer-readable reason …
+    expect(result.reason).toContain("cannot be placed on the map");
+    // … and what would fix it. An absence that cannot say that is just empty.
+    expect(result.wouldBeFilledBy).toContain("Bastrop County");
+  });
+
+  it("never silently becomes a sheet", async () => {
+    const stub = installFetchStub({
+      facets: unplaceableWire(),
+      gisFeatures: [],
+      geocodeHit: null,
+    });
+    const resolver = makeResolver(stub);
+    expect(await resolver.resolveSheet(NODE_ID)).toBeNull();
+    // And nothing was sealed under a sheet id.
+    const result = await resolver.resolve(NODE_ID);
+    expect("factSheetId" in result).toBe(false);
+  });
+
+  it("still resolves a sheet when only the ADDRESS can seed a centre", async () => {
+    // The demoted last resort: no geometry anywhere, but the address geocodes.
+    // This is what keeps the unplaceable state rare rather than routine.
+    const stub = installFetchStub({
+      facets: (() => {
+        const wire = facetsWire();
+        (wire.facets as Record<string, unknown>).envelope = {
+          status: "declined",
+          declineReason: "no-setback-table",
+        };
+        return wire;
+      })(),
+      gisFeatures: [],
+    });
+    const result = await makeResolver(stub).resolve(NODE_ID);
+    expect(result.kind).toBe("sheet");
   });
 });

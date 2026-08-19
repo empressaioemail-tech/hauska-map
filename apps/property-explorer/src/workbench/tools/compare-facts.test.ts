@@ -1,7 +1,7 @@
 // WB7 compare — pure fact-column derivation tests. Pins:
 //   - UPDATED (P-39): the R1-shaped adapter and the second verdict composer it
 //     fed are both DELETED. A column's headline is the sealed sheet's own
-//     sentence, composed once by @hauska/parcel-fact-sheet. What used to be
+//     sentence, composed once by @empressaio/parcel-fact-sheet. What used to be
 //     tested here — that the adapter mapped four sections correctly — no longer
 //     exists to test. What replaces it: the column CARRIES the composed verdict
 //     and never re-derives one.

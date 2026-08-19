@@ -17,7 +17,7 @@ export default defineConfig({
       // `vite build` never depend on a prior package build (the same reason
       // liveGis.ts imports the map-renderer module by path). The package still
       // ships a dist for command-center, which consumes it the standard way.
-      "@hauska/parcel-fact-sheet": fileURLToPath(
+      "@empressaio/parcel-fact-sheet": fileURLToPath(
         new URL("../../packages/parcel-fact-sheet/src/index.ts", import.meta.url),
       ),
     },

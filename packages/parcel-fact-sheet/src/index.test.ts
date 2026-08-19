@@ -25,7 +25,9 @@ import {
   type FloodDetermination,
   type ParcelFactSheet,
   type Provenance,
+  type ResolveResult,
   type Setbacks,
+  type UnplaceableParcel,
 } from "./index";
 
 const PROV: Provenance = {
@@ -37,12 +39,25 @@ const PROV: Provenance = {
   confidence: null,
   confidenceBasis: "asserted",
   sourceUrl: null,
+  // AMENDMENT 1: an EMPTY array means no atom backs this fact, which is itself
+  // worth rendering. It never means "unknown".
+  atomDids: [],
 };
 
+/** AMENDMENT 1: an axis carries its governance, note and provenance. */
+function axis(ft: number, governedBy: string | null = null, note: string | null = null) {
+  return {
+    distance: { value: ft, unit: "ft" as const },
+    governedBy,
+    note,
+    provenance: PROV,
+  };
+}
+
 const SETBACKS: Setbacks = {
-  front: { value: 25, unit: "ft" },
-  side: { value: 5, unit: "ft" },
-  rear: { value: 10, unit: "ft" },
+  front: axis(25),
+  side: axis(5),
+  rear: axis(10),
   cornerSide: null,
 };
 
@@ -302,5 +317,60 @@ describe("formatMeasurement — the ONE formatter", () => {
     expect(
       formatMeasurement({ value: Number.POSITIVE_INFINITY, unit: "sqft" }, "us"),
     ).toBe("not measured");
+  });
+});
+
+// ---------------------------------------------------------------------------
+// AMENDMENT 1 (2026-08-18, planner).
+// ---------------------------------------------------------------------------
+
+describe("AMENDMENT 1 — the types the shipped card needs", () => {
+  it("lets a fact name the atoms behind it, empty meaning none rather than unknown", () => {
+    const s = sheet();
+    if (s.zoning.state !== "present") throw new Error("unreachable");
+    expect(s.zoning.provenance.atomDids).toEqual([]);
+    const backed = {
+      ...s.zoning.provenance,
+      atomDids: ["did:atom:zoning-1", "did:atom:code-1"],
+    };
+    expect(backed.atomDids).toHaveLength(2);
+  });
+
+  it("lets a setback axis carry its governing rule and X-ray note", () => {
+    const front = axis(25, "C-1 governs (§4.2.1)", "Measured from the ROW line.");
+    expect(front.distance).toEqual({ value: 25, unit: "ft" });
+    expect(front.governedBy).toBe("C-1 governs (§4.2.1)");
+    expect(front.note).toBe("Measured from the ROW line.");
+  });
+
+  it("renders a NOT-SPECIFIED axis as not-measured, never as a real 0 ft", () => {
+    // `distance` is non-optional on the amended type, so an axis with no scalar
+    // is carried as a non-finite measurement. formatMeasurement is what keeps
+    // that honest — a not-specified axis printed as 0 ft is the exact defect
+    // the build-to-line treatment exists to prevent.
+    const notSpecified = axis(Number.NaN, "build-to-line governs (§3.1)");
+    expect(formatMeasurement(notSpecified.distance, "us")).toBe("not measured");
+    expect(formatMeasurement(notSpecified.distance, "us")).not.toContain("0");
+  });
+
+  it("keeps an unplaceable parcel structurally distinct from a sheet", () => {
+    const unplaceable: UnplaceableParcel = {
+      kind: "unplaceable",
+      parcelNodeId: "48021:36521",
+      identity: sheet().identity,
+      reason: "No boundary or coordinate is on file for this parcel.",
+      wouldBeFilledBy: "parcel geometry for Bastrop County (48021)",
+    };
+    const results: ResolveResult[] = [
+      { kind: "sheet", ...sheet() },
+      unplaceable,
+    ];
+    // The discriminant is the whole point: an unplaceable parcel can never be
+    // mistaken for a sheet, so nothing downstream needs a geometry null check.
+    const sheets = results.filter((r) => r.kind === "sheet");
+    expect(sheets).toHaveLength(1);
+    expect("geometry" in unplaceable).toBe(false);
+    // An honest absence that cannot say what would fill it is just empty.
+    expect(unplaceable.wouldBeFilledBy).not.toBe("");
   });
 });

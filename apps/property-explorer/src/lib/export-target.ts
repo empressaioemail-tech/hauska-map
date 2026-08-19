@@ -20,8 +20,8 @@
 // it. One PDF carrying two different sheet ids is then a defect the reader can
 // see without us.
 
-import type { DisplaySystem } from "@hauska/parcel-fact-sheet";
-import { isPresent } from "@hauska/parcel-fact-sheet";
+import type { DisplaySystem } from "@empressaio/parcel-fact-sheet";
+import { isPresent } from "@empressaio/parcel-fact-sheet";
 import { subjectStore } from "./subject-store";
 
 export class ExportTargetError extends Error {

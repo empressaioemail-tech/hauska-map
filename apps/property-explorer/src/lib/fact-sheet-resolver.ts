@@ -41,12 +41,18 @@ import {
   type FloodZoneShare,
   type ParcelFactSheet,
   type ParcelGeometry,
+  type ParcelIdentity,
   type Provenance,
+  type ResolveResult,
   type Ring,
+  type SetbackAxis,
   type Setbacks,
+  type UnplaceableParcel,
   type ZoningDistrict,
   composeVerdict,
-} from "@hauska/parcel-fact-sheet";
+} from "@empressaio/parcel-fact-sheet";
+import { formatGovernedByFragment } from "../../api/_lib/setback-not-specified";
+import type { GovernedBy } from "./buildable-envelope.js";
 import { fetchBakedNodeFacets, type BakedFacetPayload } from "./baked-facets";
 import { fetchBuildableEnvelope, parsePlaceKey } from "./buildable-envelope.js";
 import { fetchGeocodeSuggestions } from "./geocodeClient";
@@ -85,7 +91,10 @@ const COUNTY_NAMES: Record<string, string> = {
 };
 
 export class FactSheetResolveError extends Error {
-  readonly kind: "invalid-id" | "not-found" | "unresolved" | "no-geometry";
+  // AMENDMENT 1 removed "no-geometry": a parcel we hold facts for but cannot
+  // place is a RESULT (UnplaceableParcel), never a thrown failure. Only a
+  // genuine failure throws.
+  readonly kind: "invalid-id" | "not-found" | "unresolved";
   readonly retryable: boolean;
   constructor(
     kind: FactSheetResolveError["kind"],
@@ -156,7 +165,9 @@ function num(v: unknown): number | null {
   return typeof v === "number" && Number.isFinite(v) ? v : null;
 }
 
-function provenance(over: Partial<Provenance> & { source: string; sourceLabel: string }): Provenance {
+function provenance(
+  over: Partial<Provenance> & { source: string; sourceLabel: string },
+): Provenance {
   return {
     vintage: null,
     method: null,
@@ -164,8 +175,21 @@ function provenance(over: Partial<Provenance> & { source: string; sourceLabel: s
     confidence: null,
     confidenceBasis: "asserted",
     sourceUrl: null,
+    // AMENDMENT 1: an empty array means NO atom backs this fact, which is
+    // itself worth rendering. It never means "unknown".
+    atomDids: [],
     ...over,
   };
+}
+
+/** Non-empty atom DIDs, de-duplicated, order preserved. */
+function atomDids(...refs: Array<string | null | undefined>): string[] {
+  const out: string[] = [];
+  for (const r of refs) {
+    const did = typeof r === "string" ? r.trim() : "";
+    if (did && !out.includes(did)) out.push(did);
+  }
+  return out;
 }
 
 function absentCovered<T>(reason: string, prov: Provenance): Fact<T> {
@@ -290,6 +314,7 @@ function zoningFact(facets: BakedFacetPayload, countyFips: string): Fact<ZoningD
           ? `${facets.zoning?.jurisdictionKey} zoning layer`
           : "Jurisdiction zoning layer",
         retrievedAt: facets.bakedAt ?? null,
+        atomDids: atomDids(facets.envelope?.provenanceRefs?.zoning?.atomDid),
       }),
     };
   }
@@ -305,29 +330,106 @@ function zoningFact(facets: BakedFacetPayload, countyFips: string): Fact<ZoningD
   );
 }
 
+/**
+ * One setback axis (AMENDMENT 1). An axis carries its own governance, note and
+ * provenance, not just a number.
+ *
+ * A NOT-SPECIFIED axis is real and shipped: an Elgin-shaped table can leave an
+ * axis with no scalar at all while still routing the reader to the governing
+ * rule ("build-to-line governs", "C-1 governs (§ 4.2.1)"). `distance` is
+ * non-optional on the amended type, so such an axis is carried as a NON-FINITE
+ * measurement, which `formatMeasurement` renders as "not measured". It is never
+ * carried as 0, because a not-specified axis rendered as a real 0 ft is the
+ * exact defect the B3 provenance work removed. Reported to the planner as a
+ * remaining type gap; see the close artifact.
+ */
+function setbackAxis(
+  distanceFt: number | null,
+  governed: GovernedBy | null | undefined,
+  note: string | null | undefined,
+  prov: Provenance,
+): SetbackAxis {
+  return {
+    distance: {
+      value: distanceFt != null && Number.isFinite(distanceFt) ? distanceFt : Number.NaN,
+      unit: "ft",
+    },
+    governedBy: formatGovernedByFragment(governed ?? null),
+    note: typeof note === "string" && note.trim() ? note.trim() : null,
+    provenance: prov,
+  };
+}
+
 function setbacksFact(facets: BakedFacetPayload): Fact<Setbacks> {
   const s = facets.envelope?.setbacks;
+  const refs = facets.envelope?.provenanceRefs ?? null;
+  const notSpecified = s?.not_specified ?? null;
+  const governedBy = s?.governedBy ?? null;
+  const notes = s?.fieldNotes ?? null;
+
   const front = num(s?.front_ft);
   const side = num(s?.side_ft ?? s?.side_interior_ft);
   const rear = num(s?.rear_ft);
-  if (s && front != null && side != null && rear != null) {
-    const corner = num(s.side_corner_ft);
+  const corner = num(s?.side_corner_ft);
+
+  // An axis counts as PRESENT when it carries a scalar OR a governing rule that
+  // answers it. A table that specifies nothing at all on any axis is an absence.
+  const anyAnswer =
+    front != null ||
+    side != null ||
+    rear != null ||
+    formatGovernedByFragment(governedBy?.front ?? null) != null ||
+    formatGovernedByFragment(governedBy?.side ?? null) != null ||
+    formatGovernedByFragment(governedBy?.rear ?? null) != null;
+
+  if (s && anyAnswer) {
+    const prov = provenance({
+      source: "setback-table",
+      sourceLabel: str(facets.envelope?.district)
+        ? `Setback table, district ${facets.envelope?.district}`
+        : "Jurisdiction setback table",
+      retrievedAt: facets.bakedAt ?? null,
+      sourceUrl: str(facets.envelope?.citationUrl),
+      // AMENDMENT 1: the atoms behind the setback rule and every code section
+      // it cites. This is what the AtomChip popover resolves through
+      // fetchAtomByDid; before the amendment the sheet could not carry it.
+      atomDids: atomDids(
+        refs?.setback?.atomDid,
+        ...(refs?.codeSections ?? []).map((c) => c?.atomDid),
+      ),
+    });
     return {
       state: "present",
       value: {
-        front: { value: front, unit: "ft" },
-        side: { value: side, unit: "ft" },
-        rear: { value: rear, unit: "ft" },
-        cornerSide: corner != null ? { value: corner, unit: "ft" } : null,
+        front: setbackAxis(
+          notSpecified?.front ? null : front,
+          governedBy?.front,
+          notes?.front,
+          prov,
+        ),
+        side: setbackAxis(
+          notSpecified?.side ? null : side,
+          governedBy?.side,
+          notes?.side,
+          prov,
+        ),
+        rear: setbackAxis(
+          notSpecified?.rear ? null : rear,
+          governedBy?.rear,
+          notes?.rear,
+          prov,
+        ),
+        cornerSide:
+          corner != null || governedBy?.sideCorner
+            ? setbackAxis(
+                notSpecified?.sideCorner ? null : corner,
+                governedBy?.sideCorner,
+                notes?.sideCorner,
+                prov,
+              )
+            : null,
       },
-      provenance: provenance({
-        source: "setback-table",
-        sourceLabel: str(facets.envelope?.district)
-          ? `Setback table, district ${facets.envelope?.district}`
-          : "Jurisdiction setback table",
-        retrievedAt: facets.bakedAt ?? null,
-        sourceUrl: str(facets.envelope?.citationUrl),
-      }),
+      provenance: prov,
     };
   }
   if (str(facets.envelope?.declineReason) === "atom_path_pending") {
@@ -363,6 +465,10 @@ function envelopeValue(
     confidence: null,
     confidenceBasis: "asserted",
     sourceUrl: str(env?.citationUrl),
+    atomDids: atomDids(
+      env?.provenanceRefs?.envelope?.atomDid,
+      ...(env?.provenanceRefs?.codeSections ?? []).map((c) => c?.atomDid),
+    ),
   });
 
   if (!env || env.status === "declined" || !setbacksUsed) {
@@ -592,7 +698,7 @@ export class PeFactSheetResolver implements FactSheetResolver {
   private readonly cortexBase: string;
   private readonly fetchImpl: typeof fetch;
   private readonly now: () => Date;
-  private readonly byParcel = new Map<string, Promise<ParcelFactSheet>>();
+  private readonly byParcel = new Map<string, Promise<ResolveResult>>();
   private readonly bySheet = new Map<string, ParcelFactSheet>();
   private readonly seeds = new Map<string, GeometrySeedHint>();
 
@@ -603,8 +709,15 @@ export class PeFactSheetResolver implements FactSheetResolver {
     this.now = opts.now ?? (() => new Date());
   }
 
-  /** ONE resolve per parcel. Repeat calls return the SAME sealed sheet. */
-  resolve(parcelNodeId: string): Promise<ParcelFactSheet> {
+  /**
+   * ONE resolve per parcel. Repeat calls return the SAME result object.
+   *
+   * Never throws for an unplaceable parcel — that is a RESULT carrying identity,
+   * a reason and what would fix it. It throws only for a genuine failure
+   * (bad id, missing parcel, unreachable upstream), which is Fact.unresolved
+   * territory and must not be dressed as an absence.
+   */
+  resolve(parcelNodeId: string): Promise<ResolveResult> {
     const id = normalizeParcelNodeId(parcelNodeId);
     if (!id || !isValidParcelNodeId(id)) {
       return Promise.reject(
@@ -632,6 +745,17 @@ export class PeFactSheetResolver implements FactSheetResolver {
   }
 
   /**
+   * The sheet when the parcel is placeable, null when it is not. For callers
+   * that genuinely have nothing to render for an unplaceable parcel (a saved
+   * pin, a compare column's headline). A caller that shows the user something
+   * must use `resolve` and render the unplaceable state instead.
+   */
+  async resolveSheet(parcelNodeId: string): Promise<ParcelFactSheet | null> {
+    const result = await this.resolve(parcelNodeId);
+    return result.kind === "sheet" ? result : null;
+  }
+
+  /**
    * Offer a geometry seed for a parcel that has not resolved yet. Ignored once
    * the parcel is resolved — one resolve per parcel means one geometry, and a
    * later hint must never mutate a sealed sheet.
@@ -649,7 +773,7 @@ export class PeFactSheetResolver implements FactSheetResolver {
     this.seeds.clear();
   }
 
-  private async resolveUncached(parcelNodeId: string): Promise<ParcelFactSheet> {
+  private async resolveUncached(parcelNodeId: string): Promise<ResolveResult> {
     const facetsResult = await fetchBakedNodeFacets(parcelNodeId, this.facetsBase);
     if (facetsResult.kind === "not_found") {
       throw new FactSheetResolveError(
@@ -676,7 +800,31 @@ export class PeFactSheetResolver implements FactSheetResolver {
       str(facets.countyName) ?? COUNTY_NAMES[fips] ?? `FIPS ${fips}`;
 
     const identity = identityFacts(facets, parcelNodeId);
+    const parcelIdentity: ParcelIdentity = {
+      parcelNodeId,
+      county: { fips, name: countyName },
+      apn: identity.apn,
+      situsAddress: identity.situsAddress,
+      owner: identity.owner,
+    };
+
     const geometry = await this.resolveGeometry(parcelNodeId, facets, identity);
+    if (!geometry) {
+      // AMENDMENT 1: we hold the record and cannot place it. A DESIGNED state,
+      // not a vanished parcel — the QA pass this programme answers was about
+      // parcels that could not be found, and making them disappear entirely
+      // would be a worse honest failure than a card over a still map.
+      const unplaceable: UnplaceableParcel = {
+        kind: "unplaceable",
+        parcelNodeId,
+        identity: parcelIdentity,
+        reason:
+          "No boundary or coordinate is on file for this parcel, so it cannot be placed on the map.",
+        wouldBeFilledBy: `parcel geometry for ${countyName} County (${fips})`,
+      };
+      return unplaceable;
+    }
+
     const lotAreaSqFt = Number.isFinite(geometry.lotArea.value)
       ? geometry.lotArea.value
       : null;
@@ -715,13 +863,7 @@ export class PeFactSheetResolver implements FactSheetResolver {
       factSheetId,
       resolverVersion,
       sealedAt: this.now().toISOString(),
-      identity: {
-        parcelNodeId,
-        county: { fips, name: countyName },
-        apn: identity.apn,
-        situsAddress: identity.situsAddress,
-        owner: identity.owner,
-      },
+      identity: parcelIdentity,
       geometry,
       landUse,
       zoning,
@@ -735,7 +877,7 @@ export class PeFactSheetResolver implements FactSheetResolver {
     sheet.verdict = composeVerdict(sheet);
 
     this.bySheet.set(factSheetId, sheet);
-    return sheet;
+    return { kind: "sheet", ...sheet };
   }
 
   /**
@@ -752,7 +894,7 @@ export class PeFactSheetResolver implements FactSheetResolver {
     parcelNodeId: string,
     facets: BakedFacetPayload,
     identity: ReturnType<typeof identityFacts>,
-  ): Promise<ParcelGeometry> {
+  ): Promise<ParcelGeometry | null> {
     const acreage = facets.baseFacts?.acreage ?? null;
     const cadAcreageSqFt =
       num(acreage?.sqft) ??
@@ -856,20 +998,15 @@ export class PeFactSheetResolver implements FactSheetResolver {
       }
     }
 
-    const geometry = buildParcelGeometry({
+    // Null here is NOT a failure: the caller turns it into an UnplaceableParcel.
+    // Geometry stays REQUIRED on the sheet, which is what makes I5 structural —
+    // anything holding a ParcelFactSheet can be placed, with no null checks and
+    // no still-map branch anywhere downstream.
+    return buildParcelGeometry({
       rings,
       centroidFallback: seed,
       cadAcreageSqFt,
     });
-    if (!geometry) {
-      // Geometry is REQUIRED by the contract and nothing served a point. Fail
-      // loudly rather than sealing a sheet whose centroid is a guess.
-      throw new FactSheetResolveError(
-        "no-geometry",
-        `No geometry resolved for ${parcelNodeId} — the parcel could not be placed on the map.`,
-      );
-    }
-    return geometry;
   }
 }
 

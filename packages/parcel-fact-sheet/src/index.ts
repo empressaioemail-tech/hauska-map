@@ -64,6 +64,20 @@ export interface Provenance {
   confidenceBasis: ConfidenceBasis;
   /** Deep link to the source record where one exists. */
   sourceUrl: string | null;
+  /**
+   * AMENDMENT 1 (2026-08-18, planner). The atom DIDs backing this fact.
+   *
+   * Added because lane SS-W1 found the frozen v1 could not express the shipped
+   * AtomChip popover, which resolves a `did` through `fetchAtomByDid`. Swapping
+   * the card onto a sheet without this would have silently deleted the feature.
+   *
+   * This is not a compatibility patch, it is a hole in the contract's own logic.
+   * A provenance record that cannot name the atoms it came from is the wrong
+   * shape for a product whose thesis is that the reasoning chain IS the good
+   * being sold. Empty array means no atom backs this fact, which is itself a
+   * fact worth rendering; it never means "unknown".
+   */
+  atomDids: string[];
 }
 
 /* ------------------------------------------------------------------ */
@@ -156,11 +170,34 @@ export interface ZoningDistrict {
   jurisdiction: string;
 }
 
+/**
+ * One setback axis. AMENDMENT 1 (2026-08-18, planner): an axis carries its own
+ * governance and note, not just a number.
+ *
+ * Added because lane SS-W1 found the frozen v1 could not express the shipped
+ * setback X-ray disclosure (`SetbackXrayDetail`, driven by per-axis
+ * `governedBy` / `fieldNotes`). A flat four-number Setbacks would have silently
+ * deleted it on the swap.
+ *
+ * The deeper reason to keep it: two adjacent lots produced 1,896 and 4,321 sq ft
+ * of buildable area, and the front setbacks differed (25 ft against 20 ft) with
+ * no visible reason. Per-axis governance is what makes that answerable instead
+ * of arguable.
+ */
+export interface SetbackAxis {
+  distance: Measurement<"ft">;
+  /** The rule that set this number, e.g. a zoning district's front-yard rule. */
+  governedBy: string | null;
+  /** Human note for the X-ray disclosure. Never invented. */
+  note: string | null;
+  provenance: Provenance;
+}
+
 export interface Setbacks {
-  front: Measurement<"ft">;
-  side: Measurement<"ft">;
-  rear: Measurement<"ft">;
-  cornerSide: Measurement<"ft"> | null;
+  front: SetbackAxis;
+  side: SetbackAxis;
+  rear: SetbackAxis;
+  cornerSide: SetbackAxis | null;
 }
 
 /* ------------------------------------------------------------------ */
@@ -290,8 +327,43 @@ export interface ParcelFactSheet {
 /* The resolver and the renderer seam.                                 */
 /* ------------------------------------------------------------------ */
 
+/**
+ * AMENDMENT 1 (2026-08-18, planner). A parcel we hold facts for but cannot
+ * place on the map.
+ *
+ * Lane SS-W1 correctly implemented I5 (geometry required) and surfaced the
+ * consequence: a parcel nothing can locate stopped opening at all. That trades
+ * one honest failure for a worse one. The operator's QA pass was ABOUT parcels
+ * that could not be found; answering it by making them vanish is not an
+ * improvement.
+ *
+ * So geometry stays required ON THE SHEET, which is what makes I5 structural:
+ * anything holding a ParcelFactSheet can be placed, with no null checks and no
+ * still-map path. An unplaceable parcel is a DIFFERENT RESULT TYPE, rendered as
+ * a designed state that says we hold the record and cannot place it, and names
+ * what would fix that. It never silently becomes a sheet.
+ */
+export interface UnplaceableParcel {
+  kind: "unplaceable";
+  parcelNodeId: string;
+  identity: ParcelIdentity;
+  /** Why placement failed, in customer-readable terms. */
+  reason: string;
+  /** What would make it placeable, e.g. "parcel geometry for this county". */
+  wouldBeFilledBy: string;
+}
+
+export type ResolveResult =
+  | ({ kind: "sheet" } & ParcelFactSheet)
+  | UnplaceableParcel;
+
 export interface FactSheetResolver {
-  resolve(parcelNodeId: string): Promise<ParcelFactSheet>;
+  /**
+   * Never throws for an unplaceable parcel; returns the unplaceable result.
+   * Throws only for a genuine failure (network, malformed upstream), which is
+   * `Fact.unresolved` territory and must not be dressed as an absence.
+   */
+  resolve(parcelNodeId: string): Promise<ResolveResult>;
   /** Exports resolve the SAME sheet by id. They never re-query a parcel. */
   bySheetId(factSheetId: string): Promise<ParcelFactSheet | null>;
 }

@@ -12,7 +12,7 @@
 // the sheet, nothing is looked up, and an absent fact projects to null rather
 // than to a placeholder.
 
-import { isPresent, type ParcelFactSheet } from "@hauska/parcel-fact-sheet";
+import { isPresent, type ParcelFactSheet } from "@empressaio/parcel-fact-sheet";
 import type { ParcelCardData } from "../browse/liveGis";
 
 export function cardFromSheet(sheet: ParcelFactSheet): ParcelCardData {

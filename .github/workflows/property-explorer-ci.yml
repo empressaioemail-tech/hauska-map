@@ -29,7 +29,7 @@ jobs:
       # The frozen parcel fact-sheet contract gates the app suite: if the one
       # verdict composer or the one measurement formatter breaks, nothing
       # downstream is worth running.
-      - run: pnpm --filter @hauska/parcel-fact-sheet test
+      - run: pnpm --filter @empressaio/parcel-fact-sheet test
       - run: pnpm --filter property-explorer test
 
   typecheck:
@@ -46,10 +46,10 @@ jobs:
           cache: pnpm
       - run: pnpm install --frozen-lockfile
       - run: pnpm --filter @hauska/map-renderer build
-      - run: pnpm --filter @hauska/parcel-fact-sheet exec tsc --noEmit
+      - run: pnpm --filter @empressaio/parcel-fact-sheet exec tsc --noEmit
       # The fact-sheet package resolves from SOURCE in the app (vite alias +
       # tsconfig paths), so no dist build is needed here. The dist build is
       # still exercised below because command-center consumes the package the
       # standard way.
-      - run: pnpm --filter @hauska/parcel-fact-sheet build
+      - run: pnpm --filter @empressaio/parcel-fact-sheet build
       - run: pnpm --filter property-explorer exec tsc --noEmit

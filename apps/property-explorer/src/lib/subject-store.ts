@@ -15,7 +15,12 @@
 // bare parcel id: a subject that carries only an id would leave each consumer
 // to look the rest up, which is the very re-derivation invariant I2 forbids.
 
-import type { Subject, SubjectStore } from "@hauska/parcel-fact-sheet";
+import type {
+  ResolveResult,
+  Subject,
+  SubjectStore,
+  UnplaceableParcel,
+} from "@empressaio/parcel-fact-sheet";
 import {
   factSheetResolver,
   type PeFactSheetResolver,
@@ -65,19 +70,36 @@ class PeSubjectStore implements SubjectStore {
 /** The app's ONE subject store. */
 export const subjectStore = new PeSubjectStore();
 
+/** What an entry point got back: a subject, or a parcel that cannot be placed. */
+export type SubjectOutcome =
+  | { kind: "subject"; subject: Subject }
+  | { kind: "unplaceable"; parcel: UnplaceableParcel };
+
 /**
  * Resolve a parcel and make it the subject, in one step. Every entry point —
  * search pick, raw submit, map click, deep link, share landing, saved-property
  * reopen, compare — goes through HERE, so the subject and whatever the user is
  * looking at can never drift apart.
+ *
+ * AMENDMENT 1: a parcel we hold facts for but cannot place is NOT a subject and
+ * never becomes one — `Subject.sheet` is a ParcelFactSheet, and geometry is
+ * required on a sheet precisely so that everything downstream can place it
+ * without a null check. The unplaceable parcel is returned for the caller to
+ * render as its own designed state. The PREVIOUS subject is left standing,
+ * exactly as it is on a failed resolve: an unplaceable Find must not blank what
+ * the user was already looking at.
  */
 export async function setSubjectByParcelNodeId(
   parcelNodeId: string,
   origin: Subject["origin"],
   resolver: PeFactSheetResolver = factSheetResolver,
-): Promise<Subject> {
-  const sheet = await resolver.resolve(parcelNodeId);
+): Promise<SubjectOutcome> {
+  const result: ResolveResult = await resolver.resolve(parcelNodeId);
+  if (result.kind === "unplaceable") {
+    return { kind: "unplaceable", parcel: result };
+  }
+  const { kind: _kind, ...sheet } = result;
   const subject: Subject = { sheet, origin };
   subjectStore.set(subject);
-  return subject;
+  return { kind: "subject", subject };
 }

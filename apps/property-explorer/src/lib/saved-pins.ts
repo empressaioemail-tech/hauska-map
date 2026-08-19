@@ -11,7 +11,7 @@
 // panel. Clicking a pin reuses host.openProperty (the #104 reopen flight) —
 // no second surface, no duplicated flow.
 
-import type { ParcelFactSheet } from "@hauska/parcel-fact-sheet";
+import type { ParcelFactSheet } from "@empressaio/parcel-fact-sheet";
 import { factSheetResolver } from "./fact-sheet-resolver";
 import {
   sanitizePin,
@@ -167,12 +167,16 @@ export async function resolvePinForSave(
   lng: number | null | undefined,
   resolveImpl: (
     parcelNodeId: string,
-  ) => Promise<ParcelFactSheet> = (id) => factSheetResolver.resolve(id),
+  ) => Promise<ParcelFactSheet | null> = (id) =>
+    factSheetResolver.resolveSheet(id),
 ): Promise<DossierPin | null> {
   const direct = sanitizePin({ lat, lng });
   if (direct) return direct;
   try {
+    // An UNPLACEABLE parcel resolves to null here and gets no pin, which is the
+    // honest answer: a pin is a coordinate, and we do not have one.
     const sheet = await resolveImpl(parcelNodeId);
+    if (!sheet) return null;
     return sanitizePin({
       lat: sheet.geometry.centroid.lat,
       lng: sheet.geometry.centroid.lng,

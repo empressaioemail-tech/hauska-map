@@ -19,7 +19,7 @@
     "types": ["vite/client"],
     "baseUrl": ".",
     "paths": {
-      "@hauska/parcel-fact-sheet": ["../../packages/parcel-fact-sheet/src/index.ts"]
+      "@empressaio/parcel-fact-sheet": ["../../packages/parcel-fact-sheet/src/index.ts"]
     }
   },
   "include": ["src"],

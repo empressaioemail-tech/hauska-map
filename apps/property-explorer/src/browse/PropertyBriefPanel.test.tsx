@@ -75,7 +75,7 @@ describe("PropertyBriefPanel — zoned parcel", () => {
   it("W2: the verdict line LEADS the brief, before the cited detail", () => {
     expect(html).toContain('data-testid="brief-verdict"');
     // UPDATED (P-39): the headline is the SUBJECT'S sealed verdict, composed
-    // once by @hauska/parcel-fact-sheet, not a second composition over this
+    // once by @empressaio/parcel-fact-sheet, not a second composition over this
     // brief payload. A static render sets no subject, so the panel shows the
     // honest unresolved line — it never invents a neutral headline.
     expect(html).toContain("has not resolved a fact sheet");

@@ -15,7 +15,7 @@
 // no projection library; the method string travels with the value as
 // `shoelace-wgs84` so nobody mistakes it for a survey.
 
-import type { Measurement, ParcelGeometry, Ring } from "@hauska/parcel-fact-sheet";
+import type { Measurement, ParcelGeometry, Ring } from "@empressaio/parcel-fact-sheet";
 
 /** Metres per degree of latitude on the WGS84 ellipsoid, mid-latitude mean. */
 const M_PER_DEG_LAT = 110_574;

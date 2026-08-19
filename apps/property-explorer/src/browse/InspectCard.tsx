@@ -49,18 +49,19 @@ import type { ParcelCardData } from "./liveGis";
 import { inspectCardShellStyle } from "./mobile-layout";
 import { useMobilePanel } from "./MobilePanelContext";
 import {
-  fetchBuildableEnvelope,
   type EnvelopeProvenanceRefs,
   type SetbackFieldProvenance,
   type SetbackFieldNotes,
 } from "../lib/buildable-envelope.js";
 import {
-  fetchBakedNodeFacets,
-  deriveBakedCardModel,
   type BakedCardModel,
   type CardFacet,
 } from "../lib/baked-facets";
-import { CORTEX_PROXY_BASE, PE_FACETS_PROXY_BASE } from "../lib/config";
+import { factSheetResolver } from "../lib/fact-sheet-resolver";
+import {
+  bakedCardModelFromSheet,
+  envelopeStateFromSheet,
+} from "../lib/sheet-to-card-model";
 import { Button } from "../components/Button";
 import {
   getSavedProperty,
@@ -429,90 +430,63 @@ export function InspectCard({
   const [resolvedSaved, setResolvedSaved] = useState<boolean | null>(null);
   const [saveNotice, setSaveNotice] = useState<string | null>(null);
 
-  // Effect: PREFER the baked snapshot; fall back to the live envelope ONLY when
-  // the node isn't baked. NO AI on either path — the baked read is a pure DB
-  // lookup; the live fallback is the deterministic skipRoad envelope compose.
+  // DATA SOURCE (P-39, invariant I2): the card RENDERS the one sealed fact
+  // sheet and issues no lookup of its own.
+  //
+  // It used to run two fetches here — fetchBakedNodeFacets, then
+  // fetchBuildableEnvelope as a fallback — which made it one of the five paths
+  // that answered the same parcel questions separately. That is how one X-ray
+  // PDF printed "Zone AO" on sheet 1 and "Flood zone AE" on sheet 4.
+  //
+  // Nothing about the RENDERING changed: the projection fills the same
+  // BakedCardModel and envelope-state shapes the fetches used to fill, so every
+  // row, disclosure, chip and absence treatment below is untouched.
   useEffect(() => {
     let cancelled = false;
 
-    async function loadLive() {
-      const sel = { address: card.situsAddress, lat: card.lat, lng: card.lng };
-      setEnv({ status: "loading" });
-      try {
-        const result: any = await fetchBuildableEnvelope(sel, CORTEX_PROXY_BASE);
-        if (cancelled) return;
-        onEnvelope?.(result);
-        if (result?.ok) {
-          setEnv({
-            status: "ok",
-            setbacks: result.setbacks,
-            summary: result.summary,
-            disclosure: result.disclosure,
-            district: result.setbacks?.district ?? null,
-            provenanceRefs: result.provenanceRefs ?? null,
-          });
-        } else if (result?.status === "no-buildable-area") {
-          setEnv({
-            status: "empty",
-            setbacks: result.setbacks,
-            reason: result.reason,
-            district: result.setbacks?.district ?? null,
-            provenanceRefs: result.provenanceRefs ?? null,
-          });
-        } else {
-          setEnv({ status: "error", reason: result?.reason });
-        }
-      } catch (e) {
-        if (cancelled) return;
-        setEnv({ status: "error", reason: (e as Error)?.message });
-      }
-    }
-
     async function run() {
+      if (!parcelNodeId) {
+        // No stable id: nothing a sheet can be sealed against. Honest absence,
+        // never a fabricated card.
+        setSource("live");
+        setBaked(null);
+        setEnv({
+          status: "error",
+          reason: "This selection carries no parcel id, so its record cannot be read.",
+        });
+        return;
+      }
       setSource("loading");
       setBaked(null);
       setEnv({ status: "idle" });
-
-      // 1. Atom-chain / baked facets when we have a node id. Transient failures
-      // stay on "loading" (fetchBakedNodeFacets retries) — NEVER "not verified".
-      if (parcelNodeId) {
-        const result = await fetchBakedNodeFacets(parcelNodeId, PE_FACETS_PROXY_BASE);
+      try {
+        const result = await factSheetResolver.resolve(parcelNodeId);
         if (cancelled) return;
-        if (result.kind === "ok") {
-          const model = deriveBakedCardModel(result.data.facets);
-          setBaked(model);
-          setSource("baked");
-          if (
-            result.data.facets.envelope &&
-            result.data.facets.envelope.status !== "declined"
-          ) {
-            onEnvelope?.(result.data.facets.envelope);
-          }
-          return; // PURE READ — no live fetch.
-        }
-        if (result.kind === "transient") {
-          // Exhausted client retries — keep loading vocabulary, offer live as last resort.
+        if (result.kind === "unplaceable") {
+          // A parcel we hold but cannot place. The card is not the surface for
+          // that state (ExplorerMap renders UnplaceableParcelCard); say so
+          // plainly rather than rendering empty rows.
           setSource("live");
-          setEnv({
-            status: "error",
-            reason: "Parcel facts temporarily unreachable — retry by reselecting the parcel.",
-          });
+          setEnv({ status: "error", reason: result.reason });
           return;
         }
-        if (result.kind === "error") {
-          setSource("live");
-          setEnv({
-            status: "error",
-            reason: result.message || "Could not load parcel facts.",
-          });
-          return;
-        }
-        // not_found → live envelope compose for un-baked nodes.
+        const { kind: _kind, ...sheet } = result;
+        setBaked(bakedCardModelFromSheet(sheet));
+        setEnv(envelopeStateFromSheet(sheet));
+        setSource("baked");
+        // The parent folds setbacks/envelope into the ported node store from
+        // the SAME sheet, so the store and the card can never disagree.
+        onEnvelope?.(envelopeStateFromSheet(sheet));
+      } catch (err) {
+        if (cancelled) return;
+        // I4: a FAILED read is an error, never an honest absence.
+        setSource("live");
+        setEnv({
+          status: "error",
+          reason:
+            err instanceof Error ? err.message : "Could not load parcel facts.",
+        });
       }
-
-      // 2. Fallback: node not baked -> live envelope compose.
-      setSource("live");
-      await loadLive();
     }
 
     void run();
@@ -520,7 +494,7 @@ export function InspectCard({
       cancelled = true;
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [parcelNodeId, card.apn, card.situsAddress, card.lat, card.lng, retryNonce]);
+  }, [parcelNodeId, retryNonce]);
 
   // SAVED STATE. Skipped entirely when the parent passes `isSaved` (the prop
   // wins) or when the card shows no save affordance at all. Reads the ONE

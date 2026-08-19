@@ -7,7 +7,11 @@
 // sidebar showed an address.
 
 import { afterEach, describe, expect, it, vi } from "vitest";
-import type { ParcelFactSheet, Subject } from "@hauska/parcel-fact-sheet";
+import type {
+  ParcelFactSheet,
+  ResolveResult,
+  Subject,
+} from "@empressaio/parcel-fact-sheet";
 import { setSubjectByParcelNodeId, subjectStore } from "./subject-store";
 import type { PeFactSheetResolver } from "./fact-sheet-resolver";
 
@@ -55,12 +59,24 @@ const PROV = {
   sourceUrl: null,
 };
 
-function fakeResolver(sheets: Record<string, ParcelFactSheet>) {
+function fakeResolver(
+  sheets: Record<string, ParcelFactSheet>,
+  unplaceable: string[] = [],
+) {
   return {
-    resolve: vi.fn(async (id: string) => {
+    resolve: vi.fn(async (id: string): Promise<ResolveResult> => {
+      if (unplaceable.includes(id)) {
+        return {
+          kind: "unplaceable",
+          parcelNodeId: id,
+          identity: stubSheet(id, "fs_none").identity,
+          reason: "No boundary or coordinate is on file for this parcel.",
+          wouldBeFilledBy: "parcel geometry for this county",
+        };
+      }
       const sheet = sheets[id];
       if (!sheet) throw new Error(`no sheet for ${id}`);
-      return sheet;
+      return { kind: "sheet", ...sheet };
     }),
   } as unknown as PeFactSheetResolver;
 }
@@ -117,11 +133,18 @@ describe("subjectStore", () => {
   it("carries the SEALED sheet, not a parcel id for consumers to re-resolve", async () => {
     const sheets = { "48027:498778": stubSheet("48027:498778", "fs_right") };
     const resolver = fakeResolver(sheets);
-    const subject = await setSubjectByParcelNodeId("48027:498778", "deep-link", resolver);
+    const outcome = await setSubjectByParcelNodeId(
+      "48027:498778",
+      "deep-link",
+      resolver,
+    );
+    if (outcome.kind !== "subject") throw new Error("expected a subject");
     // Everything an export or a panel needs is already on the subject.
-    expect(subject.sheet.verdict).toBe("test verdict.");
-    expect(subject.sheet.geometry.centroid).toEqual({ lat: 30, lng: -97 });
+    expect(outcome.subject.sheet.verdict).toBe("test verdict.");
+    expect(outcome.subject.sheet.geometry.centroid).toEqual({ lat: 30, lng: -97 });
     expect(resolver.resolve).toHaveBeenCalledTimes(1);
+    // The union discriminant never leaks onto the sheet the subject carries.
+    expect("kind" in outcome.subject.sheet).toBe(false);
   });
 
   it("leaves the previous subject standing when a resolve fails", async () => {
@@ -132,6 +155,28 @@ describe("subjectStore", () => {
       setSubjectByParcelNodeId("48027:000000", "search", resolver),
     ).rejects.toThrow();
     // A failed Find must not silently blank what the user was looking at.
+    expect(subjectStore.currentSheetId()).toBe("fs_right");
+  });
+});
+
+describe("setSubjectByParcelNodeId — AMENDMENT 1 unplaceable parcels", () => {
+  it("returns the unplaceable parcel and NEVER makes it the subject", async () => {
+    const sheets = { "48027:498778": stubSheet("48027:498778", "fs_right") };
+    const resolver = fakeResolver(sheets, ["48027:000000"]);
+    await setSubjectByParcelNodeId("48027:498778", "search", resolver);
+
+    const outcome = await setSubjectByParcelNodeId(
+      "48027:000000",
+      "search",
+      resolver,
+    );
+    expect(outcome.kind).toBe("unplaceable");
+    if (outcome.kind !== "unplaceable") throw new Error("unreachable");
+    expect(outcome.parcel.parcelNodeId).toBe("48027:000000");
+    expect(outcome.parcel.wouldBeFilledBy).toBe("parcel geometry for this county");
+    // A Subject carries a ParcelFactSheet, and geometry is required on a sheet
+    // precisely so nothing downstream needs a null check. So an unplaceable
+    // parcel cannot become one — and it must not blank the standing subject.
     expect(subjectStore.currentSheetId()).toBe("fs_right");
   });
 });

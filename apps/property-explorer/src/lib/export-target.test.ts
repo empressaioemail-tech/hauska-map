@@ -5,7 +5,7 @@
 //   - a DXF export targeting "city of Bastrop", the text left in the search box.
 
 import { afterEach, describe, expect, it } from "vitest";
-import type { ParcelFactSheet } from "@hauska/parcel-fact-sheet";
+import type { ParcelFactSheet } from "@empressaio/parcel-fact-sheet";
 import {
   ExportTargetError,
   exportTargetOrNull,

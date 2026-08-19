@@ -14,7 +14,7 @@ import {
   ringsContainPoint,
   ringsFromGeoJson,
 } from "./parcel-geometry";
-import type { Ring } from "@hauska/parcel-fact-sheet";
+import type { Ring } from "@empressaio/parcel-fact-sheet";
 
 /** A closed square ring centred on (lng, lat). */
 function square(lng: number, lat: number, half: number): Ring {

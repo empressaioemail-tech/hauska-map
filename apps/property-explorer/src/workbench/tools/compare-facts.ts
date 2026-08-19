@@ -5,7 +5,7 @@
 // second surface).
 //
 // REUSE, DON'T FORK (the standing rule):
-//   - VERDICT: `composeVerdict` (@hauska/parcel-fact-sheet) over the parcel's
+//   - VERDICT: `composeVerdict` (@empressaio/parcel-fact-sheet) over the parcel's
 //     ONE sealed fact sheet. This module used to assemble an R1-SHAPED payload
 //     here purely to feed a second composer; that adapter is gone with the
 //     composer it fed. A compare column and an inspect card now read the same
@@ -33,7 +33,7 @@ import {
   composeVerdictTone,
   type ParcelFactSheet,
   type VerdictTone,
-} from "@hauska/parcel-fact-sheet";
+} from "@empressaio/parcel-fact-sheet";
 import { factSheetResolver } from "../../lib/fact-sheet-resolver";
 
 /** The composed headline for one compare column. */
@@ -283,7 +283,8 @@ export async function fetchComparePayload(
   /** Test seam: the ONE resolver, injectable so a unit test never hits fetch. */
   resolveSheet: (
     parcelNodeId: string,
-  ) => Promise<ParcelFactSheet> = (id) => factSheetResolver.resolve(id),
+  ) => Promise<ParcelFactSheet | null> = (id) =>
+    factSheetResolver.resolveSheet(id),
 ): Promise<ComparePayloadOutcome> {
   const result = await fetcher(parcelNodeId, PE_FACETS_PROXY_BASE);
   if (result.kind === "ok") {
@@ -296,8 +297,10 @@ export async function fetchComparePayload(
     let factSheetId: string | undefined;
     try {
       const sheet = await resolveSheet(parcelNodeId);
-      verdict = { line: sheet.verdict, tone: composeVerdictTone(sheet) };
-      factSheetId = sheet.factSheetId;
+      if (sheet) {
+        verdict = { line: sheet.verdict, tone: composeVerdictTone(sheet) };
+        factSheetId = sheet.factSheetId;
+      }
     } catch {
       /* honest absence — deriveCompareColumn renders the unresolved headline */
     }

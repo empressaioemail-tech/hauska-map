@@ -26,7 +26,7 @@ import {
   dossierExportNotice,
   exportBriefAsXrayPdf,
 } from "../lib/brief-xray-export";
-import type { VerdictTone } from "@hauska/parcel-fact-sheet";
+import type { VerdictTone } from "@empressaio/parcel-fact-sheet";
 import {
   useSheetVerdict,
   VERDICT_UNRESOLVED,

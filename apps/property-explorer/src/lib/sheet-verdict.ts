@@ -14,7 +14,7 @@ import {
   composeVerdictTone,
   type ParcelFactSheet,
   type VerdictTone,
-} from "@hauska/parcel-fact-sheet";
+} from "@empressaio/parcel-fact-sheet";
 import { factSheetResolver } from "./fact-sheet-resolver";
 import { subjectStore } from "./subject-store";
 
@@ -72,9 +72,11 @@ export function useSheetVerdict(
     setVerdict(null);
     if (!parcelNodeId) return;
     void factSheetResolver
-      .resolve(parcelNodeId)
+      .resolveSheet(parcelNodeId)
       .then((sheet) => {
-        if (!cancelled) setVerdict(verdictFromSheet(sheet));
+        // An unplaceable parcel has no sheet and therefore no headline. The
+        // caller renders VERDICT_UNRESOLVED rather than an invented sentence.
+        if (!cancelled && sheet) setVerdict(verdictFromSheet(sheet));
       })
       .catch(() => {
         /* honest absence — the caller renders the unresolved placeholder */
