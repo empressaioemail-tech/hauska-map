@@ -8,6 +8,26 @@ import { reasoningLayerAwaitingReason } from "./input-gates.js";
 /** @typedef {'live'|'awaiting-input'|'fuel-gated'|'fixture'|'pending'|'no-data'} LayerStatus */
 
 /**
+ * REACH — a layer's own reachable ceiling, never the 254-county map total.
+ *
+ * SS-W10 / P-46. A layer control that shows or implies coverage must divide by
+ * what its SOURCE can reach, not by Texas. `rrc-wells` reaches 1 county of 254
+ * because its source is a Harris-County endpoint mirror; scoring it against 254
+ * manufactures 253 statewide holes that are really one source ceiling.
+ *
+ * `ceiling: null` means UNKNOWN and is rendered as unknown. It is never
+ * back-filled with the denominator — an absent probe is not a full one.
+ * `asOf` is the timestamp of the measurement, because a ceiling read from a
+ * materialized ledger is a claim about that instant and nothing later.
+ *
+ * @typedef {Object} LayerReach
+ * @property {number|null} ceiling   Counties this layer's source can reach; null = no probe.
+ * @property {number} denominator    What the ceiling is out of (254 Texas counties).
+ * @property {string} basis          Why the ceiling is what it is, quoted from the probe.
+ * @property {string} asOf           ISO instant the ceiling was measured.
+ */
+
+/**
  * @typedef {Object} LayerRegistryEntry
  * @property {string} key
  * @property {string} label
@@ -18,6 +38,10 @@ import { reasoningLayerAwaitingReason } from "./input-gates.js";
  * @property {boolean} [pending]
  * @property {boolean} [reasoning]
  * @property {{ input?: 'F2'|'F5'|'F2+F4', description: string }} [inputGate]
+ * @property {string} [emptyBasis]   Why this layer draws nothing today. Required
+ *   reading for any row whose status resolves to `no-data`: an empty layer must
+ *   read as honestly empty, never as a broken one. An absence carries its basis.
+ * @property {LayerReach} [reach]    Reachable ceiling; see LayerReach above.
  */
 
 export const LAYER_REGISTRY = [
@@ -29,6 +53,21 @@ export const LAYER_REGISTRY = [
   { key: "dem-hillshade", label: "3D terrain (TxGIO LiDAR)", group: "terrain", fixture: true, live: true, fuelGated: false },
   { key: "topography-contours", label: "Contours (1 ft / 3DEP)", group: "terrain", fixture: false, live: true, fuelGated: false },
   { key: "hydrography", label: "Hydrography", group: "hydrology", fixture: false, live: true, fuelGated: false },
+  // SS-W10 / P-46. The Hauska road-node ROW band. It painted unconditionally
+  // until this key existed — `road-overlay.ts` set `visible: true` as a literal
+  // with no way to switch it off. Operator, 2026-08-19: "in the map tools i need
+  // a way to turn our road nodes on and off and they should probably be
+  // defaulted to off for now". OFF-by-default is carried by
+  // COLD_OPEN_OFF_BY_DEFAULT on PE and by the parcel-only cold-open set on CC,
+  // NOT by this row — a registry row states what a layer IS, not when it shows.
+  {
+    key: "road-nodes",
+    label: "Road nodes (ROW)",
+    group: "parcel",
+    fixture: false,
+    live: true,
+    fuelGated: false,
+  },
   {
     key: "pedestrian-ways",
     label: "Sidewalks / footpaths",
@@ -44,14 +83,82 @@ export const LAYER_REGISTRY = [
   { key: "constraint-density", label: "Constraint density", group: "reasoning", fixture: true, live: false, fuelGated: false },
   { key: "oz-deal-crossfilter", label: "OZ × deal score", group: "reasoning", fixture: true, live: false, fuelGated: false },
   { key: "motivated-seller", label: "Motivated seller heat", group: "investor", fixture: true, live: false, fuelGated: true },
-  { key: "ssurgo-soils", label: "SSURGO soils", group: "subsurface", fixture: false, live: false, fuelGated: false },
-  { key: "groundwater", label: "Groundwater (NWIS)", group: "subsurface", fixture: false, live: false, fuelGated: false },
-  { key: "mud-pid", label: "MUD/PID districts", group: "regulatory", fixture: false, live: false, fuelGated: false },
-  { key: "edwards-aquifer", label: "Edwards Aquifer", group: "regulatory", fixture: false, live: false, fuelGated: false },
-  { key: "texas-rrc", label: "Texas RRC O&G", group: "subsurface", fixture: false, live: false, fuelGated: false },
+  // The five rows below resolve to status `no-data`: they carry paint, a stack
+  // slot and a role, and NO source. Each states why, so the LAYERS panel can
+  // draw them as honestly empty instead of as a checkbox that silently does
+  // nothing. Verified 2026-08-19 (SS-W10): no fetch in live-gis.ts, no slot in
+  // gis-fixture-data.js, no route under api/ for any of them.
+  {
+    key: "ssurgo-soils",
+    label: "SSURGO soils",
+    group: "subsurface",
+    fixture: false,
+    live: false,
+    fuelGated: false,
+    emptyBasis: "No source wired in map-renderer — no live fetch and no fixture. Turning this on draws nothing anywhere.",
+  },
+  {
+    key: "groundwater",
+    label: "Groundwater (NWIS)",
+    group: "subsurface",
+    fixture: false,
+    live: false,
+    fuelGated: false,
+    emptyBasis: "No source wired in map-renderer — no live fetch and no fixture. Turning this on draws nothing anywhere.",
+  },
+  {
+    key: "mud-pid",
+    label: "MUD/PID districts",
+    group: "regulatory",
+    fixture: false,
+    live: false,
+    fuelGated: false,
+    emptyBasis: "No source wired in map-renderer — no live fetch and no fixture. Turning this on draws nothing anywhere.",
+  },
+  {
+    key: "edwards-aquifer",
+    label: "Edwards Aquifer",
+    group: "regulatory",
+    fixture: false,
+    live: false,
+    fuelGated: false,
+    emptyBasis: "No source wired in map-renderer — no live fetch and no fixture. Turning this on draws nothing anywhere.",
+  },
+  // RRC is ONE key over TWO subjects with two different reaches, which is why
+  // its ceiling cannot be stated as a single number. Wells reach 1 county of
+  // 254 (a Harris-County endpoint mirror, not per-county ingest); pipelines
+  // have no capability probe at all, so their ceiling is UNKNOWN rather than
+  // large. Splitting this row is proposed, not shipped — see
+  // _inbox/2026-08-19_ss-w10_cp1.json in doc_repo. Until an operator ruling
+  // lands, the row states its own ignorance rather than implying statewide O&G.
+  {
+    key: "texas-rrc",
+    label: "Texas RRC O&G",
+    group: "subsurface",
+    fixture: false,
+    live: false,
+    fuelGated: false,
+    emptyBasis: "No source wired in map-renderer — no live fetch and no fixture. Turning this on draws nothing anywhere.",
+    reach: {
+      ceiling: null,
+      denominator: 254,
+      basis:
+        "One key over two subjects with different ceilings, so no single number is true. RRC wells reach 1 of 254 counties — \"Point layer mirrored from Harris endpoint; not per-county ingest\". RRC pipelines carry \"no capability probe defined for this rail\", so their ceiling is unknown, not 254.",
+      asOf: "2026-08-14T17:41:22.500Z",
+    },
+  },
   { key: "opportunity-zone-tract", label: "Opportunity Zone tract", group: "regulatory", fixture: true, live: true, fuelGated: false },
   { key: "rent-heat", label: "Rent heat (AVM)", group: "investor", fixture: true, live: false, fuelGated: true },
-  { key: "etj", label: "Extraterritorial jurisdiction", group: "regulatory", fixture: false, live: false, fuelGated: true, pending: true },
+  {
+    key: "etj",
+    label: "Extraterritorial jurisdiction",
+    group: "regulatory",
+    fixture: false,
+    live: false,
+    fuelGated: true,
+    pending: true,
+    emptyBasis: "Declared pending and fuel-gated — no source wired in map-renderer. Turning this on draws nothing anywhere.",
+  },
   {
     key: "consequence-choropleth",
     label: "Consequence choropleth",
@@ -121,6 +228,80 @@ export function setLayerDisabled(key, disabled) {
 
 export function isLayerDisabled(key) {
   return disabledLayerKeys.has(key);
+}
+
+/**
+ * SS-W10 / P-46. Statuses at which a layer draws nothing, so its row must read
+ * as honestly empty. `no-data` and `pending` both mean "the checkbox works and
+ * the map stays blank"; a user cannot tell those apart from a broken layer
+ * without being told. `fuel-gated` is deliberately NOT here — those two rows
+ * already carry their own inputGate copy.
+ */
+const DRAWS_NOTHING_STATUSES = new Set(["no-data", "pending"]);
+
+/**
+ * The reason a layer draws nothing, or null when it draws something.
+ *
+ * An empty result is not an absence: this returns a basis only for a POSITIVE
+ * determination that the layer has no source, taken from the registry row
+ * itself. A row that resolves to a drawing status returns null even if it
+ * carries an `emptyBasis`, and a non-drawing row with no declared basis returns
+ * a generic-but-true statement rather than silence.
+ *
+ * @param {string} key
+ * @param {import('./input-gates.js').InputGateState} [gates]
+ * @returns {string|null}
+ */
+export function layerEmptyBasis(key, gates = null) {
+  const entry = registryEntry(key);
+  if (!entry) return null;
+  const status = gates
+    ? layerStatusForGates(gates, key)
+    : entry.pending
+      ? "pending"
+      : entry.fixture
+        ? "fixture"
+        : entry.live
+          ? "live"
+          : entry.fuelGated
+            ? "fuel-gated"
+            : "no-data";
+  if (!DRAWS_NOTHING_STATUSES.has(status)) return null;
+  return entry.emptyBasis ?? "No source wired for this layer — it draws nothing.";
+}
+
+/**
+ * The layer's reachable ceiling, or null when the registry declares none.
+ *
+ * Callers MUST render `ceiling: null` as unknown. Substituting the denominator
+ * for a missing ceiling is the failure this field exists to prevent: it turns
+ * "nobody measured" into "reaches everywhere".
+ *
+ * @param {string} key
+ * @returns {import('./layer-registry.js').LayerReach|null}
+ */
+export function layerReach(key) {
+  return registryEntry(key)?.reach ?? null;
+}
+
+/**
+ * One-line reach sentence for a layer row, or null when the registry declares
+ * no reach. Always carries the denominator and the measurement instant, per
+ * DEV_PROCESS 1.1 and 1.2 — a coverage figure travels with its counting rule at
+ * the point of use, never in an appendix.
+ *
+ * @param {string} key
+ * @returns {string|null}
+ */
+export function layerReachSummary(key) {
+  const reach = layerReach(key);
+  if (!reach) return null;
+  const asOfDay = String(reach.asOf).slice(0, 10);
+  const head =
+    reach.ceiling === null
+      ? `Reach unknown of ${reach.denominator} counties`
+      : `Reaches ${reach.ceiling} of ${reach.denominator} counties`;
+  return `${head} (as of ${asOfDay}): ${reach.basis}`;
 }
 
 export function productSurfaceForLayer(entry) {

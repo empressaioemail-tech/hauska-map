@@ -89,8 +89,11 @@ const footway = {
 
 describe("roadOverlaysFromAttachingRoads (street vs pedestrian)", () => {
   it("puts streets on the grey band and pedestrians on a distinct delicate layer", () => {
+    // Both children explicitly ON — this case is about PAINT, not defaults.
+    // The default is asserted on its own below (SS-W10 / P-46).
     const specs = roadOverlaysFromAttachingRoads([street, footway], {
       pedestrianVisible: true,
+      streetVisible: true,
     });
     expect(specs.map((s) => s.layerKey)).toEqual([
       ROAD_ROW_BAND_LAYER_KEY,
@@ -139,6 +142,59 @@ describe("roadOverlaysFromAttachingRoads (street vs pedestrian)", () => {
     const specs = roadOverlaysFromAttachingRoads([street, footway]);
     const ped = specs.find((s) => s.layerKey === ROAD_PEDESTRIAN_LAYER_KEY)!;
     expect(ped.visible).toBe(false);
+  });
+
+  // SS-W10 / P-46. Operator, 2026-08-19: road nodes need an on/off control and
+  // "should probably be defaulted to off for now". Before this the band spec
+  // carried `visible: true` as a literal, so there was nothing to default.
+  it("keeps the street ROW band OFF by default (visible=false)", () => {
+    const specs = roadOverlaysFromAttachingRoads([street, footway]);
+    const band = specs.find((s) => s.layerKey === ROAD_ROW_BAND_LAYER_KEY)!;
+    expect(band.visible).toBe(false);
+  });
+
+  it("turns the street ROW band on when streetVisible is true", () => {
+    const specs = roadOverlaysFromAttachingRoads([street], {
+      streetVisible: true,
+    });
+    const band = specs.find((s) => s.layerKey === ROAD_ROW_BAND_LAYER_KEY)!;
+    expect(band.visible).toBe(true);
+  });
+
+  // The two children are independent: turning sidewalks on must not drag the
+  // street band on with it, and vice versa.
+  it("switches street and pedestrian independently", () => {
+    const pedOnly = roadOverlaysFromAttachingRoads([street, footway], {
+      pedestrianVisible: true,
+    });
+    expect(
+      pedOnly.find((s) => s.layerKey === ROAD_ROW_BAND_LAYER_KEY)!.visible,
+    ).toBe(false);
+    expect(
+      pedOnly.find((s) => s.layerKey === ROAD_PEDESTRIAN_LAYER_KEY)!.visible,
+    ).toBe(true);
+
+    const streetOnly = roadOverlaysFromAttachingRoads([street, footway], {
+      streetVisible: true,
+    });
+    expect(
+      streetOnly.find((s) => s.layerKey === ROAD_ROW_BAND_LAYER_KEY)!.visible,
+    ).toBe(true);
+    expect(
+      streetOnly.find((s) => s.layerKey === ROAD_PEDESTRIAN_LAYER_KEY)!.visible,
+    ).toBe(false);
+  });
+
+  // Render filter is not data filter. Switching the band off must not drop the
+  // geometry from the spec — the twin still holds every road-node, and the
+  // near-bbox fetch is untouched. A hidden layer and an absent layer are
+  // different states and must stay different.
+  it("still emits the band spec with its geometry when hidden", () => {
+    const specs = roadOverlaysFromAttachingRoads([street]);
+    const band = specs.find((s) => s.layerKey === ROAD_ROW_BAND_LAYER_KEY)!;
+    expect(band).toBeDefined();
+    expect(band.visible).toBe(false);
+    expect((band.geojson as { features: unknown[] }).features).toHaveLength(1);
   });
 
   it("omits pedestrian layer when only streets are present", () => {

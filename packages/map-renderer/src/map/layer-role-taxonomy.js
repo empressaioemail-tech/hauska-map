@@ -255,6 +255,9 @@ export const LAYER_ROLE_BY_KEY = Object.freeze({
   "road-band": "CONTEXT",
   "road-node-row-band": "CONTEXT",
   "road-node-pedestrian": "CONTEXT",
+  // SS-W10 / P-46 — LAYERS-panel toggle key for the road-node ROW band.
+  // CONTEXT like every other road key: line paint, muted hue, never a fill.
+  "road-nodes": "CONTEXT",
   "pedestrian-ways": "CONTEXT",
   row: "CONTEXT",
 

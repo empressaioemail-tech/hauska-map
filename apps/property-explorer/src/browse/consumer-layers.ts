@@ -56,7 +56,8 @@ export function consumerKnownLayers(): Set<LayerKey> {
       key === "dem-hillshade" ||
       key === "hydrography" ||
       key === "opportunity-zone-tract" ||
-      key === "pedestrian-ways"
+      key === "pedestrian-ways" ||
+      key === "road-nodes"
     ) {
       next.add(key);
     }
@@ -71,6 +72,13 @@ export const COLD_OPEN_OFF_BY_DEFAULT = new Set<LayerKey>([
   // "all layers except zoning" plus aerial ON (2026-08-03). The TOGGLE stays,
   // so a user can turn zoning on; only the landing default changes.
   "zoning" as LayerKey,
+  // Road nodes (ROW band) initialize UNCHECKED — operator, 2026-08-19: "i need
+  // a way to turn our road nodes on and off and they should probably be
+  // defaulted to off for now" (SS-W10 / P-46). Before this the band painted
+  // unconditionally and no toggle existed at all. The satellite base still
+  // shows real streets, so the map does not lose its road context. The TOGGLE
+  // stays, so a user can turn road nodes back on.
+  "road-nodes" as LayerKey,
 ]);
 
 /**
@@ -85,7 +93,7 @@ export const COLD_OPEN_OFF_BY_DEFAULT = new Set<LayerKey>([
  *
  * Net on landing: Satellite/aerial, Contours, FEMA flood, GIS Parcel,
  * Hydrography, My properties, Opportunity Zone, Regulatory floodway,
- * Sidewalks — ON; Zoning/land use — OFF.
+ * Sidewalks — ON; Zoning/land use and Road nodes (ROW) — OFF.
  *
  * This changes DEFAULTS only — every toggle in the LAYERS panel still works, so
  * a user can turn any layer on/off. `consumerKnownLayers()` already applies the
