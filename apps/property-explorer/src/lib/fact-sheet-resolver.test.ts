@@ -664,6 +664,10 @@ describe("AMENDMENT 3 - no sentinel stands in for absence", () => {
     const stub = installFetchStub({ facets: wire, gisFeatures: [SUBJECT_FEATURE] });
     const sheet = await sheetOf(makeResolver(stub), NODE_ID);
     if (sheet.flood.state !== "present") throw new Error("unreachable");
+    // AMENDMENT 4: the share is NULL, never a fabricated 0. A fake zero is
+    // worse than an absence because it is arithmetically usable — it can be
+    // summed, charted or thresholded on, and nothing will look wrong.
+    expect(sheet.flood.value.zones.map((z) => z.areaShare)).toEqual([null, null]);
     // Wire order is preserved rather than sorted by a fabricated ranking …
     expect(sheet.flood.value.zones.map((z) => z.zone)).toEqual(["AE", "AO"]);
     // … the upstream's own declared zone stays primary, since an unranked list
@@ -689,7 +693,37 @@ describe("AMENDMENT 3 - no sentinel stands in for absence", () => {
     const sheet = await sheetOf(makeResolver(stub), NODE_ID);
     if (sheet.flood.state !== "present") throw new Error("unreachable");
     expect(sheet.flood.value.zones.map((z) => z.zone)).toEqual(["AE", "AO"]);
+    expect(sheet.flood.value.zones.map((z) => z.areaShare)).toEqual([0.7, 0.3]);
     expect(sheet.flood.value.primaryZone).toBe("AE");
     expect(sheet.flood.provenance.method).toBe("zone-set-with-shares");
+  });
+});
+
+describe("AMENDMENT 4 - the last sentinel", () => {
+  it("carries a NULL percentage when there is no lot area to compute one against", async () => {
+    // A known buildable AREA with no known LOT area. The area is the fact the
+    // customer came for; the percentage is derived convenience and simply has
+    // no value here.
+    const wire = facetsWire();
+    delete (wire.facets.baseFacts as Record<string, unknown>).acreage;
+    const env = wire.facets.envelope as Record<string, unknown>;
+    delete env.buildableAreaPct;
+    const stub = installFetchStub({ facets: wire, gisFeatures: [] });
+    const sheet = await sheetOf(makeResolver(stub), NODE_ID);
+    expect(sheet.geometry.lotArea).toBeNull();
+    if (sheet.envelope.kind !== "derived") throw new Error("unreachable");
+    expect(sheet.envelope.areaPctOfLot).toBeNull();
+    // The AREA survives, non-null and real.
+    expect(sheet.envelope.area.value).toBe(6325);
+    // And the headline omits the share rather than printing one it lacks.
+    expect(sheet.verdict).toContain("buildable (approximate)");
+    expect(sheet.verdict).not.toMatch(/% of the lot/);
+  });
+
+  it("still computes the percentage when a lot area IS known", async () => {
+    const stub = installFetchStub({ facets: facetsWire(), gisFeatures: [SUBJECT_FEATURE] });
+    const sheet = await sheetOf(makeResolver(stub), NODE_ID);
+    if (sheet.envelope.kind !== "derived") throw new Error("unreachable");
+    expect(sheet.envelope.areaPctOfLot).toBe(58);
   });
 });

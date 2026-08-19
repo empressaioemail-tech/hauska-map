@@ -26,6 +26,7 @@ import {
   type AtomRef,
   type ParcelFactSheet,
   type Provenance,
+  type FloodZoneShare,
   type ResolveResult,
   type Setbacks,
   type UnplaceableParcel,
@@ -434,5 +435,54 @@ describe("AMENDMENT 3 - the sentinel class is closed", () => {
     // formatMeasurement takes a Measurement, never a null: a null lot area is
     // an absence the SURFACE renders, not a string this function invents.
     expect(formatMeasurement({ value: 10906, unit: "sqft" }, "us")).toBe("10,906 sq ft");
+  });
+});
+
+describe("AMENDMENT 4 - every quantity that can be unavailable is nullable", () => {
+  it("omits the share from the headline when there is no percentage", () => {
+    const s = sheet({
+      envelope: { ...DERIVED_ENVELOPE, areaPctOfLot: null },
+    });
+    expect(composeVerdict(s)).toContain("Buildable ");
+    expect(composeVerdict(s)).not.toMatch(/% of the lot/);
+    // A missing percentage is not a caution: the ENVELOPE resolved fine.
+    expect(composeVerdictTone(s)).toBe("clear");
+  });
+
+  it("names every zone even when no share ranks them", () => {
+    // A null share must not cost the reader the second zone (I6).
+    const s = sheet({
+      flood: {
+        state: "present",
+        value: {
+          zones: [
+            { zone: "AE", subtype: null, isSfha: true, areaShare: null },
+            { zone: "AO", subtype: null, isSfha: true, areaShare: null },
+          ],
+          primaryZone: "AO",
+          inSfha: true,
+          baseFloodElevation: null,
+        },
+        provenance: PROV,
+      },
+    });
+    expect(composeVerdict(s)).toContain("(Zones AE and AO)");
+  });
+
+  it("keeps a fabricated zero out of the type entirely", () => {
+    // The reason this matters: a 0 share is ARITHMETICALLY USABLE. Someone
+    // downstream sums it, charts it, or thresholds on it, and nothing looks
+    // wrong. An absence stops that reader; a fake zero recruits them.
+    const unknown: FloodZoneShare = {
+      zone: "AE",
+      subtype: null,
+      isSfha: true,
+      areaShare: null,
+    };
+    expect(unknown.areaShare).toBeNull();
+    expect(unknown.areaShare).not.toBe(0);
+    // A REAL zero share would be a measured value, and stays expressible.
+    const measuredZero: FloodZoneShare = { ...unknown, areaShare: 0 };
+    expect(measuredZero.areaShare).toBe(0);
   });
 });

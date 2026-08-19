@@ -173,9 +173,15 @@ export function provenanceRefsFromSheet(
 export function bakedCardModelFromSheet(sheet: ParcelFactSheet): BakedCardModel {
   const env = sheet.envelope;
 
+  // AMENDMENT 4: `areaPctOfLot` is NULLABLE. With no lot area there is no
+  // percentage, so the card shows the AREA — the fact that is actually known —
+  // rather than a computed-looking figure standing in for a missing one.
+  //
+  // The "consumed" 0% is NOT a sentinel: that variant means the setbacks
+  // genuinely consume the lot, so zero buildable area is the measured truth.
   const buildablePct: CardFacet<string> =
     env.kind === "derived"
-      ? Number.isFinite(env.areaPctOfLot)
+      ? env.areaPctOfLot !== null && Number.isFinite(env.areaPctOfLot)
         ? present(`${Math.round(env.areaPctOfLot)}%`)
         : present(formatMeasurement(env.area, "us"))
       : env.kind === "consumed"

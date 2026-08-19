@@ -254,8 +254,20 @@ export interface FloodZoneShare {
   subtype: string | null;
   /** Special Flood Hazard Area (the 1% annual-chance floodplain). */
   isSfha: boolean;
-  /** Fraction 0..1 of the parcel's area in this zone. Shares sum to 1. */
-  areaShare: number;
+  /**
+   * Fraction 0..1 of the parcel's area in this zone. Shares sum to 1.
+   *
+   * AMENDMENT 4 (2026-08-18, planner): NULLABLE. Upstream may serve a zone SET
+   * without per-zone shares. Writing 0 for an unserved share asserts that none
+   * of the parcel lies in a zone the same record lists, which is a fabricated
+   * measurement, not a missing one. Null means the share is unknown; the zone
+   * membership still stands.
+   *
+   * When shares are null, `zones` order is the upstream's and carries no
+   * ranking, so `primaryZone` must be the upstream's declared zone rather than
+   * a computed largest. `provenance.method` distinguishes the two cases.
+   */
+  areaShare: number | null;
 }
 
 /**
@@ -295,7 +307,14 @@ export type BuildableEnvelope =
   | {
       kind: "derived";
       area: Measurement<"sqft">;
-      areaPctOfLot: number;
+      /**
+       * AMENDMENT 4 (2026-08-18, planner): NULLABLE. A known buildable area
+       * with no known lot area has no percentage. Declining to build `derived`
+       * in that case would discard a genuinely known area — and the area is
+       * the fact the customer came for, while the percentage is derived
+       * convenience.
+       */
+      areaPctOfLot: number | null;
       rings: Ring[];
       setbacksUsed: Setbacks;
       /** Anything else subtracted: easements, floodway, existing structures. */
@@ -482,9 +501,13 @@ function envelopeSegment(sheet: ParcelFactSheet): VerdictSegment {
     // The degenerate parcel says so PLAINLY. Never softened.
     return segment("no buildable area after setbacks", { caution: true });
   }
-  const pct = Number.isFinite(env.areaPctOfLot)
-    ? Math.round(env.areaPctOfLot)
-    : null;
+  // AMENDMENT 4: `areaPctOfLot` is NULLABLE. A known buildable area with no
+  // known lot area has no percentage, and the headline simply omits the share
+  // rather than printing one it does not have.
+  const pct =
+    env.areaPctOfLot !== null && Number.isFinite(env.areaPctOfLot)
+      ? Math.round(env.areaPctOfLot)
+      : null;
   const share = pct == null ? "" : `, ${pct}% of the lot`;
   return env.approximate
     ? segment(`buildable (approximate)${share}`, { caution: true })

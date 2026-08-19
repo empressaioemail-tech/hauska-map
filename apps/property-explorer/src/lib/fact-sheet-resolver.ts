@@ -553,17 +553,18 @@ function envelopeValue(
     };
   }
 
-  // REPORTED to the planner (A3.2 sweep): `areaPctOfLot` is a bare `number`, so
-  // it was outside the amendment's Measurement audit, yet it can be genuinely
-  // unavailable — a parcel with a known buildable area but NO known lot area
-  // has no percentage. There is no null to write here, so the value stays
-  // non-finite and every reader guards on `Number.isFinite`. Recommendation:
-  // `areaPctOfLot: number | null`.
+  // AMENDMENT 4 (A4.2): NULLABLE. A parcel with a known buildable area but NO
+  // known lot area has no percentage, and there is now a null to say so. This
+  // was the last sentinel in the lane.
+  //
+  // Declining to build `derived` here was considered and rejected: it would
+  // discard a genuinely known area, and the area is the fact the customer came
+  // for while the percentage is derived convenience.
   const resolvedPct =
     pct ??
     (lotAreaSqFt != null && lotAreaSqFt > 0
       ? (resolvedArea / lotAreaSqFt) * 100
-      : Number.NaN);
+      : null);
 
   return {
     kind: "derived",
@@ -627,16 +628,16 @@ function floodFact(tier2: unknown): Fact<FloodDetermination> {
 
   // An explicit zone SET on the wire wins over the scalar the moment one lands.
   //
-  // REPORTED (A3.2 sweep): `FloodZoneShare.areaShare` is a bare `number`, so it
-  // was outside the amendment's Measurement audit, and a served zone can carry
-  // no share at all. Writing 0 there is a sentinel AND a contradiction — it
-  // says none of the parcel is in a zone the same record lists. Recommendation:
-  // `areaShare: number | null`.
+  // AMENDMENT 4 (A4.1): `areaShare` is NULLABLE, and this is the behaviour the
+  // amendment makes REQUIRED when shares are null.
   //
-  // Until then this never presents an unknown share as measured: when NO zone
-  // carries one, wire order is preserved rather than sorted by a fabricated
-  // ranking, the served scalar keeps its place as `primaryZone`, and the
-  // provenance method says the shares were not served.
+  // A fabricated 0 is worse than an absence because it is ARITHMETICALLY
+  // USABLE: someone downstream can sum it, chart it, or threshold on it, and
+  // nothing will look wrong. An absence stops that reader; a fake zero recruits
+  // them. So when NO zone carries a share, the share is null, wire order is
+  // preserved rather than sorted by a ranking that does not exist, the
+  // upstream's own declared zone stays `primaryZone` because an unranked list
+  // has no largest, and `provenance.method` says the shares were not served.
   const wireZones = Array.isArray(flood.zones) ? flood.zones : null;
   const mappedWireZones = wireZones
     ? wireZones
@@ -665,9 +666,14 @@ function floodFact(tier2: unknown): Fact<FloodDetermination> {
         zone: z.zone,
         subtype: z.subtype,
         isSfha: z.isSfha,
-        areaShare: z.servedShare ?? 0,
+        // Null, never 0: the zone membership stands, the share is unknown.
+        areaShare: z.servedShare,
       }))
     : zoneCode
+      // A share of 1 on a ONE-element set is a derived truth, not a sentinel:
+      // the contract's own rule is that shares sum to 1, so a parcel in exactly
+      // one zone has all of it in that zone. `method` still says the set came
+      // from a scalar, so nobody reads the MEMBERSHIP as measured either.
       ? [{ zone: zoneCode, subtype, isSfha: inSfha, areaShare: 1 }]
       : [];
 
@@ -676,6 +682,7 @@ function floodFact(tier2: unknown): Fact<FloodDetermination> {
       return {
         state: "present",
         value: {
+          // Same basis as above: one zone, so its share is the whole parcel.
           zones: [{ zone: "X", subtype: null, isSfha: false, areaShare: 1 }],
           primaryZone: "X",
           inSfha: false,
