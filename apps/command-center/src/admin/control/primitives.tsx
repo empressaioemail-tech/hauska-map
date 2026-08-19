@@ -467,11 +467,12 @@ export const Empty: React.FC<{ children?: React.ReactNode }> = ({ children }) =>
 )
 
 // Small status pill (used for service / feed / account health).
-export const Pill: React.FC<{ sev: Severity; children: React.ReactNode; title?: string }> = ({ sev, children, title }) => {
+export const Pill: React.FC<{ sev: Severity; children: React.ReactNode; title?: string; testId?: string }> = ({ sev, children, title, testId }) => {
   const c = sevColors(sev)
   return (
     <span
       title={title}
+      data-testid={testId}
       style={{
         ...mono,
         fontSize: 'var(--type-caption)',

@@ -19,7 +19,9 @@ import {
   manifestContradictions,
   materializationState,
   railDenominators,
+  railScoringEvidence,
   reReadVerdict,
+  REMOVED_CONTROLS,
 } from './manifestDerivation'
 
 function cell(overrides: Partial<ManifestCell> = {}): ManifestCell {
@@ -286,5 +288,117 @@ describe('materialization and re-read verdict', () => {
       'materialization-moved',
     )
     expect(reReadVerdict(null, '2026-08-18T09:00:00.000Z')).toBe('first-read')
+  })
+})
+
+
+// ── SS-W8: derived rail evidence, and acquisition scored against reach ───────────────
+
+describe('railScoringEvidence — the derived replacement for the dead NO WRITER tag', () => {
+  it('FIRES for a rail with no coverage, no source and no instrument on ANY county', () => {
+    const cells = [
+      cell({ countyFips: '48001', railKey: 'roads' }),
+      cell({ countyFips: '48003', railKey: 'roads' }),
+      cell({ countyFips: '48001', railKey: 'flood', honestCoveragePct: 12 }),
+    ]
+    const ev = railScoringEvidence(cells, ['roads', 'flood'])
+    const roads = ev.find((e) => e.railKey === 'roads')!
+    expect(roads.hasAnyEvidence).toBe(false)
+    expect(roads.cells).toBe(2)
+    expect(roads.cellsWithCoverage).toBe(0)
+    expect(ev.find((e) => e.railKey === 'flood')!.hasAnyEvidence).toBe(true)
+  })
+
+  it('STAYS QUIET when a single county in the column carries evidence of any kind', () => {
+    const bySource = railScoringEvidence(
+      [cell({ railKey: 'mud', source: 'tx_special_district' }), cell({ railKey: 'mud' })],
+      ['mud'],
+    )
+    expect(bySource[0].hasAnyEvidence).toBe(true)
+    expect(bySource[0].cellsWithSource).toBe(1)
+
+    const byInstrument = railScoringEvidence(
+      [cell({ railKey: 'mud', verifiedByInstrument: 'l16-score-mud.mjs' })],
+      ['mud'],
+    )
+    expect(byInstrument[0].hasAnyEvidence).toBe(true)
+  })
+
+  it('reports a rail with no cells at all as evidence-free rather than throwing', () => {
+    const ev = railScoringEvidence([], ['footprint'])
+    expect(ev[0].cells).toBe(0)
+    expect(ev[0].hasAnyEvidence).toBe(false)
+  })
+})
+
+describe('REMOVED_CONTROLS', () => {
+  it('names every deleted control, its driver, its reason and its replacement', () => {
+    expect(REMOVED_CONTROLS.length).toBe(3)
+    for (const r of REMOVED_CONTROLS) {
+      expect(r.control.length).toBeGreaterThan(5)
+      expect(r.drivenBy.length).toBeGreaterThan(5)
+      expect(r.reason.length).toBeGreaterThan(5)
+      expect(r.replacedBy.length).toBeGreaterThan(5)
+    }
+    expect(REMOVED_CONTROLS.map((r) => r.drivenBy).join(' ')).toMatch(/hasWriter/)
+    expect(REMOVED_CONTROLS.map((r) => r.drivenBy).join(' ')).toMatch(/atomFamilyState/)
+    expect(REMOVED_CONTROLS.map((r) => r.drivenBy).join(' ')).toMatch(/isPartial/)
+  })
+})
+
+describe('railDenominators — acquisition against reach, absences beside it', () => {
+  // The live shape that forced this split: mud carries 134 acquisitions and 75
+  // established absences against a reachable ceiling of 186. Counting them together
+  // reads 209/186 — a fraction above one that looks like a broken instrument.
+  const mudCells: ManifestCell[] = [
+    ...Array.from({ length: 134 }, (_, i) =>
+      cell({
+        countyFips: String(48000 + i).padStart(5, '0'),
+        railKey: 'mud',
+        displayState: 'satisfied-present',
+        honestCoveragePct: 99,
+        thresholdPct: 90,
+      }),
+    ),
+    ...Array.from({ length: 75 }, (_, i) =>
+      cell({
+        countyFips: String(48200 + i).padStart(5, '0'),
+        railKey: 'mud',
+        displayState: 'satisfied-absent',
+        absenceBasis: 'no special district in this county',
+      }),
+    ),
+  ]
+
+  it('keeps acquisition and established absence apart so the reach fraction cannot exceed one', () => {
+    const [mud] = railDenominators(
+      mudCells,
+      [{ railKey: 'mud', maxCountiesReachable: 186, reachPct: 0.73, sourceBasis: 'tx_special_district' }],
+      ['mud'],
+      254,
+    )
+    expect(mud.satisfied).toBe(209)
+    expect(mud.satisfiedPresent).toBe(134)
+    expect(mud.satisfiedAbsent).toBe(75)
+    expect(mud.maxCountiesReachable).toBe(186)
+    expect(mud.satisfiedPresent).toBeLessThanOrEqual(mud.maxCountiesReachable!)
+    expect(mud.presentExceedsCeiling).toBe(false)
+  })
+
+  it('FLAGS the case where acquisition alone exceeds the rail own ceiling', () => {
+    const [mud] = railDenominators(
+      mudCells,
+      [{ railKey: 'mud', maxCountiesReachable: 10, reachPct: 0.04, sourceBasis: 'x' }],
+      ['mud'],
+      254,
+    )
+    expect(mud.presentExceedsCeiling).toBe(true)
+  })
+
+  it('does not invent a ceiling for a rail whose probe defines none', () => {
+    const [roads] = railDenominators([cell({ railKey: 'roads' })], [], ['roads'], 254)
+    expect(roads.maxCountiesReachable).toBeNull()
+    expect(roads.presentExceedsCeiling).toBe(false)
+    expect(roads.countiesInPayload).toBe(254)
   })
 })

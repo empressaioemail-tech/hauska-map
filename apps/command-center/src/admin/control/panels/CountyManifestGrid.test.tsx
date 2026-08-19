@@ -7,7 +7,7 @@
 
 import { describe, it, expect, vi, beforeEach } from 'vitest'
 import { render, screen, waitFor, within, fireEvent } from '@testing-library/react'
-import { CountyManifestGrid } from './CountyManifestGrid'
+import { CountyManifestGrid, LIVE_FEED_INTERVAL_MS, SUBTAB_HASH_KEY, parseSubtab } from './CountyManifestGrid'
 import {
   type ManifestCell,
   type ManifestLedgerResponse,
@@ -434,7 +434,9 @@ describe('CountyManifestGrid', () => {
     30_000,
   )
 
-  it('always renders computedAt and shows the STALE banner when the snapshot is old', async () => {
+  // SS-W8 replaced the STALE banner with an ALARM that names what the staleness
+  // invalidates. The banner testid is gone on purpose; a banner gets read past.
+  it('always renders computedAt and raises a staleness ALARM when the snapshot is old', async () => {
     const staleAt = new Date(Date.now() - LEDGER_STALE_AFTER_MS - 60_000).toISOString()
     const cells = FIXTURE_RAILS.map((rail) => mkCell('48021', rail.key))
     mockGetJson.mockResolvedValue({
@@ -450,16 +452,22 @@ describe('CountyManifestGrid', () => {
     render(<CountyManifestGrid />)
     await waitFor(() => expect(screen.getByTestId('manifest-computed-at')).toBeInTheDocument())
     expect(screen.getByTestId('manifest-computed-at')).toHaveTextContent(staleAt)
-    expect(screen.getByTestId('manifest-stale-banner')).toHaveTextContent(`STALE — materialized at ${staleAt}`)
-    expect(screen.getByText('manifest stale')).toBeInTheDocument()
+    const bar = screen.getByTestId('manifest-alarm-bar')
+    expect(bar).toHaveAttribute('data-worst', 'warn')
+    expect(bar).toHaveTextContent('STALE')
+    expect(bar).toHaveTextContent(staleAt)
+    // The alarm states the consequence, not just the fact.
+    expect(bar).toHaveTextContent(/claim about/i)
+    expect(screen.queryByTestId('manifest-stale-banner')).toBeNull()
   })
 
-  it('does not show the STALE banner when computedAt is fresh', async () => {
+  it('says FRESH and raises no firing alarm when computedAt is recent', async () => {
     const cells = FIXTURE_RAILS.map((rail) => mkCell('48021', rail.key))
     mockGetJson.mockResolvedValue({ ok: true, status: 200, json: mkPayload(cells) })
 
     render(<CountyManifestGrid />)
     await waitFor(() => expect(screen.getByTestId('manifest-computed-at')).toBeInTheDocument())
+    expect(screen.getByTestId('manifest-alarm-bar')).toHaveAttribute('data-worst', 'ok')
     expect(screen.queryByTestId('manifest-stale-banner')).toBeNull()
   })
 })
@@ -539,9 +547,12 @@ describe('CountyManifestGrid — SS-W6 subtabs and derivation', () => {
 
     render(<CountyManifestGrid />)
     await waitFor(() => expect(screen.getByTestId(`manifest-row-${fips}`)).toBeInTheDocument())
-    expect(screen.getByTestId('rail-ceiling-rrc-wells')).toHaveTextContent('ceil 1')
-    // A rail with no ceiling served must not invent one.
-    expect(screen.queryByTestId('rail-ceiling-geometry')).toBeNull()
+    // SS-W8: the rail's OWN ceiling is the denominator, not 254. 0/254 manufactures a
+    // 253-county hole; 0/1 is the honest reading of the same fact.
+    expect(screen.getByTestId('rail-score-rrc-wells')).toHaveTextContent('0/1')
+    // A rail with no ceiling served must not invent one — it falls back to the payload
+    // county count and SAYS that no reach probe defines a ceiling.
+    expect(screen.getByTestId('rail-score-geometry')).toHaveTextContent('0/254')
   })
 
   it('reports a re-read that does not move computedAt as upstream staleness, not a refresh', async () => {
@@ -600,7 +611,7 @@ describe('CountyManifestGrid — SS-W6 subtabs and derivation', () => {
     await waitFor(() => expect(screen.getByTestId('manifest-derivation')).toBeInTheDocument())
     // hasWriter, atomFamilyState and isPartial are all constant on this payload, which
     // is the live shape: three legend/tag controls that are switched off and look on.
-    expect(screen.getByTestId('manifest-derivation')).toHaveTextContent('3 indicators cannot fire')
+    expect(screen.getByTestId('manifest-derivation')).toHaveTextContent('3 upstream indicators cannot fire')
 
     fireEvent.click(screen.getByTestId('manifest-derivation-toggle'))
     const panel = screen.getByTestId('manifest-derivation')
@@ -669,9 +680,9 @@ describe('CountyManifestGrid — SS-W6 subtabs and derivation', () => {
     expect(screen.getByTestId('manifest-grid-table')).toBeInTheDocument()
   })
 
-  it('column tags count the whole column rather than sampling the first county', async () => {
-    // 3 counties; only one lacks a writer on roads. Sampling railCells[0] would show
-    // either NO WRITER for all three or for none.
+  // SS-W8: the NO WRITER tag is DELETED. hasWriter is true on every cell the API
+  // serves, so the tag could not fire under any data. What replaces it is measured.
+  it('replaces the dead NO WRITER tag with a derived scoring-evidence tag that fires', async () => {
     const fipsList = ['48001', '48003', '48005']
     const cells = fipsList.flatMap((fips) =>
       FIXTURE_RAILS.map((rail) =>
@@ -679,6 +690,9 @@ describe('CountyManifestGrid — SS-W6 subtabs and derivation', () => {
           hasWriter: !(rail.key === 'roads' && fips === '48005'),
           atomFamilyState: 'present',
           displayState: 'not-yet',
+          // Every rail but roads carries scoring evidence somewhere in the column.
+          honestCoveragePct: rail.key === 'roads' ? null : 12.5,
+          source: rail.key === 'roads' ? null : 'a-source',
         }),
       ),
     )
@@ -686,6 +700,237 @@ describe('CountyManifestGrid — SS-W6 subtabs and derivation', () => {
 
     render(<CountyManifestGrid />)
     await waitFor(() => expect(screen.getByTestId('manifest-row-48005')).toBeInTheDocument())
-    expect(screen.getByText('NO WRITER 1')).toBeInTheDocument()
+    // The deleted control is gone...
+    expect(screen.queryByText('NO WRITER 1')).toBeNull()
+    // ...and the derived one fires exactly once, for the one rail with no evidence
+    // anywhere in its column, out of 14 rails examined.
+    expect(screen.getByTestId('rail-no-evidence-roads')).toBeInTheDocument()
+    expect(screen.queryByTestId('rail-no-evidence-geometry')).toBeNull()
+    expect(document.querySelectorAll('[data-testid^="rail-no-evidence-"]').length).toBe(1)
+  })
+})
+
+
+// ── SS-W8: three layers, discoverability, the live feed and the derived controls ─────
+//
+// Added 2026-08-19 (P-44). These pin the five things the operator named: the manifest
+// must read as a live feed, the subtabs must be findable, staleness must alarm rather
+// than banner, the dead controls must be derived or deleted, and every rail must score
+// against its own ceiling.
+
+describe('CountyManifestGrid — SS-W8 three-layer console', () => {
+  const mockLoadConfig = vi.mocked(spineClientModule.loadConfig)
+  const mockApiBase = vi.mocked(spineClientModule.apiBase)
+  const mockGetJson = vi.mocked(spineClientModule.getJson)
+
+  beforeEach(() => {
+    vi.clearAllMocks()
+    window.location.hash = ''
+    mockLoadConfig.mockReturnValue({
+      cortexApiUrl: '/api/spine/cortex',
+      mcpUrl: '/api/spine/mcp',
+      retrievalApiUrl: '/api/spine/retrieval',
+      hauskaKey: '',
+      installId: 'test',
+    })
+    mockApiBase.mockReturnValue('/api/spine/cortex')
+  })
+
+  /** Only the ledger read resolves; every other probe reports an honest not-served. */
+  function ledgerOnly(payload: ManifestLedgerResponse) {
+    mockGetJson.mockImplementation(async (url: string) => {
+      if (String(url).includes('/api/county-ledger')) {
+        return { ok: true, status: 200, json: payload } as never
+      }
+      return { ok: false, status: 200, json: null, error: 'proxy returned HTML' } as never
+    })
+  }
+
+  it('presents THREE views as a real tablist a stranger can find and drive by keyboard', async () => {
+    const cells = FIXTURE_RAILS.map((rail) => mkCell('48021', rail.key))
+    ledgerOnly(mkPayload(cells))
+
+    render(<CountyManifestGrid />)
+    await waitFor(() => expect(screen.getByTestId('manifest-subtabs')).toBeInTheDocument())
+
+    const list = screen.getByTestId('manifest-subtabs')
+    expect(list).toHaveAttribute('role', 'tablist')
+    expect(within(list).getAllByRole('tab').length).toBe(3)
+    // The strip announces itself rather than relying on an underline nobody saw.
+    expect(screen.getByText('3 views')).toBeInTheDocument()
+    expect(screen.getByTestId('manifest-subtab-manifest')).toHaveAttribute('aria-selected', 'true')
+    expect(screen.getByTestId('manifest-subtab-three-layer')).toHaveAttribute('aria-selected', 'false')
+
+    fireEvent.keyDown(list, { key: 'ArrowRight' })
+    await waitFor(() => expect(screen.getByTestId('three-layer-panel')).toBeInTheDocument())
+    expect(screen.getByTestId('manifest-subtab-three-layer')).toHaveAttribute('aria-selected', 'true')
+  })
+
+  it('names the open view in the URL so a subtab is linkable and survives a reload', async () => {
+    const cells = FIXTURE_RAILS.map((rail) => mkCell('48021', rail.key))
+    ledgerOnly(mkPayload(cells))
+
+    render(<CountyManifestGrid />)
+    await waitFor(() => expect(screen.getByTestId('manifest-subtabs')).toBeInTheDocument())
+    fireEvent.click(screen.getByTestId('manifest-subtab-three-layer'))
+    expect(window.location.hash).toContain(`${SUBTAB_HASH_KEY}=three-layer`)
+  })
+
+  it('opens the view named in the hash instead of always landing on the first tab', async () => {
+    window.location.hash = '#panel=county-manifest&view=three-layer'
+    const cells = FIXTURE_RAILS.map((rail) => mkCell('48021', rail.key))
+    ledgerOnly(mkPayload(cells))
+
+    render(<CountyManifestGrid />)
+    await waitFor(() => expect(screen.getByTestId('three-layer-panel')).toBeInTheDocument())
+    expect(screen.queryByTestId('manifest-grid-table')).toBeNull()
+  })
+
+  it('ignores a hash naming a view that does not exist rather than blanking the panel', () => {
+    expect(parseSubtab('three-layer')).toBe('three-layer')
+    expect(parseSubtab('nonsense')).toBeNull()
+    expect(parseSubtab(null)).toBeNull()
+  })
+
+  it('carries the staleness ALARM onto every view, so it cannot be walked past', async () => {
+    const staleAt = '2026-08-14T17:41:22.500Z'
+    const cells = FIXTURE_RAILS.map((rail) => mkCell('48021', rail.key))
+    ledgerOnly(mkPayload(cells, { computedAt: staleAt, servedAt: new Date().toISOString() }))
+
+    render(<CountyManifestGrid />)
+    await waitFor(() => expect(screen.getByTestId('manifest-alarm-bar')).toBeInTheDocument())
+    expect(screen.getByTestId('manifest-alarm-bar')).toHaveAttribute('data-worst', 'danger')
+
+    fireEvent.click(screen.getByTestId('manifest-subtab-sweep'))
+    expect(screen.getByTestId('manifest-alarm-bar')).toBeInTheDocument()
+    fireEvent.click(screen.getByTestId('manifest-subtab-three-layer'))
+    expect(screen.getByTestId('manifest-alarm-bar')).toBeInTheDocument()
+  })
+
+  it('raises the DECLARED work-horizon alarm when the snapshot predates landed footprint work', async () => {
+    // The worked example: computed 2026-08-14, footprint work declared 2026-08-17.
+    const cells = FIXTURE_RAILS.map((rail) => mkCell('48021', rail.key, { displayState: 'not-yet' }))
+    ledgerOnly(mkPayload(cells, { computedAt: '2026-08-14T17:41:22.500Z' }))
+
+    render(<CountyManifestGrid />)
+    await waitFor(() => expect(screen.getByTestId('manifest-alarm-bar')).toBeInTheDocument())
+    const alarm = screen.getByTestId('manifest-alarm-work-horizon')
+    expect(alarm).toHaveTextContent('predates declared work on footprint')
+    // It is DECLARED, and the console says so on the same line.
+    expect(alarm).toHaveTextContent('declared')
+    expect(alarm).toHaveTextContent('_inbox/2026-08-17_l26_backfill_and_gtm_stand.md')
+  })
+
+  it('re-reads on the live-feed interval and still refuses to call an unmoved snapshot a refresh', async () => {
+    vi.useFakeTimers()
+    try {
+      const computedAt = '2026-08-14T17:41:22.500Z'
+      const cells = FIXTURE_RAILS.map((rail) => mkCell('48021', rail.key))
+      ledgerOnly(mkPayload(cells, { computedAt }))
+
+      render(<CountyManifestGrid />)
+      await vi.advanceTimersByTimeAsync(10)
+      expect(screen.getByTestId('manifest-live-feed')).toBeChecked()
+      const readsAfterMount = mockGetJson.mock.calls.length
+
+      await vi.advanceTimersByTimeAsync(LIVE_FEED_INTERVAL_MS + 50)
+      expect(mockGetJson.mock.calls.length).toBeGreaterThan(readsAfterMount)
+      expect(screen.getByTestId('manifest-reread-verdict')).toHaveTextContent('computedAt did NOT move')
+      expect(screen.getByTestId('manifest-reread-verdict')).toHaveTextContent('cannot recompute')
+    } finally {
+      vi.useRealTimers()
+    }
+  })
+
+  it('stops re-reading when the live feed is switched off', async () => {
+    vi.useFakeTimers()
+    try {
+      const cells = FIXTURE_RAILS.map((rail) => mkCell('48021', rail.key))
+      ledgerOnly(mkPayload(cells))
+
+      render(<CountyManifestGrid />)
+      await vi.advanceTimersByTimeAsync(10)
+      fireEvent.click(screen.getByTestId('manifest-live-feed'))
+      const reads = mockGetJson.mock.calls.length
+      await vi.advanceTimersByTimeAsync(LIVE_FEED_INTERVAL_MS * 2)
+      expect(mockGetJson.mock.calls.length).toBe(reads)
+    } finally {
+      vi.useRealTimers()
+    }
+  })
+
+  it('DERIVES partial from coverage against threshold, putting a number on a cell the grid drew as an empty dot', async () => {
+    const fips = '48091'
+    const cells = FIXTURE_RAILS.map((rail) =>
+      mkCell(fips, rail.key, {
+        // The live shape: the served isPartial is false on every cell, and a rail can
+        // carry real coverage below its threshold while its state reads not-yet.
+        isPartial: false,
+        displayState: 'not-yet',
+        honestCoveragePct: rail.key === 'zoning' ? 25.82 : null,
+        thresholdPct: 95,
+      }),
+    )
+    ledgerOnly(mkPayload(cells, { totalCounties: 1 }))
+
+    render(<CountyManifestGrid />)
+    await waitFor(() => expect(screen.getByTestId(`manifest-row-${fips}`)).toBeInTheDocument())
+
+    const cell = document.querySelector(`[data-testid="manifest-cell-${fips}-zoning"]`) as HTMLElement
+    expect(cell).toHaveAttribute('data-visual-state', 'partial')
+    expect(within(cell).getByText('26%')).toBeInTheDocument()
+
+    fireEvent.click(screen.getByTestId('manifest-derivation-toggle'))
+    const derived = screen.getByTestId('manifest-derived-controls')
+    expect(derived).toHaveTextContent('1 of 14 cells')
+    expect(derived).toHaveTextContent('says 0')
+  })
+
+  it('states which controls were DELETED, why, and what replaced them', async () => {
+    const cells = FIXTURE_RAILS.map((rail) =>
+      mkCell('48021', rail.key, { hasWriter: true, atomFamilyState: 'present', isPartial: false }),
+    )
+    ledgerOnly(mkPayload(cells))
+
+    render(<CountyManifestGrid />)
+    await waitFor(() => expect(screen.getByTestId('manifest-derivation')).toBeInTheDocument())
+    fireEvent.click(screen.getByTestId('manifest-derivation-toggle'))
+    const removed = screen.getByTestId('manifest-removed-controls')
+    expect(removed).toHaveTextContent('NO WRITER column tag')
+    expect(removed).toHaveTextContent('NO ATOM column tag')
+    expect(removed).toHaveTextContent('could not appear under any data')
+    expect(removed).toHaveTextContent('Replaced by')
+  })
+
+  it('probes the sweep once, automatically, the first time a view needs the SERVED layer', async () => {
+    const cells = FIXTURE_RAILS.map((rail) => mkCell('48021', rail.key))
+    ledgerOnly(mkPayload(cells))
+
+    render(<CountyManifestGrid />)
+    await waitFor(() => expect(screen.getByTestId('manifest-subtabs')).toBeInTheDocument())
+    expect(mockGetJson.mock.calls.filter(([u]) => String(u).includes('serving-sweep')).length).toBe(0)
+
+    fireEvent.click(screen.getByTestId('manifest-subtab-sweep'))
+    await waitFor(() =>
+      expect(mockGetJson.mock.calls.filter(([u]) => String(u).includes('serving-sweep')).length).toBe(1),
+    )
+    // The failed probe renders as a NAMED absence, never as an empty sweep.
+    await waitFor(() => expect(screen.getByTestId('sweep-not-served')).toBeInTheDocument())
+    expect(screen.getByTestId('sweep-not-served')).toHaveTextContent('/api/serving-sweep')
+  })
+
+  it('never puts the slow written probe on mount or on the feed interval', async () => {
+    vi.useFakeTimers()
+    try {
+      const cells = FIXTURE_RAILS.map((rail) => mkCell('48021', rail.key))
+      ledgerOnly(mkPayload(cells))
+
+      render(<CountyManifestGrid />)
+      await vi.advanceTimersByTimeAsync(LIVE_FEED_INTERVAL_MS * 2 + 100)
+      const writtenReads = mockGetJson.mock.calls.filter(([u]) => String(u).includes('central-tx-node-graph'))
+      expect(writtenReads.length).toBe(0)
+    } finally {
+      vi.useRealTimers()
+    }
   })
 })
