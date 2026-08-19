@@ -467,14 +467,18 @@ describe("AMENDMENT 1 — Provenance.atomDids", () => {
     if (sheet.zoning.state !== "present") throw new Error("unreachable");
     if (sheet.setbacks.state !== "present") throw new Error("unreachable");
     if (sheet.envelope.kind !== "derived") throw new Error("unreachable");
-    expect(sheet.zoning.provenance.atomDids).toEqual(["did:atom:zoning-1"]);
+    // AMENDMENT 2: each ref carries its display LABEL. A code section keeps its
+    // section number, which is exactly what the shipped chip renders.
+    expect(sheet.zoning.provenance.atomDids).toEqual([
+      { did: "did:atom:zoning-1", label: null },
+    ]);
     expect(sheet.setbacks.provenance.atomDids).toEqual([
-      "did:atom:setback-1",
-      "did:atom:code-1",
+      { did: "did:atom:setback-1", label: null },
+      { did: "did:atom:code-1", label: "4.2.1" },
     ]);
     expect(sheet.envelope.provenance.atomDids).toEqual([
-      "did:atom:envelope-1",
-      "did:atom:code-1",
+      { did: "did:atom:envelope-1", label: null },
+      { did: "did:atom:code-1", label: "4.2.1" },
     ]);
     // An empty list means NO atom backs the fact. It never means unknown.
     expect(sheet.landUse.state).toBe("present");
@@ -499,11 +503,11 @@ describe("AMENDMENT 1 — SetbackAxis", () => {
     expect(sheet.setbacks.value.front.note).toBe(
       "Measured from the right-of-way line.",
     );
-    expect(sheet.setbacks.value.cornerSide?.distance.value).toBe(15);
+    expect(sheet.setbacks.value.cornerSide?.distance?.value).toBe(15);
     expect(sheet.setbacks.value.rear.provenance.source).toBe("setback-table");
   });
 
-  it("carries a NOT-SPECIFIED axis as not-measured, never as a real 0 ft", async () => {
+  it("carries a NOT-SPECIFIED axis as NULL, never as 0 and never as a sentinel", async () => {
     // The B3 / Elgin case: no scalar on the axis, but a governing rule that
     // routes the reader to the answer. Rendering that as 0 ft is the defect the
     // not-specified treatment exists to prevent.
@@ -521,11 +525,12 @@ describe("AMENDMENT 1 — SetbackAxis", () => {
     const sheet = await sheetOf(makeResolver(stub), NODE_ID);
     if (sheet.setbacks.state !== "present") throw new Error("unreachable");
     const front = sheet.setbacks.value.front;
-    expect(Number.isFinite(front.distance.value)).toBe(false);
-    expect(front.distance.value).not.toBe(0);
+    // AMENDMENT 2: the absence lives in the TYPE. The wire carried front_ft: 0
+    // beside not_specified.front, and 0 is exactly what must NOT survive.
+    expect(front.distance).toBeNull();
     expect(front.governedBy).toBe("C-1 governs (§4.2.1)");
     // A specified axis is unaffected.
-    expect(sheet.setbacks.value.side.distance.value).toBe(5);
+    expect(sheet.setbacks.value.side.distance?.value).toBe(5);
   });
 });
 

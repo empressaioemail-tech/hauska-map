@@ -83,11 +83,11 @@ function facetFrom<T>(fact: Fact<T>, render: (value: T) => string): CardFacet<st
 
 /** A setback axis -> the card's own display fragment. */
 function axisText(axis: SetbackAxis, label: string): string {
-  // A NOT-SPECIFIED axis carries a non-finite distance and a governing rule;
-  // `formatMeasurement` renders that as "not measured", and it must never
-  // render as a real 0 ft.
-  const measured = Number.isFinite(axis.distance.value);
-  if (!measured) {
+  // AMENDMENT 2: a NOT-SPECIFIED axis carries a NULL distance. The absence is
+  // in the type, so there is no sentinel for a later reader to mistake for a
+  // bug and "fix" to 0 — which would print a 0 ft setback and reintroduce the
+  // build-to-line error this treatment exists to prevent.
+  if (axis.distance === null) {
     return axis.governedBy ? `${label} ${axis.governedBy}` : `${label} not specified`;
   }
   return `${label} ${formatMeasurement(axis.distance, "us")}`;
@@ -96,9 +96,8 @@ function axisText(axis: SetbackAxis, label: string): string {
 export function setbackDisplayFromSheet(setbacks: Setbacks): string {
   const parts = [
     axisText(setbacks.front, "F"),
-    setbacks.cornerSide &&
-    Number.isFinite(setbacks.cornerSide.distance.value) &&
-    setbacks.cornerSide.distance.value !== setbacks.side.distance.value
+    setbacks.cornerSide?.distance != null &&
+    setbacks.cornerSide.distance.value !== setbacks.side.distance?.value
       ? `${axisText(setbacks.side, "S")} · ${axisText(setbacks.cornerSide, "Corner")}`
       : axisText(setbacks.side, "S"),
     axisText(setbacks.rear, "R"),
@@ -127,13 +126,11 @@ export function setbackFieldNotesFromSheet(
  * Atom provenance refs for the AtomChip popovers, reconstructed from
  * `Provenance.atomDids` (AMENDMENT 1).
  *
- * KNOWN FIDELITY LIMIT, reported to the planner: `atomDids` is a bare string
- * list, so the pairing between a code-section atom and its section NUMBER is
- * not carried. The first DID on a fact fills that fact's named role; any
- * further DIDs become code-section chips whose label falls back to the axis's
- * governing rule when there is exactly one, and to a generic label otherwise.
- * A chip still resolves its atom through `fetchAtomByDid`; only the label
- * degrades. Nothing is invented.
+ * AMENDMENT 2 closed the label gap: an `AtomRef` carries its own display label,
+ * so a code-section chip reads as its section number again. A ref with a null
+ * label renders unlabelled rather than guessed — the earlier
+ * infer-from-the-governing-rule fallback is GONE, because a renderer cannot
+ * tell a guessed label from a real one, and a null one it can handle.
  */
 export function provenanceRefsFromSheet(
   sheet: ParcelFactSheet,
@@ -147,24 +144,19 @@ export function provenanceRefsFromSheet(
       ? sheet.envelope.provenance.atomDids
       : [];
 
+  // The named role is the fact's OWN atom; anything further is a code section,
+  // which is what the shipped renderer labels with a section number.
   const extras = setbackDids.slice(1);
-  const governing = isPresent(sheet.setbacks)
-    ? [
-        sheet.setbacks.value.front.governedBy,
-        sheet.setbacks.value.side.governedBy,
-        sheet.setbacks.value.rear.governedBy,
-      ].filter((g): g is string => typeof g === "string" && g.trim().length > 0)
-    : [];
 
   const refs: EnvelopeProvenanceRefs = {};
-  if (zoningDids[0]) refs.zoning = { atomDid: zoningDids[0] };
-  if (setbackDids[0]) refs.setback = { atomDid: setbackDids[0] };
-  if (envelopeDids[0]) refs.envelope = { atomDid: envelopeDids[0] };
-  if (extras.length) {
-    refs.codeSections = extras.map((did) => ({
-      atomDid: did,
-      sectionNumber:
-        extras.length === 1 && governing.length === 1 ? governing[0] : "code",
+  if (zoningDids[0]) refs.zoning = { atomDid: zoningDids[0].did };
+  if (setbackDids[0]) refs.setback = { atomDid: setbackDids[0].did };
+  if (envelopeDids[0]) refs.envelope = { atomDid: envelopeDids[0].did };
+  const labelled = extras.filter((ref) => ref.label !== null);
+  if (labelled.length) {
+    refs.codeSections = labelled.map((ref) => ({
+      atomDid: ref.did,
+      sectionNumber: ref.label as string,
     }));
   }
   return Object.keys(refs).length ? refs : null;
@@ -261,7 +253,7 @@ export function envelopeStateFromSheet(sheet: ParcelFactSheet): CardEnvelopeStat
   const env = sheet.envelope;
   const setbacks = isPresent(sheet.setbacks) ? sheet.setbacks.value : null;
   const axisFt = (a: SetbackAxis | null | undefined): number | null =>
-    a && Number.isFinite(a.distance.value) ? a.distance.value : null;
+    a?.distance ? a.distance.value : null;
 
   const wire = setbacks
     ? {
@@ -285,7 +277,14 @@ export function envelopeStateFromSheet(sheet: ParcelFactSheet): CardEnvelopeStat
       summary: {
         buildableAreaSqFt: env.area.value,
         buildableAreaPct: env.areaPctOfLot,
-        parcelAreaSqFt: sheet.geometry.lotArea.value,
+        // NEVER let a non-finite lot area escape into the summary: the old
+        // envelope wire's own convention is `parcelAreaSqFt ?? null`, and a NaN
+        // here would propagate silently through any arithmetic downstream.
+        // (ParcelGeometry.lotArea is non-optional on the contract, so an
+        // unmeasurable lot is still carried as non-finite — reported.)
+        parcelAreaSqFt: Number.isFinite(sheet.geometry.lotArea.value)
+          ? sheet.geometry.lotArea.value
+          : null,
         notSurveyGrade: true,
         approximate: env.approximate,
       },

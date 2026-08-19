@@ -77,7 +77,25 @@ export interface Provenance {
    * being sold. Empty array means no atom backs this fact, which is itself a
    * fact worth rendering; it never means "unknown".
    */
-  atomDids: string[];
+  atomDids: AtomRef[];
+}
+
+/**
+ * AMENDMENT 2 (2026-08-18, planner). A referenced atom carries its display
+ * label, not just its id.
+ *
+ * Amendment 1 shipped `atomDids: string[]`, which lost the label the shipped
+ * chip renderer already uses: `InspectCard.tsx` pushes
+ * `{ did: cs.atomDid, label: cs.sectionNumber }`, so a code-section chip reads
+ * as its section number. A bare id list degraded those chips to unlabelled.
+ *
+ * Same class of defect as Amendment 1: the type could not express what the
+ * surface already renders.
+ */
+export interface AtomRef {
+  did: string;
+  /** Display label, e.g. a code section number. Null when the atom has none. */
+  label: string | null;
 }
 
 /* ------------------------------------------------------------------ */
@@ -185,7 +203,22 @@ export interface ZoningDistrict {
  * of arguable.
  */
 export interface SetbackAxis {
-  distance: Measurement<"ft">;
+  /**
+   * AMENDMENT 2 (2026-08-18, planner): NULLABLE.
+   *
+   * A jurisdiction can govern an axis without setting a number — the shipped
+   * `api/_lib/setback-not-specified.ts` exists entirely for this, with an
+   * `allPrimaryNotSpecified` branch, and the payload carries
+   * `setbacks.not_specified`. Such an axis has NO scalar. It is not zero.
+   *
+   * Amendment 1 made this non-optional, which forced a non-finite `Measurement`
+   * as the carrier. SS-W1 was right to refuse that convention: a future
+   * implementer reads NaN as a bug and "fixes" it to 0, which silently prints a
+   * 0 ft setback and produces exactly the build-to-line error the
+   * not-specified treatment exists to prevent. An unrepresentable state should
+   * be made representable, never encoded in a sentinel.
+   */
+  distance: Measurement<"ft"> | null;
   /** The rule that set this number, e.g. a zoning district's front-yard rule. */
   governedBy: string | null;
   /** Human note for the X-ray disclosure. Never invented. */

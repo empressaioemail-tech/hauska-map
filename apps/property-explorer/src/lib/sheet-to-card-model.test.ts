@@ -7,6 +7,7 @@
 
 import { describe, expect, it } from "vitest";
 import type {
+  AtomRef,
   ParcelFactSheet,
   Provenance,
   SetbackAxis,
@@ -19,7 +20,7 @@ import {
   setbackFieldNotesFromSheet,
 } from "./sheet-to-card-model";
 
-function prov(atomDids: string[] = []): Provenance {
+function prov(atomDids: AtomRef[] = []): Provenance {
   return {
     source: "cad-roll",
     sourceLabel: "Bastrop County appraisal roll",
@@ -33,13 +34,14 @@ function prov(atomDids: string[] = []): Provenance {
   };
 }
 
+/** AMENDMENT 2: `distance` is NULLABLE - a governed axis with no scalar. */
 function axis(
-  ft: number,
+  ft: number | null,
   governedBy: string | null = null,
   note: string | null = null,
 ): SetbackAxis {
   return {
-    distance: { value: ft, unit: "ft" },
+    distance: ft === null ? null : { value: ft, unit: "ft" },
     governedBy,
     note,
     provenance: prov(),
@@ -77,7 +79,7 @@ function sheet(over: Partial<ParcelFactSheet> = {}): ParcelFactSheet {
     zoning: {
       state: "present",
       value: { code: "R-1", name: null, jurisdiction: "bastrop_city_tx" },
-      provenance: prov(["did:atom:zoning-1"]),
+      provenance: prov([{ did: "did:atom:zoning-1", label: null }]),
     },
     setbacks: {
       state: "present",
@@ -87,7 +89,10 @@ function sheet(over: Partial<ParcelFactSheet> = {}): ParcelFactSheet {
         rear: axis(10),
         cornerSide: null,
       },
-      provenance: prov(["did:atom:setback-1", "did:atom:code-1"]),
+      provenance: prov([
+        { did: "did:atom:setback-1", label: null },
+        { did: "did:atom:code-1", label: "4.2.1" },
+      ]),
     },
     envelope: {
       kind: "derived",
@@ -102,7 +107,7 @@ function sheet(over: Partial<ParcelFactSheet> = {}): ParcelFactSheet {
       },
       subtractions: [],
       approximate: true,
-      provenance: prov(["did:atom:envelope-1"]),
+      provenance: prov([{ did: "did:atom:envelope-1", label: null }]),
     },
     flood: {
       state: "absent-covered",
@@ -194,10 +199,12 @@ describe("the two features that blocked the swap under contract v1", () => {
     expect(refs?.zoning).toEqual({ atomDid: "did:atom:zoning-1" });
     expect(refs?.setback).toEqual({ atomDid: "did:atom:setback-1" });
     expect(refs?.envelope).toEqual({ atomDid: "did:atom:envelope-1" });
-    // The second setback DID becomes a code-section chip. It still resolves
-    // through fetchAtomByDid; only its LABEL degrades, because atomDids is a
-    // bare string list and carries no section number. Reported to the planner.
-    expect(refs?.codeSections?.[0]?.atomDid).toBe("did:atom:code-1");
+    // AMENDMENT 2: the code-section chip keeps its SECTION NUMBER as its label,
+    // which is what the shipped renderer reads it as. No label is inferred.
+    expect(refs?.codeSections?.[0]).toEqual({
+      atomDid: "did:atom:code-1",
+      sectionNumber: "4.2.1",
+    });
   });
 
   it("renders NO chips when no atom backs the facts, rather than fake ones", () => {
@@ -243,7 +250,7 @@ describe("setbackDisplayFromSheet", () => {
 
   it("routes a NOT-SPECIFIED axis to its governing rule, never to 0 ft", () => {
     const line = setbackDisplayFromSheet({
-      front: axis(Number.NaN, "C-1 governs (§4.2.1)"),
+      front: axis(null, "C-1 governs (§4.2.1)"),
       side: axis(5),
       rear: axis(10),
       cornerSide: null,
@@ -254,7 +261,7 @@ describe("setbackDisplayFromSheet", () => {
 
   it("says 'not specified' when there is no rule to route to either", () => {
     const line = setbackDisplayFromSheet({
-      front: axis(Number.NaN),
+      front: axis(null),
       side: axis(5),
       rear: axis(10),
       cornerSide: null,
@@ -311,7 +318,7 @@ describe("envelopeStateFromSheet", () => {
         setbacks: {
           state: "present",
           value: {
-            front: axis(Number.NaN, "build-to-line governs"),
+            front: axis(null, "build-to-line governs"),
             side: axis(5),
             rear: axis(10),
             cornerSide: null,
@@ -322,5 +329,60 @@ describe("envelopeStateFromSheet", () => {
     );
     expect(env.setbacks?.front_ft).toBeNull();
     expect(env.setbacks?.side_ft).toBe(5);
+  });
+});
+
+describe("AMENDMENT 2 - no guessed labels, no sentinels", () => {
+  it("drops an UNLABELLED code-section ref rather than inventing a label", () => {
+    // The earlier implementation inferred a label from the axis's governing
+    // rule when there was exactly one. That is gone: a renderer cannot tell a
+    // guessed label from a real one. The shipped chipsForRow already skips a
+    // section carrying no sectionNumber, so this mirrors what it can draw.
+    const refs = provenanceRefsFromSheet(
+      sheet({
+        setbacks: {
+          state: "present",
+          value: {
+            front: axis(25, "C-1 governs (§4.2.1)"),
+            side: axis(5),
+            rear: axis(10),
+            cornerSide: null,
+          },
+          provenance: prov([
+            { did: "did:atom:setback-1", label: null },
+            { did: "did:atom:unlabelled", label: null },
+          ]),
+        },
+      }),
+    );
+    expect(refs?.setback).toEqual({ atomDid: "did:atom:setback-1" });
+    expect(refs?.codeSections).toBeUndefined();
+  });
+
+  it("never reads a null distance as zero anywhere in the projection", () => {
+    const s = sheet({
+      setbacks: {
+        state: "present",
+        value: {
+          front: axis(null, "build-to-line governs (§3.1)"),
+          side: axis(null),
+          rear: axis(10),
+          cornerSide: null,
+        },
+        provenance: prov(),
+      },
+    });
+    const model = bakedCardModelFromSheet(s);
+    expect(model.setbacks.value).toBe(
+      "F build-to-line governs (§3.1) · S not specified · R 10 ft",
+    );
+    // A bare-substring check would trip on "R 10 ft"; assert per axis instead.
+    expect(model.setbacks.value).not.toContain("F 0 ft");
+    expect(model.setbacks.value).not.toContain("S 0 ft");
+    expect(model.setbacks.value).not.toContain("R 0 ft");
+    const env = envelopeStateFromSheet(s);
+    expect(env.setbacks?.front_ft).toBeNull();
+    expect(env.setbacks?.side_ft).toBeNull();
+    expect(env.setbacks?.rear_ft).toBe(10);
   });
 });

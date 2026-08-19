@@ -35,6 +35,7 @@
 // `absent-uncovered` fact always names what would fill it.
 
 import {
+  type AtomRef,
   type Fact,
   type FactSheetResolver,
   type FloodDetermination,
@@ -182,12 +183,23 @@ function provenance(
   };
 }
 
-/** Non-empty atom DIDs, de-duplicated, order preserved. */
-function atomDids(...refs: Array<string | null | undefined>): string[] {
-  const out: string[] = [];
+/**
+ * Atom references, de-duplicated by did, order preserved (AMENDMENT 2).
+ *
+ * A ref carries its display LABEL alongside its id, because the shipped chip
+ * renderer reads a code-section chip as its section number. A label is null
+ * when the source carries none — never guessed, because a renderer cannot tell
+ * a guessed label from a real one.
+ */
+function atomRefs(
+  ...refs: Array<{ did?: string | null; label?: string | null } | null | undefined>
+): AtomRef[] {
+  const out: AtomRef[] = [];
   for (const r of refs) {
-    const did = typeof r === "string" ? r.trim() : "";
-    if (did && !out.includes(did)) out.push(did);
+    const did = typeof r?.did === "string" ? r.did.trim() : "";
+    if (!did || out.some((o) => o.did === did)) continue;
+    const label = typeof r?.label === "string" && r.label.trim() ? r.label.trim() : null;
+    out.push({ did, label });
   }
   return out;
 }
@@ -314,7 +326,12 @@ function zoningFact(facets: BakedFacetPayload, countyFips: string): Fact<ZoningD
           ? `${facets.zoning?.jurisdictionKey} zoning layer`
           : "Jurisdiction zoning layer",
         retrievedAt: facets.bakedAt ?? null,
-        atomDids: atomDids(facets.envelope?.provenanceRefs?.zoning?.atomDid),
+        // The zoning atom has no section number of its own — it is a district
+        // lookup, not a code citation. Null label, not an invented one.
+        atomDids: atomRefs({
+          did: facets.envelope?.provenanceRefs?.zoning?.atomDid,
+          label: null,
+        }),
       }),
     };
   }
@@ -336,12 +353,12 @@ function zoningFact(facets: BakedFacetPayload, countyFips: string): Fact<ZoningD
  *
  * A NOT-SPECIFIED axis is real and shipped: an Elgin-shaped table can leave an
  * axis with no scalar at all while still routing the reader to the governing
- * rule ("build-to-line governs", "C-1 governs (§ 4.2.1)"). `distance` is
- * non-optional on the amended type, so such an axis is carried as a NON-FINITE
- * measurement, which `formatMeasurement` renders as "not measured". It is never
- * carried as 0, because a not-specified axis rendered as a real 0 ft is the
- * exact defect the B3 provenance work removed. Reported to the planner as a
- * remaining type gap; see the close artifact.
+ * rule ("build-to-line governs", "C-1 governs (§ 4.2.1)"). AMENDMENT 2 makes
+ * `distance` NULLABLE, so that state is now expressed in the type rather than
+ * carried in a sentinel. It is never 0: a not-specified axis rendered as a real
+ * 0 ft is the exact defect the B3 provenance work removed, and a non-finite
+ * carrier was refused because the next implementer reads NaN as a bug and
+ * "fixes" it to 0.
  */
 function setbackAxis(
   distanceFt: number | null,
@@ -350,10 +367,10 @@ function setbackAxis(
   prov: Provenance,
 ): SetbackAxis {
   return {
-    distance: {
-      value: distanceFt != null && Number.isFinite(distanceFt) ? distanceFt : Number.NaN,
-      unit: "ft",
-    },
+    distance:
+      distanceFt != null && Number.isFinite(distanceFt)
+        ? { value: distanceFt, unit: "ft" }
+        : null,
     governedBy: formatGovernedByFragment(governed ?? null),
     note: typeof note === "string" && note.trim() ? note.trim() : null,
     provenance: prov,
@@ -393,9 +410,14 @@ function setbacksFact(facets: BakedFacetPayload): Fact<Setbacks> {
       // AMENDMENT 1: the atoms behind the setback rule and every code section
       // it cites. This is what the AtomChip popover resolves through
       // fetchAtomByDid; before the amendment the sheet could not carry it.
-      atomDids: atomDids(
-        refs?.setback?.atomDid,
-        ...(refs?.codeSections ?? []).map((c) => c?.atomDid),
+      atomDids: atomRefs(
+        { did: refs?.setback?.atomDid, label: null },
+        // AMENDMENT 2: a code-section atom keeps its section number, which is
+        // exactly what the shipped chip renders as its label.
+        ...(refs?.codeSections ?? []).map((c) => ({
+          did: c?.atomDid,
+          label: c?.sectionNumber ?? null,
+        })),
       ),
     });
     return {
@@ -465,9 +487,12 @@ function envelopeValue(
     confidence: null,
     confidenceBasis: "asserted",
     sourceUrl: str(env?.citationUrl),
-    atomDids: atomDids(
-      env?.provenanceRefs?.envelope?.atomDid,
-      ...(env?.provenanceRefs?.codeSections ?? []).map((c) => c?.atomDid),
+    atomDids: atomRefs(
+      { did: env?.provenanceRefs?.envelope?.atomDid, label: null },
+      ...(env?.provenanceRefs?.codeSections ?? []).map((c) => ({
+        did: c?.atomDid,
+        label: c?.sectionNumber ?? null,
+      })),
     ),
   });
 

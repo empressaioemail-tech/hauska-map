@@ -23,6 +23,7 @@ import {
   type BuildableEnvelope,
   type Fact,
   type FloodDetermination,
+  type AtomRef,
   type ParcelFactSheet,
   type Provenance,
   type ResolveResult,
@@ -44,10 +45,17 @@ const PROV: Provenance = {
   atomDids: [],
 };
 
-/** AMENDMENT 1: an axis carries its governance, note and provenance. */
-function axis(ft: number, governedBy: string | null = null, note: string | null = null) {
+/**
+ * AMENDMENT 1: an axis carries its governance, note and provenance.
+ * AMENDMENT 2: `distance` is NULLABLE — a governed axis with no scalar.
+ */
+function axis(
+  ft: number | null,
+  governedBy: string | null = null,
+  note: string | null = null,
+) {
   return {
-    distance: { value: ft, unit: "ft" as const },
+    distance: ft === null ? null : { value: ft, unit: "ft" as const },
     governedBy,
     note,
     provenance: PROV,
@@ -331,7 +339,10 @@ describe("AMENDMENT 1 — the types the shipped card needs", () => {
     expect(s.zoning.provenance.atomDids).toEqual([]);
     const backed = {
       ...s.zoning.provenance,
-      atomDids: ["did:atom:zoning-1", "did:atom:code-1"],
+      atomDids: [
+        { did: "did:atom:zoning-1", label: null },
+        { did: "did:atom:code-1", label: "4.2.1" },
+      ],
     };
     expect(backed.atomDids).toHaveLength(2);
   });
@@ -343,14 +354,32 @@ describe("AMENDMENT 1 — the types the shipped card needs", () => {
     expect(front.note).toBe("Measured from the ROW line.");
   });
 
-  it("renders a NOT-SPECIFIED axis as not-measured, never as a real 0 ft", () => {
-    // `distance` is non-optional on the amended type, so an axis with no scalar
-    // is carried as a non-finite measurement. formatMeasurement is what keeps
-    // that honest — a not-specified axis printed as 0 ft is the exact defect
-    // the build-to-line treatment exists to prevent.
-    const notSpecified = axis(Number.NaN, "build-to-line governs (§3.1)");
-    expect(formatMeasurement(notSpecified.distance, "us")).toBe("not measured");
-    expect(formatMeasurement(notSpecified.distance, "us")).not.toContain("0");
+  it("expresses a NOT-SPECIFIED axis as NULL, never as a sentinel (AMENDMENT 2)", () => {
+    // The absence lives in the TYPE. Amendment 1 forced a non-finite carrier,
+    // which was refused because the next implementer reads NaN as a bug and
+    // "fixes" it to 0 — printing a 0 ft setback and producing exactly the
+    // build-to-line error this treatment exists to prevent.
+    const notSpecified = axis(null, "build-to-line governs (§3.1)");
+    expect(notSpecified.distance).toBeNull();
+    expect(notSpecified.governedBy).toBe("build-to-line governs (§3.1)");
+    // A specified axis is unaffected and still formats through the ONE formatter.
+    const specified = axis(25);
+    expect(specified.distance).not.toBeNull();
+    expect(formatMeasurement(specified.distance!, "us")).toBe("25 ft");
+  });
+
+  it("carries an atom's display LABEL beside its id (AMENDMENT 2)", () => {
+    // The shipped chip renders a code section AS its section number, so a bare
+    // id list degraded those chips to unlabelled.
+    const refs: AtomRef[] = [
+      { did: "did:atom:setback-1", label: null },
+      { did: "did:atom:code-1", label: "4.2.1" },
+    ];
+    expect(refs[0].label).toBeNull();
+    expect(refs[1].label).toBe("4.2.1");
+    // A null label is a real state the renderer can handle. It is never a
+    // guessed label the renderer cannot tell from a real one.
+    expect(refs.every((r) => r.label !== undefined)).toBe(true);
   });
 
   it("keeps an unplaceable parcel structurally distinct from a sheet", () => {
