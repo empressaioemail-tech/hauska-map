@@ -299,9 +299,9 @@ describe("PeFactSheetResolver.resolve", () => {
     expect(sheet.geometry.centroid.lat).toBeCloseTo(SUBJECT_CENTRE.lat, 6);
     expect(sheet.geometry.centroid.lng).toBeCloseTo(SUBJECT_CENTRE.lng, 6);
     // Measured from the ring, not read off the CAD roll.
-    expect(sheet.geometry.lotArea.unit).toBe("sqft");
-    expect(sheet.geometry.lotArea.value).toBeGreaterThan(0);
-    expect(sheet.geometry.lotArea.value).not.toBe(10214);
+    expect(sheet.geometry.lotArea?.unit).toBe("sqft");
+    expect(sheet.geometry.lotArea?.value).toBeGreaterThan(0);
+    expect(sheet.geometry.lotArea?.value).not.toBe(10214);
     // The address was never consulted for the camera: geometry was available,
     // so the demoted geocode path did not run at all.
     expect(stub.calls.some((u) => u.includes("/api/pe-geocode"))).toBe(false);
@@ -320,7 +320,7 @@ describe("PeFactSheetResolver.resolve", () => {
     // No ring resolved: the sheet claims no boundary rather than inventing one.
     expect(sheet.geometry.rings).toHaveLength(0);
     // …and the lot area falls back to the CAD roll's own acreage.
-    expect(sheet.geometry.lotArea.value).toBe(10214);
+    expect(sheet.geometry.lotArea?.value).toBe(10214);
   });
 
   it("always names the county (never 'not on file')", async () => {
@@ -595,5 +595,101 @@ describe("AMENDMENT 1 — UnplaceableParcel", () => {
     });
     const result = await makeResolver(stub).resolve(NODE_ID);
     expect(result.kind).toBe("sheet");
+  });
+});
+
+// ---------------------------------------------------------------------------
+// AMENDMENT 3 (2026-08-18): the sentinel class, closed.
+// ---------------------------------------------------------------------------
+
+describe("AMENDMENT 3 - no sentinel stands in for absence", () => {
+  it("carries an unmeasurable lot area as NULL, not as a non-finite number", async () => {
+    // No ring resolves and the CAD roll carries no acreage, but the address
+    // still seeds a centre, so the parcel IS placeable with no known lot area.
+    const wire = facetsWire();
+    delete (wire.facets.baseFacts as Record<string, unknown>).acreage;
+    (wire.facets as Record<string, unknown>).envelope = {
+      status: "declined",
+      declineReason: "no-setback-table",
+    };
+    const stub = installFetchStub({ facets: wire, gisFeatures: [] });
+    const sheet = await sheetOf(makeResolver(stub), NODE_ID);
+    expect(sheet.geometry.lotArea).toBeNull();
+    // Placeable all the same: geometry is required, lot area is not.
+    expect(Number.isFinite(sheet.geometry.centroid.lat)).toBe(true);
+  });
+
+  it("never builds a DERIVED envelope around a non-finite area", async () => {
+    // The A3.2 sweep found this: a payload serving a POLYGON but no area
+    // number, with no lot area to convert a percentage against, used to build a
+    // `derived` variant whose area was Number.NaN — a sentinel inside the one
+    // place the contract says absence is already modelled by the union.
+    const wire = facetsWire();
+    delete (wire.facets.baseFacts as Record<string, unknown>).acreage;
+    const env = wire.facets.envelope as Record<string, unknown>;
+    delete env.buildableAreaSqFt;
+    delete env.buildableAreaPct;
+    const stub = installFetchStub({ facets: wire, gisFeatures: [] });
+    const sheet = await sheetOf(makeResolver(stub), NODE_ID);
+    expect(sheet.envelope.kind).toBe("derived");
+    if (sheet.envelope.kind !== "derived") throw new Error("unreachable");
+    // The polygon IS an area, so it is MEASURED rather than invented.
+    expect(Number.isFinite(sheet.envelope.area.value)).toBe(true);
+    expect(sheet.envelope.area.value).toBeGreaterThan(0);
+  });
+
+  it("is honestly NOT-DERIVED when nothing yields a real area", async () => {
+    const wire = facetsWire();
+    const env = wire.facets.envelope as Record<string, unknown>;
+    delete env.buildableAreaSqFt;
+    delete env.buildableAreaPct;
+    delete env.geojson;
+    const stub = installFetchStub({ facets: wire, gisFeatures: [SUBJECT_FEATURE] });
+    const sheet = await sheetOf(makeResolver(stub), NODE_ID);
+    expect(sheet.envelope.kind).toBe("not-derived");
+    if (sheet.envelope.kind !== "not-derived") throw new Error("unreachable");
+    expect(sheet.envelope.missing).toContain("envelope-area");
+  });
+
+  it("never presents an UNSERVED flood share as a measured one", async () => {
+    // The other thing the sweep caught: FloodZoneShare.areaShare is a bare
+    // number, so an unserved share was being written as 0 - which says none of
+    // the parcel is in a zone the same record lists.
+    const wire = facetsWire() as unknown as Record<string, unknown>;
+    (wire.tier2 as Record<string, unknown>).flood = {
+      status: "in-sfha",
+      floodZone: "AO",
+      zones: [{ zone: "AE", isSfha: true }, { zone: "AO", isSfha: true }],
+    };
+    const stub = installFetchStub({ facets: wire, gisFeatures: [SUBJECT_FEATURE] });
+    const sheet = await sheetOf(makeResolver(stub), NODE_ID);
+    if (sheet.flood.state !== "present") throw new Error("unreachable");
+    // Wire order is preserved rather than sorted by a fabricated ranking …
+    expect(sheet.flood.value.zones.map((z) => z.zone)).toEqual(["AE", "AO"]);
+    // … the upstream's own declared zone stays primary, since an unranked list
+    // has no largest …
+    expect(sheet.flood.value.primaryZone).toBe("AO");
+    // … and the provenance says the shares were not served.
+    expect(sheet.flood.provenance.method).toBe("zone-set-without-shares");
+    // Both zones still travel, so no surface can hide the second one (I6).
+    expect(sheet.verdict).toContain("Zones AE and AO");
+  });
+
+  it("ranks by share, and says so, when shares ARE served", async () => {
+    const wire = facetsWire() as unknown as Record<string, unknown>;
+    (wire.tier2 as Record<string, unknown>).flood = {
+      status: "in-sfha",
+      floodZone: "AO",
+      zones: [
+        { zone: "AO", isSfha: true, areaShare: 0.3 },
+        { zone: "AE", isSfha: true, areaShare: 0.7 },
+      ],
+    };
+    const stub = installFetchStub({ facets: wire, gisFeatures: [SUBJECT_FEATURE] });
+    const sheet = await sheetOf(makeResolver(stub), NODE_ID);
+    if (sheet.flood.state !== "present") throw new Error("unreachable");
+    expect(sheet.flood.value.zones.map((z) => z.zone)).toEqual(["AE", "AO"]);
+    expect(sheet.flood.value.primaryZone).toBe("AE");
+    expect(sheet.flood.provenance.method).toBe("zone-set-with-shares");
   });
 });

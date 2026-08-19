@@ -61,6 +61,7 @@ import { CORTEX_PROXY_BASE, PE_FACETS_PROXY_BASE } from "./config";
 import { isValidParcelNodeId, normalizeParcelNodeId } from "./parcel-node-id";
 import {
   acresToSqFt,
+  areaSqFtOfRings,
   bboxAround,
   buildParcelGeometry,
   ringsContainPoint,
@@ -524,22 +525,44 @@ function envelopeValue(
   const areaSqFt = num(env.buildableAreaSqFt);
   const pct = num(env.buildableAreaPct);
   const rings = ringsFromGeoJson(env.geojson);
-  if (areaSqFt == null && pct == null && rings.length === 0) {
+
+  // AMENDMENT 3 (A3.2) fix. `derived` carries a NON-NULL area, and the contract
+  // is explicit that this is correct BECAUSE the variant is only ever
+  // constructed when an area exists. This code used to construct it with a
+  // Number.NaN area whenever the payload served a polygon but no number and the
+  // lot area was unknown — a sentinel standing in for absence inside the one
+  // place the contract says absence is already modelled by the union. That is a
+  // bug in this implementation, not a gap in the contract.
+  //
+  // The polygon IS an area, so measure it rather than inventing one: same
+  // shoelace-wgs84 method the lot area uses. Only when nothing yields a real
+  // number is the envelope honestly not derived.
+  const measuredFromRings = rings.length ? areaSqFtOfRings(rings) : null;
+  const resolvedArea =
+    areaSqFt ??
+    (pct != null && lotAreaSqFt != null ? (pct / 100) * lotAreaSqFt : null) ??
+    (measuredFromRings != null && Number.isFinite(measuredFromRings) && measuredFromRings > 0
+      ? measuredFromRings
+      : null);
+
+  if (resolvedArea == null) {
     return {
       kind: "not-derived",
-      reason: "the envelope resolved with neither an area nor a polygon",
+      reason: "the envelope resolved with neither an area nor a measurable polygon",
       missing: ["envelope-area"],
     };
   }
-  const resolvedArea =
-    areaSqFt ??
-    (pct != null && lotAreaSqFt != null && Number.isFinite(lotAreaSqFt)
-      ? (pct / 100) * lotAreaSqFt
-      : Number.NaN);
+
+  // REPORTED to the planner (A3.2 sweep): `areaPctOfLot` is a bare `number`, so
+  // it was outside the amendment's Measurement audit, yet it can be genuinely
+  // unavailable — a parcel with a known buildable area but NO known lot area
+  // has no percentage. There is no null to write here, so the value stays
+  // non-finite and every reader guards on `Number.isFinite`. Recommendation:
+  // `areaPctOfLot: number | null`.
   const resolvedPct =
     pct ??
-    (areaSqFt != null && lotAreaSqFt != null && lotAreaSqFt > 0
-      ? (areaSqFt / lotAreaSqFt) * 100
+    (lotAreaSqFt != null && lotAreaSqFt > 0
+      ? (resolvedArea / lotAreaSqFt) * 100
       : Number.NaN);
 
   return {
@@ -575,7 +598,13 @@ function floodFact(tier2: unknown): Fact<FloodDetermination> {
     source: str(rec(flood?.provenance)?.source) ?? "fema-nfhl",
     sourceLabel: "FEMA National Flood Hazard Layer",
     vintage: str(rec(flood?.provenance)?.vintage),
-    method: "single-zone-from-scalar",
+    method: Array.isArray(flood?.zones)
+      ? (flood.zones as unknown[]).some(
+          (z) => num(rec(z)?.areaShare) !== null,
+        )
+        ? "zone-set-with-shares"
+        : "zone-set-without-shares"
+      : "single-zone-from-scalar",
     sourceUrl: str(rec(flood?.provenance)?.url),
   });
 
@@ -597,8 +626,19 @@ function floodFact(tier2: unknown): Fact<FloodDetermination> {
   const inSfha = status === "in-sfha";
 
   // An explicit zone SET on the wire wins over the scalar the moment one lands.
+  //
+  // REPORTED (A3.2 sweep): `FloodZoneShare.areaShare` is a bare `number`, so it
+  // was outside the amendment's Measurement audit, and a served zone can carry
+  // no share at all. Writing 0 there is a sentinel AND a contradiction — it
+  // says none of the parcel is in a zone the same record lists. Recommendation:
+  // `areaShare: number | null`.
+  //
+  // Until then this never presents an unknown share as measured: when NO zone
+  // carries one, wire order is preserved rather than sorted by a fabricated
+  // ranking, the served scalar keeps its place as `primaryZone`, and the
+  // provenance method says the shares were not served.
   const wireZones = Array.isArray(flood.zones) ? flood.zones : null;
-  const zones: FloodZoneShare[] = wireZones
+  const mappedWireZones = wireZones
     ? wireZones
         .map((z) => {
           const r = rec(z);
@@ -608,11 +648,25 @@ function floodFact(tier2: unknown): Fact<FloodDetermination> {
             zone: code,
             subtype: str(r?.subtype),
             isSfha: r?.isSfha === true,
-            areaShare: num(r?.areaShare) ?? 0,
-          } satisfies FloodZoneShare;
+            servedShare: num(r?.areaShare),
+          };
         })
-        .filter((z): z is FloodZoneShare => z !== null)
-        .sort((a, b) => b.areaShare - a.areaShare)
+        .filter((z): z is NonNullable<typeof z> => z !== null)
+    : null;
+  const anyShareServed =
+    mappedWireZones?.some((z) => z.servedShare !== null) ?? false;
+  const zones: FloodZoneShare[] = mappedWireZones
+    ? (anyShareServed
+        ? [...mappedWireZones].sort(
+            (a, b) => (b.servedShare ?? 0) - (a.servedShare ?? 0),
+          )
+        : mappedWireZones
+      ).map((z) => ({
+        zone: z.zone,
+        subtype: z.subtype,
+        isSfha: z.isSfha,
+        areaShare: z.servedShare ?? 0,
+      }))
     : zoneCode
       ? [{ zone: zoneCode, subtype, isSfha: inSfha, areaShare: 1 }]
       : [];
@@ -641,7 +695,11 @@ function floodFact(tier2: unknown): Fact<FloodDetermination> {
     state: "present",
     value: {
       zones,
-      primaryZone: zones[0]?.zone ?? null,
+      // The largest share when shares were served; otherwise the upstream's own
+      // declared zone, because an unranked list has no "largest".
+      primaryZone: anyShareServed
+        ? (zones[0]?.zone ?? null)
+        : (zoneCode ?? zones[0]?.zone ?? null),
       inSfha: inSfha || zones.some((z) => z.isSfha),
       baseFloodElevation: bfe != null ? { value: bfe, unit: "ft" } : null,
     },
@@ -850,9 +908,8 @@ export class PeFactSheetResolver implements FactSheetResolver {
       return unplaceable;
     }
 
-    const lotAreaSqFt = Number.isFinite(geometry.lotArea.value)
-      ? geometry.lotArea.value
-      : null;
+    // AMENDMENT 3: null means no lot area is known. No sentinel to unwrap.
+    const lotAreaSqFt = geometry.lotArea?.value ?? null;
 
     const landUse = landUseFact(facets);
     const zoning = zoningFact(facets, fips);

@@ -403,3 +403,36 @@ describe("AMENDMENT 1 — the types the shipped card needs", () => {
     expect(unplaceable.wouldBeFilledBy).not.toBe("");
   });
 });
+
+describe("AMENDMENT 3 - the sentinel class is closed", () => {
+  it("expresses an unmeasurable lot area as NULL", () => {
+    const s = sheet({
+      geometry: { ...sheet().geometry, lotArea: null },
+    });
+    expect(s.geometry.lotArea).toBeNull();
+    // Still placeable: geometry is required, a lot area is not.
+    expect(s.geometry.centroid).toEqual({ lat: 30.1105, lng: -97.3184 });
+  });
+
+  it("keeps the derived envelope's area NON-NULL, because the union carries absence", () => {
+    // The contract's own reasoning: an envelope with no area is the
+    // `not-derived` or `consumed` variant, so `derived` is only ever
+    // constructed when an area exists. Absence modelled in the TYPE, not in a
+    // value - which is why this one measurement correctly stays required.
+    const derived = sheet().envelope;
+    if (derived.kind !== "derived") throw new Error("unreachable");
+    expect(derived.area).not.toBeNull();
+    expect(Number.isFinite(derived.area.value)).toBe(true);
+
+    const notDerived = sheet({
+      envelope: { kind: "not-derived", reason: "no setback table", missing: ["setbacks"] },
+    }).envelope;
+    expect("area" in notDerived).toBe(false);
+  });
+
+  it("formats a present measurement and leaves absence to the caller", () => {
+    // formatMeasurement takes a Measurement, never a null: a null lot area is
+    // an absence the SURFACE renders, not a string this function invents.
+    expect(formatMeasurement({ value: 10906, unit: "sqft" }, "us")).toBe("10,906 sq ft");
+  });
+});

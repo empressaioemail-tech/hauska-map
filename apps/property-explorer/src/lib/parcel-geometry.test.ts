@@ -129,7 +129,7 @@ describe("buildParcelGeometry", () => {
       centroidFallback: null,
       cadAcreageSqFt: 10214,
     });
-    expect(g?.lotArea.value).toBeGreaterThan(113_000);
+    expect(g?.lotArea?.value).toBeGreaterThan(113_000);
     expect(g?.crs).toBe("EPSG:4326");
   });
 
@@ -142,17 +142,20 @@ describe("buildParcelGeometry", () => {
     expect(g?.rings).toEqual([]);
     expect(g?.centroid).toEqual({ lat: 30.1105, lng: -97.3184 });
     // The CAD roll's own acreage carries the lot area when no ring did.
-    expect(g?.lotArea.value).toBe(10214);
+    expect(g?.lotArea?.value).toBe(10214);
     expect(g?.bbox).toEqual([-97.3184, 30.1105, -97.3184, 30.1105]);
   });
 
-  it("reports an unmeasurable lot as not-a-number, never as zero", () => {
+  it("reports an unmeasurable lot as NULL, never as zero and never as a sentinel", () => {
+    // AMENDMENT 3: the absence lives in the type. This test used to assert the
+    // NaN carrier the amendment removed.
     const g = buildParcelGeometry({
       rings: [],
       centroidFallback: { lat: 30.1105, lng: -97.3184 },
       cadAcreageSqFt: null,
     });
-    expect(Number.isNaN(g?.lotArea.value)).toBe(true);
+    expect(g).not.toBeNull();
+    expect(g?.lotArea).toBeNull();
   });
 
   it("returns null when nothing can place the parcel at all", () => {

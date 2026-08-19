@@ -233,8 +233,10 @@ export function bboxAround(
  * boundary; it is never a fabricated square.
  *
  * `lotArea` prefers a measured ring, then the CAD roll's recorded acreage, and
- * is NaN when neither exists — `formatMeasurement` renders that as
- * "not measured", which is the truth. It is never 0.
+ * is NULL when neither exists (AMENDMENT 3). Null means no lot area is known.
+ * It is never 0, and it is no longer a non-finite sentinel: the absence lives
+ * in the type, where the compiler can see it and a later reader cannot mistake
+ * it for a bug to "fix".
  */
 export function buildParcelGeometry(opts: {
   rings: Ring[];
@@ -255,15 +257,14 @@ export function buildParcelGeometry(opts: {
     ]);
 
   const measured = rings.length ? areaSqFtOfRings(rings) : null;
-  const lotArea: Measurement<"sqft"> = {
-    value:
-      measured != null && Number.isFinite(measured) && measured > 0
-        ? measured
-        : opts.cadAcreageSqFt != null && Number.isFinite(opts.cadAcreageSqFt)
-          ? opts.cadAcreageSqFt
-          : Number.NaN,
-    unit: "sqft",
-  };
+  const known =
+    measured != null && Number.isFinite(measured) && measured > 0
+      ? measured
+      : opts.cadAcreageSqFt != null && Number.isFinite(opts.cadAcreageSqFt)
+        ? opts.cadAcreageSqFt
+        : null;
+  const lotArea: Measurement<"sqft"> | null =
+    known === null ? null : { value: known, unit: "sqft" };
 
   return { rings, centroid, bbox, lotArea, crs: "EPSG:4326" };
 }

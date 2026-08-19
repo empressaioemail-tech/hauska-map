@@ -147,7 +147,18 @@ export interface ParcelGeometry {
   rings: Ring[];
   centroid: { lat: number; lng: number };
   bbox: [number, number, number, number];
-  lotArea: Measurement<"sqft">;
+  /**
+   * AMENDMENT 3 (2026-08-18, planner): NULLABLE, for the same reason as
+   * `SetbackAxis.distance`.
+   *
+   * A parcel can be placeable and still have no measurable lot area — the
+   * geocode-seeded path with facets carrying no acreage reaches exactly that,
+   * and the implementation was falling through to `Number.NaN`. Raised by
+   * SS-W1 applying the A2.1 rule to a case that rule did not name.
+   *
+   * Null means no lot area is known. It never means zero.
+   */
+  lotArea: Measurement<"sqft"> | null;
   /** WGS84 unless a resolver states otherwise. */
   crs: "EPSG:4326";
 }

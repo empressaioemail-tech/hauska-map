@@ -184,7 +184,12 @@ export function bakedCardModelFromSheet(sheet: ParcelFactSheet): BakedCardModel 
           ? pending("pending")
           : absent();
 
-  const lotAcres = sheet.geometry.lotArea.value / 43560;
+  // AMENDMENT 3: a null lot area is an ABSENCE, not a zero and not a NaN. It
+  // was being divided unguarded, which produced NaN acreage silently.
+  const lotAcres =
+    sheet.geometry.lotArea === null
+      ? null
+      : sheet.geometry.lotArea.value / 43560;
 
   return {
     parcelNodeId: sheet.identity.parcelNodeId,
@@ -200,9 +205,10 @@ export function bakedCardModelFromSheet(sheet: ParcelFactSheet): BakedCardModel 
     zoning: facetFrom(sheet.zoning, (v) => v.code),
     // I3: the acreage VALUE only. Provenance renders in the disclosure, never
     // welded into the string the way formatAcreageDisplay used to weld it.
-    acreage: Number.isFinite(lotAcres)
-      ? present(`${Math.round(lotAcres * 10000) / 10000} ac`)
-      : absent(),
+    acreage:
+      lotAcres !== null && Number.isFinite(lotAcres)
+        ? present(`${Math.round(lotAcres * 10000) / 10000} ac`)
+        : absent(),
     setbacks: facetFrom(sheet.setbacks, setbackDisplayFromSheet),
     buildablePct,
     envelopeApproximate: env.kind === "derived" ? env.approximate : env.kind === "consumed",
@@ -277,14 +283,9 @@ export function envelopeStateFromSheet(sheet: ParcelFactSheet): CardEnvelopeStat
       summary: {
         buildableAreaSqFt: env.area.value,
         buildableAreaPct: env.areaPctOfLot,
-        // NEVER let a non-finite lot area escape into the summary: the old
-        // envelope wire's own convention is `parcelAreaSqFt ?? null`, and a NaN
-        // here would propagate silently through any arithmetic downstream.
-        // (ParcelGeometry.lotArea is non-optional on the contract, so an
-        // unmeasurable lot is still carried as non-finite — reported.)
-        parcelAreaSqFt: Number.isFinite(sheet.geometry.lotArea.value)
-          ? sheet.geometry.lotArea.value
-          : null,
+        // AMENDMENT 3: the absence is in the type now, so this is a straight
+        // read. It still matches the old envelope wire's `?? null` convention.
+        parcelAreaSqFt: sheet.geometry.lotArea?.value ?? null,
         notSurveyGrade: true,
         approximate: env.approximate,
       },
