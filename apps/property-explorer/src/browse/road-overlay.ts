@@ -1,7 +1,8 @@
 // apps/property-explorer/src/browse/road-overlay.ts
 //
 // Track B1 road render — streets vs pedestrian ways:
-//   Streets (isPedestrianWay === false): hairline→soft grey ROW band.
+//   Streets (isPedestrianWay === false): hairline→soft grey ROW band,
+//     OFF by default (LAYERS toggle `road-nodes`, SS-W10 / P-46).
 //   Pedestrian (footway/path/…): brighter blue DOTS (not dashes), thinner,
 //   OFF by default (LAYERS toggle `pedestrian-ways`).
 // Twin still holds pedestrian geometry — render filter ≠ data filter.
@@ -18,6 +19,18 @@ export const ROAD_ROW_BAND_LAYER_KEY = "road-node-row-band";
 export const ROAD_PEDESTRIAN_LAYER_KEY = "road-node-pedestrian";
 /** LAYERS-panel toggle key for the pedestrian overlay. */
 export const PEDESTRIAN_WAYS_TOGGLE_KEY = "pedestrian-ways";
+/**
+ * LAYERS-panel toggle key for the STREET road-node ROW band (SS-W10 / P-46).
+ *
+ * The band painted unconditionally until this key existed: the spec below set
+ * `visible: true` as a literal, so no panel row could switch it. Operator,
+ * 2026-08-19: "in the map tools i need a way to turn our road nodes on and off
+ * and they should probably be defaulted to off for now".
+ *
+ * Render filter is not data filter — the twin still holds every road-node
+ * geometry, and the near-bbox fetch is unchanged. Only the paint is switched.
+ */
+export const ROAD_NODES_TOGGLE_KEY = "road-nodes";
 /** @deprecated No longer emitted — kept for callers that still import the key. */
 export const ROAD_EDGE_LAYER_KEY = "road-node-row-edges";
 
@@ -89,6 +102,13 @@ export interface AttachingRoadWire {
 export interface RoadOverlayVisibility {
   /** When false, pedestrian overlay is omitted/hidden. Default false. */
   pedestrianVisible?: boolean;
+  /**
+   * When false, the street ROW band is hidden. DEFAULT FALSE (SS-W10 / P-46):
+   * an omitted flag means OFF, so a caller that forgets to thread the toggle
+   * gets the operator's requested default rather than the old always-on
+   * behaviour. Fail toward the declared default, never toward the old one.
+   */
+  streetVisible?: boolean;
 }
 
 type LineFeature = {
@@ -221,6 +241,7 @@ export function roadOverlaysFromAttachingRoads(
   visibility: RoadOverlayVisibility = {},
 ): OverlaySpec[] {
   const pedestrianVisible = visibility.pedestrianVisible === true;
+  const streetVisible = visibility.streetVisible === true;
   const streetFeatures: LineFeature[] = [];
   const pedestrianFeatures: LineFeature[] = [];
 
@@ -258,7 +279,7 @@ export function roadOverlaysFromAttachingRoads(
       geojson: { type: "FeatureCollection", features: streetFeatures },
       paint: { ...ROW_BAND_PAINT },
       beforeId: ROAD_BEFORE_PARCEL_FILL_ID,
-      visible: true,
+      visible: streetVisible,
     });
   }
 

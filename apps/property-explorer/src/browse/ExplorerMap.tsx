@@ -93,6 +93,7 @@ import {
 import {
   roadOverlaysFromAttachingRoads,
   PEDESTRIAN_WAYS_TOGGLE_KEY,
+  ROAD_NODES_TOGGLE_KEY,
   type AttachingRoadWire,
 } from "./road-overlay";
 import { countyFipsForViewportCenter } from "./county-fips-viewport";
@@ -564,11 +565,19 @@ function ExplorerMapSurface({
       });
   }, []);
 
+  // Both road children are driven by the LAYERS panel. Note the `: false`
+  // fallbacks: before the seed lands, `visibleLayers` is null and BOTH stay
+  // hidden. Other layers here fall back to `true` because they are on at cold
+  // open; road nodes are off at cold open (SS-W10 / P-46), so falling back to
+  // true would flash them on for the first frames and contradict the default.
   const roadOverlays = useMemo(
     () =>
       roadOverlaysFromAttachingRoads(roadWires, {
         pedestrianVisible: visibleLayers
           ? visibleLayers.has(PEDESTRIAN_WAYS_TOGGLE_KEY as LayerKey)
+          : false,
+        streetVisible: visibleLayers
+          ? visibleLayers.has(ROAD_NODES_TOGGLE_KEY as LayerKey)
           : false,
       }),
     [roadWires, visibleLayers],

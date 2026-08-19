@@ -21,6 +21,10 @@ export {
   visibleLayersForAllocation,
   legendEntriesForRegistry,
   layerStatusForGates,
+  // SS-W10 / P-46 — honest-empty + reachable-ceiling accessors.
+  layerEmptyBasis,
+  layerReach,
+  layerReachSummary,
   stylingForLayer,
   productSurfaceForLayer,
   resolveLayerAllocation,

@@ -9,7 +9,11 @@
 // checkboxes — each turns on 2–3 coherent layers via the taxonomy presets.
 
 import { useState } from "react";
-import { LAYER_REGISTRY } from "../layer-registry.js";
+import {
+  LAYER_REGISTRY,
+  layerEmptyBasis,
+  layerReachSummary,
+} from "../layer-registry.js";
 import {
   INTERACTION_CYAN,
   MAP_LAYER_PRESETS,
@@ -23,6 +27,40 @@ function labelFor(key: LayerKey): string {
   const entry = (LAYER_REGISTRY as LayerDef[]).find((l) => l.key === key);
   return entry?.label ?? key;
 }
+
+/**
+ * SS-W10 / P-46 work item 4 — "a toggle that turns on nothing should say so".
+ *
+ * Before this, six registry rows (ssurgo-soils, groundwater, mud-pid,
+ * edwards-aquifer, texas-rrc, etj) rendered as ordinary checkboxes on Command
+ * Center, which seeds `known` from the whole registry. Ticking one produced a
+ * blank map and no explanation, which reads as a broken layer rather than an
+ * empty one. The basis is registry data, not a hardcoded string here, so the
+ * reason lives next to the layer it describes and cannot drift from it.
+ *
+ * The checkbox stays OPERABLE on an empty row. Disabling it would hide the
+ * layer's existence, and the point is disclosure, not concealment.
+ */
+function emptyBasisFor(key: LayerKey): string | null {
+  return layerEmptyBasis(key) as string | null;
+}
+
+/**
+ * SS-W10 / P-46 work item 3 — a row that shows or implies coverage divides by
+ * the layer's own reachable ceiling, never by 254. Returns null for the layers
+ * that declare no reach, so nothing is invented for a layer nobody probed.
+ */
+function reachSummaryFor(key: LayerKey): string | null {
+  return layerReachSummary(key) as string | null;
+}
+
+/** Secondary copy under a layer row — muted, small, never a headline. */
+const ROW_NOTE_STYLE = {
+  margin: "0 0 4px 24px",
+  fontSize: 9.5,
+  lineHeight: 1.35,
+  color: "#7f8b99",
+} as const;
 
 const PRESET_ORDER = ["Flood", "Entitlement", "Terrain"] as const;
 
@@ -163,26 +201,60 @@ export function LayersControl({
           </button>
         ))}
       </div>
-      {keys.map((key) => (
-        <label
-          key={key}
-          style={{
-            display: "flex",
-            alignItems: "center",
-            gap: 8,
-            padding: "3px 0",
-            cursor: "pointer",
-          }}
-        >
-          <input
-            type="checkbox"
-            checked={visible.has(key)}
-            onChange={() => toggle(key)}
-            style={{ accentColor: INTERACTION_CYAN, cursor: "pointer" }}
-          />
-          <span>{labelFor(key)}</span>
-        </label>
-      ))}
+      {keys.map((key) => {
+        const empty = emptyBasisFor(key);
+        const reach = reachSummaryFor(key);
+        return (
+          <div key={key} data-testid={`layers-row-${key}`}>
+            <label
+              style={{
+                display: "flex",
+                alignItems: "center",
+                gap: 8,
+                padding: "3px 0",
+                cursor: "pointer",
+              }}
+            >
+              <input
+                type="checkbox"
+                checked={visible.has(key)}
+                onChange={() => toggle(key)}
+                style={{ accentColor: INTERACTION_CYAN, cursor: "pointer" }}
+              />
+              <span style={empty ? { color: "#8b97a5" } : undefined}>
+                {labelFor(key)}
+                {empty && (
+                  <span
+                    data-testid={`layers-empty-tag-${key}`}
+                    style={{
+                      marginLeft: 6,
+                      fontSize: 9,
+                      letterSpacing: 0.3,
+                      textTransform: "uppercase",
+                      color: "#7f8b99",
+                    }}
+                  >
+                    no data
+                  </span>
+                )}
+              </span>
+            </label>
+            {empty && (
+              <p
+                data-testid={`layers-empty-basis-${key}`}
+                style={ROW_NOTE_STYLE}
+              >
+                {empty}
+              </p>
+            )}
+            {reach && (
+              <p data-testid={`layers-reach-${key}`} style={ROW_NOTE_STYLE}>
+                {reach}
+              </p>
+            )}
+          </div>
+        );
+      })}
       </>
       )}
     </div>
