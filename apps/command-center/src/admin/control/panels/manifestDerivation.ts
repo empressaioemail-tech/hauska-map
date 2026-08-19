@@ -285,7 +285,19 @@ export function groupContradictions(
 
 export interface RailDenominator {
   railKey: string
+  /** Present + absent, the figure the summary counts. */
   satisfied: number
+  /**
+   * Acquisition, scored against the rail's own reach. An ESTABLISHED ABSENCE is not
+   * bounded by how far an acquisition source can reach — a county can be honestly
+   * recorded as having no MUD whether or not the MUD ingest covers it — so the two are
+   * kept apart. Folding them together produced mud 209/186 on the live payload, a
+   * fraction above one that reads as a broken instrument.
+   */
+  satisfiedPresent: number
+  satisfiedAbsent: number
+  /** True when acquisition alone exceeds the ceiling: two controls that cannot both be right. */
+  presentExceedsCeiling: boolean
   /** Counties in the payload — the grid denominator. */
   countiesInPayload: number
   /** The rail's own reachable ceiling, where a capability probe defines one. */
@@ -311,11 +323,20 @@ export function railDenominators(
   const capByKey = new Map((capabilities ?? []).map((c) => [c.railKey, c]))
   return railKeys.map((railKey) => {
     const cap = capByKey.get(railKey)
+    const railCells = cells.filter((c) => c.railKey === railKey)
+    const satisfiedPresent = railCells.filter(
+      (c) => c.displayState === 'satisfied-present' && isSatisfiedCell(c),
+    ).length
+    const satisfiedAbsent = railCells.filter((c) => c.displayState === 'satisfied-absent').length
+    const ceiling = cap?.maxCountiesReachable ?? null
     return {
       railKey,
-      satisfied: cells.filter((c) => c.railKey === railKey && isSatisfiedCell(c)).length,
+      satisfied: railCells.filter(isSatisfiedCell).length,
+      satisfiedPresent,
+      satisfiedAbsent,
+      presentExceedsCeiling: ceiling != null && satisfiedPresent > ceiling,
       countiesInPayload,
-      maxCountiesReachable: cap?.maxCountiesReachable ?? null,
+      maxCountiesReachable: ceiling,
       sourceBasis: cap?.sourceBasis ?? null,
       limitation: cap?.limitation ?? null,
     }

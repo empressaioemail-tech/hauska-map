@@ -1438,12 +1438,26 @@ export const CountyManifestGrid: React.FC = () => {
                                 : 'no capability probe defines a reachable ceiling for this rail, so the payload county count is the only honest denominator'
                             }
                           >
-                            {st ? `${st.satisfied}/${ceiling ?? st.countiesInPayload}` : '—'}
+                            {st ? `${st.satisfiedPresent}/${ceiling ?? st.countiesInPayload}` : '—'}
+                            {st && st.presentExceedsCeiling ? (
+                              <span
+                                data-testid={`rail-over-ceiling-${rail.key}`}
+                                style={{ color: 'var(--color-text-danger)' }}
+                                title="acquisition exceeds the rail's own reachable ceiling — the capability probe and the coverage scorer cannot both be right"
+                              >
+                                {' '}
+                                !
+                              </span>
+                            ) : null}
                           </div>
+                          {/* Established absences are NOT bounded by how far an acquisition
+                              source reaches, so they are counted beside acquisition and never
+                              inside the reach fraction. Folding them in read mud 209/186. */}
                           <div style={{ ...mono, fontSize: 8, color: 'var(--color-text-tertiary)' }}>
+                            {st && st.satisfiedAbsent > 0 ? `+${st.satisfiedAbsent} abs · ` : ''}
                             {ceiling != null
                               ? ceilingDiffers
-                                ? `reach · of ${st?.countiesInPayload ?? 0} in grid`
+                                ? `reach · ${st?.countiesInPayload ?? 0} in grid`
                                 : 'reach = grid'
                               : 'no reach probe'}
                           </div>
