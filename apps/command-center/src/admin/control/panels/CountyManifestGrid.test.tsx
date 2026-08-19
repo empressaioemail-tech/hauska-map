@@ -434,7 +434,9 @@ describe('CountyManifestGrid', () => {
     30_000,
   )
 
-  it('always renders computedAt and shows the STALE banner when the snapshot is old', async () => {
+  // SS-W8 replaced the STALE banner with an ALARM that names what the staleness
+  // invalidates. The banner testid is gone on purpose; a banner gets read past.
+  it('always renders computedAt and raises a staleness ALARM when the snapshot is old', async () => {
     const staleAt = new Date(Date.now() - LEDGER_STALE_AFTER_MS - 60_000).toISOString()
     const cells = FIXTURE_RAILS.map((rail) => mkCell('48021', rail.key))
     mockGetJson.mockResolvedValue({
@@ -450,16 +452,22 @@ describe('CountyManifestGrid', () => {
     render(<CountyManifestGrid />)
     await waitFor(() => expect(screen.getByTestId('manifest-computed-at')).toBeInTheDocument())
     expect(screen.getByTestId('manifest-computed-at')).toHaveTextContent(staleAt)
-    expect(screen.getByTestId('manifest-stale-banner')).toHaveTextContent(`STALE — materialized at ${staleAt}`)
-    expect(screen.getByText('manifest stale')).toBeInTheDocument()
+    const bar = screen.getByTestId('manifest-alarm-bar')
+    expect(bar).toHaveAttribute('data-worst', 'warn')
+    expect(bar).toHaveTextContent('STALE')
+    expect(bar).toHaveTextContent(staleAt)
+    // The alarm states the consequence, not just the fact.
+    expect(bar).toHaveTextContent(/claim about/i)
+    expect(screen.queryByTestId('manifest-stale-banner')).toBeNull()
   })
 
-  it('does not show the STALE banner when computedAt is fresh', async () => {
+  it('says FRESH and raises no firing alarm when computedAt is recent', async () => {
     const cells = FIXTURE_RAILS.map((rail) => mkCell('48021', rail.key))
     mockGetJson.mockResolvedValue({ ok: true, status: 200, json: mkPayload(cells) })
 
     render(<CountyManifestGrid />)
     await waitFor(() => expect(screen.getByTestId('manifest-computed-at')).toBeInTheDocument())
+    expect(screen.getByTestId('manifest-alarm-bar')).toHaveAttribute('data-worst', 'ok')
     expect(screen.queryByTestId('manifest-stale-banner')).toBeNull()
   })
 })
@@ -539,9 +547,12 @@ describe('CountyManifestGrid — SS-W6 subtabs and derivation', () => {
 
     render(<CountyManifestGrid />)
     await waitFor(() => expect(screen.getByTestId(`manifest-row-${fips}`)).toBeInTheDocument())
-    expect(screen.getByTestId('rail-ceiling-rrc-wells')).toHaveTextContent('ceil 1')
-    // A rail with no ceiling served must not invent one.
-    expect(screen.queryByTestId('rail-ceiling-geometry')).toBeNull()
+    // SS-W8: the rail's OWN ceiling is the denominator, not 254. 0/254 manufactures a
+    // 253-county hole; 0/1 is the honest reading of the same fact.
+    expect(screen.getByTestId('rail-score-rrc-wells')).toHaveTextContent('0/1')
+    // A rail with no ceiling served must not invent one — it falls back to the payload
+    // county count and SAYS that no reach probe defines a ceiling.
+    expect(screen.getByTestId('rail-score-geometry')).toHaveTextContent('0/254')
   })
 
   it('reports a re-read that does not move computedAt as upstream staleness, not a refresh', async () => {
@@ -600,7 +611,7 @@ describe('CountyManifestGrid — SS-W6 subtabs and derivation', () => {
     await waitFor(() => expect(screen.getByTestId('manifest-derivation')).toBeInTheDocument())
     // hasWriter, atomFamilyState and isPartial are all constant on this payload, which
     // is the live shape: three legend/tag controls that are switched off and look on.
-    expect(screen.getByTestId('manifest-derivation')).toHaveTextContent('3 indicators cannot fire')
+    expect(screen.getByTestId('manifest-derivation')).toHaveTextContent('3 upstream indicators cannot fire')
 
     fireEvent.click(screen.getByTestId('manifest-derivation-toggle'))
     const panel = screen.getByTestId('manifest-derivation')
@@ -669,9 +680,9 @@ describe('CountyManifestGrid — SS-W6 subtabs and derivation', () => {
     expect(screen.getByTestId('manifest-grid-table')).toBeInTheDocument()
   })
 
-  it('column tags count the whole column rather than sampling the first county', async () => {
-    // 3 counties; only one lacks a writer on roads. Sampling railCells[0] would show
-    // either NO WRITER for all three or for none.
+  // SS-W8: the NO WRITER tag is DELETED. hasWriter is true on every cell the API
+  // serves, so the tag could not fire under any data. What replaces it is measured.
+  it('replaces the dead NO WRITER tag with a derived scoring-evidence tag that fires', async () => {
     const fipsList = ['48001', '48003', '48005']
     const cells = fipsList.flatMap((fips) =>
       FIXTURE_RAILS.map((rail) =>
@@ -679,6 +690,9 @@ describe('CountyManifestGrid — SS-W6 subtabs and derivation', () => {
           hasWriter: !(rail.key === 'roads' && fips === '48005'),
           atomFamilyState: 'present',
           displayState: 'not-yet',
+          // Every rail but roads carries scoring evidence somewhere in the column.
+          honestCoveragePct: rail.key === 'roads' ? null : 12.5,
+          source: rail.key === 'roads' ? null : 'a-source',
         }),
       ),
     )
@@ -686,6 +700,12 @@ describe('CountyManifestGrid — SS-W6 subtabs and derivation', () => {
 
     render(<CountyManifestGrid />)
     await waitFor(() => expect(screen.getByTestId('manifest-row-48005')).toBeInTheDocument())
-    expect(screen.getByText('NO WRITER 1')).toBeInTheDocument()
+    // The deleted control is gone...
+    expect(screen.queryByText('NO WRITER 1')).toBeNull()
+    // ...and the derived one fires exactly once, for the one rail with no evidence
+    // anywhere in its column, out of 14 rails examined.
+    expect(screen.getByTestId('rail-no-evidence-roads')).toBeInTheDocument()
+    expect(screen.queryByTestId('rail-no-evidence-geometry')).toBeNull()
+    expect(document.querySelectorAll('[data-testid^="rail-no-evidence-"]').length).toBe(1)
   })
 })

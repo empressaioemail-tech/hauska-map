@@ -25,3 +25,43 @@ export function buildPanelHash(panelId: string, params?: Record<string, string>)
   }
   return hash
 }
+
+/**
+ * Read one param off the current hash WITHOUT importing PanelRegistry.
+ *
+ * `useActivePanel` already parses the hash, but importing that hook drags the whole
+ * panel registry (and map-renderer's stylesheet) into any leaf that only wants to know
+ * which subtab it is on. The parse below is the same format, restricted to reading a
+ * single key, so a panel can be sub-addressable from a URL without that cost.
+ */
+export function readPanelHashParam(key: string, hash?: string): string | null {
+  const raw = hash ?? (typeof window === 'undefined' ? '' : window.location.hash || '')
+  const body = raw.startsWith('#') ? raw.slice(1) : raw
+  if (!body) return null
+  for (const seg of body.split('&').slice(1)) {
+    const eq = seg.indexOf('=')
+    if (eq === -1) continue
+    if (decodeURIComponent(seg.slice(0, eq)) === key) return decodeURIComponent(seg.slice(eq + 1))
+  }
+  return null
+}
+
+/**
+ * Write one param onto the current hash, preserving the panel id and every other
+ * param. Returns the next hash string; the caller assigns it, so this stays testable
+ * without a DOM.
+ */
+export function withPanelHashParam(hash: string, key: string, value: string | null): string {
+  const body = (hash.startsWith('#') ? hash.slice(1) : hash) || ''
+  const segments = body ? body.split('&') : []
+  const head = segments[0] ?? ''
+  const kept: string[] = []
+  for (const seg of segments.slice(1)) {
+    const eq = seg.indexOf('=')
+    if (eq === -1) continue
+    if (decodeURIComponent(seg.slice(0, eq)) === key) continue
+    kept.push(seg)
+  }
+  if (value != null && value !== '') kept.push(`${encodeURIComponent(key)}=${encodeURIComponent(value)}`)
+  return `#${[head, ...kept].filter(Boolean).join('&')}`
+}

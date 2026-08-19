@@ -76,15 +76,29 @@ export const PROVENANCE_ROWS: readonly ProvenanceRow[] = Object.freeze([
     refreshedBy: 'the capability probe, where one is defined — several rails have none',
   },
   {
-    subject: 'hasWriter (NO WRITER tag)',
+    subject: 'Rail scoring evidence (NO SCORING EVIDENCE tag)',
+    provenance: 'derived-api',
+    basis:
+      'measured over every cell of a rail: does ANY county carry a coverage number, a source or a verifying instrument. Replaces the hand-declared NO WRITER tag, which was true on every cell and could not fire',
+    refreshedBy: 'every read — it follows the payload',
+  },
+  {
+    subject: 'Partial (below threshold, zero credit)',
+    provenance: 'derived-api',
+    basis:
+      'derivedIsPartial: 0 < honestCoveragePct < thresholdPct. The served isPartial field is false on every cell and drives nothing on screen; the two are compared and their divergence is counted',
+    refreshedBy: 'every read',
+  },
+  {
+    subject: 'hasWriter (control REMOVED)',
     provenance: 'declared-upstream',
-    basis: 'manifestCells[].hasWriter — hand-declared in the engine manifest, not derived from the writer registry',
+    basis: 'manifestCells[].hasWriter — hand-declared in the engine manifest, not derived from the writer registry. Still shown in the cell drawer as a declared value; it no longer drives any tag or legend entry',
     refreshedBy: 'nothing. A human edits the declaration; a merged writer does not move it',
   },
   {
-    subject: 'atomFamilyState (NO ATOM tag)',
+    subject: 'atomFamilyState (control REMOVED)',
     provenance: 'declared-upstream',
-    basis: 'manifestCells[].atomFamilyState — hand-declared alongside hasWriter',
+    basis: 'manifestCells[].atomFamilyState — hand-declared alongside hasWriter. Still shown in the drawer as declared; it no longer drives any tag or legend entry',
     refreshedBy: 'nothing. A published atom family does not move it',
   },
   {
@@ -366,3 +380,84 @@ export const RE_READ_VERDICT_COPY: Readonly<Record<ReReadVerdict, string>> = Obj
   'materialization-unchanged':
     'computedAt did NOT move — the console re-read the same snapshot. Command Center cannot recompute the manifest; a block or scorer run in the engine is what moves it',
 })
+
+
+// ── Derived rail evidence, and the controls that were deleted ────────────────
+
+export interface RailScoringEvidence {
+  railKey: string
+  cells: number
+  cellsWithCoverage: number
+  cellsWithSource: number
+  cellsWithInstrument: number
+  /** False when NOT ONE county in the payload carries any scoring evidence for this rail. */
+  hasAnyEvidence: boolean
+}
+
+/**
+ * Does the ledger carry ANY evidence that this rail has ever been scored, anywhere?
+ *
+ * This is the DERIVED replacement for the hand-declared `hasWriter` tag. hasWriter is
+ * true on 3,556 of 3,556 cells (probed 2026-08-19), so the NO WRITER tag could never
+ * appear and bought false confidence. This measure varies: on the same payload it
+ * fires for 6 of 14 rails (roads, footprint, easement, rrc-wells, rrc-pipelines,
+ * rail-corridor — zero coverage numbers, zero sources and zero verifying instruments
+ * across all 254 counties) and stays quiet for the other 8. A control proven able to
+ * fire AND to stay quiet on live data (DEV_PROCESS 2.2).
+ *
+ * What it does NOT claim: that a writer is unregistered. It claims exactly that the
+ * ledger holds no scoring evidence for the rail — which is the thing an operator
+ * reading this grid needs to know before treating a column of dots as an absence.
+ */
+export function railScoringEvidence(cells: ManifestCell[], railKeys: string[]): RailScoringEvidence[] {
+  return railKeys.map((railKey) => {
+    const railCells = cells.filter((c) => c.railKey === railKey)
+    const cov = railCells.filter((c) => c.honestCoveragePct != null).length
+    const src = railCells.filter((c) => Boolean(c.source)).length
+    const inst = railCells.filter((c) => Boolean(c.verifiedByInstrument)).length
+    return {
+      railKey,
+      cells: railCells.length,
+      cellsWithCoverage: cov,
+      cellsWithSource: src,
+      cellsWithInstrument: inst,
+      hasAnyEvidence: cov + src + inst > 0,
+    }
+  })
+}
+
+export interface RemovedControl {
+  control: string
+  drivenBy: string
+  reason: string
+  replacedBy: string
+}
+
+/**
+ * Controls DELETED by SS-W8 because they could not fire, and what replaced them.
+ *
+ * Rendered on screen rather than only recorded here: a control that vanishes silently
+ * leaves an operator wondering whether the state it named is now unmonitored. Naming
+ * the deletion, its reason and its replacement is the difference between removing a
+ * dead instrument and hiding one.
+ */
+export const REMOVED_CONTROLS: readonly RemovedControl[] = Object.freeze([
+  {
+    control: 'NO WRITER column tag and its legend entry',
+    drivenBy: 'manifestCells[].hasWriter, hand-declared upstream',
+    reason: 'constant true across all 3,556 cells on the live payload — the tag could not appear under any data',
+    replacedBy: 'NO SCORING EVIDENCE, derived per rail from coverage / source / instrument presence, which fires on 6 of 14 rails today',
+  },
+  {
+    control: 'NO ATOM column tag and its legend entry',
+    drivenBy: 'manifestCells[].atomFamilyState, hand-declared upstream',
+    reason: "constant 'present' across all 3,556 cells — the tag could not appear under any data",
+    replacedBy: 'nothing on the manifest; atom presence is a WRITTEN-layer question and is answered on the Three layers subtab by an instrument that reads the store',
+  },
+  {
+    control: 'the partial treatment driven by manifestCells[].isPartial',
+    drivenBy: 'manifestCells[].isPartial, served false on every cell',
+    reason: 'constant false across all 3,556 cells',
+    replacedBy: 'derivedIsPartial (0 < coverage < threshold), which fires on 120 of the same 3,556 cells and puts a number on work that was rendering as an empty dot',
+  },
+])

@@ -37,8 +37,6 @@ import {
 } from '../primitives'
 import {
   deriveRails,
-  atomTag,
-  writerTag,
   cellLabel,
   cellSev,
   cellVisualState,
@@ -46,8 +44,8 @@ import {
   groupCellsByCounty,
   indexCells,
   isSatisfiedCell,
+  partialControlDivergence,
   rawCellsCompletenessPct,
-  isLedgerMaterializationStale,
   type ManifestCell,
   type RailDef,
   type ManifestCountyRow,
@@ -55,6 +53,7 @@ import {
 } from './countyManifestTypes'
 import {
   MANIFEST_CONTRADICTION_LABELS,
+  REMOVED_CONTROLS,
   RE_READ_VERDICT_COPY,
   absentDisplayStates,
   auditProvenance,
@@ -64,12 +63,27 @@ import {
   manifestContradictions,
   materializationState,
   railDenominators,
+  railScoringEvidence,
   reReadVerdict,
   type ReReadVerdict,
 } from './manifestDerivation'
+import {
+  humanDuration,
+  normalizeStamp,
+  stalenessAlarms,
+  type Observation,
+  type StalenessAlarm,
+} from './ledgerStaleness'
+import { ThreeLayerPanel } from './ThreeLayerPanel'
+import { fetchWrittenLayer, type WrittenSourceState } from './writtenLayerSource'
+import { readPanelHashParam, withPanelHashParam } from '../center/panelHash'
 import { resolveCountyName, TEXAS_COUNTY_NAME_SOURCE, type CountyNameOrigin } from './texasCountyNames'
 import { ServingSweepPanel } from './ServingSweepPanel'
 import { fetchServingSweep, loadSweepArtifact, type SweepSourceState } from './servingSweepSource'
+
+/** How often the live feed re-reads the ledger. A floor, not a target: the read is a
+ *  2MB payload and the manifest is recomputed by engine runs, not by reading it. */
+export const LIVE_FEED_INTERVAL_MS = 60_000
 
 const COUNTY_COL_W = 200
 const SCORE_COL_W = 64
@@ -107,51 +121,201 @@ function fmtDate(iso: string | null): string {
   return d.toLocaleDateString('en-US', { year: 'numeric', month: 'short', day: 'numeric' })
 }
 
-type Subtab = 'manifest' | 'sweep'
+export type Subtab = 'manifest' | 'three-layer' | 'sweep'
+
+/** The subtab is addressable: #panel=county-manifest&view=three-layer opens it directly. */
+export const SUBTAB_HASH_KEY = 'view'
 
 const SUBTABS: Array<{ id: Subtab; label: string; hint: string }> = [
-  { id: 'manifest', label: 'Rail manifest', hint: 'did a writer run for this county' },
-  { id: 'sweep', label: 'Serving sweep', hint: 'what Smart Site actually serves, every parcel' },
+  { id: 'manifest', label: 'Rail manifest', hint: 'SCORED — did a writer run for this county' },
+  { id: 'three-layer', label: 'Three layers', hint: 'WRITTEN vs SCORED vs SERVED, and where they disagree' },
+  { id: 'sweep', label: 'Serving sweep', hint: 'SERVED — what Smart Site serves, every parcel' },
 ]
 
-const SubtabNav: React.FC<{ active: Subtab; onSelect: (t: Subtab) => void }> = ({ active, onSelect }) => (
-  <div
-    data-testid="manifest-subtabs"
-    style={{
-      display: 'flex',
-      gap: 0,
-      margin: '-14px -14px 12px',
-      borderBottom: '0.5px solid var(--color-border-secondary)',
-      background: 'var(--color-background-secondary)',
-    }}
-  >
-    {SUBTABS.map((t) => {
-      const on = t.id === active
-      return (
-        <button
-          key={t.id}
-          type="button"
-          data-testid={`manifest-subtab-${t.id}`}
-          aria-pressed={on}
-          onClick={() => onSelect(t.id)}
-          style={{
-            padding: '8px 16px',
-            border: 'none',
-            borderBottom: on ? '2px solid var(--color-text-accent)' : '2px solid transparent',
-            background: 'transparent',
-            cursor: 'pointer',
-            textAlign: 'left',
-            color: on ? 'var(--color-text-primary)' : 'var(--color-text-secondary)',
-            fontWeight: on ? 700 : 500,
-          }}
-        >
-          <div style={{ fontSize: 12 }}>{t.label}</div>
-          <div style={{ ...typeCaption, color: 'var(--color-text-tertiary)' }}>{t.hint}</div>
-        </button>
-      )
-    })}
-  </div>
-)
+export function parseSubtab(raw: string | null): Subtab | null {
+  return SUBTABS.some((t) => t.id === raw) ? (raw as Subtab) : null
+}
+
+/**
+ * The subtab strip.
+ *
+ * It used to be three words on a flat background with a 2px underline on the active
+ * one. The operator looked directly at it and reported seeing nothing, which makes it
+ * not a styling preference but a defect: a view that cannot be found does not exist.
+ * So the strip is now a labelled, bordered segmented control with a raised active
+ * segment, a per-tab status badge, real tab semantics for keyboard and screen readers,
+ * and a URL that names the open view.
+ */
+const SubtabNav: React.FC<{
+  active: Subtab
+  onSelect: (t: Subtab) => void
+  badges: Partial<Record<Subtab, { text: string; sev: 'ok' | 'warn' | 'danger' | 'info' }>>
+}> = ({ active, onSelect, badges }) => {
+  const onKeyDown = (e: React.KeyboardEvent) => {
+    if (e.key !== 'ArrowRight' && e.key !== 'ArrowLeft') return
+    e.preventDefault()
+    const i = SUBTABS.findIndex((t) => t.id === active)
+    const next = e.key === 'ArrowRight' ? (i + 1) % SUBTABS.length : (i - 1 + SUBTABS.length) % SUBTABS.length
+    onSelect(SUBTABS[next].id)
+  }
+  return (
+    <div
+      style={{
+        display: 'flex',
+        alignItems: 'stretch',
+        gap: 8,
+        margin: '-14px -14px 12px',
+        padding: '8px 12px',
+        borderBottom: '0.5px solid var(--color-border-secondary)',
+        background: 'var(--color-background-secondary)',
+        flexWrap: 'wrap',
+      }}
+    >
+      <span
+        style={{
+          ...sectionHeader,
+          alignSelf: 'center',
+          color: 'var(--color-text-tertiary)',
+          whiteSpace: 'nowrap',
+        }}
+      >
+        {SUBTABS.length} views
+      </span>
+      <div
+        data-testid="manifest-subtabs"
+        role="tablist"
+        aria-label="County Manifest views"
+        onKeyDown={onKeyDown}
+        style={{
+          display: 'flex',
+          gap: 0,
+          border: '0.5px solid var(--color-border-secondary)',
+          borderRadius: 6,
+          overflow: 'hidden',
+          flexWrap: 'wrap',
+        }}
+      >
+        {SUBTABS.map((t) => {
+          const on = t.id === active
+          const badge = badges[t.id]
+          return (
+            <button
+              key={t.id}
+              type="button"
+              role="tab"
+              id={`manifest-subtab-${t.id}`}
+              data-testid={`manifest-subtab-${t.id}`}
+              aria-selected={on}
+              aria-pressed={on}
+              tabIndex={on ? 0 : -1}
+              onClick={() => onSelect(t.id)}
+              style={{
+                display: 'flex',
+                flexDirection: 'column',
+                gap: 2,
+                padding: '7px 14px',
+                border: 'none',
+                borderRight: '0.5px solid var(--color-border-secondary)',
+                borderBottom: on ? '3px solid var(--color-text-accent)' : '3px solid transparent',
+                background: on ? 'var(--color-background-primary)' : 'transparent',
+                cursor: 'pointer',
+                textAlign: 'left',
+                color: on ? 'var(--color-text-primary)' : 'var(--color-text-secondary)',
+              }}
+            >
+              <span style={{ display: 'flex', gap: 6, alignItems: 'center' }}>
+                <span style={{ fontSize: 12, fontWeight: on ? 700 : 500 }}>{t.label}</span>
+                {badge ? <Pill sev={badge.sev}>{badge.text}</Pill> : null}
+              </span>
+              <span style={{ ...typeCaption, color: 'var(--color-text-tertiary)' }}>{t.hint}</span>
+            </button>
+          )
+        })}
+      </div>
+    </div>
+  )
+}
+
+/**
+ * Staleness as an ALARM, not a banner.
+ *
+ * A banner reading STALE gets read past within a day. Each alarm here names what it
+ * PROVES and what it does not, carries its basis, and says whether it was derived or
+ * declared — because the failure this replaces was not a missing warning. It was a
+ * warning nobody could act on: the ledger read as world-truth while it predated the
+ * work it was being quoted about.
+ */
+const AlarmBar: React.FC<{ alarms: StalenessAlarm[]; worst: 'ok' | 'warn' | 'danger' }> = ({ alarms, worst }) => {
+  const [open, setOpen] = useState(worst === 'danger')
+  const c = sevColors(worst)
+  const firing = alarms.filter((a) => a.severity !== 'ok')
+  return (
+    <div
+      data-testid="manifest-alarm-bar"
+      data-worst={worst}
+      style={{
+        border: `1px solid ${c.border}`,
+        borderLeft: `4px solid ${c.fg}`,
+        background: worst === 'ok' ? undefined : c.bg,
+        marginBottom: 12,
+      }}
+    >
+      <button
+        type="button"
+        data-testid="manifest-alarm-toggle"
+        onClick={() => setOpen((o) => !o)}
+        style={{
+          display: 'flex',
+          width: '100%',
+          gap: 10,
+          alignItems: 'center',
+          flexWrap: 'wrap',
+          padding: '8px 10px',
+          border: 'none',
+          background: 'transparent',
+          cursor: 'pointer',
+          textAlign: 'left',
+          color: c.fg,
+        }}
+      >
+        <span style={{ ...mono, fontWeight: 700, letterSpacing: '0.08em' }}>
+          {worst === 'ok' ? 'FRESH' : worst === 'warn' ? 'STALE' : 'STALE — READ THIS'}
+        </span>
+        <span style={{ ...typeCaption, color: c.fg, flex: '1 1 300px', lineHeight: 1.45 }}>
+          {alarms[0]?.headline}
+          {firing.length > 1 ? ` · and ${firing.length - 1} more` : ''}
+        </span>
+        <span style={{ ...typeCaption, color: 'var(--color-text-tertiary)' }}>{open ? 'hide' : 'show'}</span>
+      </button>
+      {open ? (
+        <div style={{ padding: '0 10px 10px' }}>
+          {alarms.map((a) => {
+            const ac = sevColors(a.severity)
+            return (
+              <div
+                key={a.id}
+                data-testid={`manifest-alarm-${a.id}`}
+                style={{ borderTop: '0.5px solid var(--color-border-tertiary)', padding: '6px 0' }}
+              >
+                <div style={{ display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap' }}>
+                  <Pill sev={a.severity}>{a.severity}</Pill>
+                  <Pill sev={a.provenance === 'derived' ? 'ok' : 'warn'}>{a.provenance}</Pill>
+                  <span style={{ fontWeight: 600, color: ac.fg }}>{a.headline}</span>
+                </div>
+                <div style={{ ...typeCaption, marginTop: 2, lineHeight: 1.5 }}>
+                  <strong>proves</strong> {a.proves}
+                </div>
+                <div style={{ ...typeCaption, ...mono, color: 'var(--color-text-tertiary)', wordBreak: 'break-word' }}>
+                  {a.basis}
+                </div>
+              </div>
+            )
+          })}
+        </div>
+      ) : null}
+    </div>
+  )
+}
 
 const RollupStrip: React.FC<{
   weightedPct: number | null
@@ -213,7 +377,9 @@ const ReadStrip: React.FC<{
   lastReadAt: string | null
   reReading: boolean
   onReRead: () => void
-}> = ({ computedAt, servedAt, ageMs, verdict, lastReadAt, reReading, onReRead }) => (
+  liveFeed: boolean
+  onToggleLiveFeed: (on: boolean) => void
+}> = ({ computedAt, servedAt, ageMs, verdict, lastReadAt, reReading, onReRead, liveFeed, onToggleLiveFeed }) => (
   <div
     data-testid="manifest-read-strip"
     style={{
@@ -229,6 +395,18 @@ const ReadStrip: React.FC<{
     <Button variant="secondary" onClick={onReRead} disabled={reReading}>
       {reReading ? 're-reading…' : 're-read manifest'}
     </Button>
+    <label style={{ ...typeCaption, display: 'flex', gap: 4, alignItems: 'center' }}>
+      <input
+        type="checkbox"
+        data-testid="manifest-live-feed"
+        checked={liveFeed}
+        onChange={(e) => onToggleLiveFeed(e.target.checked)}
+      />
+      <span>
+        live feed · re-reads every {Math.round(LIVE_FEED_INTERVAL_MS / 1000)}s. It cannot recompute; a
+        re-read that does not move computedAt is reported as staleness, never as a refresh
+      </span>
+    </label>
     <span style={{ ...typeCaption, ...mono }} data-testid="manifest-age">
       snapshot age {humanAge(ageMs)}
     </span>
@@ -261,11 +439,15 @@ const ReadStrip: React.FC<{
 const DerivationStrip: React.FC<{
   cells: ManifestCell[]
   counties: ManifestCountyRow[]
+  railKeys: string[]
   nameOrigins: Record<CountyNameOrigin, number>
-}> = ({ cells, counties, nameOrigins }) => {
+}> = ({ cells, counties, railKeys, nameOrigins }) => {
   const [open, setOpen] = useState(false)
   const audit = useMemo(() => auditProvenance(), [])
   const dead = useMemo(() => deadIndicators(cells), [cells])
+  const partialDivergence = useMemo(() => partialControlDivergence(cells), [cells])
+  const evidence = useMemo(() => railScoringEvidence(cells, railKeys), [cells, railKeys])
+  const railsWithoutEvidence = useMemo(() => evidence.filter((e) => !e.hasAnyEvidence), [evidence])
   const missingStates = useMemo(
     () =>
       absentDisplayStates(cells, [
@@ -309,9 +491,18 @@ const DerivationStrip: React.FC<{
         <Pill sev="info">{audit.declaredClientCount} presentation-only in this repo</Pill>
         {dead.length > 0 ? (
           <Pill sev="danger" title="an indicator whose value never varies cannot fire">
-            {dead.length} indicators cannot fire
+            {dead.length} upstream indicators cannot fire
           </Pill>
         ) : null}
+        <Pill
+          sev={railsWithoutEvidence.length > 0 ? 'warn' : 'ok'}
+          title="derived: no county in the payload carries a coverage number, source or verifying instrument for this rail"
+        >
+          {railsWithoutEvidence.length} of {evidence.length} rails with no scoring evidence
+        </Pill>
+        <Pill sev={partialDivergence.derivedPartial > 0 ? 'warn' : 'info'} title="derived: 0 < coverage < threshold">
+          {partialDivergence.derivedPartial} partial derived vs {partialDivergence.upstreamPartial} served
+        </Pill>
         {contradictionTotal > 0 ? (
           <Pill sev="danger">{contradictionTotal} self-contradicting cells</Pill>
         ) : null}
@@ -350,7 +541,49 @@ const DerivationStrip: React.FC<{
             </tbody>
           </table>
 
-          <div style={{ ...sectionHeader, marginTop: 12, marginBottom: 4 }}>Indicators that cannot fire</div>
+          <div style={{ ...sectionHeader, marginTop: 12, marginBottom: 4 }}>
+            Controls removed because they could not fire
+          </div>
+          <div data-testid="manifest-removed-controls" style={{ ...typeCaption, lineHeight: 1.5 }}>
+            A control that renders as live and cannot fire buys false confidence, so these were deleted
+            rather than left switched off. The deletion is stated here because a control that vanishes
+            silently leaves the state it named looking monitored.
+            <ul style={{ margin: '4px 0 0', paddingLeft: 18 }}>
+              {REMOVED_CONTROLS.map((r) => (
+                <li key={r.control} style={{ marginBottom: 3 }}>
+                  <strong>{r.control}</strong> — driven by <span style={mono}>{r.drivenBy}</span>. {r.reason}.
+                  Replaced by: {r.replacedBy}.
+                </li>
+              ))}
+            </ul>
+          </div>
+
+          <div style={{ ...sectionHeader, marginTop: 12, marginBottom: 4 }}>Derived replacements, measured now</div>
+          <div data-testid="manifest-derived-controls" style={{ ...typeCaption, lineHeight: 1.5 }}>
+            <div>
+              <strong>Scoring evidence</strong> — {railsWithoutEvidence.length} of {evidence.length} rails carry
+              no coverage number, no source and no verifying instrument on ANY of the{' '}
+              {cells.length.toLocaleString()} cells:{' '}
+              <span style={mono}>
+                {railsWithoutEvidence.length === 0
+                  ? 'none'
+                  : railsWithoutEvidence.map((e) => `${e.railKey} (0 of ${e.cells})`).join(', ')}
+              </span>
+              . This varies with the payload, unlike the hand-declared tag it replaced.
+            </div>
+            <div style={{ marginTop: 3 }}>
+              <strong>Partial</strong> — derived as 0 &lt; coverage &lt; threshold on{' '}
+              {partialDivergence.derivedPartial.toLocaleString()} of{' '}
+              {partialDivergence.cellsExamined.toLocaleString()} cells, while the served isPartial field
+              says {partialDivergence.upstreamPartial.toLocaleString()}. The two disagree on{' '}
+              {partialDivergence.disagree.toLocaleString()} cells; the derivation is what the grid
+              renders, and the divergence is shown rather than resolved silently.
+            </div>
+          </div>
+
+          <div style={{ ...sectionHeader, marginTop: 12, marginBottom: 4 }}>
+            Upstream indicators that cannot fire
+          </div>
           {dead.length === 0 ? (
             <div style={{ ...typeCaption }}>
               every indicator varies across the {cells.length.toLocaleString()} cells examined
@@ -428,7 +661,8 @@ const Legend: React.FC<{ cannotFire: string[] }> = ({ cannotFire }) => (
         ['satisfied-absent', 'info', 'established absence — counts'],
         ['not-yet', 'info', 'unacquired — reduces completeness'],
         ['no-atom', 'danger', 'no atom family — cannot record'],
-        ['partial', 'warn', 'below threshold — zero credit'],
+        ['derivation-indeterminate', 'warn', 'derivation could not decide — not an absence'],
+        ['partial', 'warn', 'DERIVED: 0 < coverage < threshold, zero credit'],
       ] as const
     ).map(([label, sev, hint]) => {
       const c = sevColors(sev)
@@ -458,8 +692,11 @@ const Legend: React.FC<{ cannotFire: string[] }> = ({ cannotFire }) => (
       )
     })}
     <span style={{ display: 'inline-flex', gap: 6, alignItems: 'center' }}>
-      <Pill sev="warn">NO WRITER</Pill>
-      <span style={{ color: 'var(--color-text-tertiary)' }}>column header tag — atom exists, nothing populates</span>
+      <Pill sev="warn">NO SCORING EVIDENCE</Pill>
+      <span style={{ color: 'var(--color-text-tertiary)' }}>
+        column tag, DERIVED — not one county carries a coverage number, a source or a verifying
+        instrument for this rail
+      </span>
     </span>
   </div>
 )
@@ -750,14 +987,28 @@ export const CountyManifestGrid: React.FC = () => {
   const [filter, setFilter] = useState('')
   const [onlyGap, setOnlyGap] = useState(false)
   const [selectedCell, setSelectedCell] = useState<ManifestCell | null>(null)
-  const [subtab, setSubtab] = useState<Subtab>('manifest')
+  // The open view is read from the hash, so #panel=county-manifest&view=three-layer
+  // lands on it directly and a reload does not silently reset to the first tab.
+  const [subtab, setSubtab] = useState<Subtab>(() => parseSubtab(readPanelHashParam(SUBTAB_HASH_KEY)) ?? 'manifest')
 
   const [reReading, setReReading] = useState(false)
   const [verdict, setVerdict] = useState<ReReadVerdict>('first-read')
   const [lastReadAt, setLastReadAt] = useState<string | null>(null)
+  const [liveFeed, setLiveFeed] = useState(true)
+  const [nowIso, setNowIso] = useState(() => new Date().toISOString())
 
   const [sweepSource, setSweepSource] = useState<SweepSourceState | null>(null)
   const [sweepProbing, setSweepProbing] = useState(false)
+  const [sweepAutoProbed, setSweepAutoProbed] = useState(false)
+  const [writtenSource, setWrittenSource] = useState<WrittenSourceState | null>(null)
+  const [writtenProbing, setWrittenProbing] = useState(false)
+
+  const onSelectSubtab = useCallback((next: Subtab) => {
+    setSubtab(next)
+    if (typeof window !== 'undefined') {
+      window.location.hash = withPanelHashParam(window.location.hash, SUBTAB_HASH_KEY, next)
+    }
+  }, [])
 
   /**
    * One read path, used by mount and by the re-read control, so a refresh can never
@@ -794,6 +1045,37 @@ export const CountyManifestGrid: React.FC = () => {
       cancelled = true
     }
   }, [readLedger])
+
+  /**
+   * THE LIVE FEED.
+   *
+   * The console cannot recompute the manifest — county_facet_coverage moves only when
+   * an engine block or scorer runs — so "live" here means the console RE-READS on a
+   * fixed interval and reports whether computedAt moved. A feed that re-reads a frozen
+   * snapshot and says so is honest; a feed that re-renders one and looks fresh is the
+   * defect. The written-layer probe is deliberately NOT on this interval: it took over
+   * 90 seconds on its good read and timed out at 240 on its bad one.
+   */
+  useEffect(() => {
+    if (!liveFeed) return
+    const timer = setInterval(() => {
+      setNowIso(new Date().toISOString())
+      void (async () => {
+        try {
+          const { res } = await readLedger()
+          if (!res) return
+          setData((prev) => {
+            setVerdict(reReadVerdict(prev?.summary.computedAt ?? null, res.summary.computedAt ?? null))
+            return res
+          })
+          setLastReadAt(new Date().toISOString())
+        } catch {
+          /* a failed poll leaves the last good read on screen; the read strip shows its age */
+        }
+      })()
+    }, LIVE_FEED_INTERVAL_MS)
+    return () => clearInterval(timer)
+  }, [liveFeed, readLedger])
 
   const onReRead = useCallback(async () => {
     setReReading(true)
@@ -838,6 +1120,34 @@ export const CountyManifestGrid: React.FC = () => {
     setSweepSource(loadSweepArtifact(text, filename))
   }, [])
 
+  /** Probe the sweep once, the first time a view that needs the SERVED layer opens. */
+  useEffect(() => {
+    if (sweepAutoProbed) return
+    if (subtab !== 'sweep' && subtab !== 'three-layer') return
+    setSweepAutoProbed(true)
+    void onProbeSweep()
+  }, [subtab, sweepAutoProbed, onProbeSweep])
+
+  const onProbeWritten = useCallback(async () => {
+    setWrittenProbing(true)
+    try {
+      const cfg: SpineConfig = await loadConfig()
+      setWrittenSource(await fetchWrittenLayer(cfg))
+    } catch (e) {
+      setWrittenSource({
+        origin: 'live-endpoint',
+        tally: null,
+        coverage: { observedAt: null, instrument: 'retrieval-api node-graph tally', countyFips: [], roadCountyFips: [], railKeys: [] },
+        locator: 'probe',
+        httpStatus: null,
+        notServedReason: e instanceof Error ? e.message : String(e),
+        readAt: new Date().toISOString(),
+      })
+    } finally {
+      setWrittenProbing(false)
+    }
+  }, [])
+
   const manifestCells = data?.manifestCells
   // Column set derived from the API — never a hardcoded list. If a rail splits or is
   // added server-side, the grid picks it up with no frontend change.
@@ -877,32 +1187,54 @@ export const CountyManifestGrid: React.FC = () => {
   const railStatByKey = useMemo(() => new Map(railStats.map((s) => [s.railKey, s])), [railStats])
 
   /**
-   * Column header tags are computed over the WHOLE column, not sampled from the first
-   * county. The previous implementation read railCells[0], so one county decided the
-   * tag for all 254 — and the count is now shown so a mixed column reads as mixed.
+   * Column header tags are DERIVED over the whole column. The two tags this replaced
+   * (NO WRITER, NO ATOM) read hand-declared fields that are constant across every cell
+   * the API serves, so neither could ever appear. This one measures whether the ledger
+   * holds ANY scoring evidence for the rail, which varies: on the payload probed
+   * 2026-08-19 it fires for 6 of 14 rails and stays quiet for 8.
    */
-  const railTags = useMemo(() => {
-    const out = new Map<string, { noWriter: number; atomStates: Map<string, number>; total: number }>()
-    for (const rail of rails) {
-      const railCells = (manifestCells ?? []).filter((c) => c.railKey === rail.key)
-      const atomStates = new Map<string, number>()
-      for (const c of railCells) atomStates.set(c.atomFamilyState, (atomStates.get(c.atomFamilyState) ?? 0) + 1)
-      out.set(rail.key, {
-        noWriter: railCells.filter((c) => !c.hasWriter).length,
-        atomStates,
-        total: railCells.length,
-      })
-    }
-    return out
+  const railEvidenceByKey = useMemo(() => {
+    const list = railScoringEvidence(manifestCells ?? [], rails.map((r) => r.key))
+    return new Map(list.map((e) => [e.railKey, e]))
   }, [manifestCells, rails])
 
   const legendCannotFire = useMemo(
     () =>
       manifestCells
-        ? absentDisplayStates(manifestCells, ['satisfied-present', 'satisfied-absent', 'not-yet', 'no-atom'])
+        ? absentDisplayStates(manifestCells, [
+            'satisfied-present',
+            'satisfied-absent',
+            'not-yet',
+            'no-atom',
+            'derivation-indeterminate',
+          ])
         : [],
     [manifestCells],
   )
+
+  /**
+   * Observations from every other instrument on screen, each with its own timestamp,
+   * fed to the evidence-horizon check. An observation that POSTDATES computedAt is
+   * proof the ledger is behind the world.
+   */
+  const layerObservations = useMemo<Observation[]>(() => {
+    const out: Observation[] = []
+    if (writtenSource?.tally?.generatedAt) {
+      out.push({
+        instrument: 'retrieval-api node-graph tally',
+        observedAt: normalizeStamp(writtenSource.tally.generatedAt),
+        saw: `${writtenSource.coverage.countyFips.length} counties of store contents`,
+      })
+    }
+    if (sweepSource?.sweep?.sweptAt) {
+      out.push({
+        instrument: `serving sweep (${sweepSource.origin})`,
+        observedAt: normalizeStamp(sweepSource.sweep.sweptAt),
+        saw: `${sweepSource.sweep.countiesSwept} counties swept parcel by parcel`,
+      })
+    }
+    return out
+  }, [writtenSource, sweepSource])
 
   const filteredFips = useMemo(() => {
     const fipsList = [...cellsByCounty.keys()].sort()
@@ -930,23 +1262,63 @@ export const CountyManifestGrid: React.FC = () => {
   const totalCells = summary.totalCells ?? cells.length
   const weightedPct = summary.texasCompletenessPct ?? null
   const rawPct = rawCellsCompletenessPct(satisfiedCells, totalCells)
-  const stale = isLedgerMaterializationStale(summary)
   const computedAt = summary.computedAt ?? null
   const served = !manifestCells || manifestCells.length === 0
+
+  const alarmSet = stalenessAlarms({
+    computedAt,
+    nowIso,
+    cells,
+    observations: layerObservations,
+  })
+  const stale = alarmSet.worst !== 'ok'
+  const ageMs = mat.ageMs
+  const subtabBadges: Partial<Record<Subtab, { text: string; sev: 'ok' | 'warn' | 'danger' | 'info' }>> = {
+    manifest: {
+      text: `${satisfiedCells}/${totalCells}`,
+      sev: stale ? 'warn' : 'ok',
+    },
+    'three-layer': writtenSource?.tally
+      ? { text: 'store read', sev: 'ok' }
+      : { text: 'store unread', sev: 'info' },
+    sweep: sweepSource?.sweep
+      ? { text: sweepSource.origin === 'live-endpoint' ? 'live' : 'artifact', sev: sweepSource.origin === 'live-endpoint' ? 'ok' : 'warn' }
+      : { text: 'not served', sev: 'info' },
+  }
 
   return (
     <Panel
       title="County Manifest"
       subtitle={`${summary.totalCounties} counties × ${railCount} rails — see everything, where it is, and what is broken`}
       right={
-        <Pill sev={stale ? 'warn' : 'ok'}>
-          {stale ? 'manifest stale' : `${satisfiedCells}/${totalCells} satisfied`}
+        <Pill sev={alarmSet.worst === 'ok' ? 'ok' : alarmSet.worst}>
+          {alarmSet.worst === 'ok'
+            ? `${satisfiedCells}/${totalCells} satisfied · fresh`
+            : `ledger ${humanDuration(ageMs)} old`}
         </Pill>
       }
     >
-      <SubtabNav active={subtab} onSelect={setSubtab} />
+      <SubtabNav active={subtab} onSelect={onSelectSubtab} badges={subtabBadges} />
 
-      {subtab === 'sweep' ? (
+      {/* The alarm rides EVERY view. A staleness warning that only appears on one tab
+          is a warning that can be walked past by changing tabs. */}
+      <AlarmBar alarms={alarmSet.alarms} worst={alarmSet.worst} />
+
+      {subtab === 'three-layer' ? (
+        <ThreeLayerPanel
+          cells={cells}
+          railKeys={rails.map((r) => r.key)}
+          counties={data.counties.map((c) => ({ countyFips: c.countyFips, countyName: c.countyName }))}
+          computedAt={computedAt}
+          written={writtenSource}
+          writtenProbing={writtenProbing}
+          onProbeWritten={onProbeWritten}
+          sweep={sweepSource}
+          sweepProbing={sweepProbing}
+          onProbeSweep={onProbeSweep}
+          onLoadSweepArtifact={onLoadSweepArtifact}
+        />
+      ) : subtab === 'sweep' ? (
         <ServingSweepPanel
           cells={cells}
           railKeys={rails.map((r) => r.key)}
@@ -959,21 +1331,6 @@ export const CountyManifestGrid: React.FC = () => {
         <ErrorState msg="manifest not served by this deployment — GET /api/county-ledger returned no manifestCells array" />
       ) : (
         <>
-          {stale ? (
-            <div
-              data-testid="manifest-stale-banner"
-              style={{
-                ...typeCaption,
-                color: 'var(--color-text-warning)',
-                background: 'var(--color-background-warning)',
-                border: '0.5px solid var(--color-border-warning)',
-                padding: '8px 12px',
-                marginBottom: 12,
-              }}
-            >
-              STALE — materialized at {computedAt ?? 'unknown'} (showing snapshot, not a live recompute).
-            </div>
-          ) : null}
           <RollupStrip
             weightedPct={weightedPct}
             rawPct={rawPct}
@@ -991,8 +1348,15 @@ export const CountyManifestGrid: React.FC = () => {
             lastReadAt={lastReadAt}
             reReading={reReading}
             onReRead={onReRead}
+            liveFeed={liveFeed}
+            onToggleLiveFeed={setLiveFeed}
           />
-          <DerivationStrip cells={cells} counties={data.counties} nameOrigins={nameOrigins} />
+          <DerivationStrip
+            cells={cells}
+            counties={data.counties}
+            railKeys={rails.map((r) => r.key)}
+            nameOrigins={nameOrigins}
+          />
           <Legend cannotFire={legendCannotFire} />
           <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', alignItems: 'center', marginBottom: 8 }}>
             <label style={{ ...typeCaption }}>
@@ -1039,12 +1403,9 @@ export const CountyManifestGrid: React.FC = () => {
                     </th>
                     {rails.map((rail) => {
                       const st = railStatByKey.get(rail.key)
-                      const tags = railTags.get(rail.key)
+                      const ev = railEvidenceByKey.get(rail.key)
                       const ceiling = st?.maxCountiesReachable ?? null
                       const ceilingDiffers = ceiling != null && ceiling !== st?.countiesInPayload
-                      const atomStates = [...(tags?.atomStates ?? new Map()).entries()].filter(
-                        ([state]) => atomTag(state) != null,
-                      )
                       return (
                         <th
                           key={rail.key}
@@ -1065,27 +1426,35 @@ export const CountyManifestGrid: React.FC = () => {
                           }}
                         >
                           <div style={{ fontSize: 10, fontWeight: 600, color: 'var(--color-text-primary)' }}>{rail.short}</div>
-                          <div style={{ ...mono, fontSize: 9, color: 'var(--color-text-tertiary)' }}>
-                            {st ? `${st.satisfied}/${st.countiesInPayload}` : '—'}
+                          {/* The rail's OWN reachable ceiling is the primary denominator wherever a
+                              capability probe defines one. rrc-wells at 0/254 manufactures a
+                              253-county hole; 0/1 is the honest reading of the same fact. */}
+                          <div
+                            data-testid={`rail-score-${rail.key}`}
+                            style={{ ...mono, fontSize: 9, color: 'var(--color-text-tertiary)' }}
+                            title={
+                              ceiling != null
+                                ? `${st?.satisfied ?? 0} of ${ceiling} counties this rail can reach: ${st?.sourceBasis ?? 'basis not served'}${st?.limitation ? ` (${st.limitation})` : ''}`
+                                : 'no capability probe defines a reachable ceiling for this rail, so the payload county count is the only honest denominator'
+                            }
+                          >
+                            {st ? `${st.satisfied}/${ceiling ?? st.countiesInPayload}` : '—'}
                           </div>
-                          {ceilingDiffers ? (
-                            <div
-                              data-testid={`rail-ceiling-${rail.key}`}
-                              style={{ ...mono, fontSize: 9, color: 'var(--color-text-warning)' }}
-                              title={`this rail can reach at most ${ceiling} counties: ${st?.sourceBasis ?? 'basis not served'}`}
-                            >
-                              ceil {ceiling}
-                            </div>
-                          ) : null}
+                          <div style={{ ...mono, fontSize: 8, color: 'var(--color-text-tertiary)' }}>
+                            {ceiling != null
+                              ? ceilingDiffers
+                                ? `reach · of ${st?.countiesInPayload ?? 0} in grid`
+                                : 'reach = grid'
+                              : 'no reach probe'}
+                          </div>
                           <div style={{ display: 'flex', gap: 2, flexWrap: 'wrap', marginTop: 2 }}>
-                            {atomStates.map(([state, n]) => (
-                              <Pill key={state} sev="danger" title={`${n} of ${tags?.total ?? 0} counties`}>
-                                {atomTag(state)} {n}
-                              </Pill>
-                            ))}
-                            {tags && tags.noWriter > 0 ? (
-                              <Pill sev="warn" title={`${tags.noWriter} of ${tags.total} counties`}>
-                                {writerTag(false)} {tags.noWriter}
+                            {ev && !ev.hasAnyEvidence ? (
+                              <Pill
+                                sev="warn"
+                                testId={`rail-no-evidence-${rail.key}`}
+                                title={`0 of ${ev.cells} cells carry a coverage number, a source or a verifying instrument`}
+                              >
+                                NO SCORING EVIDENCE
                               </Pill>
                             ) : null}
                           </div>

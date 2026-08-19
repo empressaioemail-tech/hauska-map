@@ -12,11 +12,32 @@
 import type { Severity } from '../primitives'
 
 export type ManifestDisplayState =
+  | 'derivation-indeterminate'
   | 'no-atom'
   | 'no-writer'
   | 'not-yet'
   | 'satisfied-present'
   | 'satisfied-absent'
+
+/**
+ * The six states cortex-api can serve, enumerated so the console can measure which of
+ * them a payload actually contains.
+ *
+ * `derivation-indeterminate` was added upstream (routes/countyLedger.ts) and was NOT
+ * declared here until SS-W8. A state the console does not know falls through to the
+ * default treatment, which is the same dot as `not-yet` — so an indeterminate
+ * derivation read to an operator as an unacquired rail. Zero such cells were on the
+ * payload probed 2026-08-19, which made it a latent mis-render rather than an active
+ * one; it is declared now so it can never become active unseen.
+ */
+export const MANIFEST_DISPLAY_STATES: readonly ManifestDisplayState[] = [
+  'derivation-indeterminate',
+  'no-atom',
+  'no-writer',
+  'not-yet',
+  'satisfied-present',
+  'satisfied-absent',
+] as const
 
 export interface ManifestCell {
   countyFips: string
@@ -194,8 +215,58 @@ export function rawCellsCompletenessPct(satisfiedCells: number, totalCells: numb
   return (100 * satisfiedCells) / totalCells
 }
 
+/**
+ * PARTIAL, DERIVED — acquired, above zero, below its own threshold, therefore carrying
+ * zero credit.
+ *
+ * The served `isPartial` field is false on every cell of the live payload (3,556 of
+ * 3,556 probed 2026-08-19), so the control it drove could not fire and the partial
+ * treatment was decoration. This derivation reads the two fields that DO vary,
+ * `honestCoveragePct` and `thresholdPct`, and fires on 120 of those same 3,556 cells —
+ * work that is acquired and short of threshold, which the grid was rendering as a bare
+ * dot with no number because the upstream displayState is `not-yet`.
+ *
+ * `satisfied-absent` is excluded: an established absence carrying a basis is not a
+ * partial acquisition, and colouring it as one would invert the finding.
+ *
+ * The upstream field is NOT deleted — it is measured against this derivation by
+ * `partialControlDivergence`, because two implementations of one rule that disagree is
+ * the bug (DEV_PROCESS 2.4).
+ */
+export function derivedIsPartial(cell: ManifestCell): boolean {
+  const cov = cell.honestCoveragePct
+  const thr = cell.thresholdPct
+  if (cov == null || thr == null) return false
+  if (cell.displayState === 'satisfied-absent') return false
+  return cov > 0 && cov < thr
+}
+
+export interface PartialControlDivergence {
+  upstreamPartial: number
+  derivedPartial: number
+  /** Cells where the served field and the derivation disagree. */
+  disagree: number
+  cellsExamined: number
+}
+
+/** Paired controls need a divergence test; this is it, measured over every cell. */
+export function partialControlDivergence(cells: ManifestCell[]): PartialControlDivergence {
+  let upstream = 0
+  let derived = 0
+  let disagree = 0
+  for (const c of cells) {
+    const d = derivedIsPartial(c)
+    if (c.isPartial) upstream += 1
+    if (d) derived += 1
+    if (c.isPartial !== d) disagree += 1
+  }
+  return { upstreamPartial: upstream, derivedPartial: derived, disagree, cellsExamined: cells.length }
+}
+
 export function cellVisualState(cell: ManifestCell): ManifestDisplayState | 'partial' {
-  if (cell.displayState === 'satisfied-present' && cell.isPartial) return 'partial'
+  if (cell.displayState === 'no-atom') return 'no-atom'
+  if (cell.displayState === 'derivation-indeterminate') return 'derivation-indeterminate'
+  if (derivedIsPartial(cell)) return 'partial'
   if (cell.displayState === 'no-writer') return 'not-yet'
   return cell.displayState
 }
@@ -205,6 +276,7 @@ export function cellSev(state: ManifestDisplayState | 'partial'): Severity {
   if (state === 'satisfied-absent') return 'info'
   if (state === 'partial') return 'warn'
   if (state === 'no-atom') return 'danger'
+  if (state === 'derivation-indeterminate') return 'warn'
   return 'info'
 }
 
@@ -219,6 +291,7 @@ export function cellLabel(cell: ManifestCell): string {
     return pct == null ? 'OK' : `${pct.toFixed(0)}%`
   }
   if (visual === 'satisfied-absent') return 'ABS'
+  if (visual === 'derivation-indeterminate') return '?'
   if (cell.displayState === 'no-atom') return '—'
   if (cell.displayState === 'no-writer') return '·'
   return '·'
