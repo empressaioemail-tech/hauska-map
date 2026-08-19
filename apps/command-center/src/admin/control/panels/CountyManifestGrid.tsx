@@ -21,7 +21,7 @@
 // return the SPA fallthrough). So the refresh affordance here is an explicit RE-READ that
 // reports whether computedAt moved — a re-read that does not move it is displayed as
 // evidence of upstream staleness, never as a successful refresh.
-import React, { useCallback, useEffect, useMemo, useState } from 'react'
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { loadConfig, apiBase, getJson, type SpineConfig } from '../../api/spineClient'
 import {
   Panel,
@@ -996,6 +996,13 @@ export const CountyManifestGrid: React.FC = () => {
   const [lastReadAt, setLastReadAt] = useState<string | null>(null)
   const [liveFeed, setLiveFeed] = useState(true)
   const [nowIso, setNowIso] = useState(() => new Date().toISOString())
+  /**
+   * The last computedAt this console saw. Held in a ref rather than read inside a
+   * setState updater: the app mounts under StrictMode, which double-invokes updaters
+   * in development, and a verdict computed inside one would be a side effect in a
+   * function React is entitled to run twice.
+   */
+  const computedAtRef = useRef<string | null>(null)
 
   const [sweepSource, setSweepSource] = useState<SweepSourceState | null>(null)
   const [sweepProbing, setSweepProbing] = useState(false)
@@ -1031,7 +1038,9 @@ export const CountyManifestGrid: React.FC = () => {
         if (cancelled) return
         if (res) {
           setData(res)
+          computedAtRef.current = res.summary.computedAt ?? null
           setLastReadAt(new Date().toISOString())
+          setNowIso(new Date().toISOString())
         } else setError(err)
         setLoading(false)
       } catch (e) {
@@ -1064,10 +1073,9 @@ export const CountyManifestGrid: React.FC = () => {
         try {
           const { res } = await readLedger()
           if (!res) return
-          setData((prev) => {
-            setVerdict(reReadVerdict(prev?.summary.computedAt ?? null, res.summary.computedAt ?? null))
-            return res
-          })
+          setVerdict(reReadVerdict(computedAtRef.current, res.summary.computedAt ?? null))
+          computedAtRef.current = res.summary.computedAt ?? null
+          setData(res)
           setLastReadAt(new Date().toISOString())
         } catch {
           /* a failed poll leaves the last good read on screen; the read strip shows its age */
@@ -1079,13 +1087,15 @@ export const CountyManifestGrid: React.FC = () => {
 
   const onReRead = useCallback(async () => {
     setReReading(true)
-    const previousComputedAt = data?.summary.computedAt ?? null
+    const previousComputedAt = computedAtRef.current
     try {
       const { res, err } = await readLedger()
       if (res) {
         setVerdict(reReadVerdict(previousComputedAt, res.summary.computedAt ?? null))
+        computedAtRef.current = res.summary.computedAt ?? null
         setData(res)
         setLastReadAt(new Date().toISOString())
+        setNowIso(new Date().toISOString())
         setError(null)
       } else {
         setError(err)
@@ -1095,7 +1105,7 @@ export const CountyManifestGrid: React.FC = () => {
     } finally {
       setReReading(false)
     }
-  }, [data?.summary.computedAt, readLedger])
+  }, [readLedger])
 
   const onProbeSweep = useCallback(async () => {
     setSweepProbing(true)
@@ -1236,6 +1246,17 @@ export const CountyManifestGrid: React.FC = () => {
     return out
   }, [writtenSource, sweepSource])
 
+  const alarmSet = useMemo(
+    () =>
+      stalenessAlarms({
+        computedAt: data?.summary.computedAt ?? null,
+        nowIso,
+        cells: manifestCells ?? [],
+        observations: layerObservations,
+      }),
+    [data?.summary.computedAt, nowIso, manifestCells, layerObservations],
+  )
+
   const filteredFips = useMemo(() => {
     const fipsList = [...cellsByCounty.keys()].sort()
     const q = filter.trim().toLowerCase()
@@ -1265,12 +1286,6 @@ export const CountyManifestGrid: React.FC = () => {
   const computedAt = summary.computedAt ?? null
   const served = !manifestCells || manifestCells.length === 0
 
-  const alarmSet = stalenessAlarms({
-    computedAt,
-    nowIso,
-    cells,
-    observations: layerObservations,
-  })
   const stale = alarmSet.worst !== 'ok'
   const ageMs = mat.ageMs
   const subtabBadges: Partial<Record<Subtab, { text: string; sev: 'ok' | 'warn' | 'danger' | 'info' }>> = {
