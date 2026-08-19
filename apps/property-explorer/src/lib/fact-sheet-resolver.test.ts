@@ -390,12 +390,16 @@ describe("PeFactSheetResolver.resolve", () => {
     const sheet = await sheetOf(makeResolver(stub), NODE_ID);
     expect(sheet.flood.state).toBe("present");
     if (sheet.flood.state !== "present") throw new Error("unreachable");
+    // AMENDMENT 4.3: the share is NULL, not 1. The scalar upstream named a
+    // zone; it never measured how much of the parcel lies in it, and deriving
+    // 1 from set length would assert total containment nobody measured —
+    // destroying exactly the AE-vs-AO information the operator corrected us on.
     expect(sheet.flood.value.zones).toEqual([
-      { zone: "AE", subtype: null, isSfha: true, areaShare: 1 },
+      { zone: "AE", subtype: null, isSfha: true, areaShare: null },
     ]);
     expect(sheet.flood.value.inSfha).toBe(true);
+    // MEMBERSHIP still stands, and it is the only thing upstream actually said.
     expect(sheet.flood.value.primaryZone).toBe("AE");
-    // The share is NOT measured — the served facet is scalar. Say so.
     expect(sheet.flood.provenance.method).toBe("single-zone-from-scalar");
   });
 
@@ -725,5 +729,60 @@ describe("AMENDMENT 4 - the last sentinel", () => {
     const sheet = await sheetOf(makeResolver(stub), NODE_ID);
     if (sheet.envelope.kind !== "derived") throw new Error("unreachable");
     expect(sheet.envelope.areaPctOfLot).toBe(58);
+  });
+});
+
+describe("AMENDMENT 4.3 - a set of length one does not imply a share of one", () => {
+  it("gives an outside-SFHA determination a NULL share too", async () => {
+    const wire = facetsWire() as unknown as Record<string, unknown>;
+    (wire.tier2 as Record<string, unknown>).flood = {
+      status: "outside-sfha",
+      floodZone: null,
+      provenance: { source: "fema-nfhl", vintage: "2025-11" },
+    };
+    const stub = installFetchStub({ facets: wire, gisFeatures: [SUBJECT_FEATURE] });
+    const sheet = await sheetOf(makeResolver(stub), NODE_ID);
+    if (sheet.flood.state !== "present") throw new Error("unreachable");
+    expect(sheet.flood.value.zones).toEqual([
+      { zone: "X", subtype: null, isSfha: false, areaShare: null },
+    ]);
+    expect(sheet.flood.value.inSfha).toBe(false);
+    // The verdict still reads off MEMBERSHIP, which is what was determined.
+    expect(sheet.verdict).toContain("outside mapped flood hazard");
+  });
+
+  it("KEEPS a share of 1 when upstream actually measured one", async () => {
+    // This is the whole distinction: a real zone set of length one carrying a
+    // SERVED share is a measurement, and 1 is then correct.
+    const wire = facetsWire() as unknown as Record<string, unknown>;
+    (wire.tier2 as Record<string, unknown>).flood = {
+      status: "in-sfha",
+      floodZone: "AE",
+      zones: [{ zone: "AE", isSfha: true, areaShare: 1 }],
+    };
+    const stub = installFetchStub({ facets: wire, gisFeatures: [SUBJECT_FEATURE] });
+    const sheet = await sheetOf(makeResolver(stub), NODE_ID);
+    if (sheet.flood.state !== "present") throw new Error("unreachable");
+    expect(sheet.flood.value.zones[0].areaShare).toBe(1);
+    expect(sheet.flood.provenance.method).toBe("zone-set-with-shares");
+  });
+
+  it("never derives a share from set length on any path", async () => {
+    // The cheap regression guard: no unserved share anywhere becomes a number.
+    for (const flood of [
+      { status: "in-sfha", floodZone: "AO" },
+      { status: "flood-zone", floodZone: "X500" },
+      { status: "outside-sfha", floodZone: null },
+      { status: "in-sfha", floodZone: "AE", zones: [{ zone: "AE", isSfha: true }] },
+    ]) {
+      const wire = facetsWire() as unknown as Record<string, unknown>;
+      (wire.tier2 as Record<string, unknown>).flood = flood;
+      const stub = installFetchStub({ facets: wire, gisFeatures: [SUBJECT_FEATURE] });
+      const sheet = await sheetOf(makeResolver(stub), NODE_ID);
+      if (sheet.flood.state !== "present") throw new Error("unreachable");
+      for (const zone of sheet.flood.value.zones) {
+        expect(zone.areaShare).toBeNull();
+      }
+    }
   });
 });

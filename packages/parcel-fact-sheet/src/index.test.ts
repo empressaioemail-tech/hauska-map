@@ -469,6 +469,21 @@ describe("AMENDMENT 4 - every quantity that can be unavailable is nullable", () 
     expect(composeVerdict(s)).toContain("(Zones AE and AO)");
   });
 
+  it("keeps a share of 1 for a MEASURED one, and null for an inferred one", () => {
+    // A4.3: a set of length one does not imply a share of one. A scalar
+    // upstream names a zone; it never measures total containment. Both states
+    // are expressible, and only the measured one carries a number.
+    const measured: FloodZoneShare = {
+      zone: "AE",
+      subtype: null,
+      isSfha: true,
+      areaShare: 1,
+    };
+    const inferredFromScalar: FloodZoneShare = { ...measured, areaShare: null };
+    expect(measured.areaShare).toBe(1);
+    expect(inferredFromScalar.areaShare).toBeNull();
+  });
+
   it("keeps a fabricated zero out of the type entirely", () => {
     // The reason this matters: a 0 share is ARITHMETICALLY USABLE. Someone
     // downstream sums it, charts it, or thresholds on it, and nothing looks

@@ -588,8 +588,9 @@ function envelopeValue(
  * (`tier2.flood`) is still a SCALAR — `{ status, floodZone, zoneSubtype }`. The
  * contract's multiplicity is therefore REPRESENTABLE but not yet POPULATED: a
  * parcel that is genuinely part AE and part AO arrives here as one code, and
- * this resolver widens it to a one-element set with `areaShare: 1` and records
- * `method: "single-zone-from-scalar"` so nobody reads that share as measured.
+ * this resolver widens it to a one-element set whose share is NULL (A4.3: a
+ * share is 1 only when something measured it as 1) and records
+ * `method: "single-zone-from-scalar"`.
  * When a multi-zone source lands, no surface needs to change.
  */
 function floodFact(tier2: unknown): Fact<FloodDetermination> {
@@ -670,11 +671,20 @@ function floodFact(tier2: unknown): Fact<FloodDetermination> {
         areaShare: z.servedShare,
       }))
     : zoneCode
-      // A share of 1 on a ONE-element set is a derived truth, not a sentinel:
-      // the contract's own rule is that shares sum to 1, so a parcel in exactly
-      // one zone has all of it in that zone. `method` still says the set came
-      // from a scalar, so nobody reads the MEMBERSHIP as measured either.
-      ? [{ zone: zoneCode, subtype, isSfha: inSfha, areaShare: 1 }]
+      // AMENDMENT 4.3: a share is 1 ONLY when something MEASURED it as 1. A set
+      // of length one does not imply a share of one.
+      //
+      // The scalar upstream reports one zone; it does NOT report that the
+      // parcel lies wholly within it. Deriving 1 from set length asserts total
+      // containment nobody measured, and destroys exactly the information the
+      // operator corrected us on — a home can sit in the 100-year AND the
+      // 500-year floodplain, and a lot can be part AE and part AO. The two
+      // flood stores disagree AO against AE on 48021:36521 today.
+      //
+      // `method` is not sufficient protection either: a value that looks like
+      // an answer gets consumed as one no matter what a neighbouring field
+      // says. That is the same argument as the fabricated 0 above.
+      ? [{ zone: zoneCode, subtype, isSfha: inSfha, areaShare: null }]
       : [];
 
   if (zones.length === 0) {
@@ -682,8 +692,9 @@ function floodFact(tier2: unknown): Fact<FloodDetermination> {
       return {
         state: "present",
         value: {
-          // Same basis as above: one zone, so its share is the whole parcel.
-          zones: [{ zone: "X", subtype: null, isSfha: false, areaShare: 1 }],
+          // A4.3, same as above: upstream said "outside the SFHA", which names
+          // a zone. It did not measure how much of the parcel is in it.
+          zones: [{ zone: "X", subtype: null, isSfha: false, areaShare: null }],
           primaryZone: "X",
           inSfha: false,
           baseFloodElevation: null,
