@@ -1,14 +1,15 @@
 // packages/map-renderer/src/chrome/MapToolset.tsx
 //
-// ONE map control cluster: the TOOLS toolbar (measure, draw, marker, clear,
-// and the in-panel "My location" geolocate button — the GeolocateControl
-// itself is mounted hidden on the map and triggered from the panel, never
-// shown as a floating map button) merged with the LAYERS checklist into a
-// single coherent panel. The satellite/aerial base toggle lives in the LAYERS
-// section (first row) — it reads as a basemap layer, not a tool. Replaces the split
-// LayersControl (top-right) + MapTools (bottom-right) pair on surfaces that
-// want the unified toolset; the split components remain exported for
-// consumers that still use them (CC).
+// ONE map control cluster: the TOOLS toolbar (measure, draw, marker, note,
+// clear, undo/finish, and the in-panel "My location" geolocate button — the
+// GeolocateControl itself is mounted hidden on the map and triggered from the
+// panel, never shown as a floating map button), the RESULTS list (every
+// committed measurement, shape and note, each removable on its own), and the
+// LAYERS checklist, merged into a single coherent panel. The satellite/aerial
+// base toggle lives in the LAYERS section (first row) — it reads as a basemap
+// layer, not a tool. Replaces the split LayersControl (top-right) + MapTools
+// (bottom-right) pair on surfaces that want the unified toolset; the split
+// components remain exported for consumers that still use them (CC).
 //
 // Same contracts as the split pair:
 //   - Tools operate on the LIVE map via FloatingMapHandle.getMap() — never
@@ -21,6 +22,13 @@
 // state (degraded contours, not-survey-grade parcels, honest-empty hydrology)
 // as a small colored dot + tooltip + caption on that layer's row. Transient
 // toasts may fade; the honesty stays discoverable here.
+//
+// W4 (2026-08-18): sections collapse and the panel can be put away, because
+// three floating panels stacked with no collapse produced "How do i make the
+// tools disappear so I can read this". Z-order comes from ONE table
+// (panelLayering.ts) instead of hand-written literals. On mobile, activating a
+// tool dismisses the sheet it was activated from — you cannot draw on a map
+// that a sheet is covering.
 
 import { useEffect, useRef, useState, type RefObject } from "react";
 import { GeolocateControl } from "maplibre-gl";
@@ -33,14 +41,14 @@ import {
   enforceDataLayerMutex,
 } from "../map/layer-role-taxonomy.js";
 import type { LayerKey, LayerDef } from "../postMessage";
-import {
-  asMaplibreMap,
-  setSatelliteBase,
-} from "./satelliteBase";
+import { asMaplibreMap, setSatelliteBase } from "./satelliteBase";
+import { MAP_PANEL_Z, dispatchPanelDismiss } from "./panelLayering";
 import {
   installMapTools,
   type MapToolsController,
   type ToolsSnapshot,
+  type NoteScope,
+  EMPTY_TOOLS_SNAPSHOT,
 } from "./mapToolsController";
 
 const PANEL_BG = "rgba(13,17,23,0.9)";
@@ -48,6 +56,16 @@ const PANEL_BORDER = "0.5px solid rgba(154,166,178,0.28)";
 const TEXT = "#e6edf3";
 const MUTED = "#8b97a5";
 const ACCENT = INTERACTION_CYAN;
+const DANGER = "#fca5a5";
+
+/**
+ * Zoom the map settles at after a location fix. The hidden GeolocateControl is
+ * given the SAME cap via fitBoundsOptions.maxZoom so the control's own camera
+ * and the explicit flyTo below agree on a destination instead of fighting over
+ * one — two camera drivers with different targets is a visible stutter.
+ */
+export const LOCATE_ZOOM = 17;
+
 
 /** Persistent per-layer state surfaced on the layer row (honesty constraint:
  *  a faded toast must stay discoverable here). */
@@ -57,6 +75,14 @@ export interface LayerStateBadge {
   tone: "ok" | "info" | "warn" | "error";
   /** Short honest note, shown as tooltip + caption under the row label. */
   note: string;
+}
+
+/** A resolved device location handed to the host (W4 location seam). */
+export interface LocatedPosition {
+  longitude: number;
+  latitude: number;
+  /** GPS accuracy radius in meters, when the device reports one. */
+  accuracyMeters: number | null;
 }
 
 const BADGE_COLOR: Record<LayerStateBadge["tone"], string> = {
@@ -73,16 +99,21 @@ const ICONS = {
     "M12 21s7-6.5 7-12a7 7 0 1 0-14 0c0 5.5 7 12 7 12Zm0-9a2.5 2.5 0 1 0 0-5 2.5 2.5 0 0 0 0 5Z",
   clear: "M3 6h18M8 6V4h8v2M6 6l1 14h10l1-14",
   // Crosshair / GPS glyph for the in-panel "My location" button.
-  locate:
-    "M12 8a4 4 0 1 0 0 8 4 4 0 0 0 0-8Zm0-6v3m0 14v3M2 12h3m14 0h3",
+  locate: "M12 8a4 4 0 1 0 0 8 4 4 0 0 0 0-8Zm0-6v3m0 14v3M2 12h3m14 0h3",
+  // Note: a page with a folded corner and two ruled lines.
+  note: "M14 3H6a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V9l-6-6Zm0 0v6h6M8 13h7M8 17h5",
+  undo: "M9 14 4 9l5-5M4 9h10a6 6 0 0 1 0 12h-3",
+  finish: "M20 6 9 17l-5-5",
+  hide: "m2 2 20 20M6.7 6.7A10.5 10.5 0 0 0 2 12s3.6 6.5 10 6.5a9.8 9.8 0 0 0 4.6-1.2m2.7-2.1A10.6 10.6 0 0 0 22 12s-3.6-6.5-10-6.5c-.7 0-1.4.1-2 .2",
+  collapse: "m6 15 6-6 6 6",
 } as const;
 
-function ToolIcon({ path }: { path: string }) {
+function ToolIcon({ path, size = 15 }: { path: string; size?: number }) {
   return (
     <svg
       viewBox="0 0 24 24"
-      width={15}
-      height={15}
+      width={size}
+      height={size}
       aria-hidden="true"
       fill="none"
       stroke="currentColor"
@@ -95,7 +126,7 @@ function ToolIcon({ path }: { path: string }) {
   );
 }
 
-function toolButtonStyle(active: boolean): React.CSSProperties {
+function toolButtonStyle(active: boolean, disabled = false): React.CSSProperties {
   return {
     display: "inline-flex",
     alignItems: "center",
@@ -103,7 +134,8 @@ function toolButtonStyle(active: boolean): React.CSSProperties {
     width: 30,
     height: 30,
     borderRadius: 7,
-    cursor: "pointer",
+    cursor: disabled ? "default" : "pointer",
+    opacity: disabled ? 0.38 : 1,
     color: active ? "#0b0f14" : TEXT,
     background: active ? ACCENT : "rgba(154,166,178,0.12)",
     border: active ? `0.5px solid ${ACCENT}` : "0.5px solid rgba(154,166,178,0.22)",
@@ -121,6 +153,57 @@ function sectionHeaderStyle(): React.CSSProperties {
   };
 }
 
+/** A collapsible section header — the panel manager's unit of collapse. */
+function SectionHeader({
+  label,
+  open,
+  testId,
+  onToggle,
+  trailing,
+}: {
+  label: string;
+  open: boolean;
+  testId: string;
+  onToggle: () => void;
+  trailing?: React.ReactNode;
+}) {
+  return (
+    <div style={{ display: "flex", alignItems: "center", gap: 6, marginBottom: 7 }}>
+      <button
+        type="button"
+        data-testid={testId}
+        aria-expanded={open}
+        onClick={onToggle}
+        style={{
+          display: "flex",
+          alignItems: "center",
+          gap: 5,
+          flex: 1,
+          padding: 0,
+          border: "none",
+          background: "transparent",
+          cursor: "pointer",
+          textAlign: "left",
+          ...sectionHeaderStyle(),
+        }}
+      >
+        <span
+          aria-hidden="true"
+          style={{
+            display: "inline-flex",
+            transform: open ? "rotate(0deg)" : "rotate(180deg)",
+            transition: "transform 120ms ease",
+          }}
+        >
+          <ToolIcon path={ICONS.collapse} size={11} />
+        </span>
+        {label}
+      </button>
+      {trailing}
+    </div>
+  );
+}
+
 /** Registry entry lookup for a human label; fall back to the raw key. */
 function labelFor(key: LayerKey): string {
   const entry = (LAYER_REGISTRY as LayerDef[]).find((l) => l.key === key);
@@ -132,6 +215,9 @@ function labelFor(key: LayerKey): string {
  * dependency), exported so it is unit-testable via a static render. Includes
  * the in-panel "My location" button (the GeolocateControl now lives HIDDEN on
  * the map and is driven from here — no floating GPS button on the map corner).
+ *
+ * Every W4 prop is OPTIONAL: this component is rendered directly by tests and
+ * by Command Center's simpler toolbar, and a required prop would break them.
  */
 export function ToolsetToolsSection({
   active,
@@ -142,22 +228,40 @@ export function ToolsetToolsSection({
   onClear,
   onSetMeasureMode,
   onLocate,
+  canUndo = false,
+  canFinish = false,
+  onUndo,
+  onFinish,
+  hasAnything = false,
+  locateError = null,
+  located = null,
+  onFlyToLocation,
 }: {
   active: ToolsSnapshot["active"];
   measureMode: ToolsSnapshot["measureMode"];
   readout: string | null;
   /** True while the hidden GeolocateControl is tracking the user location. */
   tracking: boolean;
-  onActivate: (tool: "measure" | "draw" | "marker") => void;
+  onActivate: (tool: "measure" | "draw" | "marker" | "note") => void;
   onClear: () => void;
   onSetMeasureMode: (mode: "line" | "area") => void;
   /** Trigger / toggle the hidden GeolocateControl. */
   onLocate: () => void;
+  canUndo?: boolean;
+  canFinish?: boolean;
+  onUndo?: () => void;
+  onFinish?: () => void;
+  /** True when Clear all would remove something (keeps the trash honest). */
+  hasAnything?: boolean;
+  /** Honest failure surface for a denied/failed location fix. */
+  locateError?: string | null;
+  located?: LocatedPosition | null;
+  onFlyToLocation?: () => void;
 }) {
   return (
     <div data-testid="map-toolset-tools">
       <div style={{ ...sectionHeaderStyle(), marginBottom: 7 }}>Tools</div>
-      <div style={{ display: "flex", gap: 6 }}>
+      <div style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>
         <button
           type="button"
           title="Measure distance / area"
@@ -190,12 +294,14 @@ export function ToolsetToolsSection({
         </button>
         <button
           type="button"
-          title="Clear measure / draw"
-          aria-label="Clear measure and draw"
-          onClick={onClear}
-          style={toolButtonStyle(false)}
+          data-testid="map-toolset-note"
+          title="Pin a note"
+          aria-label="Pin a note"
+          aria-pressed={active === "note"}
+          onClick={() => onActivate("note")}
+          style={toolButtonStyle(active === "note")}
         >
-          <ToolIcon path={ICONS.clear} />
+          <ToolIcon path={ICONS.note} />
         </button>
         <button
           type="button"
@@ -207,6 +313,44 @@ export function ToolsetToolsSection({
           style={toolButtonStyle(tracking)}
         >
           <ToolIcon path={ICONS.locate} />
+        </button>
+      </div>
+
+      {/* Finish / undo / clear-all. Undo exists because the only removal
+          operation used to be clear-everything. */}
+      <div style={{ display: "flex", gap: 6, marginTop: 6 }}>
+        <button
+          type="button"
+          data-testid="map-toolset-finish"
+          title="Finish this measurement"
+          aria-label="Finish this measurement"
+          disabled={!canFinish}
+          onClick={() => onFinish?.()}
+          style={toolButtonStyle(false, !canFinish)}
+        >
+          <ToolIcon path={ICONS.finish} />
+        </button>
+        <button
+          type="button"
+          data-testid="map-toolset-undo"
+          title="Undo the last point"
+          aria-label="Undo the last point"
+          disabled={!canUndo}
+          onClick={() => onUndo?.()}
+          style={toolButtonStyle(false, !canUndo)}
+        >
+          <ToolIcon path={ICONS.undo} />
+        </button>
+        <button
+          type="button"
+          data-testid="map-toolset-clear-all"
+          title="Clear everything on the map"
+          aria-label="Clear everything on the map"
+          disabled={!hasAnything}
+          onClick={onClear}
+          style={toolButtonStyle(false, !hasAnything)}
+        >
+          <ToolIcon path={ICONS.clear} />
         </button>
       </div>
 
@@ -248,16 +392,120 @@ export function ToolsetToolsSection({
       {/* Running measure/draw readout. */}
       {readout && (
         <div
-          style={{
-            marginTop: 7,
-            fontSize: 11,
-            fontWeight: 600,
-            color: TEXT,
-          }}
+          data-testid="map-toolset-readout"
+          style={{ marginTop: 7, fontSize: 11, fontWeight: 600, color: TEXT }}
         >
           {readout}
         </div>
       )}
+
+      {/* Location: where the device says it is, and a way back to it. An
+          honest failure is named, never a silently inert button. */}
+      {locateError && (
+        <div
+          data-testid="map-toolset-locate-error"
+          style={{ marginTop: 7, fontSize: 10.5, lineHeight: 1.35, color: DANGER }}
+        >
+          {locateError}
+        </div>
+      )}
+      {located && !locateError && (
+        <button
+          type="button"
+          data-testid="map-toolset-fly-to-location"
+          onClick={() => onFlyToLocation?.()}
+          style={{
+            marginTop: 7,
+            padding: "3px 7px",
+            borderRadius: 5,
+            border: "0.5px solid rgba(154,166,178,0.3)",
+            background: "rgba(255,255,255,0.04)",
+            color: "#c8d0d8",
+            fontSize: 10,
+            cursor: "pointer",
+            textAlign: "left",
+          }}
+        >
+          {`Centre on me · ${located.latitude.toFixed(5)}, ${located.longitude.toFixed(5)}`}
+          {located.accuracyMeters != null
+            ? ` ±${Math.round(located.accuracyMeters)} m`
+            : ""}
+        </button>
+      )}
+    </div>
+  );
+}
+
+/** One removable result row (a measurement, a shape). */
+function ResultRow({
+  testId,
+  index,
+  primary,
+  secondary,
+  onRemove,
+  onHighlight,
+  highlighted,
+}: {
+  testId: string;
+  index: number;
+  primary: string;
+  secondary: string;
+  onRemove: () => void;
+  onHighlight: (on: boolean) => void;
+  highlighted: boolean;
+}) {
+  return (
+    <div
+      data-testid={testId}
+      onMouseEnter={() => onHighlight(true)}
+      onMouseLeave={() => onHighlight(false)}
+      style={{
+        display: "flex",
+        alignItems: "center",
+        gap: 7,
+        padding: "3px 4px",
+        borderRadius: 5,
+        background: highlighted ? "rgba(125,211,252,0.14)" : "transparent",
+      }}
+    >
+      <span
+        aria-hidden="true"
+        style={{
+          width: 15,
+          flexShrink: 0,
+          fontSize: 9.5,
+          fontWeight: 700,
+          color: MUTED,
+          textAlign: "right",
+        }}
+      >
+        {index}
+      </span>
+      <span style={{ flex: 1, minWidth: 0 }}>
+        <span style={{ fontSize: 11.5, fontWeight: 700, color: TEXT }}>{primary}</span>
+        <span style={{ display: "block", fontSize: 9.5, color: MUTED }}>{secondary}</span>
+      </span>
+      <button
+        type="button"
+        data-testid={`${testId}-remove`}
+        title="Remove this one"
+        aria-label={`Remove ${primary}`}
+        onClick={onRemove}
+        style={{
+          flexShrink: 0,
+          width: 20,
+          height: 20,
+          borderRadius: 4,
+          border: "0.5px solid rgba(154,166,178,0.25)",
+          background: "transparent",
+          color: MUTED,
+          cursor: "pointer",
+          lineHeight: 1,
+          fontSize: 12,
+        }}
+      >
+        ×
+      </button>
     </div>
   );
 }
@@ -278,6 +526,13 @@ export function MapToolset({
   /** Initial satellite/aerial base state on mount. Default OFF (dark basemap);
    *  PE passes `true` so aerial is the default first impression (2026-08-03). */
   defaultSatellite = false,
+  /** W4 note seam: the parcel a new note belongs to (host owns parcel identity). */
+  noteScope = null,
+  /** W4 location seam: a resolved device position, for the host to resolve the
+   *  parcel the user is standing on. Fires on every fix. */
+  onLocated,
+  /** W4 panel seam: host-owned "put this panel away" (mobile sheet close). */
+  onRequestClose,
 }: {
   mapRef: RefObject<FloatingMapHandle | null>;
   /** Full layer set this surface knows about (mount seed) — a toggled-off
@@ -300,21 +555,39 @@ export function MapToolset({
   isMobile?: boolean;
   layersSheetOpen?: boolean;
   defaultSatellite?: boolean;
+  noteScope?: NoteScope | null;
+  onLocated?: (position: LocatedPosition) => void;
+  onRequestClose?: () => void;
 }) {
   // The live maplibre map, resolved once the handle is ready.
   const [map, setMap] = useState<MaplibreMap | null>(null);
   const controllerRef = useRef<MapToolsController | null>(null);
   const geolocateRef = useRef<GeolocateControl | null>(null);
+  const onLocatedRef = useRef(onLocated);
+  onLocatedRef.current = onLocated;
 
-  const [snap, setSnap] = useState<ToolsSnapshot>({
-    active: null,
-    measureMode: "line",
-    readout: null,
-  });
+  const [snap, setSnap] = useState<ToolsSnapshot>(EMPTY_TOOLS_SNAPSHOT);
   const [satellite, setSatellite] = useState(defaultSatellite);
   // True while the hidden GeolocateControl is tracking the user's location —
   // drives the pressed state of the in-panel "My location" button.
   const [tracking, setTracking] = useState(false);
+  const [located, setLocated] = useState<LocatedPosition | null>(null);
+  const [locateError, setLocateError] = useState<string | null>(null);
+  const [noteDraft, setNoteDraft] = useState("");
+
+  // Operator revision 2026-07-29: the toolset lives as a small BUBBLE in the
+  // lower-right corner; clicking it expands the panel upward. Collapsed by
+  // default so the map (and the top-right brief) own the screen.
+  const [expanded, setExpanded] = useState(presentation === "embedded");
+  // W4 panel manager: each section folds on its own, so a long layer list never
+  // buries the tools and the results never bury the layers.
+  const [toolsOpen, setToolsOpen] = useState(true);
+  const [resultsOpen, setResultsOpen] = useState(true);
+  const [layersOpen, setLayersOpen] = useState(true);
+  // Mobile fallback for hosts that have not wired onRequestClose: hide our own
+  // sheet until the host re-opens it. Correct-but-degraded beats not working.
+  const [selfHidden, setSelfHidden] = useState(false);
+  const prevSheetOpen = useRef(layersSheetOpen);
 
   // Resolve the live map from the renderer handle. FloatingMap mounts the map
   // asynchronously, so poll briefly until getMap() returns a usable instance.
@@ -353,17 +626,53 @@ export function MapToolset({
       positionOptions: { enableHighAccuracy: true },
       trackUserLocation: true,
       showUserLocation: true,
+      // Same zoom cap the explicit flyTo below uses, so the control's camera
+      // and ours agree on where "you are here" lands.
+      fitBoundsOptions: { maxZoom: LOCATE_ZOOM },
     });
     geolocateRef.current = geolocate;
     let geolocateEl: HTMLElement | null = null;
     const onTrackStart = () => setTracking(true);
     const onTrackEnd = () => setTracking(false);
+    // W4: a fix must MOVE THE MAP and must tell the host where the user is, so
+    // the host can resolve the parcel they are standing on. Both were missing:
+    // the button toggled a dot and nothing else consumed the position.
+    const onGeolocateFix = (evt: unknown) => {
+      const coords = (evt as { coords?: GeolocationCoordinates } | undefined)?.coords;
+      if (!coords || !Number.isFinite(coords.longitude) || !Number.isFinite(coords.latitude)) {
+        return;
+      }
+      const position: LocatedPosition = {
+        longitude: coords.longitude,
+        latitude: coords.latitude,
+        accuracyMeters: Number.isFinite(coords.accuracy) ? coords.accuracy : null,
+      };
+      setLocated(position);
+      setLocateError(null);
+      try {
+        map.flyTo({ center: [position.longitude, position.latitude], zoom: LOCATE_ZOOM });
+      } catch {
+        /* camera busy / map torn down — the position still reached the host */
+      }
+      onLocatedRef.current?.(position);
+    };
+    const onGeolocateError = (evt: unknown) => {
+      const message = (evt as { message?: string } | undefined)?.message;
+      setLocateError(
+        message
+          ? `Location unavailable: ${message}`
+          : "Location unavailable. Check the browser location permission for this site.",
+      );
+      setTracking(false);
+    };
     try {
       geolocateEl = geolocate.onAdd(map);
       geolocateEl.style.display = "none";
       map.getContainer().appendChild(geolocateEl);
       geolocate.on("trackuserlocationstart", onTrackStart);
       geolocate.on("trackuserlocationend", onTrackEnd);
+      geolocate.on("geolocate", onGeolocateFix);
+      geolocate.on("error", onGeolocateError);
     } catch {
       /* control setup failed (unlikely) — GPS button simply inert */
     }
@@ -375,6 +684,8 @@ export function MapToolset({
       try {
         geolocate.off("trackuserlocationstart", onTrackStart);
         geolocate.off("trackuserlocationend", onTrackEnd);
+        geolocate.off("geolocate", onGeolocateFix);
+        geolocate.off("error", onGeolocateError);
         geolocate.onRemove();
       } catch {
         /* ignore */
@@ -394,14 +705,39 @@ export function MapToolset({
     setSatelliteBase(map, satellite);
   }, [map, satellite]);
 
+  // Keep the controller's note scope in step with the host's selection, so a
+  // note records WHICH parcel the user was judging.
+  useEffect(() => {
+    controllerRef.current?.setNoteScope(noteScope ?? null);
+  }, [noteScope, snap.active]);
+
   const active = snap.active;
   const controller = () => controllerRef.current;
   const toolsReady = map != null;
+  const hasAnything =
+    snap.measurements.length > 0 ||
+    snap.shapes.length > 0 ||
+    snap.notes.length > 0 ||
+    snap.markerCount > 0 ||
+    snap.draftPoints > 0;
+
+  // W4 mobile rule: activating a tool must get the sheet out of the way — you
+  // cannot click the map through the panel you are clicking in. Layer toggles
+  // deliberately do NOT dismiss (you would never get two layers on).
+  const dismissForToolUse = () => {
+    if (!isMobile) return;
+    dispatchPanelDismiss("tool-activated");
+    onRequestClose?.();
+    setSelfHidden(true);
+  };
+
+  const activateTool = (tool: "measure" | "draw" | "marker" | "note") => {
+    controller()?.activate(tool);
+    dismissForToolUse();
+  };
 
   const labelOf = (key: LayerKey): string => extraLabels?.[key] ?? labelFor(key);
-  const layerKeys = [...known].sort((a, b) =>
-    labelOf(a).localeCompare(labelOf(b)),
-  );
+  const layerKeys = [...known].sort((a, b) => labelOf(a).localeCompare(labelOf(b)));
   const toggleLayer = (key: LayerKey) => {
     const next = new Set(visible);
     if (next.has(key)) next.delete(key);
@@ -421,25 +757,232 @@ export function MapToolset({
     onLayersChange(enforceDataLayerMutex(next) as Set<LayerKey>);
   };
 
-  // Operator revision 2026-07-29: the toolset lives as a small BUBBLE in the
-  // lower-right corner; clicking it expands the panel upward. Collapsed by
-  // default so the map (and the top-right brief) own the screen.
-  const [expanded, setExpanded] = useState(presentation === "embedded");
+  useEffect(() => {
+    if (layersSheetOpen && !prevSheetOpen.current) setSelfHidden(false);
+    prevSheetOpen.current = layersSheetOpen;
+  }, [layersSheetOpen]);
+
+  const pendingNote = snap.pendingNoteId
+    ? snap.notes.find((n) => n.id === snap.pendingNoteId) ?? null
+    : null;
+  const resultCount = snap.measurements.length + snap.shapes.length + snap.notes.length;
 
   const panelInner = (
     <>
         {/* --- TOOLS --- */}
         {toolsReady && (
-          <ToolsetToolsSection
-            active={active}
-            measureMode={snap.measureMode}
-            readout={snap.readout}
-            tracking={tracking}
-            onActivate={(tool) => controller()?.activate(tool)}
-            onClear={() => controller()?.clear()}
-            onSetMeasureMode={(mode) => controller()?.setMeasureMode(mode)}
-            onLocate={() => geolocateRef.current?.trigger()}
-          />
+          <div>
+            <SectionHeader
+              label="Tools"
+              open={toolsOpen}
+              testId="map-toolset-tools-toggle"
+              onToggle={() => setToolsOpen((v) => !v)}
+            />
+            {toolsOpen && (
+              <ToolsetToolsSection
+                active={active}
+                measureMode={snap.measureMode}
+                readout={snap.readout}
+                tracking={tracking}
+                onActivate={activateTool}
+                onClear={() => controller()?.clear()}
+                onSetMeasureMode={(mode) => controller()?.setMeasureMode(mode)}
+                onLocate={() => geolocateRef.current?.trigger()}
+                canUndo={snap.canUndo}
+                canFinish={snap.canFinish}
+                onUndo={() => controller()?.undo()}
+                onFinish={() => controller()?.finish()}
+                hasAnything={hasAnything}
+                locateError={locateError}
+                located={located}
+                onFlyToLocation={() => {
+                  if (!map || !located) return;
+                  try {
+                    map.flyTo({
+                      center: [located.longitude, located.latitude],
+                      zoom: LOCATE_ZOOM,
+                    });
+                  } catch {
+                    /* map torn down */
+                  }
+                }}
+              />
+            )}
+          </div>
+        )}
+
+        {/* --- RESULTS: every committed measurement / shape / note, each
+            removable ON ITS OWN. Before W4 the only removal operation was
+            clear-everything. --- */}
+        {toolsReady && (resultCount > 0 || pendingNote) && (
+          <div
+            data-testid="map-toolset-results"
+            style={{ borderTop: "0.5px solid rgba(154,166,178,0.22)", paddingTop: 9 }}
+          >
+            <SectionHeader
+              label={`Measurements & notes (${resultCount})`}
+              open={resultsOpen}
+              testId="map-toolset-results-toggle"
+              onToggle={() => setResultsOpen((v) => !v)}
+            />
+            {resultsOpen && (
+              <div style={{ display: "flex", flexDirection: "column", gap: 2 }}>
+                {snap.measurements.map((m) => (
+                  <ResultRow
+                    key={m.id}
+                    testId={`map-toolset-measurement-${m.id}`}
+                    index={m.index}
+                    primary={m.primary}
+                    secondary={`${m.mode === "area" ? "Area" : "Distance"} · ${m.secondary}`}
+                    highlighted={snap.highlightId === m.id}
+                    onHighlight={(on) => controller()?.setHighlight(on ? m.id : null)}
+                    onRemove={() => controller()?.removeMeasurement(m.id)}
+                  />
+                ))}
+                {snap.shapes.map((s) => (
+                  <ResultRow
+                    key={s.id}
+                    testId={`map-toolset-shape-${s.id}`}
+                    index={s.index}
+                    primary={s.primary}
+                    secondary={`Shape · ${s.secondary}`}
+                    highlighted={snap.highlightId === s.id}
+                    onHighlight={(on) => controller()?.setHighlight(on ? s.id : null)}
+                    onRemove={() => controller()?.removeShape(s.id)}
+                  />
+                ))}
+                {snap.notes
+                  .filter((n) => n.id !== snap.pendingNoteId)
+                  .map((n) => (
+                    <div
+                      key={n.id}
+                      data-testid={`map-toolset-note-${n.id}`}
+                      style={{ display: "flex", alignItems: "flex-start", gap: 7, padding: "3px 4px" }}
+                    >
+                      <span
+                        aria-hidden="true"
+                        style={{
+                          width: 15,
+                          flexShrink: 0,
+                          fontSize: 9.5,
+                          fontWeight: 700,
+                          color: "#34d399",
+                          textAlign: "right",
+                        }}
+                      >
+                        {n.index}
+                      </span>
+                      <span style={{ flex: 1, minWidth: 0 }}>
+                        <span style={{ fontSize: 11, color: TEXT, wordBreak: "break-word" }}>
+                          {n.text}
+                        </span>
+                        {n.scopeLabel && (
+                          <span style={{ display: "block", fontSize: 9.5, color: MUTED }}>
+                            {n.scopeLabel}
+                          </span>
+                        )}
+                      </span>
+                      <button
+                        type="button"
+                        data-testid={`map-toolset-note-${n.id}-remove`}
+                        title="Remove this note"
+                        aria-label="Remove this note"
+                        onClick={() => controller()?.removeNote(n.id)}
+                        style={{
+                          flexShrink: 0,
+                          width: 20,
+                          height: 20,
+                          borderRadius: 4,
+                          border: "0.5px solid rgba(154,166,178,0.25)",
+                          background: "transparent",
+                          color: MUTED,
+                          cursor: "pointer",
+                          lineHeight: 1,
+                          fontSize: 12,
+                        }}
+                      >
+                        ×
+                      </button>
+                    </div>
+                  ))}
+                {/* The note being written. The user's own judgement, so it is
+                    never auto-summarised and never merged with our facts. */}
+                {pendingNote && (
+                  <div
+                    data-testid="map-toolset-note-editor"
+                    style={{ display: "flex", flexDirection: "column", gap: 5, padding: "4px 0" }}
+                  >
+                    {noteScope?.label && (
+                      <span style={{ fontSize: 9.5, color: MUTED }}>{noteScope.label}</span>
+                    )}
+                    <textarea
+                      data-testid="map-toolset-note-input"
+                      aria-label="Note text"
+                      value={noteDraft}
+                      onChange={(e) => setNoteDraft(e.target.value)}
+                      rows={3}
+                      placeholder="Your note on this spot"
+                      style={{
+                        width: "100%",
+                        boxSizing: "border-box",
+                        resize: "vertical",
+                        borderRadius: 6,
+                        border: "0.5px solid rgba(154,166,178,0.3)",
+                        background: "rgba(255,255,255,0.04)",
+                        color: TEXT,
+                        fontSize: 11.5,
+                        fontFamily: "inherit",
+                        padding: "5px 7px",
+                      }}
+                    />
+                    <div style={{ display: "flex", gap: 6 }}>
+                      <button
+                        type="button"
+                        data-testid="map-toolset-note-save"
+                        disabled={noteDraft.trim().length === 0}
+                        onClick={() => {
+                          controller()?.setNoteText(pendingNote.id, noteDraft.trim());
+                          setNoteDraft("");
+                        }}
+                        style={{
+                          padding: "3px 9px",
+                          borderRadius: 5,
+                          border: "none",
+                          cursor: noteDraft.trim().length === 0 ? "default" : "pointer",
+                          opacity: noteDraft.trim().length === 0 ? 0.4 : 1,
+                          background: ACCENT,
+                          color: "#0b0f14",
+                          fontSize: 10.5,
+                          fontWeight: 700,
+                        }}
+                      >
+                        Save note
+                      </button>
+                      <button
+                        type="button"
+                        data-testid="map-toolset-note-discard"
+                        onClick={() => {
+                          controller()?.removeNote(pendingNote.id);
+                          setNoteDraft("");
+                        }}
+                        style={{
+                          padding: "3px 9px",
+                          borderRadius: 5,
+                          border: "0.5px solid rgba(154,166,178,0.3)",
+                          background: "transparent",
+                          color: MUTED,
+                          fontSize: 10.5,
+                          cursor: "pointer",
+                        }}
+                      >
+                        Discard
+                      </button>
+                    </div>
+                  </div>
+                )}
+              </div>
+            )}
+          </div>
         )}
 
         {/* --- LAYERS --- */}
@@ -454,62 +997,47 @@ export function MapToolset({
               : undefined
           }
         >
-          <div style={{ ...sectionHeaderStyle(), marginBottom: 7 }}>Layers</div>
-          <div
-            data-testid="map-toolset-presets"
-            style={{
-              display: "flex",
-              flexWrap: "wrap",
-              gap: 4,
-              marginBottom: 8,
-            }}
-          >
-            {(["Flood", "Entitlement", "Terrain"] as const).map((name) => (
-              <button
-                key={name}
-                type="button"
-                data-testid={`map-toolset-preset-${name.toLowerCase()}`}
-                onClick={() => applyPreset(name)}
+          <SectionHeader
+            label="Layers"
+            open={layersOpen}
+            testId="map-toolset-layers-toggle"
+            onToggle={() => setLayersOpen((v) => !v)}
+          />
+          {layersOpen && (
+            <>
+              <div
+                data-testid="map-toolset-presets"
                 style={{
-                  fontSize: 10,
-                  padding: "3px 7px",
-                  borderRadius: 4,
-                  border: "0.5px solid rgba(154,166,178,0.35)",
-                  background: "rgba(255,255,255,0.04)",
-                  color: "#c8d0d8",
-                  cursor: "pointer",
+                  display: "flex",
+                  flexWrap: "wrap",
+                  gap: 4,
+                  marginBottom: 8,
                 }}
               >
-                {name}
-              </button>
-            ))}
-          </div>
-          {/* Satellite / aerial BASE toggle — first row of LAYERS (it reads as
-              a basemap layer). Same behavior/handler as before the move: the
-              setSatelliteBase effect operates on the live map in place. */}
-          <div style={{ padding: "3px 0" }}>
-            <label
-              style={{
-                display: "flex",
-                alignItems: "center",
-                gap: 8,
-                cursor: "pointer",
-              }}
-            >
-              <input
-                type="checkbox"
-                data-testid="map-toolset-satellite"
-                checked={satellite}
-                onChange={(e) => setSatellite(e.target.checked)}
-                style={{ accentColor: ACCENT, cursor: "pointer" }}
-              />
-              <span style={{ flex: 1 }}>Satellite / aerial</span>
-            </label>
-          </div>
-          {layerKeys.map((key) => {
-            const badge = layerStates?.[key];
-            return (
-              <div key={key} style={{ padding: "3px 0" }}>
+                {(["Flood", "Entitlement", "Terrain"] as const).map((name) => (
+                  <button
+                    key={name}
+                    type="button"
+                    data-testid={`map-toolset-preset-${name.toLowerCase()}`}
+                    onClick={() => applyPreset(name)}
+                    style={{
+                      fontSize: 10,
+                      padding: "3px 7px",
+                      borderRadius: 4,
+                      border: "0.5px solid rgba(154,166,178,0.35)",
+                      background: "rgba(255,255,255,0.04)",
+                      color: "#c8d0d8",
+                      cursor: "pointer",
+                    }}
+                  >
+                    {name}
+                  </button>
+                ))}
+              </div>
+              {/* Satellite / aerial BASE toggle — first row of LAYERS (it reads
+                  as a basemap layer). Same behavior/handler as before the move:
+                  the setSatelliteBase effect operates on the live map in place. */}
+              <div style={{ padding: "3px 0" }}>
                 <label
                   style={{
                     display: "flex",
@@ -517,46 +1045,70 @@ export function MapToolset({
                     gap: 8,
                     cursor: "pointer",
                   }}
-                  title={badge?.note}
                 >
                   <input
                     type="checkbox"
-                    checked={visible.has(key)}
-                    onChange={() => toggleLayer(key)}
+                    data-testid="map-toolset-satellite"
+                    checked={satellite}
+                    onChange={(e) => setSatellite(e.target.checked)}
                     style={{ accentColor: ACCENT, cursor: "pointer" }}
                   />
-                  <span style={{ flex: 1 }}>{labelOf(key)}</span>
-                  {badge && (
-                    <span
-                      data-testid={`layer-state-${key}`}
-                      title={badge.note}
-                      aria-label={badge.note}
-                      style={{
-                        width: 7,
-                        height: 7,
-                        borderRadius: "50%",
-                        flexShrink: 0,
-                        background: BADGE_COLOR[badge.tone],
-                        boxShadow: `0 0 5px ${BADGE_COLOR[badge.tone]}`,
-                      }}
-                    />
-                  )}
+                  <span style={{ flex: 1 }}>Satellite / aerial</span>
                 </label>
-                {badge && (badge.tone === "warn" || badge.tone === "error") && (
-                  <div
-                    style={{
-                      marginLeft: 21,
-                      fontSize: 9.5,
-                      lineHeight: 1.35,
-                      color: BADGE_COLOR[badge.tone],
-                    }}
-                  >
-                    {badge.note}
-                  </div>
-                )}
               </div>
-            );
-          })}
+              {layerKeys.map((key) => {
+                const badge = layerStates?.[key];
+                return (
+                  <div key={key} style={{ padding: "3px 0" }}>
+                    <label
+                      style={{
+                        display: "flex",
+                        alignItems: "center",
+                        gap: 8,
+                        cursor: "pointer",
+                      }}
+                      title={badge?.note}
+                    >
+                      <input
+                        type="checkbox"
+                        checked={visible.has(key)}
+                        onChange={() => toggleLayer(key)}
+                        style={{ accentColor: ACCENT, cursor: "pointer" }}
+                      />
+                      <span style={{ flex: 1 }}>{labelOf(key)}</span>
+                      {badge && (
+                        <span
+                          data-testid={`layer-state-${key}`}
+                          title={badge.note}
+                          aria-label={badge.note}
+                          style={{
+                            width: 7,
+                            height: 7,
+                            borderRadius: "50%",
+                            flexShrink: 0,
+                            background: BADGE_COLOR[badge.tone],
+                            boxShadow: `0 0 5px ${BADGE_COLOR[badge.tone]}`,
+                          }}
+                        />
+                      )}
+                    </label>
+                    {badge && (badge.tone === "warn" || badge.tone === "error") && (
+                      <div
+                        style={{
+                          marginLeft: 21,
+                          fontSize: 9.5,
+                          lineHeight: 1.35,
+                          color: BADGE_COLOR[badge.tone],
+                        }}
+                      >
+                        {badge.note}
+                      </div>
+                    )}
+                  </div>
+                );
+              })}
+            </>
+          )}
         </div>
     </>
   );
@@ -583,7 +1135,7 @@ export function MapToolset({
     );
   }
 
-  const mobileSheetPanel = isMobile && layersSheetOpen && (
+  const mobileSheetPanel = isMobile && layersSheetOpen && !selfHidden && (
     <div
       data-testid="mobile-layers-sheet"
       style={{
@@ -591,7 +1143,7 @@ export function MapToolset({
         left: 0,
         right: 0,
         bottom: 52,
-        zIndex: 13,
+        zIndex: MAP_PANEL_Z.sheet,
         maxHeight: "calc(100vh - 52px - 56px)",
         overflowY: "auto",
         WebkitOverflowScrolling: "touch",
@@ -626,7 +1178,7 @@ export function MapToolset({
         position: "absolute",
         bottom: 16,
         right: 12,
-        zIndex: 11,
+        zIndex: MAP_PANEL_Z.toolset,
         display: "flex",
         flexDirection: "column",
         alignItems: "flex-end",
@@ -634,14 +1186,14 @@ export function MapToolset({
         fontFamily: "system-ui, -apple-system, Segoe UI, Roboto, sans-serif",
       }}
     >
-      {/* THE unified panel: Tools section + Layers section (expanded only). */}
+      {/* THE unified panel: Tools + Results + Layers (expanded only). */}
       <div
         style={{
           display: expanded ? "flex" : "none",
-          width: 200,
+          width: 216,
           flexDirection: "column",
           gap: 9,
-          padding: "10px 12px",
+          padding: "8px 12px 10px",
           borderRadius: 9,
           background: PANEL_BG,
           border: PANEL_BORDER,
@@ -652,6 +1204,69 @@ export function MapToolset({
           overflowY: "auto",
         }}
       >
+        {/* Panel bar: put THIS panel away, or ask the host to put every
+            overlay panel away ("How do i make the tools disappear so I can
+            read this"). */}
+        <div
+          style={{
+            display: "flex",
+            alignItems: "center",
+            gap: 6,
+            paddingBottom: 6,
+            borderBottom: "0.5px solid rgba(154,166,178,0.18)",
+          }}
+        >
+          <span style={{ ...sectionHeaderStyle(), flex: 1 }}>Map tools</span>
+          <button
+            type="button"
+            data-testid="map-toolset-hide-all"
+            title="Hide all panels"
+            aria-label="Hide all panels"
+            onClick={() => {
+              setExpanded(false);
+              dispatchPanelDismiss("hide-all");
+              onRequestClose?.();
+            }}
+            style={{
+              display: "inline-flex",
+              alignItems: "center",
+              justifyContent: "center",
+              width: 22,
+              height: 22,
+              borderRadius: 5,
+              border: "0.5px solid rgba(154,166,178,0.25)",
+              background: "transparent",
+              color: MUTED,
+              cursor: "pointer",
+            }}
+          >
+            <ToolIcon path={ICONS.hide} size={12} />
+          </button>
+          <button
+            type="button"
+            data-testid="map-toolset-minimise"
+            title="Minimise this panel"
+            aria-label="Minimise this panel"
+            aria-expanded={expanded}
+            onClick={() => setExpanded(false)}
+            style={{
+              display: "inline-flex",
+              alignItems: "center",
+              justifyContent: "center",
+              width: 22,
+              height: 22,
+              borderRadius: 5,
+              border: "0.5px solid rgba(154,166,178,0.25)",
+              background: "transparent",
+              color: MUTED,
+              cursor: "pointer",
+              lineHeight: 1,
+              fontSize: 13,
+            }}
+          >
+            −
+          </button>
+        </div>
         {panelInner}
       </div>
 

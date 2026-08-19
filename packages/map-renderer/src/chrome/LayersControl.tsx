@@ -8,6 +8,7 @@
 // Phase 0A T-H03: named presets (Flood / Entitlement / Terrain) sit above the
 // checkboxes — each turns on 2–3 coherent layers via the taxonomy presets.
 
+import { useState } from "react";
 import { LAYER_REGISTRY } from "../layer-registry.js";
 import {
   INTERACTION_CYAN,
@@ -15,6 +16,7 @@ import {
   enforceDataLayerMutex,
 } from "../map/layer-role-taxonomy.js";
 import type { LayerKey, LayerDef } from "../postMessage";
+import { MAP_PANEL_Z } from "./panelLayering";
 
 /** Registry entry lookup for a human label; fall back to the raw key. */
 function labelFor(key: LayerKey): string {
@@ -40,6 +42,11 @@ export function LayersControl({
   // prop so the renderer applies it. Toggling drives the map, not local paint.
   onChange: (next: Set<LayerKey>) => void;
 }) {
+  // W4 panel manager: this is a floating panel over the map, so it folds.
+  // Three uncollapsible panels stacked over each other is what produced
+  // "How do i make the tools disappear so I can read this".
+  const [open, setOpen] = useState(true);
+
   // One row per KNOWN layer, sorted by label for a stable list.
   const keys = [...known].sort((a, b) => labelFor(a).localeCompare(labelFor(b)));
 
@@ -72,7 +79,7 @@ export function LayersControl({
         position: "absolute",
         top: 12,
         right: 12,
-        zIndex: 9,
+        zIndex: MAP_PANEL_Z.toolset,
         width: 176,
         padding: "9px 11px",
         borderRadius: 9,
@@ -86,16 +93,47 @@ export function LayersControl({
     >
       <div
         style={{
-          fontSize: 10,
-          fontWeight: 700,
-          letterSpacing: 0.4,
-          textTransform: "uppercase",
-          color: "#8b97a5",
+          display: "flex",
+          alignItems: "center",
+          gap: 6,
           marginBottom: 7,
         }}
       >
-        Layers
+        <span
+          style={{
+            flex: 1,
+            fontSize: 10,
+            fontWeight: 700,
+            letterSpacing: 0.4,
+            textTransform: "uppercase",
+            color: "#8b97a5",
+          }}
+        >
+          Layers
+        </span>
+        <button
+          type="button"
+          data-testid="layers-control-collapse"
+          aria-label={open ? "Collapse layers panel" : "Expand layers panel"}
+          aria-expanded={open}
+          onClick={() => setOpen((v) => !v)}
+          style={{
+            width: 20,
+            height: 20,
+            borderRadius: 4,
+            border: "0.5px solid rgba(154,166,178,0.25)",
+            background: "transparent",
+            color: "#8b97a5",
+            cursor: "pointer",
+            lineHeight: 1,
+            fontSize: 12,
+          }}
+        >
+          {open ? "−" : "+"}
+        </button>
       </div>
+      {open && (
+      <>
       <div
         data-testid="layers-presets"
         style={{
@@ -145,6 +183,8 @@ export function LayersControl({
           <span>{labelFor(key)}</span>
         </label>
       ))}
+      </>
+      )}
     </div>
   );
 }
