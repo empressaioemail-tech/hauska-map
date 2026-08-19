@@ -365,7 +365,11 @@ export function upsertGisLayer(map, slot, meshMode = false) {
       source: sourceId,
       paint: {
         "line-color": lineColor,
-        "line-width": paint.strokeWidth || 1.4,
+        // A data-driven line-WIDTH is safe (unlike dasharray/gradient); the FEMA
+        // overlay uses it so floodway reads heaviest and minimal-hazard thinnest.
+        "line-width": paint.lineWidthExpr
+          ? paint.lineWidthExpr()
+          : paint.strokeWidth || 1.4,
         // NOTE: line-dasharray removed. Combined with a data-driven line-color
         // (paint.lineExpr), MapLibre's setConstantDashPositions throws
         // "Cannot read properties of null (reading 'y')" on EVERY render frame,

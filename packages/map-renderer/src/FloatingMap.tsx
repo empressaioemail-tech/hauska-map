@@ -26,6 +26,25 @@ import type {
   WindowState,
 } from "./postMessage";
 
+/**
+ * A point of visual reference drawn at a resolved property.
+ *
+ * `primary` is the subject (solid amber bullseye); `secondary` is compare
+ * property B (hollow amber ring). Shape carries A-vs-B, not hue, so the pair
+ * stays readable if the glyph endpoint is unavailable and so the taxonomy's
+ * reserved SUBJECT amber does not have to be duplicated.
+ */
+export interface SubjectMarker {
+  id?: string | number;
+  longitude?: number;
+  latitude?: number;
+  lng?: number;
+  lat?: number;
+  role?: "primary" | "secondary";
+  /** Defaults to "A" for primary and "B" for secondary. */
+  label?: string;
+}
+
 export interface FloatingMapProps {
   /** Map center. Defaults to Bastrop, TX. */
   center?: Center;
@@ -123,6 +142,17 @@ export interface FloatingMapHandle {
     };
     zoom?: number;
   }) => void;
+  /**
+   * Draw (or clear) the subject + compare markers on the map.
+   *
+   * THE SEAM for the "I hit find and cannot see the property" fix. The consumer
+   * owns the camera and the subject/compare state and passes resolved
+   * coordinates; the renderer owns marker rendering only. Passing `[]` clears
+   * every marker. Idempotent; safe before the style loads.
+   */
+  setSubjectMarkers: (markers: SubjectMarker[]) => void;
+  /** The marker set last pushed (a COPY). */
+  getSubjectMarkers: () => SubjectMarker[];
   /**
    * Read the current layer-visibility toggle set (a COPY of the live set — the
    * toggle set, not drawnKeys). Mutating the returned set does not affect state.
@@ -317,6 +347,10 @@ export const FloatingMap = forwardRef<FloatingMapHandle, FloatingMapProps>(
         resolveSubjectAndFit: (opts) =>
           rendererRef.current?.resolveSubjectAndFit(opts),
         rebindProperty: (opts) => rendererRef.current?.rebindProperty(opts),
+        setSubjectMarkers: (markers) =>
+          rendererRef.current?.setSubjectMarkers(markers ?? []),
+        getSubjectMarkers: () =>
+          (rendererRef.current?.getSubjectMarkers() as SubjectMarker[]) ?? [],
         getVisibleLayers: () =>
           (rendererRef.current?.getVisibleLayers() as Set<LayerKey>) ??
           new Set<LayerKey>(),

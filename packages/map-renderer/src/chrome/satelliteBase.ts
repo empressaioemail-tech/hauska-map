@@ -19,10 +19,25 @@
 // (the base style has no AttributionControl mounted here).
 
 import type { Map as MaplibreMap } from "maplibre-gl";
+import {
+  SATELLITE_LABELS_LAYER_ID,
+  SATELLITE_LABELS_SOURCE_ID,
+  SATELLITE_LABELS_ATTRIBUTION,
+  labelsLayerSpec,
+  labelsSourceSpec,
+} from "../map/basemap-labels.js";
 
 /** Esri World Imagery — free, no API key. Standard {z}/{y}/{x} order. */
-const SATELLITE_SOURCE_ID = "explorer-satellite-base";
-const SATELLITE_LAYER_ID = "explorer-satellite-base-layer";
+export const SATELLITE_SOURCE_ID = "explorer-satellite-base";
+export const SATELLITE_LAYER_ID = "explorer-satellite-base-layer";
+
+/**
+ * Labels-only raster drawn OVER the imagery. The values, the measurement that
+ * chose them, and the layer spec live in `map/basemap-labels.js` so they are
+ * unit-testable without a MapLibre instance; re-exported here because this is
+ * the module every consumer already imports the satellite chrome from.
+ */
+export { SATELLITE_LABELS_SOURCE_ID, SATELLITE_LABELS_LAYER_ID, SATELLITE_LABELS_ATTRIBUTION };
 
 /** The substrate base raster layer id we insert the satellite above. */
 const CARTO_BASEMAP_LAYER_ID = "hauska-basemap";
@@ -30,6 +45,12 @@ const CARTO_BASEMAP_LAYER_ID = "hauska-basemap";
 const ESRI_WORLD_IMAGERY_TILES = [
   "https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}",
 ];
+
+/**
+ * STREET LABELS OVER SATELLITE — see `map/basemap-labels.js` for the defect,
+ * the measurement behind the tile choice, and the layer spec. This file only
+ * mounts it and binds its visibility to the satellite toggle.
+ */
 
 export const SATELLITE_ATTRIBUTION =
   "Imagery: Esri, Maxar, Earthstar Geographics, GIS User Community";
@@ -88,6 +109,19 @@ function ensureSatelliteLayer(map: MaplibreMap): boolean {
         beforeId,
       );
     }
+
+    // Labels-only raster, drawn directly above the imagery and still below the
+    // first data layer. Same idempotent add + visibility-toggle discipline.
+    if (!map.getSource(SATELLITE_LABELS_SOURCE_ID)) {
+      map.addSource(SATELLITE_LABELS_SOURCE_ID, labelsSourceSpec() as never);
+    }
+    if (!map.getLayer(SATELLITE_LABELS_LAYER_ID)) {
+      // NOT firstDataLayerId(): the satellite layer now occupies that slot, so
+      // re-using it would insert the labels UNDER the imagery. Anchor on the
+      // layer directly above the satellite instead.
+      const beforeId = layerAfter(map, SATELLITE_LAYER_ID);
+      map.addLayer(labelsLayerSpec() as never, beforeId);
+    }
     return true;
   } catch (err) {
     // Style mid-teardown / rebuild — ignore; next toggle retries.
@@ -104,13 +138,20 @@ function ensureSatelliteLayer(map: MaplibreMap): boolean {
  * top-most layer (append).
  */
 function firstDataLayerId(map: MaplibreMap): string | undefined {
+  return layerAfter(map, CARTO_BASEMAP_LAYER_ID);
+}
+
+/**
+ * The id of the layer sitting directly ABOVE `anchorId` in the current style, or
+ * undefined when the anchor is topmost (or missing) so the caller appends.
+ */
+function layerAfter(map: MaplibreMap, anchorId: string): string | undefined {
   try {
     const style = map.getStyle();
     const layers = style?.layers ?? [];
-    const baseIdx = layers.findIndex((l) => l.id === CARTO_BASEMAP_LAYER_ID);
-    if (baseIdx < 0) return undefined;
-    const next = layers[baseIdx + 1];
-    return next?.id;
+    const idx = layers.findIndex((l) => l.id === anchorId);
+    if (idx < 0) return undefined;
+    return layers[idx + 1]?.id;
   } catch {
     return undefined;
   }
@@ -133,6 +174,17 @@ export function setSatelliteBase(map: MaplibreMap | null, on: boolean): void {
         "visibility",
         on ? "visible" : "none",
       );
+      // Street labels follow the imagery exactly. ON with satellite (the CARTO
+      // basemap that carries the baked labels is hidden), OFF without it (that
+      // basemap is back and already has them — two label rasters would
+      // double-print every street name).
+      if (map.getLayer(SATELLITE_LABELS_LAYER_ID)) {
+        map.setLayoutProperty(
+          SATELLITE_LABELS_LAYER_ID,
+          "visibility",
+          on ? "visible" : "none",
+        );
+      }
       if (map.getLayer(CARTO_BASEMAP_LAYER_ID)) {
         map.setLayoutProperty(
           CARTO_BASEMAP_LAYER_ID,

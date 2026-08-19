@@ -25,6 +25,13 @@ import {
   PARCEL_TILES_FILL_ID,
   DEFAULT_PROMOTE_ID,
 } from "./map/parcel-tiles.js";
+import {
+  addSubjectMarkers,
+  raiseSubjectMarkers,
+  removeSubjectMarkers,
+  setSubjectMarkerData,
+} from "./map/subject-marker.js";
+import { createMapLegend } from "./map/map-legend.js";
 import { getGisFixtureSlots } from "./map/gis-fixture-data.js";
 import {
   upsertGisLayer,
@@ -113,6 +120,8 @@ const EMPTY_FC = { type: "FeatureCollection", features: [] };
  *   setViewState: (vs: Partial<{ center: [number, number], zoom: number, pitch: number, bearing: number }>) => void,
  *   setParcelTiles: (cfg: ParcelTilesConfig | null) => void,
  *   setParcelState: (parcelNodeId: string|number, state: { subject?: boolean, inspected?: boolean }) => void,
+ *   setSubjectMarkers: (markers: Array<{ id?: string|number, longitude?: number, latitude?: number, lng?: number, lat?: number, role?: 'primary'|'secondary', label?: string }>) => void,
+ *   getSubjectMarkers: () => object[],
  *   resolveSubjectAndFit: (opts: { parcelNodeId: string|number, center?: { latitude: number, longitude: number }, fit?: boolean, maxAttempts?: number }) => void,
  *   queryParcelAt: (point: { x: number, y: number } | [number, number]) => { parcelNodeId?: string, countyFips?: string, feature: object } | null,
  *   destroy: () => void,
@@ -182,6 +191,11 @@ export function createMapRenderer(options = {}) {
   // ReferenceError: subjectResolveCleanup is not defined.
   let subjectResolveCleanup = null;
   let terrainLayerWasVisible = false;
+  // Subject markers (W3). Rendering only: this renderer never moves the camera
+  // for a marker and never derives one from parcel state. `subjectMarkers` is
+  // the last set a consumer pushed, replayed on style load like overlays are.
+  let subjectMarkers = [];
+  let legend = null;
 
   function ensureMap() {
     if (!slotEl || map) return;
@@ -257,6 +271,7 @@ export function createMapRenderer(options = {}) {
       applyLayerVisibility();
       applyOverlays();
       applyParcelTiles();
+      applySubjectMarkers();
       // Fit to the fixture corpus only when the fixture stack is actually in
       // play; live-data consumers keep the center/zoom they asked for.
       if (fixtureEnabled) {
@@ -503,6 +518,9 @@ export function createMapRenderer(options = {}) {
       }
     }
     reorderGisLayers(map);
+    // reorderGisLayers lifts fixture layers to the very top; SUBJECT owns the
+    // highest z, so the markers re-assert after it.
+    raiseSubjectMarkers(map);
     updateFixtureWatermark();
   }
 
@@ -512,6 +530,9 @@ export function createMapRenderer(options = {}) {
     // overlay pushes (see styleReady declaration).
     if (!map || !styleReady) return;
     reconcileOverlays(map, overlaySpecs, overlayKeys);
+    // reconcileOverlays calls moveLayer to re-assert overlay z-order, which can
+    // float an overlay above the SUBJECT markers. Re-lift them.
+    raiseSubjectMarkers(map);
   }
 
   /**
@@ -552,6 +573,41 @@ export function createMapRenderer(options = {}) {
     } else if (parcelTilesApplied) {
       removeParcelTiles(map);
       parcelTilesApplied = false;
+    }
+  }
+
+  /**
+   * Reconcile the subject/compare markers. Same load-event gating as
+   * applyOverlays (styleReady, not isStyleLoaded), and the layers are re-lifted
+   * every time because reorderGisLayers and the overlay reconciler both call
+   * moveLayer and would otherwise bury the SUBJECT role.
+   */
+  function applySubjectMarkers() {
+    if (!map || !styleReady) return;
+    try {
+      if (subjectMarkers.length) {
+        addSubjectMarkers(map);
+        setSubjectMarkerData(map, subjectMarkers);
+        raiseSubjectMarkers(map);
+      } else if (map.getSource("hauska-subject-markers")) {
+        // Keep the layers mounted but empty: cheaper than add/remove churn and
+        // it means a re-point paints on the next frame rather than the next
+        // style load.
+        setSubjectMarkerData(map, []);
+      }
+    } catch (err) {
+      // eslint-disable-next-line no-console
+      console.warn("[subject-marker] apply failed:", err);
+    }
+  }
+
+  /** Refresh the on-map legend from the current visible-layer set. */
+  function applyLegend() {
+    if (!legend) return;
+    try {
+      legend.update(visibleLayers);
+    } catch {
+      /* legend is presentational; never let it take the map down */
     }
   }
 
@@ -700,6 +756,11 @@ export function createMapRenderer(options = {}) {
     mount(slot) {
       slotEl = slot;
       ensureMap();
+      // The legend ships with the palette it explains: a 7-class choropleth and
+      // a 9-class flood ramp are only legible with a key, so the key is part of
+      // the renderer rather than of either consuming app.
+      legend = createMapLegend(mapEl);
+      applyLegend();
     },
 
     /** Signal 2: resize */
@@ -714,6 +775,7 @@ export function createMapRenderer(options = {}) {
       // The PMTiles browse-parcel layers bind to "zoning" / "parcel-polygon"
       // toggles too (separate gating: styleReady, not isStyleLoaded).
       applyParcelTileToggles();
+      applyLegend();
     },
 
     /**
@@ -846,6 +908,14 @@ export function createMapRenderer(options = {}) {
       subjectResolveGen += 1;
       clearSubjectResolve();
       resizeObs?.disconnect();
+      try {
+        legend?.destroy();
+      } catch {
+        /* already detached */
+      }
+      legend = null;
+      if (map) removeSubjectMarkers(map);
+      subjectMarkers = [];
       map?.remove();
       map = null;
       styleReady = false;
@@ -902,6 +972,37 @@ export function createMapRenderer(options = {}) {
           if (inspectedNodeId === parcelNodeId) inspectedNodeId = null;
         }
       }
+    },
+
+    /**
+     * Draw (or clear) the subject + compare markers.
+     *
+     * THE SEAM. Lane P-39 owns the camera fly and the subject/compare STATE and
+     * calls this with resolved coordinates; this renderer owns marker rendering
+     * and nothing else. It never moves the camera, never reads parcel
+     * feature-state, and never infers a marker from a selection.
+     *
+     * Contract: the argument is the COMPLETE marker set. Passing `[]` or
+     * omitting it clears every marker. Idempotent and order-independent.
+     * Entries without finite coordinates are dropped rather than drawn at 0,0.
+     * Safe to call before the style loads — the set is replayed on `load`.
+     *
+     * @param {Array<{
+     *   id?: string|number,
+     *   longitude?: number, latitude?: number,
+     *   lng?: number, lat?: number,
+     *   role?: 'primary'|'secondary',
+     *   label?: string,
+     * }>} markers
+     */
+    setSubjectMarkers(markers) {
+      subjectMarkers = Array.isArray(markers) ? markers.slice() : [];
+      applySubjectMarkers();
+    },
+
+    /** The marker set last pushed (a COPY — mutating it changes nothing). */
+    getSubjectMarkers() {
+      return subjectMarkers.slice();
     },
 
     /**
@@ -1028,6 +1129,8 @@ export const RENDERER_CONTRACT = {
     "setParcelState(parcelNodeId, { subject?, inspected? })",
     "resolveSubjectAndFit({ parcelNodeId, center?, fit?, maxAttempts? })",
     "queryParcelAt(point)",
+    "setSubjectMarkers(Array<{ id?, longitude, latitude, role?, label? }>)",
+    "getSubjectMarkers(): Array",
     "bindContext(ctx)",
     "rebindProperty({ center?, address?, parcelState?, zoom? })",
   ],

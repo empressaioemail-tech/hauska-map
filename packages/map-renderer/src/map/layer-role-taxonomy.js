@@ -18,6 +18,19 @@
  *   INTERACTION — hover / search / glow. RESERVED CYAN. Transient only.
  */
 
+import {
+  DATA_LAND_USE_COLORS as LAND_USE_PALETTE,
+  LAND_USE_LEGEND,
+} from "./land-use-classes.js";
+import {
+  CONTEXT_FEMA_ZONES,
+  FEMA_LEGEND,
+  femaZoneFillColorExpr,
+  femaZoneFillOpacityExpr,
+  femaZoneLineColorExpr,
+  femaZoneLineWidthExpr,
+} from "./fema-zones.js";
+
 /** @typedef {'GROUND'|'CONTEXT'|'DATA'|'SUBJECT'|'INTERACTION'} LayerRole */
 
 /** Reserved SUBJECT amber — buildable envelope + subject parcel only. */
@@ -43,27 +56,36 @@ export const CONTEXT_FLOOD_TEAL = {
 };
 
 /**
- * CONTEXT FEMA muted blue — light fill + dominant boundary.
- * Severity ramp keys real NFHL fields only (FLD_ZONE / ZONE_SUBTY):
- *   floodway (darkest) → SFHA A/AE/AH/AO/VE (mid) → X / 500-yr (lightest).
- * Do not invent proximity-based darkness. Opacities stay ≤ CONTEXT fillOpacityMax.
+ * CONTEXT FEMA — the full NFHL zone set. The zone table, the classifier and the
+ * legend live in `fema-zones.js`; this constant is the taxonomy-facing view of
+ * it, kept so existing consumers (live-gis.ts, gis-map-paint.js) keep compiling
+ * against one authority rather than two.
+ *
+ * The ramp keys real NFHL fields ONLY — FLD_ZONE, ZONE_SUBTY and SFHA_TF, all
+ * three verified present on every feature of a live 204-feature Bastrop probe
+ * (2026-08-18). No proximity heuristics, no invented darkness. Every opacity
+ * stays at or below CONTEXT fillOpacityMax, and minimal-hazard land carries no
+ * fill at all so that in-versus-out reads at a glance.
  */
 export const CONTEXT_FEMA = {
   /** Solid hues; opacity is applied via fill-opacity (do not double-alpha). */
-  fillFloodway: "#1e3a8a",
-  fillAe: "#3b82f6",
-  fillX: "#93c5fd",
-  fillOpacityFloodway: 0.2,
-  fillOpacityAe: 0.14,
-  fillOpacityX: 0.07,
-  line: "#1d4ed8",
-  lineWidth: 2,
-  legendAe: "#2bb6d6",
-  legendX: "#3a7fd9",
-  legendFloodway: "#1f5fa8",
-  legendStrokeAe: "#7fe0f2",
-  legendStrokeX: "#8fb8f5",
-  legendStrokeFloodway: "#5fa0e0",
+  fillFloodway: CONTEXT_FEMA_ZONES.floodway.fill,
+  fillAe: CONTEXT_FEMA_ZONES.sfhaBfe.fill,
+  fillX: CONTEXT_FEMA_ZONES.shadedX.fill,
+  fillOpacityFloodway: CONTEXT_FEMA_ZONES.floodway.fillOpacity,
+  fillOpacityAe: CONTEXT_FEMA_ZONES.sfhaBfe.fillOpacity,
+  fillOpacityX: CONTEXT_FEMA_ZONES.shadedX.fillOpacity,
+  line: CONTEXT_FEMA_ZONES.sfhaBfe.line,
+  lineWidth: CONTEXT_FEMA_ZONES.sfhaBfe.lineWidth,
+  legendAe: CONTEXT_FEMA_ZONES.sfhaBfe.fill,
+  legendX: CONTEXT_FEMA_ZONES.shadedX.fill,
+  legendFloodway: CONTEXT_FEMA_ZONES.floodway.fill,
+  legendStrokeAe: CONTEXT_FEMA_ZONES.sfhaBfe.line,
+  legendStrokeX: CONTEXT_FEMA_ZONES.shadedX.line,
+  legendStrokeFloodway: CONTEXT_FEMA_ZONES.floodway.line,
+  /** The full nine-class table + its legend rows. */
+  zones: CONTEXT_FEMA_ZONES,
+  legend: FEMA_LEGEND,
 };
 
 /**
@@ -82,40 +104,33 @@ export function femaNfhlIsFloodwayExpr() {
   ];
 }
 
-/** Live FEMA fill-color from real zone class (floodway → SFHA → X). */
+/**
+ * Live FEMA fill-color across the FULL zone set.
+ *
+ * Previously this matched only `X` and `X500` and sent everything else to the
+ * one mid-blue, so a 204-feature Bastrop viewport carrying six distinct real
+ * classes rendered as three colours — and the 0.2% shaded-X band (86 features)
+ * was painted identically to the minimal-hazard band (36 features), which is why
+ * "in" and "out" could not be told apart. It also defaulted unrecognised zones
+ * to the 100-year fill, over-claiming hazard. Both are fixed in `fema-zones.js`.
+ */
 export function femaNfhlFillColorExpr() {
-  return [
-    "case",
-    femaNfhlIsFloodwayExpr(),
-    CONTEXT_FEMA.fillFloodway,
-    [
-      "match",
-      ["coalesce", ["get", "FLD_ZONE"], ""],
-      "X",
-      CONTEXT_FEMA.fillX,
-      "X500",
-      CONTEXT_FEMA.fillX,
-      CONTEXT_FEMA.fillAe,
-    ],
-  ];
+  return femaZoneFillColorExpr();
 }
 
-/** Live FEMA fill-opacity companion to femaNfhlFillColorExpr. */
+/** Live FEMA fill-opacity companion. Minimal-hazard resolves to 0 (no fill). */
 export function femaNfhlFillOpacityExpr() {
-  return [
-    "case",
-    femaNfhlIsFloodwayExpr(),
-    CONTEXT_FEMA.fillOpacityFloodway,
-    [
-      "match",
-      ["coalesce", ["get", "FLD_ZONE"], ""],
-      "X",
-      CONTEXT_FEMA.fillOpacityX,
-      "X500",
-      CONTEXT_FEMA.fillOpacityX,
-      CONTEXT_FEMA.fillOpacityAe,
-    ],
-  ];
+  return femaZoneFillOpacityExpr();
+}
+
+/** Live FEMA line colour — the identity channel that survives over imagery. */
+export function femaNfhlLineColorExpr() {
+  return femaZoneLineColorExpr();
+}
+
+/** Live FEMA line width, severity-weighted (floodway widest). */
+export function femaNfhlLineWidthExpr() {
+  return femaZoneLineWidthExpr();
 }
 
 /** CONTEXT parcel boundary (line-only cold-open) — muted slate, never cyan. */
@@ -143,16 +158,17 @@ export const CONTEXT_PEDESTRIAN = {
 export const CONTEXT_HYDROGRAPHY = "#5b7c8a";
 export const CONTEXT_TOPO = "#7a6f5f";
 
-/** DATA land-use categorical palette (full hue; off by default). */
-export const DATA_LAND_USE_COLORS = {
-  singleFamily: { fill: "#2fd07a", stroke: "#7df0b0" },
-  multiFamily: { fill: "#3f8efc", stroke: "#9cc4ff" },
-  commercial: { fill: "#ff8c1a", stroke: "#ffc987" },
-  industrial: { fill: "#f0562a", stroke: "#ff9d7a" },
-  mixedCore: { fill: "#b15cff", stroke: "#d9a9ff" },
-  agricultural: { fill: "#b6d24a", stroke: "#e1f08f" },
-  other: { fill: "#c98f5e", stroke: "#e8bf99" },
-};
+/**
+ * DATA land-use categorical palette (full hue; off by default).
+ *
+ * Defined in `land-use-classes.js` alongside the classifier it paints, and
+ * re-exported here so this file stays the single paint authority consumers read
+ * from. The previous inline palette broke this file's own reserved-hue rule
+ * twice — measured on 2026-08-18, `multiFamily` #3f8efc sat 3.2 OKLab ΔE from
+ * the FEMA 100-year fill and `commercial` #ff8c1a sat 4.9 ΔE from SUBJECT amber,
+ * against a normal-vision floor of 15.
+ */
+export const DATA_LAND_USE_COLORS = LAND_USE_PALETTE;
 
 /**
  * Opacity / channel budgets per role.
@@ -307,6 +323,7 @@ export const LAYER_ROLE_TAXONOMY = Object.freeze({
     budget: ROLE_BUDGET.DATA,
     paint: Object.freeze({
       landUse: DATA_LAND_USE_COLORS,
+      landUseLegend: LAND_USE_LEGEND,
       baseFillOpacity: ROLE_BUDGET.DATA.baseFillOpacity,
       inspectedFillOpacity: ROLE_BUDGET.DATA.inspectedFillOpacity,
     }),

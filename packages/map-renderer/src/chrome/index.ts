@@ -8,6 +8,9 @@ export type { LayerStateBadge } from "./MapToolset";
 export {
   asMaplibreMap,
   setSatelliteBase,
+  SATELLITE_LABELS_SOURCE_ID,
+  SATELLITE_LABELS_LAYER_ID,
+  SATELLITE_LABELS_ATTRIBUTION,
   SATELLITE_ATTRIBUTION,
 } from "./satelliteBase";
 export { installMapTools } from "./mapToolsController";

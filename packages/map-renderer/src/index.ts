@@ -7,7 +7,7 @@
  */
 
 export { FloatingMap } from "./FloatingMap";
-export type { FloatingMapProps, FloatingMapHandle } from "./FloatingMap";
+export type { FloatingMapProps, FloatingMapHandle, SubjectMarker } from "./FloatingMap";
 
 // Layer registry — the dynamic per-app layer catalog.
 export {
@@ -126,7 +126,58 @@ export {
   femaNfhlIsFloodwayExpr,
   femaNfhlFillColorExpr,
   femaNfhlFillOpacityExpr,
+  femaNfhlLineColorExpr,
+  femaNfhlLineWidthExpr,
 } from "./map/layer-role-taxonomy.js";
+
+// W3 map legibility — land-use classification, FEMA zone classification, the
+// legend model, and the subject/compare markers. All four ship with the paint
+// they explain so a palette edit cannot leave a stale key or a stale label.
+export {
+  LAND_USE_CLASS_KEYS,
+  LAND_USE_LEGEND,
+  classifyLandUseCode,
+  landUseClassExpr,
+  landUseClassLabel,
+  landUseFillColorExpr,
+  landUseLineColorExpr,
+} from "./map/land-use-classes.js";
+export {
+  FEMA_ZONE_KEYS,
+  FEMA_LEGEND,
+  CONTEXT_FEMA_ZONES,
+  classifyFemaZone,
+  femaZoneClassExpr,
+  femaZoneFillColorExpr,
+  femaZoneFillOpacityExpr,
+  femaZoneLineColorExpr,
+  femaZoneLineWidthExpr,
+  isInSfha,
+} from "./map/fema-zones.js";
+export {
+  legendSectionsFor,
+  legendPanelHtml,
+  createMapLegend,
+  LEGEND_ROOT_CLASS,
+} from "./map/map-legend.js";
+export {
+  SUBJECT_MARKER_SOURCE_ID,
+  SUBJECT_MARKER_HALO_ID,
+  SUBJECT_MARKER_RING_ID,
+  SUBJECT_MARKER_CORE_ID,
+  SUBJECT_MARKER_LABEL_ID,
+  SUBJECT_MARKER_FONT,
+  addSubjectMarkers,
+  setSubjectMarkerData,
+  raiseSubjectMarkers,
+  removeSubjectMarkers,
+  markersToFeatureCollection,
+} from "./map/subject-marker.js";
+export {
+  SATELLITE_LABELS_SOURCE_ID,
+  SATELLITE_LABELS_LAYER_ID,
+  SATELLITE_LABELS_ATTRIBUTION,
+} from "./map/basemap-labels.js";
 
 // postMessage / overlay contract types.
 export type {

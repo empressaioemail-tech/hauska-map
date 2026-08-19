@@ -12,8 +12,19 @@ import {
   CONTEXT_FEMA,
   DATA_LAND_USE_COLORS,
   ROLE_BUDGET,
-  femaNfhlIsFloodwayExpr,
 } from "./layer-role-taxonomy.js";
+import {
+  LAND_USE_LEGEND as LAND_USE_LEGEND_ROWS,
+  landUseFillColorExpr as landUseClassFillExpr,
+  landUseLineColorExpr as landUseClassLineExpr,
+} from "./land-use-classes.js";
+import {
+  FEMA_LEGEND as FEMA_LEGEND_ROWS,
+  femaZoneFillColorExpr,
+  femaZoneFillOpacityExpr,
+  femaZoneLineColorExpr,
+  femaZoneLineWidthExpr,
+} from "./fema-zones.js";
 
 /** Deep warm-dark canvas — data glows on top, brown signature retained. */
 export const MAP_CANVAS_BROWN = "#16110c";
@@ -64,7 +75,12 @@ export const HAUSKA_GIS_BASE_STYLE = {
   glyphs: HAUSKA_MAP_GLYPHS_URL,
 };
 
-/** Cotality Property site-location + assessor fields (joined on parcel features). */
+/**
+ * Candidate land-use / zoning attribute names across parcel providers, in
+ * preference order. (Historical note: this list was written for a vendor feed
+ * that is extinguished; the live browse corpus keys `landUseCode` off the county
+ * CAD roll. Kept as the tolerant coalesce for third-party overlays.)
+ */
 export const LAND_USE_MATCH = [
   "coalesce",
   ["get", "landUseCode"],
@@ -85,22 +101,35 @@ export const LAND_USE_MATCH = [
  */
 export const LAND_USE_COLORS = DATA_LAND_USE_COLORS;
 
-/** Static legend keys for land-use choropleth (matches fill expression). */
-export const LAND_USE_LEGEND = [
-  { key: "Single-family", fill: LAND_USE_COLORS.singleFamily.fill, stroke: LAND_USE_COLORS.singleFamily.stroke },
-  { key: "Multi-family", fill: LAND_USE_COLORS.multiFamily.fill, stroke: LAND_USE_COLORS.multiFamily.stroke },
-  { key: "Commercial", fill: LAND_USE_COLORS.commercial.fill, stroke: LAND_USE_COLORS.commercial.stroke },
-  { key: "Industrial", fill: LAND_USE_COLORS.industrial.fill, stroke: LAND_USE_COLORS.industrial.stroke },
-  { key: "Mixed / core", fill: LAND_USE_COLORS.mixedCore.fill, stroke: LAND_USE_COLORS.mixedCore.stroke },
-  { key: "Agricultural", fill: LAND_USE_COLORS.agricultural.fill, stroke: LAND_USE_COLORS.agricultural.stroke },
-  { key: "Other / unknown", fill: LAND_USE_COLORS.other.fill, stroke: LAND_USE_COLORS.other.stroke },
-];
+/**
+ * Legend rows for the land-use choropleth. Derived from the SAME table the fill
+ * expression reads, so a palette change can never leave the legend behind.
+ * `key` stays the display string the existing legend HTML renders.
+ */
+export const LAND_USE_LEGEND = LAND_USE_LEGEND_ROWS.map((row) => ({
+  key: row.code === "—" ? row.label : `${row.code} — ${row.label}`,
+  classKey: row.key,
+  code: row.code,
+  label: row.label,
+  fill: row.fill,
+  stroke: row.stroke,
+  wouldBeFilledBy: row.wouldBeFilledBy,
+}));
 
-export const FEMA_LEGEND = [
-  { key: "FEMA AE / A (100-yr)", fill: CONTEXT_FEMA.legendAe, stroke: CONTEXT_FEMA.legendStrokeAe },
-  { key: "500-yr (X shaded)", fill: CONTEXT_FEMA.legendX, stroke: CONTEXT_FEMA.legendStrokeX },
-  { key: "Floodway", fill: CONTEXT_FEMA.legendFloodway, stroke: CONTEXT_FEMA.legendStrokeFloodway },
-];
+/**
+ * Legend rows for the FEMA overlay — nine, against the two this used to carry.
+ * `inSfha` is the operator's in/out column (true inside the Special Flood Hazard
+ * Area, false outside it, null where FEMA published no determination).
+ */
+export const FEMA_LEGEND = FEMA_LEGEND_ROWS.map((row) => ({
+  key: row.label,
+  zoneKey: row.key,
+  zones: row.zones,
+  inSfha: row.inSfha,
+  fill: row.fillOpacity === 0 ? "transparent" : row.fill,
+  stroke: row.line,
+  fillOpacity: row.fillOpacity,
+}));
 
 /** Fire ramp for the rent-heat surface — indigo → magenta → orange → white. */
 export const RENT_HEAT_GRADIENT =
@@ -120,157 +149,53 @@ export const RENT_HEAT_LEGEND = {
   high: "Premium",
 };
 
-function landUseCodeExpr() {
-  return [
-    "upcase",
-    ["coalesce", ["get", "landUseCode"], ["get", "zoningCode"], ""],
-  ];
-}
-
-function landUseDescExpr() {
-  return [
-    "downcase",
-    ["coalesce", ["get", "landUseDescription"], ["get", "zoningDescription"], ""],
-  ];
-}
-
+/**
+ * Land-use choropleth fill.
+ *
+ * REPLACED 2026-08-18. The previous implementation matched a hardcoded ladder of
+ * `P-5` / `P-4` / `P-2` / `SFR` / `R-1` / `MF` / `COM` / `AG` and then keyword-
+ * scanned the description. Verified against the live browse corpus that day:
+ * NONE of those codes occur in it. The codes that DO occur are Texas PTAD state
+ * category codes (A1, B2, C1, D1, E1, F1, F2, XV, EX...), and the description
+ * fallback left C (vacant) on #c98f5e beside F1 (commercial) on #ff8c1a - two
+ * oranges 9.7 OKLab dE apart, which is the operator's "C-D-E-F are all orange"
+ * - collapsed rural E1 onto single-family A1, and painted a positive "Exempt"
+ * classification identically to an absent one.
+ *
+ * The rule now lives in `land-use-classes.js` next to its palette and its
+ * legend, with a divergence test binding the expression to the JS classifier.
+ */
 export function landUseFillColorExpr() {
-  const desc = landUseDescExpr();
-  const code = landUseCodeExpr();
-  const C = LAND_USE_COLORS;
-  return [
-    "case",
-    ["==", code, "P-5"],
-    C.mixedCore.fill,
-    ["==", code, "P-4"],
-    C.multiFamily.fill,
-    ["==", code, "P-2"],
-    C.singleFamily.fill,
-    ["==", code, "SFR"],
-    C.singleFamily.fill,
-    ["==", code, "R-1"],
-    C.singleFamily.fill,
-    ["==", code, "MF"],
-    C.multiFamily.fill,
-    ["==", code, "COM"],
-    C.commercial.fill,
-    ["==", code, "AG"],
-    C.agricultural.fill,
-    ["!=", ["index-of", "commercial", desc], -1],
-    C.commercial.fill,
-    ["!=", ["index-of", "retail", desc], -1],
-    C.commercial.fill,
-    ["!=", ["index-of", "office", desc], -1],
-    C.commercial.fill,
-    ["!=", ["index-of", "industrial", desc], -1],
-    C.industrial.fill,
-    ["!=", ["index-of", "warehouse", desc], -1],
-    C.industrial.fill,
-    ["!=", ["index-of", "multi", desc], -1],
-    C.multiFamily.fill,
-    ["!=", ["index-of", "apartment", desc], -1],
-    C.multiFamily.fill,
-    ["!=", ["index-of", "single", desc], -1],
-    C.singleFamily.fill,
-    ["!=", ["index-of", "residential", desc], -1],
-    C.singleFamily.fill,
-    ["!=", ["index-of", "agric", desc], -1],
-    C.agricultural.fill,
-    ["!=", ["index-of", "farm", desc], -1],
-    C.agricultural.fill,
-    ["!=", ["index-of", "mixed", desc], -1],
-    C.mixedCore.fill,
-    C.other.fill,
-  ];
+  return landUseClassFillExpr();
 }
 
+/** Land-use stroke - the second identity channel (see land-use-classes.js). */
 export function landUseLineColorExpr() {
-  const desc = landUseDescExpr();
-  const code = landUseCodeExpr();
-  const C = LAND_USE_COLORS;
-  return [
-    "case",
-    ["==", code, "P-5"],
-    C.mixedCore.stroke,
-    ["==", code, "P-4"],
-    C.multiFamily.stroke,
-    ["==", code, "P-2"],
-    C.singleFamily.stroke,
-    ["==", code, "SFR"],
-    C.singleFamily.stroke,
-    ["==", code, "MF"],
-    C.multiFamily.stroke,
-    ["==", code, "COM"],
-    C.commercial.stroke,
-    ["==", code, "AG"],
-    C.agricultural.stroke,
-    ["!=", ["index-of", "commercial", desc], -1],
-    C.commercial.stroke,
-    ["!=", ["index-of", "industrial", desc], -1],
-    C.industrial.stroke,
-    ["!=", ["index-of", "multi", desc], -1],
-    C.multiFamily.stroke,
-    ["!=", ["index-of", "apartment", desc], -1],
-    C.multiFamily.stroke,
-    ["!=", ["index-of", "single", desc], -1],
-    C.singleFamily.stroke,
-    ["!=", ["index-of", "residential", desc], -1],
-    C.singleFamily.stroke,
-    ["!=", ["index-of", "agric", desc], -1],
-    C.agricultural.stroke,
-    ["!=", ["index-of", "mixed", desc], -1],
-    C.mixedCore.stroke,
-    C.other.stroke,
-  ];
+  return landUseClassLineExpr();
 }
 
+/** FEMA fill across the full NFHL zone set (see fema-zones.js). */
 export function floodFillColorExpr() {
-  // Prefer ZONE_SUBTY floodway when FLD_ZONE is still AE (common NFHL shape).
-  return [
-    "case",
-    femaNfhlIsFloodwayExpr(),
-    CONTEXT_FEMA.legendFloodway,
-    [
-      "match",
-      ["coalesce", ["get", "FLD_ZONE"], ["get", "FLOOD_ZONE"], ""],
-      "AE",
-      CONTEXT_FEMA.legendAe,
-      "A",
-      CONTEXT_FEMA.legendAe,
-      "AH",
-      CONTEXT_FEMA.legendAe,
-      "AO",
-      CONTEXT_FEMA.legendAe,
-      "VE",
-      CONTEXT_FEMA.legendAe,
-      "V",
-      CONTEXT_FEMA.legendAe,
-      "X",
-      CONTEXT_FEMA.legendX,
-      "X500",
-      CONTEXT_FEMA.legendX,
-      "FLOODWAY",
-      CONTEXT_FEMA.legendFloodway,
-      CONTEXT_FEMA.legendAe,
-    ],
-  ];
+  return femaZoneFillColorExpr();
 }
 
+/**
+ * FEMA fill opacity. Minimal-hazard land resolves to 0, so "outside the mapped
+ * floodplain" is drawn as EMPTY rather than as another shade of blue. Every
+ * value stays at or below ROLE_BUDGET.CONTEXT.fillOpacityMax.
+ */
+export function floodFillOpacityExpr() {
+  return femaZoneFillOpacityExpr();
+}
+
+/** FEMA stroke colour per zone class. */
 export function floodLineColorExpr() {
-  return [
-    "case",
-    femaNfhlIsFloodwayExpr(),
-    CONTEXT_FEMA.legendStrokeFloodway,
-    [
-      "match",
-      ["coalesce", ["get", "FLD_ZONE"], ["get", "FLOOD_ZONE"], ""],
-      "X",
-      CONTEXT_FEMA.legendStrokeX,
-      "X500",
-      CONTEXT_FEMA.legendStrokeX,
-      CONTEXT_FEMA.legendStrokeAe,
-    ],
-  ];
+  return femaZoneLineColorExpr();
+}
+
+/** FEMA stroke width, severity-weighted (floodway widest, minimal thinnest). */
+export function floodLineWidthExpr() {
+  return femaZoneLineWidthExpr();
 }
 
 /**
@@ -443,6 +368,7 @@ export const LAYER_PAINT = {
   "flood-zone": {
     fillExpr: floodFillColorExpr,
     lineExpr: floodLineColorExpr,
+    lineWidthExpr: floodLineWidthExpr,
     strokeWidth: 1.1,
   },
   floodway: {
@@ -570,11 +496,14 @@ export function fillOpacityExpr(layerKey, meshMode = false) {
     ];
   }
   if (layerKey === "flood-zone") {
+    // Per-zone opacity, not one CONTEXT constant: minimal-hazard land resolves
+    // to 0 so "outside the mapped floodplain" reads as EMPTY. Every branch stays
+    // at or below ROLE_BUDGET.CONTEXT.fillOpacityMax.
     return [
       "case",
       ["boolean", ["feature-state", "dim"], false],
       0.06,
-      ROLE_BUDGET.CONTEXT.fillOpacityMax,
+      floodFillOpacityExpr(),
     ];
   }
   if (layerKey === "buildable-envelope") {
