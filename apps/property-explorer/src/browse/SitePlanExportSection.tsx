@@ -173,7 +173,7 @@ export function SitePlanExportSection({
       }}
     >
       <div style={{ fontSize: 10, color: MUTED, marginBottom: 6 }}>
-        Site-plan export · public-paid
+        Site-plan export · paid
       </div>
 
       <label style={{ display: "block", fontSize: 10.5, color: MUTED, marginBottom: 4 }}>

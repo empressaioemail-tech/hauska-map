@@ -1,4 +1,4 @@
-﻿import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import {
   requestTerrainExport,
   TERRAIN_FORMAT_OPTIONS,
@@ -81,7 +81,7 @@ export function TerrainExportSection({
 
   const handleExport = useCallback(async () => {
     setBusy(true);
-    setNotice("Exporting terrainâ€¦");
+    setNotice("Exporting terrain…");
     setResult(null);
     const resp = await requestTerrainExport(parcelNodeId, format);
     setBusy(false);
@@ -110,7 +110,7 @@ export function TerrainExportSection({
 
     settle({
       format,
-      notice: "Terrain export ready â€” download below.",
+      notice: "Terrain export ready — download below.",
       result: resp.data,
     });
   }, [format, onPaymentRequired, parcelNodeId, settle]);
@@ -154,7 +154,7 @@ export function TerrainExportSection({
       }}
     >
       <div style={{ fontSize: 10, color: MUTED, marginBottom: 6 }}>
-        Terrain export Â· public-paid
+        Terrain export · paid
       </div>
 
       <label style={{ display: "block", fontSize: 10.5, color: MUTED, marginBottom: 4 }}>
@@ -200,7 +200,7 @@ export function TerrainExportSection({
         disabled={busy}
         onClick={() => void handleExport()}
       >
-        {busy ? "Exportingâ€¦" : "Export terrain"}
+        {busy ? "Exporting…" : "Export terrain"}
       </Button>
 
       {notice && (
@@ -231,7 +231,7 @@ export function TerrainExportSection({
             style={{ fontSize: 10.5, color: "#c6d0dc", lineHeight: 1.45 }}
           >
             Source: {result.atom.sourceCitation ?? "USGS 3DEP"}
-            {result.atom.fetchedAt ? ` Â· ${result.atom.fetchedAt.slice(0, 10)}` : ""}
+            {result.atom.fetchedAt ? ` · ${result.atom.fetchedAt.slice(0, 10)}` : ""}
           </div>
           <div
             data-testid="terrain-confidence"
@@ -240,10 +240,10 @@ export function TerrainExportSection({
             Confidence{" "}
             {typeof result.atom.confidence?.value === "number"
               ? result.atom.confidence.value.toFixed(2)
-              : "â€”"}
+              : "—"}
             {result.atom.confidence?.kind ? ` (${result.atom.confidence.kind})` : ""}
             {result.atom.confidence?.provenance
-              ? ` Â· ${result.atom.confidence.provenance}`
+              ? ` · ${result.atom.confidence.provenance}`
               : ""}
           </div>
 
