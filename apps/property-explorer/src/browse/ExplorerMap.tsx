@@ -75,8 +75,13 @@ import {
 import { useMobileViewport } from "./useMobileViewport";
 import {
   deepLinkLookupQuery,
-  resolveParcelLookup,
+  resolveLookupToParcelNodeId,
 } from "../lib/parcel-lookup";
+import { factSheetResolver } from "../lib/fact-sheet-resolver";
+import { setSubjectByParcelNodeId } from "../lib/subject-store";
+import { cardFromSheet } from "../lib/sheet-to-card";
+import { UnplaceableParcelCard } from "./UnplaceableParcelCard";
+import type { UnplaceableParcel } from "@empressaio/parcel-fact-sheet";
 import { executeSearchLanding } from "../lib/search-landing";
 import type { GeoExtent, Suggestion } from "../lib/search-kinds";
 import {
@@ -255,6 +260,13 @@ function ExplorerMapSurface({
   const [cardNodeId, setCardNodeId] = useState<string | null>(null);
   const [lookupBusy, setLookupBusy] = useState(false);
   const [lookupError, setLookupError] = useState<string | null>(null);
+  // AMENDMENT 1: a parcel we hold the record for but cannot place. NOT an error
+  // and NOT a subject — its own designed state, rendered where the inspect card
+  // would be. It never silently becomes a sheet.
+  const [unplaceable, setUnplaceable] = useState<UnplaceableParcel | null>(null);
+  // closeInspect is declared further down the body; hold it through a ref so
+  // the lookup callback can clear the card without a declaration-order hazard.
+  const closeInspectRef = useRef<(() => void) | null>(null);
   // Type-ahead search landing state: the brief fading street-extent highlight
   // overlay. The coverage-miss "chip" value is no longer rendered (the transient
   // notifications were removed in the REBRAND map-chrome pass); the setter is
@@ -621,6 +633,49 @@ function ExplorerMapSurface({
     [isMobile, openSheet],
   );
 
+  // EVERY entry point makes the parcel THE subject (invariant I1). A map click
+  // paints its card instantly from the tile feature it already has, and the
+  // sealed sheet lands a moment later and replaces it — so the card the user
+  // reads and the sheet every export is keyed on converge on ONE parcel.
+  //
+  // The click's own ring is handed to the resolver as a geometry seed: it is
+  // the best boundary evidence anywhere in the app at that moment, and passing
+  // it saves the resolver from re-deriving what the click already knew.
+  const adoptSubject = useCallback(
+    (
+      parcelNodeId: string | null,
+      geometry: unknown,
+      origin: "map-click" | "share" | "compare",
+    ) => {
+      if (!parcelNodeId) {
+        // No stable id: there is nothing a sheet could be sealed against, so
+        // the previous subject stands rather than being replaced by a guess.
+        return;
+      }
+      factSheetResolver.hint(parcelNodeId, { geometry });
+      void setSubjectByParcelNodeId(parcelNodeId, origin)
+        .then((outcome) => {
+          // Only adopt if this parcel is STILL the one being inspected — a
+          // fast second click must not have its card overwritten by the first.
+          if (inspectedRef.current?.parcelNodeId !== parcelNodeId) return;
+          if (outcome.kind === "unplaceable") {
+            // Reachable only for a click on a parcel whose boundary the map
+            // drew but whose record carries no placement. Keep the click's own
+            // card; the subject stays where it was, and an export refuses.
+            return;
+          }
+          const next = cardFromSheet(outcome.subject.sheet);
+          inspectedRef.current = { card: next, parcelNodeId };
+          setCard(next);
+        })
+        .catch(() => {
+          // Honest degrade: the card stays on what the click carried. The
+          // export seam refuses rather than exporting against a stale subject.
+        });
+    },
+    [],
+  );
+
   // Reachability: search bar + deep-link (?parcelNodeId= | ?parcel= | ?address=)
   // resolve → inspectInPlace (same path as map click). GTM still recorded.
   // Returns true when the lookup resolved and opened the inspect card; the
@@ -636,18 +691,46 @@ function ExplorerMapSurface({
       setLookupBusy(true);
       setLookupError(null);
       try {
-        const result = await resolveParcelLookup(q);
-        if (!result.ok) {
-          if (!opts?.quiet) setLookupError(result.reason);
+        // 1. Query -> parcel node id. That is the ONLY thing the lookup path
+        //    is authoritative for; it no longer reads a single parcel fact.
+        const found = await resolveLookupToParcelNodeId(q);
+        if (!found.ok) {
+          if (!opts?.quiet) setLookupError(found.reason);
           return false;
         }
-        const { target } = result;
+        // 2. ONE resolve, ONE sealed sheet, and it becomes THE subject. Every
+        //    panel and every export reads it from here (invariant I1).
+        const outcome = await setSubjectByParcelNodeId(
+          found.parcelNodeId,
+          opts?.fromDeepLink ? "deep-link" : "search",
+        );
+        if (outcome.kind === "unplaceable") {
+          // We hold the record and cannot place it. Say so, in its own state,
+          // rather than failing the Find or flying the map somewhere invented.
+          // The PREVIOUS subject is left standing on purpose.
+          closeInspectRef.current?.();
+          setUnplaceable(outcome.parcel);
+          if (isMobile) openSheet("property");
+          void recordPeGtmEvent({
+            eventType: "pe_browse_started",
+            payload: {
+              lookupQuery: q,
+              lookupSource: found.source,
+              parcelNodeId: outcome.parcel.parcelNodeId,
+              unplaceable: true,
+            },
+          });
+          return true;
+        }
+        const sheet = outcome.subject.sheet;
+        setUnplaceable(null);
+
         if (opts?.fromDeepLink) {
           void recordPeGtmEvent({
             eventType: "pe_browse_started",
             payload: {
-              extensionHandoff: target.parcelNodeId,
-              lookupSource: target.source,
+              extensionHandoff: sheet.identity.parcelNodeId,
+              lookupSource: found.source,
             },
           });
         } else {
@@ -655,25 +738,47 @@ function ExplorerMapSurface({
             eventType: "pe_browse_started",
             payload: {
               lookupQuery: q,
-              lookupSource: target.source,
-              parcelNodeId: target.parcelNodeId,
+              lookupSource: found.source,
+              parcelNodeId: sheet.identity.parcelNodeId,
             },
           });
         }
-        inspectInPlace(target.card, target.parcelNodeId, target.geometry ?? null);
+
+        // 3. The card RENDERS the sheet — it is a projection, not a re-lookup.
+        inspectInPlace(
+          cardFromSheet(sheet),
+          sheet.identity.parcelNodeId,
+          sheet.geometry.rings.length
+            ? {
+                type: "Polygon",
+                coordinates: [sheet.geometry.rings[0]],
+              }
+            : null,
+        );
+
+        // 4. I5: the camera follows the parcel's GEOMETRY. The centroid is
+        //    always present, so a parcel with no situs address moves the map
+        //    exactly like one with an address — a data gap is a display gap
+        //    now, never a broken Find.
         const handle = mapRef.current;
-        const center = toCenter(target.card.lat, target.card.lng);
+        const center = toCenter(
+          sheet.geometry.centroid.lat,
+          sheet.geometry.centroid.lng,
+        );
         if (handle && center) {
           handle.rebindProperty({
             center,
-            address: target.card.situsAddress ?? undefined,
+            address:
+              sheet.identity.situsAddress.state === "present"
+                ? sheet.identity.situsAddress.value
+                : undefined,
             parcelState: {
-              parcelNodeId: target.parcelNodeId,
+              parcelNodeId: sheet.identity.parcelNodeId,
               inspected: true,
             },
           });
           handle.resolveSubjectAndFit({
-            parcelNodeId: target.parcelNodeId,
+            parcelNodeId: sheet.identity.parcelNodeId,
             center,
             fit: true,
           });
@@ -690,7 +795,7 @@ function ExplorerMapSurface({
         setLookupBusy(false);
       }
     },
-    [inspectInPlace],
+    [inspectInPlace, isMobile, openSheet],
   );
 
   // ---- Type-ahead search: kind-aware landing (parcel / address / street /
@@ -851,11 +956,9 @@ function ExplorerMapSurface({
         // case can outline the lot and the inset fallback can inset it.
         const geom =
           (sel.feature as { geometry?: unknown } | undefined)?.geometry ?? null;
-        inspectInPlace(
-          selectionToCard(sel),
-          parcelNodeIdFromSelection(sel),
-          geom,
-        );
+        const nodeId = parcelNodeIdFromSelection(sel);
+        inspectInPlace(selectionToCard(sel), nodeId, geom);
+        adoptSubject(nodeId, geom, "map-click");
         return;
       }
       // A non-live overlay click carrying only coords — inspect what it carries.
@@ -873,8 +976,9 @@ function ExplorerMapSurface({
         lng: sel.lng,
       };
       inspectInPlace(bareCard, parcelNodeIdFromSelection(sel));
+      adoptSubject(parcelNodeIdFromSelection(sel), null, "map-click");
     },
-    [inspectInPlace],
+    [inspectInPlace, adoptSubject],
   );
 
   // PMTiles BROWSE-parcel click -> inspect-in-place. This path carries the
@@ -911,8 +1015,11 @@ function ExplorerMapSurface({
       const geom =
         (feature as { geometry?: unknown } | undefined)?.geometry ?? null;
       inspectInPlace(bareCard, parcelNodeId, geom);
+      // PMTiles rings are clipped per tile, so they are NOT offered to the
+      // resolver as a boundary seed — a clipped ring would measure a lot short.
+      adoptSubject(parcelNodeId, null, "map-click");
     },
-    [inspectInPlace],
+    [inspectInPlace, adoptSubject],
   );
 
   // MAKE SUBJECT — the distinct, explicit action. Re-point the LIVE map to the
@@ -1032,6 +1139,7 @@ function ExplorerMapSurface({
     setCardNodeId(null);
     parcelNodes.setInspected(null, "close-inspect");
   }, []);
+  closeInspectRef.current = closeInspect;
 
   const mapOverlays = useMemo<OverlaySpec[]>(
     () => [
@@ -1492,6 +1600,29 @@ function ExplorerMapSurface({
         onSubmitRaw={(q) => void runParcelLookup(q)}
         getBias={getSearchBias}
       />
+
+      {unplaceable && !isMobile && (
+        <UnplaceableParcelCard
+          parcel={unplaceable}
+          onClose={() => setUnplaceable(null)}
+        />
+      )}
+
+      {unplaceable && isMobile && (
+        <MobileSheet
+          open={activeSheet === "property"}
+          testId="mobile-property-sheet"
+        >
+          <UnplaceableParcelCard
+            embedded
+            parcel={unplaceable}
+            onClose={() => {
+              setUnplaceable(null);
+              openSheet("map");
+            }}
+          />
+        </MobileSheet>
+      )}
 
       {card && !isMobile && (
         <InspectCard

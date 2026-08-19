@@ -7,6 +7,7 @@ import type {
   SitePlanExportBffResponse,
   SitePlanExportFormat,
 } from './sitePlanExportTypes.js'
+import { ExportTargetError, resolveExportTarget } from './export-target'
 
 export type { SitePlanExportFormat, SitePlanExportBffResponse }
 
@@ -23,20 +24,36 @@ export type SitePlanExportClientResult =
   | { ok: true; data: SitePlanExportBffResponse }
   | { ok: false; status: number; error: string; message?: string }
 
+/**
+ * I1: the export runs against the SUBJECT'S sheet, by id. `address` and
+ * `countyName` are read off that sheet, never off the caller — the DXF that
+ * exported "city of Bastrop" got that string from the search box.
+ */
 export async function requestSitePlanExport(
   parcelNodeId: string,
   format: SitePlanExportFormat,
-  opts?: { address?: string | null; countyName?: string | null },
 ): Promise<SitePlanExportClientResult> {
+  let target
+  try {
+    target = resolveExportTarget(parcelNodeId)
+  } catch (err) {
+    return {
+      ok: false,
+      status: 409,
+      error: err instanceof ExportTargetError ? err.kind : 'export_target_error',
+      message: (err as Error).message,
+    }
+  }
   try {
     const res = await fetch('/api/pe-site-plan-export', {
       method: 'POST',
       credentials: 'include',
       body: JSON.stringify({
-        parcelNodeId,
+        factSheetId: target.factSheetId,
+        parcelNodeId: target.parcelNodeId,
         format,
-        ...(opts?.address ? { address: opts.address } : {}),
-        ...(opts?.countyName ? { countyName: opts.countyName } : {}),
+        ...(target.address ? { address: target.address } : {}),
+        countyName: target.countyName,
       }),
       headers: { 'Content-Type': 'application/json' },
     })

@@ -7,6 +7,7 @@ import {
   buildPhotonUrl,
   DEFAULT_GEOCODER_URL,
   GEOCODE_DEFAULT_LIMIT,
+  isServedCountry,
   mapPhotonResponse,
   parseGeocodeParams,
 } from '../../api/_lib/pe-geocode-core'
@@ -80,6 +81,7 @@ describe('Photon response mapping', () => {
       osm_value: 'residential',
       city: 'Bastrop',
       state: 'Texas',
+      countrycode: 'US',
       extent: [-97.33, 30.12, -97.3, 30.1],
     },
   }
@@ -111,10 +113,58 @@ describe('Photon response mapping', () => {
       features: [
         {
           geometry: { coordinates: [-97.31, 30.11] },
-          properties: { name: 'X', extent: [-97.33, 'bad', -97.3, 30.1] },
+          properties: {
+            name: 'X',
+            countrycode: 'US',
+            extent: [-97.33, 'bad', -97.3, 30.1],
+          },
         },
       ],
     })
     expect(mapped.features[0].extent).toBeNull()
+  })
+})
+
+// UPDATED BEHAVIOUR (P-39): the two fixtures above gained `countrycode: 'US'`.
+// mapPhotonResponse now filters to the served country, so a fixture with no
+// country is correctly dropped — the old expectations encoded the unfiltered
+// behaviour this change deliberately removes.
+describe('US-only filtering (server side)', () => {
+  const feature = (countrycode: string | null, name: string) => ({
+    geometry: { type: 'Point', coordinates: [-97.31, 30.11] },
+    properties: {
+      name,
+      ...(countrycode === null ? {} : { countrycode }),
+    },
+  })
+
+  it('keeps US results and drops every other country', () => {
+    const mapped = mapPhotonResponse({
+      features: [
+        feature('US', 'Bastrop, Texas'),
+        feature('FR', 'Bastrop-sur-Mer'),
+        feature('DE', 'Bastropstrasse'),
+      ],
+    })
+    expect(mapped.features.map((f) => f.name)).toEqual(['Bastrop, Texas'])
+  })
+
+  it('accepts a lowercase country code', () => {
+    const mapped = mapPhotonResponse({ features: [feature('us', 'Elgin')] })
+    expect(mapped.features).toHaveLength(1)
+  })
+
+  it('drops a feature that names no country at all', () => {
+    // The exclusion set is part of the contract: this filter answers "can we
+    // place it in a US jurisdiction", and an uncountried node cannot be.
+    const mapped = mapPhotonResponse({ features: [feature(null, 'Nowhere')] })
+    expect(mapped.features).toEqual([])
+  })
+
+  it('exposes the predicate so the rule has exactly one implementation', () => {
+    const [us] = mapPhotonResponse({ features: [feature('US', 'x')] }).features
+    expect(isServedCountry(us)).toBe(true)
+    expect(isServedCountry({ ...us, countrycode: 'CA' })).toBe(false)
+    expect(isServedCountry({ ...us, countrycode: null })).toBe(false)
   })
 })

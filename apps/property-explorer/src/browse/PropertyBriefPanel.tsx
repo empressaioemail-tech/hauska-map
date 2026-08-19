@@ -26,7 +26,11 @@ import {
   dossierExportNotice,
   exportBriefAsXrayPdf,
 } from "../lib/brief-xray-export";
-import { composeBriefVerdict, type BriefVerdictTone } from "./brief-verdict";
+import type { VerdictTone } from "@empressaio/parcel-fact-sheet";
+import {
+  useSheetVerdict,
+  VERDICT_UNRESOLVED,
+} from "../lib/sheet-verdict";
 
 const MUTED = "var(--surface-muted, #94A3B8)";
 const AMBER = "var(--semantic-warning, #F59E0B)"; // caution verdict tone (was raw yellow #fcd34d)
@@ -38,7 +42,7 @@ const TEXT = "var(--text-body, #e5e7eb)";
 const LINK = "var(--brand-blue, #3B82F6)";
 
 /** W2 verdict tones: red flag leads red-ish; caution amber; clean earns green. */
-const VERDICT_COLOR: Record<BriefVerdictTone, string> = {
+const VERDICT_COLOR: Record<VerdictTone, string> = {
   flag: "#fca5a5",
   caution: AMBER,
   clear: "#4ade80",
@@ -241,7 +245,12 @@ export function PropertyBriefPanel({
   onPaywall,
 }: PropertyBriefPanelProps) {
   const vm = useMemo(() => deriveBriefViewModel(brief), [brief]);
-  const verdict = useMemo(() => composeBriefVerdict(brief), [brief]);
+  // P-39 data-source swap: the headline is the SHEET'S sealed verdict, not a
+  // second composition over the brief payload. Same { line, tone } shape, so
+  // nothing below this line changes.
+  const verdict =
+    useSheetVerdict(parcelNodeId ?? brief.parcelNodeId ?? null) ??
+    VERDICT_UNRESOLVED;
   const [exportBusy, setExportBusy] = useState(false);
   const [exportNotice, setExportNotice] = useState<string | null>(null);
 

@@ -30,6 +30,7 @@ import {
 import {
   highlightRanges,
   KIND_LABELS,
+  suggestionLookupTarget,
   type Suggestion,
   type SuggestionKind,
 } from "../lib/search-kinds";
@@ -376,7 +377,10 @@ export function SearchBar({
   const pick = (index?: number) => {
     const chosen = controller.select(index);
     if (chosen) {
-      setValue(chosen.kind === "parcel" ? chosen.parcelNodeId ?? chosen.label : chosen.label);
+      // The input carries the FULL lookup target, so pressing Find afterwards
+      // re-submits exactly what the suggestion resolved. Writing the display
+      // label here truncated every address to house number plus street.
+      setValue(suggestionLookupTarget(chosen));
       onSelect(chosen);
     }
   };

@@ -160,6 +160,27 @@ export function highlightRanges(
   return merged;
 }
 
+/**
+ * The text the input must carry after a suggestion is picked, which is also
+ * what Find re-submits.
+ *
+ * THE DEFECT this closes: `label` for an address suggestion is only house
+ * number plus street (see `featureToSuggestion` above), because the locality is
+ * drawn as the muted `sublabel`. `pick()` used to write `label` into the input,
+ * so picking "17005 Simsbrook Drive, Pflugerville, TX 78660" left "17005
+ * Simsbrook Drive" in the box, and pressing Find then submitted the TRUNCATED
+ * string and errored. The correctly built full string was already sitting in
+ * `lookupQuery` and was being discarded.
+ *
+ * Order: the parcel node id (the stable key), then the full lookup target, then
+ * the display label as a last resort. A street or place carries no lookup
+ * target, so its label is the only honest thing to show.
+ */
+export function suggestionLookupTarget(s: Suggestion): string {
+  if (s.kind === "parcel") return s.parcelNodeId ?? s.lookupQuery ?? s.label;
+  return s.lookupQuery ?? s.label;
+}
+
 /** Kind display metadata for the dropdown (label text; icon drawn by the UI). */
 export const KIND_LABELS: Record<SuggestionKind, string> = {
   parcel: "Parcel",

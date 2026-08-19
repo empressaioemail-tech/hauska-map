@@ -14,7 +14,7 @@
 // Anything unavailable is honestly omitted — the engine renders "not on
 // file" chips, never invented content.
 
-import { composeBriefVerdict } from "../../browse/brief-verdict";
+import { verdictFromSubject } from "../../lib/sheet-verdict";
 import {
   deriveBriefViewModel,
   type ResearchBriefPayload,
@@ -92,7 +92,12 @@ export function assembleDossierExportBody(input: {
   if (input.facts?.countyName) body.countyName = input.facts.countyName;
 
   if (input.brief) {
-    body.verdictLine = composeBriefVerdict(input.brief).line;
+    // I2: the SHEET'S sealed sentence, not a second composition. A dossier
+    // whose headline disagreed with the card it was exported from is exactly
+    // the class this replaces; when no sheet is on hand the line is OMITTED
+    // rather than invented.
+    const verdict = verdictFromSubject(input.parcelNodeId);
+    if (verdict) body.verdictLine = verdict.line;
     const flattened = flattenBriefForDossier(input.brief);
     if (flattened) body.brief = flattened;
   }

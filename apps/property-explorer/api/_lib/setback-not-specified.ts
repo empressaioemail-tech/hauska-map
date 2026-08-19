@@ -94,7 +94,7 @@ export interface SetbackGovernedByAxes {
  * "not specified" default (never rendered as a citable answer without a
  * cite).
  */
-function formatGovernedByFragment(g: GovernedByAxis | null | undefined): string | null {
+export function formatGovernedByFragment(g: GovernedByAxis | null | undefined): string | null {
   if (!g) return null;
   const entries = g.conditions?.length ? g.conditions : [g];
   const rendered = entries

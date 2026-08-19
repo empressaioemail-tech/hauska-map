@@ -13,6 +13,8 @@
  * provenance line consume and passes the rest through.
  */
 
+import { ExportTargetError, resolveExportTarget } from './export-target'
+
 export const FLOOD_DRAINAGE_FORMAT = 'pdf-flood-drainage' as const
 
 const BFF_BASE = '/api/pe-site-plan-export?report=flood-drainage'
@@ -163,20 +165,36 @@ async function parseOutcome(res: Response): Promise<FloodDrainageClientResult> {
   return { ok: true, study }
 }
 
-/** Run (or re-run) the parcel drainage study — honest work, ~15-45 s. */
+/**
+ * Run (or re-run) the parcel drainage study — honest work, ~15-45 s.
+ *
+ * I1: keyed on the SUBJECT'S sheet. The study that came back for 48027:498770
+ * while 498778 was selected is why this no longer accepts a panel-held id.
+ */
 export async function requestFloodDrainageRefresh(
   parcelNodeId: string,
-  opts?: { address?: string | null; countyName?: string | null },
 ): Promise<FloodDrainageClientResult> {
+  let target
+  try {
+    target = resolveExportTarget(parcelNodeId)
+  } catch (err) {
+    return {
+      ok: false,
+      status: 409,
+      error: err instanceof ExportTargetError ? err.kind : 'export_target_error',
+      message: (err as Error).message,
+    }
+  }
   try {
     const res = await fetch(BFF_BASE, {
       method: 'POST',
       credentials: 'include',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
-        parcelNodeId,
-        ...(opts?.address ? { address: opts.address } : {}),
-        ...(opts?.countyName ? { countyName: opts.countyName } : {}),
+        factSheetId: target.factSheetId,
+        parcelNodeId: target.parcelNodeId,
+        ...(target.address ? { address: target.address } : {}),
+        countyName: target.countyName,
       }),
     })
     return await parseOutcome(res)

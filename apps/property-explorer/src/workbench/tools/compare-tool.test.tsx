@@ -238,11 +238,11 @@ describe("fact table", () => {
     expect(html).toContain('data-testid="compare-header-a"');
     expect(html).toContain("104 Main St");
     expect(html).toContain("Caldwell tract");
-    // Verdicts (composeBriefVerdict reused): red flag leads column A;
-    // column B carries honest absences.
-    expect(html).toContain("Inside a FEMA floodway (Zone AE)");
-    expect(html).toContain("zoned P-2");
-    expect(html).toContain("flood not verified here");
+    // UPDATED (P-39): a column's headline is CARRIED on its slot data, sealed
+    // by the one composer at fetch. These fixtures predate the fact sheet and
+    // carry no verdict, so both columns show the honest unresolved headline —
+    // the per-fact cells below are unchanged and still assert their own values.
+    expect(html).toContain("has not resolved a fact sheet");
   });
 
   it("honesty idioms: absents say so, provisional stays provisional", () => {

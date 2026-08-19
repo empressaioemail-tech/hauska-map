@@ -7,7 +7,6 @@
 //     kind=dossier (no new serverless function).
 
 import { describe, expect, it, vi } from "vitest";
-import { composeBriefVerdict } from "../../browse/brief-verdict";
 import {
   ZONED_BRIEF,
   UNZONED_BRIEF,
@@ -69,8 +68,11 @@ describe("assembleDossierExportBody", () => {
     expect(body.parcelNodeId).toBe("48021:27303");
     expect(body.address).toBe("1127 N Pine St");
     expect(body.countyName).toBe("Bastrop");
-    // Verdict is EXACTLY the existing composer's line — no separate wording.
-    expect(body.verdictLine).toBe(composeBriefVerdict(ZONED_BRIEF).line);
+    // UPDATED (P-39): the verdict line is the SUBJECT'S sealed sentence, from
+    // the one composer. With no subject set in this unit test the line is
+    // OMITTED rather than composed a second time from the brief payload —
+    // omission is the honest state, an invented headline is not.
+    expect(body.verdictLine).toBeUndefined();
     expect(body.brief?.sections.length).toBeGreaterThan(0);
     expect(body.chatSummary).toEqual({
       summary: "AI summary of the chat.",

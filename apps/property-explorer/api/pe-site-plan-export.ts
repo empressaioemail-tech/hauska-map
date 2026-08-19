@@ -113,10 +113,19 @@ async function handleRefresh(
 
   const body = (typeof req.body === 'string' ? JSON.parse(req.body) : req.body) as {
     parcelNodeId?: unknown
+    factSheetId?: unknown
     format?: unknown
     address?: unknown
     countyName?: unknown
   }
+
+  // I1: the export is keyed on the SUBJECT'S sealed sheet. The id is forwarded
+  // to the engine so the rendered artifact prints it, and echoed back so the
+  // client can compare what it asked for with what was drawn.
+  const factSheetId =
+    typeof body?.factSheetId === 'string' && body.factSheetId.trim()
+      ? body.factSheetId.trim()
+      : undefined
 
   const parcelNodeId = body?.parcelNodeId
   if (!isValidParcelNodeId(parcelNodeId)) {
@@ -137,6 +146,7 @@ async function handleRefresh(
       format,
       ...(address ? { address } : {}),
       ...(countyName ? { county_name: countyName } : {}),
+      ...(factSheetId ? { fact_sheet_id: factSheetId } : {}),
     })
 
     if (payload.isError === true) {
@@ -194,7 +204,7 @@ async function handleRefresh(
       return
     }
 
-    res.status(200).json(mapped)
+    res.status(200).json({ ...mapped, ...(factSheetId ? { factSheetId } : {}) })
   } catch (err) {
     const message = err instanceof Error ? err.message : String(err)
     if (isMcpPaymentMessage(message)) {

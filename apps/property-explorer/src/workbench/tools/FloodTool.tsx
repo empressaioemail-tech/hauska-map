@@ -318,8 +318,10 @@ export function FloodDrainageSection() {
   const run = useCallback(async () => {
     if (!activeParcelNodeId) return;
     setBusy(true);
-    const facts = host.getActiveParcelFacts?.() ?? { address: null, countyName: null };
-    const resp = await requestFloodDrainageRefresh(activeParcelNodeId, facts);
+    // P-39: the study is keyed on the SUBJECT'S sheet id. The report that came
+    // back for 48027:498770 while 498778 was selected is why the panel no
+    // longer supplies its own target facts.
+    const resp = await requestFloodDrainageRefresh(activeParcelNodeId);
     setBusy(false);
     if (!resp.ok) {
       if (resp.status === 401) {

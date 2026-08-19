@@ -10,6 +10,7 @@ import {
   highlightRanges,
   looksLikeParcelId,
   parcelIdSuggestion,
+  suggestionLookupTarget,
   type Suggestion,
 } from "./search-kinds";
 
@@ -159,5 +160,66 @@ describe("highlightRanges", () => {
 
   it("no query -> no ranges", () => {
     expect(highlightRanges("Main Street", "   ")).toEqual([]);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// P-39: the picked-suggestion truncation defect.
+// ---------------------------------------------------------------------------
+
+describe("suggestionLookupTarget — what the input carries after a pick", () => {
+  /** The Photon wire feature for the address named in the QA pass. */
+  const SIMSBROOK: GeocodeWireFeature = {
+    name: null,
+    housenumber: "17005",
+    street: "Simsbrook Drive",
+    city: "Pflugerville",
+    county: "Travis",
+    state: "TX",
+    postcode: "78660",
+    countrycode: "US",
+    osmKey: "place",
+    osmValue: "house",
+    type: "house",
+    lat: 30.4394,
+    lng: -97.6203,
+    extent: null,
+  };
+
+  it("carries the FULL address, not the truncated display label", () => {
+    const s = featureToSuggestion(SIMSBROOK);
+    expect(s).not.toBeNull();
+    if (!s) return;
+    // What the dropdown SHOWS is short, because the locality is the sublabel.
+    expect(s.label).toBe("17005 Simsbrook Drive");
+    // What the input must CARRY, and what Find re-submits, is the whole thing.
+    expect(suggestionLookupTarget(s)).toBe(
+      "17005 Simsbrook Drive, Pflugerville, TX, 78660",
+    );
+    // The defect was writing `label` into the input, so Find submitted this:
+    expect(suggestionLookupTarget(s)).not.toBe(s.label);
+  });
+
+  it("carries the parcel node id for a parcel suggestion", () => {
+    const s = parcelIdSuggestion("48021:34177");
+    expect(s).not.toBeNull();
+    if (!s) return;
+    // The label is prose ("Open parcel …") and would never re-submit.
+    expect(s.label).toBe("Open parcel 48021:34177");
+    expect(suggestionLookupTarget(s)).toBe("48021:34177");
+  });
+
+  it("falls back to the label for a street or place, which is not a lookup", () => {
+    const street = featureToSuggestion({
+      ...SIMSBROOK,
+      housenumber: null,
+      type: "street",
+      osmKey: "highway",
+      name: "Simsbrook Drive",
+    });
+    expect(street).not.toBeNull();
+    if (!street) return;
+    expect(street.lookupQuery).toBeNull();
+    expect(suggestionLookupTarget(street)).toBe("Simsbrook Drive");
   });
 });

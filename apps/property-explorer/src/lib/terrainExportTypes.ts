@@ -47,6 +47,8 @@ export interface TerrainExportInlineDownload {
 export interface TerrainExportBffResponse {
   ok: true
   parcelNodeId: string
+  /** The fact sheet this artifact was rendered from (I1/I2). Echoed back. */
+  factSheetId?: string
   atom: TerrainExportAtomView
   selectedFormat: TerrainExportFormat
   downloadUrl: string

@@ -19,7 +19,7 @@ import {
   type PinElementLike,
   type SavedPin,
 } from './saved-pins'
-import type { LookupResult } from './parcel-lookup'
+import type { ParcelFactSheet } from '@empressaio/parcel-fact-sheet'
 import type { SavedPropertyRow } from './savedPropertiesClient'
 
 function row(overrides: Partial<SavedPropertyRow>): SavedPropertyRow {
@@ -169,29 +169,51 @@ describe('savedPinElement — the pin-click seam', () => {
 })
 
 /** Full ParcelCardData for lookup-result fakes (only lat/lng matter here). */
-function card(lat: number | null, lng: number | null) {
-  return {
-    apn: null,
-    situsAddress: null,
-    owner: null,
-    landUseDescription: null,
-    county: null,
-    provider: null,
-    notSurveyGrade: true,
-    retrievedAt: null,
-    lat,
-    lng,
-  }
+const SHEET_PROV = {
+  source: 'cad-roll',
+  sourceLabel: 'Bastrop County appraisal roll',
+  vintage: null,
+  method: null,
+  retrievedAt: null,
+  confidence: null,
+  confidenceBasis: 'asserted' as const,
+  sourceUrl: null,
 }
 
-function okLookup(lat: number | null, lng: number | null): LookupResult {
+/**
+ * UPDATED BEHAVIOUR (P-39): the save-time pin is the parcel's own GEOMETRY
+ * CENTROID off the one sealed fact sheet. It used to come from a bespoke
+ * address-geocode chain inside parcel-lookup, which is the path invariant I5
+ * demotes; a sheet always carries a centroid, so there is no coordless variant
+ * of a resolved sheet any more.
+ */
+function sheetAt(lat: number, lng: number): ParcelFactSheet {
+  const absent = { state: 'absent-covered' as const, reason: 'n/a', provenance: SHEET_PROV }
   return {
-    ok: true,
-    target: {
+    factSheetId: 'fs_test',
+    resolverVersion: 'test',
+    sealedAt: '2026-08-18T00:00:00.000Z',
+    identity: {
       parcelNodeId: '48021:2',
-      card: card(lat, lng),
-      source: 'parcel-node-id',
+      county: { fips: '48021', name: 'Bastrop' },
+      apn: absent,
+      situsAddress: absent,
+      owner: absent,
     },
+    geometry: {
+      rings: [],
+      centroid: { lat, lng },
+      bbox: [lng, lat, lng, lat],
+      lotArea: { value: 1, unit: 'sqft' },
+      crs: 'EPSG:4326',
+    },
+    landUse: absent,
+    zoning: absent,
+    setbacks: absent,
+    envelope: { kind: 'not-derived', reason: 'n/a', missing: [] },
+    flood: absent,
+    site: { elevationRange: null, contourInterval: null, frontage: absent },
+    verdict: 'v.',
   }
 }
 
@@ -203,28 +225,24 @@ describe('resolvePinForSave — save-time coordinate capture', () => {
     expect(resolve).not.toHaveBeenCalled()
   })
 
-  it('falls back ONCE to the #104 center-resolution chain when unknown', async () => {
-    const resolve = vi.fn(async () => okLookup(30.5, -97.5))
+  it('falls back ONCE to the sheet GEOMETRY CENTROID when unknown', async () => {
+    const resolve = vi.fn(async () => sheetAt(30.5, -97.5))
     const pin = await resolvePinForSave('48021:2', null, null, resolve)
     expect(pin).toEqual({ lat: 30.5, lng: -97.5 })
     expect(resolve).toHaveBeenCalledTimes(1)
     expect(resolve).toHaveBeenCalledWith('48021:2')
   })
 
-  it('unresolvable stays honestly null (failed lookup, coordless card, throw)', async () => {
-    expect(
-      await resolvePinForSave('48021:2', null, null, async () => ({
-        ok: false,
-        reason: 'nope',
-      })),
-    ).toBeNull()
-    expect(
-      await resolvePinForSave('48021:2', null, null, async () => okLookup(null, null)),
-    ).toBeNull()
+  it('unresolvable stays honestly null (a failed resolve never fails the save)', async () => {
     expect(
       await resolvePinForSave('48021:2', null, null, async () => {
         throw new Error('offline')
       }),
+    ).toBeNull()
+    expect(
+      await resolvePinForSave('48021:2', null, null, async () =>
+        sheetAt(Number.NaN, Number.NaN),
+      ),
     ).toBeNull()
   })
 })
