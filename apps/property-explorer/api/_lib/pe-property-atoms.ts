@@ -17,6 +17,7 @@ import type { VercelRequest, VercelResponse } from "@vercel/node";
 import {
   adaptAtomChainToBakedFacets,
   atomChainIsUsable,
+  floodHazardFactFromCortexRoot,
   isPropertyAtomPathEnabled,
   mergeBakedBaseFacts,
   parsePropertyAtomsPath,
@@ -24,6 +25,10 @@ import {
   type PropertyAtomChain,
   shouldSkipColdDerive,
 } from "./atom-chain-to-facets.js";
+import {
+  echoRequestedParcelNodeId,
+  parcelGrammarAlias,
+} from "./parcel-node-id.js";
 
 export { parsePropertyAtomsPath, isPropertyAtomPathEnabled, shouldSkipColdDerive };
 
@@ -94,6 +99,36 @@ async function fetchCortexFacets(
   };
 }
 
+function cortexFloodFactMissing(body: string): boolean {
+  try {
+    return floodHazardFactFromCortexRoot(JSON.parse(body) as unknown) === undefined;
+  } catch {
+    return true;
+  }
+}
+
+/**
+ * Same grammar pair as atom-chain. If the requested key's cortex body has no
+ * root floodHazardFact, try the alias. Never reads tier2.flood.
+ */
+export async function fetchCortexFacetsWithAlias(
+  parcelNodeId: string,
+): Promise<{ status: number; body: string; contentType: string | null }> {
+  const primary = await fetchCortexFacets(parcelNodeId);
+  const retryable =
+    (primary.status >= 200 &&
+      primary.status < 300 &&
+      cortexFloodFactMissing(primary.body)) ||
+    primary.status === 404;
+  if (!retryable) return primary;
+  const alias = parcelGrammarAlias(parcelNodeId);
+  if (!alias) return primary;
+  const aliased = await fetchCortexFacets(alias);
+  if (aliased.status < 200 || aliased.status >= 300) return primary;
+  if (cortexFloodFactMissing(aliased.body)) return primary;
+  return aliased;
+}
+
 /** Transient upstream failures — NEVER surface these as honest-absence. */
 const TRANSIENT_ATOM_CHAIN =
   /unreachable|ECONNRESET|ETIMEDOUT|fetch failed|HTTP 5\d\d|HTTP 429|aborted|network|invalid JSON/i;
@@ -113,7 +148,7 @@ export function isRetrievalAuthFailure(reason: string): boolean {
   return /^atom-chain HTTP 401$/i.test(reason.trim());
 }
 
-async function fetchAtomChainOnce(
+export async function fetchAtomChainOnce(
   parcelNodeId: string,
 ): Promise<{ ok: true; chain: PropertyAtomChain } | { ok: false; reason: string }> {
   const { baseUrl, key } = retrievalConfig();
@@ -157,7 +192,7 @@ async function fetchAtomChainOnce(
  * Retry-until-resolved for cold-start / transient retrieval failures.
  * Definitive outcomes (empty chain, missing key, 4xx other than 429) stop early.
  */
-async function fetchAtomChain(
+export async function fetchAtomChain(
   parcelNodeId: string,
 ): Promise<{ ok: true; chain: PropertyAtomChain } | { ok: false; reason: string }> {
   let last: { ok: false; reason: string } = { ok: false, reason: "atom-chain unset" };
@@ -170,6 +205,28 @@ async function fetchAtomChain(
     await sleep(wait);
   }
   return last;
+}
+
+/**
+ * Lookup alias: requested key first; if definitive-empty, try the other grammar.
+ * Does not alias 401 or transients. Caller echoes REQUESTED parcelNodeId.
+ */
+export async function fetchAtomChainWithAlias(
+  parcelNodeId: string,
+): Promise<{ ok: true; chain: PropertyAtomChain } | { ok: false; reason: string }> {
+  const primary = await fetchAtomChain(parcelNodeId);
+  if (primary.ok) return primary;
+  if (
+    isTransientAtomChainReason(primary.reason) ||
+    isRetrievalAuthFailure(primary.reason)
+  ) {
+    return primary;
+  }
+  const alias = parcelGrammarAlias(parcelNodeId);
+  if (!alias) return primary;
+  const aliased = await fetchAtomChain(alias);
+  if (aliased.ok) return aliased;
+  return primary;
 }
 
 /** Strip cortex envelope / tier2.envelope so zombie multiply cannot be product truth. */
@@ -266,7 +323,7 @@ export async function handlePropertyAtomsFacets(
 
   if (!atomEnabled) {
     try {
-      const cortex = await fetchCortexFacets(parcelNodeId);
+      const cortex = await fetchCortexFacetsWithAlias(parcelNodeId);
       res.setHeader("X-PE-Read-Path", "cortex" satisfies PeReadPathHeader);
       if (cortex.contentType) res.setHeader("Content-Type", cortex.contentType);
       else res.setHeader("Content-Type", "application/json");
@@ -277,7 +334,15 @@ export async function handlePropertyAtomsFacets(
         } catch {
           parsedBody = cortex.body;
         }
-        res.status(cortex.status).json(stripCortexEnvelopeProductTruth(parsedBody));
+        const stripped = stripCortexEnvelopeProductTruth(parsedBody);
+        res.status(cortex.status).json(
+          parsedBody && typeof parsedBody === "object" && !Array.isArray(parsedBody)
+            ? echoRequestedParcelNodeId(
+                stripped as Record<string, unknown>,
+                parcelNodeId,
+              )
+            : stripped,
+        );
         return;
       }
       res.status(cortex.status).send(cortex.body);
@@ -302,12 +367,12 @@ export async function handlePropertyAtomsFacets(
     status: number;
     body: string;
     contentType: string | null;
-  }> = fetchCortexFacets(parcelNodeId).catch((err) => ({
+  }> = fetchCortexFacetsWithAlias(parcelNodeId).catch((err) => ({
     status: 0,
     body: err instanceof Error ? err.message : String(err),
     contentType: null,
   }));
-  const atom = await fetchAtomChain(parcelNodeId);
+  const atom = await fetchAtomChainWithAlias(parcelNodeId);
   if (atom.ok) {
     const adapted = adaptAtomChainToBakedFacets(atom.chain);
     if (adapted) {
@@ -327,6 +392,7 @@ export async function handlePropertyAtomsFacets(
           payload = mergeBakedBaseFacts(adapted, parsedBody);
         }
       }
+      payload = echoRequestedParcelNodeId(payload, parcelNodeId);
       const readHeader: PeReadPathHeader =
         adapted.readPath === "atom-chain-warm" ? "atom-chain-warm" : "atom-chain";
       res.setHeader("X-PE-Read-Path", readHeader);
@@ -388,7 +454,10 @@ export async function handlePropertyAtomsFacets(
         res.setHeader("X-PE-Read-Path", "atom-pending" satisfies PeReadPathHeader);
         res.setHeader("Content-Type", "application/json");
         res.status(200).json({
-          ...stripped,
+          ...echoRequestedParcelNodeId(
+            stripped,
+            parcelNodeId,
+          ),
           atomPathReason: atom.ok ? "adapt-failed" : atom.reason,
         });
         return;

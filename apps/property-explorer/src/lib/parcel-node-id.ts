@@ -6,6 +6,10 @@
 export {
   PARCEL_NODE_ID_SOURCE,
   PARCEL_NODE_ID_RE,
+  PARCEL_PAD_SUFFIX,
   isValidParcelNodeId,
   normalizeParcelNodeId,
+  parcelGrammarAlias,
+  parcelGrammarPair,
+  echoRequestedParcelNodeId,
 } from "../../api/_lib/parcel-node-id";
