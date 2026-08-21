@@ -132,6 +132,11 @@ export interface BakedFacetsResponse {
    * did not copy it. Never populated from tier2.flood.
    */
   floodHazardFact?: FloodHazardFactCardInput;
+  /**
+   * Land use from land-use-fact atoms. Absent when the BFF did not copy it.
+   * Never populated from facets.baseFacts.landUse.
+   */
+  landUseFact?: LandUseFactCardInput;
 }
 
 /** Cortex inspect GET flood determination (PR 449). Root sibling of facets. */
@@ -142,6 +147,18 @@ export type FloodHazardFactCardInput = {
   absence?: { kind?: string; reason?: string } | null;
   code?: unknown;
   source?: unknown;
+};
+
+/** Cortex inspect GET land-use determination (s7). Root sibling of facets. */
+export type LandUseFactCardInput = {
+  state?: string;
+  landUseCode?: unknown;
+  landUseLabel?: unknown;
+  absence?: { kind?: string; reason?: string } | null;
+  code?: unknown;
+  source?: unknown;
+  sourceVintage?: unknown;
+  taxYear?: unknown;
 };
 
 /**
