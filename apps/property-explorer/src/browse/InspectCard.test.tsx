@@ -489,3 +489,41 @@ describe("InspectCard Flood row — floodHazardFact only (WDLL 3)", () => {
     expect(html).not.toContain("Flood");
   });
 });
+
+describe("InspectCard Land use row — landUseFact preferred (WDLL 5 leftover)", () => {
+  it("gold present A1 from landUseFact renders Land use with inspect-landuse", () => {
+    const html = renderToStaticMarkup(
+      <dl>
+        <FactRow
+          label="Land use"
+          fact={toFactPresentation(
+            { state: "present", value: "A1 — Single-family residential" },
+            ROW_SPECS.landUse,
+          )}
+          testid="inspect-landuse"
+        />
+      </dl>,
+    );
+    expect(html).toContain('data-testid="inspect-landuse"');
+    expect(html).toContain("A1 — Single-family residential");
+    expect(html).not.toContain("cad-roll");
+  });
+
+  it("named refusals render the code, never a silent cad-roll swap", () => {
+    const html = renderToStaticMarkup(
+      <dl>
+        <FactRow
+          label="Land use"
+          fact={toFactPresentation(
+            { state: "pending", value: "atom-miss" },
+            ROW_SPECS.landUse,
+          )}
+          testid="inspect-landuse"
+        />
+      </dl>,
+    );
+    expect(html).toContain("atom-miss");
+    expect(html).toContain('data-state="pending"');
+    expect(html).not.toContain("cad-roll");
+  });
+});

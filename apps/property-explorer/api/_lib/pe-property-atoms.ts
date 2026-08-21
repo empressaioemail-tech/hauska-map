@@ -19,6 +19,7 @@ import {
   atomChainIsUsable,
   floodHazardFactFromCortexRoot,
   isPropertyAtomPathEnabled,
+  landUseFactFromCortexRoot,
   mergeBakedBaseFacts,
   parsePropertyAtomsPath,
   type PeBakedFacetsResponse,
@@ -107,9 +108,37 @@ function cortexFloodFactMissing(body: string): boolean {
   }
 }
 
+function cortexLandUseFactMissing(body: string): boolean {
+  try {
+    return landUseFactFromCortexRoot(JSON.parse(body) as unknown) === undefined;
+  } catch {
+    return true;
+  }
+}
+
+/** Missing floodHazardFact OR missing landUseFact — same retry as each field alone. */
+function cortexNeedsRootFactAlias(body: string): boolean {
+  return cortexFloodFactMissing(body) || cortexLandUseFactMissing(body);
+}
+
+function aliasFillsRootFactGap(
+  primary: { status: number; body: string },
+  aliasedBody: string,
+): boolean {
+  if (primary.status === 404) {
+    return !cortexFloodFactMissing(aliasedBody) || !cortexLandUseFactMissing(aliasedBody);
+  }
+  const floodGain =
+    cortexFloodFactMissing(primary.body) && !cortexFloodFactMissing(aliasedBody);
+  const landGain =
+    cortexLandUseFactMissing(primary.body) && !cortexLandUseFactMissing(aliasedBody);
+  return floodGain || landGain;
+}
+
 /**
  * Same grammar pair as atom-chain. If the requested key's cortex body has no
- * root floodHazardFact, try the alias. Never reads tier2.flood.
+ * root floodHazardFact or no root landUseFact, try the alias. Never reads
+ * tier2.flood. Never adopts cad-roll baseFacts.landUse as landUseFact.
  */
 export async function fetchCortexFacetsWithAlias(
   parcelNodeId: string,
@@ -118,14 +147,14 @@ export async function fetchCortexFacetsWithAlias(
   const retryable =
     (primary.status >= 200 &&
       primary.status < 300 &&
-      cortexFloodFactMissing(primary.body)) ||
+      cortexNeedsRootFactAlias(primary.body)) ||
     primary.status === 404;
   if (!retryable) return primary;
   const alias = parcelGrammarAlias(parcelNodeId);
   if (!alias) return primary;
   const aliased = await fetchCortexFacets(alias);
   if (aliased.status < 200 || aliased.status >= 300) return primary;
-  if (cortexFloodFactMissing(aliased.body)) return primary;
+  if (!aliasFillsRootFactGap(primary, aliased.body)) return primary;
   return aliased;
 }
 

@@ -874,3 +874,88 @@ describe("floodHazardFact only (WDLL 3 / SS-W16)", () => {
     expect(sheet.flood.reason).toBe("atom-miss");
   });
 });
+
+describe("landUseFact only (WDLL 5 leftover)", () => {
+  it("gold 48021 present landUseCode A1 from landUseFact with source=land-use-fact", async () => {
+    const wire = facetsWire() as unknown as Record<string, unknown>;
+    (wire.facets as { baseFacts: { landUse: { code: string } } }).baseFacts.landUse = {
+      code: "CADROLL",
+      description: "baked only",
+      source: "cad-roll",
+    } as { code: string; description: string; source: string };
+    wire.landUseFact = {
+      state: "present",
+      source: "land-use-fact",
+      landUseCode: "A1",
+      landUseLabel: "Single-family residential",
+      taxYear: 2025,
+    };
+    const stub = installFetchStub({ facets: wire, gisFeatures: [SUBJECT_FEATURE] });
+    const sheet = await sheetOf(makeResolver(stub), NODE_ID);
+    expect(sheet.landUse.state).toBe("present");
+    if (sheet.landUse.state !== "present") throw new Error("unreachable");
+    expect(sheet.landUse.value.code).toBe("A1");
+    expect(sheet.landUse.value.description).toBe("Single-family residential");
+    expect(sheet.landUse.provenance.source).toBe("land-use-fact");
+    expect(sheet.landUse.provenance.source).not.toBe("cad-roll");
+    expect(sheet.landUse.value.code).not.toBe("CADROLL");
+  });
+
+  it("cad-roll-only bake without landUseFact does not claim the atom (retiredStore)", async () => {
+    const wire = facetsWire() as unknown as Record<string, unknown>;
+    delete wire.landUseFact;
+    const stub = installFetchStub({ facets: wire, gisFeatures: [SUBJECT_FEATURE] });
+    const sheet = await sheetOf(makeResolver(stub), NODE_ID);
+    expect(sheet.landUse.state).toBe("present");
+    if (sheet.landUse.state !== "present") throw new Error("unreachable");
+    expect(sheet.landUse.value.code).toBe("A1");
+    expect(sheet.landUse.provenance.source).toBe("cad-roll");
+    expect(sheet.landUse.provenance.source).not.toBe("land-use-fact");
+  });
+
+  it("landUseFact that still cites cad-roll does not get relabelled as the atom", async () => {
+    const wire = facetsWire() as unknown as Record<string, unknown>;
+    wire.landUseFact = {
+      state: "present",
+      source: "cad-roll",
+      landUseCode: "A1",
+      landUseLabel: "Single-family residential",
+    };
+    const stub = installFetchStub({ facets: wire, gisFeatures: [SUBJECT_FEATURE] });
+    const sheet = await sheetOf(makeResolver(stub), NODE_ID);
+    expect(sheet.landUse.state).toBe("present");
+    if (sheet.landUse.state !== "present") throw new Error("unreachable");
+    expect(sheet.landUse.provenance.source).toBe("cad-roll");
+    expect(sheet.landUse.provenance.source).not.toBe("land-use-fact");
+  });
+
+  it("named refusals are unresolved, never a silent cad-roll swap", async () => {
+    const wire = facetsWire() as unknown as Record<string, unknown>;
+    wire.landUseFact = {
+      state: "refused",
+      code: "atom-miss",
+      source: "land-use-fact",
+    };
+    const stub = installFetchStub({ facets: wire, gisFeatures: [SUBJECT_FEATURE] });
+    const sheet = await sheetOf(makeResolver(stub), NODE_ID);
+    expect(sheet.landUse.state).toBe("unresolved");
+    if (sheet.landUse.state !== "unresolved") throw new Error("unreachable");
+    expect(sheet.landUse.reason).toBe("atom-miss");
+    expect(JSON.stringify(sheet.landUse)).not.toMatch(/cad-roll/);
+  });
+
+  it("typed absence stays visible and does not fall back to cad-roll", async () => {
+    const wire = facetsWire() as unknown as Record<string, unknown>;
+    wire.landUseFact = {
+      state: "absent",
+      source: "land-use-fact",
+      absence: { kind: "no-land-use", reason: "no land-use-fact body on this parcel" },
+    };
+    const stub = installFetchStub({ facets: wire, gisFeatures: [SUBJECT_FEATURE] });
+    const sheet = await sheetOf(makeResolver(stub), NODE_ID);
+    expect(sheet.landUse.state).toBe("absent-covered");
+    if (sheet.landUse.state !== "absent-covered") throw new Error("unreachable");
+    expect(sheet.landUse.reason).toMatch(/no land-use-fact body/);
+    expect(sheet.landUse.provenance.source).toBe("land-use-fact");
+  });
+});

@@ -476,6 +476,87 @@ describe("mergeBakedBaseFacts — floodHazardFact from cortex JSON ROOT (WDLL 3)
   });
 });
 
+const goldLandUseFact = {
+  state: "present" as const,
+  source: "land-use-fact",
+  landUseCode: "A1",
+  landUseLabel: "Single-family residential",
+  taxYear: 2025,
+  entityId: "48021:34137:2025",
+  sourceAdapter: "cad-property-land-use-v1",
+  sourceVintage: "2025",
+  evaluatedAt: "2026-08-21T00:00:00.000Z",
+};
+
+describe("mergeBakedBaseFacts — landUseFact from cortex JSON ROOT (WDLL 5 leftover)", () => {
+  it("copies a fixture landUseFact from the cortex root onto the atom-chain payload", () => {
+    const adapted = adaptAtomChainToBakedFacets(haysChain)!;
+    const merged = mergeBakedBaseFacts(adapted, {
+      ...bakedCortexBody,
+      landUseFact: goldLandUseFact,
+    });
+    expect(merged.landUseFact).toEqual(goldLandUseFact);
+    expect(merged.landUseFact?.landUseCode).toBe("A1");
+    expect(merged.landUseFact?.source).toBe("land-use-fact");
+    expect(merged.baseFactsMerged).toBe(true);
+    // Cad-roll bake still copies onto baseFacts this pass (acreage/situs).
+    expect(merged.facets.baseFacts?.landUse?.code).toBe("A1");
+    expect(merged.facets.baseFacts?.acreage?.value).toBe(1.42);
+  });
+
+  it("does not copy cad-roll baseFacts.landUse onto landUseFact", () => {
+    const adapted = adaptAtomChainToBakedFacets(haysChain)!;
+    const merged = mergeBakedBaseFacts(adapted, bakedCortexBody);
+    expect("landUseFact" in merged).toBe(false);
+    expect(merged.landUseFact).toBeUndefined();
+    expect(merged.facets.baseFacts?.landUse?.code).toBe("A1");
+    expect(merged.facets.baseFacts?.landUse?.source).toBe("cad-roll");
+    expect(JSON.stringify(merged.landUseFact ?? {})).not.toMatch(/cad-roll/);
+  });
+
+  it("does not adopt a cad-roll {code, description} object parked on the root", () => {
+    const adapted = adaptAtomChainToBakedFacets(haysChain)!;
+    const merged = mergeBakedBaseFacts(adapted, {
+      ...bakedCortexBody,
+      landUseFact: { code: "CADROLL", description: "not an atom" },
+    });
+    expect("landUseFact" in merged).toBe(false);
+    expect(merged.facets.baseFacts?.landUse?.code).toBe("A1");
+  });
+
+  it("missing field stays missing — never invents a land-use code", () => {
+    const adapted = adaptAtomChainToBakedFacets(haysChain)!;
+    const merged = mergeBakedBaseFacts(adapted, bakedCortexBody);
+    expect("landUseFact" in merged).toBe(false);
+  });
+
+  it("early return (no facets) still attaches landUseFact when the root carries it", () => {
+    const adapted = adaptAtomChainToBakedFacets(haysChain)!;
+    const merged = mergeBakedBaseFacts(adapted, {
+      landUseFact: goldLandUseFact,
+    });
+    expect(merged.landUseFact).toEqual(goldLandUseFact);
+    expect(merged.baseFactsMerged).toBeUndefined();
+  });
+
+  it("root landUseFact wins over a different cad-roll bake on the same body", () => {
+    const adapted = adaptAtomChainToBakedFacets(haysChain)!;
+    const merged = mergeBakedBaseFacts(adapted, {
+      facets: {
+        ...bakedCortexBody.facets,
+        baseFacts: {
+          ...bakedCortexBody.facets.baseFacts,
+          landUse: { code: "CADROLL", description: "baked only", source: "cad-roll" },
+        },
+      },
+      landUseFact: goldLandUseFact,
+    });
+    expect(merged.landUseFact?.landUseCode).toBe("A1");
+    expect(merged.landUseFact?.source).toBe("land-use-fact");
+    expect(merged.facets.baseFacts?.landUse?.code).toBe("CADROLL");
+  });
+});
+
 describe("adaptAtomChainToBakedFacets — warm verify honest decline (141364 / superseded-prop-id)", () => {
   it("surfaces named superseded-prop-id decline instead of setback-rule-pending", () => {
     const chain: PropertyAtomChain = {

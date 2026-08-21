@@ -222,6 +222,27 @@ export type FloodHazardFactWire = {
   zones?: unknown;
 };
 
+/**
+ * Cortex inspect GET sibling of `facets` / `tier2` / `floodHazardFact` (s7).
+ * Copied from the cortex JSON ROOT only. Never populated from
+ * facets.baseFacts.landUse (cad-roll retiredStore).
+ */
+export type LandUseFactWire = {
+  state: "present" | "absent" | "refused";
+  landUseCode?: unknown;
+  landUseLabel?: unknown;
+  absence?: { kind?: string; reason?: string } | null;
+  code?: unknown;
+  source?: unknown;
+  sourceVintage?: unknown;
+  evaluatedAt?: unknown;
+  taxYear?: unknown;
+  boundAs?: unknown;
+  tried?: unknown;
+  entityId?: unknown;
+  sourceAdapter?: unknown;
+};
+
 export interface PeBakedFacetsResponse {
   parcelNodeId: string;
   adapterKey: string;
@@ -236,6 +257,11 @@ export interface PeBakedFacetsResponse {
    * JSON ROOT only. Never populated from tier2.flood.
    */
   floodHazardFact?: FloodHazardFactWire;
+  /**
+   * Land use from land-use-fact atoms. Copied from the cortex JSON ROOT only.
+   * Never populated from facets.baseFacts.landUse.
+   */
+  landUseFact?: LandUseFactWire;
 }
 
 export function isPropertyAtomPathEnabled(
@@ -375,6 +401,47 @@ function withFloodHazardFact(
   return { ...atomResponse, floodHazardFact: fact };
 }
 
+/** Cortex inspect GET sibling of `facets` / `tier2` / `floodHazardFact` (s7). */
+export function isLandUseFactWire(value: unknown): value is LandUseFactWire {
+  if (!value || typeof value !== "object" || Array.isArray(value)) return false;
+  const state = (value as { state?: unknown }).state;
+  return state === "present" || state === "absent" || state === "refused";
+}
+
+/**
+ * Cortex JSON ROOT only. Never reads `facets.baseFacts.landUse` or a nested
+ * cad-roll copy. A cad-roll `{code, description}` object parked on the root
+ * has no state and is rejected.
+ */
+export function landUseFactFromCortexRoot(
+  bakedBody: unknown,
+): LandUseFactWire | undefined {
+  if (!bakedBody || typeof bakedBody !== "object" || Array.isArray(bakedBody)) {
+    return undefined;
+  }
+  const fact = (bakedBody as { landUseFact?: unknown }).landUseFact;
+  return isLandUseFactWire(fact) ? fact : undefined;
+}
+
+function withLandUseFact(
+  atomResponse: PeBakedFacetsResponse,
+  bakedBody: unknown,
+): PeBakedFacetsResponse {
+  const fact = landUseFactFromCortexRoot(bakedBody);
+  if (fact === undefined) return atomResponse;
+  return { ...atomResponse, landUseFact: fact };
+}
+
+function withRootFacts(
+  atomResponse: PeBakedFacetsResponse,
+  bakedBody: unknown,
+): PeBakedFacetsResponse {
+  return withLandUseFact(
+    withFloodHazardFact(atomResponse, bakedBody),
+    bakedBody,
+  );
+}
+
 /**
  * Merge the BAKED cortex base facts into an atom-chain facets response
  * (map UX cluster item 6 — data-path fix).
@@ -395,7 +462,9 @@ function withFloodHazardFact(
  *
  * floodHazardFact is a ROOT sibling of facets (cortex PR 449), not a base
  * fact. Copy it from the cortex JSON ROOT only. Do not adopt tier2.flood.
- * If facets are missing, still attach the root field when it is present.
+ * landUseFact is the same shape family (s7): copy from the cortex JSON ROOT
+ * only. Do not adopt baked facets.baseFacts.landUse as landUseFact.
+ * If facets are missing, still attach the root fields when they are present.
  */
 export function mergeBakedBaseFacts(
   atomResponse: PeBakedFacetsResponse,
@@ -404,9 +473,9 @@ export function mergeBakedBaseFacts(
   const baked = (bakedBody as { facets?: PeBakedFacetPayload } | null | undefined)
     ?.facets;
   if (!baked || typeof baked !== "object") {
-    // Facets missing: still forward a root floodHazardFact. Identity-return
-    // only when that field is also absent.
-    return withFloodHazardFact(atomResponse, bakedBody);
+    // Facets missing: still forward root floodHazardFact / landUseFact.
+    // Identity-return only when those fields are also absent.
+    return withRootFacts(atomResponse, bakedBody);
   }
 
   const bakedBase = baked.baseFacts ?? {};
@@ -477,7 +546,7 @@ export function mergeBakedBaseFacts(
       },
     },
   };
-  return withFloodHazardFact(merged, bakedBody);
+  return withRootFacts(merged, bakedBody);
 }
 
 /**

@@ -436,3 +436,33 @@ describe("floodFacetFromSheet — InspectCard Flood row (WDLL 3)", () => {
     ).toEqual({ state: "pending", value: "atoms-store-not-configured" });
   });
 });
+
+describe("landUseFact inspect row (WDLL 5 leftover)", () => {
+  it("present gold uses landUseCode with source=land-use-fact", () => {
+    const model = bakedCardModelFromSheet(
+      sheet({
+        landUse: {
+          state: "present",
+          value: { code: "A1", description: "Single-family residential" },
+          provenance: {
+            ...prov(),
+            source: "land-use-fact",
+            sourceLabel: "land-use-fact atom",
+          },
+        },
+      }),
+    );
+    expect(model.landUse).toEqual({
+      state: "present",
+      value: "A1 — Single-family residential",
+    });
+    expect(model.provenance.landUseSource).toBe("land-use-fact");
+    expect(model.landUse.value).not.toContain("cad-roll");
+  });
+
+  it("cad-roll-only bake does not claim the atom (retiredStore)", () => {
+    const model = bakedCardModelFromSheet(sheet());
+    expect(model.provenance.landUseSource).toBe("cad-roll");
+    expect(model.provenance.landUseSource).not.toBe("land-use-fact");
+  });
+});

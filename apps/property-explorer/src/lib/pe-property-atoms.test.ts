@@ -63,6 +63,35 @@ describe("stripCortexEnvelopeProductTruth (anti-zombie)", () => {
     }) as Record<string, unknown>;
     expect("floodHazardFact" in noRoot).toBe(false);
   });
+
+  it("preserves cortex-root landUseFact and does not invent one from cad-roll baseFacts.landUse", () => {
+    const goldFact = {
+      state: "present",
+      source: "land-use-fact",
+      landUseCode: "A1",
+    };
+    const withRoot = stripCortexEnvelopeProductTruth({
+      landUseFact: goldFact,
+      facets: {
+        baseFacts: { landUse: { code: "CADROLL", source: "cad-roll" } },
+        envelope: { status: "ok" },
+      },
+    }) as {
+      landUseFact: { landUseCode: string; source: string };
+      facets: { baseFacts: { landUse: { code: string } } };
+    };
+    expect(withRoot.landUseFact.landUseCode).toBe("A1");
+    expect(withRoot.landUseFact.source).toBe("land-use-fact");
+    expect(withRoot.facets.baseFacts.landUse.code).toBe("CADROLL");
+
+    const noRoot = stripCortexEnvelopeProductTruth({
+      facets: {
+        baseFacts: { landUse: { code: "A1", source: "cad-roll" } },
+        envelope: { status: "ok" },
+      },
+    }) as Record<string, unknown>;
+    expect("landUseFact" in noRoot).toBe(false);
+  });
 });
 
 const PADDED = "48021:34137.00000000";
@@ -94,6 +123,13 @@ const GOLD_FLOOD = {
   source: "flood-hazard-fact",
   floodZone: "X",
   inSpecialFloodHazardArea: false,
+};
+const GOLD_LAND_USE = {
+  state: "present",
+  source: "land-use-fact",
+  landUseCode: "A1",
+  landUseLabel: "Single-family residential",
+  taxYear: 2025,
 };
 
 function jsonResponse(body: unknown, status = 200): Response {
@@ -201,6 +237,44 @@ describe("fetchCortexFacetsWithAlias floodHazardFact (WDLL 5)", () => {
     expect(JSON.stringify(body.floodHazardFact)).not.toMatch(/FLOODWAY/);
     expect(JSON.stringify(body.floodHazardFact)).not.toMatch(/"AE"/);
   });
+
+  it("padded cortex missing landUseFact aliases integer root even when floodHazardFact is already on the padded body", async () => {
+    process.env.CORTEX_API_URL = "https://cortex.test";
+    process.env.CORTEX_SERVICE_API_KEY = "ck";
+    vi.stubGlobal("fetch", async (input: RequestInfo | URL) => {
+      const url = String(input);
+      if (url.includes(encodeURIComponent(PADDED))) {
+        return jsonResponse({
+          parcelNodeId: PADDED,
+          floodHazardFact: GOLD_FLOOD,
+          facets: {
+            baseFacts: { landUse: { code: "CADROLL", source: "cad-roll" } },
+          },
+        });
+      }
+      if (url.includes(encodeURIComponent(INTEGER))) {
+        return jsonResponse({
+          parcelNodeId: INTEGER,
+          floodHazardFact: GOLD_FLOOD,
+          landUseFact: GOLD_LAND_USE,
+          facets: {
+            baseFacts: { landUse: { code: "CADROLL", source: "cad-roll" } },
+          },
+        });
+      }
+      throw new Error(`unexpected fetch ${url}`);
+    });
+    const result = await fetchCortexFacetsWithAlias(PADDED);
+    expect(result.status).toBe(200);
+    const body = JSON.parse(result.body) as {
+      landUseFact?: { landUseCode?: string; source?: string };
+      parcelNodeId?: string;
+    };
+    expect(body.landUseFact?.landUseCode).toBe("A1");
+    expect(body.landUseFact?.source).toBe("land-use-fact");
+    expect(JSON.stringify(body.landUseFact)).not.toMatch(/CADROLL/);
+    expect(JSON.stringify(body.landUseFact)).not.toMatch(/cad-roll/);
+  });
 });
 
 describe("handlePropertyAtomsFacets dual-grammar echo (WDLL 5)", () => {
@@ -225,7 +299,7 @@ describe("handlePropertyAtomsFacets dual-grammar echo (WDLL 5)", () => {
     restore("CORTEX_SERVICE_API_KEY", prev.cKey);
   });
 
-  it("serves alias zoning + floodHazardFact and echoes REQUESTED padded parcelNodeId", async () => {
+  it("serves alias zoning + floodHazardFact + landUseFact and echoes REQUESTED padded parcelNodeId", async () => {
     process.env.PROPERTY_ATOM_PATH = "1";
     process.env.HAUSKA_RETRIEVAL_API_URL = "https://retrieval.test";
     process.env.HAUSKA_RETRIEVAL_API_KEY = "rk";
@@ -250,6 +324,7 @@ describe("handlePropertyAtomsFacets dual-grammar echo (WDLL 5)", () => {
         return jsonResponse({
           parcelNodeId: INTEGER,
           floodHazardFact: GOLD_FLOOD,
+          landUseFact: GOLD_LAND_USE,
           facets: { baseFacts: {} },
         });
       }
@@ -295,12 +370,15 @@ describe("handlePropertyAtomsFacets dual-grammar echo (WDLL 5)", () => {
     const body = rec.body as {
       parcelNodeId: string;
       floodHazardFact?: { floodZone?: string };
+      landUseFact?: { landUseCode?: string; source?: string };
       facets: { parcelNodeId?: string; zoning?: { district?: string } };
     };
     expect(body.parcelNodeId).toBe(PADDED);
     expect(body.facets.parcelNodeId).toBe(PADDED);
     expect(body.facets.zoning?.district).toBe("SF-1");
     expect(body.floodHazardFact?.floodZone).toBe("X");
+    expect(body.landUseFact?.landUseCode).toBe("A1");
+    expect(body.landUseFact?.source).toBe("land-use-fact");
     expect(JSON.stringify(body.floodHazardFact)).not.toMatch(/"AE"/);
   });
 });

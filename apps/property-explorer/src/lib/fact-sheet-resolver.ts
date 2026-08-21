@@ -20,8 +20,9 @@
 //   1. GET  {facets}/…/:parcelNodeId/facets   identity, land use, zoning,
 //                                             setbacks, envelope, acreage,
 //                                             provenance, and the root
-//                                             floodHazardFact sibling (never
-//                                             tier2.flood).
+//                                             floodHazardFact / landUseFact
+//                                             siblings (never tier2.flood;
+//                                             never cad-roll as landUseFact).
 //   2. POST {cortex}/…/place/buildable-envelope   the backend's authoritative
 //                                             resolution of the parcel to a
 //                                             point (its `coord:` placeKey),
@@ -266,7 +267,11 @@ function identityFacts(facets: BakedFacetPayload, parcelNodeId: string) {
   return { apn, situsAddress, owner };
 }
 
-function landUseFact(
+/**
+ * RetiredStore cad-roll bake. Used only when the inspect payload has no
+ * landUseFact root sibling. Must not claim source=land-use-fact.
+ */
+function landUseFromCadRoll(
   facets: BakedFacetPayload,
 ): Fact<{ code: string; description: string }> {
   const lu = facets.baseFacts?.landUse ?? null;
@@ -302,6 +307,77 @@ function landUseFact(
     "land use is not stamped for this county",
     "a county land-use ingest",
   );
+}
+
+/**
+ * Land use from cortex-root landUseFact when present (WDLL 5 leftover).
+ *
+ * Prefer the atom field. Cad-roll baseFacts.landUse is retiredStore: it is
+ * kept when the root field is missing so acreage/situs-adjacent inspect does
+ * not go blank while s7 is undeployed, and tests must not claim the atom.
+ * Never silently swap cad-roll into landUseFact.
+ */
+function landUseFromInspectWire(
+  landUseFact: unknown,
+  facets: BakedFacetPayload,
+): Fact<{ code: string; description: string }> {
+  if (
+    !landUseFact ||
+    typeof landUseFact !== "object" ||
+    Array.isArray(landUseFact)
+  ) {
+    return landUseFromCadRoll(facets);
+  }
+  const fact = rec(landUseFact);
+  if (!fact) return landUseFromCadRoll(facets);
+  const state = str(fact.state);
+  if (state !== "present" && state !== "absent" && state !== "refused") {
+    // Cad-roll {code, description} parked on the root is not landUseFact.
+    return landUseFromCadRoll(facets);
+  }
+  if (str(fact.source) === "cad-roll") {
+    // A present-shaped object that still cites cad-roll is not the atom path.
+    // Do not relabel it land-use-fact.
+    return landUseFromCadRoll(facets);
+  }
+
+  const prov = provenance({
+    source: str(fact.source) ?? "land-use-fact",
+    sourceLabel: "land-use-fact atom",
+    vintage:
+      str(fact.sourceVintage) ??
+      (fact.taxYear != null ? String(fact.taxYear) : null) ??
+      str(fact.evaluatedAt),
+    sourceUrl: str(rec(fact.provenance)?.url),
+  });
+
+  if (state === "refused") {
+    const code = str(fact.code) ?? "refused";
+    return { state: "unresolved", reason: code, retryable: false };
+  }
+  if (state === "absent") {
+    const absence = rec(fact.absence);
+    const reason =
+      str(absence?.reason) ?? str(absence?.kind) ?? "typed absence";
+    return absentCovered(reason, prov);
+  }
+
+  const landUseCode = str(fact.landUseCode);
+  const landUseLabel = str(fact.landUseLabel);
+  if (!landUseCode && !landUseLabel) {
+    return absentCovered(
+      "land-use-fact present with no landUseCode",
+      prov,
+    );
+  }
+  return {
+    state: "present",
+    value: {
+      code: landUseCode ?? "",
+      description: landUseLabel ?? landUseCode ?? "",
+    },
+    provenance: prov,
+  };
 }
 
 function zoningFact(facets: BakedFacetPayload, countyFips: string): Fact<ZoningDistrict> {
@@ -914,6 +990,8 @@ export class PeFactSheetResolver implements FactSheetResolver {
     const facets = facetsResult.data.facets ?? {};
     const floodHazardFact =
       wire.floodHazardFact ?? facetsResult.data.floodHazardFact ?? null;
+    const landUseFact =
+      wire.landUseFact ?? facetsResult.data.landUseFact ?? null;
 
     const fips = str(facets.countyFips) ?? parcelNodeId.split(":")[0] ?? "";
     const countyName =
@@ -948,7 +1026,7 @@ export class PeFactSheetResolver implements FactSheetResolver {
     // AMENDMENT 3: null means no lot area is known. No sentinel to unwrap.
     const lotAreaSqFt = geometry.lotArea?.value ?? null;
 
-    const landUse = landUseFact(facets);
+    const landUse = landUseFromInspectWire(landUseFact, facets);
     const zoning = zoningFact(facets, fips);
     const setbacks = setbacksFact(facets);
     const envelope = envelopeValue(facets, setbacks, lotAreaSqFt);
