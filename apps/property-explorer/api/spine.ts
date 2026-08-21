@@ -36,6 +36,11 @@
 
 import type { VercelRequest, VercelResponse } from '@vercel/node'
 import { handlePropertyAtomsFacets } from './_lib/pe-property-atoms.js'
+import {
+  aliasedRetrievalPathIfEmpty,
+  retrievalBindParcelNodeId,
+} from './_lib/retrieval-bind-alias.js'
+import { echoRequestedParcelNodeId } from './_lib/parcel-node-id.js'
 
 interface Upstream {
   baseUrl: string
@@ -412,8 +417,38 @@ export default async function handler(req: VercelRequest, res: VercelResponse): 
       res.setHeader('Content-Type', contentType)
     }
 
-    const text = await upstreamRes.text()
-    res.status(upstreamRes.status).send(text)
+    let text = await upstreamRes.text()
+    let status = upstreamRes.status
+
+    if (path[0] === 'retrieval') {
+      const aliasPath = aliasedRetrievalPathIfEmpty(effectivePath, status, text)
+      if (aliasPath) {
+        const aliasUrl = `${upstream.baseUrl}/${aliasPath}${qsStr ? `?${qsStr}` : ''}`
+        const aliasRes = await fetch(aliasUrl, fetchOptions)
+        const aliasType = aliasRes.headers.get('content-type')
+        if (aliasType) res.setHeader('Content-Type', aliasType)
+        text = await aliasRes.text()
+        status = aliasRes.status
+        const requestedId = retrievalBindParcelNodeId(effectivePath)
+        if (requestedId && aliasType && aliasType.includes('json')) {
+          try {
+            const parsed: unknown = JSON.parse(text)
+            if (parsed && typeof parsed === 'object' && !Array.isArray(parsed)) {
+              text = JSON.stringify(
+                echoRequestedParcelNodeId(
+                  parsed as Record<string, unknown>,
+                  requestedId,
+                ),
+              )
+            }
+          } catch {
+            // keep alias body
+          }
+        }
+      }
+    }
+
+    res.status(status).send(text)
   } catch (err) {
     res.status(502).json({ error: 'upstream error', message: err instanceof Error ? err.message : String(err) })
   }

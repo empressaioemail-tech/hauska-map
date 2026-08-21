@@ -5,6 +5,7 @@ name: Command Center CI
 # BLOCKED even when PE Typecheck/Test are green. A PE-only PR that must
 # land can include this file in the diff so the pull_request event reports
 # "test". workflow_dispatch on the same SHA does not satisfy the gate.
+# Included in s6-dual-grammar (P-08 / WDLL 5) for that required check.
 
 on:
   pull_request:

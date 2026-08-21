@@ -7,6 +7,10 @@ import {
   PARCEL_NODE_ID_SOURCE,
   isValidParcelNodeId,
   normalizeParcelNodeId,
+  parcelGrammarAlias,
+  parcelGrammarPair,
+  echoRequestedParcelNodeId,
+  PARCEL_PAD_SUFFIX,
 } from "./parcel-node-id";
 import { PARCEL_NODE_ID_SOURCE as API_SOURCE } from "../../api/_lib/parcel-node-id";
 
@@ -37,3 +41,48 @@ describe("G6 parcel-node-id contract", () => {
     expect(normalizeParcelNodeId("  48209:156346  ")).toBe("48209:156346");
   });
 });
+
+describe("parcelGrammarAlias dual-grammar pair (WDLL 5)", () => {
+  it("adds trailing .00000000 on integer propId", () => {
+    expect(PARCEL_PAD_SUFFIX).toBe(".00000000");
+    expect(parcelGrammarAlias("48021:34137")).toBe("48021:34137.00000000");
+    expect(parcelGrammarAlias("48055:18925")).toBe("48055:18925.00000000");
+  });
+
+  it("strips trailing .00000000 from padded propId", () => {
+    expect(parcelGrammarAlias("48021:34137.00000000")).toBe("48021:34137");
+    expect(parcelGrammarAlias("48055:18925.00000000")).toBe("48055:18925");
+  });
+
+  it("refuses a non .00000000 suffix", () => {
+    expect(parcelGrammarAlias("48021:34137.1")).toBeNull();
+    expect(parcelGrammarAlias("48021:34137.00000001")).toBeNull();
+    expect(parcelGrammarAlias("48021:34137.00")).toBeNull();
+    expect(parcelGrammarPair("48021:34137.1").alias).toBeNull();
+  });
+
+  it("pair is requested plus the other grammar", () => {
+    expect(parcelGrammarPair("48021:34137")).toEqual({
+      requested: "48021:34137",
+      alias: "48021:34137.00000000",
+    });
+    expect(parcelGrammarPair("48021:34137.00000000")).toEqual({
+      requested: "48021:34137.00000000",
+      alias: "48021:34137",
+    });
+  });
+
+  it("echoes REQUESTED parcelNodeId and does not rewrite URL identity", () => {
+    const echoed = echoRequestedParcelNodeId(
+      {
+        parcelNodeId: "48021:34137",
+        facets: { parcelNodeId: "48021:34137", zoning: { district: "SF-1" } },
+      },
+      "48021:34137.00000000",
+    );
+    expect(echoed.parcelNodeId).toBe("48021:34137.00000000");
+    expect(echoed.facets.parcelNodeId).toBe("48021:34137.00000000");
+    expect(echoed.facets.zoning.district).toBe("SF-1");
+  });
+});
+
