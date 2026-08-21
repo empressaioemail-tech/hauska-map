@@ -21,6 +21,7 @@ import type {
   EnvelopeProvenanceRefs,
   SetbackFieldNotes,
 } from "../lib/buildable-envelope.js";
+import { floodHazardFactToCardFacet } from "../lib/baked-facets";
 
 const noop = () => {};
 
@@ -424,5 +425,76 @@ describe("liveSetbackLine — governed_by resolution on the live-fallback path (
 
   it("no setbacks at all -> null (unchanged)", () => {
     expect(liveSetbackLine({ status: "loading" })).toBeNull();
+  });
+});
+
+describe("InspectCard Flood row — floodHazardFact only (WDLL 3)", () => {
+  it("gold 48021:34137 present Zone X renders a Flood row", () => {
+    const html = renderToStaticMarkup(
+      <dl>
+        <FacetRow
+          label="Flood"
+          facet={floodHazardFactToCardFacet({
+            state: "present",
+            floodZone: "X",
+            inSpecialFloodHazardArea: false,
+            source: "flood-hazard-fact",
+          })}
+          testid="inspect-flood"
+        />
+      </dl>,
+    );
+    expect(html).toContain("Flood");
+    expect(html).toContain('data-testid="inspect-flood"');
+    expect(html).toContain("Zone X");
+    expect(html).not.toContain("FLOODWAY");
+    expect(html).not.toContain("outside-sfha");
+  });
+
+  it("named refusals render the code, never a silent null", () => {
+    const miss = renderToStaticMarkup(
+      <dl>
+        <FacetRow
+          label="Flood"
+          facet={floodHazardFactToCardFacet({
+            state: "refused",
+            code: "atom-miss",
+          })}
+          testid="inspect-flood"
+        />
+      </dl>,
+    );
+    expect(miss).toContain("atom-miss");
+    expect(miss).not.toContain("not verified here");
+
+    const unconfigured = renderToStaticMarkup(
+      <dl>
+        <FacetRow
+          label="Flood"
+          facet={floodHazardFactToCardFacet({
+            state: "refused",
+            code: "atoms-store-not-configured",
+          })}
+          testid="inspect-flood"
+        />
+      </dl>,
+    );
+    expect(unconfigured).toContain("atoms-store-not-configured");
+  });
+
+  it("missing floodHazardFact hides the Flood row (unknown, not invented)", () => {
+    const html = renderToStaticMarkup(
+      <dl>
+        <FacetRow
+          label="Flood"
+          facet={floodHazardFactToCardFacet(undefined)}
+          testid="inspect-flood"
+        />
+      </dl>,
+    );
+    expect(html).toBe("<dl></dl>");
+    expect(html).not.toContain("Flood");
+    expect(html).not.toContain("inspect-flood");
+    expect(html).not.toContain("Zone");
   });
 });

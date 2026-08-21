@@ -209,6 +209,15 @@ export interface PeBakedFacetPayload {
   bakedAt?: string;
 }
 
+/**
+ * Cortex inspect GET sibling of `facets` / `tier2` (PR 449). Copied from the
+ * cortex JSON ROOT only. Never derived from `tier2.flood`.
+ */
+export type FloodHazardFactWire = {
+  state: "present" | "absent" | "refused";
+  [key: string]: unknown;
+};
+
 export interface PeBakedFacetsResponse {
   parcelNodeId: string;
   adapterKey: string;
@@ -218,6 +227,12 @@ export interface PeBakedFacetsResponse {
   readPath: "atom-chain" | "atom-chain-warm";
   /** True when baked cortex base facts were merged onto the atom-chain read. */
   baseFactsMerged?: boolean;
+  /**
+   * Flood determination from flood-hazard-fact atoms (cortex root field).
+   * Absent when cortex did not send it — never invented, never copied from
+   * `tier2.flood`.
+   */
+  floodHazardFact?: FloodHazardFactWire;
 }
 
 export function isPropertyAtomPathEnabled(
@@ -326,6 +341,38 @@ function mapSetbacks(
 }
 
 /**
+ * Cortex inspect GET sibling of `facets` / `tier2` (PR 449). Copied from the
+ * cortex JSON ROOT only. Never derived from `tier2.flood`.
+ */
+export function isFloodHazardFactWire(
+  value: unknown,
+): value is FloodHazardFactWire {
+  if (!value || typeof value !== "object" || Array.isArray(value)) return false;
+  const state = (value as { state?: unknown }).state;
+  return state === "present" || state === "absent" || state === "refused";
+}
+
+/** Cortex JSON ROOT only. Never reads `tier2.flood` or a nested facets copy. */
+export function floodHazardFactFromCortexRoot(
+  bakedBody: unknown,
+): FloodHazardFactWire | undefined {
+  if (!bakedBody || typeof bakedBody !== "object" || Array.isArray(bakedBody)) {
+    return undefined;
+  }
+  const fact = (bakedBody as { floodHazardFact?: unknown }).floodHazardFact;
+  return isFloodHazardFactWire(fact) ? fact : undefined;
+}
+
+function withFloodHazardFact(
+  atomResponse: PeBakedFacetsResponse,
+  bakedBody: unknown,
+): PeBakedFacetsResponse {
+  const fact = floodHazardFactFromCortexRoot(bakedBody);
+  if (fact === undefined) return atomResponse;
+  return { ...atomResponse, floodHazardFact: fact };
+}
+
+/**
  * Merge the BAKED cortex base facts into an atom-chain facets response
  * (map UX cluster item 6 — data-path fix).
  *
@@ -342,6 +389,10 @@ function mapSetbacks(
  * Honesty: a baked-absent fact (null value, coverage false) stays honestly
  * absent — nothing is defaulted or invented. An unusable baked body returns
  * the atom response unchanged.
+ *
+ * floodHazardFact is a ROOT sibling of facets (cortex PR 449), not a base
+ * fact. Copy it from the cortex JSON ROOT only. Do not adopt tier2.flood.
+ * If facets are missing, still attach the root field when it is present.
  */
 export function mergeBakedBaseFacts(
   atomResponse: PeBakedFacetsResponse,
@@ -349,7 +400,11 @@ export function mergeBakedBaseFacts(
 ): PeBakedFacetsResponse {
   const baked = (bakedBody as { facets?: PeBakedFacetPayload } | null | undefined)
     ?.facets;
-  if (!baked || typeof baked !== "object") return atomResponse;
+  if (!baked || typeof baked !== "object") {
+    // Facets missing: still forward a root floodHazardFact. Identity-return
+    // only when that field is also absent.
+    return withFloodHazardFact(atomResponse, bakedBody);
+  }
 
   const bakedBase = baked.baseFacts ?? {};
   const bakedCov = baked.facetCoverage ?? {};
@@ -378,7 +433,7 @@ export function mergeBakedBaseFacts(
     (typeof atomBase.apn === "string" && atomBase.apn.trim() ? atomBase.apn : null) ??
     (typeof bakedBase.apn === "string" && bakedBase.apn.trim() ? bakedBase.apn : null);
 
-  return {
+  const merged: PeBakedFacetsResponse = {
     ...atomResponse,
     baseFactsMerged: true,
     facets: {
@@ -419,6 +474,7 @@ export function mergeBakedBaseFacts(
       },
     },
   };
+  return withFloodHazardFact(merged, bakedBody);
 }
 
 /**

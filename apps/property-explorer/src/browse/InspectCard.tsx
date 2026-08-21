@@ -227,7 +227,10 @@ export function InspectCard({
         const result = await fetchBakedNodeFacets(parcelNodeId, PE_FACETS_PROXY_BASE);
         if (cancelled) return;
         if (result.kind === "ok") {
-          const model = deriveBakedCardModel(result.data.facets);
+          const model = deriveBakedCardModel(
+            result.data.facets,
+            result.data.floodHazardFact,
+          );
           setBaked(model);
           setSource("baked");
           if (
@@ -380,6 +383,11 @@ export function InspectCard({
               chips={chipsForRow(provenanceRefs, "buildable")}
               openChipDid={openChipDid}
               onChipToggle={toggleChip}
+            />
+            <FacetRow
+              label="Flood"
+              facet={baked.flood}
+              testid="inspect-flood"
             />
           </>
         ) : (

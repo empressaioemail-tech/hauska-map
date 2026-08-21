@@ -12,6 +12,7 @@ import {
   shouldSkipColdDerive,
   DEPTH_WARM_PROMOTION_MARKER,
   type PropertyAtomChain,
+  type FloodHazardFactWire,
 } from "../../api/_lib/atom-chain-to-facets";
 
 /** Hays-shaped fixture (aligned to live Gate C proof atom-chain). */
@@ -404,6 +405,97 @@ describe("mergeBakedBaseFacts — atom path + baked base facts (item 6)", () => 
     expect(mergeBakedBaseFacts(adapted, null)).toBe(adapted);
     expect(mergeBakedBaseFacts(adapted, "oops")).toBe(adapted);
     expect(mergeBakedBaseFacts(adapted, {})).toBe(adapted);
+  });
+});
+
+/** Gold 48021:34137 present finding — cortex PR 449 root shape (S1 live atom). */
+const goldFloodHazardFact: FloodHazardFactWire = {
+  state: "present",
+  source: "flood-hazard-fact",
+  boundAs: "48021:34137",
+  tried: ["48021:34137", "48021:34137.00000000"],
+  entityId: "48021:34137",
+  inSpecialFloodHazardArea: false,
+  floodZone: "X",
+  zoneSubtype: null,
+  baseFloodElevation: null,
+  sourceAdapter: "fema-nfhl-bulk-v1",
+  sourceVintage: "NFHL_48_20260101",
+  evaluatedAt: "2026-08-11T23:13:43.774Z",
+};
+
+/** Retired snapshot flood — must NEVER become floodHazardFact. */
+const retiredTier2Flood = {
+  status: "in-sfha",
+  floodZone: "AE",
+  zoneSubtype: "FLOODWAY",
+  baseFloodElevationFt: 512.4,
+};
+
+describe("mergeBakedBaseFacts — floodHazardFact from cortex JSON ROOT (WDLL 3)", () => {
+  it("copies a fixture floodHazardFact from the cortex root onto the atom-chain payload", () => {
+    const adapted = adaptAtomChainToBakedFacets(haysChain)!;
+    const merged = mergeBakedBaseFacts(adapted, {
+      ...bakedCortexBody,
+      floodHazardFact: goldFloodHazardFact,
+    });
+    expect(merged.floodHazardFact).toEqual(goldFloodHazardFact);
+    expect(merged.floodHazardFact?.floodZone).toBe("X");
+    expect(merged.baseFactsMerged).toBe(true);
+  });
+
+  it("does not copy tier2.flood — even a full in-SFHA snapshot stays off floodHazardFact", () => {
+    const adapted = adaptAtomChainToBakedFacets(haysChain)!;
+    const merged = mergeBakedBaseFacts(adapted, {
+      ...bakedCortexBody,
+      tier2: { flood: retiredTier2Flood },
+    });
+    expect("floodHazardFact" in merged).toBe(false);
+    expect(merged.floodHazardFact).toBeUndefined();
+    expect(JSON.stringify(merged)).not.toMatch(/FLOODWAY/);
+    expect(JSON.stringify(merged)).not.toMatch(/"AE"/);
+    expect(JSON.stringify(merged)).not.toMatch(/512\.4/);
+  });
+
+  it("root floodHazardFact wins when both the root field and tier2.flood are present (divergence)", () => {
+    const adapted = adaptAtomChainToBakedFacets(haysChain)!;
+    const merged = mergeBakedBaseFacts(adapted, {
+      ...bakedCortexBody,
+      floodHazardFact: goldFloodHazardFact,
+      tier2: { flood: retiredTier2Flood },
+    });
+    expect(merged.floodHazardFact?.floodZone).toBe("X");
+    expect(merged.floodHazardFact?.state).toBe("present");
+    expect(JSON.stringify(merged.floodHazardFact)).not.toMatch(/FLOODWAY/);
+  });
+
+  it("missing field stays missing — never invents a zone", () => {
+    const adapted = adaptAtomChainToBakedFacets(haysChain)!;
+    const merged = mergeBakedBaseFacts(adapted, bakedCortexBody);
+    expect("floodHazardFact" in merged).toBe(false);
+    expect(merged.floodHazardFact).toBeUndefined();
+    expect(JSON.stringify(merged)).not.toMatch(/floodHazardFact/);
+    expect(JSON.stringify(merged)).not.toMatch(/"floodZone"/);
+  });
+
+  it("early return (no facets) still attaches floodHazardFact when the root carries it", () => {
+    const adapted = adaptAtomChainToBakedFacets(haysChain)!;
+    const merged = mergeBakedBaseFacts(adapted, {
+      floodHazardFact: goldFloodHazardFact,
+    });
+    expect(merged).not.toBe(adapted);
+    expect(merged.floodHazardFact).toEqual(goldFloodHazardFact);
+    expect(merged.baseFactsMerged).toBeUndefined();
+    expect(merged.facets.zoning).toEqual(adapted.facets.zoning);
+  });
+
+  it("rejects a snapshot-shaped object parked on the root (no state present|absent|refused)", () => {
+    const adapted = adaptAtomChainToBakedFacets(haysChain)!;
+    const merged = mergeBakedBaseFacts(adapted, {
+      ...bakedCortexBody,
+      floodHazardFact: retiredTier2Flood,
+    });
+    expect("floodHazardFact" in merged).toBe(false);
   });
 });
 

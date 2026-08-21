@@ -120,6 +120,16 @@ export interface BakedFacetPayload {
   bakedAt?: string;
 }
 
+/** Cortex inspect GET flood determination (PR 449). Root sibling of facets. */
+export type FloodHazardFactCardInput = {
+  state?: string;
+  floodZone?: unknown;
+  inSpecialFloodHazardArea?: unknown;
+  absence?: { kind?: string; reason?: string } | null;
+  code?: unknown;
+  source?: unknown;
+};
+
 /** The endpoint envelope. */
 export interface BakedFacetsResponse {
   parcelNodeId: string;
@@ -127,6 +137,11 @@ export interface BakedFacetsResponse {
   source: "baked-snapshot" | "atom-chain";
   snapshotAt: string | null;
   facets: BakedFacetPayload;
+  /**
+   * Flood determination from flood-hazard-fact atoms. Absent when the BFF
+   * did not copy it. Never populated from tier2.flood.
+   */
+  floodHazardFact?: FloodHazardFactCardInput;
 }
 
 /**
@@ -161,6 +176,11 @@ export interface BakedCardModel {
   acreage: CardFacet<string>;
   setbacks: CardFacet<string>;
   buildablePct: CardFacet<string>;
+  /**
+   * Flood row from floodHazardFact only. `unknown` when the field is missing
+   * (FacetRow hides it). Never derived from tier2.flood.
+   */
+  flood: CardFacet<string>;
   /** True whenever an envelope facet is present — the card must then render the
    *  "approximate / not survey grade" treatment (honesty commitment #1). */
   envelopeApproximate: boolean;
@@ -222,6 +242,49 @@ function pending<T>(message: T): CardFacet<T> {
 }
 
 /**
+ * Map cortex-root floodHazardFact → a card facet.
+ *
+ * present zone / typed absence / named refusal. Missing field → unknown
+ * (InspectCard hides the row). Never reads tier2.flood. Never invents a zone.
+ * A refused fact never becomes a silent null — the code is the value.
+ */
+export function floodHazardFactToCardFacet(
+  fact: FloodHazardFactCardInput | null | undefined,
+): CardFacet<string> {
+  if (!fact || typeof fact !== "object") {
+    return { state: "unknown", value: null };
+  }
+  if (fact.state === "present") {
+    const zone =
+      typeof fact.floodZone === "string" && fact.floodZone.trim()
+        ? fact.floodZone.trim()
+        : null;
+    if (zone) return present(`Zone ${zone}`);
+    return present("Flood determination present (zone unstated)");
+  }
+  if (fact.state === "absent") {
+    const absence = fact.absence;
+    const reason =
+      typeof absence?.reason === "string" && absence.reason.trim()
+        ? absence.reason.trim()
+        : null;
+    const kind =
+      typeof absence?.kind === "string" && absence.kind.trim()
+        ? absence.kind.trim()
+        : null;
+    return absent(reason ?? kind ?? "typed absence");
+  }
+  if (fact.state === "refused") {
+    const code =
+      typeof fact.code === "string" && fact.code.trim()
+        ? fact.code.trim()
+        : "refused";
+    return absent(code);
+  }
+  return { state: "unknown", value: null };
+}
+
+/**
  * Render a land-use fact WITH its provenance inline, e.g.
  * "A1 — Single-family residential (cad-roll · 2024)". Returns null when the
  * fact carries no code and no description (a genuine absence — never invent).
@@ -271,7 +334,10 @@ function formatAcreageDisplay(
  * A facet that is honestly absent becomes state:"absent" — NEVER a blank that
  * reads as "nothing here" and never a fabricated or defaulted value.
  */
-export function deriveBakedCardModel(payload: BakedFacetPayload): BakedCardModel {
+export function deriveBakedCardModel(
+  payload: BakedFacetPayload,
+  floodHazardFact?: FloodHazardFactCardInput | null,
+): BakedCardModel {
   const bf = payload.baseFacts ?? {};
   const cov = payload.facetCoverage ?? {};
   const env = payload.envelope ?? null;
@@ -381,6 +447,7 @@ export function deriveBakedCardModel(payload: BakedFacetPayload): BakedCardModel
     acreage,
     setbacks,
     buildablePct,
+    flood: floodHazardFactToCardFacet(floodHazardFact),
     // Any present envelope is Tier-1 (shape-only, no roads) — always approximate.
     envelopeApproximate: hasEnvelope,
     envelopeStatus: env?.status ?? null,

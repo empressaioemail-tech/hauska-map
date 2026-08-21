@@ -7,7 +7,7 @@
 // deriver contract and runs green under any vitest that picks it up).
 
 import { describe, it, expect } from "vitest";
-import { deriveBakedCardModel, type BakedFacetPayload } from "./baked-facets";
+import { deriveBakedCardModel, floodHazardFactToCardFacet, type BakedFacetPayload } from "./baked-facets";
 
 const fullPayload: BakedFacetPayload = {
   parcelNodeId: "48055:10068",
@@ -428,5 +428,91 @@ describe("deriveBakedCardModel — governed_by resolution + X-ray field notes (E
     const m = deriveBakedCardModel({ parcelNodeId: "48021:1" });
     expect(m.setbackGovernedBy).toBeNull();
     expect(m.setbackFieldNotes).toBeNull();
+  });
+});
+
+describe("floodHazardFactToCardFacet — InspectCard Flood row (WDLL 3)", () => {
+  it("gold 48021:34137 present Zone X", () => {
+    const facet = floodHazardFactToCardFacet({
+      state: "present",
+      floodZone: "X",
+      inSpecialFloodHazardArea: false,
+      source: "flood-hazard-fact",
+    });
+    expect(facet).toEqual({ state: "present", value: "Zone X" });
+    const m = deriveBakedCardModel(
+      { parcelNodeId: "48021:34137" },
+      {
+        state: "present",
+        floodZone: "X",
+        inSpecialFloodHazardArea: false,
+        source: "flood-hazard-fact",
+      },
+    );
+    expect(m.flood).toEqual({ state: "present", value: "Zone X" });
+  });
+
+  it("typed absence is named, never a silent null", () => {
+    const facet = floodHazardFactToCardFacet({
+      state: "absent",
+      source: "flood-hazard-fact",
+      absence: { kind: "verified-outside-layer", reason: "parcel outside NFHL coverage" },
+    });
+    expect(facet.state).toBe("absent");
+    expect(facet.value).toBe("parcel outside NFHL coverage");
+    expect(facet.value).not.toBeNull();
+  });
+
+  it("named refusal atom-miss is the row value, never silent null", () => {
+    const facet = floodHazardFactToCardFacet({
+      state: "refused",
+      code: "atom-miss",
+      source: "flood-hazard-fact",
+    });
+    expect(facet).toEqual({ state: "absent", value: "atom-miss" });
+  });
+
+  it("named refusal atoms-store-not-configured is the row value", () => {
+    const facet = floodHazardFactToCardFacet({
+      state: "refused",
+      code: "atoms-store-not-configured",
+      source: "flood-hazard-fact",
+    });
+    expect(facet).toEqual({ state: "absent", value: "atoms-store-not-configured" });
+  });
+
+  it("missing field stays unknown (FacetRow hides the row; no invented zone)", () => {
+    expect(floodHazardFactToCardFacet(undefined)).toEqual({
+      state: "unknown",
+      value: null,
+    });
+    expect(deriveBakedCardModel(fullPayload).flood).toEqual({
+      state: "unknown",
+      value: null,
+    });
+  });
+
+  it("does not treat a tier2.flood-shaped object as a determination", () => {
+    const snapshotShaped = {
+      status: "in-sfha",
+      floodZone: "AE",
+      zoneSubtype: "FLOODWAY",
+    };
+    expect(floodHazardFactToCardFacet(snapshotShaped)).toEqual({
+      state: "unknown",
+      value: null,
+    });
+  });
+
+  it("present with a null zone does not invent a zone letter", () => {
+    const facet = floodHazardFactToCardFacet({
+      state: "present",
+      floodZone: null,
+      inSpecialFloodHazardArea: false,
+    });
+    expect(facet.state).toBe("present");
+    expect(facet.value).toBe("Flood determination present (zone unstated)");
+    expect(facet.value).not.toMatch(/\bX\b/);
+    expect(facet.value).not.toMatch(/\bAE\b/);
   });
 });
