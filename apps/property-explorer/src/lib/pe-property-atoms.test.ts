@@ -37,4 +37,26 @@ describe("stripCortexEnvelopeProductTruth (anti-zombie)", () => {
     expect(stripped.tier2.flood.status).toBe("outside-sfha");
     expect(stripped.cortexEnvelopeRetired).toBe(true);
   });
+
+  it("preserves cortex-root floodHazardFact and does not invent one from tier2.flood", () => {
+    const goldFact = {
+      state: "present",
+      source: "flood-hazard-fact",
+      floodZone: "X",
+    };
+    const withRoot = stripCortexEnvelopeProductTruth({
+      floodHazardFact: goldFact,
+      tier2: { flood: { status: "in-sfha", floodZone: "AE" }, envelope: { status: "ok" } },
+    }) as {
+      floodHazardFact: { floodZone: string };
+      tier2: { flood: { floodZone: string }; envelope: null };
+    };
+    expect(withRoot.floodHazardFact.floodZone).toBe("X");
+    expect(withRoot.tier2.flood.floodZone).toBe("AE");
+
+    const noRoot = stripCortexEnvelopeProductTruth({
+      tier2: { flood: { status: "outside-sfha" }, envelope: { status: "ok" } },
+    }) as Record<string, unknown>;
+    expect("floodHazardFact" in noRoot).toBe(false);
+  });
 });

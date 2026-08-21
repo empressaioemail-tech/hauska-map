@@ -407,6 +407,75 @@ describe("mergeBakedBaseFacts — atom path + baked base facts (item 6)", () => 
   });
 });
 
+const goldFloodHazardFact = {
+  state: "present" as const,
+  source: "flood-hazard-fact",
+  floodZone: "X",
+  inSpecialFloodHazardArea: false,
+  zoneSubtype: null,
+  baseFloodElevation: null,
+  sourceAdapter: "fema-nfhl-bulk-v1",
+  sourceVintage: "NFHL_48_20260101",
+  evaluatedAt: "2026-08-11T23:13:43.774Z",
+};
+
+const retiredTier2Flood = {
+  status: "in-sfha",
+  floodZone: "AE",
+  zoneSubtype: "FLOODWAY",
+  baseFloodElevationFt: 512.4,
+};
+
+describe("mergeBakedBaseFacts — floodHazardFact from cortex JSON ROOT (WDLL 3)", () => {
+  it("copies a fixture floodHazardFact from the cortex root onto the atom-chain payload", () => {
+    const adapted = adaptAtomChainToBakedFacets(haysChain)!;
+    const merged = mergeBakedBaseFacts(adapted, {
+      ...bakedCortexBody,
+      floodHazardFact: goldFloodHazardFact,
+    });
+    expect(merged.floodHazardFact).toEqual(goldFloodHazardFact);
+    expect(merged.floodHazardFact?.floodZone).toBe("X");
+    expect(merged.baseFactsMerged).toBe(true);
+  });
+
+  it("does not copy tier2.flood — even a full in-SFHA snapshot stays off floodHazardFact", () => {
+    const adapted = adaptAtomChainToBakedFacets(haysChain)!;
+    const merged = mergeBakedBaseFacts(adapted, {
+      ...bakedCortexBody,
+      tier2: { flood: retiredTier2Flood },
+    });
+    expect("floodHazardFact" in merged).toBe(false);
+    expect(merged.floodHazardFact).toBeUndefined();
+    expect(JSON.stringify(merged)).not.toMatch(/FLOODWAY/);
+    expect(JSON.stringify(merged)).not.toMatch(/"AE"/);
+    expect(JSON.stringify(merged)).not.toMatch(/512\.4/);
+  });
+
+  it("missing field stays missing — never invents a zone", () => {
+    const adapted = adaptAtomChainToBakedFacets(haysChain)!;
+    const merged = mergeBakedBaseFacts(adapted, bakedCortexBody);
+    expect("floodHazardFact" in merged).toBe(false);
+  });
+
+  it("early return (no facets) still attaches floodHazardFact when the root carries it", () => {
+    const adapted = adaptAtomChainToBakedFacets(haysChain)!;
+    const merged = mergeBakedBaseFacts(adapted, {
+      floodHazardFact: goldFloodHazardFact,
+    });
+    expect(merged.floodHazardFact).toEqual(goldFloodHazardFact);
+    expect(merged.baseFactsMerged).toBeUndefined();
+  });
+
+  it("rejects a snapshot-shaped object parked on the root (no state present|absent|refused)", () => {
+    const adapted = adaptAtomChainToBakedFacets(haysChain)!;
+    const merged = mergeBakedBaseFacts(adapted, {
+      ...bakedCortexBody,
+      floodHazardFact: retiredTier2Flood,
+    });
+    expect("floodHazardFact" in merged).toBe(false);
+  });
+});
+
 describe("adaptAtomChainToBakedFacets — warm verify honest decline (141364 / superseded-prop-id)", () => {
   it("surfaces named superseded-prop-id decline instead of setback-rule-pending", () => {
     const chain: PropertyAtomChain = {

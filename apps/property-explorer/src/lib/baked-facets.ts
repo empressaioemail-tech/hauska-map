@@ -127,7 +127,29 @@ export interface BakedFacetsResponse {
   source: "baked-snapshot" | "atom-chain";
   snapshotAt: string | null;
   facets: BakedFacetPayload;
+  /**
+   * Flood determination from flood-hazard-fact atoms. Absent when the BFF
+   * did not copy it. Never populated from tier2.flood.
+   */
+  floodHazardFact?: FloodHazardFactCardInput;
 }
+
+/** Cortex inspect GET flood determination (PR 449). Root sibling of facets. */
+export type FloodHazardFactCardInput = {
+  state?: string;
+  floodZone?: unknown;
+  inSpecialFloodHazardArea?: unknown;
+  absence?: { kind?: string; reason?: string } | null;
+  code?: unknown;
+  source?: unknown;
+};
+
+/**
+ * Reason on sheet.flood when the inspect payload had no floodHazardFact.
+ * sheet-to-card-model maps this to CardFacet unknown so InspectCard hides the row.
+ */
+export const FLOOD_HAZARD_FACT_MISSING_REASON =
+  "floodHazardFact was not on the inspect payload";
 
 /**
  * Card facet verification vocabulary (QA-3 / F1b):
@@ -161,6 +183,11 @@ export interface BakedCardModel {
   acreage: CardFacet<string>;
   setbacks: CardFacet<string>;
   buildablePct: CardFacet<string>;
+  /**
+   * Flood row from floodHazardFact only. `unknown` when the field is missing
+   * (FactRow hides it). Never derived from tier2.flood.
+   */
+  flood: CardFacet<string>;
   /** True whenever an envelope facet is present — the card must then render the
    *  "approximate / not survey grade" treatment (honesty commitment #1). */
   envelopeApproximate: boolean;
@@ -381,6 +408,7 @@ export function deriveBakedCardModel(payload: BakedFacetPayload): BakedCardModel
     acreage,
     setbacks,
     buildablePct,
+    flood: { state: "unknown", value: null },
     // Any present envelope is Tier-1 (shape-only, no roads) — always approximate.
     envelopeApproximate: hasEnvelope,
     envelopeStatus: env?.status ?? null,

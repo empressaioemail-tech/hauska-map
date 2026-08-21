@@ -299,6 +299,10 @@ export const ROW_SPECS: Record<string, FactRowSpec> = {
     // Derived, never stamped — see FactRowSpec.inCoverageBlock.
     wouldBeFilledBy: "zoning setbacks for this parcel",
   },
+  flood: {
+    wouldBeFilledBy: "a flood-hazard-fact atom on this parcel",
+    labelledAbsenceIsCovered: true,
+  },
 };
 
 /** One provenance chip: a labeled atom reference tappable to open detail. */
@@ -602,6 +606,7 @@ export function InspectCard({
         { key: "zoning", label: "Zoning", fact: toFactPresentation(baked.zoning, ROW_SPECS.zoning), testid: "inspect-zoning", chipRow: "zoning" },
         { key: "setbacks", label: "Setbacks", fact: toFactPresentation(baked.setbacks, ROW_SPECS.setbacks), testid: "inspect-setbacks", chipRow: "setback" },
         { key: "buildable", label: "Buildable", fact: toFactPresentation(baked.buildablePct, ROW_SPECS.buildable), chipRow: "buildable" },
+        { key: "flood", label: "Flood", fact: toFactPresentation(baked.flood, ROW_SPECS.flood), testid: "inspect-flood" },
       ]
     : [];
 

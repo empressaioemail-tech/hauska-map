@@ -19,8 +19,9 @@
 // all through the same-origin proxy — the browser holds no credential):
 //   1. GET  {facets}/…/:parcelNodeId/facets   identity, land use, zoning,
 //                                             setbacks, envelope, acreage,
-//                                             provenance, and the tier2 sibling
-//                                             that carries flood.
+//                                             provenance, and the root
+//                                             floodHazardFact sibling (never
+//                                             tier2.flood).
 //   2. POST {cortex}/…/place/buildable-envelope   the backend's authoritative
 //                                             resolution of the parcel to a
 //                                             point (its `coord:` placeKey),
@@ -54,7 +55,11 @@ import {
 } from "@empressaio/parcel-fact-sheet";
 import { formatGovernedByFragment } from "../../api/_lib/setback-not-specified";
 import type { GovernedBy } from "./buildable-envelope.js";
-import { fetchBakedNodeFacets, type BakedFacetPayload } from "./baked-facets";
+import {
+  fetchBakedNodeFacets,
+  FLOOD_HAZARD_FACT_MISSING_REASON,
+  type BakedFacetPayload,
+} from "./baked-facets";
 import { fetchBuildableEnvelope, parsePlaceKey } from "./buildable-envelope.js";
 import { fetchGeocodeSuggestions } from "./geocodeClient";
 import { CORTEX_PROXY_BASE, PE_FACETS_PROXY_BASE } from "./config";
@@ -69,7 +74,7 @@ import {
 } from "./parcel-geometry";
 
 /** Bumped whenever the resolver's derivation changes. Part of factSheetId. */
-export const RESOLVER_VERSION = "pe-fact-sheet-1";
+export const RESOLVER_VERSION = "pe-fact-sheet-2";
 
 /** Half-width of the geometry bbox probe, in metres. One suburban block. */
 const GEOMETRY_PROBE_METRES = 150;
@@ -582,24 +587,46 @@ function envelopeValue(
 }
 
 /**
- * Flood as a SET (I6).
+ * Flood from cortex-root floodHazardFact only (WDLL 3 / SS-W16).
  *
- * FINDING, reported to the planner rather than papered over: the served facet
- * (`tier2.flood`) is still a SCALAR — `{ status, floodZone, zoneSubtype }`. The
- * contract's multiplicity is therefore REPRESENTABLE but not yet POPULATED: a
- * parcel that is genuinely part AE and part AO arrives here as one code, and
- * this resolver widens it to a one-element set whose share is NULL (A4.3: a
- * share is 1 only when something measured it as 1) and records
- * `method: "single-zone-from-scalar"`.
- * When a multi-zone source lands, no surface needs to change.
+ * Never reads tier2.flood. A missing field is absent-uncovered with
+ * FLOOD_HAZARD_FACT_MISSING_REASON so the inspect card can hide the row.
+ * Named refusals (atom-miss / atoms-store-not-configured) are unresolved.
+ *
+ * Multiplicity (I6) is still representable: if the hazard wire carries a
+ * `zones` array those members travel; otherwise a present scalar floodZone
+ * becomes a one-element set with a NULL share (A4.3).
  */
-function floodFact(tier2: unknown): Fact<FloodDetermination> {
-  const flood = rec(rec(tier2)?.flood);
-  const status = flood ? str(flood.status) : null;
+function floodFact(floodHazardFact: unknown): Fact<FloodDetermination> {
+  if (
+    !floodHazardFact ||
+    typeof floodHazardFact !== "object" ||
+    Array.isArray(floodHazardFact)
+  ) {
+    return absentUncovered(
+      FLOOD_HAZARD_FACT_MISSING_REASON,
+      "a flood-hazard-fact atom on this parcel",
+    );
+  }
+  const flood = rec(floodHazardFact);
+  if (!flood) {
+    return absentUncovered(
+      FLOOD_HAZARD_FACT_MISSING_REASON,
+      "a flood-hazard-fact atom on this parcel",
+    );
+  }
+  const state = str(flood.state);
+  if (state !== "present" && state !== "absent" && state !== "refused") {
+    return absentUncovered(
+      FLOOD_HAZARD_FACT_MISSING_REASON,
+      "a flood-hazard-fact atom on this parcel",
+    );
+  }
+
   const prov = provenance({
-    source: str(rec(flood?.provenance)?.source) ?? "fema-nfhl",
-    sourceLabel: "FEMA National Flood Hazard Layer",
-    vintage: str(rec(flood?.provenance)?.vintage),
+    source: str(flood?.source) ?? "flood-hazard-fact",
+    sourceLabel: "flood-hazard-fact atom",
+    vintage: str(flood?.sourceVintage) ?? str(flood?.evaluatedAt),
     method: Array.isArray(flood?.zones)
       ? (flood.zones as unknown[]).some(
           (z) => num(rec(z)?.areaShare) !== null,
@@ -610,22 +637,20 @@ function floodFact(tier2: unknown): Fact<FloodDetermination> {
     sourceUrl: str(rec(flood?.provenance)?.url),
   });
 
-  if (!flood || !status) {
-    return absentUncovered(
-      "no flood determination is served for this parcel",
-      "a FEMA NFHL determination for this county",
-    );
+  if (state === "refused") {
+    const code = str(flood?.code) ?? "refused";
+    return { state: "unresolved", reason: code, retryable: false };
   }
-  if (status === "unavailable") {
-    return absentCovered(
-      "FEMA mapping covers this area but returned no determination for this parcel",
-      prov,
-    );
+  if (state === "absent") {
+    const absence = rec(flood?.absence);
+    const reason =
+      str(absence?.reason) ?? str(absence?.kind) ?? "typed absence";
+    return absentCovered(reason, prov);
   }
 
   const zoneCode = str(flood.floodZone);
   const subtype = str(flood.zoneSubtype);
-  const inSfha = status === "in-sfha";
+  const inSfha = flood.inSpecialFloodHazardArea === true;
 
   // An explicit zone SET on the wire wins over the scalar the moment one lands.
   //
@@ -688,27 +713,20 @@ function floodFact(tier2: unknown): Fact<FloodDetermination> {
       : [];
 
   if (zones.length === 0) {
-    if (status === "outside-sfha") {
-      return {
-        state: "present",
-        value: {
-          // A4.3, same as above: upstream said "outside the SFHA", which names
-          // a zone. It did not measure how much of the parcel is in it.
-          zones: [{ zone: "X", subtype: null, isSfha: false, areaShare: null }],
-          primaryZone: "X",
-          inSfha: false,
-          baseFloodElevation: null,
-        },
-        provenance: prov,
-      };
-    }
-    return absentCovered(
-      "FEMA returned a status with no zone code for this parcel",
-      prov,
-    );
+    // Present determination, no zone code. Do not invent Zone X.
+    return {
+      state: "present",
+      value: {
+        zones: [],
+        primaryZone: null,
+        inSfha,
+        baseFloodElevation: null,
+      },
+      provenance: prov,
+    };
   }
 
-  const bfe = num(flood.baseFloodElevationFt ?? flood.baseFloodElevation);
+  const bfe = num(flood?.baseFloodElevationFt ?? flood?.baseFloodElevation);
   return {
     state: "present",
     value: {
@@ -894,7 +912,8 @@ export class PeFactSheetResolver implements FactSheetResolver {
 
     const wire = facetsResult.data as unknown as Record<string, unknown>;
     const facets = facetsResult.data.facets ?? {};
-    const tier2 = wire.tier2 ?? null;
+    const floodHazardFact =
+      wire.floodHazardFact ?? facetsResult.data.floodHazardFact ?? null;
 
     const fips = str(facets.countyFips) ?? parcelNodeId.split(":")[0] ?? "";
     const countyName =
@@ -933,7 +952,7 @@ export class PeFactSheetResolver implements FactSheetResolver {
     const zoning = zoningFact(facets, fips);
     const setbacks = setbacksFact(facets);
     const envelope = envelopeValue(facets, setbacks, lotAreaSqFt);
-    const flood = floodFact(tier2);
+    const flood = floodFact(floodHazardFact);
 
     const site: ParcelFactSheet["site"] = {
       elevationRange: null,

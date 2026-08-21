@@ -84,6 +84,12 @@ function facetsWire(over: Record<string, unknown> = {}) {
       bakedAt: "2026-08-01T00:00:00.000Z",
       ...over,
     },
+    floodHazardFact: {
+      state: "present",
+      floodZone: "AE",
+      inSpecialFloodHazardArea: true,
+      source: "flood-hazard-fact",
+    },
     tier2: {
       flood: {
         status: "in-sfha",
@@ -405,9 +411,11 @@ describe("PeFactSheetResolver.resolve", () => {
 
   it("reads a multi-zone wire when one is served, ordered by share", async () => {
     const wire = facetsWire() as unknown as Record<string, unknown>;
-    (wire.tier2 as Record<string, unknown>).flood = {
-      status: "in-sfha",
+    wire.floodHazardFact = {
+      state: "present",
       floodZone: "AE",
+      inSpecialFloodHazardArea: true,
+      source: "flood-hazard-fact",
       zones: [
         { zone: "AO", isSfha: true, areaShare: 0.3 },
         { zone: "AE", isSfha: true, areaShare: 0.7 },
@@ -429,7 +437,7 @@ describe("PeFactSheetResolver.resolve", () => {
     expect(sheet.verdict).toContain("Inside the FEMA flood hazard area (Zone AE)");
     expect(sheet.verdict).toContain("zoned R-1");
     expect(sheet.sealedAt).toBe("2026-08-18T12:00:00.000Z");
-    expect(sheet.resolverVersion).toBe("pe-fact-sheet-1");
+    expect(sheet.resolverVersion).toBe("pe-fact-sheet-2");
   });
 
   it("treats a missing parcel as not-found and does not poison the cache", async () => {
@@ -660,9 +668,11 @@ describe("AMENDMENT 3 - no sentinel stands in for absence", () => {
     // number, so an unserved share was being written as 0 - which says none of
     // the parcel is in a zone the same record lists.
     const wire = facetsWire() as unknown as Record<string, unknown>;
-    (wire.tier2 as Record<string, unknown>).flood = {
-      status: "in-sfha",
+    wire.floodHazardFact = {
+      state: "present",
       floodZone: "AO",
+      inSpecialFloodHazardArea: true,
+      source: "flood-hazard-fact",
       zones: [{ zone: "AE", isSfha: true }, { zone: "AO", isSfha: true }],
     };
     const stub = installFetchStub({ facets: wire, gisFeatures: [SUBJECT_FEATURE] });
@@ -685,9 +695,11 @@ describe("AMENDMENT 3 - no sentinel stands in for absence", () => {
 
   it("ranks by share, and says so, when shares ARE served", async () => {
     const wire = facetsWire() as unknown as Record<string, unknown>;
-    (wire.tier2 as Record<string, unknown>).flood = {
-      status: "in-sfha",
+    wire.floodHazardFact = {
+      state: "present",
       floodZone: "AO",
+      inSpecialFloodHazardArea: true,
+      source: "flood-hazard-fact",
       zones: [
         { zone: "AO", isSfha: true, areaShare: 0.3 },
         { zone: "AE", isSfha: true, areaShare: 0.7 },
@@ -735,10 +747,11 @@ describe("AMENDMENT 4 - the last sentinel", () => {
 describe("AMENDMENT 4.3 - a set of length one does not imply a share of one", () => {
   it("gives an outside-SFHA determination a NULL share too", async () => {
     const wire = facetsWire() as unknown as Record<string, unknown>;
-    (wire.tier2 as Record<string, unknown>).flood = {
-      status: "outside-sfha",
-      floodZone: null,
-      provenance: { source: "fema-nfhl", vintage: "2025-11" },
+    wire.floodHazardFact = {
+      state: "present",
+      floodZone: "X",
+      inSpecialFloodHazardArea: false,
+      source: "flood-hazard-fact",
     };
     const stub = installFetchStub({ facets: wire, gisFeatures: [SUBJECT_FEATURE] });
     const sheet = await sheetOf(makeResolver(stub), NODE_ID);
@@ -755,9 +768,11 @@ describe("AMENDMENT 4.3 - a set of length one does not imply a share of one", ()
     // This is the whole distinction: a real zone set of length one carrying a
     // SERVED share is a measurement, and 1 is then correct.
     const wire = facetsWire() as unknown as Record<string, unknown>;
-    (wire.tier2 as Record<string, unknown>).flood = {
-      status: "in-sfha",
+    wire.floodHazardFact = {
+      state: "present",
       floodZone: "AE",
+      inSpecialFloodHazardArea: true,
+      source: "flood-hazard-fact",
       zones: [{ zone: "AE", isSfha: true, areaShare: 1 }],
     };
     const stub = installFetchStub({ facets: wire, gisFeatures: [SUBJECT_FEATURE] });
@@ -769,14 +784,35 @@ describe("AMENDMENT 4.3 - a set of length one does not imply a share of one", ()
 
   it("never derives a share from set length on any path", async () => {
     // The cheap regression guard: no unserved share anywhere becomes a number.
-    for (const flood of [
-      { status: "in-sfha", floodZone: "AO" },
-      { status: "flood-zone", floodZone: "X500" },
-      { status: "outside-sfha", floodZone: null },
-      { status: "in-sfha", floodZone: "AE", zones: [{ zone: "AE", isSfha: true }] },
+    for (const floodHazardFact of [
+      {
+        state: "present",
+        floodZone: "AO",
+        inSpecialFloodHazardArea: true,
+        source: "flood-hazard-fact",
+      },
+      {
+        state: "present",
+        floodZone: "X500",
+        inSpecialFloodHazardArea: false,
+        source: "flood-hazard-fact",
+      },
+      {
+        state: "present",
+        floodZone: "X",
+        inSpecialFloodHazardArea: false,
+        source: "flood-hazard-fact",
+      },
+      {
+        state: "present",
+        floodZone: "AE",
+        inSpecialFloodHazardArea: true,
+        source: "flood-hazard-fact",
+        zones: [{ zone: "AE", isSfha: true }],
+      },
     ]) {
       const wire = facetsWire() as unknown as Record<string, unknown>;
-      (wire.tier2 as Record<string, unknown>).flood = flood;
+      wire.floodHazardFact = floodHazardFact;
       const stub = installFetchStub({ facets: wire, gisFeatures: [SUBJECT_FEATURE] });
       const sheet = await sheetOf(makeResolver(stub), NODE_ID);
       if (sheet.flood.state !== "present") throw new Error("unreachable");
@@ -784,5 +820,57 @@ describe("AMENDMENT 4.3 - a set of length one does not imply a share of one", ()
         expect(zone.areaShare).toBeNull();
       }
     }
+  });
+});
+
+describe("floodHazardFact only (WDLL 3 / SS-W16)", () => {
+  it("does not copy tier2.flood — even a full in-SFHA snapshot stays off sheet.flood", async () => {
+    const wire = facetsWire() as unknown as Record<string, unknown>;
+    delete wire.floodHazardFact;
+    (wire.tier2 as Record<string, unknown>).flood = {
+      status: "in-sfha",
+      floodZone: "AE",
+      zoneSubtype: "FLOODWAY",
+      baseFloodElevationFt: 512.4,
+    };
+    const stub = installFetchStub({ facets: wire, gisFeatures: [SUBJECT_FEATURE] });
+    const sheet = await sheetOf(makeResolver(stub), NODE_ID);
+    expect(sheet.flood.state).toBe("absent-uncovered");
+    if (sheet.flood.state !== "absent-uncovered") throw new Error("unreachable");
+    expect(sheet.flood.reason).toBe(
+      "floodHazardFact was not on the inspect payload",
+    );
+    expect(JSON.stringify(sheet.flood)).not.toMatch(/FLOODWAY/);
+    expect(JSON.stringify(sheet.flood)).not.toMatch(/512\.4/);
+  });
+
+  it("gold 48021 present Zone X from floodHazardFact", async () => {
+    const wire = facetsWire() as unknown as Record<string, unknown>;
+    wire.floodHazardFact = {
+      state: "present",
+      floodZone: "X",
+      inSpecialFloodHazardArea: false,
+      source: "flood-hazard-fact",
+    };
+    const stub = installFetchStub({ facets: wire, gisFeatures: [SUBJECT_FEATURE] });
+    const sheet = await sheetOf(makeResolver(stub), NODE_ID);
+    expect(sheet.flood.state).toBe("present");
+    if (sheet.flood.state !== "present") throw new Error("unreachable");
+    expect(sheet.flood.value.primaryZone).toBe("X");
+    expect(sheet.flood.value.inSfha).toBe(false);
+  });
+
+  it("named refusals are unresolved, never a silent null", async () => {
+    const wire = facetsWire() as unknown as Record<string, unknown>;
+    wire.floodHazardFact = {
+      state: "refused",
+      code: "atom-miss",
+      source: "flood-hazard-fact",
+    };
+    const stub = installFetchStub({ facets: wire, gisFeatures: [SUBJECT_FEATURE] });
+    const sheet = await sheetOf(makeResolver(stub), NODE_ID);
+    expect(sheet.flood.state).toBe("unresolved");
+    if (sheet.flood.state !== "unresolved") throw new Error("unreachable");
+    expect(sheet.flood.reason).toBe("atom-miss");
   });
 });

@@ -10,11 +10,14 @@ import { describe, expect, it } from "vitest";
 import { renderToStaticMarkup } from "react-dom/server";
 import {
   FacetRow,
+  FactRow,
   InspectCard,
   Row,
   chipsForRow,
   SetbackXrayDetail,
   liveSetbackLine,
+  toFactPresentation,
+  ROW_SPECS,
 } from "./InspectCard";
 import type { ParcelCardData } from "./liveGis";
 import type {
@@ -431,5 +434,58 @@ describe("liveSetbackLine — governed_by resolution on the live-fallback path (
 
   it("no setbacks at all -> null (unchanged)", () => {
     expect(liveSetbackLine({ status: "loading" })).toBeNull();
+  });
+});
+
+describe("InspectCard Flood row — floodHazardFact only (WDLL 3)", () => {
+  it("gold 48021:34137 present Zone X renders a Flood row", () => {
+    const html = renderToStaticMarkup(
+      <dl>
+        <FactRow
+          label="Flood"
+          fact={toFactPresentation(
+            { state: "present", value: "Zone X" },
+            ROW_SPECS.flood,
+          )}
+          testid="inspect-flood"
+        />
+      </dl>,
+    );
+    expect(html).toContain('data-testid="inspect-flood"');
+    expect(html).toContain("Zone X");
+  });
+
+  it("named refusals render the code, never a silent null", () => {
+    const html = renderToStaticMarkup(
+      <dl>
+        <FactRow
+          label="Flood"
+          fact={toFactPresentation(
+            { state: "pending", value: "atom-miss" },
+            ROW_SPECS.flood,
+          )}
+          testid="inspect-flood"
+        />
+      </dl>,
+    );
+    expect(html).toContain("atom-miss");
+    expect(html).toContain('data-state="pending"');
+  });
+
+  it("missing floodHazardFact hides the Flood row (unknown, not invented)", () => {
+    const html = renderToStaticMarkup(
+      <dl>
+        <FactRow
+          label="Flood"
+          fact={toFactPresentation(
+            { state: "unknown", value: null },
+            ROW_SPECS.flood,
+          )}
+          testid="inspect-flood"
+        />
+      </dl>,
+    );
+    expect(html).not.toContain("inspect-flood");
+    expect(html).not.toContain("Flood");
   });
 });
