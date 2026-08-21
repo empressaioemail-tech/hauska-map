@@ -609,7 +609,13 @@ function floodFact(floodHazardFact: unknown): Fact<FloodDetermination> {
     );
   }
   const flood = rec(floodHazardFact);
-  const state = str(flood?.state);
+  if (!flood) {
+    return absentUncovered(
+      FLOOD_HAZARD_FACT_MISSING_REASON,
+      "a flood-hazard-fact atom on this parcel",
+    );
+  }
+  const state = str(flood.state);
   if (state !== "present" && state !== "absent" && state !== "refused") {
     return absentUncovered(
       FLOOD_HAZARD_FACT_MISSING_REASON,
@@ -642,9 +648,9 @@ function floodFact(floodHazardFact: unknown): Fact<FloodDetermination> {
     return absentCovered(reason, prov);
   }
 
-  const zoneCode = str(flood?.floodZone);
-  const subtype = str(flood?.zoneSubtype);
-  const inSfha = flood?.inSpecialFloodHazardArea === true;
+  const zoneCode = str(flood.floodZone);
+  const subtype = str(flood.zoneSubtype);
+  const inSfha = flood.inSpecialFloodHazardArea === true;
 
   // An explicit zone SET on the wire wins over the scalar the moment one lands.
   //
