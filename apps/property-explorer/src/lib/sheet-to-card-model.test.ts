@@ -18,7 +18,9 @@ import {
   provenanceRefsFromSheet,
   setbackDisplayFromSheet,
   setbackFieldNotesFromSheet,
+  floodFacetFromSheet,
 } from "./sheet-to-card-model";
+import { FLOOD_HAZARD_FACT_MISSING_REASON } from "./baked-facets";
 
 function prov(atomDids: AtomRef[] = []): Provenance {
   return {
@@ -384,5 +386,53 @@ describe("AMENDMENT 2 - no guessed labels, no sentinels", () => {
     expect(env.setbacks?.front_ft).toBeNull();
     expect(env.setbacks?.side_ft).toBeNull();
     expect(env.setbacks?.rear_ft).toBe(10);
+  });
+});
+
+describe("floodFacetFromSheet — InspectCard Flood row (WDLL 3)", () => {
+  it("present Zone X", () => {
+    const facet = floodFacetFromSheet({
+      state: "present",
+      value: {
+        zones: [{ zone: "X", subtype: null, isSfha: false, areaShare: null }],
+        primaryZone: "X",
+        inSfha: false,
+        baseFloodElevation: null,
+      },
+      provenance: prov(),
+    });
+    expect(facet).toEqual({ state: "present", value: "Zone X" });
+    expect(bakedCardModelFromSheet(sheet({
+      flood: {
+        state: "present",
+        value: {
+          zones: [{ zone: "X", subtype: null, isSfha: false, areaShare: null }],
+          primaryZone: "X",
+          inSfha: false,
+          baseFloodElevation: null,
+        },
+        provenance: prov(),
+      },
+    })).flood).toEqual({ state: "present", value: "Zone X" });
+  });
+
+  it("missing floodHazardFact hides the row (unknown)", () => {
+    expect(
+      floodFacetFromSheet({
+        state: "absent-uncovered",
+        reason: FLOOD_HAZARD_FACT_MISSING_REASON,
+        wouldBeFilledBy: "a flood-hazard-fact atom on this parcel",
+      }),
+    ).toEqual({ state: "unknown", value: null });
+  });
+
+  it("named refusal is pending with the code, never a silent null", () => {
+    expect(
+      floodFacetFromSheet({
+        state: "unresolved",
+        reason: "atoms-store-not-configured",
+        retryable: false,
+      }),
+    ).toEqual({ state: "pending", value: "atoms-store-not-configured" });
   });
 });

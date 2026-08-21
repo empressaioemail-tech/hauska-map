@@ -28,13 +28,15 @@ import {
   formatMeasurement,
   isPresent,
   type Fact,
+  type FloodDetermination,
   type ParcelFactSheet,
   type SetbackAxis,
   type Setbacks,
 } from "@empressaio/parcel-fact-sheet";
-import type {
-  BakedCardModel,
-  CardFacet,
+import {
+  FLOOD_HAZARD_FACT_MISSING_REASON,
+  type BakedCardModel,
+  type CardFacet,
 } from "./baked-facets";
 import type {
   EnvelopeProvenanceRefs,
@@ -79,6 +81,34 @@ function facetFrom<T>(fact: Fact<T>, render: (value: T) => string): CardFacet<st
   // the one that does not say "not verified here".
   if (fact.state === "unresolved") return pending(fact.reason);
   return absent(fact.reason);
+}
+
+/**
+ * Flood row from sheet.flood, which the resolver fills from floodHazardFact
+ * only. Missing wire field → unknown (InspectCard hides the row). Never
+ * invented from tier2.flood.
+ */
+export function floodFacetFromSheet(
+  flood: Fact<FloodDetermination>,
+): CardFacet<string> {
+  if (
+    flood.state === "absent-uncovered" &&
+    flood.reason === FLOOD_HAZARD_FACT_MISSING_REASON
+  ) {
+    return { state: "unknown", value: null };
+  }
+  if (flood.state === "present") {
+    const codes = flood.value.zones
+      .map((z) => z.zone.trim())
+      .filter((z) => z.length > 0);
+    if (codes.length > 1) return present(`Zones ${codes.join(", ")}`);
+    if (codes.length === 1) return present(`Zone ${codes[0]}`);
+    if (flood.value.inSfha) {
+      return present("Flood determination present (zone unstated)");
+    }
+    return present("Flood determination present (zone unstated)");
+  }
+  return facetFrom(flood, () => "");
 }
 
 /** A setback axis -> the card's own display fragment. */
@@ -217,6 +247,7 @@ export function bakedCardModelFromSheet(sheet: ParcelFactSheet): BakedCardModel 
         : absent(),
     setbacks: facetFrom(sheet.setbacks, setbackDisplayFromSheet),
     buildablePct,
+    flood: floodFacetFromSheet(sheet.flood),
     envelopeApproximate: env.kind === "derived" ? env.approximate : env.kind === "consumed",
     envelopeStatus:
       env.kind === "derived" ? "ok" : env.kind === "consumed" ? "no-buildable-area" : "declined",
