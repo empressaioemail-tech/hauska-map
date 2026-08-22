@@ -35,6 +35,7 @@ import {
 } from "@empressaio/parcel-fact-sheet";
 import {
   FLOOD_HAZARD_FACT_MISSING_REASON,
+  SPECIAL_DISTRICT_FACT_MISSING_REASON,
   type BakedCardModel,
   type CardFacet,
 } from "./baked-facets";
@@ -109,6 +110,37 @@ export function floodFacetFromSheet(
     return present("Flood determination present (zone unstated)");
   }
   return facetFrom(flood, () => "");
+}
+
+/**
+ * Special district row from sheet.specialDistrict, which the resolver fills
+ * from specialDistrictFact only. Missing field → unknown (InspectCard hides
+ * the row). Typed absence stays visible. Never invented from bake / CAD /
+ * mud-pid.
+ */
+export function specialDistrictFacetFromSheet(
+  specialDistrict:
+    | Fact<{ districtType: string | null; districtName: string | null }>
+    | undefined,
+): CardFacet<string> {
+  if (!specialDistrict) {
+    return { state: "unknown", value: null };
+  }
+  if (
+    specialDistrict.state === "absent-uncovered" &&
+    specialDistrict.reason === SPECIAL_DISTRICT_FACT_MISSING_REASON
+  ) {
+    return { state: "unknown", value: null };
+  }
+  if (specialDistrict.state === "present") {
+    const type = (specialDistrict.value.districtType ?? "").trim();
+    const name = (specialDistrict.value.districtName ?? "").trim();
+    if (type && name) return present(`${type} — ${name}`);
+    if (name) return present(name);
+    if (type) return present(type);
+    return absent("special-district-fact present with no districtType or districtName");
+  }
+  return facetFrom(specialDistrict, () => "");
 }
 
 /** A setback axis -> the card's own display fragment. */
@@ -248,6 +280,7 @@ export function bakedCardModelFromSheet(sheet: ParcelFactSheet): BakedCardModel 
     setbacks: facetFrom(sheet.setbacks, setbackDisplayFromSheet),
     buildablePct,
     flood: floodFacetFromSheet(sheet.flood),
+    specialDistrict: specialDistrictFacetFromSheet(sheet.specialDistrict),
     envelopeApproximate: env.kind === "derived" ? env.approximate : env.kind === "consumed",
     envelopeStatus:
       env.kind === "derived" ? "ok" : env.kind === "consumed" ? "no-buildable-area" : "declined",

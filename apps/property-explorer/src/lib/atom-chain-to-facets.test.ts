@@ -557,6 +557,104 @@ describe("mergeBakedBaseFacts — landUseFact from cortex JSON ROOT (WDLL 5 left
   });
 });
 
+const colonyMudFact = {
+  state: "present" as const,
+  source: "special-district-fact",
+  districtId: "3504125",
+  districtType: "MUD",
+  districtName: "The Colony MUD 1C",
+  entityId: "48021:102817:sd:3504125",
+  boundAs: "48021:102817:sd:3504125",
+  evaluatedAt: "2026-08-12T21:33:03.719Z",
+};
+
+const goldOutsideFact = {
+  state: "absent" as const,
+  source: "special-district-fact",
+  entityId: "48021:34137:sd:outside",
+  boundAs: "48021:34137:sd:outside",
+  absence: {
+    kind: "outside-tceq-source-boundaries",
+    reason: "parcel centroid is outside TCEQ source boundaries",
+  },
+};
+
+const bakeDistrict = {
+  districtType: "MUD",
+  districtName: "BAKE MUD",
+  source: "mud-pid",
+};
+
+describe("mergeBakedBaseFacts — specialDistrictFact from cortex JSON ROOT (P-48)", () => {
+  it("copies a fixture specialDistrictFact from the cortex root onto the atom-chain payload", () => {
+    const adapted = adaptAtomChainToBakedFacets(haysChain)!;
+    const merged = mergeBakedBaseFacts(adapted, {
+      ...bakedCortexBody,
+      specialDistrictFact: colonyMudFact,
+    });
+    expect(merged.specialDistrictFact).toEqual(colonyMudFact);
+    expect(merged.specialDistrictFact?.districtType).toBe("MUD");
+    expect(merged.specialDistrictFact?.districtName).toBe("The Colony MUD 1C");
+    expect(merged.specialDistrictFact?.source).toBe("special-district-fact");
+    expect(merged.baseFactsMerged).toBe(true);
+  });
+
+  it("does not copy bake onto specialDistrictFact", () => {
+    const adapted = adaptAtomChainToBakedFacets(haysChain)!;
+    const merged = mergeBakedBaseFacts(adapted, {
+      ...bakedCortexBody,
+      facets: {
+        ...bakedCortexBody.facets,
+        mudPid: bakeDistrict,
+        specialDistrict: bakeDistrict,
+      },
+      mudPid: bakeDistrict,
+    });
+    expect("specialDistrictFact" in merged).toBe(false);
+    expect(merged.specialDistrictFact).toBeUndefined();
+    expect(JSON.stringify(merged.specialDistrictFact ?? {})).not.toMatch(/BAKE MUD/);
+    expect(JSON.stringify(merged.specialDistrictFact ?? {})).not.toMatch(/mud-pid/);
+  });
+
+  it("does not adopt a bake {districtType, districtName} object parked on the root", () => {
+    const adapted = adaptAtomChainToBakedFacets(haysChain)!;
+    const merged = mergeBakedBaseFacts(adapted, {
+      ...bakedCortexBody,
+      specialDistrictFact: bakeDistrict,
+    });
+    expect("specialDistrictFact" in merged).toBe(false);
+  });
+
+  it("missing field stays missing — never invents a MUD", () => {
+    const adapted = adaptAtomChainToBakedFacets(haysChain)!;
+    const merged = mergeBakedBaseFacts(adapted, bakedCortexBody);
+    expect("specialDistrictFact" in merged).toBe(false);
+    expect(JSON.stringify(merged)).not.toMatch(/The Colony MUD 1C/);
+  });
+
+  it("early return (no facets) still attaches specialDistrictFact when the root carries it", () => {
+    const adapted = adaptAtomChainToBakedFacets(haysChain)!;
+    const merged = mergeBakedBaseFacts(adapted, {
+      specialDistrictFact: colonyMudFact,
+    });
+    expect(merged.specialDistrictFact).toEqual(colonyMudFact);
+    expect(merged.baseFactsMerged).toBeUndefined();
+  });
+
+  it("gold-shaped absent fixture stays absent and does not invent a MUD", () => {
+    const adapted = adaptAtomChainToBakedFacets(haysChain)!;
+    const merged = mergeBakedBaseFacts(adapted, {
+      ...bakedCortexBody,
+      specialDistrictFact: goldOutsideFact,
+    });
+    expect(merged.specialDistrictFact?.state).toBe("absent");
+    expect(merged.specialDistrictFact?.entityId).toBe("48021:34137:sd:outside");
+    expect(merged.specialDistrictFact?.districtType).toBeUndefined();
+    expect(merged.specialDistrictFact?.districtName).toBeUndefined();
+    expect(JSON.stringify(merged.specialDistrictFact)).not.toMatch(/The Colony/);
+  });
+});
+
 describe("adaptAtomChainToBakedFacets — warm verify honest decline (141364 / superseded-prop-id)", () => {
   it("surfaces named superseded-prop-id decline instead of setback-rule-pending", () => {
     const chain: PropertyAtomChain = {

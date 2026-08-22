@@ -243,6 +243,27 @@ export type LandUseFactWire = {
   sourceAdapter?: unknown;
 };
 
+/**
+ * Cortex inspect GET sibling of `facets` / `tier2` / `floodHazardFact` /
+ * `landUseFact` (P-48 / LDT 451). Copied from the cortex JSON ROOT only.
+ * Never populated from bake / CAD / mud-pid.
+ */
+export type SpecialDistrictFactWire = {
+  state: "present" | "absent" | "refused";
+  districtId?: unknown;
+  districtType?: unknown;
+  districtName?: unknown;
+  absence?: { kind?: string; reason?: string } | null;
+  code?: unknown;
+  source?: unknown;
+  sourceVintage?: unknown;
+  evaluatedAt?: unknown;
+  boundAs?: unknown;
+  tried?: unknown;
+  entityId?: unknown;
+  sourceAdapter?: unknown;
+};
+
 export interface PeBakedFacetsResponse {
   parcelNodeId: string;
   adapterKey: string;
@@ -262,6 +283,11 @@ export interface PeBakedFacetsResponse {
    * Never populated from facets.baseFacts.landUse.
    */
   landUseFact?: LandUseFactWire;
+  /**
+   * Special district from special-district-fact atoms. Copied from the cortex
+   * JSON ROOT only. Never populated from bake / CAD / mud-pid.
+   */
+  specialDistrictFact?: SpecialDistrictFactWire;
 }
 
 export function isPropertyAtomPathEnabled(
@@ -432,12 +458,48 @@ function withLandUseFact(
   return { ...atomResponse, landUseFact: fact };
 }
 
+/** Cortex inspect GET sibling of flood / land-use (P-48 / LDT 451). */
+export function isSpecialDistrictFactWire(
+  value: unknown,
+): value is SpecialDistrictFactWire {
+  if (!value || typeof value !== "object" || Array.isArray(value)) return false;
+  const state = (value as { state?: unknown }).state;
+  return state === "present" || state === "absent" || state === "refused";
+}
+
+/**
+ * Cortex JSON ROOT only. Never reads bake / CAD / mud-pid or a nested
+ * facets copy. A bake `{districtType, districtName}` object parked on the
+ * root has no state and is rejected.
+ */
+export function specialDistrictFactFromCortexRoot(
+  bakedBody: unknown,
+): SpecialDistrictFactWire | undefined {
+  if (!bakedBody || typeof bakedBody !== "object" || Array.isArray(bakedBody)) {
+    return undefined;
+  }
+  const fact = (bakedBody as { specialDistrictFact?: unknown }).specialDistrictFact;
+  return isSpecialDistrictFactWire(fact) ? fact : undefined;
+}
+
+function withSpecialDistrictFact(
+  atomResponse: PeBakedFacetsResponse,
+  bakedBody: unknown,
+): PeBakedFacetsResponse {
+  const fact = specialDistrictFactFromCortexRoot(bakedBody);
+  if (fact === undefined) return atomResponse;
+  return { ...atomResponse, specialDistrictFact: fact };
+}
+
 function withRootFacts(
   atomResponse: PeBakedFacetsResponse,
   bakedBody: unknown,
 ): PeBakedFacetsResponse {
-  return withLandUseFact(
-    withFloodHazardFact(atomResponse, bakedBody),
+  return withSpecialDistrictFact(
+    withLandUseFact(
+      withFloodHazardFact(atomResponse, bakedBody),
+      bakedBody,
+    ),
     bakedBody,
   );
 }
@@ -464,6 +526,8 @@ function withRootFacts(
  * fact. Copy it from the cortex JSON ROOT only. Do not adopt tier2.flood.
  * landUseFact is the same shape family (s7): copy from the cortex JSON ROOT
  * only. Do not adopt baked facets.baseFacts.landUse as landUseFact.
+ * specialDistrictFact is the same shape family (P-48 / LDT 451): copy from
+ * the cortex JSON ROOT only. Do not adopt bake / CAD / mud-pid as that field.
  * If facets are missing, still attach the root fields when they are present.
  */
 export function mergeBakedBaseFacts(
@@ -473,7 +537,7 @@ export function mergeBakedBaseFacts(
   const baked = (bakedBody as { facets?: PeBakedFacetPayload } | null | undefined)
     ?.facets;
   if (!baked || typeof baked !== "object") {
-    // Facets missing: still forward root floodHazardFact / landUseFact.
+    // Facets missing: still forward root flood / land-use / special-district.
     // Identity-return only when those fields are also absent.
     return withRootFacts(atomResponse, bakedBody);
   }

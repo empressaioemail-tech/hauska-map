@@ -21,6 +21,7 @@ import {
   isPropertyAtomPathEnabled,
   landUseFactFromCortexRoot,
   mergeBakedBaseFacts,
+  specialDistrictFactFromCortexRoot,
   parsePropertyAtomsPath,
   type PeBakedFacetsResponse,
   type PropertyAtomChain,
@@ -116,9 +117,21 @@ function cortexLandUseFactMissing(body: string): boolean {
   }
 }
 
-/** Missing floodHazardFact OR missing landUseFact — same retry as each field alone. */
+function cortexSpecialDistrictFactMissing(body: string): boolean {
+  try {
+    return specialDistrictFactFromCortexRoot(JSON.parse(body) as unknown) === undefined;
+  } catch {
+    return true;
+  }
+}
+
+/** Missing flood / land-use / special-district — same retry as each field alone. */
 function cortexNeedsRootFactAlias(body: string): boolean {
-  return cortexFloodFactMissing(body) || cortexLandUseFactMissing(body);
+  return (
+    cortexFloodFactMissing(body) ||
+    cortexLandUseFactMissing(body) ||
+    cortexSpecialDistrictFactMissing(body)
+  );
 }
 
 function aliasFillsRootFactGap(
@@ -126,19 +139,27 @@ function aliasFillsRootFactGap(
   aliasedBody: string,
 ): boolean {
   if (primary.status === 404) {
-    return !cortexFloodFactMissing(aliasedBody) || !cortexLandUseFactMissing(aliasedBody);
+    return (
+      !cortexFloodFactMissing(aliasedBody) ||
+      !cortexLandUseFactMissing(aliasedBody) ||
+      !cortexSpecialDistrictFactMissing(aliasedBody)
+    );
   }
   const floodGain =
     cortexFloodFactMissing(primary.body) && !cortexFloodFactMissing(aliasedBody);
   const landGain =
     cortexLandUseFactMissing(primary.body) && !cortexLandUseFactMissing(aliasedBody);
-  return floodGain || landGain;
+  const sdGain =
+    cortexSpecialDistrictFactMissing(primary.body) &&
+    !cortexSpecialDistrictFactMissing(aliasedBody);
+  return floodGain || landGain || sdGain;
 }
 
 /**
  * Same grammar pair as atom-chain. If the requested key's cortex body has no
- * root floodHazardFact or no root landUseFact, try the alias. Never reads
- * tier2.flood. Never adopts cad-roll baseFacts.landUse as landUseFact.
+ * root floodHazardFact, landUseFact, or specialDistrictFact, try the alias.
+ * Never reads tier2.flood. Never adopts cad-roll as landUseFact. Never
+ * adopts bake / CAD / mud-pid as specialDistrictFact.
  */
 export async function fetchCortexFacetsWithAlias(
   parcelNodeId: string,
