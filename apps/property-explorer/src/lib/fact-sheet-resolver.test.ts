@@ -1106,3 +1106,85 @@ describe("pipelineFact only (P-49 / WDLL 3)", () => {
     expect(sheet.pipeline).toBeUndefined();
   });
 });
+
+describe("wellFact only (P-50 / WDLL 4)", () => {
+  it("present fixture 48103:100 apiNumber14=42000001030000 from wellFact", async () => {
+    const wire = facetsWire() as unknown as Record<string, unknown>;
+    wire.wellFact = {
+      state: "present",
+      source: "well-fact",
+      entityId: "48103:100:42000001030000",
+      parcelRelation: "on-parcel",
+      apiNumber14: "42000001030000",
+      wellStatus: "dry",
+      operatorName: null,
+    };
+    const stub = installFetchStub({ facets: wire, gisFeatures: [SUBJECT_FEATURE] });
+    const sheet = await sheetOf(makeResolver(stub), NODE_ID);
+    expect(sheet.well?.state).toBe("present");
+    if (sheet.well?.state !== "present") throw new Error("unreachable");
+    expect(sheet.well.value.apiNumber14).toBe("42000001030000");
+    expect(sheet.well.value.wellStatus).toBe("dry");
+    expect(sheet.well.value.operatorName).toBeNull();
+    expect(sheet.well.value.parcelRelation).toBe("on-parcel");
+    expect(sheet.well.value.display).toContain("42000001030000");
+    expect(sheet.well.provenance.source).toBe("well-fact");
+  });
+
+  it("gold-shaped atom-miss does not render a well or :none", async () => {
+    const wire = facetsWire() as unknown as Record<string, unknown>;
+    wire.wellFact = {
+      state: "refused",
+      code: "atom-miss",
+      source: "well-fact",
+      tried: ["48021:34137", "48021:34137.00000000"],
+      reason:
+        "No well-fact atom for parcel prefix 48021:34137 or 48021:34137.00000000. Atom miss, not a well determination.",
+    };
+    const stub = installFetchStub({ facets: wire, gisFeatures: [SUBJECT_FEATURE] });
+    const sheet = await sheetOf(makeResolver(stub), NODE_ID);
+    expect(sheet.well?.state).toBe("unresolved");
+    if (sheet.well?.state !== "unresolved") throw new Error("unreachable");
+    expect(sheet.well.reason).toMatch(/well-fact/);
+    expect(sheet.well.reason).toMatch(/atom-miss/);
+    expect(JSON.stringify(sheet.well)).not.toMatch(/42000001030000/);
+    expect(JSON.stringify(sheet.well)).not.toMatch(/:none/);
+    expect(JSON.stringify(sheet.well)).not.toMatch(/"dry"/);
+  });
+
+  it("typed absent stays visible as honest absence", async () => {
+    const wire = facetsWire() as unknown as Record<string, unknown>;
+    wire.wellFact = {
+      state: "absent",
+      source: "well-fact",
+      entityId: "48103:104:none",
+      absence: { kind: "none", reason: "typed absence :none" },
+    };
+    const stub = installFetchStub({ facets: wire, gisFeatures: [SUBJECT_FEATURE] });
+    const sheet = await sheetOf(makeResolver(stub), NODE_ID);
+    expect(sheet.well?.state).toBe("absent-covered");
+    if (sheet.well?.state !== "absent-covered") throw new Error("unreachable");
+    expect(sheet.well.reason).toMatch(/typed absence|:none|none/);
+    expect(sheet.well.provenance.source).toBe("well-fact");
+  });
+
+  it("bake / GIS parked on the root without state is not adopted", async () => {
+    const wire = facetsWire() as unknown as Record<string, unknown>;
+    wire.wellFact = {
+      apiNumber14: "42000001030000",
+      wellStatus: "dry",
+      source: "texas-rrc",
+    };
+    const stub = installFetchStub({ facets: wire, gisFeatures: [SUBJECT_FEATURE] });
+    const sheet = await sheetOf(makeResolver(stub), NODE_ID);
+    expect(sheet.well).toBeUndefined();
+  });
+
+  it("missing field stays missing — no invented well", async () => {
+    const wire = facetsWire() as unknown as Record<string, unknown>;
+    delete wire.wellFact;
+    const stub = installFetchStub({ facets: wire, gisFeatures: [SUBJECT_FEATURE] });
+    const sheet = await sheetOf(makeResolver(stub), NODE_ID);
+    expect(sheet.well).toBeUndefined();
+  });
+});

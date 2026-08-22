@@ -398,6 +398,20 @@ export interface ParcelFactSheet {
     nearestPipelineDistanceMeters: number | null;
     display: string;
   }>;
+  /**
+   * ADDITIVE (P-50 / 2026-08-22). Well from cortex-root wellFact.
+   * Optional so existing sealed stubs stay valid. Missing means the inspect
+   * payload did not carry the field (hide the row). Never invent
+   * apiNumber14 / :none / a well on gold atom-miss. Never populated from
+   * bake / CAD / texas-rrc GIS / tx_rrc_well.
+   */
+  well?: Fact<{
+    apiNumber14: string | null;
+    wellStatus: string | null;
+    operatorName: string | null;
+    parcelRelation: string | null;
+    display: string;
+  }>;
   site: SiteConditions;
 
   /**

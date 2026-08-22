@@ -37,6 +37,7 @@ import {
   FLOOD_HAZARD_FACT_MISSING_REASON,
   PIPELINE_FACT_MISSING_REASON,
   SPECIAL_DISTRICT_FACT_MISSING_REASON,
+  WELL_FACT_MISSING_REASON,
   type BakedCardModel,
   type CardFacet,
 } from "./baked-facets";
@@ -179,6 +180,40 @@ export function pipelineFacetFromSheet(
   return facetFrom(pipeline, () => "");
 }
 
+/**
+ * Well row from sheet.well, which the resolver fills from wellFact only.
+ * Missing field → unknown (InspectCard hides the row). Gold atom-miss
+ * cites well-fact and never carries apiNumber14 / :none / a well. Present
+ * fixture shows apiNumber14 from the atom. Typed absence stays visible.
+ */
+export function wellFacetFromSheet(
+  well:
+    | Fact<{
+        apiNumber14: string | null;
+        wellStatus: string | null;
+        operatorName: string | null;
+        parcelRelation: string | null;
+        display: string;
+      }>
+    | undefined,
+): CardFacet<string> {
+  if (!well) {
+    return { state: "unknown", value: null };
+  }
+  if (
+    well.state === "absent-uncovered" &&
+    well.reason === WELL_FACT_MISSING_REASON
+  ) {
+    return { state: "unknown", value: null };
+  }
+  if (well.state === "present") {
+    const display = (well.value.display ?? "").trim();
+    if (display) return present(display);
+    return absent("well-fact present with no display");
+  }
+  return facetFrom(well, () => "");
+}
+
 /** A setback axis -> the card's own display fragment. */
 function axisText(axis: SetbackAxis, label: string): string {
   // AMENDMENT 2: a NOT-SPECIFIED axis carries a NULL distance. The absence is
@@ -318,6 +353,7 @@ export function bakedCardModelFromSheet(sheet: ParcelFactSheet): BakedCardModel 
     flood: floodFacetFromSheet(sheet.flood),
     specialDistrict: specialDistrictFacetFromSheet(sheet.specialDistrict),
     pipeline: pipelineFacetFromSheet(sheet.pipeline),
+    well: wellFacetFromSheet(sheet.well),
     envelopeApproximate: env.kind === "derived" ? env.approximate : env.kind === "consumed",
     envelopeStatus:
       env.kind === "derived" ? "ok" : env.kind === "consumed" ? "no-buildable-area" : "declined",

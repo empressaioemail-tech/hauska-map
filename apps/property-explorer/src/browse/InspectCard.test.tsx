@@ -641,3 +641,62 @@ describe("InspectCard Pipeline row — pipelineFact (P-49)", () => {
     expect(html).not.toContain("ENERGY TRANSFER");
   });
 });
+
+describe("InspectCard Well row — wellFact (P-50)", () => {
+  it("present fixture shows apiNumber14=42000001030000", () => {
+    const html = renderToStaticMarkup(
+      <dl>
+        <FactRow
+          label="Well"
+          fact={toFactPresentation(
+            { state: "present", value: "42000001030000 · dry" },
+            ROW_SPECS.well,
+          )}
+          testid="inspect-well"
+        />
+      </dl>,
+    );
+    expect(html).toContain('data-testid="inspect-well"');
+    expect(html).toContain("42000001030000");
+    expect(html).not.toContain(":none");
+  });
+
+  it("gold-shaped atom-miss fixture stays visible and does not paint a well or :none", () => {
+    const html = renderToStaticMarkup(
+      <dl>
+        <FactRow
+          label="Well"
+          fact={toFactPresentation(
+            { state: "pending", value: "well-fact atom-miss" },
+            ROW_SPECS.well,
+          )}
+          testid="inspect-well"
+        />
+      </dl>,
+    );
+    expect(html).toContain('data-testid="inspect-well"');
+    expect(html).toContain("well-fact");
+    expect(html).toContain("atom-miss");
+    expect(html).not.toContain("42000001030000");
+    expect(html).not.toContain(":none");
+  });
+
+  it("missing wellFact hides the Well row (unknown, not invented)", () => {
+    const html = renderToStaticMarkup(
+      <dl>
+        <FactRow
+          label="Well"
+          fact={toFactPresentation(
+            { state: "unknown", value: null },
+            ROW_SPECS.well,
+          )}
+          testid="inspect-well"
+        />
+      </dl>,
+    );
+    expect(html).not.toContain("inspect-well");
+    expect(html).not.toContain("Well");
+    expect(html).not.toContain("42000001030000");
+    expect(html).not.toContain(":none");
+  });
+});

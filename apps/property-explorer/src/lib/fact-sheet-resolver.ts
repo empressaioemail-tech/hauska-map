@@ -22,13 +22,15 @@
 //                                             provenance, and the root
 //                                             floodHazardFact / landUseFact /
 //                                             specialDistrictFact /
-//                                             pipelineFact siblings
-//                                             (never tier2.flood; never
-//                                             cad-roll as landUseFact; never
-//                                             bake / CAD / mud-pid as
+//                                             pipelineFact / wellFact
+//                                             siblings (never tier2.flood;
+//                                             never cad-roll as landUseFact;
+//                                             never bake / CAD / mud-pid as
 //                                             specialDistrictFact; never
 //                                             bake / CAD / texas-rrc GIS as
-//                                             pipelineFact).
+//                                             pipelineFact; never bake / CAD
+//                                             / texas-rrc GIS / tx_rrc_well
+//                                             as wellFact).
 //   2. POST {cortex}/…/place/buildable-envelope   the backend's authoritative
 //                                             resolution of the parcel to a
 //                                             point (its `coord:` placeKey),
@@ -537,6 +539,83 @@ function pipelineFromInspectWire(
       t4permit,
       nearestPipelineDistanceMeters,
       display: parts.length > 0 ? parts.join(" · ") : "near pipeline",
+    },
+    provenance: prov,
+  };
+}
+
+/**
+ * Well from cortex-root wellFact (P-50 / WDLL 4).
+ *
+ * Prefer the cortex field. Never adopt bake / CAD / texas-rrc GIS /
+ * tx_rrc_well. Never invent apiNumber14 / :none / a well on gold atom-miss.
+ * No :sd: / :well: picker. No pipeline ANY bind. Typed absence stays
+ * visible. A missing field is omitted so the card hides the row.
+ */
+function wellFromInspectWire(
+  wellFact: unknown,
+):
+  | Fact<{
+      apiNumber14: string | null;
+      wellStatus: string | null;
+      operatorName: string | null;
+      parcelRelation: string | null;
+      display: string;
+    }>
+  | undefined {
+  if (!wellFact || typeof wellFact !== "object" || Array.isArray(wellFact)) {
+    return undefined;
+  }
+  const fact = rec(wellFact);
+  if (!fact) return undefined;
+  const state = str(fact.state);
+  if (state !== "present" && state !== "absent" && state !== "refused") {
+    return undefined;
+  }
+  const source = str(fact.source);
+  if (
+    source === "cad-roll" ||
+    source === "texas-rrc" ||
+    source === "tx_rrc_well" ||
+    source === "mud-pid"
+  ) {
+    return undefined;
+  }
+
+  const prov = provenance({
+    source: source ?? "well-fact",
+    sourceLabel: "well-fact atom",
+    vintage: str(fact.sourceVintage) ?? str(fact.evaluatedAt),
+    sourceUrl: str(rec(fact.provenance)?.url),
+  });
+
+  if (state === "refused") {
+    const code = str(fact.code) ?? "refused";
+    const named = source ?? "well-fact";
+    return { state: "unresolved", reason: `${named} ${code}`, retryable: false };
+  }
+  if (state === "absent") {
+    const absence = rec(fact.absence);
+    const reason =
+      str(absence?.reason) ?? str(absence?.kind) ?? "typed absence";
+    return absentCovered(reason, prov);
+  }
+
+  const apiNumber14 = str(fact.apiNumber14);
+  const wellStatus = str(fact.wellStatus);
+  const operatorName = str(fact.operatorName);
+  const parcelRelation = str(fact.parcelRelation);
+  const parts: string[] = [];
+  if (apiNumber14) parts.push(apiNumber14);
+  if (wellStatus) parts.push(wellStatus);
+  return {
+    state: "present",
+    value: {
+      apiNumber14,
+      wellStatus,
+      operatorName,
+      parcelRelation,
+      display: parts.length > 0 ? parts.join(" · ") : "well present",
     },
     provenance: prov,
   };
@@ -1158,6 +1237,7 @@ export class PeFactSheetResolver implements FactSheetResolver {
       wire.specialDistrictFact ?? facetsResult.data.specialDistrictFact ?? null;
     const pipelineFact =
       wire.pipelineFact ?? facetsResult.data.pipelineFact ?? null;
+    const wellFact = wire.wellFact ?? facetsResult.data.wellFact ?? null;
 
     const fips = str(facets.countyFips) ?? parcelNodeId.split(":")[0] ?? "";
     const countyName =
@@ -1199,6 +1279,7 @@ export class PeFactSheetResolver implements FactSheetResolver {
     const flood = floodFact(floodHazardFact);
     const specialDistrict = specialDistrictFromInspectWire(specialDistrictFact);
     const pipeline = pipelineFromInspectWire(pipelineFact);
+    const well = wellFromInspectWire(wellFact);
 
     const site: ParcelFactSheet["site"] = {
       elevationRange: null,
@@ -1222,6 +1303,7 @@ export class PeFactSheetResolver implements FactSheetResolver {
       flood,
       specialDistrict,
       pipeline,
+      well,
       site,
       county: { fips, name: countyName },
     });
@@ -1239,6 +1321,7 @@ export class PeFactSheetResolver implements FactSheetResolver {
       flood,
       ...(specialDistrict ? { specialDistrict } : {}),
       ...(pipeline ? { pipeline } : {}),
+      ...(well ? { well } : {}),
       site,
       // Composed ONCE, by the one composer, from the fields above.
       verdict: "",

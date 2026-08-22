@@ -21,6 +21,7 @@ import {
   floodFacetFromSheet,
   pipelineFacetFromSheet,
   specialDistrictFacetFromSheet,
+  wellFacetFromSheet,
 } from "./sheet-to-card-model";
 import { FLOOD_HAZARD_FACT_MISSING_REASON } from "./baked-facets";
 
@@ -574,6 +575,57 @@ describe("pipelineFact inspect row (P-49 / WDLL 3)", () => {
       value: null,
     });
     expect(bakedCardModelFromSheet(sheet()).pipeline).toEqual({
+      state: "unknown",
+      value: null,
+    });
+  });
+});
+
+describe("wellFact inspect row (P-50 / WDLL 4)", () => {
+  it("present fixture 48103:100 shows apiNumber14=42000001030000", () => {
+    const model = bakedCardModelFromSheet(
+      sheet({
+        well: {
+          state: "present",
+          value: {
+            apiNumber14: "42000001030000",
+            wellStatus: "dry",
+            operatorName: null,
+            parcelRelation: "on-parcel",
+            display: "42000001030000 · dry",
+          },
+          provenance: {
+            ...prov(),
+            source: "well-fact",
+            sourceLabel: "well-fact atom",
+          },
+        },
+      }),
+    );
+    expect(model.well.state).toBe("present");
+    expect(model.well.value).toContain("42000001030000");
+    expect(model.well.value).not.toMatch(/ENERGY TRANSFER/);
+  });
+
+  it("gold-shaped atom-miss fixture does not render a well or :none", () => {
+    const facet = wellFacetFromSheet({
+      state: "unresolved",
+      reason: "well-fact atom-miss",
+      retryable: false,
+    });
+    expect(facet.state).toBe("pending");
+    expect(facet.value).toMatch(/well-fact/);
+    expect(facet.value).toMatch(/atom-miss/);
+    expect(JSON.stringify(facet)).not.toMatch(/42000001030000/);
+    expect(JSON.stringify(facet)).not.toMatch(/:none/);
+  });
+
+  it("missing field hides the row (unknown)", () => {
+    expect(wellFacetFromSheet(undefined)).toEqual({
+      state: "unknown",
+      value: null,
+    });
+    expect(bakedCardModelFromSheet(sheet()).well).toEqual({
       state: "unknown",
       value: null,
     });

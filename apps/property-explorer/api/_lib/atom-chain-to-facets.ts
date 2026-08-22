@@ -289,6 +289,29 @@ export type PipelineFactWire = {
   sourceAdapter?: unknown;
 };
 
+/**
+ * Cortex inspect GET sibling (P-50 / well-fact). Spatial overlay at WRITE
+ * time — writer keys `${parcel}:${wellKey}`. No :sd: / :well: picker. No
+ * pipeline ANY bind. Does not share the texas-rrc key.
+ */
+export type WellFactWire = {
+  state: "present" | "absent" | "refused";
+  apiNumber14?: unknown;
+  wellStatus?: unknown;
+  operatorName?: unknown;
+  parcelRelation?: unknown;
+  absence?: { kind?: string; reason?: string } | null;
+  code?: unknown;
+  reason?: unknown;
+  source?: unknown;
+  sourceVintage?: unknown;
+  evaluatedAt?: unknown;
+  boundAs?: unknown;
+  tried?: unknown;
+  entityId?: unknown;
+  sourceAdapter?: unknown;
+};
+
 export interface PeBakedFacetsResponse {
   parcelNodeId: string;
   adapterKey: string;
@@ -318,6 +341,11 @@ export interface PeBakedFacetsResponse {
    * only. Never populated from bake / CAD / texas-rrc GIS.
    */
   pipelineFact?: PipelineFactWire;
+  /**
+   * Well from well-fact atoms. Copied from the cortex JSON ROOT only.
+   * Never populated from bake / CAD / texas-rrc GIS / tx_rrc_well.
+   */
+  wellFact?: WellFactWire;
 }
 
 export function isPropertyAtomPathEnabled(
@@ -554,14 +582,48 @@ function withPipelineFact(
   return { ...atomResponse, pipelineFact: fact };
 }
 
+/** Cortex inspect GET sibling of flood / land-use / special-district / pipeline (P-50). */
+export function isWellFactWire(value: unknown): value is WellFactWire {
+  if (!value || typeof value !== "object" || Array.isArray(value)) return false;
+  const state = (value as { state?: unknown }).state;
+  return state === "present" || state === "absent" || state === "refused";
+}
+
+/**
+ * Cortex JSON ROOT only. Never reads bake / CAD / texas-rrc GIS /
+ * tx_rrc_well or a nested facets copy. A bake / GIS object parked on the
+ * root has no state and is rejected. No :sd: / :well: picker.
+ */
+export function wellFactFromCortexRoot(
+  bakedBody: unknown,
+): WellFactWire | undefined {
+  if (!bakedBody || typeof bakedBody !== "object" || Array.isArray(bakedBody)) {
+    return undefined;
+  }
+  const fact = (bakedBody as { wellFact?: unknown }).wellFact;
+  return isWellFactWire(fact) ? fact : undefined;
+}
+
+function withWellFact(
+  atomResponse: PeBakedFacetsResponse,
+  bakedBody: unknown,
+): PeBakedFacetsResponse {
+  const fact = wellFactFromCortexRoot(bakedBody);
+  if (fact === undefined) return atomResponse;
+  return { ...atomResponse, wellFact: fact };
+}
+
 function withRootFacts(
   atomResponse: PeBakedFacetsResponse,
   bakedBody: unknown,
 ): PeBakedFacetsResponse {
-  return withPipelineFact(
-    withSpecialDistrictFact(
-      withLandUseFact(
-        withFloodHazardFact(atomResponse, bakedBody),
+  return withWellFact(
+    withPipelineFact(
+      withSpecialDistrictFact(
+        withLandUseFact(
+          withFloodHazardFact(atomResponse, bakedBody),
+          bakedBody,
+        ),
         bakedBody,
       ),
       bakedBody,
@@ -596,6 +658,8 @@ function withRootFacts(
  * the cortex JSON ROOT only. Do not adopt bake / CAD / mud-pid as that field.
  * pipelineFact is the same shape family (P-49): copy from the cortex JSON
  * ROOT only. Do not adopt bake / CAD / texas-rrc GIS as that field.
+ * wellFact is the same shape family (P-50): copy from the cortex JSON ROOT
+ * only. Do not adopt bake / CAD / texas-rrc GIS / tx_rrc_well as that field.
  * If facets are missing, still attach the root fields when they are present.
  */
 export function mergeBakedBaseFacts(
@@ -606,7 +670,7 @@ export function mergeBakedBaseFacts(
     ?.facets;
   if (!baked || typeof baked !== "object") {
     // Facets missing: still forward root flood / land-use / special-district /
-    // pipeline. Identity-return only when those fields are also absent.
+    // pipeline / well. Identity-return only when those fields are also absent.
     return withRootFacts(atomResponse, bakedBody);
   }
 
