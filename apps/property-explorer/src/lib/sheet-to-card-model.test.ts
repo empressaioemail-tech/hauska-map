@@ -19,6 +19,7 @@ import {
   setbackDisplayFromSheet,
   setbackFieldNotesFromSheet,
   floodFacetFromSheet,
+  specialDistrictFacetFromSheet,
 } from "./sheet-to-card-model";
 import { FLOOD_HAZARD_FACT_MISSING_REASON } from "./baked-facets";
 
@@ -464,5 +465,55 @@ describe("landUseFact inspect row (WDLL 5 leftover)", () => {
     const model = bakedCardModelFromSheet(sheet());
     expect(model.provenance.landUseSource).toBe("cad-roll");
     expect(model.provenance.landUseSource).not.toBe("land-use-fact");
+  });
+});
+
+describe("specialDistrictFact inspect row (P-48 / WDLL 1)", () => {
+  it("present fixture shows MUD — The Colony MUD 1C", () => {
+    const model = bakedCardModelFromSheet(
+      sheet({
+        specialDistrict: {
+          state: "present",
+          value: { districtType: "MUD", districtName: "The Colony MUD 1C" },
+          provenance: {
+            ...prov(),
+            source: "special-district-fact",
+            sourceLabel: "special-district-fact atom",
+          },
+        },
+      }),
+    );
+    expect(model.specialDistrict).toEqual({
+      state: "present",
+      value: "MUD — The Colony MUD 1C",
+    });
+    expect(model.specialDistrict.value).toContain("The Colony MUD 1C");
+  });
+
+  it("gold-shaped absent fixture does not render a district name", () => {
+    const facet = specialDistrictFacetFromSheet({
+      state: "absent-covered",
+      reason: "outside-tceq-source-boundaries",
+      provenance: {
+        ...prov(),
+        source: "special-district-fact",
+        sourceLabel: "special-district-fact atom",
+      },
+    });
+    expect(facet.state).toBe("absent");
+    expect(facet.value).toBe("outside-tceq-source-boundaries");
+    expect(JSON.stringify(facet)).not.toMatch(/The Colony/);
+    expect(JSON.stringify(facet)).not.toMatch(/MUD 1C/);
+  });
+
+  it("missing field hides the row (unknown)", () => {
+    expect(specialDistrictFacetFromSheet(undefined)).toEqual({
+      state: "unknown",
+      value: null,
+    });
+    expect(bakedCardModelFromSheet(sheet()).specialDistrict).toEqual({
+      state: "unknown",
+      value: null,
+    });
   });
 });

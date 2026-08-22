@@ -375,6 +375,16 @@ export interface ParcelFactSheet {
   setbacks: Fact<Setbacks>;
   envelope: BuildableEnvelope;
   flood: Fact<FloodDetermination>;
+  /**
+   * ADDITIVE (P-48 / 2026-08-21). Special district from cortex-root
+   * specialDistrictFact. Optional so existing sealed stubs stay valid.
+   * Missing means the inspect payload did not carry the field (hide the
+   * row). Never invent a MUD. Never populated from bake / CAD / mud-pid.
+   */
+  specialDistrict?: Fact<{
+    districtType: string | null;
+    districtName: string | null;
+  }>;
   site: SiteConditions;
 
   /**

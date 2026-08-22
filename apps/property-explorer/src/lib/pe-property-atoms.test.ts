@@ -92,6 +92,36 @@ describe("stripCortexEnvelopeProductTruth (anti-zombie)", () => {
     }) as Record<string, unknown>;
     expect("landUseFact" in noRoot).toBe(false);
   });
+
+  it("preserves cortex-root specialDistrictFact and does not invent one from bake / mud-pid", () => {
+    const goldFact = {
+      state: "present",
+      source: "special-district-fact",
+      districtType: "MUD",
+      districtName: "The Colony MUD 1C",
+    };
+    const withRoot = stripCortexEnvelopeProductTruth({
+      specialDistrictFact: goldFact,
+      facets: {
+        mudPid: { districtType: "MUD", districtName: "BAKE MUD" },
+        envelope: { status: "ok" },
+      },
+    }) as {
+      specialDistrictFact: { districtName: string; source: string };
+      facets: { mudPid: { districtName: string } };
+    };
+    expect(withRoot.specialDistrictFact.districtName).toBe("The Colony MUD 1C");
+    expect(withRoot.specialDistrictFact.source).toBe("special-district-fact");
+    expect(withRoot.facets.mudPid.districtName).toBe("BAKE MUD");
+
+    const noRoot = stripCortexEnvelopeProductTruth({
+      facets: {
+        mudPid: { districtType: "MUD", districtName: "BAKE MUD" },
+        envelope: { status: "ok" },
+      },
+    }) as Record<string, unknown>;
+    expect("specialDistrictFact" in noRoot).toBe(false);
+  });
 });
 
 const PADDED = "48021:34137.00000000";
@@ -130,6 +160,14 @@ const GOLD_LAND_USE = {
   landUseCode: "A1",
   landUseLabel: "Single-family residential",
   taxYear: 2025,
+};
+const COLONY_MUD = {
+  state: "present",
+  source: "special-district-fact",
+  districtId: "3504125",
+  districtType: "MUD",
+  districtName: "The Colony MUD 1C",
+  entityId: "48021:102817:sd:3504125",
 };
 
 function jsonResponse(body: unknown, status = 200): Response {
@@ -275,6 +313,45 @@ describe("fetchCortexFacetsWithAlias floodHazardFact (WDLL 5)", () => {
     expect(JSON.stringify(body.landUseFact)).not.toMatch(/CADROLL/);
     expect(JSON.stringify(body.landUseFact)).not.toMatch(/cad-roll/);
   });
+
+  it("padded cortex missing specialDistrictFact aliases integer root even when floodHazardFact and landUseFact are already on the padded body", async () => {
+    process.env.CORTEX_API_URL = "https://cortex.test";
+    process.env.CORTEX_SERVICE_API_KEY = "ck";
+    vi.stubGlobal("fetch", async (input: RequestInfo | URL) => {
+      const url = String(input);
+      if (url.includes(encodeURIComponent(PADDED))) {
+        return jsonResponse({
+          parcelNodeId: PADDED,
+          floodHazardFact: GOLD_FLOOD,
+          landUseFact: GOLD_LAND_USE,
+          facets: {
+            mudPid: { districtType: "MUD", districtName: "BAKE MUD" },
+          },
+        });
+      }
+      if (url.includes(encodeURIComponent(INTEGER))) {
+        return jsonResponse({
+          parcelNodeId: INTEGER,
+          floodHazardFact: GOLD_FLOOD,
+          landUseFact: GOLD_LAND_USE,
+          specialDistrictFact: COLONY_MUD,
+          facets: {
+            mudPid: { districtType: "MUD", districtName: "BAKE MUD" },
+          },
+        });
+      }
+      throw new Error(`unexpected fetch ${url}`);
+    });
+    const result = await fetchCortexFacetsWithAlias(PADDED);
+    expect(result.status).toBe(200);
+    const body = JSON.parse(result.body) as {
+      specialDistrictFact?: { districtName?: string; source?: string };
+    };
+    expect(body.specialDistrictFact?.districtName).toBe("The Colony MUD 1C");
+    expect(body.specialDistrictFact?.source).toBe("special-district-fact");
+    expect(JSON.stringify(body.specialDistrictFact)).not.toMatch(/BAKE MUD/);
+    expect(JSON.stringify(body.specialDistrictFact)).not.toMatch(/mud-pid/);
+  });
 });
 
 describe("handlePropertyAtomsFacets dual-grammar echo (WDLL 5)", () => {
@@ -325,6 +402,7 @@ describe("handlePropertyAtomsFacets dual-grammar echo (WDLL 5)", () => {
           parcelNodeId: INTEGER,
           floodHazardFact: GOLD_FLOOD,
           landUseFact: GOLD_LAND_USE,
+          specialDistrictFact: COLONY_MUD,
           facets: { baseFacts: {} },
         });
       }
@@ -371,6 +449,7 @@ describe("handlePropertyAtomsFacets dual-grammar echo (WDLL 5)", () => {
       parcelNodeId: string;
       floodHazardFact?: { floodZone?: string };
       landUseFact?: { landUseCode?: string; source?: string };
+      specialDistrictFact?: { districtName?: string; source?: string };
       facets: { parcelNodeId?: string; zoning?: { district?: string } };
     };
     expect(body.parcelNodeId).toBe(PADDED);
@@ -379,6 +458,8 @@ describe("handlePropertyAtomsFacets dual-grammar echo (WDLL 5)", () => {
     expect(body.floodHazardFact?.floodZone).toBe("X");
     expect(body.landUseFact?.landUseCode).toBe("A1");
     expect(body.landUseFact?.source).toBe("land-use-fact");
+    expect(body.specialDistrictFact?.districtName).toBe("The Colony MUD 1C");
+    expect(body.specialDistrictFact?.source).toBe("special-district-fact");
     expect(JSON.stringify(body.floodHazardFact)).not.toMatch(/"AE"/);
   });
 });

@@ -527,3 +527,59 @@ describe("InspectCard Land use row — landUseFact preferred (WDLL 5 leftover)",
     expect(html).not.toContain("cad-roll");
   });
 });
+
+describe("InspectCard Special district row — specialDistrictFact (P-48)", () => {
+  it("present fixture shows The Colony MUD 1C", () => {
+    const html = renderToStaticMarkup(
+      <dl>
+        <FactRow
+          label="Special district"
+          fact={toFactPresentation(
+            { state: "present", value: "MUD — The Colony MUD 1C" },
+            ROW_SPECS.specialDistrict,
+          )}
+          testid="inspect-special-district"
+        />
+      </dl>,
+    );
+    expect(html).toContain('data-testid="inspect-special-district"');
+    expect(html).toContain("The Colony MUD 1C");
+    expect(html).toContain("MUD");
+  });
+
+  it("gold-shaped absent fixture stays visible and does not paint a MUD name", () => {
+    const html = renderToStaticMarkup(
+      <dl>
+        <FactRow
+          label="Special district"
+          fact={toFactPresentation(
+            { state: "absent", value: "outside-tceq-source-boundaries" },
+            ROW_SPECS.specialDistrict,
+          )}
+          testid="inspect-special-district"
+        />
+      </dl>,
+    );
+    expect(html).toContain('data-testid="inspect-special-district"');
+    expect(html).toContain("outside-tceq-source-boundaries");
+    expect(html).not.toContain("The Colony");
+  });
+
+  it("missing specialDistrictFact hides the Special district row (unknown, not invented)", () => {
+    const html = renderToStaticMarkup(
+      <dl>
+        <FactRow
+          label="Special district"
+          fact={toFactPresentation(
+            { state: "unknown", value: null },
+            ROW_SPECS.specialDistrict,
+          )}
+          testid="inspect-special-district"
+        />
+      </dl>,
+    );
+    expect(html).not.toContain("inspect-special-district");
+    expect(html).not.toContain("Special district");
+    expect(html).not.toContain("The Colony");
+  });
+});

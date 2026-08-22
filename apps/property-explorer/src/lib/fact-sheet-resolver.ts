@@ -20,9 +20,12 @@
 //   1. GET  {facets}/…/:parcelNodeId/facets   identity, land use, zoning,
 //                                             setbacks, envelope, acreage,
 //                                             provenance, and the root
-//                                             floodHazardFact / landUseFact
-//                                             siblings (never tier2.flood;
-//                                             never cad-roll as landUseFact).
+//                                             floodHazardFact / landUseFact /
+//                                             specialDistrictFact siblings
+//                                             (never tier2.flood; never
+//                                             cad-roll as landUseFact; never
+//                                             bake / CAD / mud-pid as
+//                                             specialDistrictFact).
 //   2. POST {cortex}/…/place/buildable-envelope   the backend's authoritative
 //                                             resolution of the parcel to a
 //                                             point (its `coord:` placeKey),
@@ -375,6 +378,70 @@ function landUseFromInspectWire(
     value: {
       code: landUseCode ?? "",
       description: landUseLabel ?? landUseCode ?? "",
+    },
+    provenance: prov,
+  };
+}
+
+/**
+ * Special district from cortex-root specialDistrictFact (P-48 / WDLL 1).
+ *
+ * Prefer the cortex field. Never adopt bake / CAD / mud-pid. Never invent a
+ * MUD. Typed absence stays visible. A missing field is omitted from the
+ * sheet so the card hides the row (unknown), matching missing floodHazardFact.
+ */
+function specialDistrictFromInspectWire(
+  specialDistrictFact: unknown,
+): Fact<{ districtType: string | null; districtName: string | null }> | undefined {
+  if (
+    !specialDistrictFact ||
+    typeof specialDistrictFact !== "object" ||
+    Array.isArray(specialDistrictFact)
+  ) {
+    return undefined;
+  }
+  const fact = rec(specialDistrictFact);
+  if (!fact) return undefined;
+  const state = str(fact.state);
+  if (state !== "present" && state !== "absent" && state !== "refused") {
+    // Bake {districtType, districtName} parked on the root is not the atom.
+    return undefined;
+  }
+  if (str(fact.source) === "cad-roll" || str(fact.source) === "mud-pid") {
+    return undefined;
+  }
+
+  const prov = provenance({
+    source: str(fact.source) ?? "special-district-fact",
+    sourceLabel: "special-district-fact atom",
+    vintage: str(fact.sourceVintage) ?? str(fact.evaluatedAt),
+    sourceUrl: str(rec(fact.provenance)?.url),
+  });
+
+  if (state === "refused") {
+    const code = str(fact.code) ?? "refused";
+    return { state: "unresolved", reason: code, retryable: false };
+  }
+  if (state === "absent") {
+    const absence = rec(fact.absence);
+    const reason =
+      str(absence?.reason) ?? str(absence?.kind) ?? "typed absence";
+    return absentCovered(reason, prov);
+  }
+
+  const districtType = str(fact.districtType);
+  const districtName = str(fact.districtName);
+  if (!districtType && !districtName) {
+    return absentCovered(
+      "special-district-fact present with no districtType or districtName",
+      prov,
+    );
+  }
+  return {
+    state: "present",
+    value: {
+      districtType,
+      districtName,
     },
     provenance: prov,
   };
@@ -992,6 +1059,8 @@ export class PeFactSheetResolver implements FactSheetResolver {
       wire.floodHazardFact ?? facetsResult.data.floodHazardFact ?? null;
     const landUseFact =
       wire.landUseFact ?? facetsResult.data.landUseFact ?? null;
+    const specialDistrictFact =
+      wire.specialDistrictFact ?? facetsResult.data.specialDistrictFact ?? null;
 
     const fips = str(facets.countyFips) ?? parcelNodeId.split(":")[0] ?? "";
     const countyName =
@@ -1031,6 +1100,7 @@ export class PeFactSheetResolver implements FactSheetResolver {
     const setbacks = setbacksFact(facets);
     const envelope = envelopeValue(facets, setbacks, lotAreaSqFt);
     const flood = floodFact(floodHazardFact);
+    const specialDistrict = specialDistrictFromInspectWire(specialDistrictFact);
 
     const site: ParcelFactSheet["site"] = {
       elevationRange: null,
@@ -1052,6 +1122,7 @@ export class PeFactSheetResolver implements FactSheetResolver {
       setbacks,
       envelope,
       flood,
+      specialDistrict,
       site,
       county: { fips, name: countyName },
     });
@@ -1067,6 +1138,7 @@ export class PeFactSheetResolver implements FactSheetResolver {
       setbacks,
       envelope,
       flood,
+      ...(specialDistrict ? { specialDistrict } : {}),
       site,
       // Composed ONCE, by the one composer, from the fields above.
       verdict: "",

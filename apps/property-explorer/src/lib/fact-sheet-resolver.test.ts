@@ -959,3 +959,65 @@ describe("landUseFact only (WDLL 5 leftover)", () => {
     expect(sheet.landUse.provenance.source).toBe("land-use-fact");
   });
 });
+
+describe("specialDistrictFact only (P-48 / WDLL 1)", () => {
+  it("present 48021:102817 The Colony MUD 1C from specialDistrictFact", async () => {
+    const wire = facetsWire() as unknown as Record<string, unknown>;
+    wire.specialDistrictFact = {
+      state: "present",
+      source: "special-district-fact",
+      districtId: "3504125",
+      districtType: "MUD",
+      districtName: "The Colony MUD 1C",
+      entityId: "48021:102817:sd:3504125",
+    };
+    const stub = installFetchStub({ facets: wire, gisFeatures: [SUBJECT_FEATURE] });
+    const sheet = await sheetOf(makeResolver(stub), NODE_ID);
+    expect(sheet.specialDistrict?.state).toBe("present");
+    if (sheet.specialDistrict?.state !== "present") throw new Error("unreachable");
+    expect(sheet.specialDistrict.value.districtType).toBe("MUD");
+    expect(sheet.specialDistrict.value.districtName).toBe("The Colony MUD 1C");
+    expect(sheet.specialDistrict.provenance.source).toBe("special-district-fact");
+  });
+
+  it("gold-shaped absent :sd:outside does not render a district name or invent a MUD", async () => {
+    const wire = facetsWire() as unknown as Record<string, unknown>;
+    wire.specialDistrictFact = {
+      state: "absent",
+      source: "special-district-fact",
+      entityId: "48021:34137:sd:outside",
+      absence: {
+        kind: "outside-tceq-source-boundaries",
+        reason: "parcel centroid is outside TCEQ source boundaries",
+      },
+    };
+    const stub = installFetchStub({ facets: wire, gisFeatures: [SUBJECT_FEATURE] });
+    const sheet = await sheetOf(makeResolver(stub), NODE_ID);
+    expect(sheet.specialDistrict?.state).toBe("absent-covered");
+    if (sheet.specialDistrict?.state !== "absent-covered") throw new Error("unreachable");
+    expect(sheet.specialDistrict.reason).toMatch(/outside-tceq-source-boundaries|outside TCEQ/);
+    expect(sheet.specialDistrict.provenance.source).toBe("special-district-fact");
+    expect(JSON.stringify(sheet.specialDistrict)).not.toMatch(/The Colony/);
+    expect(JSON.stringify(sheet.specialDistrict)).not.toMatch(/"MUD"/);
+  });
+
+  it("bake parked on the root without state is not adopted", async () => {
+    const wire = facetsWire() as unknown as Record<string, unknown>;
+    wire.specialDistrictFact = {
+      districtType: "MUD",
+      districtName: "BAKE MUD",
+      source: "mud-pid",
+    };
+    const stub = installFetchStub({ facets: wire, gisFeatures: [SUBJECT_FEATURE] });
+    const sheet = await sheetOf(makeResolver(stub), NODE_ID);
+    expect(sheet.specialDistrict).toBeUndefined();
+  });
+
+  it("missing field stays missing — no invented MUD", async () => {
+    const wire = facetsWire() as unknown as Record<string, unknown>;
+    delete wire.specialDistrictFact;
+    const stub = installFetchStub({ facets: wire, gisFeatures: [SUBJECT_FEATURE] });
+    const sheet = await sheetOf(makeResolver(stub), NODE_ID);
+    expect(sheet.specialDistrict).toBeUndefined();
+  });
+});
