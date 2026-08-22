@@ -147,6 +147,11 @@ export interface BakedFacetsResponse {
    * it. Never populated from bake / CAD / texas-rrc GIS.
    */
   pipelineFact?: PipelineFactCardInput;
+  /**
+   * Well from well-fact atoms. Absent when the BFF did not copy it.
+   * Never populated from bake / CAD / texas-rrc GIS / tx_rrc_well.
+   */
+  wellFact?: WellFactCardInput;
 }
 
 /** Cortex inspect GET flood determination (PR 449). Root sibling of facets. */
@@ -200,6 +205,20 @@ export type PipelineFactCardInput = {
   entityId?: unknown;
 };
 
+/** Cortex inspect GET well determination (P-50). Root sibling. */
+export type WellFactCardInput = {
+  state?: string;
+  apiNumber14?: unknown;
+  wellStatus?: unknown;
+  operatorName?: unknown;
+  parcelRelation?: unknown;
+  absence?: { kind?: string; reason?: string } | null;
+  code?: unknown;
+  reason?: unknown;
+  source?: unknown;
+  entityId?: unknown;
+};
+
 /**
  * Reason on sheet.specialDistrict when the inspect payload had no
  * specialDistrictFact. sheet-to-card-model maps this to CardFacet unknown
@@ -214,6 +233,13 @@ export const SPECIAL_DISTRICT_FACT_MISSING_REASON =
  */
 export const PIPELINE_FACT_MISSING_REASON =
   "pipelineFact was not on the inspect payload";
+
+/**
+ * Reason on sheet.well when the inspect payload had no wellFact.
+ * sheet-to-card-model maps this to CardFacet unknown so InspectCard hides the row.
+ */
+export const WELL_FACT_MISSING_REASON =
+  "wellFact was not on the inspect payload";
 
 /**
  * Reason on sheet.flood when the inspect payload had no floodHazardFact.
@@ -270,6 +296,12 @@ export interface BakedCardModel {
    * (FactRow hides it). Never derived from bake / CAD / texas-rrc GIS.
    */
   pipeline: CardFacet<string>;
+  /**
+   * Well row from wellFact only. `unknown` when the field is missing
+   * (FactRow hides it). Never derived from bake / CAD / texas-rrc GIS /
+   * tx_rrc_well. Gold atom-miss stays visible and does not paint a well.
+   */
+  well: CardFacet<string>;
   /** True whenever an envelope facet is present — the card must then render the
    *  "approximate / not survey grade" treatment (honesty commitment #1). */
   envelopeApproximate: boolean;
@@ -493,6 +525,7 @@ export function deriveBakedCardModel(payload: BakedFacetPayload): BakedCardModel
     flood: { state: "unknown", value: null },
     specialDistrict: { state: "unknown", value: null },
     pipeline: { state: "unknown", value: null },
+    well: { state: "unknown", value: null },
     // Any present envelope is Tier-1 (shape-only, no roads) — always approximate.
     envelopeApproximate: hasEnvelope,
     envelopeStatus: env?.status ?? null,

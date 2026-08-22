@@ -770,6 +770,107 @@ describe("mergeBakedBaseFacts — pipelineFact from cortex JSON ROOT (P-49)", ()
   });
 });
 
+const goldWellAtomMissFact = {
+  state: "refused" as const,
+  code: "atom-miss",
+  source: "well-fact",
+  tried: ["48021:34137", "48021:34137.00000000"],
+  reason:
+    "No well-fact atom for parcel prefix 48021:34137 or 48021:34137.00000000. Atom miss, not a well determination.",
+};
+
+const craneWellPresentFact = {
+  state: "present" as const,
+  source: "well-fact",
+  entityId: "48103:100:42000001030000",
+  parcelRelation: "on-parcel",
+  apiNumber14: "42000001030000",
+  wellStatus: "dry",
+  operatorName: null,
+};
+
+const bakeWellGis = {
+  apiNumber14: "42000001030000",
+  wellStatus: "dry",
+  source: "texas-rrc",
+};
+
+describe("mergeBakedBaseFacts — wellFact from cortex JSON ROOT (P-50)", () => {
+  it("copies a fixture wellFact from the cortex root onto the atom-chain payload", () => {
+    const adapted = adaptAtomChainToBakedFacets(haysChain)!;
+    const merged = mergeBakedBaseFacts(adapted, {
+      ...bakedCortexBody,
+      wellFact: craneWellPresentFact,
+    });
+    expect(merged.wellFact).toEqual(craneWellPresentFact);
+    expect(merged.wellFact?.apiNumber14).toBe("42000001030000");
+    expect(merged.wellFact?.entityId).toBe("48103:100:42000001030000");
+    expect(merged.wellFact?.wellStatus).toBe("dry");
+    expect(merged.wellFact?.operatorName).toBeNull();
+    expect(merged.wellFact?.source).toBe("well-fact");
+    expect(merged.baseFactsMerged).toBe(true);
+  });
+
+  it("does not copy bake / GIS onto wellFact", () => {
+    const adapted = adaptAtomChainToBakedFacets(haysChain)!;
+    const merged = mergeBakedBaseFacts(adapted, {
+      ...bakedCortexBody,
+      facets: {
+        ...bakedCortexBody.facets,
+        texasRrc: bakeWellGis,
+        tx_rrc_well: bakeWellGis,
+        well: bakeWellGis,
+      },
+      texasRrc: bakeWellGis,
+      tx_rrc_well: bakeWellGis,
+    });
+    expect("wellFact" in merged).toBe(false);
+    expect(merged.wellFact).toBeUndefined();
+    expect(JSON.stringify(merged.wellFact ?? {})).not.toMatch(/42000001030000/);
+    expect(JSON.stringify(merged.wellFact ?? {})).not.toMatch(/texas-rrc/);
+    expect(JSON.stringify(merged.wellFact ?? {})).not.toMatch(/tx_rrc_well/);
+  });
+
+  it("does not adopt a bake / GIS object parked on the root", () => {
+    const adapted = adaptAtomChainToBakedFacets(haysChain)!;
+    const merged = mergeBakedBaseFacts(adapted, {
+      ...bakedCortexBody,
+      wellFact: bakeWellGis,
+    });
+    expect("wellFact" in merged).toBe(false);
+  });
+
+  it("missing field stays missing — never invents a well", () => {
+    const adapted = adaptAtomChainToBakedFacets(haysChain)!;
+    const merged = mergeBakedBaseFacts(adapted, bakedCortexBody);
+    expect("wellFact" in merged).toBe(false);
+    expect(JSON.stringify(merged)).not.toMatch(/42000001030000/);
+  });
+
+  it("early return (no facets) still attaches wellFact when the root carries it", () => {
+    const adapted = adaptAtomChainToBakedFacets(haysChain)!;
+    const merged = mergeBakedBaseFacts(adapted, {
+      wellFact: craneWellPresentFact,
+    });
+    expect(merged.wellFact).toEqual(craneWellPresentFact);
+    expect(merged.baseFactsMerged).toBeUndefined();
+  });
+
+  it("gold-shaped atom-miss fixture stays atom-miss and does not invent a well or :none", () => {
+    const adapted = adaptAtomChainToBakedFacets(haysChain)!;
+    const merged = mergeBakedBaseFacts(adapted, {
+      ...bakedCortexBody,
+      wellFact: goldWellAtomMissFact,
+    });
+    expect(merged.wellFact?.state).toBe("refused");
+    expect(merged.wellFact?.code).toBe("atom-miss");
+    expect(merged.wellFact?.source).toBe("well-fact");
+    expect(merged.wellFact?.apiNumber14).toBeUndefined();
+    expect(JSON.stringify(merged.wellFact)).not.toMatch(/42000001030000/);
+    expect(JSON.stringify(merged.wellFact)).not.toMatch(/:none/);
+  });
+});
+
 describe("adaptAtomChainToBakedFacets — warm verify honest decline (141364 / superseded-prop-id)", () => {
   it("surfaces named superseded-prop-id decline instead of setback-rule-pending", () => {
     const chain: PropertyAtomChain = {
