@@ -335,6 +335,35 @@ export type BuildingFootprintFactWire = {
   sourceAdapter?: unknown;
 };
 
+/**
+ * Cortex inspect GET sibling (P-53 / property-boundary-edge). Writer keys
+ * `${countyFips}:${propId}:boundary:${edgeIndex}`. role is body.role,
+ * never the last entity_id token. Geometry is the atom body. No :sd: /
+ * :boundary: picker. No pipeline ANY bind. Does not share the texas-rrc
+ * key. Never a GIS parcel outline / txgio_parcel / bake ring.
+ */
+export type BoundaryEdgeFactWire = {
+  state: "present" | "absent" | "refused";
+  role?: unknown;
+  edgeIndex?: unknown;
+  adjacencyKind?: unknown;
+  frontBasis?: unknown;
+  edges?: unknown;
+  interior?: unknown;
+  propertyLineTags?: unknown;
+  absence?: { kind?: string; reason?: string } | null;
+  code?: unknown;
+  reason?: unknown;
+  source?: unknown;
+  sourceVintage?: unknown;
+  evaluatedAt?: unknown;
+  boundAs?: unknown;
+  tried?: unknown;
+  entityId?: unknown;
+  sourceAdapter?: unknown;
+  extractedAt?: unknown;
+};
+
 export interface PeBakedFacetsResponse {
   parcelNodeId: string;
   adapterKey: string;
@@ -374,6 +403,12 @@ export interface PeBakedFacetsResponse {
    * ROOT only. Never populated from bake / CAD / GIS / tx_building_footprint.
    */
   buildingFootprintFact?: BuildingFootprintFactWire;
+  /**
+   * Boundary from property-boundary-edge atoms. Copied from the cortex JSON
+   * ROOT only. Never populated from bake / CAD / GIS / txgio_parcel /
+   * parcel ring.
+   */
+  boundaryEdgeFact?: BoundaryEdgeFactWire;
 }
 
 export function isPropertyAtomPathEnabled(
@@ -676,16 +711,53 @@ function withBuildingFootprintFact(
   return { ...atomResponse, buildingFootprintFact: fact };
 }
 
+/** Cortex inspect GET sibling of flood / land-use / special-district / pipeline / well / footprint (P-53). */
+export function isBoundaryEdgeFactWire(
+  value: unknown,
+): value is BoundaryEdgeFactWire {
+  if (!value || typeof value !== "object" || Array.isArray(value)) return false;
+  const state = (value as { state?: unknown }).state;
+  return state === "present" || state === "absent" || state === "refused";
+}
+
+/**
+ * Cortex JSON ROOT only. Never reads bake / CAD / GIS / txgio_parcel /
+ * parcel ring or a nested facets copy. A bake / GIS object parked on the
+ * root has no state and is rejected. No :sd: / :boundary: picker. Does
+ * not parse the last entity_id token as role.
+ */
+export function boundaryEdgeFactFromCortexRoot(
+  bakedBody: unknown,
+): BoundaryEdgeFactWire | undefined {
+  if (!bakedBody || typeof bakedBody !== "object" || Array.isArray(bakedBody)) {
+    return undefined;
+  }
+  const fact = (bakedBody as { boundaryEdgeFact?: unknown }).boundaryEdgeFact;
+  return isBoundaryEdgeFactWire(fact) ? fact : undefined;
+}
+
+function withBoundaryEdgeFact(
+  atomResponse: PeBakedFacetsResponse,
+  bakedBody: unknown,
+): PeBakedFacetsResponse {
+  const fact = boundaryEdgeFactFromCortexRoot(bakedBody);
+  if (fact === undefined) return atomResponse;
+  return { ...atomResponse, boundaryEdgeFact: fact };
+}
+
 function withRootFacts(
   atomResponse: PeBakedFacetsResponse,
   bakedBody: unknown,
 ): PeBakedFacetsResponse {
-  return withBuildingFootprintFact(
-    withWellFact(
-      withPipelineFact(
-        withSpecialDistrictFact(
-          withLandUseFact(
-            withFloodHazardFact(atomResponse, bakedBody),
+  return withBoundaryEdgeFact(
+    withBuildingFootprintFact(
+      withWellFact(
+        withPipelineFact(
+          withSpecialDistrictFact(
+            withLandUseFact(
+              withFloodHazardFact(atomResponse, bakedBody),
+              bakedBody,
+            ),
             bakedBody,
           ),
           bakedBody,
@@ -730,6 +802,11 @@ function withRootFacts(
  * cortex JSON ROOT only. Do not adopt bake / CAD / GIS /
  * tx_building_footprint as that field. structureRole stays on the fact
  * body; never parse the last entity_id token.
+ * boundaryEdgeFact is the same shape family (P-53): copy from the
+ * cortex JSON ROOT only. Do not adopt bake / CAD / GIS / txgio_parcel /
+ * parcel ring as that field. role stays on the fact body; never parse
+ * the last entity_id token. Do not present a GIS parcel outline as the
+ * atom.
  * If facets are missing, still attach the root fields when they are present.
  */
 export function mergeBakedBaseFacts(
@@ -740,8 +817,8 @@ export function mergeBakedBaseFacts(
     ?.facets;
   if (!baked || typeof baked !== "object") {
     // Facets missing: still forward root flood / land-use / special-district /
-    // pipeline / well / footprint. Identity-return only when those fields
-    // are also absent.
+    // pipeline / well / footprint / boundary. Identity-return only when those
+    // fields are also absent.
     return withRootFacts(atomResponse, bakedBody);
   }
 

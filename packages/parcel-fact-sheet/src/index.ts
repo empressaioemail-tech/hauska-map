@@ -426,6 +426,19 @@ export interface ParcelFactSheet {
     entityId: string | null;
     display: string;
   }>;
+  /**
+   * ADDITIVE (P-53 / 2026-08-22). Boundary from cortex-root
+   * boundaryEdgeFact. Optional so existing sealed stubs stay valid.
+   * Missing means the inspect payload did not carry the field (hide the
+   * row). Never present GIS parcel outline / txgio_parcel / bake ring as
+   * the atom. role is body.role, never the last entity_id token. Never
+   * populated from bake / CAD / GIS / txgio_parcel.
+   */
+  boundary?: Fact<{
+    role: string | null;
+    entityId: string | null;
+    display: string;
+  }>;
   site: SiteConditions;
 
   /**

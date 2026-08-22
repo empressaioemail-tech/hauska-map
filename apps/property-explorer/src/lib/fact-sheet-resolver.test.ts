@@ -1301,3 +1301,112 @@ describe("buildingFootprintFact only (P-51 / WDLL 5)", () => {
     expect(sheet.footprint).toBeUndefined();
   });
 });
+
+describe("boundaryEdgeFact only (P-53 / WDLL 6)", () => {
+  it("gold-shaped present fixture 48021:34137 role=front from the body", async () => {
+    const wire = facetsWire() as unknown as Record<string, unknown>;
+    wire.boundaryEdgeFact = {
+      state: "present",
+      source: "property-boundary-edge",
+      entityId: "48021:34137:boundary:2",
+      edgeIndex: 2,
+      role: "front",
+      edges: [
+        { entityId: "48021:34137:boundary:0", edgeIndex: 0, role: "rear" },
+        { entityId: "48021:34137:boundary:1", edgeIndex: 1, role: "side" },
+        { entityId: "48021:34137:boundary:2", edgeIndex: 2, role: "front" },
+        { entityId: "48021:34137:boundary:3", edgeIndex: 3, role: "side_corner" },
+      ],
+    };
+    const stub = installFetchStub({ facets: wire, gisFeatures: [SUBJECT_FEATURE] });
+    const sheet = await sheetOf(makeResolver(stub), NODE_ID);
+    expect(sheet.boundary?.state).toBe("present");
+    if (sheet.boundary?.state !== "present") throw new Error("unreachable");
+    expect(sheet.boundary.value.role).toBe("front");
+    expect(sheet.boundary.value.entityId).toBe("48021:34137:boundary:2");
+    expect(sheet.boundary.value.display).toBe("front");
+    expect(sheet.boundary.provenance.source).toBe("property-boundary-edge");
+    expect(JSON.stringify(sheet.boundary)).not.toMatch(/txgio_parcel/);
+    expect(JSON.stringify(sheet.boundary)).not.toMatch(/parcelRing/);
+  });
+
+  it("gold-shaped atom-miss does not render a GIS ring", async () => {
+    const wire = facetsWire() as unknown as Record<string, unknown>;
+    wire.boundaryEdgeFact = {
+      state: "refused",
+      code: "atom-miss",
+      source: "property-boundary-edge",
+      tried: ["48021:99999", "48021:99999.00000000"],
+      reason:
+        "No property-boundary-edge atom for parcel prefix 48021:99999 or 48021:99999.00000000. Atom miss, not a boundary determination.",
+    };
+    const stub = installFetchStub({ facets: wire, gisFeatures: [SUBJECT_FEATURE] });
+    const sheet = await sheetOf(makeResolver(stub), NODE_ID);
+    expect(sheet.boundary?.state).toBe("unresolved");
+    if (sheet.boundary?.state !== "unresolved") throw new Error("unreachable");
+    expect(sheet.boundary.reason).toMatch(/property-boundary-edge/);
+    expect(sheet.boundary.reason).toMatch(/atom-miss/);
+    expect(JSON.stringify(sheet.boundary)).not.toMatch(/txgio_parcel/);
+    expect(JSON.stringify(sheet.boundary)).not.toMatch(/parcelRing/);
+    expect(JSON.stringify(sheet.boundary)).not.toMatch(/"role"/);
+  });
+
+  it("last token is not role: :boundary:0 entity_id with body.role=front renders front", async () => {
+    const wire = facetsWire() as unknown as Record<string, unknown>;
+    wire.boundaryEdgeFact = {
+      state: "present",
+      source: "property-boundary-edge",
+      entityId: "48021:34137:boundary:0",
+      edgeIndex: 0,
+      role: "front",
+    };
+    const stub = installFetchStub({ facets: wire, gisFeatures: [SUBJECT_FEATURE] });
+    const sheet = await sheetOf(makeResolver(stub), NODE_ID);
+    expect(sheet.boundary?.state).toBe("present");
+    if (sheet.boundary?.state !== "present") throw new Error("unreachable");
+    expect(sheet.boundary.value.role).toBe("front");
+    expect(sheet.boundary.value.display).toBe("front");
+    expect(sheet.boundary.value.entityId).toMatch(/:boundary:0$/);
+    expect(sheet.boundary.value.display).not.toBe("0");
+  });
+
+  it("bake / GIS / txgio_parcel parked on the root without state is not adopted", async () => {
+    const wire = facetsWire() as unknown as Record<string, unknown>;
+    wire.boundaryEdgeFact = {
+      source: "txgio_parcel",
+      entityId: "48021:34137",
+      ring: [
+        [0, 0],
+        [1, 0],
+        [1, 1],
+        [0, 1],
+        [0, 0],
+      ],
+      parcelRing: true,
+    };
+    const stub = installFetchStub({ facets: wire, gisFeatures: [SUBJECT_FEATURE] });
+    const sheet = await sheetOf(makeResolver(stub), NODE_ID);
+    expect(sheet.boundary).toBeUndefined();
+  });
+
+  it("source=txgio_parcel with a state is still rejected", async () => {
+    const wire = facetsWire() as unknown as Record<string, unknown>;
+    wire.boundaryEdgeFact = {
+      state: "present",
+      source: "txgio_parcel",
+      role: "front",
+      entityId: "48021:34137",
+    };
+    const stub = installFetchStub({ facets: wire, gisFeatures: [SUBJECT_FEATURE] });
+    const sheet = await sheetOf(makeResolver(stub), NODE_ID);
+    expect(sheet.boundary).toBeUndefined();
+  });
+
+  it("missing field stays missing — no invented GIS ring", async () => {
+    const wire = facetsWire() as unknown as Record<string, unknown>;
+    delete wire.boundaryEdgeFact;
+    const stub = installFetchStub({ facets: wire, gisFeatures: [SUBJECT_FEATURE] });
+    const sheet = await sheetOf(makeResolver(stub), NODE_ID);
+    expect(sheet.boundary).toBeUndefined();
+  });
+});

@@ -1007,6 +1007,173 @@ describe("mergeBakedBaseFacts — buildingFootprintFact from cortex JSON ROOT (P
   });
 });
 
+const goldBoundaryPresentFact = {
+  state: "present" as const,
+  source: "property-boundary-edge",
+  boundAs: "48021:34137:boundary:2",
+  tried: ["48021:34137", "48021:34137.00000000"],
+  entityId: "48021:34137:boundary:2",
+  edgeIndex: 2,
+  role: "front",
+  adjacencyKind: "ROW",
+  frontBasis: "situs-street-match",
+  edges: [
+    { entityId: "48021:34137:boundary:0", edgeIndex: 0, role: "rear" },
+    { entityId: "48021:34137:boundary:1", edgeIndex: 1, role: "side" },
+    { entityId: "48021:34137:boundary:2", edgeIndex: 2, role: "front" },
+    { entityId: "48021:34137:boundary:3", edgeIndex: 3, role: "side_corner" },
+  ],
+  sourceAdapter: "descriptor-fixture",
+  extractedAt: "2026-07-29T21:07:59.334Z",
+};
+
+const confirmatoryBoundaryPresentFact = {
+  state: "present" as const,
+  source: "property-boundary-edge",
+  entityId: "48021:28286:boundary:2",
+  role: "front",
+  edges: [
+    { entityId: "48021:28286:boundary:0", edgeIndex: 0, role: "rear" },
+    { entityId: "48021:28286:boundary:1", edgeIndex: 1, role: "side" },
+    { entityId: "48021:28286:boundary:2", edgeIndex: 2, role: "front" },
+    { entityId: "48021:28286:boundary:3", edgeIndex: 3, role: "side_corner" },
+  ],
+};
+
+const goldBoundaryAtomMissFact = {
+  state: "refused" as const,
+  code: "atom-miss",
+  source: "property-boundary-edge",
+  tried: ["48021:99999", "48021:99999.00000000"],
+  reason:
+    "No property-boundary-edge atom for parcel prefix 48021:99999 or 48021:99999.00000000. Atom miss, not a boundary determination.",
+};
+
+const bakeTxgioParcelRing = {
+  source: "txgio_parcel",
+  entityId: "48021:34137",
+  ring: [
+    [0, 0],
+    [1, 0],
+    [1, 1],
+    [0, 1],
+    [0, 0],
+  ],
+  parcelRing: true,
+};
+
+describe("mergeBakedBaseFacts — boundaryEdgeFact from cortex JSON ROOT (P-53)", () => {
+  it("copies a fixture boundaryEdgeFact from the cortex root onto the atom-chain payload", () => {
+    const adapted = adaptAtomChainToBakedFacets(haysChain)!;
+    const merged = mergeBakedBaseFacts(adapted, {
+      ...bakedCortexBody,
+      boundaryEdgeFact: goldBoundaryPresentFact,
+    });
+    expect(merged.boundaryEdgeFact).toEqual(goldBoundaryPresentFact);
+    expect(merged.boundaryEdgeFact?.role).toBe("front");
+    expect(merged.boundaryEdgeFact?.entityId).toBe("48021:34137:boundary:2");
+    expect(merged.boundaryEdgeFact?.source).toBe("property-boundary-edge");
+    expect(
+      Array.isArray(merged.boundaryEdgeFact?.edges) &&
+        (merged.boundaryEdgeFact?.edges as unknown[]).length,
+    ).toBe(4);
+    expect(merged.baseFactsMerged).toBe(true);
+  });
+
+  it("copies confirmatory 48021:28286 present fixture role=front four edges", () => {
+    const adapted = adaptAtomChainToBakedFacets(haysChain)!;
+    const merged = mergeBakedBaseFacts(adapted, {
+      ...bakedCortexBody,
+      boundaryEdgeFact: confirmatoryBoundaryPresentFact,
+    });
+    expect(merged.boundaryEdgeFact?.role).toBe("front");
+    expect(merged.boundaryEdgeFact?.entityId).toBe("48021:28286:boundary:2");
+    expect(merged.boundaryEdgeFact?.source).toBe("property-boundary-edge");
+    expect(
+      Array.isArray(merged.boundaryEdgeFact?.edges) &&
+        (merged.boundaryEdgeFact?.edges as unknown[]).length,
+    ).toBe(4);
+  });
+
+  it("does not copy bake / GIS / txgio_parcel onto boundaryEdgeFact", () => {
+    const adapted = adaptAtomChainToBakedFacets(haysChain)!;
+    const merged = mergeBakedBaseFacts(adapted, {
+      ...bakedCortexBody,
+      facets: {
+        ...bakedCortexBody.facets,
+        txgio_parcel: bakeTxgioParcelRing,
+        parcelRing: bakeTxgioParcelRing,
+      },
+      txgio_parcel: bakeTxgioParcelRing,
+    });
+    expect("boundaryEdgeFact" in merged).toBe(false);
+    expect(merged.boundaryEdgeFact).toBeUndefined();
+    expect(JSON.stringify(merged.boundaryEdgeFact ?? {})).not.toMatch(
+      /txgio_parcel/,
+    );
+    expect(JSON.stringify(merged.boundaryEdgeFact ?? {})).not.toMatch(
+      /parcelRing/,
+    );
+  });
+
+  it("does not adopt a bake / GIS / txgio_parcel object parked on the root", () => {
+    const adapted = adaptAtomChainToBakedFacets(haysChain)!;
+    const merged = mergeBakedBaseFacts(adapted, {
+      ...bakedCortexBody,
+      boundaryEdgeFact: bakeTxgioParcelRing,
+    });
+    expect("boundaryEdgeFact" in merged).toBe(false);
+  });
+
+  it("missing field stays missing — never invents an edge or GIS ring", () => {
+    const adapted = adaptAtomChainToBakedFacets(haysChain)!;
+    const merged = mergeBakedBaseFacts(adapted, bakedCortexBody);
+    expect("boundaryEdgeFact" in merged).toBe(false);
+    expect(JSON.stringify(merged)).not.toMatch(/property-boundary-edge/);
+    expect(JSON.stringify(merged)).not.toMatch(/txgio_parcel/);
+  });
+
+  it("early return (no facets) still attaches boundaryEdgeFact when the root carries it", () => {
+    const adapted = adaptAtomChainToBakedFacets(haysChain)!;
+    const merged = mergeBakedBaseFacts(adapted, {
+      boundaryEdgeFact: goldBoundaryPresentFact,
+    });
+    expect(merged.boundaryEdgeFact).toEqual(goldBoundaryPresentFact);
+    expect(merged.baseFactsMerged).toBeUndefined();
+  });
+
+  it("gold-shaped atom-miss fixture stays atom-miss and does not paint a GIS ring", () => {
+    const adapted = adaptAtomChainToBakedFacets(haysChain)!;
+    const merged = mergeBakedBaseFacts(adapted, {
+      ...bakedCortexBody,
+      boundaryEdgeFact: goldBoundaryAtomMissFact,
+    });
+    expect(merged.boundaryEdgeFact?.state).toBe("refused");
+    expect(merged.boundaryEdgeFact?.code).toBe("atom-miss");
+    expect(merged.boundaryEdgeFact?.source).toBe("property-boundary-edge");
+    expect(merged.boundaryEdgeFact?.role).toBeUndefined();
+    expect(JSON.stringify(merged.boundaryEdgeFact)).not.toMatch(/txgio_parcel/);
+    expect(JSON.stringify(merged.boundaryEdgeFact)).not.toMatch(/parcelRing/);
+  });
+
+  it("last token is not role: entity_id :boundary:0 with body.role=front copies front", () => {
+    const adapted = adaptAtomChainToBakedFacets(haysChain)!;
+    const inverted = {
+      state: "present" as const,
+      source: "property-boundary-edge",
+      entityId: "48021:34137:boundary:0",
+      edgeIndex: 0,
+      role: "front",
+    };
+    const merged = mergeBakedBaseFacts(adapted, {
+      ...bakedCortexBody,
+      boundaryEdgeFact: inverted,
+    });
+    expect(merged.boundaryEdgeFact?.role).toBe("front");
+    expect(merged.boundaryEdgeFact?.entityId).toMatch(/:boundary:0$/);
+  });
+});
+
 describe("adaptAtomChainToBakedFacets — warm verify honest decline (141364 / superseded-prop-id)", () => {
   it("surfaces named superseded-prop-id decline instead of setback-rule-pending", () => {
     const chain: PropertyAtomChain = {

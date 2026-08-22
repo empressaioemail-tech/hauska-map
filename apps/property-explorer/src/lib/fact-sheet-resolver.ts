@@ -23,7 +23,8 @@
 //                                             floodHazardFact / landUseFact /
 //                                             specialDistrictFact /
 //                                             pipelineFact / wellFact /
-//                                             buildingFootprintFact
+//                                             buildingFootprintFact /
+//                                             boundaryEdgeFact
 //                                             siblings (never tier2.flood;
 //                                             never cad-roll as landUseFact;
 //                                             never bake / CAD / mud-pid as
@@ -33,7 +34,10 @@
 //                                             / texas-rrc GIS / tx_rrc_well
 //                                             as wellFact; never bake / CAD
 //                                             / GIS / tx_building_footprint
-//                                             as buildingFootprintFact).
+//                                             as buildingFootprintFact;
+//                                             never bake / CAD / GIS /
+//                                             txgio_parcel / parcel ring as
+//                                             boundaryEdgeFact).
 //   2. POST {cortex}/…/place/buildable-envelope   the backend's authoritative
 //                                             resolution of the parcel to a
 //                                             point (its `coord:` placeKey),
@@ -698,6 +702,79 @@ function footprintFromInspectWire(
   };
 }
 
+/**
+ * Boundary from cortex-root boundaryEdgeFact (P-53 / WDLL 6).
+ *
+ * Prefer the cortex field. Never adopt bake / CAD / GIS / txgio_parcel /
+ * parcel ring. Never present a GIS parcel outline as the atom. role is
+ * body.role, never the last entity_id token. No :sd: / :boundary:
+ * picker. No pipeline ANY bind. Typed absence stays visible. A missing
+ * field is omitted so the card hides the row.
+ */
+function boundaryFromInspectWire(
+  boundaryEdgeFact: unknown,
+):
+  | Fact<{
+      role: string | null;
+      entityId: string | null;
+      display: string;
+    }>
+  | undefined {
+  if (
+    !boundaryEdgeFact ||
+    typeof boundaryEdgeFact !== "object" ||
+    Array.isArray(boundaryEdgeFact)
+  ) {
+    return undefined;
+  }
+  const fact = rec(boundaryEdgeFact);
+  if (!fact) return undefined;
+  const state = str(fact.state);
+  if (state !== "present" && state !== "absent" && state !== "refused") {
+    return undefined;
+  }
+  const source = str(fact.source);
+  if (
+    source === "cad-roll" ||
+    source === "texas-rrc" ||
+    source === "txgio_parcel" ||
+    source === "mud-pid"
+  ) {
+    return undefined;
+  }
+
+  const prov = provenance({
+    source: source ?? "property-boundary-edge",
+    sourceLabel: "property-boundary-edge atom",
+    vintage: str(fact.sourceVintage) ?? str(fact.evaluatedAt) ?? str(fact.extractedAt),
+    sourceUrl: str(rec(fact.provenance)?.url),
+  });
+
+  if (state === "refused") {
+    const code = str(fact.code) ?? "refused";
+    const named = source ?? "property-boundary-edge";
+    return { state: "unresolved", reason: `${named} ${code}`, retryable: false };
+  }
+  if (state === "absent") {
+    const absence = rec(fact.absence);
+    const reason =
+      str(absence?.reason) ?? str(absence?.kind) ?? "typed absence";
+    return absentCovered(reason, prov);
+  }
+
+  const role = str(fact.role);
+  const entityId = str(fact.entityId);
+  return {
+    state: "present",
+    value: {
+      role,
+      entityId,
+      display: role ?? "boundary present",
+    },
+    provenance: prov,
+  };
+}
+
 function zoningFact(facets: BakedFacetPayload, countyFips: string): Fact<ZoningDistrict> {
   const declineReason = facets.envelope?.status === "declined"
     ? str(facets.envelope.declineReason)
@@ -1319,6 +1396,8 @@ export class PeFactSheetResolver implements FactSheetResolver {
       wire.buildingFootprintFact ??
       facetsResult.data.buildingFootprintFact ??
       null;
+    const boundaryEdgeFact =
+      wire.boundaryEdgeFact ?? facetsResult.data.boundaryEdgeFact ?? null;
 
     const fips = str(facets.countyFips) ?? parcelNodeId.split(":")[0] ?? "";
     const countyName =
@@ -1362,6 +1441,7 @@ export class PeFactSheetResolver implements FactSheetResolver {
     const pipeline = pipelineFromInspectWire(pipelineFact);
     const well = wellFromInspectWire(wellFact);
     const footprint = footprintFromInspectWire(buildingFootprintFact);
+    const boundary = boundaryFromInspectWire(boundaryEdgeFact);
 
     const site: ParcelFactSheet["site"] = {
       elevationRange: null,
@@ -1387,6 +1467,7 @@ export class PeFactSheetResolver implements FactSheetResolver {
       pipeline,
       well,
       footprint,
+      boundary,
       site,
       county: { fips, name: countyName },
     });
@@ -1406,6 +1487,7 @@ export class PeFactSheetResolver implements FactSheetResolver {
       ...(pipeline ? { pipeline } : {}),
       ...(well ? { well } : {}),
       ...(footprint ? { footprint } : {}),
+      ...(boundary ? { boundary } : {}),
       site,
       // Composed ONCE, by the one composer, from the fields above.
       verdict: "",
