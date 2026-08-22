@@ -21,11 +21,14 @@
 //                                             setbacks, envelope, acreage,
 //                                             provenance, and the root
 //                                             floodHazardFact / landUseFact /
-//                                             specialDistrictFact siblings
+//                                             specialDistrictFact /
+//                                             pipelineFact siblings
 //                                             (never tier2.flood; never
 //                                             cad-roll as landUseFact; never
 //                                             bake / CAD / mud-pid as
-//                                             specialDistrictFact).
+//                                             specialDistrictFact; never
+//                                             bake / CAD / texas-rrc GIS as
+//                                             pipelineFact).
 //   2. POST {cortex}/…/place/buildable-envelope   the backend's authoritative
 //                                             resolution of the parcel to a
 //                                             point (its `coord:` placeKey),
@@ -442,6 +445,98 @@ function specialDistrictFromInspectWire(
     value: {
       districtType,
       districtName,
+    },
+    provenance: prov,
+  };
+}
+
+/**
+ * Pipeline from cortex-root pipelineFact (P-49 / WDLL 3).
+ *
+ * Prefer the cortex field. Never adopt bake / CAD / texas-rrc GIS. Never
+ * invent ENERGY TRANSFER on gold present-outside. No :sd: / :pipeline:
+ * picker. Typed absence stays visible. A missing field is omitted so the
+ * card hides the row.
+ */
+function pipelineFromInspectWire(
+  pipelineFact: unknown,
+):
+  | Fact<{
+      nearPipeline: boolean;
+      operatorName: string | null;
+      t4permit: string | null;
+      nearestPipelineDistanceMeters: number | null;
+      display: string;
+    }>
+  | undefined {
+  if (
+    !pipelineFact ||
+    typeof pipelineFact !== "object" ||
+    Array.isArray(pipelineFact)
+  ) {
+    return undefined;
+  }
+  const fact = rec(pipelineFact);
+  if (!fact) return undefined;
+  const state = str(fact.state);
+  if (state !== "present" && state !== "absent" && state !== "refused") {
+    return undefined;
+  }
+  const source = str(fact.source);
+  if (source === "cad-roll" || source === "texas-rrc" || source === "mud-pid") {
+    return undefined;
+  }
+
+  const prov = provenance({
+    source: source ?? "rrc-pipeline-fact",
+    sourceLabel: "rrc-pipeline-fact atom",
+    vintage: str(fact.sourceVintage) ?? str(fact.evaluatedAt),
+    sourceUrl: str(rec(fact.provenance)?.url),
+  });
+
+  if (state === "refused") {
+    const code = str(fact.code) ?? "refused";
+    return { state: "unresolved", reason: code, retryable: false };
+  }
+  if (state === "absent") {
+    const absence = rec(fact.absence);
+    const reason =
+      str(absence?.reason) ?? str(absence?.kind) ?? "typed absence";
+    return absentCovered(reason, prov);
+  }
+
+  const nearPipeline = fact.nearPipeline === true;
+  if (!nearPipeline) {
+    return {
+      state: "present",
+      value: {
+        nearPipeline: false,
+        operatorName: null,
+        t4permit: null,
+        nearestPipelineDistanceMeters: null,
+        display: "outside pipeline buffer",
+      },
+      provenance: prov,
+    };
+  }
+
+  const operatorName = str(fact.operatorName);
+  const t4permit = str(fact.t4permit);
+  const nearestPipelineDistanceMeters = num(fact.nearestPipelineDistanceMeters);
+  const parts: string[] = [];
+  if (operatorName) parts.push(operatorName);
+  if (t4permit) parts.push(`T-4 ${t4permit}`);
+  if (nearestPipelineDistanceMeters !== null) {
+    parts.push(`${nearestPipelineDistanceMeters} m`);
+  }
+  return {
+    state: "present",
+    value: {
+      nearPipeline: true,
+      operatorName,
+      t4permit,
+      nearestPipelineDistanceMeters,
+      display: parts.length > 0 ? parts.join(" · ") : "near pipeline",
     },
     provenance: prov,
   };
@@ -1061,6 +1156,8 @@ export class PeFactSheetResolver implements FactSheetResolver {
       wire.landUseFact ?? facetsResult.data.landUseFact ?? null;
     const specialDistrictFact =
       wire.specialDistrictFact ?? facetsResult.data.specialDistrictFact ?? null;
+    const pipelineFact =
+      wire.pipelineFact ?? facetsResult.data.pipelineFact ?? null;
 
     const fips = str(facets.countyFips) ?? parcelNodeId.split(":")[0] ?? "";
     const countyName =
@@ -1101,6 +1198,7 @@ export class PeFactSheetResolver implements FactSheetResolver {
     const envelope = envelopeValue(facets, setbacks, lotAreaSqFt);
     const flood = floodFact(floodHazardFact);
     const specialDistrict = specialDistrictFromInspectWire(specialDistrictFact);
+    const pipeline = pipelineFromInspectWire(pipelineFact);
 
     const site: ParcelFactSheet["site"] = {
       elevationRange: null,
@@ -1123,6 +1221,7 @@ export class PeFactSheetResolver implements FactSheetResolver {
       envelope,
       flood,
       specialDistrict,
+      pipeline,
       site,
       county: { fips, name: countyName },
     });
@@ -1139,6 +1238,7 @@ export class PeFactSheetResolver implements FactSheetResolver {
       envelope,
       flood,
       ...(specialDistrict ? { specialDistrict } : {}),
+      ...(pipeline ? { pipeline } : {}),
       site,
       // Composed ONCE, by the one composer, from the fields above.
       verdict: "",

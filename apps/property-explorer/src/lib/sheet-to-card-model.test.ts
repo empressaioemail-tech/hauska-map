@@ -19,6 +19,7 @@ import {
   setbackDisplayFromSheet,
   setbackFieldNotesFromSheet,
   floodFacetFromSheet,
+  pipelineFacetFromSheet,
   specialDistrictFacetFromSheet,
 } from "./sheet-to-card-model";
 import { FLOOD_HAZARD_FACT_MISSING_REASON } from "./baked-facets";
@@ -512,6 +513,67 @@ describe("specialDistrictFact inspect row (P-48 / WDLL 1)", () => {
       value: null,
     });
     expect(bakedCardModelFromSheet(sheet()).specialDistrict).toEqual({
+      state: "unknown",
+      value: null,
+    });
+  });
+});
+
+describe("pipelineFact inspect row (P-49 / WDLL 3)", () => {
+  it("present-near fixture shows t4permit=05781", () => {
+    const model = bakedCardModelFromSheet(
+      sheet({
+        pipeline: {
+          state: "present",
+          value: {
+            nearPipeline: true,
+            operatorName: "ENERGY TRANSFER COMPANY",
+            t4permit: "05781",
+            nearestPipelineDistanceMeters: 87.9,
+            display: "ENERGY TRANSFER COMPANY · T-4 05781 · 87.9 m",
+          },
+          provenance: {
+            ...prov(),
+            source: "rrc-pipeline-fact",
+            sourceLabel: "rrc-pipeline-fact atom",
+          },
+        },
+      }),
+    );
+    expect(model.pipeline.state).toBe("present");
+    expect(model.pipeline.value).toContain("05781");
+    expect(model.pipeline.value).toContain("ENERGY TRANSFER COMPANY");
+  });
+
+  it("gold-shaped present-outside fixture does not render ENERGY TRANSFER", () => {
+    const facet = pipelineFacetFromSheet({
+      state: "present",
+      value: {
+        nearPipeline: false,
+        operatorName: null,
+        t4permit: null,
+        nearestPipelineDistanceMeters: null,
+        display: "outside pipeline buffer",
+      },
+      provenance: {
+        ...prov(),
+        source: "rrc-pipeline-fact",
+        sourceLabel: "rrc-pipeline-fact atom",
+      },
+    });
+    expect(facet.state).toBe("present");
+    expect(facet.value).toBe("outside pipeline buffer");
+    expect(JSON.stringify(facet)).not.toMatch(/ENERGY TRANSFER/);
+    expect(JSON.stringify(facet)).not.toMatch(/PRAIRIE LEA/);
+    expect(JSON.stringify(facet)).not.toMatch(/05781/);
+  });
+
+  it("missing field hides the row (unknown)", () => {
+    expect(pipelineFacetFromSheet(undefined)).toEqual({
+      state: "unknown",
+      value: null,
+    });
+    expect(bakedCardModelFromSheet(sheet()).pipeline).toEqual({
       state: "unknown",
       value: null,
     });

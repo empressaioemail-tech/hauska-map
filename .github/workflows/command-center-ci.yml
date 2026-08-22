@@ -7,6 +7,7 @@ name: Command Center CI
 # "test". workflow_dispatch on the same SHA does not satisfy the gate.
 # Included in s8-land-use-surface (P-08 / WDLL 5 leftover) for that required check.
 # Included in serve-pe-p48 (P-48 / WDLL 1 specialDistrictFact inspect copy).
+# Included in serve-pe-p49 (P-49 / WDLL 3 pipelineFact inspect copy).
 
 on:
   pull_request:

@@ -1021,3 +1021,88 @@ describe("specialDistrictFact only (P-48 / WDLL 1)", () => {
     expect(sheet.specialDistrict).toBeUndefined();
   });
 });
+
+describe("pipelineFact only (P-49 / WDLL 3)", () => {
+  it("present-near 48021:10048 t4permit=05781 from pipelineFact", async () => {
+    const wire = facetsWire() as unknown as Record<string, unknown>;
+    wire.pipelineFact = {
+      state: "present",
+      source: "rrc-pipeline-fact",
+      entityId: "48021:10048",
+      nearPipeline: true,
+      t4permit: "05781",
+      operatorName: "ENERGY TRANSFER COMPANY",
+      nearestPipelineDistanceMeters: 87.9,
+      systemName: "PRAIRIE LEA",
+    };
+    const stub = installFetchStub({ facets: wire, gisFeatures: [SUBJECT_FEATURE] });
+    const sheet = await sheetOf(makeResolver(stub), NODE_ID);
+    expect(sheet.pipeline?.state).toBe("present");
+    if (sheet.pipeline?.state !== "present") throw new Error("unreachable");
+    expect(sheet.pipeline.value.nearPipeline).toBe(true);
+    expect(sheet.pipeline.value.t4permit).toBe("05781");
+    expect(sheet.pipeline.value.operatorName).toBe("ENERGY TRANSFER COMPANY");
+    expect(sheet.pipeline.value.display).toContain("05781");
+    expect(sheet.pipeline.provenance.source).toBe("rrc-pipeline-fact");
+  });
+
+  it("gold-shaped present-outside does not render ENERGY TRANSFER or a permit", async () => {
+    const wire = facetsWire() as unknown as Record<string, unknown>;
+    wire.pipelineFact = {
+      state: "present",
+      source: "rrc-pipeline-fact",
+      entityId: "48021:34137",
+      nearPipeline: false,
+      t4permit: null,
+      operatorName: null,
+      systemName: null,
+    };
+    const stub = installFetchStub({ facets: wire, gisFeatures: [SUBJECT_FEATURE] });
+    const sheet = await sheetOf(makeResolver(stub), NODE_ID);
+    expect(sheet.pipeline?.state).toBe("present");
+    if (sheet.pipeline?.state !== "present") throw new Error("unreachable");
+    expect(sheet.pipeline.value.nearPipeline).toBe(false);
+    expect(sheet.pipeline.value.t4permit).toBeNull();
+    expect(sheet.pipeline.value.operatorName).toBeNull();
+    expect(sheet.pipeline.value.display).toBe("outside pipeline buffer");
+    expect(JSON.stringify(sheet.pipeline)).not.toMatch(/ENERGY TRANSFER/);
+    expect(JSON.stringify(sheet.pipeline)).not.toMatch(/PRAIRIE LEA/);
+    expect(JSON.stringify(sheet.pipeline)).not.toMatch(/05781/);
+  });
+
+  it("typed absent stays visible as honest absence", async () => {
+    const wire = facetsWire() as unknown as Record<string, unknown>;
+    wire.pipelineFact = {
+      state: "absent",
+      source: "rrc-pipeline-fact",
+      entityId: "48021:34137",
+      absence: { kind: "no-pipeline-in-buffer", reason: "no rrc-pipeline-fact in buffer" },
+    };
+    const stub = installFetchStub({ facets: wire, gisFeatures: [SUBJECT_FEATURE] });
+    const sheet = await sheetOf(makeResolver(stub), NODE_ID);
+    expect(sheet.pipeline?.state).toBe("absent-covered");
+    if (sheet.pipeline?.state !== "absent-covered") throw new Error("unreachable");
+    expect(sheet.pipeline.reason).toMatch(/no-pipeline-in-buffer|no rrc-pipeline-fact/);
+    expect(sheet.pipeline.provenance.source).toBe("rrc-pipeline-fact");
+  });
+
+  it("bake / GIS parked on the root without state is not adopted", async () => {
+    const wire = facetsWire() as unknown as Record<string, unknown>;
+    wire.pipelineFact = {
+      operatorName: "ENERGY TRANSFER COMPANY",
+      t4permit: "05781",
+      source: "texas-rrc",
+    };
+    const stub = installFetchStub({ facets: wire, gisFeatures: [SUBJECT_FEATURE] });
+    const sheet = await sheetOf(makeResolver(stub), NODE_ID);
+    expect(sheet.pipeline).toBeUndefined();
+  });
+
+  it("missing field stays missing — no invented ENERGY TRANSFER", async () => {
+    const wire = facetsWire() as unknown as Record<string, unknown>;
+    delete wire.pipelineFact;
+    const stub = installFetchStub({ facets: wire, gisFeatures: [SUBJECT_FEATURE] });
+    const sheet = await sheetOf(makeResolver(stub), NODE_ID);
+    expect(sheet.pipeline).toBeUndefined();
+  });
+});
