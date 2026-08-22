@@ -40,6 +40,7 @@ import {
   WELL_FACT_MISSING_REASON,
   BUILDING_FOOTPRINT_FACT_MISSING_REASON,
   BOUNDARY_EDGE_FACT_MISSING_REASON,
+  OWNER_FACT_MISSING_REASON,
   type BakedCardModel,
   type CardFacet,
 } from "./baked-facets";
@@ -282,6 +283,39 @@ export function boundaryFacetFromSheet(
   return facetFrom(boundary, () => "");
 }
 
+/**
+ * Owner row from sheet.owner, which the resolver fills from ownerFact
+ * only. Missing field → unknown (InspectCard hides the row). Identified
+ * present cites owner-fact and shows taxYear. Anonymous /
+ * identified-session-required has no owner body. Never a CAD-roll /
+ * cad-parcel-roll / GIS owner.
+ */
+export function ownerFacetFromSheet(
+  owner:
+    | Fact<{
+        entityId: string | null;
+        taxYear: number | null;
+        display: string;
+      }>
+    | undefined,
+): CardFacet<string> {
+  if (!owner) {
+    return { state: "unknown", value: null };
+  }
+  if (
+    owner.state === "absent-uncovered" &&
+    owner.reason === OWNER_FACT_MISSING_REASON
+  ) {
+    return { state: "unknown", value: null };
+  }
+  if (owner.state === "present") {
+    const display = (owner.value.display ?? "").trim();
+    if (display) return present(display);
+    return absent("owner-fact present with no display");
+  }
+  return facetFrom(owner, () => "");
+}
+
 /** A setback axis -> the card's own display fragment. */
 function axisText(axis: SetbackAxis, label: string): string {
   // AMENDMENT 2: a NOT-SPECIFIED axis carries a NULL distance. The absence is
@@ -424,6 +458,7 @@ export function bakedCardModelFromSheet(sheet: ParcelFactSheet): BakedCardModel 
     well: wellFacetFromSheet(sheet.well),
     footprint: footprintFacetFromSheet(sheet.footprint),
     boundary: boundaryFacetFromSheet(sheet.boundary),
+    owner: ownerFacetFromSheet(sheet.owner),
     envelopeApproximate: env.kind === "derived" ? env.approximate : env.kind === "consumed",
     envelopeStatus:
       env.kind === "derived" ? "ok" : env.kind === "consumed" ? "no-buildable-area" : "declined",

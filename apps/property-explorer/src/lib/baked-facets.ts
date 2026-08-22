@@ -21,8 +21,9 @@
 // "verified present", "honestly absent / not verified here", and "unknown",
 // so the card can render absence as a legible trust signal, not a blank cell.
 //
-// Owner is NEVER present (the bake never wrote it and the endpoint strips it
-// defense-in-depth); this client never reads or surfaces an owner field.
+// Bake owner is NEVER present (the bake never wrote it and the endpoint
+// strips it). The inspect Owner row reads cortex-root ownerFact only
+// (P-54), never a CAD-roll / GIS owner parked on the bake.
 
 import { formatSetbackDisplay } from "../../api/_lib/setback-not-specified";
 import { mapBuildableDisplay } from "./buildable-display-vocab";
@@ -163,6 +164,12 @@ export interface BakedFacetsResponse {
    * parcel ring.
    */
   boundaryEdgeFact?: BoundaryEdgeFactCardInput;
+  /**
+   * Owner from owner-fact atoms. Absent when the BFF did not copy it.
+   * Never populated from bake / CAD / cad-parcel-roll / GIS owner.
+   * Identified-session only.
+   */
+  ownerFact?: OwnerFactCardInput;
 }
 
 /** Cortex inspect GET flood determination (PR 449). Root sibling of facets. */
@@ -259,6 +266,17 @@ export type BoundaryEdgeFactCardInput = {
   entityId?: unknown;
 };
 
+/** Cortex inspect GET owner determination (P-54). Root sibling. */
+export type OwnerFactCardInput = {
+  state?: string;
+  taxYear?: unknown;
+  absence?: { kind?: string; reason?: string } | null;
+  code?: unknown;
+  reason?: unknown;
+  source?: unknown;
+  entityId?: unknown;
+};
+
 /**
  * Reason on sheet.specialDistrict when the inspect payload had no
  * specialDistrictFact. sheet-to-card-model maps this to CardFacet unknown
@@ -296,6 +314,14 @@ export const BUILDING_FOOTPRINT_FACT_MISSING_REASON =
  */
 export const BOUNDARY_EDGE_FACT_MISSING_REASON =
   "boundaryEdgeFact was not on the inspect payload";
+
+/**
+ * Reason on sheet.owner when the inspect payload had no ownerFact.
+ * sheet-to-card-model maps this to CardFacet unknown so InspectCard hides
+ * the row.
+ */
+export const OWNER_FACT_MISSING_REASON =
+  "ownerFact was not on the inspect payload";
 
 /**
  * Reason on sheet.flood when the inspect payload had no floodHazardFact.
@@ -372,6 +398,13 @@ export interface BakedCardModel {
    * property-boundary-edge. Do not paint a GIS outline as the atom.
    */
   boundary: CardFacet<string>;
+  /**
+   * Owner row from ownerFact only. `unknown` when the field is missing
+   * (FactRow hides it). Never derived from bake / CAD / cad-parcel-roll /
+   * GIS owner. Anonymous / identified-session-required has no owner body.
+   * Identified present cites owner-fact 48021:34137:2025 taxYear=2025.
+   */
+  owner: CardFacet<string>;
   /** True whenever an envelope facet is present — the card must then render the
    *  "approximate / not survey grade" treatment (honesty commitment #1). */
   envelopeApproximate: boolean;
@@ -598,6 +631,7 @@ export function deriveBakedCardModel(payload: BakedFacetPayload): BakedCardModel
     well: { state: "unknown", value: null },
     footprint: { state: "unknown", value: null },
     boundary: { state: "unknown", value: null },
+    owner: { state: "unknown", value: null },
     // Any present envelope is Tier-1 (shape-only, no roads) — always approximate.
     envelopeApproximate: hasEnvelope,
     envelopeStatus: env?.status ?? null,

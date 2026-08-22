@@ -39,9 +39,10 @@
 //      unresolved now render in three distinct registers (quiet / hatched /
 //      alarm), and an uncovered absence names what would fill it.
 //
-// Owner is NEVER shown on the browse path: the baked payload carries none (the
-// bake never wrote it, the endpoint strips it), and this card does not read an
-// owner field.
+// Bake owner is NEVER shown: the baked payload carries none (the bake never
+// wrote it, the endpoint strips it). The inspect Owner row reads cortex-root
+// ownerFact only (P-54 / WDLL 7). Anonymous / identified-session-required
+// has no owner body. CAD-roll / GIS owner is not the atom.
 
 import { useCallback, useEffect, useState } from "react";
 import type { CSSProperties } from "react";
@@ -321,6 +322,10 @@ export const ROW_SPECS: Record<string, FactRowSpec> = {
   },
   boundary: {
     wouldBeFilledBy: "a property-boundary-edge atom on this parcel",
+    labelledAbsenceIsCovered: true,
+  },
+  owner: {
+    wouldBeFilledBy: "an owner-fact atom on this parcel for an identified session",
     labelledAbsenceIsCovered: true,
   },
 };
@@ -632,6 +637,7 @@ export function InspectCard({
         { key: "well", label: "Well", fact: toFactPresentation(baked.well, ROW_SPECS.well), testid: "inspect-well" },
         { key: "footprint", label: "Footprint", fact: toFactPresentation(baked.footprint, ROW_SPECS.footprint), testid: "inspect-footprint" },
         { key: "boundary", label: "Boundary", fact: toFactPresentation(baked.boundary, ROW_SPECS.boundary), testid: "inspect-boundary" },
+        { key: "owner", label: "Owner", fact: toFactPresentation(baked.owner, ROW_SPECS.owner), testid: "inspect-owner" },
       ]
     : [];
 

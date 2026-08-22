@@ -1174,6 +1174,115 @@ describe("mergeBakedBaseFacts — boundaryEdgeFact from cortex JSON ROOT (P-53)"
   });
 });
 
+const goldOwnerPresentFact = {
+  state: "present" as const,
+  source: "owner-fact",
+  entityId: "48021:34137:2025",
+  taxYear: 2025,
+  tried: ["48021:34137", "48021:34137.00000000"],
+};
+
+const goldOwnerAnonymousFact = {
+  state: "refused" as const,
+  code: "identified-session-required",
+  source: "owner-fact",
+  tried: ["48021:34137", "48021:34137.00000000"],
+  reason: "owner-fact is identified-session only. Anonymous GET has no owner body.",
+};
+
+const goldOwnerAtomMissFact = {
+  state: "refused" as const,
+  code: "atom-miss",
+  source: "owner-fact",
+  tried: ["48021:99999", "48021:99999.00000000"],
+  reason:
+    "No owner-fact atom for parcel prefix 48021:99999 or 48021:99999.00000000. Atom miss, not an owner determination.",
+};
+
+const bakeCadParcelRollOwner = {
+  source: "cad-parcel-roll",
+  ownerName: "BAKE CAD OWNER",
+  mailing: "1 BAKE ST",
+};
+
+describe("mergeBakedBaseFacts — ownerFact from cortex JSON ROOT (P-54)", () => {
+  it("copies a fixture ownerFact from the cortex root onto the atom-chain payload", () => {
+    const adapted = adaptAtomChainToBakedFacets(haysChain)!;
+    const merged = mergeBakedBaseFacts(adapted, {
+      ...bakedCortexBody,
+      ownerFact: goldOwnerPresentFact,
+    });
+    expect(merged.ownerFact).toEqual(goldOwnerPresentFact);
+    expect(merged.ownerFact?.source).toBe("owner-fact");
+    expect(merged.ownerFact?.entityId).toBe("48021:34137:2025");
+    expect(merged.ownerFact?.taxYear).toBe(2025);
+    expect(JSON.stringify(merged.ownerFact)).not.toMatch(/ownerName/);
+    expect(JSON.stringify(merged.ownerFact)).not.toMatch(/mailing/);
+  });
+
+  it("does not copy bake / CAD-roll / GIS owner onto ownerFact", () => {
+    const adapted = adaptAtomChainToBakedFacets(haysChain)!;
+    const merged = mergeBakedBaseFacts(adapted, {
+      ...bakedCortexBody,
+      cadOwner: { ownerName: "BAKE CAD OWNER" },
+      owner: { name: "GIS OWNER" },
+    });
+    expect("ownerFact" in merged).toBe(false);
+    expect(merged.ownerFact).toBeUndefined();
+    expect(JSON.stringify(merged.ownerFact ?? {})).not.toMatch(/BAKE CAD OWNER/);
+    expect(JSON.stringify(merged.ownerFact ?? {})).not.toMatch(/GIS OWNER/);
+  });
+
+  it("does not adopt a bake / cad-parcel-roll / GIS owner object parked on the root", () => {
+    const adapted = adaptAtomChainToBakedFacets(haysChain)!;
+    const merged = mergeBakedBaseFacts(adapted, {
+      ...bakedCortexBody,
+      ownerFact: bakeCadParcelRollOwner,
+    });
+    expect("ownerFact" in merged).toBe(false);
+  });
+
+  it("leaves ownerFact absent when cortex has no root field", () => {
+    const adapted = adaptAtomChainToBakedFacets(haysChain)!;
+    const merged = mergeBakedBaseFacts(adapted, bakedCortexBody);
+    expect("ownerFact" in merged).toBe(false);
+  });
+
+  it("early return (no facets) still attaches ownerFact when the root carries it", () => {
+    const adapted = adaptAtomChainToBakedFacets(haysChain)!;
+    const merged = mergeBakedBaseFacts(adapted, {
+      ownerFact: goldOwnerPresentFact,
+    });
+    expect(merged.ownerFact).toEqual(goldOwnerPresentFact);
+  });
+
+  it("anonymous identified-session-required fixture has no ownerName", () => {
+    const adapted = adaptAtomChainToBakedFacets(haysChain)!;
+    const merged = mergeBakedBaseFacts(adapted, {
+      ...bakedCortexBody,
+      ownerFact: goldOwnerAnonymousFact,
+    });
+    expect(merged.ownerFact?.state).toBe("refused");
+    expect(merged.ownerFact?.code).toBe("identified-session-required");
+    expect(merged.ownerFact?.source).toBe("owner-fact");
+    expect(JSON.stringify(merged.ownerFact)).not.toMatch(/ownerName/);
+    expect(JSON.stringify(merged.ownerFact)).not.toMatch(/mailing/);
+  });
+
+  it("gold-shaped atom-miss fixture stays atom-miss and does not paint a CAD-roll name", () => {
+    const adapted = adaptAtomChainToBakedFacets(haysChain)!;
+    const merged = mergeBakedBaseFacts(adapted, {
+      ...bakedCortexBody,
+      ownerFact: goldOwnerAtomMissFact,
+    });
+    expect(merged.ownerFact?.state).toBe("refused");
+    expect(merged.ownerFact?.code).toBe("atom-miss");
+    expect(merged.ownerFact?.source).toBe("owner-fact");
+    expect(JSON.stringify(merged.ownerFact)).not.toMatch(/BAKE CAD OWNER/);
+    expect(JSON.stringify(merged.ownerFact)).not.toMatch(/cad-parcel-roll/);
+  });
+});
+
 describe("adaptAtomChainToBakedFacets — warm verify honest decline (141364 / superseded-prop-id)", () => {
   it("surfaces named superseded-prop-id decline instead of setback-rule-pending", () => {
     const chain: PropertyAtomChain = {

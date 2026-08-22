@@ -24,6 +24,7 @@ import {
   wellFacetFromSheet,
   footprintFacetFromSheet,
   boundaryFacetFromSheet,
+  ownerFacetFromSheet,
 } from "./sheet-to-card-model";
 import { FLOOD_HAZARD_FACT_MISSING_REASON } from "./baked-facets";
 
@@ -794,6 +795,69 @@ describe("boundaryEdgeFact inspect row (P-53 / WDLL 6)", () => {
       value: null,
     });
     expect(bakedCardModelFromSheet(sheet()).boundary).toEqual({
+      state: "unknown",
+      value: null,
+    });
+  });
+});
+
+describe("ownerFact inspect row (P-54 / WDLL 7)", () => {
+  it("identified gold-shaped present fixture cites owner-fact taxYear=2025", () => {
+    const model = bakedCardModelFromSheet(
+      sheet({
+        owner: {
+          state: "present",
+          value: {
+            entityId: "48021:34137:2025",
+            taxYear: 2025,
+            display: "2025",
+          },
+          provenance: {
+            ...prov(),
+            source: "owner-fact",
+            sourceLabel: "owner-fact atom",
+          },
+        },
+      }),
+    );
+    expect(model.owner.state).toBe("present");
+    expect(model.owner.value).toBe("2025");
+    expect(model.owner.value).not.toMatch(/ownerName/);
+    expect(model.owner.value).not.toMatch(/cad-parcel-roll/);
+  });
+
+  it("anonymous identified-session-required has no owner body", () => {
+    const facet = ownerFacetFromSheet({
+      state: "unresolved",
+      reason: "owner-fact identified-session-required",
+      retryable: false,
+    });
+    expect(facet.state).toBe("pending");
+    expect(facet.value).toMatch(/owner-fact/);
+    expect(facet.value).toMatch(/identified-session-required/);
+    expect(JSON.stringify(facet)).not.toMatch(/ownerName/);
+    expect(JSON.stringify(facet)).not.toMatch(/mailing/);
+  });
+
+  it("gold-shaped atom-miss fixture does not render a CAD-roll name", () => {
+    const facet = ownerFacetFromSheet({
+      state: "unresolved",
+      reason: "owner-fact atom-miss",
+      retryable: false,
+    });
+    expect(facet.state).toBe("pending");
+    expect(facet.value).toMatch(/owner-fact/);
+    expect(facet.value).toMatch(/atom-miss/);
+    expect(JSON.stringify(facet)).not.toMatch(/BAKE CAD OWNER/);
+    expect(JSON.stringify(facet)).not.toMatch(/cad-parcel-roll/);
+  });
+
+  it("missing field hides the row (unknown)", () => {
+    expect(ownerFacetFromSheet(undefined)).toEqual({
+      state: "unknown",
+      value: null,
+    });
+    expect(bakedCardModelFromSheet(sheet()).owner).toEqual({
       state: "unknown",
       value: null,
     });

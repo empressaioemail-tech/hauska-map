@@ -364,6 +364,29 @@ export type BoundaryEdgeFactWire = {
   extractedAt?: unknown;
 };
 
+/**
+ * Cortex inspect GET sibling (P-54 / owner-fact). Writer keys
+ * `${parcelNodeId}:${taxYear}`. Identified-session only. Anonymous is
+ * typed refusal code=identified-session-required with no ownerName.
+ * No :sd: picker. No pipeline ANY bind. Does not share the texas-rrc
+ * key. Never a bake / cad-parcel-roll / GIS owner.
+ */
+export type OwnerFactWire = {
+  state: "present" | "absent" | "refused";
+  taxYear?: unknown;
+  absence?: { kind?: string; reason?: string } | null;
+  code?: unknown;
+  reason?: unknown;
+  source?: unknown;
+  sourceVintage?: unknown;
+  evaluatedAt?: unknown;
+  boundAs?: unknown;
+  tried?: unknown;
+  entityId?: unknown;
+  sourceAdapter?: unknown;
+  extractedAt?: unknown;
+};
+
 export interface PeBakedFacetsResponse {
   parcelNodeId: string;
   adapterKey: string;
@@ -409,6 +432,12 @@ export interface PeBakedFacetsResponse {
    * parcel ring.
    */
   boundaryEdgeFact?: BoundaryEdgeFactWire;
+  /**
+   * Owner from owner-fact atoms. Copied from the cortex JSON ROOT only.
+   * Never populated from bake / CAD / cad-parcel-roll / GIS owner.
+   * Identified-session only.
+   */
+  ownerFact?: OwnerFactWire;
 }
 
 export function isPropertyAtomPathEnabled(
@@ -745,17 +774,52 @@ function withBoundaryEdgeFact(
   return { ...atomResponse, boundaryEdgeFact: fact };
 }
 
+/** Cortex inspect GET sibling of flood / land-use / special-district / pipeline / well / footprint / boundary (P-54). */
+export function isOwnerFactWire(value: unknown): value is OwnerFactWire {
+  if (!value || typeof value !== "object" || Array.isArray(value)) return false;
+  const state = (value as { state?: unknown }).state;
+  return state === "present" || state === "absent" || state === "refused";
+}
+
+/**
+ * Cortex JSON ROOT only. Never reads bake / CAD / cad-parcel-roll /
+ * GIS owner or a nested facets copy. A bake / CAD-roll object parked on
+ * the root has no state and is rejected. No :sd: picker. Does not share
+ * the texas-rrc key.
+ */
+export function ownerFactFromCortexRoot(
+  bakedBody: unknown,
+): OwnerFactWire | undefined {
+  if (!bakedBody || typeof bakedBody !== "object" || Array.isArray(bakedBody)) {
+    return undefined;
+  }
+  const fact = (bakedBody as { ownerFact?: unknown }).ownerFact;
+  return isOwnerFactWire(fact) ? fact : undefined;
+}
+
+function withOwnerFact(
+  atomResponse: PeBakedFacetsResponse,
+  bakedBody: unknown,
+): PeBakedFacetsResponse {
+  const fact = ownerFactFromCortexRoot(bakedBody);
+  if (fact === undefined) return atomResponse;
+  return { ...atomResponse, ownerFact: fact };
+}
+
 function withRootFacts(
   atomResponse: PeBakedFacetsResponse,
   bakedBody: unknown,
 ): PeBakedFacetsResponse {
-  return withBoundaryEdgeFact(
-    withBuildingFootprintFact(
-      withWellFact(
-        withPipelineFact(
-          withSpecialDistrictFact(
-            withLandUseFact(
-              withFloodHazardFact(atomResponse, bakedBody),
+  return withOwnerFact(
+    withBoundaryEdgeFact(
+      withBuildingFootprintFact(
+        withWellFact(
+          withPipelineFact(
+            withSpecialDistrictFact(
+              withLandUseFact(
+                withFloodHazardFact(atomResponse, bakedBody),
+                bakedBody,
+              ),
               bakedBody,
             ),
             bakedBody,
@@ -807,6 +871,10 @@ function withRootFacts(
  * parcel ring as that field. role stays on the fact body; never parse
  * the last entity_id token. Do not present a GIS parcel outline as the
  * atom.
+ * ownerFact is the same shape family (P-54): copy from the cortex JSON
+ * ROOT only. Do not adopt bake / CAD / cad-parcel-roll / GIS owner as
+ * that field. Identified-session only. Do not treat a service key as
+ * identified.
  * If facets are missing, still attach the root fields when they are present.
  */
 export function mergeBakedBaseFacts(
@@ -817,8 +885,8 @@ export function mergeBakedBaseFacts(
     ?.facets;
   if (!baked || typeof baked !== "object") {
     // Facets missing: still forward root flood / land-use / special-district /
-    // pipeline / well / footprint / boundary. Identity-return only when those
-    // fields are also absent.
+    // pipeline / well / footprint / boundary / owner. Identity-return only
+    // when those fields are also absent.
     return withRootFacts(atomResponse, bakedBody);
   }
 

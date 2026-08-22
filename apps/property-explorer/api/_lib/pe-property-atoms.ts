@@ -26,6 +26,7 @@ import {
   wellFactFromCortexRoot,
   buildingFootprintFactFromCortexRoot,
   boundaryEdgeFactFromCortexRoot,
+  ownerFactFromCortexRoot,
   parsePropertyAtomsPath,
   type PeBakedFacetsResponse,
   type PropertyAtomChain,
@@ -35,6 +36,7 @@ import {
   echoRequestedParcelNodeId,
   parcelGrammarAlias,
 } from "./parcel-node-id.js";
+import { readPeSessionCookie } from "./session-cookie.js";
 
 export { parsePropertyAtomsPath, isPropertyAtomPathEnabled, shouldSkipColdDerive };
 
@@ -69,20 +71,42 @@ function cortexConfig(): { baseUrl: string; key: string | undefined } {
   return { baseUrl, key };
 }
 
+/**
+ * Identified inspect forwards the existing pe_session cookie as Bearer.
+ * Service key / X-Hauska-Key is never identified. Cookie absent → service
+ * key (anonymous ownerFact refusal is correct). Do not invent Clerk/Stripe.
+ */
+export function cortexInspectAuthorization(
+  sessionBearer: string | null | undefined,
+  serviceKey: string | undefined,
+):
+  | { authorization: string; usedSession: boolean }
+  | { missing: "CORTEX_SERVICE_API_KEY" } {
+  const session = sessionBearer?.trim();
+  if (session) {
+    return { authorization: `Bearer ${session}`, usedSession: true };
+  }
+  const key = serviceKey?.trim();
+  if (!key) return { missing: "CORTEX_SERVICE_API_KEY" };
+  return { authorization: `Bearer ${key}`, usedSession: false };
+}
+
 function cortexEnvelopeRollbackEnabled(): boolean {
   return process.env.ATOM_PATH_CORTEX_ENVELOPE_ROLLBACK?.trim() === "1";
 }
 
 async function fetchCortexFacets(
   parcelNodeId: string,
+  sessionBearer?: string | null,
 ): Promise<{ status: number; body: string; contentType: string | null }> {
   const { baseUrl, key } = cortexConfig();
-  if (!key) {
+  const auth = cortexInspectAuthorization(sessionBearer, key);
+  if ("missing" in auth) {
     return {
       status: 503,
       body: JSON.stringify({
         error: "proxy not configured",
-        missing: "CORTEX_SERVICE_API_KEY",
+        missing: auth.missing,
       }),
       contentType: "application/json",
     };
@@ -93,7 +117,7 @@ async function fetchCortexFacets(
   const upstream = await fetch(url, {
     method: "GET",
     headers: {
-      Authorization: `Bearer ${key}`,
+      Authorization: auth.authorization,
       Accept: "application/json",
     },
   });
@@ -166,7 +190,15 @@ function cortexBoundaryEdgeFactMissing(body: string): boolean {
   }
 }
 
-/** Missing flood / land-use / special-district / pipeline / well / footprint / boundary — same retry as each field alone. */
+function cortexOwnerFactMissing(body: string): boolean {
+  try {
+    return ownerFactFromCortexRoot(JSON.parse(body) as unknown) === undefined;
+  } catch {
+    return true;
+  }
+}
+
+/** Missing flood / land-use / special-district / pipeline / well / footprint / boundary / owner — same retry as each field alone. */
 function cortexNeedsRootFactAlias(body: string): boolean {
   return (
     cortexFloodFactMissing(body) ||
@@ -175,7 +207,8 @@ function cortexNeedsRootFactAlias(body: string): boolean {
     cortexPipelineFactMissing(body) ||
     cortexWellFactMissing(body) ||
     cortexBuildingFootprintFactMissing(body) ||
-    cortexBoundaryEdgeFactMissing(body)
+    cortexBoundaryEdgeFactMissing(body) ||
+    cortexOwnerFactMissing(body)
   );
 }
 
@@ -191,7 +224,8 @@ function aliasFillsRootFactGap(
       !cortexPipelineFactMissing(aliasedBody) ||
       !cortexWellFactMissing(aliasedBody) ||
       !cortexBuildingFootprintFactMissing(aliasedBody) ||
-      !cortexBoundaryEdgeFactMissing(aliasedBody)
+      !cortexBoundaryEdgeFactMissing(aliasedBody) ||
+      !cortexOwnerFactMissing(aliasedBody)
     );
   }
   const floodGain =
@@ -212,6 +246,8 @@ function aliasFillsRootFactGap(
   const boundaryGain =
     cortexBoundaryEdgeFactMissing(primary.body) &&
     !cortexBoundaryEdgeFactMissing(aliasedBody);
+  const ownerGain =
+    cortexOwnerFactMissing(primary.body) && !cortexOwnerFactMissing(aliasedBody);
   return (
     floodGain ||
     landGain ||
@@ -219,25 +255,28 @@ function aliasFillsRootFactGap(
     pipelineGain ||
     wellGain ||
     footprintGain ||
-    boundaryGain
+    boundaryGain ||
+    ownerGain
   );
 }
 
 /**
  * Same grammar pair as atom-chain. If the requested key's cortex body has no
  * root floodHazardFact, landUseFact, specialDistrictFact, pipelineFact,
- * wellFact, buildingFootprintFact, or boundaryEdgeFact, try the alias. Never
- * reads tier2.flood. Never adopts cad-roll as landUseFact. Never adopts
- * bake / CAD / mud-pid as specialDistrictFact. Never adopts bake / CAD /
- * texas-rrc GIS as pipelineFact. Never adopts bake / CAD / texas-rrc GIS /
- * tx_rrc_well as wellFact. Never adopts bake / CAD / GIS /
+ * wellFact, buildingFootprintFact, boundaryEdgeFact, or ownerFact, try the
+ * alias. Never reads tier2.flood. Never adopts cad-roll as landUseFact.
+ * Never adopts bake / CAD / mud-pid as specialDistrictFact. Never adopts
+ * bake / CAD / texas-rrc GIS as pipelineFact. Never adopts bake / CAD /
+ * texas-rrc GIS / tx_rrc_well as wellFact. Never adopts bake / CAD / GIS /
  * tx_building_footprint as buildingFootprintFact. Never adopts bake / CAD /
- * GIS / txgio_parcel / parcel ring as boundaryEdgeFact.
+ * GIS / txgio_parcel / parcel ring as boundaryEdgeFact. Never adopts bake /
+ * CAD / cad-parcel-roll / GIS owner as ownerFact.
  */
 export async function fetchCortexFacetsWithAlias(
   parcelNodeId: string,
+  sessionBearer?: string | null,
 ): Promise<{ status: number; body: string; contentType: string | null }> {
-  const primary = await fetchCortexFacets(parcelNodeId);
+  const primary = await fetchCortexFacets(parcelNodeId, sessionBearer);
   const retryable =
     (primary.status >= 200 &&
       primary.status < 300 &&
@@ -246,7 +285,7 @@ export async function fetchCortexFacetsWithAlias(
   if (!retryable) return primary;
   const alias = parcelGrammarAlias(parcelNodeId);
   if (!alias) return primary;
-  const aliased = await fetchCortexFacets(alias);
+  const aliased = await fetchCortexFacets(alias, sessionBearer);
   if (aliased.status < 200 || aliased.status >= 300) return primary;
   if (!aliasFillsRootFactGap(primary, aliased.body)) return primary;
   return aliased;
@@ -442,11 +481,15 @@ export async function handlePropertyAtomsFacets(
   }
   const { parcelNodeId } = parsed;
 
+  const cookieHeader =
+    typeof req.headers?.cookie === "string" ? req.headers.cookie : undefined;
+  const sessionBearer = readPeSessionCookie(cookieHeader);
+
   const atomEnabled = isPropertyAtomPathEnabled();
 
   if (!atomEnabled) {
     try {
-      const cortex = await fetchCortexFacetsWithAlias(parcelNodeId);
+      const cortex = await fetchCortexFacetsWithAlias(parcelNodeId, sessionBearer);
       res.setHeader("X-PE-Read-Path", "cortex" satisfies PeReadPathHeader);
       if (cortex.contentType) res.setHeader("Content-Type", cortex.contentType);
       else res.setHeader("Content-Type", "application/json");
@@ -490,7 +533,7 @@ export async function handlePropertyAtomsFacets(
     status: number;
     body: string;
     contentType: string | null;
-  }> = fetchCortexFacetsWithAlias(parcelNodeId).catch((err) => ({
+  }> = fetchCortexFacetsWithAlias(parcelNodeId, sessionBearer).catch((err) => ({
     status: 0,
     body: err instanceof Error ? err.message : String(err),
     contentType: null,

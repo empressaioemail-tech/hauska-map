@@ -1410,3 +1410,99 @@ describe("boundaryEdgeFact only (P-53 / WDLL 6)", () => {
     expect(sheet.boundary).toBeUndefined();
   });
 });
+
+describe("ownerFact only (P-54 / WDLL 7)", () => {
+  it("identified gold-shaped present fixture cites owner-fact 48021:34137:2025 taxYear=2025", async () => {
+    const wire = facetsWire() as unknown as Record<string, unknown>;
+    wire.ownerFact = {
+      state: "present",
+      source: "owner-fact",
+      entityId: "48021:34137:2025",
+      taxYear: 2025,
+    };
+    const stub = installFetchStub({ facets: wire, gisFeatures: [SUBJECT_FEATURE] });
+    const sheet = await sheetOf(makeResolver(stub), NODE_ID);
+    expect(sheet.owner?.state).toBe("present");
+    if (sheet.owner?.state !== "present") throw new Error("unreachable");
+    expect(sheet.owner.value.entityId).toBe("48021:34137:2025");
+    expect(sheet.owner.value.taxYear).toBe(2025);
+    expect(sheet.owner.value.display).toBe("2025");
+    expect(sheet.owner.provenance.source).toBe("owner-fact");
+    expect(JSON.stringify(sheet.owner)).not.toMatch(/ownerName/);
+    expect(JSON.stringify(sheet.owner)).not.toMatch(/mailing/);
+    expect(JSON.stringify(sheet.owner)).not.toMatch(/cad-parcel-roll/);
+  });
+
+  it("anonymous identified-session-required has no owner body", async () => {
+    const wire = facetsWire() as unknown as Record<string, unknown>;
+    wire.ownerFact = {
+      state: "refused",
+      code: "identified-session-required",
+      source: "owner-fact",
+      tried: ["48021:34137", "48021:34137.00000000"],
+      reason: "owner-fact is identified-session only. Anonymous GET has no owner body.",
+    };
+    const stub = installFetchStub({ facets: wire, gisFeatures: [SUBJECT_FEATURE] });
+    const sheet = await sheetOf(makeResolver(stub), NODE_ID);
+    expect(sheet.owner?.state).toBe("unresolved");
+    if (sheet.owner?.state !== "unresolved") throw new Error("unreachable");
+    expect(sheet.owner.reason).toMatch(/owner-fact/);
+    expect(sheet.owner.reason).toMatch(/identified-session-required/);
+    expect(JSON.stringify(sheet.owner)).not.toMatch(/ownerName/);
+    expect(JSON.stringify(sheet.owner)).not.toMatch(/mailing/);
+  });
+
+  it("gold-shaped atom-miss does not render a CAD-roll name", async () => {
+    const wire = facetsWire() as unknown as Record<string, unknown>;
+    wire.ownerFact = {
+      state: "refused",
+      code: "atom-miss",
+      source: "owner-fact",
+      tried: ["48021:99999", "48021:99999.00000000"],
+      reason:
+        "No owner-fact atom for parcel prefix 48021:99999 or 48021:99999.00000000. Atom miss, not an owner determination.",
+    };
+    const stub = installFetchStub({ facets: wire, gisFeatures: [SUBJECT_FEATURE] });
+    const sheet = await sheetOf(makeResolver(stub), NODE_ID);
+    expect(sheet.owner?.state).toBe("unresolved");
+    if (sheet.owner?.state !== "unresolved") throw new Error("unreachable");
+    expect(sheet.owner.reason).toMatch(/owner-fact/);
+    expect(sheet.owner.reason).toMatch(/atom-miss/);
+    expect(JSON.stringify(sheet.owner)).not.toMatch(/BAKE CAD OWNER/);
+    expect(JSON.stringify(sheet.owner)).not.toMatch(/cad-parcel-roll/);
+  });
+
+  it("bake / CAD-roll / GIS owner parked on the root without state is not adopted", async () => {
+    const wire = facetsWire() as unknown as Record<string, unknown>;
+    wire.ownerFact = {
+      source: "cad-parcel-roll",
+      ownerName: "BAKE CAD OWNER",
+      mailing: "1 BAKE ST",
+    };
+    const stub = installFetchStub({ facets: wire, gisFeatures: [SUBJECT_FEATURE] });
+    const sheet = await sheetOf(makeResolver(stub), NODE_ID);
+    expect(sheet.owner).toBeUndefined();
+  });
+
+  it("source other than owner-fact with a state is still rejected", async () => {
+    const wire = facetsWire() as unknown as Record<string, unknown>;
+    wire.ownerFact = {
+      state: "present",
+      source: "cad-parcel-roll",
+      entityId: "48021:34137:2025",
+      taxYear: 2025,
+      ownerName: "BAKE CAD OWNER",
+    };
+    const stub = installFetchStub({ facets: wire, gisFeatures: [SUBJECT_FEATURE] });
+    const sheet = await sheetOf(makeResolver(stub), NODE_ID);
+    expect(sheet.owner).toBeUndefined();
+  });
+
+  it("missing field stays missing — no invented owner", async () => {
+    const wire = facetsWire() as unknown as Record<string, unknown>;
+    delete wire.ownerFact;
+    const stub = installFetchStub({ facets: wire, gisFeatures: [SUBJECT_FEATURE] });
+    const sheet = await sheetOf(makeResolver(stub), NODE_ID);
+    expect(sheet.owner).toBeUndefined();
+  });
+});
