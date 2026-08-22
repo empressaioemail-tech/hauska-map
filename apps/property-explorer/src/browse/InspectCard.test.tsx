@@ -700,3 +700,80 @@ describe("InspectCard Well row — wellFact (P-50)", () => {
     expect(html).not.toContain(":none");
   });
 });
+
+describe("InspectCard Footprint row — buildingFootprintFact (P-51)", () => {
+  it("present fixture shows structureRole=primary from the body", () => {
+    const html = renderToStaticMarkup(
+      <dl>
+        <FactRow
+          label="Footprint"
+          fact={toFactPresentation(
+            { state: "present", value: "primary" },
+            ROW_SPECS.footprint,
+          )}
+          testid="inspect-footprint"
+        />
+      </dl>,
+    );
+    expect(html).toContain('data-testid="inspect-footprint"');
+    expect(html).toContain("Footprint");
+    expect(html).toContain("primary");
+    expect(html).not.toContain(":primary");
+  });
+
+  it("gold-shaped atom-miss fixture stays visible and does not paint a footprint or :primary", () => {
+    const html = renderToStaticMarkup(
+      <dl>
+        <FactRow
+          label="Footprint"
+          fact={toFactPresentation(
+            { state: "pending", value: "building-footprint atom-miss" },
+            ROW_SPECS.footprint,
+          )}
+          testid="inspect-footprint"
+        />
+      </dl>,
+    );
+    expect(html).toContain('data-testid="inspect-footprint"');
+    expect(html).toContain("building-footprint");
+    expect(html).toContain("atom-miss");
+    expect(html).not.toContain(":primary");
+    expect(html).not.toContain("48001:10136");
+  });
+
+  it("role inversion: accessory body is not painted as primary", () => {
+    const html = renderToStaticMarkup(
+      <dl>
+        <FactRow
+          label="Footprint"
+          fact={toFactPresentation(
+            { state: "present", value: "accessory" },
+            ROW_SPECS.footprint,
+          )}
+          testid="inspect-footprint"
+        />
+      </dl>,
+    );
+    expect(html).toContain("accessory");
+    expect(html).not.toContain(">primary<");
+    expect(html).not.toContain(":primary");
+  });
+
+  it("missing buildingFootprintFact hides the Footprint row (unknown, not invented)", () => {
+    const html = renderToStaticMarkup(
+      <dl>
+        <FactRow
+          label="Footprint"
+          fact={toFactPresentation(
+            { state: "unknown", value: null },
+            ROW_SPECS.footprint,
+          )}
+          testid="inspect-footprint"
+        />
+      </dl>,
+    );
+    expect(html).not.toContain("inspect-footprint");
+    expect(html).not.toContain("Footprint");
+    expect(html).not.toContain(":primary");
+  });
+});

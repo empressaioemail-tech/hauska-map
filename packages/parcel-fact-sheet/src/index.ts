@@ -412,6 +412,20 @@ export interface ParcelFactSheet {
     parcelRelation: string | null;
     display: string;
   }>;
+  /**
+   * ADDITIVE (P-51 / 2026-08-22). Footprint from cortex-root
+   * buildingFootprintFact. Optional so existing sealed stubs stay valid.
+   * Missing means the inspect payload did not carry the field (hide the
+   * row). Never invent a footprint / structureRole / :primary on gold
+   * atom-miss. structureRole is body.structureRole, never the last
+   * entity_id token. Never populated from bake / CAD / GIS /
+   * tx_building_footprint.
+   */
+  footprint?: Fact<{
+    structureRole: string | null;
+    entityId: string | null;
+    display: string;
+  }>;
   site: SiteConditions;
 
   /**

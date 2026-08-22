@@ -184,6 +184,36 @@ describe("stripCortexEnvelopeProductTruth (anti-zombie)", () => {
     }) as Record<string, unknown>;
     expect("wellFact" in noRoot).toBe(false);
   });
+
+  it("preserves cortex-root buildingFootprintFact and does not invent one from bake / GIS", () => {
+    const goldFact = {
+      state: "refused",
+      code: "atom-miss",
+      source: "building-footprint",
+    };
+    const withRoot = stripCortexEnvelopeProductTruth({
+      buildingFootprintFact: goldFact,
+      facets: {
+        tx_building_footprint: { structureRole: "primary" },
+        envelope: { status: "ok" },
+      },
+    }) as {
+      buildingFootprintFact: { source: string; code: string; state: string };
+      facets: { tx_building_footprint: { structureRole: string } };
+    };
+    expect(withRoot.buildingFootprintFact.source).toBe("building-footprint");
+    expect(withRoot.buildingFootprintFact.code).toBe("atom-miss");
+    expect(withRoot.buildingFootprintFact.state).toBe("refused");
+    expect(withRoot.facets.tx_building_footprint.structureRole).toBe("primary");
+
+    const noRoot = stripCortexEnvelopeProductTruth({
+      facets: {
+        tx_building_footprint: { structureRole: "primary" },
+        envelope: { status: "ok" },
+      },
+    }) as Record<string, unknown>;
+    expect("buildingFootprintFact" in noRoot).toBe(false);
+  });
 });
 
 const PADDED = "48021:34137.00000000";
@@ -246,6 +276,14 @@ const GOLD_WELL_MISS = {
   tried: ["48021:34137", "48021:34137.00000000"],
   reason:
     "No well-fact atom for parcel prefix 48021:34137 or 48021:34137.00000000. Atom miss, not a well determination.",
+};
+const GOLD_FOOTPRINT_MISS = {
+  state: "refused",
+  code: "atom-miss",
+  source: "building-footprint",
+  tried: ["48021:34137", "48021:34137.00000000"],
+  reason:
+    "No building-footprint atom for parcel prefix 48021:34137 or 48021:34137.00000000. Atom miss, not a footprint determination.",
 };
 
 function jsonResponse(body: unknown, status = 200): Response {
@@ -518,6 +556,55 @@ describe("fetchCortexFacetsWithAlias floodHazardFact (WDLL 5)", () => {
     expect(JSON.stringify(body.wellFact)).not.toMatch(/42000001030000/);
     expect(JSON.stringify(body.wellFact)).not.toMatch(/:none/);
     expect(JSON.stringify(body.wellFact)).not.toMatch(/texas-rrc/);
+  });
+
+  it("padded cortex missing buildingFootprintFact aliases integer root even when flood / land-use / special-district / pipeline / well are already on the padded body", async () => {
+    process.env.CORTEX_API_URL = "https://cortex.test";
+    process.env.CORTEX_SERVICE_API_KEY = "ck";
+    vi.stubGlobal("fetch", async (input: RequestInfo | URL) => {
+      const url = String(input);
+      if (url.includes(encodeURIComponent(PADDED))) {
+        return jsonResponse({
+          parcelNodeId: PADDED,
+          floodHazardFact: GOLD_FLOOD,
+          landUseFact: GOLD_LAND_USE,
+          specialDistrictFact: COLONY_MUD,
+          pipelineFact: GOLD_PIPELINE_OUTSIDE,
+          wellFact: GOLD_WELL_MISS,
+          facets: {
+            tx_building_footprint: { structureRole: "BAKE FOOTPRINT" },
+          },
+        });
+      }
+      if (url.includes(encodeURIComponent(INTEGER))) {
+        return jsonResponse({
+          parcelNodeId: INTEGER,
+          floodHazardFact: GOLD_FLOOD,
+          landUseFact: GOLD_LAND_USE,
+          specialDistrictFact: COLONY_MUD,
+          pipelineFact: GOLD_PIPELINE_OUTSIDE,
+          wellFact: GOLD_WELL_MISS,
+          buildingFootprintFact: GOLD_FOOTPRINT_MISS,
+          facets: {
+            tx_building_footprint: { structureRole: "BAKE FOOTPRINT" },
+          },
+        });
+      }
+      throw new Error(`unexpected fetch ${url}`);
+    });
+    const result = await fetchCortexFacetsWithAlias(PADDED);
+    expect(result.status).toBe(200);
+    const body = JSON.parse(result.body) as {
+      buildingFootprintFact?: { source?: string; code?: string; state?: string };
+    };
+    expect(body.buildingFootprintFact?.source).toBe("building-footprint");
+    expect(body.buildingFootprintFact?.code).toBe("atom-miss");
+    expect(body.buildingFootprintFact?.state).toBe("refused");
+    expect(JSON.stringify(body.buildingFootprintFact)).not.toMatch(/BAKE FOOTPRINT/);
+    expect(JSON.stringify(body.buildingFootprintFact)).not.toMatch(/:primary/);
+    expect(JSON.stringify(body.buildingFootprintFact)).not.toMatch(
+      /tx_building_footprint/,
+    );
   });
 });
 

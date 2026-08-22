@@ -22,6 +22,7 @@ import {
   pipelineFacetFromSheet,
   specialDistrictFacetFromSheet,
   wellFacetFromSheet,
+  footprintFacetFromSheet,
 } from "./sheet-to-card-model";
 import { FLOOD_HAZARD_FACT_MISSING_REASON } from "./baked-facets";
 
@@ -626,6 +627,99 @@ describe("wellFact inspect row (P-50 / WDLL 4)", () => {
       value: null,
     });
     expect(bakedCardModelFromSheet(sheet()).well).toEqual({
+      state: "unknown",
+      value: null,
+    });
+  });
+});
+
+describe("buildingFootprintFact inspect row (P-51 / WDLL 5)", () => {
+  it("present fixture 48001:10136 shows structureRole=primary from the body", () => {
+    const model = bakedCardModelFromSheet(
+      sheet({
+        footprint: {
+          state: "present",
+          value: {
+            structureRole: "primary",
+            entityId: "48001:10136.00000000:footprint:primary",
+            display: "primary",
+          },
+          provenance: {
+            ...prov(),
+            source: "building-footprint",
+            sourceLabel: "building-footprint atom",
+          },
+        },
+      }),
+    );
+    expect(model.footprint.state).toBe("present");
+    expect(model.footprint.value).toBe("primary");
+    expect(model.footprint.value).not.toMatch(/:primary/);
+  });
+
+  it("gold-shaped atom-miss fixture does not render a footprint or :primary", () => {
+    const facet = footprintFacetFromSheet({
+      state: "unresolved",
+      reason: "building-footprint atom-miss",
+      retryable: false,
+    });
+    expect(facet.state).toBe("pending");
+    expect(facet.value).toMatch(/building-footprint/);
+    expect(facet.value).toMatch(/atom-miss/);
+    expect(JSON.stringify(facet)).not.toMatch(/:primary/);
+    expect(JSON.stringify(facet)).not.toMatch(/48001:10136/);
+  });
+
+  it("role inversion: body accessory wins over :footprint:primary token", () => {
+    const model = bakedCardModelFromSheet(
+      sheet({
+        footprint: {
+          state: "present",
+          value: {
+            structureRole: "accessory",
+            entityId: "48001:10136.00000000:footprint:primary",
+            display: "accessory",
+          },
+          provenance: {
+            ...prov(),
+            source: "building-footprint",
+            sourceLabel: "building-footprint atom",
+          },
+        },
+      }),
+    );
+    expect(model.footprint.value).toBe("accessory");
+    expect(model.footprint.value).not.toBe("primary");
+  });
+
+  it("role inversion: body primary wins over :footprint:accessory-1 token", () => {
+    const model = bakedCardModelFromSheet(
+      sheet({
+        footprint: {
+          state: "present",
+          value: {
+            structureRole: "primary",
+            entityId: "48001:10136.00000000:footprint:accessory-1",
+            display: "primary",
+          },
+          provenance: {
+            ...prov(),
+            source: "building-footprint",
+            sourceLabel: "building-footprint atom",
+          },
+        },
+      }),
+    );
+    expect(model.footprint.value).toBe("primary");
+    expect(model.footprint.value).not.toMatch(/accessory/);
+  });
+
+  it("missing field hides the row (unknown)", () => {
+    expect(footprintFacetFromSheet(undefined)).toEqual({
+      state: "unknown",
+      value: null,
+    });
+    expect(bakedCardModelFromSheet(sheet()).footprint).toEqual({
       state: "unknown",
       value: null,
     });
