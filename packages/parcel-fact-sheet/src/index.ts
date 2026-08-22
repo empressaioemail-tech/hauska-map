@@ -439,6 +439,19 @@ export interface ParcelFactSheet {
     entityId: string | null;
     display: string;
   }>;
+  /**
+   * ADDITIVE (P-54 / 2026-08-22). Owner from cortex-root ownerFact.
+   * Optional so existing sealed stubs stay valid. Missing means the inspect
+   * payload did not carry the field (hide the row). Identified-session
+   * only. Anonymous / identified-session-required has no owner body.
+   * Never populated from bake / CAD / cad-parcel-roll / GIS owner.
+   * identity.owner is not this field.
+   */
+  owner?: Fact<{
+    entityId: string | null;
+    taxYear: number | null;
+    display: string;
+  }>;
   site: SiteConditions;
 
   /**

@@ -24,7 +24,8 @@
 //                                             specialDistrictFact /
 //                                             pipelineFact / wellFact /
 //                                             buildingFootprintFact /
-//                                             boundaryEdgeFact
+//                                             boundaryEdgeFact /
+//                                             ownerFact
 //                                             siblings (never tier2.flood;
 //                                             never cad-roll as landUseFact;
 //                                             never bake / CAD / mud-pid as
@@ -37,7 +38,9 @@
 //                                             as buildingFootprintFact;
 //                                             never bake / CAD / GIS /
 //                                             txgio_parcel / parcel ring as
-//                                             boundaryEdgeFact).
+//                                             boundaryEdgeFact; never bake /
+//                                             CAD / cad-parcel-roll / GIS
+//                                             owner as ownerFact).
 //   2. POST {cortex}/…/place/buildable-envelope   the backend's authoritative
 //                                             resolution of the parcel to a
 //                                             point (its `coord:` placeKey),
@@ -764,12 +767,90 @@ function boundaryFromInspectWire(
 
   const role = str(fact.role);
   const entityId = str(fact.entityId);
+    return {
+      state: "present",
+      value: {
+        role,
+        entityId,
+        display: role ?? "boundary present",
+      },
+      provenance: prov,
+    };
+  }
+
+/**
+ * Owner from cortex-root ownerFact (P-54 / WDLL 7).
+ *
+ * Prefer the cortex field. Never adopt bake / CAD / cad-parcel-roll /
+ * GIS owner. Source must be owner-fact. Anonymous /
+ * identified-session-required has no owner body. Identified present
+ * cites entityId + taxYear. identity.owner is not this field.
+ */
+function ownerFromInspectWire(
+  ownerFact: unknown,
+):
+  | Fact<{
+      entityId: string | null;
+      taxYear: number | null;
+      display: string;
+    }>
+  | undefined {
+  if (
+    !ownerFact ||
+    typeof ownerFact !== "object" ||
+    Array.isArray(ownerFact)
+  ) {
+    return undefined;
+  }
+  const fact = rec(ownerFact);
+  if (!fact) return undefined;
+  const state = str(fact.state);
+  if (state !== "present" && state !== "absent" && state !== "refused") {
+    return undefined;
+  }
+  const source = str(fact.source);
+  if (source !== "owner-fact") {
+    return undefined;
+  }
+
+  const taxYearRaw = fact.taxYear;
+  const taxYear =
+    typeof taxYearRaw === "number" && Number.isFinite(taxYearRaw)
+      ? taxYearRaw
+      : typeof taxYearRaw === "string" && /^\d{4}$/.test(taxYearRaw.trim())
+        ? Number(taxYearRaw)
+        : null;
+
+  const prov = provenance({
+    source: "owner-fact",
+    sourceLabel: "owner-fact atom",
+    vintage:
+      str(fact.sourceVintage) ??
+      str(fact.evaluatedAt) ??
+      (taxYear != null ? String(taxYear) : null),
+    sourceUrl: str(rec(fact.provenance)?.url),
+  });
+
+  if (state === "refused") {
+    const code = str(fact.code) ?? "refused";
+    return { state: "unresolved", reason: `owner-fact ${code}`, retryable: false };
+  }
+  if (state === "absent") {
+    const absence = rec(fact.absence);
+    const reason =
+      str(absence?.reason) ?? str(absence?.kind) ?? "typed absence";
+    return absentCovered(reason, prov);
+  }
+
+  const entityId = str(fact.entityId);
+  const display =
+    taxYear != null ? String(taxYear) : (entityId ?? "owner-fact present");
   return {
     state: "present",
     value: {
-      role,
       entityId,
-      display: role ?? "boundary present",
+      taxYear,
+      display,
     },
     provenance: prov,
   };
@@ -1398,6 +1479,7 @@ export class PeFactSheetResolver implements FactSheetResolver {
       null;
     const boundaryEdgeFact =
       wire.boundaryEdgeFact ?? facetsResult.data.boundaryEdgeFact ?? null;
+    const ownerFact = wire.ownerFact ?? facetsResult.data.ownerFact ?? null;
 
     const fips = str(facets.countyFips) ?? parcelNodeId.split(":")[0] ?? "";
     const countyName =
@@ -1442,6 +1524,7 @@ export class PeFactSheetResolver implements FactSheetResolver {
     const well = wellFromInspectWire(wellFact);
     const footprint = footprintFromInspectWire(buildingFootprintFact);
     const boundary = boundaryFromInspectWire(boundaryEdgeFact);
+    const owner = ownerFromInspectWire(ownerFact);
 
     const site: ParcelFactSheet["site"] = {
       elevationRange: null,
@@ -1468,6 +1551,7 @@ export class PeFactSheetResolver implements FactSheetResolver {
       well,
       footprint,
       boundary,
+      owner,
       site,
       county: { fips, name: countyName },
     });
@@ -1488,6 +1572,7 @@ export class PeFactSheetResolver implements FactSheetResolver {
       ...(well ? { well } : {}),
       ...(footprint ? { footprint } : {}),
       ...(boundary ? { boundary } : {}),
+      ...(owner ? { owner } : {}),
       site,
       // Composed ONCE, by the one composer, from the fields above.
       verdict: "",

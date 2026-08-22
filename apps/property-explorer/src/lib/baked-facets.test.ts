@@ -49,13 +49,14 @@ describe("deriveBakedCardModel — present facets", () => {
     expect(m.bakedAt).toBe("2026-07-20T22:34:46.946Z");
   });
 
-  it("NEVER surfaces an owner (no owner field is read or emitted)", () => {
+  it("NEVER surfaces a bake owner_name as the inspect Owner row", () => {
     const withOwner = {
       ...fullPayload,
       baseFacts: { ...fullPayload.baseFacts, owner_name: "SHOULD NOT LEAK" },
     } as BakedFacetPayload;
     const m = deriveBakedCardModel(withOwner);
-    expect(JSON.stringify(m)).not.toMatch(/owner/i);
+    expect(m.owner).toEqual({ state: "unknown", value: null });
+    expect(JSON.stringify(m.owner)).not.toMatch(/SHOULD NOT LEAK/);
     expect(JSON.stringify(m)).not.toMatch(/SHOULD NOT LEAK/);
   });
 });

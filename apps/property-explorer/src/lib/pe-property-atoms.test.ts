@@ -1,6 +1,7 @@
 import { afterEach, describe, it, expect, vi } from "vitest";
 import {
   fetchAtomChainWithAlias,
+  cortexInspectAuthorization,
   fetchCortexFacetsWithAlias,
   handlePropertyAtomsFacets,
   isRetrievalAuthFailure,
@@ -251,6 +252,37 @@ describe("stripCortexEnvelopeProductTruth (anti-zombie)", () => {
     }) as Record<string, unknown>;
     expect("boundaryEdgeFact" in noRoot).toBe(false);
   });
+
+  it("preserves cortex-root ownerFact and does not invent one from bake / CAD-roll / GIS owner", () => {
+    const goldFact = {
+      state: "refused",
+      code: "identified-session-required",
+      source: "owner-fact",
+    };
+    const withRoot = stripCortexEnvelopeProductTruth({
+      ownerFact: goldFact,
+      facets: {
+        cadOwner: { ownerName: "BAKE CAD OWNER", source: "cad-parcel-roll" },
+        envelope: { status: "ok" },
+      },
+    }) as {
+      ownerFact: { source: string; code: string; state: string };
+      facets: { cadOwner: { ownerName: string } };
+    };
+    expect(withRoot.ownerFact.source).toBe("owner-fact");
+    expect(withRoot.ownerFact.code).toBe("identified-session-required");
+    expect(withRoot.ownerFact.state).toBe("refused");
+    expect(JSON.stringify(withRoot.ownerFact)).not.toMatch(/ownerName/);
+    expect(withRoot.facets.cadOwner.ownerName).toBe("BAKE CAD OWNER");
+
+    const noRoot = stripCortexEnvelopeProductTruth({
+      facets: {
+        cadOwner: { ownerName: "BAKE CAD OWNER", source: "cad-parcel-roll" },
+        envelope: { status: "ok" },
+      },
+    }) as Record<string, unknown>;
+    expect("ownerFact" in noRoot).toBe(false);
+  });
 });
 
 const PADDED = "48021:34137.00000000";
@@ -334,6 +366,19 @@ const GOLD_BOUNDARY_PRESENT = {
     { entityId: "48021:34137:boundary:2", edgeIndex: 2, role: "front" },
     { entityId: "48021:34137:boundary:3", edgeIndex: 3, role: "side_corner" },
   ],
+};
+const GOLD_OWNER_ANON = {
+  state: "refused",
+  code: "identified-session-required",
+  source: "owner-fact",
+  tried: ["48021:34137", "48021:34137.00000000"],
+  reason: "owner-fact is identified-session only. Anonymous GET has no owner body.",
+};
+const GOLD_OWNER_PRESENT = {
+  state: "present",
+  source: "owner-fact",
+  entityId: "48021:34137:2025",
+  taxYear: 2025,
 };
 
 function jsonResponse(body: unknown, status = 200): Response {
@@ -709,6 +754,133 @@ describe("fetchCortexFacetsWithAlias floodHazardFact (WDLL 5)", () => {
     expect(body.boundaryEdgeFact?.entityId).toBe("48021:34137:boundary:2");
     expect(JSON.stringify(body.boundaryEdgeFact)).not.toMatch(/BAKE PARCEL RING/);
     expect(JSON.stringify(body.boundaryEdgeFact)).not.toMatch(/txgio_parcel/);
+  });
+
+  it("padded cortex missing ownerFact aliases integer root even when flood / land-use / special-district / pipeline / well / footprint / boundary are already on the padded body", async () => {
+    process.env.CORTEX_API_URL = "https://cortex.test";
+    process.env.CORTEX_SERVICE_API_KEY = "ck";
+    vi.stubGlobal("fetch", async (input: RequestInfo | URL) => {
+      const url = String(input);
+      if (url.includes(encodeURIComponent(PADDED))) {
+        return jsonResponse({
+          parcelNodeId: PADDED,
+          floodHazardFact: GOLD_FLOOD,
+          landUseFact: GOLD_LAND_USE,
+          specialDistrictFact: COLONY_MUD,
+          pipelineFact: GOLD_PIPELINE_OUTSIDE,
+          wellFact: GOLD_WELL_MISS,
+          buildingFootprintFact: GOLD_FOOTPRINT_MISS,
+          boundaryEdgeFact: GOLD_BOUNDARY_PRESENT,
+          facets: {
+            cadOwner: { ownerName: "BAKE CAD OWNER", source: "cad-parcel-roll" },
+          },
+        });
+      }
+      if (url.includes(encodeURIComponent(INTEGER))) {
+        return jsonResponse({
+          parcelNodeId: INTEGER,
+          floodHazardFact: GOLD_FLOOD,
+          landUseFact: GOLD_LAND_USE,
+          specialDistrictFact: COLONY_MUD,
+          pipelineFact: GOLD_PIPELINE_OUTSIDE,
+          wellFact: GOLD_WELL_MISS,
+          buildingFootprintFact: GOLD_FOOTPRINT_MISS,
+          boundaryEdgeFact: GOLD_BOUNDARY_PRESENT,
+          ownerFact: GOLD_OWNER_PRESENT,
+          facets: {
+            cadOwner: { ownerName: "BAKE CAD OWNER", source: "cad-parcel-roll" },
+          },
+        });
+      }
+      throw new Error(`unexpected fetch ${url}`);
+    });
+    const result = await fetchCortexFacetsWithAlias(PADDED);
+    expect(result.status).toBe(200);
+    const body = JSON.parse(result.body) as {
+      ownerFact?: {
+        source?: string;
+        state?: string;
+        entityId?: string;
+        taxYear?: number;
+      };
+    };
+    expect(body.ownerFact?.source).toBe("owner-fact");
+    expect(body.ownerFact?.state).toBe("present");
+    expect(body.ownerFact?.entityId).toBe("48021:34137:2025");
+    expect(body.ownerFact?.taxYear).toBe(2025);
+    expect(JSON.stringify(body.ownerFact)).not.toMatch(/BAKE CAD OWNER/);
+    expect(JSON.stringify(body.ownerFact)).not.toMatch(/cad-parcel-roll/);
+    expect(JSON.stringify(body.ownerFact)).not.toMatch(/ownerName/);
+  });
+
+  it("forwards pe_session Bearer and does not send the service key or X-Hauska-Key as identified", async () => {
+    process.env.CORTEX_API_URL = "https://cortex.test";
+    process.env.CORTEX_SERVICE_API_KEY = "ck-service";
+    const seen: { authorization?: string; xHauska?: string } = {};
+    vi.stubGlobal("fetch", async (input: RequestInfo | URL, init?: RequestInit) => {
+      const headers = (init?.headers ?? {}) as Record<string, string>;
+      seen.authorization = headers.Authorization;
+      seen.xHauska = headers["X-Hauska-Key"];
+      return jsonResponse({
+        parcelNodeId: INTEGER,
+        ownerFact: GOLD_OWNER_PRESENT,
+      });
+    });
+    const result = await fetchCortexFacetsWithAlias(INTEGER, "dotted.user.session");
+    expect(result.status).toBe(200);
+    expect(seen.authorization).toBe("Bearer dotted.user.session");
+    expect(seen.authorization).not.toBe("Bearer ck-service");
+    expect(seen.xHauska).toBeUndefined();
+    const body = JSON.parse(result.body) as { ownerFact?: { entityId?: string } };
+    expect(body.ownerFact?.entityId).toBe("48021:34137:2025");
+  });
+
+  it("no session uses the service key Bearer (anonymous refusal stays correct)", async () => {
+    process.env.CORTEX_API_URL = "https://cortex.test";
+    process.env.CORTEX_SERVICE_API_KEY = "ck-service";
+    const seen: { authorization?: string; xHauska?: string } = {};
+    vi.stubGlobal("fetch", async (_input: RequestInfo | URL, init?: RequestInit) => {
+      const headers = (init?.headers ?? {}) as Record<string, string>;
+      seen.authorization = headers.Authorization;
+      seen.xHauska = headers["X-Hauska-Key"];
+      return jsonResponse({
+        parcelNodeId: INTEGER,
+        ownerFact: GOLD_OWNER_ANON,
+      });
+    });
+    const result = await fetchCortexFacetsWithAlias(INTEGER);
+    expect(result.status).toBe(200);
+    expect(seen.authorization).toBe("Bearer ck-service");
+    expect(seen.xHauska).toBeUndefined();
+    const body = JSON.parse(result.body) as {
+      ownerFact?: { code?: string; source?: string };
+    };
+    expect(body.ownerFact?.code).toBe("identified-session-required");
+    expect(body.ownerFact?.source).toBe("owner-fact");
+    expect(JSON.stringify(body.ownerFact)).not.toMatch(/ownerName/);
+  });
+});
+
+describe("cortexInspectAuthorization (P-54 session forward)", () => {
+  it("session Bearer wins over the service key and never emits X-Hauska-Key", () => {
+    const auth = cortexInspectAuthorization("dotted.user.session", "ck-service");
+    expect(auth).toEqual({
+      authorization: "Bearer dotted.user.session",
+      usedSession: true,
+    });
+    expect(JSON.stringify(auth)).not.toMatch(/X-Hauska-Key/);
+    expect(JSON.stringify(auth)).not.toMatch(/ck-service/);
+  });
+
+  it("absent session uses the service key (anonymous path)", () => {
+    expect(cortexInspectAuthorization(null, "ck-service")).toEqual({
+      authorization: "Bearer ck-service",
+      usedSession: false,
+    });
+    expect(cortexInspectAuthorization("", "ck-service")).toEqual({
+      authorization: "Bearer ck-service",
+      usedSession: false,
+    });
   });
 });
 

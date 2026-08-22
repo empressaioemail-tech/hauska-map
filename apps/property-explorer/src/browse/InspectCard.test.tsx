@@ -855,3 +855,83 @@ describe("InspectCard Boundary row — boundaryEdgeFact (P-53)", () => {
     expect(html).not.toContain("txgio_parcel");
   });
 });
+
+describe("InspectCard Owner row — ownerFact (P-54)", () => {
+  it("identified gold-shaped present fixture cites owner-fact taxYear", () => {
+    const html = renderToStaticMarkup(
+      <dl>
+        <FactRow
+          label="Owner"
+          fact={toFactPresentation(
+            { state: "present", value: "2025" },
+            ROW_SPECS.owner,
+          )}
+          testid="inspect-owner"
+        />
+      </dl>,
+    );
+    expect(html).toContain('data-testid="inspect-owner"');
+    expect(html).toContain("Owner");
+    expect(html).toContain("2025");
+    expect(html).not.toContain("ownerName");
+    expect(html).not.toContain("cad-parcel-roll");
+  });
+
+  it("anonymous identified-session-required stays visible and has no owner body", () => {
+    const html = renderToStaticMarkup(
+      <dl>
+        <FactRow
+          label="Owner"
+          fact={toFactPresentation(
+            { state: "pending", value: "owner-fact identified-session-required" },
+            ROW_SPECS.owner,
+          )}
+          testid="inspect-owner"
+        />
+      </dl>,
+    );
+    expect(html).toContain('data-testid="inspect-owner"');
+    expect(html).toContain("owner-fact");
+    expect(html).toContain("identified-session-required");
+    expect(html).not.toContain("ownerName");
+    expect(html).not.toContain("mailing");
+  });
+
+  it("gold-shaped atom-miss fixture stays visible and does not paint a CAD-roll name", () => {
+    const html = renderToStaticMarkup(
+      <dl>
+        <FactRow
+          label="Owner"
+          fact={toFactPresentation(
+            { state: "pending", value: "owner-fact atom-miss" },
+            ROW_SPECS.owner,
+          )}
+          testid="inspect-owner"
+        />
+      </dl>,
+    );
+    expect(html).toContain('data-testid="inspect-owner"');
+    expect(html).toContain("owner-fact");
+    expect(html).toContain("atom-miss");
+    expect(html).not.toContain("cad-parcel-roll");
+    expect(html).not.toContain("BAKE CAD OWNER");
+  });
+
+  it("missing ownerFact hides the Owner row (unknown, not invented)", () => {
+    const html = renderToStaticMarkup(
+      <dl>
+        <FactRow
+          label="Owner"
+          fact={toFactPresentation(
+            { state: "unknown", value: null },
+            ROW_SPECS.owner,
+          )}
+          testid="inspect-owner"
+        />
+      </dl>,
+    );
+    expect(html).not.toContain("inspect-owner");
+    expect(html).not.toContain("Owner");
+    expect(html).not.toContain("cad-parcel-roll");
+  });
+});
