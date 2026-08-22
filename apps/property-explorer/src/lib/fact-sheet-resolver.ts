@@ -22,7 +22,8 @@
 //                                             provenance, and the root
 //                                             floodHazardFact / landUseFact /
 //                                             specialDistrictFact /
-//                                             pipelineFact / wellFact
+//                                             pipelineFact / wellFact /
+//                                             buildingFootprintFact
 //                                             siblings (never tier2.flood;
 //                                             never cad-roll as landUseFact;
 //                                             never bake / CAD / mud-pid as
@@ -30,7 +31,9 @@
 //                                             bake / CAD / texas-rrc GIS as
 //                                             pipelineFact; never bake / CAD
 //                                             / texas-rrc GIS / tx_rrc_well
-//                                             as wellFact).
+//                                             as wellFact; never bake / CAD
+//                                             / GIS / tx_building_footprint
+//                                             as buildingFootprintFact).
 //   2. POST {cortex}/…/place/buildable-envelope   the backend's authoritative
 //                                             resolution of the parcel to a
 //                                             point (its `coord:` placeKey),
@@ -616,6 +619,80 @@ function wellFromInspectWire(
       operatorName,
       parcelRelation,
       display: parts.length > 0 ? parts.join(" · ") : "well present",
+    },
+    provenance: prov,
+  };
+}
+
+/**
+ * Footprint from cortex-root buildingFootprintFact (P-51 / WDLL 5).
+ *
+ * Prefer the cortex field. Never adopt bake / CAD / GIS /
+ * tx_building_footprint. Never invent a footprint / structureRole /
+ * :primary on gold atom-miss. structureRole is body.structureRole, never
+ * the last entity_id token. No :sd: / :footprint: picker. No pipeline ANY
+ * bind. Typed absence stays visible. A missing field is omitted so the
+ * card hides the row.
+ */
+function footprintFromInspectWire(
+  buildingFootprintFact: unknown,
+):
+  | Fact<{
+      structureRole: string | null;
+      entityId: string | null;
+      display: string;
+    }>
+  | undefined {
+  if (
+    !buildingFootprintFact ||
+    typeof buildingFootprintFact !== "object" ||
+    Array.isArray(buildingFootprintFact)
+  ) {
+    return undefined;
+  }
+  const fact = rec(buildingFootprintFact);
+  if (!fact) return undefined;
+  const state = str(fact.state);
+  if (state !== "present" && state !== "absent" && state !== "refused") {
+    return undefined;
+  }
+  const source = str(fact.source);
+  if (
+    source === "cad-roll" ||
+    source === "texas-rrc" ||
+    source === "tx_building_footprint" ||
+    source === "mud-pid"
+  ) {
+    return undefined;
+  }
+
+  const prov = provenance({
+    source: source ?? "building-footprint",
+    sourceLabel: "building-footprint atom",
+    vintage: str(fact.sourceVintage) ?? str(fact.evaluatedAt),
+    sourceUrl: str(rec(fact.provenance)?.url),
+  });
+
+  if (state === "refused") {
+    const code = str(fact.code) ?? "refused";
+    const named = source ?? "building-footprint";
+    return { state: "unresolved", reason: `${named} ${code}`, retryable: false };
+  }
+  if (state === "absent") {
+    const absence = rec(fact.absence);
+    const reason =
+      str(absence?.reason) ?? str(absence?.kind) ?? "typed absence";
+    return absentCovered(reason, prov);
+  }
+
+  const structureRole = str(fact.structureRole);
+  const entityId = str(fact.entityId);
+  return {
+    state: "present",
+    value: {
+      structureRole,
+      entityId,
+      display: structureRole ?? "footprint present",
     },
     provenance: prov,
   };
@@ -1238,6 +1315,10 @@ export class PeFactSheetResolver implements FactSheetResolver {
     const pipelineFact =
       wire.pipelineFact ?? facetsResult.data.pipelineFact ?? null;
     const wellFact = wire.wellFact ?? facetsResult.data.wellFact ?? null;
+    const buildingFootprintFact =
+      wire.buildingFootprintFact ??
+      facetsResult.data.buildingFootprintFact ??
+      null;
 
     const fips = str(facets.countyFips) ?? parcelNodeId.split(":")[0] ?? "";
     const countyName =
@@ -1280,6 +1361,7 @@ export class PeFactSheetResolver implements FactSheetResolver {
     const specialDistrict = specialDistrictFromInspectWire(specialDistrictFact);
     const pipeline = pipelineFromInspectWire(pipelineFact);
     const well = wellFromInspectWire(wellFact);
+    const footprint = footprintFromInspectWire(buildingFootprintFact);
 
     const site: ParcelFactSheet["site"] = {
       elevationRange: null,
@@ -1304,6 +1386,7 @@ export class PeFactSheetResolver implements FactSheetResolver {
       specialDistrict,
       pipeline,
       well,
+      footprint,
       site,
       county: { fips, name: countyName },
     });
@@ -1322,6 +1405,7 @@ export class PeFactSheetResolver implements FactSheetResolver {
       ...(specialDistrict ? { specialDistrict } : {}),
       ...(pipeline ? { pipeline } : {}),
       ...(well ? { well } : {}),
+      ...(footprint ? { footprint } : {}),
       site,
       // Composed ONCE, by the one composer, from the fields above.
       verdict: "",

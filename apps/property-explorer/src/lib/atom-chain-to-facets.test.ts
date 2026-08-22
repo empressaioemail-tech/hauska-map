@@ -871,6 +871,142 @@ describe("mergeBakedBaseFacts — wellFact from cortex JSON ROOT (P-50)", () => 
   });
 });
 
+const goldFootprintAtomMissFact = {
+  state: "refused" as const,
+  code: "atom-miss",
+  source: "building-footprint",
+  tried: ["48021:34137", "48021:34137.00000000"],
+  reason:
+    "No building-footprint atom for parcel prefix 48021:34137 or 48021:34137.00000000. Atom miss, not a footprint determination.",
+};
+
+const andersonFootprintPresentFact = {
+  state: "present" as const,
+  source: "building-footprint",
+  entityId: "48001:10136.00000000:footprint:primary",
+  structureRole: "primary",
+};
+
+const bakeFootprintGis = {
+  structureRole: "primary",
+  entityId: "48001:10136.00000000:footprint:primary",
+  source: "tx_building_footprint",
+};
+
+describe("mergeBakedBaseFacts — buildingFootprintFact from cortex JSON ROOT (P-51)", () => {
+  it("copies a fixture buildingFootprintFact from the cortex root onto the atom-chain payload", () => {
+    const adapted = adaptAtomChainToBakedFacets(haysChain)!;
+    const merged = mergeBakedBaseFacts(adapted, {
+      ...bakedCortexBody,
+      buildingFootprintFact: andersonFootprintPresentFact,
+    });
+    expect(merged.buildingFootprintFact).toEqual(andersonFootprintPresentFact);
+    expect(merged.buildingFootprintFact?.structureRole).toBe("primary");
+    expect(merged.buildingFootprintFact?.entityId).toBe(
+      "48001:10136.00000000:footprint:primary",
+    );
+    expect(merged.buildingFootprintFact?.source).toBe("building-footprint");
+    expect(merged.baseFactsMerged).toBe(true);
+  });
+
+  it("does not copy bake / GIS onto buildingFootprintFact", () => {
+    const adapted = adaptAtomChainToBakedFacets(haysChain)!;
+    const merged = mergeBakedBaseFacts(adapted, {
+      ...bakedCortexBody,
+      facets: {
+        ...bakedCortexBody.facets,
+        tx_building_footprint: bakeFootprintGis,
+        footprint: bakeFootprintGis,
+      },
+      tx_building_footprint: bakeFootprintGis,
+    });
+    expect("buildingFootprintFact" in merged).toBe(false);
+    expect(merged.buildingFootprintFact).toBeUndefined();
+    expect(JSON.stringify(merged.buildingFootprintFact ?? {})).not.toMatch(
+      /tx_building_footprint/,
+    );
+    expect(JSON.stringify(merged.buildingFootprintFact ?? {})).not.toMatch(
+      /:primary/,
+    );
+  });
+
+  it("does not adopt a bake / GIS object parked on the root", () => {
+    const adapted = adaptAtomChainToBakedFacets(haysChain)!;
+    const merged = mergeBakedBaseFacts(adapted, {
+      ...bakedCortexBody,
+      buildingFootprintFact: bakeFootprintGis,
+    });
+    expect("buildingFootprintFact" in merged).toBe(false);
+  });
+
+  it("missing field stays missing — never invents a footprint", () => {
+    const adapted = adaptAtomChainToBakedFacets(haysChain)!;
+    const merged = mergeBakedBaseFacts(adapted, bakedCortexBody);
+    expect("buildingFootprintFact" in merged).toBe(false);
+    expect(JSON.stringify(merged)).not.toMatch(/building-footprint/);
+    expect(JSON.stringify(merged)).not.toMatch(/:footprint:primary/);
+  });
+
+  it("early return (no facets) still attaches buildingFootprintFact when the root carries it", () => {
+    const adapted = adaptAtomChainToBakedFacets(haysChain)!;
+    const merged = mergeBakedBaseFacts(adapted, {
+      buildingFootprintFact: andersonFootprintPresentFact,
+    });
+    expect(merged.buildingFootprintFact).toEqual(andersonFootprintPresentFact);
+    expect(merged.baseFactsMerged).toBeUndefined();
+  });
+
+  it("gold-shaped atom-miss fixture stays atom-miss and does not invent a footprint or :primary", () => {
+    const adapted = adaptAtomChainToBakedFacets(haysChain)!;
+    const merged = mergeBakedBaseFacts(adapted, {
+      ...bakedCortexBody,
+      buildingFootprintFact: goldFootprintAtomMissFact,
+    });
+    expect(merged.buildingFootprintFact?.state).toBe("refused");
+    expect(merged.buildingFootprintFact?.code).toBe("atom-miss");
+    expect(merged.buildingFootprintFact?.source).toBe("building-footprint");
+    expect(merged.buildingFootprintFact?.structureRole).toBeUndefined();
+    expect(JSON.stringify(merged.buildingFootprintFact)).not.toMatch(/:primary/);
+    expect(JSON.stringify(merged.buildingFootprintFact)).not.toMatch(
+      /48001:10136/,
+    );
+  });
+
+  it("role inversion: entity_id :footprint:primary with body.structureRole=accessory copies accessory", () => {
+    const adapted = adaptAtomChainToBakedFacets(haysChain)!;
+    const inverted = {
+      state: "present" as const,
+      source: "building-footprint",
+      entityId: "48001:10136.00000000:footprint:primary",
+      structureRole: "accessory",
+    };
+    const merged = mergeBakedBaseFacts(adapted, {
+      ...bakedCortexBody,
+      buildingFootprintFact: inverted,
+    });
+    expect(merged.buildingFootprintFact?.structureRole).toBe("accessory");
+    expect(merged.buildingFootprintFact?.entityId).toMatch(/:footprint:primary$/);
+  });
+
+  it("role inversion: entity_id :footprint:accessory-1 with body.structureRole=primary copies primary", () => {
+    const adapted = adaptAtomChainToBakedFacets(haysChain)!;
+    const inverted = {
+      state: "present" as const,
+      source: "building-footprint",
+      entityId: "48001:10136.00000000:footprint:accessory-1",
+      structureRole: "primary",
+    };
+    const merged = mergeBakedBaseFacts(adapted, {
+      ...bakedCortexBody,
+      buildingFootprintFact: inverted,
+    });
+    expect(merged.buildingFootprintFact?.structureRole).toBe("primary");
+    expect(merged.buildingFootprintFact?.entityId).toMatch(
+      /:footprint:accessory-1$/,
+    );
+  });
+});
+
 describe("adaptAtomChainToBakedFacets — warm verify honest decline (141364 / superseded-prop-id)", () => {
   it("surfaces named superseded-prop-id decline instead of setback-rule-pending", () => {
     const chain: PropertyAtomChain = {

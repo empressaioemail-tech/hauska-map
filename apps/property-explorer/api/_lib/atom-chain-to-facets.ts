@@ -312,6 +312,29 @@ export type WellFactWire = {
   sourceAdapter?: unknown;
 };
 
+/**
+ * Cortex inspect GET sibling (P-51 / building-footprint). Spatial overlay at
+ * WRITE time — writer keys `${parcelNodeId}:footprint:${footprintId}`.
+ * structureRole is body.structureRole, never the last entity_id token.
+ * No :sd: / :footprint: picker. No pipeline ANY bind. Does not share the
+ * texas-rrc key.
+ */
+export type BuildingFootprintFactWire = {
+  state: "present" | "absent" | "refused";
+  structureRole?: unknown;
+  footprintId?: unknown;
+  absence?: { kind?: string; reason?: string } | null;
+  code?: unknown;
+  reason?: unknown;
+  source?: unknown;
+  sourceVintage?: unknown;
+  evaluatedAt?: unknown;
+  boundAs?: unknown;
+  tried?: unknown;
+  entityId?: unknown;
+  sourceAdapter?: unknown;
+};
+
 export interface PeBakedFacetsResponse {
   parcelNodeId: string;
   adapterKey: string;
@@ -346,6 +369,11 @@ export interface PeBakedFacetsResponse {
    * Never populated from bake / CAD / texas-rrc GIS / tx_rrc_well.
    */
   wellFact?: WellFactWire;
+  /**
+   * Footprint from building-footprint atoms. Copied from the cortex JSON
+   * ROOT only. Never populated from bake / CAD / GIS / tx_building_footprint.
+   */
+  buildingFootprintFact?: BuildingFootprintFactWire;
 }
 
 export function isPropertyAtomPathEnabled(
@@ -613,15 +641,53 @@ function withWellFact(
   return { ...atomResponse, wellFact: fact };
 }
 
+/** Cortex inspect GET sibling of flood / land-use / special-district / pipeline / well (P-51). */
+export function isBuildingFootprintFactWire(
+  value: unknown,
+): value is BuildingFootprintFactWire {
+  if (!value || typeof value !== "object" || Array.isArray(value)) return false;
+  const state = (value as { state?: unknown }).state;
+  return state === "present" || state === "absent" || state === "refused";
+}
+
+/**
+ * Cortex JSON ROOT only. Never reads bake / CAD / GIS /
+ * tx_building_footprint or a nested facets copy. A bake / GIS object parked
+ * on the root has no state and is rejected. No :sd: / :footprint: picker.
+ * Does not parse the last entity_id token as structureRole.
+ */
+export function buildingFootprintFactFromCortexRoot(
+  bakedBody: unknown,
+): BuildingFootprintFactWire | undefined {
+  if (!bakedBody || typeof bakedBody !== "object" || Array.isArray(bakedBody)) {
+    return undefined;
+  }
+  const fact = (bakedBody as { buildingFootprintFact?: unknown })
+    .buildingFootprintFact;
+  return isBuildingFootprintFactWire(fact) ? fact : undefined;
+}
+
+function withBuildingFootprintFact(
+  atomResponse: PeBakedFacetsResponse,
+  bakedBody: unknown,
+): PeBakedFacetsResponse {
+  const fact = buildingFootprintFactFromCortexRoot(bakedBody);
+  if (fact === undefined) return atomResponse;
+  return { ...atomResponse, buildingFootprintFact: fact };
+}
+
 function withRootFacts(
   atomResponse: PeBakedFacetsResponse,
   bakedBody: unknown,
 ): PeBakedFacetsResponse {
-  return withWellFact(
-    withPipelineFact(
-      withSpecialDistrictFact(
-        withLandUseFact(
-          withFloodHazardFact(atomResponse, bakedBody),
+  return withBuildingFootprintFact(
+    withWellFact(
+      withPipelineFact(
+        withSpecialDistrictFact(
+          withLandUseFact(
+            withFloodHazardFact(atomResponse, bakedBody),
+            bakedBody,
+          ),
           bakedBody,
         ),
         bakedBody,
@@ -660,6 +726,10 @@ function withRootFacts(
  * ROOT only. Do not adopt bake / CAD / texas-rrc GIS as that field.
  * wellFact is the same shape family (P-50): copy from the cortex JSON ROOT
  * only. Do not adopt bake / CAD / texas-rrc GIS / tx_rrc_well as that field.
+ * buildingFootprintFact is the same shape family (P-51): copy from the
+ * cortex JSON ROOT only. Do not adopt bake / CAD / GIS /
+ * tx_building_footprint as that field. structureRole stays on the fact
+ * body; never parse the last entity_id token.
  * If facets are missing, still attach the root fields when they are present.
  */
 export function mergeBakedBaseFacts(
@@ -670,7 +740,8 @@ export function mergeBakedBaseFacts(
     ?.facets;
   if (!baked || typeof baked !== "object") {
     // Facets missing: still forward root flood / land-use / special-district /
-    // pipeline / well. Identity-return only when those fields are also absent.
+    // pipeline / well / footprint. Identity-return only when those fields
+    // are also absent.
     return withRootFacts(atomResponse, bakedBody);
   }
 

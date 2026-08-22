@@ -152,6 +152,11 @@ export interface BakedFacetsResponse {
    * Never populated from bake / CAD / texas-rrc GIS / tx_rrc_well.
    */
   wellFact?: WellFactCardInput;
+  /**
+   * Footprint from building-footprint atoms. Absent when the BFF did not
+   * copy it. Never populated from bake / CAD / GIS / tx_building_footprint.
+   */
+  buildingFootprintFact?: BuildingFootprintFactCardInput;
 }
 
 /** Cortex inspect GET flood determination (PR 449). Root sibling of facets. */
@@ -219,6 +224,18 @@ export type WellFactCardInput = {
   entityId?: unknown;
 };
 
+/** Cortex inspect GET footprint determination (P-51). Root sibling. */
+export type BuildingFootprintFactCardInput = {
+  state?: string;
+  structureRole?: unknown;
+  footprintId?: unknown;
+  absence?: { kind?: string; reason?: string } | null;
+  code?: unknown;
+  reason?: unknown;
+  source?: unknown;
+  entityId?: unknown;
+};
+
 /**
  * Reason on sheet.specialDistrict when the inspect payload had no
  * specialDistrictFact. sheet-to-card-model maps this to CardFacet unknown
@@ -240,6 +257,14 @@ export const PIPELINE_FACT_MISSING_REASON =
  */
 export const WELL_FACT_MISSING_REASON =
   "wellFact was not on the inspect payload";
+
+/**
+ * Reason on sheet.footprint when the inspect payload had no
+ * buildingFootprintFact. sheet-to-card-model maps this to CardFacet unknown
+ * so InspectCard hides the row.
+ */
+export const BUILDING_FOOTPRINT_FACT_MISSING_REASON =
+  "buildingFootprintFact was not on the inspect payload";
 
 /**
  * Reason on sheet.flood when the inspect payload had no floodHazardFact.
@@ -302,6 +327,13 @@ export interface BakedCardModel {
    * tx_rrc_well. Gold atom-miss stays visible and does not paint a well.
    */
   well: CardFacet<string>;
+  /**
+   * Footprint row from buildingFootprintFact only. `unknown` when the field
+   * is missing (FactRow hides it). Never derived from bake / CAD / GIS /
+   * tx_building_footprint. Gold atom-miss stays visible and does not paint
+   * a footprint or :primary. structureRole is body.structureRole.
+   */
+  footprint: CardFacet<string>;
   /** True whenever an envelope facet is present — the card must then render the
    *  "approximate / not survey grade" treatment (honesty commitment #1). */
   envelopeApproximate: boolean;
@@ -526,6 +558,7 @@ export function deriveBakedCardModel(payload: BakedFacetPayload): BakedCardModel
     specialDistrict: { state: "unknown", value: null },
     pipeline: { state: "unknown", value: null },
     well: { state: "unknown", value: null },
+    footprint: { state: "unknown", value: null },
     // Any present envelope is Tier-1 (shape-only, no roads) — always approximate.
     envelopeApproximate: hasEnvelope,
     envelopeStatus: env?.status ?? null,

@@ -1188,3 +1188,116 @@ describe("wellFact only (P-50 / WDLL 4)", () => {
     expect(sheet.well).toBeUndefined();
   });
 });
+
+describe("buildingFootprintFact only (P-51 / WDLL 5)", () => {
+  it("present fixture 48001:10136 structureRole=primary from the body", async () => {
+    const wire = facetsWire() as unknown as Record<string, unknown>;
+    wire.buildingFootprintFact = {
+      state: "present",
+      source: "building-footprint",
+      entityId: "48001:10136.00000000:footprint:primary",
+      structureRole: "primary",
+    };
+    const stub = installFetchStub({ facets: wire, gisFeatures: [SUBJECT_FEATURE] });
+    const sheet = await sheetOf(makeResolver(stub), NODE_ID);
+    expect(sheet.footprint?.state).toBe("present");
+    if (sheet.footprint?.state !== "present") throw new Error("unreachable");
+    expect(sheet.footprint.value.structureRole).toBe("primary");
+    expect(sheet.footprint.value.entityId).toBe(
+      "48001:10136.00000000:footprint:primary",
+    );
+    expect(sheet.footprint.value.display).toBe("primary");
+    expect(sheet.footprint.provenance.source).toBe("building-footprint");
+  });
+
+  it("gold-shaped atom-miss does not render a footprint or :primary", async () => {
+    const wire = facetsWire() as unknown as Record<string, unknown>;
+    wire.buildingFootprintFact = {
+      state: "refused",
+      code: "atom-miss",
+      source: "building-footprint",
+      tried: ["48021:34137", "48021:34137.00000000"],
+      reason:
+        "No building-footprint atom for parcel prefix 48021:34137 or 48021:34137.00000000. Atom miss, not a footprint determination.",
+    };
+    const stub = installFetchStub({ facets: wire, gisFeatures: [SUBJECT_FEATURE] });
+    const sheet = await sheetOf(makeResolver(stub), NODE_ID);
+    expect(sheet.footprint?.state).toBe("unresolved");
+    if (sheet.footprint?.state !== "unresolved") throw new Error("unreachable");
+    expect(sheet.footprint.reason).toMatch(/building-footprint/);
+    expect(sheet.footprint.reason).toMatch(/atom-miss/);
+    expect(JSON.stringify(sheet.footprint)).not.toMatch(/structureRole/);
+    expect(JSON.stringify(sheet.footprint)).not.toMatch(/:primary/);
+    expect(JSON.stringify(sheet.footprint)).not.toMatch(/48001:10136/);
+  });
+
+  it("typed absent no-footprint-feature stays visible as honest absence", async () => {
+    const wire = facetsWire() as unknown as Record<string, unknown>;
+    wire.buildingFootprintFact = {
+      state: "absent",
+      source: "building-footprint",
+      entityId: "48001:10001.00000000:footprint:primary",
+      absence: { kind: "no-footprint-feature", reason: "typed absence no-footprint-feature" },
+    };
+    const stub = installFetchStub({ facets: wire, gisFeatures: [SUBJECT_FEATURE] });
+    const sheet = await sheetOf(makeResolver(stub), NODE_ID);
+    expect(sheet.footprint?.state).toBe("absent-covered");
+    if (sheet.footprint?.state !== "absent-covered") throw new Error("unreachable");
+    expect(sheet.footprint.reason).toMatch(/no-footprint-feature/);
+    expect(sheet.footprint.provenance.source).toBe("building-footprint");
+  });
+
+  it("role inversion: :footprint:primary entity_id with body.structureRole=accessory renders accessory", async () => {
+    const wire = facetsWire() as unknown as Record<string, unknown>;
+    wire.buildingFootprintFact = {
+      state: "present",
+      source: "building-footprint",
+      entityId: "48001:10136.00000000:footprint:primary",
+      structureRole: "accessory",
+    };
+    const stub = installFetchStub({ facets: wire, gisFeatures: [SUBJECT_FEATURE] });
+    const sheet = await sheetOf(makeResolver(stub), NODE_ID);
+    expect(sheet.footprint?.state).toBe("present");
+    if (sheet.footprint?.state !== "present") throw new Error("unreachable");
+    expect(sheet.footprint.value.structureRole).toBe("accessory");
+    expect(sheet.footprint.value.display).toBe("accessory");
+    expect(sheet.footprint.value.entityId).toMatch(/:footprint:primary$/);
+  });
+
+  it("role inversion: :footprint:accessory-1 entity_id with body.structureRole=primary renders primary", async () => {
+    const wire = facetsWire() as unknown as Record<string, unknown>;
+    wire.buildingFootprintFact = {
+      state: "present",
+      source: "building-footprint",
+      entityId: "48001:10136.00000000:footprint:accessory-1",
+      structureRole: "primary",
+    };
+    const stub = installFetchStub({ facets: wire, gisFeatures: [SUBJECT_FEATURE] });
+    const sheet = await sheetOf(makeResolver(stub), NODE_ID);
+    expect(sheet.footprint?.state).toBe("present");
+    if (sheet.footprint?.state !== "present") throw new Error("unreachable");
+    expect(sheet.footprint.value.structureRole).toBe("primary");
+    expect(sheet.footprint.value.display).toBe("primary");
+    expect(sheet.footprint.value.entityId).toMatch(/:footprint:accessory-1$/);
+  });
+
+  it("bake / GIS parked on the root without state is not adopted", async () => {
+    const wire = facetsWire() as unknown as Record<string, unknown>;
+    wire.buildingFootprintFact = {
+      structureRole: "primary",
+      entityId: "48001:10136.00000000:footprint:primary",
+      source: "tx_building_footprint",
+    };
+    const stub = installFetchStub({ facets: wire, gisFeatures: [SUBJECT_FEATURE] });
+    const sheet = await sheetOf(makeResolver(stub), NODE_ID);
+    expect(sheet.footprint).toBeUndefined();
+  });
+
+  it("missing field stays missing — no invented footprint", async () => {
+    const wire = facetsWire() as unknown as Record<string, unknown>;
+    delete wire.buildingFootprintFact;
+    const stub = installFetchStub({ facets: wire, gisFeatures: [SUBJECT_FEATURE] });
+    const sheet = await sheetOf(makeResolver(stub), NODE_ID);
+    expect(sheet.footprint).toBeUndefined();
+  });
+});

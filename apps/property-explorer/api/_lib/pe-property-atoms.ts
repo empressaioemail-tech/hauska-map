@@ -24,6 +24,7 @@ import {
   pipelineFactFromCortexRoot,
   specialDistrictFactFromCortexRoot,
   wellFactFromCortexRoot,
+  buildingFootprintFactFromCortexRoot,
   parsePropertyAtomsPath,
   type PeBakedFacetsResponse,
   type PropertyAtomChain,
@@ -143,14 +144,26 @@ function cortexWellFactMissing(body: string): boolean {
   }
 }
 
-/** Missing flood / land-use / special-district / pipeline / well — same retry as each field alone. */
+function cortexBuildingFootprintFactMissing(body: string): boolean {
+  try {
+    return (
+      buildingFootprintFactFromCortexRoot(JSON.parse(body) as unknown) ===
+      undefined
+    );
+  } catch {
+    return true;
+  }
+}
+
+/** Missing flood / land-use / special-district / pipeline / well / footprint — same retry as each field alone. */
 function cortexNeedsRootFactAlias(body: string): boolean {
   return (
     cortexFloodFactMissing(body) ||
     cortexLandUseFactMissing(body) ||
     cortexSpecialDistrictFactMissing(body) ||
     cortexPipelineFactMissing(body) ||
-    cortexWellFactMissing(body)
+    cortexWellFactMissing(body) ||
+    cortexBuildingFootprintFactMissing(body)
   );
 }
 
@@ -164,7 +177,8 @@ function aliasFillsRootFactGap(
       !cortexLandUseFactMissing(aliasedBody) ||
       !cortexSpecialDistrictFactMissing(aliasedBody) ||
       !cortexPipelineFactMissing(aliasedBody) ||
-      !cortexWellFactMissing(aliasedBody)
+      !cortexWellFactMissing(aliasedBody) ||
+      !cortexBuildingFootprintFactMissing(aliasedBody)
     );
   }
   const floodGain =
@@ -179,16 +193,21 @@ function aliasFillsRootFactGap(
     !cortexPipelineFactMissing(aliasedBody);
   const wellGain =
     cortexWellFactMissing(primary.body) && !cortexWellFactMissing(aliasedBody);
-  return floodGain || landGain || sdGain || pipelineGain || wellGain;
+  const footprintGain =
+    cortexBuildingFootprintFactMissing(primary.body) &&
+    !cortexBuildingFootprintFactMissing(aliasedBody);
+  return floodGain || landGain || sdGain || pipelineGain || wellGain || footprintGain;
 }
 
 /**
  * Same grammar pair as atom-chain. If the requested key's cortex body has no
- * root floodHazardFact, landUseFact, specialDistrictFact, pipelineFact, or
- * wellFact, try the alias. Never reads tier2.flood. Never adopts cad-roll as
- * landUseFact. Never adopts bake / CAD / mud-pid as specialDistrictFact.
- * Never adopts bake / CAD / texas-rrc GIS as pipelineFact. Never adopts
- * bake / CAD / texas-rrc GIS / tx_rrc_well as wellFact.
+ * root floodHazardFact, landUseFact, specialDistrictFact, pipelineFact,
+ * wellFact, or buildingFootprintFact, try the alias. Never reads tier2.flood.
+ * Never adopts cad-roll as landUseFact. Never adopts bake / CAD / mud-pid
+ * as specialDistrictFact. Never adopts bake / CAD / texas-rrc GIS as
+ * pipelineFact. Never adopts bake / CAD / texas-rrc GIS / tx_rrc_well as
+ * wellFact. Never adopts bake / CAD / GIS / tx_building_footprint as
+ * buildingFootprintFact.
  */
 export async function fetchCortexFacetsWithAlias(
   parcelNodeId: string,

@@ -38,6 +38,7 @@ import {
   PIPELINE_FACT_MISSING_REASON,
   SPECIAL_DISTRICT_FACT_MISSING_REASON,
   WELL_FACT_MISSING_REASON,
+  BUILDING_FOOTPRINT_FACT_MISSING_REASON,
   type BakedCardModel,
   type CardFacet,
 } from "./baked-facets";
@@ -214,6 +215,39 @@ export function wellFacetFromSheet(
   return facetFrom(well, () => "");
 }
 
+/**
+ * Footprint row from sheet.footprint, which the resolver fills from
+ * buildingFootprintFact only. Missing field → unknown (InspectCard hides
+ * the row). Gold atom-miss cites building-footprint and never carries
+ * structureRole / :primary / a footprint. Present fixture shows
+ * structureRole from the body. Typed absence stays visible.
+ */
+export function footprintFacetFromSheet(
+  footprint:
+    | Fact<{
+        structureRole: string | null;
+        entityId: string | null;
+        display: string;
+      }>
+    | undefined,
+): CardFacet<string> {
+  if (!footprint) {
+    return { state: "unknown", value: null };
+  }
+  if (
+    footprint.state === "absent-uncovered" &&
+    footprint.reason === BUILDING_FOOTPRINT_FACT_MISSING_REASON
+  ) {
+    return { state: "unknown", value: null };
+  }
+  if (footprint.state === "present") {
+    const display = (footprint.value.display ?? "").trim();
+    if (display) return present(display);
+    return absent("building-footprint present with no display");
+  }
+  return facetFrom(footprint, () => "");
+}
+
 /** A setback axis -> the card's own display fragment. */
 function axisText(axis: SetbackAxis, label: string): string {
   // AMENDMENT 2: a NOT-SPECIFIED axis carries a NULL distance. The absence is
@@ -354,6 +388,7 @@ export function bakedCardModelFromSheet(sheet: ParcelFactSheet): BakedCardModel 
     specialDistrict: specialDistrictFacetFromSheet(sheet.specialDistrict),
     pipeline: pipelineFacetFromSheet(sheet.pipeline),
     well: wellFacetFromSheet(sheet.well),
+    footprint: footprintFacetFromSheet(sheet.footprint),
     envelopeApproximate: env.kind === "derived" ? env.approximate : env.kind === "consumed",
     envelopeStatus:
       env.kind === "derived" ? "ok" : env.kind === "consumed" ? "no-buildable-area" : "declined",
