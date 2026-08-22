@@ -25,6 +25,7 @@ import {
   specialDistrictFactFromCortexRoot,
   wellFactFromCortexRoot,
   buildingFootprintFactFromCortexRoot,
+  boundaryEdgeFactFromCortexRoot,
   parsePropertyAtomsPath,
   type PeBakedFacetsResponse,
   type PropertyAtomChain,
@@ -155,7 +156,17 @@ function cortexBuildingFootprintFactMissing(body: string): boolean {
   }
 }
 
-/** Missing flood / land-use / special-district / pipeline / well / footprint — same retry as each field alone. */
+function cortexBoundaryEdgeFactMissing(body: string): boolean {
+  try {
+    return (
+      boundaryEdgeFactFromCortexRoot(JSON.parse(body) as unknown) === undefined
+    );
+  } catch {
+    return true;
+  }
+}
+
+/** Missing flood / land-use / special-district / pipeline / well / footprint / boundary — same retry as each field alone. */
 function cortexNeedsRootFactAlias(body: string): boolean {
   return (
     cortexFloodFactMissing(body) ||
@@ -163,7 +174,8 @@ function cortexNeedsRootFactAlias(body: string): boolean {
     cortexSpecialDistrictFactMissing(body) ||
     cortexPipelineFactMissing(body) ||
     cortexWellFactMissing(body) ||
-    cortexBuildingFootprintFactMissing(body)
+    cortexBuildingFootprintFactMissing(body) ||
+    cortexBoundaryEdgeFactMissing(body)
   );
 }
 
@@ -178,7 +190,8 @@ function aliasFillsRootFactGap(
       !cortexSpecialDistrictFactMissing(aliasedBody) ||
       !cortexPipelineFactMissing(aliasedBody) ||
       !cortexWellFactMissing(aliasedBody) ||
-      !cortexBuildingFootprintFactMissing(aliasedBody)
+      !cortexBuildingFootprintFactMissing(aliasedBody) ||
+      !cortexBoundaryEdgeFactMissing(aliasedBody)
     );
   }
   const floodGain =
@@ -196,18 +209,30 @@ function aliasFillsRootFactGap(
   const footprintGain =
     cortexBuildingFootprintFactMissing(primary.body) &&
     !cortexBuildingFootprintFactMissing(aliasedBody);
-  return floodGain || landGain || sdGain || pipelineGain || wellGain || footprintGain;
+  const boundaryGain =
+    cortexBoundaryEdgeFactMissing(primary.body) &&
+    !cortexBoundaryEdgeFactMissing(aliasedBody);
+  return (
+    floodGain ||
+    landGain ||
+    sdGain ||
+    pipelineGain ||
+    wellGain ||
+    footprintGain ||
+    boundaryGain
+  );
 }
 
 /**
  * Same grammar pair as atom-chain. If the requested key's cortex body has no
  * root floodHazardFact, landUseFact, specialDistrictFact, pipelineFact,
- * wellFact, or buildingFootprintFact, try the alias. Never reads tier2.flood.
- * Never adopts cad-roll as landUseFact. Never adopts bake / CAD / mud-pid
- * as specialDistrictFact. Never adopts bake / CAD / texas-rrc GIS as
- * pipelineFact. Never adopts bake / CAD / texas-rrc GIS / tx_rrc_well as
- * wellFact. Never adopts bake / CAD / GIS / tx_building_footprint as
- * buildingFootprintFact.
+ * wellFact, buildingFootprintFact, or boundaryEdgeFact, try the alias. Never
+ * reads tier2.flood. Never adopts cad-roll as landUseFact. Never adopts
+ * bake / CAD / mud-pid as specialDistrictFact. Never adopts bake / CAD /
+ * texas-rrc GIS as pipelineFact. Never adopts bake / CAD / texas-rrc GIS /
+ * tx_rrc_well as wellFact. Never adopts bake / CAD / GIS /
+ * tx_building_footprint as buildingFootprintFact. Never adopts bake / CAD /
+ * GIS / txgio_parcel / parcel ring as boundaryEdgeFact.
  */
 export async function fetchCortexFacetsWithAlias(
   parcelNodeId: string,

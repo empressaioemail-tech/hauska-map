@@ -157,6 +157,12 @@ export interface BakedFacetsResponse {
    * copy it. Never populated from bake / CAD / GIS / tx_building_footprint.
    */
   buildingFootprintFact?: BuildingFootprintFactCardInput;
+  /**
+   * Boundary from property-boundary-edge atoms. Absent when the BFF did
+   * not copy it. Never populated from bake / CAD / GIS / txgio_parcel /
+   * parcel ring.
+   */
+  boundaryEdgeFact?: BoundaryEdgeFactCardInput;
 }
 
 /** Cortex inspect GET flood determination (PR 449). Root sibling of facets. */
@@ -236,6 +242,23 @@ export type BuildingFootprintFactCardInput = {
   entityId?: unknown;
 };
 
+/** Cortex inspect GET boundary determination (P-53). Root sibling. */
+export type BoundaryEdgeFactCardInput = {
+  state?: string;
+  role?: unknown;
+  edgeIndex?: unknown;
+  adjacencyKind?: unknown;
+  frontBasis?: unknown;
+  edges?: unknown;
+  interior?: unknown;
+  propertyLineTags?: unknown;
+  absence?: { kind?: string; reason?: string } | null;
+  code?: unknown;
+  reason?: unknown;
+  source?: unknown;
+  entityId?: unknown;
+};
+
 /**
  * Reason on sheet.specialDistrict when the inspect payload had no
  * specialDistrictFact. sheet-to-card-model maps this to CardFacet unknown
@@ -265,6 +288,14 @@ export const WELL_FACT_MISSING_REASON =
  */
 export const BUILDING_FOOTPRINT_FACT_MISSING_REASON =
   "buildingFootprintFact was not on the inspect payload";
+
+/**
+ * Reason on sheet.boundary when the inspect payload had no
+ * boundaryEdgeFact. sheet-to-card-model maps this to CardFacet unknown
+ * so InspectCard hides the row.
+ */
+export const BOUNDARY_EDGE_FACT_MISSING_REASON =
+  "boundaryEdgeFact was not on the inspect payload";
 
 /**
  * Reason on sheet.flood when the inspect payload had no floodHazardFact.
@@ -334,6 +365,13 @@ export interface BakedCardModel {
    * a footprint or :primary. structureRole is body.structureRole.
    */
   footprint: CardFacet<string>;
+  /**
+   * Boundary row from boundaryEdgeFact only. `unknown` when the field is
+   * missing (FactRow hides it). Never derived from bake / CAD / GIS /
+   * txgio_parcel / parcel ring. Gold present shows role=front and cites
+   * property-boundary-edge. Do not paint a GIS outline as the atom.
+   */
+  boundary: CardFacet<string>;
   /** True whenever an envelope facet is present — the card must then render the
    *  "approximate / not survey grade" treatment (honesty commitment #1). */
   envelopeApproximate: boolean;
@@ -559,6 +597,7 @@ export function deriveBakedCardModel(payload: BakedFacetPayload): BakedCardModel
     pipeline: { state: "unknown", value: null },
     well: { state: "unknown", value: null },
     footprint: { state: "unknown", value: null },
+    boundary: { state: "unknown", value: null },
     // Any present envelope is Tier-1 (shape-only, no roads) — always approximate.
     envelopeApproximate: hasEnvelope,
     envelopeStatus: env?.status ?? null,

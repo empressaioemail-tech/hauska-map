@@ -214,6 +214,43 @@ describe("stripCortexEnvelopeProductTruth (anti-zombie)", () => {
     }) as Record<string, unknown>;
     expect("buildingFootprintFact" in noRoot).toBe(false);
   });
+
+  it("preserves cortex-root boundaryEdgeFact and does not invent one from bake / GIS / txgio_parcel", () => {
+    const goldFact = {
+      state: "present",
+      source: "property-boundary-edge",
+      entityId: "48021:34137:boundary:2",
+      role: "front",
+    };
+    const withRoot = stripCortexEnvelopeProductTruth({
+      boundaryEdgeFact: goldFact,
+      facets: {
+        txgio_parcel: { ring: [[0, 0]], source: "txgio_parcel" },
+        envelope: { status: "ok" },
+      },
+    }) as {
+      boundaryEdgeFact: {
+        source: string;
+        role: string;
+        state: string;
+        entityId: string;
+      };
+      facets: { txgio_parcel: { source: string } };
+    };
+    expect(withRoot.boundaryEdgeFact.source).toBe("property-boundary-edge");
+    expect(withRoot.boundaryEdgeFact.role).toBe("front");
+    expect(withRoot.boundaryEdgeFact.state).toBe("present");
+    expect(withRoot.boundaryEdgeFact.entityId).toBe("48021:34137:boundary:2");
+    expect(withRoot.facets.txgio_parcel.source).toBe("txgio_parcel");
+
+    const noRoot = stripCortexEnvelopeProductTruth({
+      facets: {
+        txgio_parcel: { ring: [[0, 0]], source: "txgio_parcel" },
+        envelope: { status: "ok" },
+      },
+    }) as Record<string, unknown>;
+    expect("boundaryEdgeFact" in noRoot).toBe(false);
+  });
 });
 
 const PADDED = "48021:34137.00000000";
@@ -284,6 +321,19 @@ const GOLD_FOOTPRINT_MISS = {
   tried: ["48021:34137", "48021:34137.00000000"],
   reason:
     "No building-footprint atom for parcel prefix 48021:34137 or 48021:34137.00000000. Atom miss, not a footprint determination.",
+};
+const GOLD_BOUNDARY_PRESENT = {
+  state: "present",
+  source: "property-boundary-edge",
+  entityId: "48021:34137:boundary:2",
+  role: "front",
+  edgeIndex: 2,
+  edges: [
+    { entityId: "48021:34137:boundary:0", edgeIndex: 0, role: "rear" },
+    { entityId: "48021:34137:boundary:1", edgeIndex: 1, role: "side" },
+    { entityId: "48021:34137:boundary:2", edgeIndex: 2, role: "front" },
+    { entityId: "48021:34137:boundary:3", edgeIndex: 3, role: "side_corner" },
+  ],
 };
 
 function jsonResponse(body: unknown, status = 200): Response {
@@ -605,6 +655,60 @@ describe("fetchCortexFacetsWithAlias floodHazardFact (WDLL 5)", () => {
     expect(JSON.stringify(body.buildingFootprintFact)).not.toMatch(
       /tx_building_footprint/,
     );
+  });
+
+  it("padded cortex missing boundaryEdgeFact aliases integer root even when flood / land-use / special-district / pipeline / well / footprint are already on the padded body", async () => {
+    process.env.CORTEX_API_URL = "https://cortex.test";
+    process.env.CORTEX_SERVICE_API_KEY = "ck";
+    vi.stubGlobal("fetch", async (input: RequestInfo | URL) => {
+      const url = String(input);
+      if (url.includes(encodeURIComponent(PADDED))) {
+        return jsonResponse({
+          parcelNodeId: PADDED,
+          floodHazardFact: GOLD_FLOOD,
+          landUseFact: GOLD_LAND_USE,
+          specialDistrictFact: COLONY_MUD,
+          pipelineFact: GOLD_PIPELINE_OUTSIDE,
+          wellFact: GOLD_WELL_MISS,
+          buildingFootprintFact: GOLD_FOOTPRINT_MISS,
+          facets: {
+            txgio_parcel: { ring: [[0, 0]], source: "BAKE PARCEL RING" },
+          },
+        });
+      }
+      if (url.includes(encodeURIComponent(INTEGER))) {
+        return jsonResponse({
+          parcelNodeId: INTEGER,
+          floodHazardFact: GOLD_FLOOD,
+          landUseFact: GOLD_LAND_USE,
+          specialDistrictFact: COLONY_MUD,
+          pipelineFact: GOLD_PIPELINE_OUTSIDE,
+          wellFact: GOLD_WELL_MISS,
+          buildingFootprintFact: GOLD_FOOTPRINT_MISS,
+          boundaryEdgeFact: GOLD_BOUNDARY_PRESENT,
+          facets: {
+            txgio_parcel: { ring: [[0, 0]], source: "BAKE PARCEL RING" },
+          },
+        });
+      }
+      throw new Error(`unexpected fetch ${url}`);
+    });
+    const result = await fetchCortexFacetsWithAlias(PADDED);
+    expect(result.status).toBe(200);
+    const body = JSON.parse(result.body) as {
+      boundaryEdgeFact?: {
+        source?: string;
+        role?: string;
+        state?: string;
+        entityId?: string;
+      };
+    };
+    expect(body.boundaryEdgeFact?.source).toBe("property-boundary-edge");
+    expect(body.boundaryEdgeFact?.state).toBe("present");
+    expect(body.boundaryEdgeFact?.role).toBe("front");
+    expect(body.boundaryEdgeFact?.entityId).toBe("48021:34137:boundary:2");
+    expect(JSON.stringify(body.boundaryEdgeFact)).not.toMatch(/BAKE PARCEL RING/);
+    expect(JSON.stringify(body.boundaryEdgeFact)).not.toMatch(/txgio_parcel/);
   });
 });
 

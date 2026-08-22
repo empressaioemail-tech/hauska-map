@@ -39,6 +39,7 @@ import {
   SPECIAL_DISTRICT_FACT_MISSING_REASON,
   WELL_FACT_MISSING_REASON,
   BUILDING_FOOTPRINT_FACT_MISSING_REASON,
+  BOUNDARY_EDGE_FACT_MISSING_REASON,
   type BakedCardModel,
   type CardFacet,
 } from "./baked-facets";
@@ -248,6 +249,39 @@ export function footprintFacetFromSheet(
   return facetFrom(footprint, () => "");
 }
 
+/**
+ * Boundary row from sheet.boundary, which the resolver fills from
+ * boundaryEdgeFact only. Missing field → unknown (InspectCard hides
+ * the row). Gold present cites property-boundary-edge and shows
+ * role=front. Never a GIS outline / txgio_parcel / bake ring. Last
+ * entity_id token is never the role. Typed absence stays visible.
+ */
+export function boundaryFacetFromSheet(
+  boundary:
+    | Fact<{
+        role: string | null;
+        entityId: string | null;
+        display: string;
+      }>
+    | undefined,
+): CardFacet<string> {
+  if (!boundary) {
+    return { state: "unknown", value: null };
+  }
+  if (
+    boundary.state === "absent-uncovered" &&
+    boundary.reason === BOUNDARY_EDGE_FACT_MISSING_REASON
+  ) {
+    return { state: "unknown", value: null };
+  }
+  if (boundary.state === "present") {
+    const display = (boundary.value.display ?? "").trim();
+    if (display) return present(display);
+    return absent("property-boundary-edge present with no display");
+  }
+  return facetFrom(boundary, () => "");
+}
+
 /** A setback axis -> the card's own display fragment. */
 function axisText(axis: SetbackAxis, label: string): string {
   // AMENDMENT 2: a NOT-SPECIFIED axis carries a NULL distance. The absence is
@@ -389,6 +423,7 @@ export function bakedCardModelFromSheet(sheet: ParcelFactSheet): BakedCardModel 
     pipeline: pipelineFacetFromSheet(sheet.pipeline),
     well: wellFacetFromSheet(sheet.well),
     footprint: footprintFacetFromSheet(sheet.footprint),
+    boundary: boundaryFacetFromSheet(sheet.boundary),
     envelopeApproximate: env.kind === "derived" ? env.approximate : env.kind === "consumed",
     envelopeStatus:
       env.kind === "derived" ? "ok" : env.kind === "consumed" ? "no-buildable-area" : "declined",

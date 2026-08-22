@@ -10,6 +10,7 @@ name: Command Center CI
 # Included in serve-pe-p49 (P-49 / WDLL 3 pipelineFact inspect copy).
 # Included in serve-pe-p50 (P-50 / WDLL 4 wellFact inspect copy).
 # Included in serve-pe-p51 (P-51 / WDLL 5 buildingFootprintFact inspect copy).
+# Included in serve-pe-p53 (P-53 / WDLL 6 boundaryEdgeFact inspect copy).
 
 on:
   pull_request:

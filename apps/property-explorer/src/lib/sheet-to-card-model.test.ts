@@ -23,6 +23,7 @@ import {
   specialDistrictFacetFromSheet,
   wellFacetFromSheet,
   footprintFacetFromSheet,
+  boundaryFacetFromSheet,
 } from "./sheet-to-card-model";
 import { FLOOD_HAZARD_FACT_MISSING_REASON } from "./baked-facets";
 
@@ -720,6 +721,79 @@ describe("buildingFootprintFact inspect row (P-51 / WDLL 5)", () => {
       value: null,
     });
     expect(bakedCardModelFromSheet(sheet()).footprint).toEqual({
+      state: "unknown",
+      value: null,
+    });
+  });
+});
+
+describe("boundaryEdgeFact inspect row (P-53 / WDLL 6)", () => {
+  it("gold-shaped present fixture shows role=front from the body", () => {
+    const model = bakedCardModelFromSheet(
+      sheet({
+        boundary: {
+          state: "present",
+          value: {
+            role: "front",
+            entityId: "48021:34137:boundary:2",
+            display: "front",
+          },
+          provenance: {
+            ...prov(),
+            source: "property-boundary-edge",
+            sourceLabel: "property-boundary-edge atom",
+          },
+        },
+      }),
+    );
+    expect(model.boundary.state).toBe("present");
+    expect(model.boundary.value).toBe("front");
+    expect(model.boundary.value).not.toMatch(/txgio_parcel/);
+    expect(model.boundary.value).not.toMatch(/GIS/);
+  });
+
+  it("gold-shaped atom-miss fixture does not render a GIS ring", () => {
+    const facet = boundaryFacetFromSheet({
+      state: "unresolved",
+      reason: "property-boundary-edge atom-miss",
+      retryable: false,
+    });
+    expect(facet.state).toBe("pending");
+    expect(facet.value).toMatch(/property-boundary-edge/);
+    expect(facet.value).toMatch(/atom-miss/);
+    expect(JSON.stringify(facet)).not.toMatch(/txgio_parcel/);
+    expect(JSON.stringify(facet)).not.toMatch(/parcelRing/);
+  });
+
+  it("last token is not role: body front wins over :boundary:0 token", () => {
+    const model = bakedCardModelFromSheet(
+      sheet({
+        boundary: {
+          state: "present",
+          value: {
+            role: "front",
+            entityId: "48021:34137:boundary:0",
+            display: "front",
+          },
+          provenance: {
+            ...prov(),
+            source: "property-boundary-edge",
+            sourceLabel: "property-boundary-edge atom",
+          },
+        },
+      }),
+    );
+    expect(model.boundary.value).toBe("front");
+    expect(model.boundary.value).not.toBe("0");
+    expect(model.boundary.value).not.toBe("rear");
+  });
+
+  it("missing field hides the row (unknown)", () => {
+    expect(boundaryFacetFromSheet(undefined)).toEqual({
+      state: "unknown",
+      value: null,
+    });
+    expect(bakedCardModelFromSheet(sheet()).boundary).toEqual({
       state: "unknown",
       value: null,
     });

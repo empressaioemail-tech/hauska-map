@@ -319,6 +319,10 @@ export const ROW_SPECS: Record<string, FactRowSpec> = {
     wouldBeFilledBy: "a building-footprint atom on this parcel",
     labelledAbsenceIsCovered: true,
   },
+  boundary: {
+    wouldBeFilledBy: "a property-boundary-edge atom on this parcel",
+    labelledAbsenceIsCovered: true,
+  },
 };
 
 /** One provenance chip: a labeled atom reference tappable to open detail. */
@@ -627,6 +631,7 @@ export function InspectCard({
         { key: "pipeline", label: "Pipeline", fact: toFactPresentation(baked.pipeline, ROW_SPECS.pipeline), testid: "inspect-pipeline" },
         { key: "well", label: "Well", fact: toFactPresentation(baked.well, ROW_SPECS.well), testid: "inspect-well" },
         { key: "footprint", label: "Footprint", fact: toFactPresentation(baked.footprint, ROW_SPECS.footprint), testid: "inspect-footprint" },
+        { key: "boundary", label: "Boundary", fact: toFactPresentation(baked.boundary, ROW_SPECS.boundary), testid: "inspect-boundary" },
       ]
     : [];
 

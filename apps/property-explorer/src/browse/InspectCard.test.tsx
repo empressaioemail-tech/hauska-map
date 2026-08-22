@@ -777,3 +777,81 @@ describe("InspectCard Footprint row — buildingFootprintFact (P-51)", () => {
     expect(html).not.toContain(":primary");
   });
 });
+
+describe("InspectCard Boundary row — boundaryEdgeFact (P-53)", () => {
+  it("gold-shaped present fixture shows role=front from the body", () => {
+    const html = renderToStaticMarkup(
+      <dl>
+        <FactRow
+          label="Boundary"
+          fact={toFactPresentation(
+            { state: "present", value: "front" },
+            ROW_SPECS.boundary,
+          )}
+          testid="inspect-boundary"
+        />
+      </dl>,
+    );
+    expect(html).toContain('data-testid="inspect-boundary"');
+    expect(html).toContain("Boundary");
+    expect(html).toContain("front");
+    expect(html).not.toContain("txgio_parcel");
+    expect(html).not.toContain("GIS");
+  });
+
+  it("gold-shaped atom-miss fixture stays visible and does not paint a GIS ring", () => {
+    const html = renderToStaticMarkup(
+      <dl>
+        <FactRow
+          label="Boundary"
+          fact={toFactPresentation(
+            { state: "pending", value: "property-boundary-edge atom-miss" },
+            ROW_SPECS.boundary,
+          )}
+          testid="inspect-boundary"
+        />
+      </dl>,
+    );
+    expect(html).toContain('data-testid="inspect-boundary"');
+    expect(html).toContain("property-boundary-edge");
+    expect(html).toContain("atom-miss");
+    expect(html).not.toContain("txgio_parcel");
+    expect(html).not.toContain("parcelRing");
+  });
+
+  it("last token is not role: front body is not painted as 0", () => {
+    const html = renderToStaticMarkup(
+      <dl>
+        <FactRow
+          label="Boundary"
+          fact={toFactPresentation(
+            { state: "present", value: "front" },
+            ROW_SPECS.boundary,
+          )}
+          testid="inspect-boundary"
+        />
+      </dl>,
+    );
+    expect(html).toContain("front");
+    expect(html).not.toContain(">0<");
+    expect(html).not.toContain("txgio_parcel");
+  });
+
+  it("missing boundaryEdgeFact hides the Boundary row (unknown, not invented)", () => {
+    const html = renderToStaticMarkup(
+      <dl>
+        <FactRow
+          label="Boundary"
+          fact={toFactPresentation(
+            { state: "unknown", value: null },
+            ROW_SPECS.boundary,
+          )}
+          testid="inspect-boundary"
+        />
+      </dl>,
+    );
+    expect(html).not.toContain("inspect-boundary");
+    expect(html).not.toContain("Boundary");
+    expect(html).not.toContain("txgio_parcel");
+  });
+});
