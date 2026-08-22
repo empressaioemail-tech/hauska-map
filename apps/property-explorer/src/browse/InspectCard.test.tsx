@@ -583,3 +583,61 @@ describe("InspectCard Special district row — specialDistrictFact (P-48)", () =
     expect(html).not.toContain("The Colony");
   });
 });
+
+describe("InspectCard Pipeline row — pipelineFact (P-49)", () => {
+  it("present-near fixture shows t4permit=05781", () => {
+    const html = renderToStaticMarkup(
+      <dl>
+        <FactRow
+          label="Pipeline"
+          fact={toFactPresentation(
+            { state: "present", value: "ENERGY TRANSFER COMPANY · T-4 05781 · 87.9 m" },
+            ROW_SPECS.pipeline,
+          )}
+          testid="inspect-pipeline"
+        />
+      </dl>,
+    );
+    expect(html).toContain('data-testid="inspect-pipeline"');
+    expect(html).toContain("05781");
+    expect(html).toContain("ENERGY TRANSFER COMPANY");
+  });
+
+  it("gold-shaped present-outside fixture stays visible and does not paint ENERGY TRANSFER", () => {
+    const html = renderToStaticMarkup(
+      <dl>
+        <FactRow
+          label="Pipeline"
+          fact={toFactPresentation(
+            { state: "present", value: "outside pipeline buffer" },
+            ROW_SPECS.pipeline,
+          )}
+          testid="inspect-pipeline"
+        />
+      </dl>,
+    );
+    expect(html).toContain('data-testid="inspect-pipeline"');
+    expect(html).toContain("outside pipeline buffer");
+    expect(html).not.toContain("ENERGY TRANSFER");
+    expect(html).not.toContain("Prairie Lea");
+    expect(html).not.toContain("05781");
+  });
+
+  it("missing pipelineFact hides the Pipeline row (unknown, not invented)", () => {
+    const html = renderToStaticMarkup(
+      <dl>
+        <FactRow
+          label="Pipeline"
+          fact={toFactPresentation(
+            { state: "unknown", value: null },
+            ROW_SPECS.pipeline,
+          )}
+          testid="inspect-pipeline"
+        />
+      </dl>,
+    );
+    expect(html).not.toContain("inspect-pipeline");
+    expect(html).not.toContain("Pipeline");
+    expect(html).not.toContain("ENERGY TRANSFER");
+  });
+});

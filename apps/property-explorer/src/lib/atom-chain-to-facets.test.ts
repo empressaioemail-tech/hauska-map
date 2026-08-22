@@ -655,6 +655,121 @@ describe("mergeBakedBaseFacts — specialDistrictFact from cortex JSON ROOT (P-4
   });
 });
 
+const goldPipelineOutsideFact = {
+  state: "present" as const,
+  source: "rrc-pipeline-fact",
+  boundAs: "48021:34137",
+  tried: ["48021:34137", "48021:34137.00000000"],
+  entityId: "48021:34137",
+  nearPipeline: false,
+  bufferMeters: 152.4,
+  nearestPipelineDistanceMeters: null,
+  t4permit: null,
+  p5Num: null,
+  operatorName: null,
+  systemName: null,
+  commodity: null,
+  sourceAdapter: "tx-rrc-pipeline-staged-v1",
+  sourceVintage: "UNKNOWN",
+  evaluatedAt: "2026-08-16T15:30:55.035Z",
+};
+
+const nearbyPipelineFact = {
+  state: "present" as const,
+  source: "rrc-pipeline-fact",
+  boundAs: "48021:10048",
+  tried: ["48021:10048", "48021:10048.00000000"],
+  entityId: "48021:10048",
+  nearPipeline: true,
+  bufferMeters: 152.4,
+  nearestPipelineDistanceMeters: 87.9,
+  t4permit: "05781",
+  p5Num: "252017",
+  operatorName: "ENERGY TRANSFER COMPANY",
+  systemName: "PRAIRIE LEA",
+  commodity: "NATURAL GAS",
+  sourceAdapter: "tx-rrc-pipeline-staged-v1",
+  sourceVintage: "UNKNOWN",
+  evaluatedAt: "2026-08-16T15:30:55.035Z",
+};
+
+const bakePipelineGis = {
+  operatorName: "ENERGY TRANSFER COMPANY",
+  t4permit: "05781",
+  source: "texas-rrc",
+};
+
+describe("mergeBakedBaseFacts — pipelineFact from cortex JSON ROOT (P-49)", () => {
+  it("copies a fixture pipelineFact from the cortex root onto the atom-chain payload", () => {
+    const adapted = adaptAtomChainToBakedFacets(haysChain)!;
+    const merged = mergeBakedBaseFacts(adapted, {
+      ...bakedCortexBody,
+      pipelineFact: nearbyPipelineFact,
+    });
+    expect(merged.pipelineFact).toEqual(nearbyPipelineFact);
+    expect(merged.pipelineFact?.t4permit).toBe("05781");
+    expect(merged.pipelineFact?.operatorName).toBe("ENERGY TRANSFER COMPANY");
+    expect(merged.pipelineFact?.source).toBe("rrc-pipeline-fact");
+    expect(merged.baseFactsMerged).toBe(true);
+  });
+
+  it("does not copy bake / GIS onto pipelineFact", () => {
+    const adapted = adaptAtomChainToBakedFacets(haysChain)!;
+    const merged = mergeBakedBaseFacts(adapted, {
+      ...bakedCortexBody,
+      facets: {
+        ...bakedCortexBody.facets,
+        texasRrc: bakePipelineGis,
+        pipeline: bakePipelineGis,
+      },
+      texasRrc: bakePipelineGis,
+    });
+    expect("pipelineFact" in merged).toBe(false);
+    expect(merged.pipelineFact).toBeUndefined();
+    expect(JSON.stringify(merged.pipelineFact ?? {})).not.toMatch(/ENERGY TRANSFER/);
+    expect(JSON.stringify(merged.pipelineFact ?? {})).not.toMatch(/texas-rrc/);
+  });
+
+  it("does not adopt a bake / GIS object parked on the root", () => {
+    const adapted = adaptAtomChainToBakedFacets(haysChain)!;
+    const merged = mergeBakedBaseFacts(adapted, {
+      ...bakedCortexBody,
+      pipelineFact: bakePipelineGis,
+    });
+    expect("pipelineFact" in merged).toBe(false);
+  });
+
+  it("missing field stays missing — never invents ENERGY TRANSFER", () => {
+    const adapted = adaptAtomChainToBakedFacets(haysChain)!;
+    const merged = mergeBakedBaseFacts(adapted, bakedCortexBody);
+    expect("pipelineFact" in merged).toBe(false);
+    expect(JSON.stringify(merged)).not.toMatch(/ENERGY TRANSFER/);
+  });
+
+  it("early return (no facets) still attaches pipelineFact when the root carries it", () => {
+    const adapted = adaptAtomChainToBakedFacets(haysChain)!;
+    const merged = mergeBakedBaseFacts(adapted, {
+      pipelineFact: nearbyPipelineFact,
+    });
+    expect(merged.pipelineFact).toEqual(nearbyPipelineFact);
+    expect(merged.baseFactsMerged).toBeUndefined();
+  });
+
+  it("gold-shaped present-outside fixture stays present-outside and does not invent ENERGY TRANSFER", () => {
+    const adapted = adaptAtomChainToBakedFacets(haysChain)!;
+    const merged = mergeBakedBaseFacts(adapted, {
+      ...bakedCortexBody,
+      pipelineFact: goldPipelineOutsideFact,
+    });
+    expect(merged.pipelineFact?.state).toBe("present");
+    expect(merged.pipelineFact?.nearPipeline).toBe(false);
+    expect(merged.pipelineFact?.t4permit).toBeNull();
+    expect(merged.pipelineFact?.operatorName).toBeNull();
+    expect(JSON.stringify(merged.pipelineFact)).not.toMatch(/ENERGY TRANSFER/);
+    expect(JSON.stringify(merged.pipelineFact)).not.toMatch(/PRAIRIE LEA/);
+  });
+});
+
 describe("adaptAtomChainToBakedFacets — warm verify honest decline (141364 / superseded-prop-id)", () => {
   it("surfaces named superseded-prop-id decline instead of setback-rule-pending", () => {
     const chain: PropertyAtomChain = {

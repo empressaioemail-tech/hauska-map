@@ -385,6 +385,19 @@ export interface ParcelFactSheet {
     districtType: string | null;
     districtName: string | null;
   }>;
+  /**
+   * ADDITIVE (P-49 / 2026-08-22). Pipeline from cortex-root pipelineFact.
+   * Optional so existing sealed stubs stay valid. Missing means the inspect
+   * payload did not carry the field (hide the row). Never invent ENERGY
+   * TRANSFER on gold. Never populated from bake / CAD / texas-rrc GIS.
+   */
+  pipeline?: Fact<{
+    nearPipeline: boolean;
+    operatorName: string | null;
+    t4permit: string | null;
+    nearestPipelineDistanceMeters: number | null;
+    display: string;
+  }>;
   site: SiteConditions;
 
   /**

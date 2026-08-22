@@ -35,6 +35,7 @@ import {
 } from "@empressaio/parcel-fact-sheet";
 import {
   FLOOD_HAZARD_FACT_MISSING_REASON,
+  PIPELINE_FACT_MISSING_REASON,
   SPECIAL_DISTRICT_FACT_MISSING_REASON,
   type BakedCardModel,
   type CardFacet,
@@ -141,6 +142,41 @@ export function specialDistrictFacetFromSheet(
     return absent("special-district-fact present with no districtType or districtName");
   }
   return facetFrom(specialDistrict, () => "");
+}
+
+/**
+ * Pipeline row from sheet.pipeline, which the resolver fills from
+ * pipelineFact only. Missing field → unknown (InspectCard hides the row).
+ * Gold present-outside uses the resolver's outside-buffer wording and never
+ * carries ENERGY TRANSFER. Present-near shows operator / permit / distance
+ * from the atom. Typed absence stays visible.
+ */
+export function pipelineFacetFromSheet(
+  pipeline:
+    | Fact<{
+        nearPipeline: boolean;
+        operatorName: string | null;
+        t4permit: string | null;
+        nearestPipelineDistanceMeters: number | null;
+        display: string;
+      }>
+    | undefined,
+): CardFacet<string> {
+  if (!pipeline) {
+    return { state: "unknown", value: null };
+  }
+  if (
+    pipeline.state === "absent-uncovered" &&
+    pipeline.reason === PIPELINE_FACT_MISSING_REASON
+  ) {
+    return { state: "unknown", value: null };
+  }
+  if (pipeline.state === "present") {
+    const display = (pipeline.value.display ?? "").trim();
+    if (display) return present(display);
+    return absent("rrc-pipeline-fact present with no display");
+  }
+  return facetFrom(pipeline, () => "");
 }
 
 /** A setback axis -> the card's own display fragment. */
@@ -281,6 +317,7 @@ export function bakedCardModelFromSheet(sheet: ParcelFactSheet): BakedCardModel 
     buildablePct,
     flood: floodFacetFromSheet(sheet.flood),
     specialDistrict: specialDistrictFacetFromSheet(sheet.specialDistrict),
+    pipeline: pipelineFacetFromSheet(sheet.pipeline),
     envelopeApproximate: env.kind === "derived" ? env.approximate : env.kind === "consumed",
     envelopeStatus:
       env.kind === "derived" ? "ok" : env.kind === "consumed" ? "no-buildable-area" : "declined",

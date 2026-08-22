@@ -307,6 +307,10 @@ export const ROW_SPECS: Record<string, FactRowSpec> = {
     wouldBeFilledBy: "a special-district-fact atom on this parcel",
     labelledAbsenceIsCovered: true,
   },
+  pipeline: {
+    wouldBeFilledBy: "an rrc-pipeline-fact atom on this parcel",
+    labelledAbsenceIsCovered: true,
+  },
 };
 
 /** One provenance chip: a labeled atom reference tappable to open detail. */
@@ -612,6 +616,7 @@ export function InspectCard({
         { key: "buildable", label: "Buildable", fact: toFactPresentation(baked.buildablePct, ROW_SPECS.buildable), chipRow: "buildable" },
         { key: "flood", label: "Flood", fact: toFactPresentation(baked.flood, ROW_SPECS.flood), testid: "inspect-flood" },
         { key: "specialDistrict", label: "Special district", fact: toFactPresentation(baked.specialDistrict, ROW_SPECS.specialDistrict), testid: "inspect-special-district" },
+        { key: "pipeline", label: "Pipeline", fact: toFactPresentation(baked.pipeline, ROW_SPECS.pipeline), testid: "inspect-pipeline" },
       ]
     : [];
 

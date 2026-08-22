@@ -264,6 +264,31 @@ export type SpecialDistrictFactWire = {
   sourceAdapter?: unknown;
 };
 
+/**
+ * Cortex inspect GET sibling (P-49 / rrc-pipeline-fact). Spatial overlay at
+ * WRITE time — no :sd: / :pipeline: picker on this family.
+ */
+export type PipelineFactWire = {
+  state: "present" | "absent" | "refused";
+  nearPipeline?: unknown;
+  bufferMeters?: unknown;
+  nearestPipelineDistanceMeters?: unknown;
+  t4permit?: unknown;
+  p5Num?: unknown;
+  operatorName?: unknown;
+  systemName?: unknown;
+  commodity?: unknown;
+  absence?: { kind?: string; reason?: string } | null;
+  code?: unknown;
+  source?: unknown;
+  sourceVintage?: unknown;
+  evaluatedAt?: unknown;
+  boundAs?: unknown;
+  tried?: unknown;
+  entityId?: unknown;
+  sourceAdapter?: unknown;
+};
+
 export interface PeBakedFacetsResponse {
   parcelNodeId: string;
   adapterKey: string;
@@ -288,6 +313,11 @@ export interface PeBakedFacetsResponse {
    * JSON ROOT only. Never populated from bake / CAD / mud-pid.
    */
   specialDistrictFact?: SpecialDistrictFactWire;
+  /**
+   * Pipeline from rrc-pipeline-fact atoms. Copied from the cortex JSON ROOT
+   * only. Never populated from bake / CAD / texas-rrc GIS.
+   */
+  pipelineFact?: PipelineFactWire;
 }
 
 export function isPropertyAtomPathEnabled(
@@ -491,13 +521,49 @@ function withSpecialDistrictFact(
   return { ...atomResponse, specialDistrictFact: fact };
 }
 
+/** Cortex inspect GET sibling of flood / land-use / special-district (P-49). */
+export function isPipelineFactWire(
+  value: unknown,
+): value is PipelineFactWire {
+  if (!value || typeof value !== "object" || Array.isArray(value)) return false;
+  const state = (value as { state?: unknown }).state;
+  return state === "present" || state === "absent" || state === "refused";
+}
+
+/**
+ * Cortex JSON ROOT only. Never reads bake / CAD / texas-rrc GIS or a nested
+ * facets copy. A bake / GIS object parked on the root has no state and is
+ * rejected. No :sd: / :pipeline: picker.
+ */
+export function pipelineFactFromCortexRoot(
+  bakedBody: unknown,
+): PipelineFactWire | undefined {
+  if (!bakedBody || typeof bakedBody !== "object" || Array.isArray(bakedBody)) {
+    return undefined;
+  }
+  const fact = (bakedBody as { pipelineFact?: unknown }).pipelineFact;
+  return isPipelineFactWire(fact) ? fact : undefined;
+}
+
+function withPipelineFact(
+  atomResponse: PeBakedFacetsResponse,
+  bakedBody: unknown,
+): PeBakedFacetsResponse {
+  const fact = pipelineFactFromCortexRoot(bakedBody);
+  if (fact === undefined) return atomResponse;
+  return { ...atomResponse, pipelineFact: fact };
+}
+
 function withRootFacts(
   atomResponse: PeBakedFacetsResponse,
   bakedBody: unknown,
 ): PeBakedFacetsResponse {
-  return withSpecialDistrictFact(
-    withLandUseFact(
-      withFloodHazardFact(atomResponse, bakedBody),
+  return withPipelineFact(
+    withSpecialDistrictFact(
+      withLandUseFact(
+        withFloodHazardFact(atomResponse, bakedBody),
+        bakedBody,
+      ),
       bakedBody,
     ),
     bakedBody,
@@ -528,6 +594,8 @@ function withRootFacts(
  * only. Do not adopt baked facets.baseFacts.landUse as landUseFact.
  * specialDistrictFact is the same shape family (P-48 / LDT 451): copy from
  * the cortex JSON ROOT only. Do not adopt bake / CAD / mud-pid as that field.
+ * pipelineFact is the same shape family (P-49): copy from the cortex JSON
+ * ROOT only. Do not adopt bake / CAD / texas-rrc GIS as that field.
  * If facets are missing, still attach the root fields when they are present.
  */
 export function mergeBakedBaseFacts(
@@ -537,8 +605,8 @@ export function mergeBakedBaseFacts(
   const baked = (bakedBody as { facets?: PeBakedFacetPayload } | null | undefined)
     ?.facets;
   if (!baked || typeof baked !== "object") {
-    // Facets missing: still forward root flood / land-use / special-district.
-    // Identity-return only when those fields are also absent.
+    // Facets missing: still forward root flood / land-use / special-district /
+    // pipeline. Identity-return only when those fields are also absent.
     return withRootFacts(atomResponse, bakedBody);
   }
 

@@ -122,6 +122,37 @@ describe("stripCortexEnvelopeProductTruth (anti-zombie)", () => {
     }) as Record<string, unknown>;
     expect("specialDistrictFact" in noRoot).toBe(false);
   });
+
+  it("preserves cortex-root pipelineFact and does not invent one from bake / texas-rrc GIS", () => {
+    const goldFact = {
+      state: "present",
+      source: "rrc-pipeline-fact",
+      nearPipeline: false,
+      t4permit: null,
+      operatorName: null,
+    };
+    const withRoot = stripCortexEnvelopeProductTruth({
+      pipelineFact: goldFact,
+      facets: {
+        texasRrc: { operatorName: "ENERGY TRANSFER COMPANY", source: "texas-rrc" },
+        envelope: { status: "ok" },
+      },
+    }) as {
+      pipelineFact: { source: string; nearPipeline: boolean };
+      facets: { texasRrc: { operatorName: string } };
+    };
+    expect(withRoot.pipelineFact.source).toBe("rrc-pipeline-fact");
+    expect(withRoot.pipelineFact.nearPipeline).toBe(false);
+    expect(withRoot.facets.texasRrc.operatorName).toBe("ENERGY TRANSFER COMPANY");
+
+    const noRoot = stripCortexEnvelopeProductTruth({
+      facets: {
+        texasRrc: { operatorName: "ENERGY TRANSFER COMPANY", source: "texas-rrc" },
+        envelope: { status: "ok" },
+      },
+    }) as Record<string, unknown>;
+    expect("pipelineFact" in noRoot).toBe(false);
+  });
 });
 
 const PADDED = "48021:34137.00000000";
@@ -168,6 +199,14 @@ const COLONY_MUD = {
   districtType: "MUD",
   districtName: "The Colony MUD 1C",
   entityId: "48021:102817:sd:3504125",
+};
+const GOLD_PIPELINE_OUTSIDE = {
+  state: "present",
+  source: "rrc-pipeline-fact",
+  entityId: "48021:34137",
+  nearPipeline: false,
+  t4permit: null,
+  operatorName: null,
 };
 
 function jsonResponse(body: unknown, status = 200): Response {
@@ -352,6 +391,48 @@ describe("fetchCortexFacetsWithAlias floodHazardFact (WDLL 5)", () => {
     expect(JSON.stringify(body.specialDistrictFact)).not.toMatch(/BAKE MUD/);
     expect(JSON.stringify(body.specialDistrictFact)).not.toMatch(/mud-pid/);
   });
+
+  it("padded cortex missing pipelineFact aliases integer root even when flood / land-use / special-district are already on the padded body", async () => {
+    process.env.CORTEX_API_URL = "https://cortex.test";
+    process.env.CORTEX_SERVICE_API_KEY = "ck";
+    vi.stubGlobal("fetch", async (input: RequestInfo | URL) => {
+      const url = String(input);
+      if (url.includes(encodeURIComponent(PADDED))) {
+        return jsonResponse({
+          parcelNodeId: PADDED,
+          floodHazardFact: GOLD_FLOOD,
+          landUseFact: GOLD_LAND_USE,
+          specialDistrictFact: COLONY_MUD,
+          facets: {
+            texasRrc: { operatorName: "BAKE ENERGY TRANSFER", source: "texas-rrc" },
+          },
+        });
+      }
+      if (url.includes(encodeURIComponent(INTEGER))) {
+        return jsonResponse({
+          parcelNodeId: INTEGER,
+          floodHazardFact: GOLD_FLOOD,
+          landUseFact: GOLD_LAND_USE,
+          specialDistrictFact: COLONY_MUD,
+          pipelineFact: GOLD_PIPELINE_OUTSIDE,
+          facets: {
+            texasRrc: { operatorName: "BAKE ENERGY TRANSFER", source: "texas-rrc" },
+          },
+        });
+      }
+      throw new Error(`unexpected fetch ${url}`);
+    });
+    const result = await fetchCortexFacetsWithAlias(PADDED);
+    expect(result.status).toBe(200);
+    const body = JSON.parse(result.body) as {
+      pipelineFact?: { source?: string; nearPipeline?: boolean; t4permit?: string | null };
+    };
+    expect(body.pipelineFact?.source).toBe("rrc-pipeline-fact");
+    expect(body.pipelineFact?.nearPipeline).toBe(false);
+    expect(body.pipelineFact?.t4permit).toBeNull();
+    expect(JSON.stringify(body.pipelineFact)).not.toMatch(/BAKE ENERGY TRANSFER/);
+    expect(JSON.stringify(body.pipelineFact)).not.toMatch(/texas-rrc/);
+  });
 });
 
 describe("handlePropertyAtomsFacets dual-grammar echo (WDLL 5)", () => {
@@ -403,6 +484,7 @@ describe("handlePropertyAtomsFacets dual-grammar echo (WDLL 5)", () => {
           floodHazardFact: GOLD_FLOOD,
           landUseFact: GOLD_LAND_USE,
           specialDistrictFact: COLONY_MUD,
+          pipelineFact: GOLD_PIPELINE_OUTSIDE,
           facets: { baseFacts: {} },
         });
       }
@@ -450,6 +532,7 @@ describe("handlePropertyAtomsFacets dual-grammar echo (WDLL 5)", () => {
       floodHazardFact?: { floodZone?: string };
       landUseFact?: { landUseCode?: string; source?: string };
       specialDistrictFact?: { districtName?: string; source?: string };
+      pipelineFact?: { source?: string; nearPipeline?: boolean };
       facets: { parcelNodeId?: string; zoning?: { district?: string } };
     };
     expect(body.parcelNodeId).toBe(PADDED);
@@ -460,6 +543,9 @@ describe("handlePropertyAtomsFacets dual-grammar echo (WDLL 5)", () => {
     expect(body.landUseFact?.source).toBe("land-use-fact");
     expect(body.specialDistrictFact?.districtName).toBe("The Colony MUD 1C");
     expect(body.specialDistrictFact?.source).toBe("special-district-fact");
+    expect(body.pipelineFact?.source).toBe("rrc-pipeline-fact");
+    expect(body.pipelineFact?.nearPipeline).toBe(false);
     expect(JSON.stringify(body.floodHazardFact)).not.toMatch(/"AE"/);
+    expect(JSON.stringify(body.pipelineFact)).not.toMatch(/ENERGY TRANSFER/);
   });
 });
