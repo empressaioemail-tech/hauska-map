@@ -9,12 +9,19 @@
 import type { VercelRequest, VercelResponse } from '@vercel/node'
 import {
   buildCortexSitusSearchUrl,
-  cortexBaseUrl,
   mapSitusSearchResponse,
   parseSitusSearchParams,
 } from './_lib/pe-situs-search-core.js'
 
+const DEFAULT_CORTEX_URL = 'https://cortex-api-tds7av26va-uc.a.run.app'
 const UPSTREAM_TIMEOUT_MS = 5_000
+
+function cortexBaseUrl(): string {
+  return (process.env.CORTEX_API_URL?.trim() || DEFAULT_CORTEX_URL).replace(
+    /\/$/,
+    '',
+  )
+}
 
 export default async function handler(
   req: VercelRequest,

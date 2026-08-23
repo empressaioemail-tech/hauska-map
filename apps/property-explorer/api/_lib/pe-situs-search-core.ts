@@ -3,9 +3,6 @@
 // Pure helpers for the Property Explorer situs-search BFF (authoritative
 // TxGIO parcel situs prefix index via cortex). Framework-free for unit tests.
 
-export const DEFAULT_CORTEX_URL =
-  'https://cortex-api-tds7av26va-uc.a.run.app'
-
 export const SITUS_SEARCH_DEFAULT_LIMIT = 7
 export const SITUS_SEARCH_MAX_LIMIT = 10
 
@@ -22,13 +19,6 @@ export interface SitusSearchWireResponse {
 export interface SitusSearchParams {
   q: string
   limit: number
-}
-
-export function cortexBaseUrl(): string {
-  return (process.env.CORTEX_API_URL?.trim() || DEFAULT_CORTEX_URL).replace(
-    /\/$/,
-    '',
-  )
 }
 
 /** Validate + normalise query params into SitusSearchParams, or an error message. */

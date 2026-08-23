@@ -246,14 +246,17 @@ function floodZoneLabelFromFact(
   const state = str(flood.state);
   if (state !== "present") return null;
 
-  const zones = Array.isArray(flood.zones) ? flood.zones : null;
+  const floodRec = flood as FloodHazardFactCardInput & {
+    zones?: unknown;
+  };
+  const zones = Array.isArray(floodRec.zones) ? floodRec.zones : null;
   if (zones && zones.length > 0) {
     const codes = zones
-      .map((z) => {
+      .map((z: unknown) => {
         const row = asRecord(z);
         return row ? (str(row.floodZone) ?? str(row.zone)) : null;
       })
-      .filter((c): c is string => !!c);
+      .filter((c: string | null): c is string => !!c);
     if (codes.length > 1) return `Zones ${codes.join(", ")}`;
     if (codes.length === 1) return `Zone ${codes[0]}`;
   }
