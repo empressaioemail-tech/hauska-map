@@ -10,14 +10,6 @@
     "api/pe-map-layers.ts": { "maxDuration": 60 },
     "api/pe-share-view.ts": { "maxDuration": 60 }
   },
-  "redirects": [
-    {
-      "source": "/:path*",
-      "has": [{ "type": "host", "value": "smartsite.cloud" }],
-      "destination": "https://www.smartsite.cloud/:path*",
-      "permanent": true
-    }
-  ],
   "rewrites": [
     { "source": "/api/auth/(.*)", "destination": "/api/auth?upath=$1" },
     { "source": "/api/spine-deep/(.*)", "destination": "/api/spine-deep?upath=$1" },

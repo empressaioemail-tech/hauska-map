@@ -42,9 +42,9 @@ export function deployOrigin(req: { headers: Record<string, string | string[] | 
 
 /**
  * Canonical origin for OAuth redirect_uri construction. When set
- * (PE_OIDC_REDIRECT_ORIGIN), every provider uses this host so Google /
- * Microsoft only need one authorized callback per deploy. Must match an
- * entry in the OAuth client's Authorized redirect URIs list exactly.
+ * (PE_OIDC_REDIRECT_ORIGIN), every provider uses this host. Production
+ * normally leaves this unset so redirect_uri follows the request host
+ * (smartsite.cloud apex). Must match an Authorized redirect URI exactly.
  */
 export function oidcRedirectOrigin(req: {
   headers: Record<string, string | string[] | undefined>
