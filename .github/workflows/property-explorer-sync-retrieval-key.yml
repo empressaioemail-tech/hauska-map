@@ -146,10 +146,11 @@ jobs:
             printf '%s' "$(cat /tmp/retrieval.key)" | vercel env add "$VAR" production --token "$VERCEL_TOKEN"
             echo "set ${VAR}"
           done
-          # Pin OAuth redirect to www so Google Console only needs one callback URI.
+          # OAuth redirect_uri follows the request host (deployOrigin). Do not pin
+          # PE_OIDC_REDIRECT_ORIGIN here — it must match Authorized redirect URIs
+          # already registered in Google Cloud (smartsite.cloud apex).
           vercel env rm PE_OIDC_REDIRECT_ORIGIN production --yes --token "$VERCEL_TOKEN" || true
-          printf '%s' "https://www.smartsite.cloud" | vercel env add PE_OIDC_REDIRECT_ORIGIN production --token "$VERCEL_TOKEN"
-          echo "set PE_OIDC_REDIRECT_ORIGIN"
+          echo "cleared PE_OIDC_REDIRECT_ORIGIN (if present)"
 
       - name: Production deploy (Vercel Root Directory = apps/property-explorer)
         env:
