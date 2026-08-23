@@ -802,7 +802,7 @@ describe("boundaryEdgeFact inspect row (P-53 / WDLL 6)", () => {
 });
 
 describe("ownerFact inspect row (P-54 / WDLL 7)", () => {
-  it("identified gold-shaped present fixture cites owner-fact taxYear=2025", () => {
+  it("identified gold-shaped present fixture shows ownerName not taxYear", () => {
     const model = bakedCardModelFromSheet(
       sheet({
         owner: {
@@ -810,7 +810,7 @@ describe("ownerFact inspect row (P-54 / WDLL 7)", () => {
           value: {
             entityId: "48021:34137:2025",
             taxYear: 2025,
-            display: "2025",
+            display: "IDENTIFIED OWNER LLC",
           },
           provenance: {
             ...prov(),
@@ -821,8 +821,8 @@ describe("ownerFact inspect row (P-54 / WDLL 7)", () => {
       }),
     );
     expect(model.owner.state).toBe("present");
-    expect(model.owner.value).toBe("2025");
-    expect(model.owner.value).not.toMatch(/ownerName/);
+    expect(model.owner.value).toBe("IDENTIFIED OWNER LLC");
+    expect(model.owner.value).not.toBe("2025");
     expect(model.owner.value).not.toMatch(/cad-parcel-roll/);
   });
 

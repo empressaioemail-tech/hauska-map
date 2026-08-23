@@ -1419,6 +1419,7 @@ describe("ownerFact only (P-54 / WDLL 7)", () => {
       source: "owner-fact",
       entityId: "48021:34137:2025",
       taxYear: 2025,
+      ownerName: "IDENTIFIED OWNER",
     };
     const stub = installFetchStub({ facets: wire, gisFeatures: [SUBJECT_FEATURE] });
     const sheet = await sheetOf(makeResolver(stub), NODE_ID);
@@ -1426,11 +1427,30 @@ describe("ownerFact only (P-54 / WDLL 7)", () => {
     if (sheet.owner?.state !== "present") throw new Error("unreachable");
     expect(sheet.owner.value.entityId).toBe("48021:34137:2025");
     expect(sheet.owner.value.taxYear).toBe(2025);
-    expect(sheet.owner.value.display).toBe("2025");
+    expect(sheet.owner.value.display).toBe("IDENTIFIED OWNER");
+    expect(sheet.owner.value.display).not.toBe("2025");
     expect(sheet.owner.provenance.source).toBe("owner-fact");
     expect(JSON.stringify(sheet.owner)).not.toMatch(/ownerName/);
     expect(JSON.stringify(sheet.owner)).not.toMatch(/mailing/);
     expect(JSON.stringify(sheet.owner)).not.toMatch(/cad-parcel-roll/);
+  });
+
+  it("present owner-fact without ownerName is unresolved — never taxYear as display", async () => {
+    const wire = facetsWire() as unknown as Record<string, unknown>;
+    wire.ownerFact = {
+      state: "present",
+      source: "owner-fact",
+      entityId: "48021:34137:2025",
+      taxYear: 2025,
+    };
+    const stub = installFetchStub({ facets: wire, gisFeatures: [SUBJECT_FEATURE] });
+    const sheet = await sheetOf(makeResolver(stub), NODE_ID);
+    expect(sheet.owner?.state).toBe("unresolved");
+    if (sheet.owner?.state !== "unresolved") throw new Error("unreachable");
+    expect(sheet.owner.reason).toBe(
+      "owner-fact present without ownerName on this tier",
+    );
+    expect(JSON.stringify(sheet.owner)).not.toMatch(/"display":"2025"/);
   });
 
   it("anonymous identified-session-required has no owner body", async () => {

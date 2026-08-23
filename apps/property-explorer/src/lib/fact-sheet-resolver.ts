@@ -790,8 +790,9 @@ function boundaryFromInspectWire(
  *
  * Prefer the cortex field. Never adopt bake / CAD / cad-parcel-roll /
  * GIS owner. Source must be owner-fact. Anonymous /
- * identified-session-required has no owner body. Identified present
- * cites entityId + taxYear. identity.owner is not this field.
+ * identified-session-required has no owner body. Identified present cites
+ * entityId + taxYear + ownerName (display = ownerName, never taxYear).
+ * identity.owner is not this field.
  */
 function ownerFromInspectWire(
   ownerFact: unknown,
@@ -850,14 +851,20 @@ function ownerFromInspectWire(
   }
 
   const entityId = str(fact.entityId);
-  const display =
-    taxYear != null ? String(taxYear) : (entityId ?? "owner-fact present");
+  const ownerName = str(fact.ownerName);
+  if (!ownerName) {
+    return {
+      state: "unresolved",
+      reason: "owner-fact present without ownerName on this tier",
+      retryable: false,
+    };
+  }
   return {
     state: "present",
     value: {
       entityId,
       taxYear,
-      display,
+      display: ownerName,
     },
     provenance: prov,
   };
