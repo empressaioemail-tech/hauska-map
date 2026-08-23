@@ -79,7 +79,15 @@ export const LAYER_REGISTRY = [
   // INTERNAL/DEBUG: the derived D8 flow layer is no longer a customer layer
   // (replaced by `hydrography` on browse surfaces); CC may keep it for debug.
   { key: "hydrology-flow", label: "Hydrology flow (D8)", group: "hydrology", fixture: false, live: true, fuelGated: false },
-  { key: "buildable-envelope", label: "Buildable envelope", group: "reasoning", fixture: true, live: false, fuelGated: false },
+  { key: "buildable-envelope", label: "Buildable envelope", group: "reasoning", fixture: true, live: true, fuelGated: false },
+  {
+    key: "building-footprint",
+    label: "Building footprint",
+    group: "parcel",
+    fixture: false,
+    live: true,
+    fuelGated: false,
+  },
   { key: "constraint-density", label: "Constraint density", group: "reasoning", fixture: true, live: false, fuelGated: false },
   { key: "oz-deal-crossfilter", label: "OZ × deal score", group: "reasoning", fixture: true, live: false, fuelGated: false },
   { key: "motivated-seller", label: "Motivated seller heat", group: "investor", fixture: true, live: false, fuelGated: true },
@@ -111,9 +119,8 @@ export const LAYER_REGISTRY = [
     label: "MUD/PID districts",
     group: "regulatory",
     fixture: false,
-    live: false,
+    live: true,
     fuelGated: false,
-    emptyBasis: "No source wired in map-renderer — no live fetch and no fixture. Turning this on draws nothing anywhere.",
   },
   {
     key: "edwards-aquifer",

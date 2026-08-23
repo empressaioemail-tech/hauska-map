@@ -57,7 +57,10 @@ export function consumerKnownLayers(): Set<LayerKey> {
       key === "hydrography" ||
       key === "opportunity-zone-tract" ||
       key === "pedestrian-ways" ||
-      key === "road-nodes"
+      key === "road-nodes" ||
+      key === "building-footprint" ||
+      key === "buildable-envelope" ||
+      key === "mud-pid"
     ) {
       next.add(key);
     }
@@ -79,6 +82,9 @@ export const COLD_OPEN_OFF_BY_DEFAULT = new Set<LayerKey>([
   // shows real streets, so the map does not lose its road context. The TOGGLE
   // stays, so a user can turn road nodes back on.
   "road-nodes" as LayerKey,
+  "building-footprint" as LayerKey,
+  "buildable-envelope" as LayerKey,
+  "mud-pid" as LayerKey,
 ]);
 
 /**

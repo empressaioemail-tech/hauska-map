@@ -55,10 +55,13 @@ describe("consumer layer defaults (SS-W10 / P-46)", () => {
   });
 
   it("changes no other cold-open default", () => {
-    // Regression fence. The off-by-default set is exactly zoning (2026-08-03
-    // operator default) plus road nodes (2026-08-19). Anything else appearing
-    // here is an unannounced default flip and should fail loudly.
+    // Regression fence. Off-by-default: zoning (2026-08-03), road nodes
+    // (2026-08-19), and P-60 atom-backed optional layers (footprint, envelope
+    // wedge, mud-pid districts).
     expect([...COLD_OPEN_OFF_BY_DEFAULT].sort()).toEqual([
+      "buildable-envelope",
+      "building-footprint",
+      "mud-pid",
       "road-nodes",
       "zoning",
     ]);

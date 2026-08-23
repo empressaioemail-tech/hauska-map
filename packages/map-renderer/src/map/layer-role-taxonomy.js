@@ -238,6 +238,7 @@ export const LAYER_ROLE_BY_KEY = Object.freeze({
   etj: "CONTEXT",
   groundwater: "CONTEXT",
   "mud-pid": "CONTEXT",
+  "building-footprint": "CONTEXT",
   "edwards-aquifer": "CONTEXT",
   "texas-rrc": "CONTEXT",
   "pe-flood-zone-fill": "CONTEXT",

@@ -68,6 +68,18 @@ function isRetrievalBrowsePathAllowed(method: string, upstreamPath: string): boo
   if ((method === 'GET' || method === 'HEAD') && upstreamPath === 'road-nodes/near-bbox') {
     return true
   }
+  if (
+    (method === 'GET' || method === 'HEAD') &&
+    upstreamPath === 'building-footprints/near-bbox'
+  ) {
+    return true
+  }
+  if (
+    (method === 'GET' || method === 'HEAD') &&
+    upstreamPath === 'special-districts/near-bbox'
+  ) {
+    return true
+  }
   if ((method === 'GET' || method === 'HEAD') && /^atoms\/[^/]+$/.test(upstreamPath)) {
     return true
   }

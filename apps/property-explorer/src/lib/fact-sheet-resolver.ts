@@ -424,12 +424,17 @@ function specialDistrictFromInspectWire(
     // Bake {districtType, districtName} parked on the root is not the atom.
     return undefined;
   }
-  if (str(fact.source) === "cad-roll" || str(fact.source) === "mud-pid") {
+  if (str(fact.source) === "cad-roll") {
     return undefined;
   }
+  const rawSource = str(fact.source);
+  const sourceLabel =
+    rawSource === "mud-pid" || rawSource === "special-district-fact" || !rawSource
+      ? "special-district-fact"
+      : rawSource;
 
   const prov = provenance({
-    source: str(fact.source) ?? "special-district-fact",
+    source: sourceLabel,
     sourceLabel: "special-district-fact atom",
     vintage: str(fact.sourceVintage) ?? str(fact.evaluatedAt),
     sourceUrl: str(rec(fact.provenance)?.url),
