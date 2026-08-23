@@ -46,7 +46,17 @@ function layerAbsenceFromRecord(value: unknown): LayerAbsenceWire | null {
     asOf: o.asOf,
     basis: o.basis,
     provenanceClass:
-      typeof o.provenanceClass === "string" ? o.provenanceClass : "Record",
+      typeof o.provenanceClass === "string" ? o.provenanceClass : undefined,
+    subjectKind:
+      o.subjectKind === "intensional" ? "intensional" : o.subjectKind === "extensional" ? "extensional" : undefined,
+    chainAnchoring:
+      o.chainAnchoring === "contemporaneous"
+        ? "contemporaneous"
+        : o.chainAnchoring === "backfill"
+          ? "backfill"
+          : undefined,
+    serveLayer: typeof o.serveLayer === "string" ? o.serveLayer : undefined,
+    entityType: typeof o.entityType === "string" ? o.entityType : undefined,
   };
 }
 

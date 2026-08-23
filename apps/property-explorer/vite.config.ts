@@ -20,6 +20,9 @@ export default defineConfig({
       "@empressaio/parcel-fact-sheet": fileURLToPath(
         new URL("../../packages/parcel-fact-sheet/src/index.ts", import.meta.url),
       ),
+      "@hauska/instrument-registry": fileURLToPath(
+        new URL("../../packages/instrument-registry/src/index.ts", import.meta.url),
+      ),
     },
   },
   server: {

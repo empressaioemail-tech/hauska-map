@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import {
+  enrichLayerAbsenceWireFromRegistry,
   isLayerAbsenceWire,
   isSilentEmptyStructuralLayer,
   layerWireToCardFacet,
@@ -25,6 +26,23 @@ describe("layer-absence", () => {
     expect(facet.state).toBe("absent");
     expect(facet.value).toBe("lookup-failed");
     expect(facet.layerAbsence?.basis).toBe("CAMA not loaded");
+  });
+
+  it("enrichLayerAbsenceWireFromRegistry adds cad serveLayer from structural-fact", () => {
+    const enriched = enrichLayerAbsenceWireFromRegistry(
+      lookupFailed,
+      "structural-fact",
+    );
+    expect(enriched).toMatchObject({
+      provenanceClass: "Record",
+      serveLayer: "cad",
+      entityType: "cad-parcel-roll",
+      chainAnchoring: "backfill",
+    });
+    const facet = layerWireToCardFacet(enriched, () => null, {
+      factSource: "structural-fact",
+    });
+    expect(facet.layerAbsence?.serveLayer).toBe("cad");
   });
 
   it("isSilentEmptyStructuralLayer flags structural coverage without wire", () => {
