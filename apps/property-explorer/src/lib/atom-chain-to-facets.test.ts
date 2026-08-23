@@ -499,6 +499,74 @@ describe("mergeBakedBaseFacts — floodHazardFact from cortex JSON ROOT (WDLL 3)
   });
 });
 
+describe("mergeBakedBaseFacts — P-63 verdict layers from cortex JSON ROOT", () => {
+  it("copies structuralFact lookup-failed onto facets.livingAreaSqft", () => {
+    const adapted = adaptAtomChainToBakedFacets(haysChain)!;
+    const merged = mergeBakedBaseFacts(adapted, {
+      ...bakedCortexBody,
+      structuralFact: {
+        status: "absent",
+        verdict: "lookup-failed",
+        authority: "tad",
+        scopeSearched: "cad_property tax_year=2026 tier=cad-export",
+        asOf: "2026-08-22T00:00:00.000Z",
+        basis: "bulk_primary=true; CAMA structural fields not loaded",
+        provenanceClass: "Record",
+        source: "structural-fact",
+      },
+    });
+    expect(merged.facets.livingAreaSqft).toMatchObject({
+      status: "absent",
+      verdict: "lookup-failed",
+      authority: "tad",
+    });
+    expect(merged.facets.facetCoverage?.structural).toBe(true);
+  });
+
+  it("copies landUseFact not-applicable onto facets.zoning when district absent", () => {
+    const adapted = adaptAtomChainToBakedFacets(haysChain)!;
+    const merged = mergeBakedBaseFacts(adapted, {
+      ...bakedCortexBody,
+      facets: {
+        ...bakedCortexBody.facets,
+        zoning: null,
+      },
+      landUseFact: {
+        status: "absent",
+        verdict: "not-applicable",
+        authority: "txgio-zoning-stamp",
+        scopeSearched: "unincorporated parcel",
+        asOf: "2026-08-22T00:00:00.000Z",
+        basis: "No municipal zoning jurisdiction",
+        provenanceClass: "Record",
+      },
+    });
+    expect(merged.facets.zoning).toMatchObject({
+      status: "absent",
+      verdict: "not-applicable",
+    });
+    expect(merged.facets.facetCoverage?.zoning).toBe(false);
+  });
+
+  it("does not overwrite atom zoning district with landUseFact when district present", () => {
+    const adapted = adaptAtomChainToBakedFacets(haysChain)!;
+    const merged = mergeBakedBaseFacts(adapted, {
+      ...bakedCortexBody,
+      landUseFact: {
+        status: "absent",
+        verdict: "not-applicable",
+        authority: "txgio-zoning-stamp",
+        scopeSearched: "unincorporated parcel",
+        asOf: "2026-08-22T00:00:00.000Z",
+        basis: "No municipal zoning jurisdiction",
+        provenanceClass: "Record",
+      },
+    });
+    expect(merged.facets.zoning).toEqual(adapted.facets.zoning);
+    expect(merged.facets.zoning).not.toMatchObject({ verdict: "not-applicable" });
+  });
+});
+
 describe("adaptAtomChainToBakedFacets — warm verify honest decline (141364 / superseded-prop-id)", () => {
   it("surfaces named superseded-prop-id decline instead of setback-rule-pending", () => {
     const chain: PropertyAtomChain = {

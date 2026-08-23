@@ -40,6 +40,7 @@ import {
   type BakedCardModel,
   type CardFacet,
 } from "../lib/baked-facets";
+import type { LayerAbsenceProvenance } from "../lib/layer-absence";
 import { CORTEX_PROXY_BASE, PE_FACETS_PROXY_BASE } from "../lib/config";
 import { Button } from "../components/Button";
 import {
@@ -77,6 +78,25 @@ type Source = "loading" | "baked" | "live";
 interface ProvenanceChip {
   did: string;
   label: string;
+}
+
+interface LayerProvenanceChip {
+  id: string;
+  label: string;
+  detail: string;
+}
+
+/** Doc 19 layer-absence provenance chips (authority / scope / asOf / basis). */
+export function chipsForLayerAbsence(
+  prov: LayerAbsenceProvenance | null | undefined,
+): LayerProvenanceChip[] {
+  if (!prov) return [];
+  return [
+    { id: "authority", label: "authority", detail: prov.authority },
+    { id: "scope", label: "scope", detail: prov.scopeSearched },
+    { id: "asOf", label: "asOf", detail: prov.asOf },
+    { id: "basis", label: "basis", detail: prov.basis },
+  ];
 }
 
 /**
@@ -173,6 +193,9 @@ export function InspectCard({
   const [openChipDid, setOpenChipDid] = useState<string | null>(null);
   const toggleChip = (did: string) =>
     setOpenChipDid((cur) => (cur === did ? null : did));
+  const [openLayerChipId, setOpenLayerChipId] = useState<string | null>(null);
+  const toggleLayerChip = (id: string) =>
+    setOpenLayerChipId((cur) => (cur === id ? null : id));
   // X-ray rule-details disclosure (ratification directive 2): collapsed by
   // default, independent of the provenance-chip popover state above.
   const [xrayOpen, setXrayOpen] = useState(false);
@@ -362,12 +385,21 @@ export function InspectCard({
             <FacetRow label="County" facet={baked.county} />
             <FacetRow label="Acreage" facet={baked.acreage} />
             <FacetRow
+              label="Living area"
+              facet={baked.livingArea}
+              testid="inspect-living-area"
+              layerOpenChipId={openLayerChipId}
+              onLayerChipToggle={toggleLayerChip}
+            />
+            <FacetRow
               label="Zoning"
               facet={baked.zoning}
               testid="inspect-zoning"
               chips={chipsForRow(provenanceRefs, "zoning")}
               openChipDid={openChipDid}
               onChipToggle={toggleChip}
+              layerOpenChipId={openLayerChipId}
+              onLayerChipToggle={toggleLayerChip}
             />
             <FacetRow
               label="Setbacks"
@@ -597,7 +629,8 @@ function bakedHasHonestAbsence(m: BakedCardModel): boolean {
   return (
     m.landUse.state === "absent" ||
     m.zoning.state === "absent" ||
-    m.setbacks.state === "absent"
+    m.setbacks.state === "absent" ||
+    (!!m.livingArea.layerAbsence && !m.livingArea.silentEmpty)
   );
 }
 
@@ -794,6 +827,54 @@ function RowChips({
   );
 }
 
+function LayerAbsenceChips({
+  chips,
+  openChipId,
+  onChipToggle,
+}: {
+  chips: LayerProvenanceChip[];
+  openChipId: string | null;
+  onChipToggle: (id: string) => void;
+}) {
+  if (chips.length === 0) return null;
+  const open = chips.find((c) => c.id === openChipId) ?? null;
+  return (
+    <span style={{ display: "block", marginTop: 4 }}>
+      <span
+        style={{
+          display: "inline-flex",
+          flexWrap: "wrap",
+          gap: 3,
+          verticalAlign: "middle",
+        }}
+      >
+        {chips.map((c) => (
+          <AtomChip
+            key={c.id}
+            label={c.label}
+            isOpen={c.id === openChipId}
+            onClick={() => onChipToggle(c.id)}
+            testId="layer-absence-chip"
+          />
+        ))}
+      </span>
+      {open && (
+        <div
+          data-testid="layer-absence-detail"
+          style={{
+            marginTop: 4,
+            fontSize: 10,
+            color: MUTED,
+            fontFamily: "ui-monospace, SFMono-Regular, Menlo, monospace",
+          }}
+        >
+          {open.detail}
+        </div>
+      )}
+    </span>
+  );
+}
+
 /** A baked-facet row (QA-3): present → value; absent → specific honest-absence
  *  label or "not verified here"; pending → derived-field-pending copy (never
  *  "not verified"); unknown → hidden. Exported — see chipsForRow test-seam
@@ -805,6 +886,8 @@ export function FacetRow({
   chips = [],
   openChipDid = null,
   onChipToggle,
+  layerOpenChipId = null,
+  onLayerChipToggle,
 }: {
   label: string;
   facet: CardFacet<string>;
@@ -812,30 +895,59 @@ export function FacetRow({
   chips?: ProvenanceChip[];
   openChipDid?: string | null;
   onChipToggle?: (did: string) => void;
+  layerOpenChipId?: string | null;
+  onLayerChipToggle?: (id: string) => void;
 }) {
   if (facet.state === "unknown") return null;
   const isAbsent = facet.state === "absent";
   const isPending = facet.state === "pending";
+  const layerProv = facet.layerAbsence;
   const display =
     isPending
       ? (facet.value ?? "pending")
       : isAbsent
         ? (facet.value ?? "not verified here")
         : facet.value;
+  const absenceChips = chipsForLayerAbsence(layerProv);
+  const verdictStyle =
+    layerProv?.verdict === "lookup-failed"
+      ? { color: "var(--semantic-warning, #F59E0B)" }
+      : layerProv?.verdict === "not-applicable"
+        ? { color: "var(--semantic-not-applicable, #A78BFA)" }
+        : isAbsent || isPending
+          ? { color: ABSENT }
+          : undefined;
   return (
     <>
       <dt style={{ color: MUTED }}>{label}</dt>
       <dd
         style={{
           margin: 0,
-          color: isAbsent || isPending ? ABSENT : undefined,
           fontStyle: isAbsent || isPending ? "italic" : undefined,
+          ...verdictStyle,
         }}
         data-testid={testid}
         data-absent={isAbsent ? "true" : undefined}
         data-pending={isPending ? "true" : undefined}
+        data-verdict={layerProv?.verdict}
+        data-silent-empty={facet.silentEmpty ? "true" : undefined}
       >
         {display}
+        {layerProv && (
+          <div
+            data-testid="layer-absence-basis"
+            style={{ marginTop: 3, fontSize: 10, fontStyle: "normal" }}
+          >
+            {layerProv.basis}
+          </div>
+        )}
+        {onLayerChipToggle && absenceChips.length > 0 && (
+          <LayerAbsenceChips
+            chips={absenceChips}
+            openChipId={layerOpenChipId}
+            onChipToggle={onLayerChipToggle}
+          />
+        )}
         {onChipToggle && (
           <RowChips
             chips={chips}

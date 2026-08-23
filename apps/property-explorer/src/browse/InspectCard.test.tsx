@@ -12,6 +12,7 @@ import {
   FacetRow,
   InspectCard,
   Row,
+  chipsForLayerAbsence,
   chipsForRow,
   SetbackXrayDetail,
   liveSetbackLine,
@@ -496,5 +497,119 @@ describe("InspectCard Flood row — floodHazardFact only (WDLL 3)", () => {
     expect(html).not.toContain("Flood");
     expect(html).not.toContain("inspect-flood");
     expect(html).not.toContain("Zone");
+  });
+});
+
+describe("FacetRow — layer absence verdicts (P-63 Track B)", () => {
+  const lookupFailed = {
+    state: "absent" as const,
+    value: "lookup-failed",
+    layerAbsence: {
+      verdict: "lookup-failed" as const,
+      authority: "Tarrant Appraisal District",
+      scopeSearched: "tier:stratmap-roll; county_fips:48439",
+      asOf: "2026-08-22",
+      basis: "Registry bulk_primary=true; CAMA export not loaded",
+    },
+  };
+
+  const notApplicable = {
+    state: "absent" as const,
+    value: "not-applicable",
+    layerAbsence: {
+      verdict: "not-applicable" as const,
+      authority: "none",
+      scopeSearched: "unincorporated — no zoning authority",
+      asOf: "2026-08-22",
+      basis: "Category does not exist for this parcel shape",
+    },
+  };
+
+  const absentVerified = {
+    state: "absent" as const,
+    value: "absent-verified",
+    layerAbsence: {
+      verdict: "absent-verified" as const,
+      authority: "Bastrop County CAD",
+      scopeSearched: "cad_property.living_area_sqft",
+      asOf: "2026-08-22",
+      basis: "No improvement area on record",
+    },
+  };
+
+  it("lookup-failed renders verdict with basis visible in the DOM", () => {
+    const html = renderToStaticMarkup(
+      <dl>
+        <FacetRow
+          label="Living area"
+          facet={lookupFailed}
+          testid="inspect-living-area"
+          layerOpenChipId={null}
+          onLayerChipToggle={() => {}}
+        />
+      </dl>,
+    );
+    expect(html).toContain('data-verdict="lookup-failed"');
+    expect(html).toContain("lookup-failed");
+    expect(html).toContain("bulk_primary=true");
+    expect(html).toContain('data-testid="layer-absence-basis"');
+    expect(html).not.toContain("atom-miss");
+  });
+
+  it("not-applicable renders distinctly from absent-verified", () => {
+    const naHtml = renderToStaticMarkup(
+      <dl>
+        <FacetRow
+          label="Zoning"
+          facet={notApplicable}
+          testid="inspect-zoning"
+          layerOpenChipId={null}
+          onLayerChipToggle={() => {}}
+        />
+      </dl>,
+    );
+    const avHtml = renderToStaticMarkup(
+      <dl>
+        <FacetRow
+          label="Living area"
+          facet={absentVerified}
+          testid="inspect-living-area"
+          layerOpenChipId={null}
+          onLayerChipToggle={() => {}}
+        />
+      </dl>,
+    );
+    expect(naHtml).toContain('data-verdict="not-applicable"');
+    expect(avHtml).toContain('data-verdict="absent-verified"');
+    expect(naHtml).not.toContain("absent-verified");
+    expect(avHtml).not.toContain("not-applicable");
+  });
+
+  it("silent-empty structural row is flagged, not treated as success", () => {
+    const html = renderToStaticMarkup(
+      <dl>
+        <FacetRow
+          label="Living area"
+          facet={{
+            state: "absent",
+            value: "structural layer undeclared",
+            silentEmpty: true,
+          }}
+          testid="inspect-living-area"
+        />
+      </dl>,
+    );
+    expect(html).toContain('data-silent-empty="true"');
+    expect(html).toContain("undeclared");
+    expect(html).not.toContain('data-verdict="lookup-failed"');
+  });
+
+  it("chipsForLayerAbsence exposes authority, scope, asOf, basis", () => {
+    expect(chipsForLayerAbsence(lookupFailed.layerAbsence).map((c) => c.label)).toEqual([
+      "authority",
+      "scope",
+      "asOf",
+      "basis",
+    ]);
   });
 });

@@ -14,6 +14,7 @@ import {
   lookupNotSpecified,
   type NotSpecifiedAxes,
 } from "./setback-not-specified.js";
+import { withVerdictLayerFields } from "./verdict-layer-merge.js";
 
 export interface AtomChainAbsence {
   kind?: string;
@@ -199,7 +200,17 @@ export interface PeBakedFacetPayload {
     acreage?: boolean;
     zoning?: boolean;
     envelope?: boolean;
+    structural?: boolean;
   };
+  livingAreaSqft?: {
+    status: "populated" | "absent";
+    value?: number;
+    verdict?: string;
+    authority?: string;
+    scopeSearched?: string;
+    asOf?: string;
+    basis?: string;
+  } | null;
   provenance?: {
     parcelSource?: string;
     parcelVintage?: string | null;
@@ -403,7 +414,10 @@ export function mergeBakedBaseFacts(
   if (!baked || typeof baked !== "object") {
     // Facets missing: still forward a root floodHazardFact. Identity-return
     // only when that field is also absent.
-    return withFloodHazardFact(atomResponse, bakedBody);
+    return withVerdictLayerFields(
+      withFloodHazardFact(atomResponse, bakedBody),
+      bakedBody,
+    );
   }
 
   const bakedBase = baked.baseFacts ?? {};
@@ -474,7 +488,7 @@ export function mergeBakedBaseFacts(
       },
     },
   };
-  return withFloodHazardFact(merged, bakedBody);
+  return withVerdictLayerFields(withFloodHazardFact(merged, bakedBody), bakedBody);
 }
 
 /**

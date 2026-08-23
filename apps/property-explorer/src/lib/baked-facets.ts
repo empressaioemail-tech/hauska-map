@@ -31,8 +31,20 @@ import type {
   SetbackFieldProvenance,
   SetbackFieldNotes,
 } from "./buildable-envelope.js";
+import {
+  isLayerAbsenceWire,
+  isPopulatedLayerWire,
+  isSilentEmptyStructuralLayer,
+  layerAbsenceDisplayLabel,
+  layerAbsenceProvenanceFromWire,
+  layerWireToCardFacet,
+  type LayerAbsenceWire,
+  type LayerWire,
+} from "./layer-absence";
 
 export type { EnvelopeProvenanceRefs, SetbackFieldProvenance, SetbackFieldNotes };
+export type { LayerAbsenceVerdict, LayerAbsenceWire, LayerWire } from "./layer-absence";
+export { isSilentEmptyStructuralLayer } from "./layer-absence";
 
 /** The baked Tier-1 facet payload, mirrored from the backend contract. */
 export interface BakedFacetPayload {
@@ -52,7 +64,7 @@ export interface BakedFacetPayload {
     } | null;
     acreage?: { value: number; sqft?: number; method?: string } | null;
   };
-  zoning?: { district: string; jurisdictionKey?: string } | null;
+  zoning?: { district: string; jurisdictionKey?: string } | LayerAbsenceWire | null;
   envelope?: {
     status: "ok" | "no-buildable-area" | "declined";
     confidence?: number;
@@ -110,7 +122,15 @@ export interface BakedFacetPayload {
     acreage?: boolean;
     zoning?: boolean;
     envelope?: boolean;
+    /** True when cortex attempted the structural / CAMA-dependent read. */
+    structural?: boolean;
   };
+  /**
+   * Doc 19 §Layer — structural field wires from cortex inspect GET (P-63).
+   * Populated carries a numeric sqft; absent carries typed verdict + basis.
+   */
+  livingAreaSqft?: LayerWire<number> | null;
+  yearBuilt?: LayerWire<number> | null;
   provenance?: {
     parcelSource?: string;
     parcelVintage?: string | null;
@@ -163,6 +183,10 @@ export type FacetState = "present" | "absent" | "pending" | "unknown";
 export interface CardFacet<T> {
   state: FacetState;
   value: T | null;
+  /** Doc 19 layer absence provenance when cortex served a typed verdict. */
+  layerAbsence?: import("./layer-absence").LayerAbsenceProvenance;
+  /** Empty chain with no verdict — defect, not honest absence (P-63). */
+  silentEmpty?: boolean;
 }
 
 /** The inspect card's view-model, derived purely from a baked payload. */
@@ -181,6 +205,8 @@ export interface BakedCardModel {
    * (FacetRow hides it). Never derived from tier2.flood.
    */
   flood: CardFacet<string>;
+  /** Structural living area (doc 19 layer wire). Hidden when unknown. */
+  livingArea: CardFacet<string>;
   /** True whenever an envelope facet is present — the card must then render the
    *  "approximate / not survey grade" treatment (honesty commitment #1). */
   envelopeApproximate: boolean;
@@ -239,6 +265,52 @@ function absent<T>(message?: T): CardFacet<T> {
 }
 function pending<T>(message: T): CardFacet<T> {
   return { state: "pending", value: message };
+}
+
+function zoningLayerToCardFacet(
+  zoning: BakedFacetPayload["zoning"],
+  covZoning: boolean | undefined,
+  zoningDecline: string | null,
+): CardFacet<string> {
+  if (isLayerAbsenceWire(zoning)) {
+    return {
+      state: "absent",
+      value: layerAbsenceDisplayLabel(zoning.verdict),
+      layerAbsence: layerAbsenceProvenanceFromWire(zoning),
+    };
+  }
+  if (covZoning === true && zoning && typeof zoning === "object" && "district" in zoning) {
+    const district = (zoning as { district?: string }).district;
+    if (typeof district === "string" && district.trim()) {
+      return present(district.trim());
+    }
+  }
+  if (zoningDecline === "atom_path_pending") {
+    return pending("Loading zoning…");
+  }
+  if (zoningDecline === "no-zoning-stamp") {
+    return absent("no zoning stamp here");
+  }
+  if (zoningDecline === "zoning-absent" || zoningDecline === "no-setback-table") {
+    return absent("no zoning here");
+  }
+  return absent<string>();
+}
+
+function livingAreaLayerToCardFacet(payload: BakedFacetPayload): CardFacet<string> {
+  if (isSilentEmptyStructuralLayer(payload)) {
+    return {
+      state: "absent",
+      value: "structural layer undeclared",
+      silentEmpty: true,
+    };
+  }
+  const mapped = layerWireToCardFacet(payload.livingAreaSqft, (sqft) =>
+    typeof sqft === "number" && Number.isFinite(sqft) && sqft > 0
+      ? `${sqft.toLocaleString("en-US")} sqft`
+      : null,
+  );
+  return mapped as CardFacet<string>;
 }
 
 /**
@@ -371,18 +443,7 @@ export function deriveBakedCardModel(
 
   const zoningDecline =
     env?.status === "declined" ? env.declineReason ?? null : null;
-  // atom_path_pending is a FAILED/INCOMPLETE READ shell, not honest absence —
-  // never render it as "not verified here" (Gate C bounce bug).
-  const zoning =
-    cov.zoning === true && payload.zoning
-      ? present(payload.zoning.district)
-      : zoningDecline === "atom_path_pending"
-        ? pending("Loading zoning…")
-        : zoningDecline === "no-zoning-stamp"
-          ? absent("no zoning stamp here")
-          : zoningDecline === "zoning-absent" || zoningDecline === "no-setback-table"
-            ? absent("no zoning here")
-            : absent<string>();
+  const zoning = zoningLayerToCardFacet(payload.zoning, cov.zoning, zoningDecline);
 
   // Acreage: same rule — a real numeric value renders regardless of the
   // coverage flag; coverage only shades the wording of a genuine null.
@@ -448,6 +509,7 @@ export function deriveBakedCardModel(
     setbacks,
     buildablePct,
     flood: floodHazardFactToCardFacet(floodHazardFact),
+    livingArea: livingAreaLayerToCardFacet(payload),
     // Any present envelope is Tier-1 (shape-only, no roads) — always approximate.
     envelopeApproximate: hasEnvelope,
     envelopeStatus: env?.status ?? null,
