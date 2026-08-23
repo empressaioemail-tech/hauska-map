@@ -268,19 +268,19 @@ describe("depth-warm read path (WDLL 8)", () => {
     expect(isDepthWarmPromoted(haysChain)).toBe(false);
   });
 
-  it("adaptAtomChainToBakedFacets serves atom-chain-warm readPath with geojson", () => {
+  it("adaptAtomChainToBakedFacets serves atom-chain-warm readPath; withholds depth-warm geojson", () => {
     const resp = adaptAtomChainToBakedFacets(bastropWarm714Chain);
     expect(resp).not.toBeNull();
     expect(resp!.readPath).toBe("atom-chain-warm");
     expect(resp!.facets.envelope?.status).toBe("ok");
-    expect(resp!.facets.envelope?.geojson).toBeDefined();
-    expect(resp!.facets.envelope?.disclosure).toMatch(/no live re-derive/i);
+    expect(resp!.facets.envelope?.geojson).toBeUndefined();
+    expect(resp!.facets.envelope?.disclosure).toMatch(/live derive/i);
     expect(
       (resp!.facets.provenance as { depthWarmPromoted?: boolean }).depthWarmPromoted,
     ).toBe(true);
   });
 
-  it("live layer-23 setback on depth-warm parcel serves scalars and promoted geometry", () => {
+  it("live layer-23 setback on depth-warm parcel serves scalars only; geometry from live derive", () => {
     const chain: PropertyAtomChain = {
       parcelNodeId: "48021:34177",
       zoningFact: {
@@ -319,13 +319,12 @@ describe("depth-warm read path (WDLL 8)", () => {
       side_ft: 5,
       rear_ft: 15,
     });
-    expect(resp!.facets.envelope?.geojson).toBeDefined();
+    expect(resp!.facets.envelope?.geojson).toBeUndefined();
     expect(resp!.facets.envelope?.buildableAreaSqFt).toBe(12000);
-    expect(resp!.facets.envelope?.disclosure).toMatch(/live per-parcel record/i);
-    expect(resp!.facets.envelope?.disclosure).toMatch(/depth-warm/i);
+    expect(resp!.facets.envelope?.disclosure).toMatch(/live derive/i);
   });
 
-  it("gold 48021:34137 depth-warm + layer-23 serves geojson for map wedge parity", () => {
+  it("gold 48021:34137 depth-warm + layer-23 serves scalars; geometry from live derive", () => {
     const chain: PropertyAtomChain = {
       parcelNodeId: "48021:34137",
       zoningFact: {
@@ -374,7 +373,7 @@ describe("depth-warm read path (WDLL 8)", () => {
       side_ft: 5,
       rear_ft: 10,
     });
-    expect(resp!.facets.envelope?.geojson).toBeDefined();
+    expect(resp!.facets.envelope?.geojson).toBeUndefined();
     expect(resp!.facets.envelope?.buildableAreaSqFt).toBe(6325);
   });
 });
@@ -1452,6 +1451,6 @@ describe("adaptAtomChainToBakedFacets — P-5 silent axes keep warm area (Track 
     expect(resp!.facets.envelope?.setbacks?.not_specified?.rear).toBe(true);
     expect(resp!.facets.envelope?.buildableAreaPct).toBeUndefined();
     expect(resp!.facets.envelope?.buildableAreaSqFt).toBe(13641);
-    expect(resp!.facets.envelope?.geojson).toBeDefined();
+    expect(resp!.facets.envelope?.geojson).toBeUndefined();
   });
 });

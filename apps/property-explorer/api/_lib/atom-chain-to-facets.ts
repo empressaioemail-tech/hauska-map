@@ -1320,9 +1320,7 @@ export function adaptAtomChainToBakedFacets(
         ? (envAtom.outcome as { buildableAreaPct: number }).buildableAreaPct
         : undefined;
     const baseDisclosure = dualSourceEnvelope
-      ? geojson !== undefined && geojson !== null
-        ? "Atom-chain setback scalars from live per-parcel record (layer-23); buildable envelope geometry from depth-warm promoted ledger."
-        : "Atom-chain setback scalars from live per-parcel record (layer-23); geometry absent on depth-warm proof atom — re-derive from live setbacks."
+      ? "Atom-chain setback scalars; buildable envelope geometry from live derive (labelEdges+derive), not depth-warm ledger."
       : silentAxes
         ? buildToLineDisclosure(ns)
         : geojson === undefined || geojson === null
@@ -1340,7 +1338,7 @@ export function adaptAtomChainToBakedFacets(
       // silent — do NOT strip it. SilentAxes only blocks pct that treated
       // not_specified axes as 0 ft (the false consume-lot class).
       ...(typeof areaSqFt === "number" && areaSqFt > 0 ? { buildableAreaSqFt: areaSqFt } : {}),
-      ...(geojson !== undefined && geojson !== null ? { geojson } : {}),
+      // Geometry withheld on facets — map/export use live labelEdges+derive (WDLL unification).
     };
     envelopeCovered = true;
   }
@@ -1386,7 +1384,7 @@ export function adaptAtomChainToBakedFacets(
           ? {
               ...envelope,
               disclosure:
-                "Depth-warm verified envelope from promoted ledger — no live re-derive (27c WDLL 8).",
+                "Atom-chain setback scalars; buildable envelope geometry from live derive (labelEdges+derive), not depth-warm ledger.",
             }
           : envelope,
       facetCoverage: {

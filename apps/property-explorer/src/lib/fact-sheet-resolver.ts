@@ -82,7 +82,10 @@ import {
 import { isLayerAbsenceWire, zoningDistrictFromPayload } from "./layer-absence";
 import type { VerdictLayerSnapshot } from "./sheet-to-card-model";
 import { fetchBuildableEnvelope, parsePlaceKey } from "./buildable-envelope.js";
-import { augmentFacetsWithLiveEnvelope } from "./live-envelope-augment.js";
+import {
+  augmentFacetsWithLiveEnvelope,
+  facetsNeedLiveEnvelopeDerive,
+} from "./live-envelope-augment.js";
 import { fetchGeocodeSuggestions } from "./geocodeClient";
 import { CORTEX_PROXY_BASE, PE_FACETS_PROXY_BASE } from "./config";
 import { isValidParcelNodeId, normalizeParcelNodeId } from "./parcel-node-id";
@@ -1059,16 +1062,23 @@ function setbacksFact(facets: BakedFacetPayload): Fact<Setbacks> {
 async function patchFacetsEnvelopeFromLive(
   facets: BakedFacetPayload,
   parcelNodeId: string,
-  situsAddress: string,
+  situsAddress: string | null,
   cortexBase: string,
   fetchImpl: typeof fetch,
+  seed: GeometrySeedHint | null,
 ): Promise<void> {
+  if (!facetsNeedLiveEnvelopeDerive(facets)) return;
   const patched = await augmentFacetsWithLiveEnvelope(
     facets,
     situsAddress,
     cortexBase,
     fetchImpl,
     parcelNodeId,
+    {
+      navigationAddress: seed?.navigationAddress ?? null,
+      lat: seed?.centroid?.lat ?? null,
+      lng: seed?.centroid?.lng ?? null,
+    },
   );
   if (patched.envelope !== facets.envelope) {
     facets.envelope = patched.envelope;
@@ -1421,6 +1431,8 @@ export interface GeometrySeedHint {
   centroid?: { lat: number; lng: number } | null;
   /** GeoJSON geometry, Feature, or FeatureCollection. */
   geometry?: unknown;
+  /** Search-bar address when CAD situs on the roll is unusable. */
+  navigationAddress?: string | null;
 }
 
 export interface FactSheetResolverOptions {
@@ -1583,13 +1595,19 @@ export class PeFactSheetResolver implements FactSheetResolver {
     const landUse = landUseFromInspectWire(landUseFact, facets);
     const zoning = zoningFact(facets, fips);
     const setbacks = setbacksFact(facets);
-    if (identity.situsAddress.state === "present") {
+    const seed = this.seeds.get(parcelNodeId) ?? null;
+    const situsForDerive =
+      identity.situsAddress.state === "present"
+        ? identity.situsAddress.value
+        : null;
+    if (facetsNeedLiveEnvelopeDerive(facets)) {
       await patchFacetsEnvelopeFromLive(
         facets,
         parcelNodeId,
-        identity.situsAddress.value,
+        situsForDerive,
         this.cortexBase,
         this.fetchImpl,
+        seed,
       );
     }
     const envelope = envelopeValue(facets, setbacks, lotAreaSqFt);

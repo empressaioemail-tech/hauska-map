@@ -42,8 +42,19 @@ function round6(n) {
  */
 export function envelopeRequestBody(sel) {
   const address = typeof sel?.address === "string" ? sel.address.trim() : "";
+  const parcelNodeId =
+    typeof sel?.parcelNodeId === "string" ? sel.parcelNodeId.trim() : "";
   const lat = round6(sel?.lat);
   const lng = round6(sel?.lng);
+  if (parcelNodeId) {
+    const body = { parcel_node_id: parcelNodeId };
+    if (address) body.address = address;
+    if (lat != null && lng != null) {
+      body.lat = lat;
+      body.lng = lng;
+    }
+    return body;
+  }
   if (address) {
     const body = { address };
     // Pass Photon / txgio_address coords WITH the address so cortex honors the
