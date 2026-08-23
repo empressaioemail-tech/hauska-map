@@ -87,6 +87,7 @@ import type { GeoExtent, Suggestion } from "../lib/search-kinds";
 import {
   normalizeEnvelope,
   envelopeInsetOverlay,
+  insetParcelBySetbacks,
   setbackConsumedOverlay,
 } from "./envelope-overlay";
 import {
@@ -1217,9 +1218,21 @@ function ExplorerMapSurface({
       const outline = setbackConsumedOverlay(clickedParcelGeomRef.current);
       setEnvelopeOverlays(outline ? [outline] : []);
     } else {
-      // No atom-backed inset geometry — refuse client-side POST/setback fallback
-      // (P-60 / WDLL item 2: wedge paints only from atom-chain envelope).
-      setEnvelopeOverlays([]);
+      // Tier-1 approximation from atom-backed sheet setbacks + clicked parcel ring.
+      // NOT a POST fallback — insetParcelBySetbacks uses sealed sheet setbacks only.
+      const setbacks = result?.setbacks ?? null;
+      const hasAtomSetbacks =
+        setbacks &&
+        (setbacks.front_ft != null ||
+          setbacks.side_ft != null ||
+          setbacks.rear_ft != null);
+      const fallbackInset =
+        hasAtomSetbacks && clickedParcelGeomRef.current
+          ? insetParcelBySetbacks(clickedParcelGeomRef.current, setbacks)
+          : null;
+      setEnvelopeOverlays(
+        fallbackInset ? [envelopeInsetOverlay(fallbackInset)] : [],
+      );
     }
 
     // --- (2) Patch the ported node store (unchanged seam). ---
