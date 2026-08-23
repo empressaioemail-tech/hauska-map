@@ -1053,9 +1053,8 @@ function setbacksFact(facets: BakedFacetPayload): Fact<Setbacks> {
 }
 
 /**
- * Atom-chain facets withhold depth-warm geojson when a live layer-23 setback
- * is present (preferLiveOverWarm). Re-derive geometry from the live POST
- * before the sheet seals — never the client inset fallback.
+ * When atom-chain adapt left envelope geojson absent, re-derive geometry from
+ * the live POST before the sheet seals — never the client inset fallback.
  */
 async function patchFacetsEnvelopeFromLive(
   facets: BakedFacetPayload,

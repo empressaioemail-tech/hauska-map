@@ -1180,7 +1180,8 @@ export function adaptAtomChainToBakedFacets(
     zoningSourceAdapter,
   );
   const depthWarm = isDepthWarmPromoted(c);
-  const preferLiveOverWarm = liveSetback && depthWarm;
+  /** Live layer-23 scalars + depth-warm geometry coexist — serve both, not either/or. */
+  const dualSourceEnvelope = liveSetback && depthWarm;
   // R24/R25/R26 — full-field parity + disclosure, surfaced onto any drawn envelope.
   const dm = rule?.displayMeta ?? null;
   const fullFields: Partial<NonNullable<PeBakedFacetPayload["envelope"]>> = rule
@@ -1278,7 +1279,7 @@ export function adaptAtomChainToBakedFacets(
       provisional: true,
       emptyReason: "Setbacks consume the lot — no buildable area remains.",
       ...(typeof areaSqFt === "number" ? { buildableAreaSqFt: areaSqFt } : {}),
-      ...(geojson !== undefined && !preferLiveOverWarm ? { geojson } : {}),
+      ...(geojson !== undefined ? { geojson } : {}),
     };
     envelopeCovered = true;
   } else if (!envelope && (outcomeKind === "buildable" || setbacks)) {
@@ -1292,8 +1293,10 @@ export function adaptAtomChainToBakedFacets(
         "number"
         ? (envAtom.outcome as { buildableAreaPct: number }).buildableAreaPct
         : undefined;
-    const baseDisclosure = preferLiveOverWarm
-      ? "Atom-chain setback rule from live per-parcel record — depth-warm envelope geometry withheld (re-derive from live setbacks)."
+    const baseDisclosure = dualSourceEnvelope
+      ? geojson !== undefined && geojson !== null
+        ? "Atom-chain setback scalars from live per-parcel record (layer-23); buildable envelope geometry from depth-warm promoted ledger."
+        : "Atom-chain setback scalars from live per-parcel record (layer-23); geometry absent on depth-warm proof atom — re-derive from live setbacks."
       : silentAxes
         ? buildToLineDisclosure(ns)
         : geojson === undefined || geojson === null
@@ -1310,13 +1313,8 @@ export function adaptAtomChainToBakedFacets(
       // Warm/buildable areaSqFt is honest even when side/rear are build-to-line
       // silent — do NOT strip it. SilentAxes only blocks pct that treated
       // not_specified axes as 0 ft (the false consume-lot class).
-      // When a live layer-23 setback is present, withhold depth-warm geometry.
-      ...(typeof areaSqFt === "number" && areaSqFt > 0 && !preferLiveOverWarm
-        ? { buildableAreaSqFt: areaSqFt }
-        : {}),
-      ...(geojson !== undefined && geojson !== null && !preferLiveOverWarm
-        ? { geojson }
-        : {}),
+      ...(typeof areaSqFt === "number" && areaSqFt > 0 ? { buildableAreaSqFt: areaSqFt } : {}),
+      ...(geojson !== undefined && geojson !== null ? { geojson } : {}),
     };
     envelopeCovered = true;
   }
