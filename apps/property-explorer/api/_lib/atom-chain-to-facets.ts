@@ -84,6 +84,43 @@ export interface AtomChainBuildableEnvelope {
 
 export const DEPTH_WARM_PROMOTION_MARKER = "depth-warm-promoted-v1";
 
+/** R13 — layer-23 per-parcel record is the live Bastrop city setback source. */
+export const BASTROP_LIVE_SETBACK_ADAPTER = "bastrop-per-parcel-record-layer-23";
+
+function isBastropCityZoningAdapter(
+  zoningSourceAdapter: string | null | undefined,
+): boolean {
+  const zAdapter = (zoningSourceAdapter ?? "").trim();
+  return (
+    zAdapter.includes("bastrop-city") ||
+    zAdapter.includes("txgio-zoning-stamp:bastrop-city-tx")
+  );
+}
+
+/**
+ * True when the atom-chain carries a live setback-rule (layer-23 for Bastrop
+ * city parcels). Depth-warm promoted scalars do not count — they must not block
+ * live re-derive or mask the authoritative per-parcel record.
+ */
+export function hasLiveAtomChainSetbackRule(
+  parcelNodeId: string,
+  rule: AtomChainSetbackRule | null | undefined,
+  zoningSourceAdapter: string | null | undefined,
+): boolean {
+  if (!rule) return false;
+  if (!mapSetbacks(rule, rule.districtCode)) return false;
+  if (
+    /^48021:[^/\s]+$/.test(parcelNodeId.trim()) &&
+    isBastropCityZoningAdapter(zoningSourceAdapter)
+  ) {
+    return (rule.sourceAdapter ?? "").trim() === BASTROP_LIVE_SETBACK_ADAPTER;
+  }
+  if (/^48021:[^/\s]+$/.test(parcelNodeId.trim())) {
+    return false;
+  }
+  return true;
+}
+
 /** R13 — repealed / pre-layer-23 Bastrop city setback sources must not serve. */
 function isStaleBastropCitySetbackRule(
   parcelNodeId: string,
@@ -133,7 +170,22 @@ export function isDepthWarmPromoted(
 export function shouldSkipColdDerive(
   chain: PropertyAtomChain | null | undefined,
 ): boolean {
-  return isDepthWarmPromoted(chain) && atomChainIsUsable(chain);
+  if (!isDepthWarmPromoted(chain) || !atomChainIsUsable(chain)) return false;
+  const c = chain as PropertyAtomChain;
+  const parcelNodeId = (c.parcelNodeId || "").trim();
+  const zf = c.zoningFact ?? null;
+  const zoningSourceAdapter =
+    zf && typeof (zf as { sourceAdapter?: string }).sourceAdapter === "string"
+      ? (zf as { sourceAdapter: string }).sourceAdapter
+      : null;
+  let rule = c.setbackRule ?? null;
+  if (isStaleBastropCitySetbackRule(parcelNodeId, rule, zoningSourceAdapter)) {
+    rule = null;
+  }
+  if (hasLiveAtomChainSetbackRule(parcelNodeId, rule, zoningSourceAdapter)) {
+    return false;
+  }
+  return true;
 }
 
 /** Minimal retrieval GET /property-nodes/:id/atom-chain body. */
@@ -1122,6 +1174,13 @@ export function adaptAtomChainToBakedFacets(
   const jurisdictionKey = jurisdictionKeyFromSourceAdapter(zoningSourceAdapter);
 
   const setbacks = mapSetbacks(rule, district);
+  const liveSetback = hasLiveAtomChainSetbackRule(
+    parcelNodeId,
+    rule,
+    zoningSourceAdapter,
+  );
+  const depthWarm = isDepthWarmPromoted(c);
+  const preferLiveOverWarm = liveSetback && depthWarm;
   // R24/R25/R26 — full-field parity + disclosure, surfaced onto any drawn envelope.
   const dm = rule?.displayMeta ?? null;
   const fullFields: Partial<NonNullable<PeBakedFacetPayload["envelope"]>> = rule
@@ -1219,7 +1278,7 @@ export function adaptAtomChainToBakedFacets(
       provisional: true,
       emptyReason: "Setbacks consume the lot — no buildable area remains.",
       ...(typeof areaSqFt === "number" ? { buildableAreaSqFt: areaSqFt } : {}),
-      ...(geojson !== undefined ? { geojson } : {}),
+      ...(geojson !== undefined && !preferLiveOverWarm ? { geojson } : {}),
     };
     envelopeCovered = true;
   } else if (!envelope && (outcomeKind === "buildable" || setbacks)) {
@@ -1233,11 +1292,13 @@ export function adaptAtomChainToBakedFacets(
         "number"
         ? (envAtom.outcome as { buildableAreaPct: number }).buildableAreaPct
         : undefined;
-    const baseDisclosure = silentAxes
-      ? buildToLineDisclosure(ns)
-      : geojson === undefined || geojson === null
-        ? "Atom-chain envelope (setbacks present; geometry absent on proof atom — not fabricated)."
-        : "Atom-chain buildable envelope.";
+    const baseDisclosure = preferLiveOverWarm
+      ? "Atom-chain setback rule from live per-parcel record — depth-warm envelope geometry withheld (re-derive from live setbacks)."
+      : silentAxes
+        ? buildToLineDisclosure(ns)
+        : geojson === undefined || geojson === null
+          ? "Atom-chain envelope (setbacks present; geometry absent on proof atom — not fabricated)."
+          : "Atom-chain buildable envelope.";
     envelope = {
       status: "ok",
       district: district ?? undefined,
@@ -1249,10 +1310,13 @@ export function adaptAtomChainToBakedFacets(
       // Warm/buildable areaSqFt is honest even when side/rear are build-to-line
       // silent — do NOT strip it. SilentAxes only blocks pct that treated
       // not_specified axes as 0 ft (the false consume-lot class).
-      ...(typeof areaSqFt === "number" && areaSqFt > 0
+      // When a live layer-23 setback is present, withhold depth-warm geometry.
+      ...(typeof areaSqFt === "number" && areaSqFt > 0 && !preferLiveOverWarm
         ? { buildableAreaSqFt: areaSqFt }
         : {}),
-      ...(geojson !== undefined && geojson !== null ? { geojson } : {}),
+      ...(geojson !== undefined && geojson !== null && !preferLiveOverWarm
+        ? { geojson }
+        : {}),
     };
     envelopeCovered = true;
   }
@@ -1265,7 +1329,6 @@ export function adaptAtomChainToBakedFacets(
     null;
 
   const apn = apnFromNodeId(parcelNodeId);
-  const depthWarm = isDepthWarmPromoted(c);
 
   // R24/R25/R26 — merge full-field parity + disclosure onto the envelope whenever
   // the parcel has a district (present even on declined/no-buildable envelopes so
@@ -1295,7 +1358,7 @@ export function adaptAtomChainToBakedFacets(
         ? { district, ...(jurisdictionKey ? { jurisdictionKey } : {}) }
         : null,
       envelope:
-        envelope && depthWarm && setbacks
+        envelope && depthWarm && setbacks && !liveSetback
           ? {
               ...envelope,
               disclosure:
