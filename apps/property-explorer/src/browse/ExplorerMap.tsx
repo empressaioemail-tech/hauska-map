@@ -88,7 +88,6 @@ import {
   normalizeEnvelope,
   envelopeInsetOverlay,
   setbackConsumedOverlay,
-  insetParcelBySetbacks,
 } from "./envelope-overlay";
 import {
   roadOverlaysFromAttachingRoads,
@@ -96,6 +95,16 @@ import {
   ROAD_NODES_TOGGLE_KEY,
   type AttachingRoadWire,
 } from "./road-overlay";
+import {
+  buildingFootprintOverlaysFromWires,
+  BUILDING_FOOTPRINT_TOGGLE_KEY,
+  type BuildingFootprintWire,
+} from "./building-footprint-overlay";
+import {
+  specialDistrictOverlaysFromWires,
+  MUD_PID_TOGGLE_KEY,
+  type SpecialDistrictWire,
+} from "./special-district-overlay";
 import { countyFipsForViewportCenter } from "./county-fips-viewport";
 import {
   consumerKnownLayers,
@@ -176,6 +185,46 @@ async function fetchRoadsNearBbox(
   if (!res.ok) return [];
   const json = (await res.json()) as { roads?: AttachingRoadWire[] };
   return Array.isArray(json.roads) ? json.roads : [];
+}
+
+async function fetchFootprintsNearBbox(
+  bbox: { west: number; south: number; east: number; north: number },
+  countyFips: string,
+  signal?: AbortSignal,
+): Promise<BuildingFootprintWire[]> {
+  const qs = new URLSearchParams({
+    countyFips,
+    westLng: String(bbox.west),
+    southLat: String(bbox.south),
+    eastLng: String(bbox.east),
+    northLat: String(bbox.north),
+    limit: "400",
+  });
+  const url = `/api/spine/retrieval/building-footprints/near-bbox?${qs.toString()}`;
+  const res = await fetch(url, { method: "GET", signal });
+  if (!res.ok) return [];
+  const json = (await res.json()) as { footprints?: BuildingFootprintWire[] };
+  return Array.isArray(json.footprints) ? json.footprints : [];
+}
+
+async function fetchSpecialDistrictsNearBbox(
+  bbox: { west: number; south: number; east: number; north: number },
+  countyFips: string,
+  signal?: AbortSignal,
+): Promise<SpecialDistrictWire[]> {
+  const qs = new URLSearchParams({
+    countyFips,
+    westLng: String(bbox.west),
+    southLat: String(bbox.south),
+    eastLng: String(bbox.east),
+    northLat: String(bbox.north),
+    limit: "200",
+  });
+  const url = `/api/spine/retrieval/special-districts/near-bbox?${qs.toString()}`;
+  const res = await fetch(url, { method: "GET", signal });
+  if (!res.ok) return [];
+  const json = (await res.json()) as { districts?: SpecialDistrictWire[] };
+  return Array.isArray(json.districts) ? json.districts : [];
 }
 
 interface LayerSlot {
@@ -287,6 +336,10 @@ function ExplorerMapSurface({
   // Raw wires kept so pedestrian visibility can flip without re-fetch.
   const [roadWires, setRoadWires] = useState<AttachingRoadWire[]>([]);
   const roadAbortRef = useRef<AbortController | null>(null);
+  const [footprintWires, setFootprintWires] = useState<BuildingFootprintWire[]>([]);
+  const footprintAbortRef = useRef<AbortController | null>(null);
+  const [districtWires, setDistrictWires] = useState<SpecialDistrictWire[]>([]);
+  const districtAbortRef = useRef<AbortController | null>(null);
   // The clicked parcel's raw geometry (from the live-GIS overlay feature), kept
   // so the 0% case can outline the whole lot and the client-side inset fallback
   // can inset the parcel ring when the server returned setbacks but no polygon.
@@ -543,8 +596,16 @@ function ExplorerMapSurface({
     roadAbortRef.current?.abort();
     const roadCtrl = new AbortController();
     roadAbortRef.current = roadCtrl;
+    footprintAbortRef.current?.abort();
+    const footprintCtrl = new AbortController();
+    footprintAbortRef.current = footprintCtrl;
+    districtAbortRef.current?.abort();
+    const districtCtrl = new AbortController();
+    districtAbortRef.current = districtCtrl;
     if (vp.zoom < MIN_ROAD_ZOOM) {
       setRoadWires([]);
+      setFootprintWires([]);
+      setDistrictWires([]);
       return;
     }
     const midLat = (vp.bbox.south + vp.bbox.north) / 2;
@@ -552,6 +613,8 @@ function ExplorerMapSurface({
     const fips = countyFipsForViewportCenter(midLat, midLng);
     if (!fips) {
       setRoadWires([]);
+      setFootprintWires([]);
+      setDistrictWires([]);
       return;
     }
     void fetchRoadsNearBbox(vp.bbox, fips, roadCtrl.signal)
@@ -562,6 +625,26 @@ function ExplorerMapSurface({
       .catch((err) => {
         if (roadCtrl.signal.aborted || (err as Error)?.name === "AbortError") return;
         setRoadWires([]);
+      });
+
+    void fetchFootprintsNearBbox(vp.bbox, fips, footprintCtrl.signal)
+      .then((fps) => {
+        if (footprintCtrl.signal.aborted) return;
+        setFootprintWires(fps);
+      })
+      .catch((err) => {
+        if (footprintCtrl.signal.aborted || (err as Error)?.name === "AbortError") return;
+        setFootprintWires([]);
+      });
+
+    void fetchSpecialDistrictsNearBbox(vp.bbox, fips, districtCtrl.signal)
+      .then((districts) => {
+        if (districtCtrl.signal.aborted) return;
+        setDistrictWires(districts);
+      })
+      .catch((err) => {
+        if (districtCtrl.signal.aborted || (err as Error)?.name === "AbortError") return;
+        setDistrictWires([]);
       });
   }, []);
 
@@ -581,6 +664,38 @@ function ExplorerMapSurface({
           : false,
       }),
     [roadWires, visibleLayers],
+  );
+
+  const footprintOverlays = useMemo(
+    () =>
+      buildingFootprintOverlaysFromWires(
+        footprintWires,
+        visibleLayers
+          ? visibleLayers.has(BUILDING_FOOTPRINT_TOGGLE_KEY as LayerKey)
+          : false,
+      ),
+    [footprintWires, visibleLayers],
+  );
+
+  const districtOverlays = useMemo(
+    () =>
+      specialDistrictOverlaysFromWires(
+        districtWires,
+        visibleLayers ? visibleLayers.has(MUD_PID_TOGGLE_KEY as LayerKey) : false,
+      ),
+    [districtWires, visibleLayers],
+  );
+
+  const buildableEnvelopeVisible = visibleLayers
+    ? visibleLayers.has("buildable-envelope" as LayerKey)
+    : false;
+
+  const gatedEnvelopeOverlays = useMemo(
+    () =>
+      buildableEnvelopeVisible
+        ? envelopeOverlays
+        : envelopeOverlays.map((spec) => ({ ...spec, visible: false })),
+    [envelopeOverlays, buildableEnvelopeVisible],
   );
 
   // Light a parcel as INSPECTED on the LIVE map (feature-state glow) and fold it
@@ -1102,16 +1217,9 @@ function ExplorerMapSurface({
       const outline = setbackConsumedOverlay(clickedParcelGeomRef.current);
       setEnvelopeOverlays(outline ? [outline] : []);
     } else {
-      // ok-but-no-server-geometry: try the client-side inset FALLBACK (parcel
-      // ring + setbacks). Only fires when the server gave setbacks but no
-      // polygon AND we have a real parcel ring; otherwise nothing is drawn.
-      const fallbackInset = insetParcelBySetbacks(
-        clickedParcelGeomRef.current,
-        result?.setbacks ?? null,
-      );
-      setEnvelopeOverlays(
-        fallbackInset ? [envelopeInsetOverlay(fallbackInset)] : [],
-      );
+      // No atom-backed inset geometry — refuse client-side POST/setback fallback
+      // (P-60 / WDLL item 2: wedge paints only from atom-chain envelope).
+      setEnvelopeOverlays([]);
     }
 
     // --- (2) Patch the ported node store (unchanged seam). ---
@@ -1186,12 +1294,14 @@ function ExplorerMapSurface({
       ),
       // Track B1 road object under the envelope wedge.
       ...roadOverlays,
+      ...footprintOverlays,
+      ...districtOverlays,
       // The buildable-envelope wedge, drawn last so it sits above the parcels.
-      ...envelopeOverlays,
+      ...gatedEnvelopeOverlays,
       // Brief street-search highlight (temporary, self-fading).
       ...searchOverlays,
     ],
-    [parcels, fema, topo, hydrography, opportunityZone, roadOverlays, envelopeOverlays, searchOverlays, visibleLayers],
+    [parcels, fema, topo, hydrography, opportunityZone, roadOverlays, footprintOverlays, districtOverlays, gatedEnvelopeOverlays, searchOverlays, visibleLayers],
   );
 
   // REBRAND map-chrome (2026-08-03): the transient scroll notifications

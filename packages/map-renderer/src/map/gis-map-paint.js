@@ -306,6 +306,11 @@ export const LAYER_PAINT = {
     lineExpr: () => "#b8ffd4",
     strokeWidth: 1.2,
   },
+  "building-footprint": {
+    fill: "#c4a882",
+    stroke: "#e8d4b8",
+    strokeWidth: 1.2,
+  },
   "constraint-density": {
     heatmap: true,
     heatProperty: "constraintCount",
@@ -464,6 +469,7 @@ export const GIS_LAYER_STACK = [
   "flood-zone",
   "floodway",
   "buildable-envelope",
+  "building-footprint",
   "constraint-density",
   "oz-deal-crossfilter",
   "motivated-seller",

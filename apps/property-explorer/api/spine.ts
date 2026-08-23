@@ -172,6 +172,20 @@ function isRetrievalBrowsePathAllowed(method: string, upstreamPath: string): boo
   if ((method === 'GET' || method === 'HEAD') && upstreamPath === 'road-nodes/near-bbox') {
     return true
   }
+  // GET /building-footprints/near-bbox (P-60 viewport footprint layer)
+  if (
+    (method === 'GET' || method === 'HEAD') &&
+    upstreamPath === 'building-footprints/near-bbox'
+  ) {
+    return true
+  }
+  // GET /special-districts/near-bbox (P-60 mud-pid / special-district-fact layer)
+  if (
+    (method === 'GET' || method === 'HEAD') &&
+    upstreamPath === 'special-districts/near-bbox'
+  ) {
+    return true
+  }
   // GET /atoms/:did (DID may be URL-encoded and contain colons as one segment)
   if ((method === 'GET' || method === 'HEAD') && /^atoms\/[^/]+$/.test(upstreamPath)) {
     return true
@@ -219,7 +233,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse): 
     res.status(403).json({
       error: 'forbidden',
       message:
-        'Anonymous retrieval proxy allows health, property-nodes/:id/atom-chain, property-nodes/:id/attaching-roads (POST), road-nodes/near-bbox (GET), and atoms/:did only.',
+        'Anonymous retrieval proxy allows health, property-nodes/:id/atom-chain, property-nodes/:id/attaching-roads (POST), road-nodes/near-bbox (GET), building-footprints/near-bbox (GET), special-districts/near-bbox (GET), and atoms/:did only.',
     })
     return
   }

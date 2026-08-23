@@ -98,7 +98,6 @@ describe("honest-empty layer rows (P-46 work item 4)", () => {
       "edwards-aquifer",
       "etj",
       "groundwater",
-      "mud-pid",
       "ssurgo-soils",
       "texas-rrc",
     ]);
@@ -110,6 +109,8 @@ describe("honest-empty layer rows (P-46 work item 4)", () => {
     assert.equal(layerEmptyBasis("parcel-polygon"), null);
     assert.equal(layerEmptyBasis("flood-zone"), null);
     assert.equal(layerEmptyBasis("road-nodes"), null);
+    assert.equal(layerEmptyBasis("mud-pid"), null);
+    assert.equal(layerEmptyBasis("building-footprint"), null);
   });
 
   it("returns no basis for an unknown key rather than inventing one", () => {

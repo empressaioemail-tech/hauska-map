@@ -113,6 +113,9 @@ export interface CardEnvelopeState {
   reason?: string | null;
   district?: string | null;
   provenanceRefs?: EnvelopeProvenanceRefs | null;
+  /** Atom-chain inset polygon (GeoJSON Polygon) when envelope is derived. */
+  geometry?: unknown | null;
+  geojson?: unknown | null;
 }
 
 function present<T>(value: T): CardFacet<T> {
@@ -585,14 +588,31 @@ export function envelopeStateFromSheet(sheet: ParcelFactSheet): CardEnvelopeStat
   const provenanceRefs = provenanceRefsFromSheet(sheet);
 
   if (env.kind === "derived") {
+    const geometry =
+      env.rings.length > 0
+        ? { type: "Polygon" as const, coordinates: env.rings }
+        : null;
     return {
       status: "ok",
       setbacks: wire,
+      ...(geometry
+        ? {
+            geometry,
+            geojson: {
+              type: "FeatureCollection" as const,
+              features: [
+                {
+                  type: "Feature" as const,
+                  properties: { kind: "buildable-envelope" },
+                  geometry,
+                },
+              ],
+            },
+          }
+        : {}),
       summary: {
         buildableAreaSqFt: env.area.value,
         buildableAreaPct: env.areaPctOfLot,
-        // AMENDMENT 3: the absence is in the type now, so this is a straight
-        // read. It still matches the old envelope wire's `?? null` convention.
         parcelAreaSqFt: sheet.geometry.lotArea?.value ?? null,
         notSurveyGrade: true,
         approximate: env.approximate,
