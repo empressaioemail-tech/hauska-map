@@ -39,7 +39,7 @@
 //     muted text; 5xx / network offer Try again. Notices are transient —
 //     never persisted into the thread.
 
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState, type ReactNode } from "react";
 import type { CSSProperties, KeyboardEvent } from "react";
 import { googleSignInUrl } from "../../lib/auth";
 import { invalidatePropertyEntitlement } from "../../lib/entitlementClient";
@@ -68,6 +68,7 @@ import {
   freshnessTitle,
   isWebUnverifiedRef,
   parseAnswerSegments,
+  parseInlineMarkdown,
   refForCitationNumber,
   type ChatRef,
 } from "./chat-citations";
@@ -321,6 +322,14 @@ export function ChatCitationChips({
 // [99] the backend dropped from citations[] stays plain text, never evidence.
 // ---------------------------------------------------------------------------
 
+function markdownNodes(text: string): ReactNode[] {
+  return parseInlineMarkdown(text).map((seg, i) => {
+    if (seg.kind === "bold") return <strong key={i}>{seg.text}</strong>;
+    if (seg.kind === "italic") return <em key={i}>{seg.text}</em>;
+    return <span key={i}>{seg.text}</span>;
+  });
+}
+
 export function InlineAnswerText({
   content,
   refs,
@@ -337,7 +346,7 @@ export function InlineAnswerText({
         <p key={i} style={{ margin: i === 0 ? 0 : "6px 0 0", color: TEXT }}>
           {parseAnswerSegments(p).map((seg, j) => {
             if (seg.kind === "text") {
-              return <span key={j}>{seg.text}</span>;
+              return <span key={j}>{markdownNodes(seg.text)}</span>;
             }
             const ref = refForCitationNumber(refs, seg.n);
             if (!ref || isWebUnverifiedRef(ref)) {

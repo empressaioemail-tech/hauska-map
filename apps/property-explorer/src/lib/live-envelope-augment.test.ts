@@ -1,0 +1,96 @@
+import { describe, expect, it, vi } from "vitest";
+import {
+  augmentFacetsWithLiveEnvelope,
+  facetsNeedLiveEnvelopeDerive,
+} from "./live-envelope-augment";
+import type { BakedFacetPayload } from "./baked-facets";
+
+const WITHHELD: BakedFacetPayload = {
+  envelope: {
+    status: "ok",
+    district: "GC",
+    setbacks: { front_ft: 20, side_ft: 5, rear_ft: 20 },
+    disclosure:
+      "Atom-chain setback rule from live per-parcel record — depth-warm envelope geometry withheld (re-derive from live setbacks).",
+    approximate: true,
+  },
+};
+
+describe("facetsNeedLiveEnvelopeDerive", () => {
+  it("true when setbacks present and geojson withheld", () => {
+    expect(facetsNeedLiveEnvelopeDerive(WITHHELD)).toBe(true);
+  });
+
+  it("false when geojson already present", () => {
+    expect(
+      facetsNeedLiveEnvelopeDerive({
+        envelope: {
+          ...WITHHELD.envelope!,
+          geojson: {
+            type: "FeatureCollection",
+            features: [
+              {
+                type: "Feature",
+                geometry: {
+                  type: "Polygon",
+                  coordinates: [
+                    [
+                      [-97.32, 30.11],
+                      [-97.319, 30.11],
+                      [-97.319, 30.109],
+                      [-97.32, 30.109],
+                      [-97.32, 30.11],
+                    ],
+                  ],
+                },
+              },
+            ],
+          },
+        },
+      }),
+    ).toBe(false);
+  });
+});
+
+describe("augmentFacetsWithLiveEnvelope", () => {
+  it("merges live POST geometry when withheld", async () => {
+    const fetchImpl = vi.fn(async () => ({
+      ok: true,
+      json: async () => ({
+        status: "ok",
+        payload: {
+          geojson: {
+            type: "FeatureCollection",
+            features: [
+              {
+                type: "Feature",
+                properties: { buildableAreaSqFt: 4200 },
+                geometry: {
+                  type: "Polygon",
+                  coordinates: [
+                    [
+                      [-97.32, 30.11],
+                      [-97.319, 30.11],
+                      [-97.319, 30.109],
+                      [-97.32, 30.109],
+                      [-97.32, 30.11],
+                    ],
+                  ],
+                },
+              },
+            ],
+          },
+        },
+      }),
+    })) as unknown as typeof fetch;
+
+    const out = await augmentFacetsWithLiveEnvelope(
+      WITHHELD,
+      "1010 PECAN ST, BASTROP, TX 78602",
+      "/api/spine/cortex/api",
+      fetchImpl,
+    );
+    expect(out.envelope?.geojson).toBeTruthy();
+    expect(out.envelope?.buildableAreaSqFt).toBe(4200);
+  });
+});

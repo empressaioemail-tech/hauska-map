@@ -83,7 +83,6 @@ export const COLD_OPEN_OFF_BY_DEFAULT = new Set<LayerKey>([
   // stays, so a user can turn road nodes back on.
   "road-nodes" as LayerKey,
   "building-footprint" as LayerKey,
-  "buildable-envelope" as LayerKey,
   "mud-pid" as LayerKey,
 ]);
 
@@ -99,7 +98,7 @@ export const COLD_OPEN_OFF_BY_DEFAULT = new Set<LayerKey>([
  *
  * Net on landing: Satellite/aerial, Contours, FEMA flood, GIS Parcel,
  * Hydrography, My properties, Opportunity Zone, Regulatory floodway,
- * Sidewalks — ON; Zoning/land use and Road nodes (ROW) — OFF.
+ * Sidewalks, Buildable envelope — ON; Zoning/land use and Road nodes (ROW) — OFF.
  *
  * This changes DEFAULTS only — every toggle in the LAYERS panel still works, so
  * a user can turn any layer on/off. `consumerKnownLayers()` already applies the

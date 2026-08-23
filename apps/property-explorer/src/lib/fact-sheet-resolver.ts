@@ -82,6 +82,7 @@ import {
 import { isLayerAbsenceWire, zoningDistrictFromPayload } from "./layer-absence";
 import type { VerdictLayerSnapshot } from "./sheet-to-card-model";
 import { fetchBuildableEnvelope, parsePlaceKey } from "./buildable-envelope.js";
+import { augmentFacetsWithLiveEnvelope } from "./live-envelope-augment.js";
 import { fetchGeocodeSuggestions } from "./geocodeClient";
 import { CORTEX_PROXY_BASE, PE_FACETS_PROXY_BASE } from "./config";
 import { isValidParcelNodeId, normalizeParcelNodeId } from "./parcel-node-id";
@@ -1041,6 +1042,30 @@ function setbacksFact(facets: BakedFacetPayload): Fact<Setbacks> {
 }
 
 /**
+ * Atom-chain facets withhold depth-warm geojson when a live layer-23 setback
+ * is present (preferLiveOverWarm). Re-derive geometry from the live POST
+ * before the sheet seals — never the client inset fallback.
+ */
+async function patchFacetsEnvelopeFromLive(
+  facets: BakedFacetPayload,
+  parcelNodeId: string,
+  situsAddress: string,
+  cortexBase: string,
+  fetchImpl: typeof fetch,
+): Promise<void> {
+  const patched = await augmentFacetsWithLiveEnvelope(
+    facets,
+    situsAddress,
+    cortexBase,
+    fetchImpl,
+    parcelNodeId,
+  );
+  if (patched.envelope !== facets.envelope) {
+    facets.envelope = patched.envelope;
+  }
+}
+
+/**
  * ONE field, three EXCLUSIVE outcomes. This is what makes it structurally
  * impossible for one document to say "buildable envelope not derived here" and
  * also print 6,325 sq ft.
@@ -1494,7 +1519,7 @@ export class PeFactSheetResolver implements FactSheetResolver {
     }
 
     const wire = facetsResult.data as unknown as Record<string, unknown>;
-    const facets = facetsResult.data.facets ?? {};
+    let facets = (facetsResult.data.facets ?? {}) as BakedFacetPayload;
     const floodHazardFact =
       wire.floodHazardFact ?? facetsResult.data.floodHazardFact ?? null;
     const landUseFact =
@@ -1548,6 +1573,15 @@ export class PeFactSheetResolver implements FactSheetResolver {
     const landUse = landUseFromInspectWire(landUseFact, facets);
     const zoning = zoningFact(facets, fips);
     const setbacks = setbacksFact(facets);
+    if (identity.situsAddress.state === "present") {
+      await patchFacetsEnvelopeFromLive(
+        facets,
+        parcelNodeId,
+        identity.situsAddress.value,
+        this.cortexBase,
+        this.fetchImpl,
+      );
+    }
     const envelope = envelopeValue(facets, setbacks, lotAreaSqFt);
     const flood = floodFact(floodHazardFact);
     const specialDistrict = specialDistrictFromInspectWire(specialDistrictFact);

@@ -277,6 +277,34 @@ export type AnswerSegment =
   | { kind: "text"; text: string }
   | { kind: "cite"; n: number };
 
+export type InlineMarkdownSegment =
+  | { kind: "text"; text: string }
+  | { kind: "bold"; text: string }
+  | { kind: "italic"; text: string };
+
+/** Split a plain-text run into minimal inline markdown (**bold**, *italic*). */
+export function parseInlineMarkdown(text: string): InlineMarkdownSegment[] {
+  const out: InlineMarkdownSegment[] = [];
+  const re = /\*\*([^*]+)\*\*|\*([^*]+)\*/g;
+  let last = 0;
+  let m: RegExpExecArray | null;
+  while ((m = re.exec(text)) !== null) {
+    if (m.index > last) {
+      out.push({ kind: "text", text: text.slice(last, m.index) });
+    }
+    if (m[1] !== undefined) {
+      out.push({ kind: "bold", text: m[1] });
+    } else {
+      out.push({ kind: "italic", text: m[2] });
+    }
+    last = m.index + m[0].length;
+  }
+  if (last < text.length) {
+    out.push({ kind: "text", text: text.slice(last) });
+  }
+  return out.length ? out : [{ kind: "text", text }];
+}
+
 /** Split answer text into text/citation-marker segments (pure). */
 export function parseAnswerSegments(content: string): AnswerSegment[] {
   const out: AnswerSegment[] = [];
