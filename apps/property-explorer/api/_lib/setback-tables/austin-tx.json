@@ -1,0 +1,602 @@
+{
+  "$schema": "./schema.json",
+  "jurisdictionKey": "austin-tx",
+  "jurisdictionDisplayName": "City of Austin, TX",
+  "note": "WDLL 51. Base-zone scalar rows transcribed from City of Austin LDC ?25-2-492 public table at https://services.austintexas.gov/edims/document.cfm?id=419477, cross-referenced by the City zoning resources page https://www.austintexas.gov/planning/zoning-resources-site-regulations (accessed 2026-07-23). These rows serve only the listed base GIS stamps. OMITTED: Austin combining and overlay districts (CO, NCCD, PUD, downtown, etc.), compatibility/average-front-yard calculations, watershed controls, and any use-, lot-, or frontage-dependent variation because the envelope request lacks those facts.",
+  "districts": [
+    {
+      "district_name": "SF-1 Single-Family Residence Large Lot",
+      "front_ft": 25,
+      "rear_ft": 10,
+      "side_ft": 5,
+      "side_corner_ft": 15,
+      "max_height_ft": 35,
+      "max_lot_coverage_pct": 35,
+      "max_impervious_pct": 40,
+      "citation_url": "https://services.austintexas.gov/edims/document.cfm?id=419477",
+      "provenance": {
+        "front_ft": {
+          "atom_did": "austin_tx/ldc/25-2-492/25-2-492",
+          "section_number": "25-2-492",
+          "quote": "? 25-2-492 site-development table: SF-1 row provides the stated base-yard, height, building-coverage, and impervious-cover values.",
+          "confidence": 0.7,
+          "verification_state": "asserted"
+        },
+        "rear_ft": {
+          "atom_did": "austin_tx/ldc/25-2-492/25-2-492",
+          "section_number": "25-2-492",
+          "quote": "? 25-2-492 site-development table: SF-1 row provides the stated base-yard, height, building-coverage, and impervious-cover values.",
+          "confidence": 0.7,
+          "verification_state": "asserted"
+        },
+        "side_ft": {
+          "atom_did": "austin_tx/ldc/25-2-492/25-2-492",
+          "section_number": "25-2-492",
+          "quote": "? 25-2-492 site-development table: SF-1 row provides the stated base-yard, height, building-coverage, and impervious-cover values.",
+          "confidence": 0.7,
+          "verification_state": "asserted"
+        },
+        "side_corner_ft": {
+          "atom_did": "austin_tx/ldc/25-2-492/25-2-492",
+          "section_number": "25-2-492",
+          "quote": "? 25-2-492 site-development table: SF-1 row provides the stated base-yard, height, building-coverage, and impervious-cover values.",
+          "confidence": 0.6,
+          "verification_state": "asserted",
+          "not_specified": true
+        },
+        "max_height_ft": {
+          "atom_did": "austin_tx/ldc/25-2-492/25-2-492",
+          "section_number": "25-2-492",
+          "quote": "? 25-2-492 site-development table: SF-1 row provides the stated base-yard, height, building-coverage, and impervious-cover values.",
+          "confidence": 0.6,
+          "verification_state": "asserted",
+          "not_specified": true
+        },
+        "max_lot_coverage_pct": {
+          "atom_did": "austin_tx/ldc/25-2-492/25-2-492",
+          "section_number": "25-2-492",
+          "quote": "? 25-2-492 site-development table: SF-1 row provides the stated base-yard, height, building-coverage, and impervious-cover values.",
+          "confidence": 0.6,
+          "verification_state": "asserted",
+          "not_specified": true
+        },
+        "max_impervious_pct": {
+          "atom_did": "austin_tx/ldc/25-2-492/25-2-492",
+          "section_number": "25-2-492",
+          "quote": "? 25-2-492 site-development table: SF-1 row provides the stated base-yard, height, building-coverage, and impervious-cover values.",
+          "confidence": 0.6,
+          "verification_state": "asserted",
+          "not_specified": true
+        }
+      }
+    },
+    {
+      "district_name": "SF-2 Single-Family Residence Standard Lot",
+      "front_ft": 25,
+      "rear_ft": 10,
+      "side_ft": 5,
+      "side_corner_ft": 15,
+      "max_height_ft": 35,
+      "max_lot_coverage_pct": 40,
+      "max_impervious_pct": 45,
+      "citation_url": "https://services.austintexas.gov/edims/document.cfm?id=419477",
+      "provenance": {
+        "front_ft": {
+          "atom_did": "austin_tx/ldc/25-2-492/25-2-492",
+          "section_number": "25-2-492",
+          "quote": "? 25-2-492 site-development table: SF-2 row provides the stated base-yard, height, building-coverage, and impervious-cover values.",
+          "confidence": 0.7,
+          "verification_state": "asserted"
+        },
+        "rear_ft": {
+          "atom_did": "austin_tx/ldc/25-2-492/25-2-492",
+          "section_number": "25-2-492",
+          "quote": "? 25-2-492 site-development table: SF-2 row provides the stated base-yard, height, building-coverage, and impervious-cover values.",
+          "confidence": 0.7,
+          "verification_state": "asserted"
+        },
+        "side_ft": {
+          "atom_did": "austin_tx/ldc/25-2-492/25-2-492",
+          "section_number": "25-2-492",
+          "quote": "? 25-2-492 site-development table: SF-2 row provides the stated base-yard, height, building-coverage, and impervious-cover values.",
+          "confidence": 0.7,
+          "verification_state": "asserted"
+        },
+        "side_corner_ft": {
+          "atom_did": "austin_tx/ldc/25-2-492/25-2-492",
+          "section_number": "25-2-492",
+          "quote": "? 25-2-492 site-development table: SF-2 row provides the stated base-yard, height, building-coverage, and impervious-cover values.",
+          "confidence": 0.6,
+          "verification_state": "asserted",
+          "not_specified": true
+        },
+        "max_height_ft": {
+          "atom_did": "austin_tx/ldc/25-2-492/25-2-492",
+          "section_number": "25-2-492",
+          "quote": "? 25-2-492 site-development table: SF-2 row provides the stated base-yard, height, building-coverage, and impervious-cover values.",
+          "confidence": 0.6,
+          "verification_state": "asserted",
+          "not_specified": true
+        },
+        "max_lot_coverage_pct": {
+          "atom_did": "austin_tx/ldc/25-2-492/25-2-492",
+          "section_number": "25-2-492",
+          "quote": "? 25-2-492 site-development table: SF-2 row provides the stated base-yard, height, building-coverage, and impervious-cover values.",
+          "confidence": 0.6,
+          "verification_state": "asserted",
+          "not_specified": true
+        },
+        "max_impervious_pct": {
+          "atom_did": "austin_tx/ldc/25-2-492/25-2-492",
+          "section_number": "25-2-492",
+          "quote": "? 25-2-492 site-development table: SF-2 row provides the stated base-yard, height, building-coverage, and impervious-cover values.",
+          "confidence": 0.6,
+          "verification_state": "asserted",
+          "not_specified": true
+        }
+      }
+    },
+    {
+      "district_name": "SF-3 Family Residence",
+      "front_ft": 25,
+      "rear_ft": 10,
+      "side_ft": 5,
+      "side_corner_ft": 15,
+      "max_height_ft": 35,
+      "max_lot_coverage_pct": 40,
+      "max_impervious_pct": 45,
+      "citation_url": "https://services.austintexas.gov/edims/document.cfm?id=419477",
+      "provenance": {
+        "front_ft": {
+          "atom_did": "austin_tx/ldc/25-2-492/25-2-492",
+          "section_number": "25-2-492",
+          "quote": "? 25-2-492 site-development table: SF-3 row provides the stated base-yard, height, building-coverage, and impervious-cover values.",
+          "confidence": 0.7,
+          "verification_state": "asserted"
+        },
+        "rear_ft": {
+          "atom_did": "austin_tx/ldc/25-2-492/25-2-492",
+          "section_number": "25-2-492",
+          "quote": "? 25-2-492 site-development table: SF-3 row provides the stated base-yard, height, building-coverage, and impervious-cover values.",
+          "confidence": 0.7,
+          "verification_state": "asserted"
+        },
+        "side_ft": {
+          "atom_did": "austin_tx/ldc/25-2-492/25-2-492",
+          "section_number": "25-2-492",
+          "quote": "? 25-2-492 site-development table: SF-3 row provides the stated base-yard, height, building-coverage, and impervious-cover values.",
+          "confidence": 0.7,
+          "verification_state": "asserted"
+        },
+        "side_corner_ft": {
+          "atom_did": "austin_tx/ldc/25-2-492/25-2-492",
+          "section_number": "25-2-492",
+          "quote": "? 25-2-492 site-development table: SF-3 row provides the stated base-yard, height, building-coverage, and impervious-cover values.",
+          "confidence": 0.6,
+          "verification_state": "asserted",
+          "not_specified": true
+        },
+        "max_height_ft": {
+          "atom_did": "austin_tx/ldc/25-2-492/25-2-492",
+          "section_number": "25-2-492",
+          "quote": "? 25-2-492 site-development table: SF-3 row provides the stated base-yard, height, building-coverage, and impervious-cover values.",
+          "confidence": 0.6,
+          "verification_state": "asserted",
+          "not_specified": true
+        },
+        "max_lot_coverage_pct": {
+          "atom_did": "austin_tx/ldc/25-2-492/25-2-492",
+          "section_number": "25-2-492",
+          "quote": "? 25-2-492 site-development table: SF-3 row provides the stated base-yard, height, building-coverage, and impervious-cover values.",
+          "confidence": 0.6,
+          "verification_state": "asserted",
+          "not_specified": true
+        },
+        "max_impervious_pct": {
+          "atom_did": "austin_tx/ldc/25-2-492/25-2-492",
+          "section_number": "25-2-492",
+          "quote": "? 25-2-492 site-development table: SF-3 row provides the stated base-yard, height, building-coverage, and impervious-cover values.",
+          "confidence": 0.6,
+          "verification_state": "asserted",
+          "not_specified": true
+        }
+      }
+    },
+    {
+      "district_name": "MF-1 Multifamily Residence Limited Density",
+      "front_ft": 25,
+      "rear_ft": 10,
+      "side_ft": 5,
+      "side_corner_ft": 15,
+      "max_height_ft": 40,
+      "max_lot_coverage_pct": 45,
+      "max_impervious_pct": 55,
+      "citation_url": "https://services.austintexas.gov/edims/document.cfm?id=419477",
+      "provenance": {
+        "front_ft": {
+          "atom_did": "austin_tx/ldc/25-2-492/25-2-492",
+          "section_number": "25-2-492",
+          "quote": "? 25-2-492 site-development table: MF-1 row provides the stated base-yard, height, building-coverage, and impervious-cover values.",
+          "confidence": 0.7,
+          "verification_state": "asserted"
+        },
+        "rear_ft": {
+          "atom_did": "austin_tx/ldc/25-2-492/25-2-492",
+          "section_number": "25-2-492",
+          "quote": "? 25-2-492 site-development table: MF-1 row provides the stated base-yard, height, building-coverage, and impervious-cover values.",
+          "confidence": 0.7,
+          "verification_state": "asserted"
+        },
+        "side_ft": {
+          "atom_did": "austin_tx/ldc/25-2-492/25-2-492",
+          "section_number": "25-2-492",
+          "quote": "? 25-2-492 site-development table: MF-1 row provides the stated base-yard, height, building-coverage, and impervious-cover values.",
+          "confidence": 0.7,
+          "verification_state": "asserted"
+        },
+        "side_corner_ft": {
+          "atom_did": "austin_tx/ldc/25-2-492/25-2-492",
+          "section_number": "25-2-492",
+          "quote": "? 25-2-492 site-development table: MF-1 row provides the stated base-yard, height, building-coverage, and impervious-cover values.",
+          "confidence": 0.6,
+          "verification_state": "asserted",
+          "not_specified": true
+        },
+        "max_height_ft": {
+          "atom_did": "austin_tx/ldc/25-2-492/25-2-492",
+          "section_number": "25-2-492",
+          "quote": "? 25-2-492 site-development table: MF-1 row provides the stated base-yard, height, building-coverage, and impervious-cover values.",
+          "confidence": 0.6,
+          "verification_state": "asserted",
+          "not_specified": true
+        },
+        "max_lot_coverage_pct": {
+          "atom_did": "austin_tx/ldc/25-2-492/25-2-492",
+          "section_number": "25-2-492",
+          "quote": "? 25-2-492 site-development table: MF-1 row provides the stated base-yard, height, building-coverage, and impervious-cover values.",
+          "confidence": 0.6,
+          "verification_state": "asserted",
+          "not_specified": true
+        },
+        "max_impervious_pct": {
+          "atom_did": "austin_tx/ldc/25-2-492/25-2-492",
+          "section_number": "25-2-492",
+          "quote": "? 25-2-492 site-development table: MF-1 row provides the stated base-yard, height, building-coverage, and impervious-cover values.",
+          "confidence": 0.6,
+          "verification_state": "asserted",
+          "not_specified": true
+        }
+      }
+    },
+    {
+      "district_name": "MF-2 Multifamily Residence Low Density",
+      "front_ft": 15,
+      "rear_ft": 10,
+      "side_ft": 5,
+      "side_corner_ft": 15,
+      "max_height_ft": 40,
+      "max_lot_coverage_pct": 50,
+      "max_impervious_pct": 60,
+      "citation_url": "https://services.austintexas.gov/edims/document.cfm?id=419477",
+      "provenance": {
+        "front_ft": {
+          "atom_did": "austin_tx/ldc/25-2-492/25-2-492",
+          "section_number": "25-2-492",
+          "quote": "? 25-2-492 site-development table: MF-2 row provides the stated base-yard, height, building-coverage, and impervious-cover values.",
+          "confidence": 0.7,
+          "verification_state": "asserted"
+        },
+        "rear_ft": {
+          "atom_did": "austin_tx/ldc/25-2-492/25-2-492",
+          "section_number": "25-2-492",
+          "quote": "? 25-2-492 site-development table: MF-2 row provides the stated base-yard, height, building-coverage, and impervious-cover values.",
+          "confidence": 0.7,
+          "verification_state": "asserted"
+        },
+        "side_ft": {
+          "atom_did": "austin_tx/ldc/25-2-492/25-2-492",
+          "section_number": "25-2-492",
+          "quote": "? 25-2-492 site-development table: MF-2 row provides the stated base-yard, height, building-coverage, and impervious-cover values.",
+          "confidence": 0.7,
+          "verification_state": "asserted"
+        },
+        "side_corner_ft": {
+          "atom_did": "austin_tx/ldc/25-2-492/25-2-492",
+          "section_number": "25-2-492",
+          "quote": "? 25-2-492 site-development table: MF-2 row provides the stated base-yard, height, building-coverage, and impervious-cover values.",
+          "confidence": 0.6,
+          "verification_state": "asserted",
+          "not_specified": true
+        },
+        "max_height_ft": {
+          "atom_did": "austin_tx/ldc/25-2-492/25-2-492",
+          "section_number": "25-2-492",
+          "quote": "? 25-2-492 site-development table: MF-2 row provides the stated base-yard, height, building-coverage, and impervious-cover values.",
+          "confidence": 0.6,
+          "verification_state": "asserted",
+          "not_specified": true
+        },
+        "max_lot_coverage_pct": {
+          "atom_did": "austin_tx/ldc/25-2-492/25-2-492",
+          "section_number": "25-2-492",
+          "quote": "? 25-2-492 site-development table: MF-2 row provides the stated base-yard, height, building-coverage, and impervious-cover values.",
+          "confidence": 0.6,
+          "verification_state": "asserted",
+          "not_specified": true
+        },
+        "max_impervious_pct": {
+          "atom_did": "austin_tx/ldc/25-2-492/25-2-492",
+          "section_number": "25-2-492",
+          "quote": "? 25-2-492 site-development table: MF-2 row provides the stated base-yard, height, building-coverage, and impervious-cover values.",
+          "confidence": 0.6,
+          "verification_state": "asserted",
+          "not_specified": true
+        }
+      }
+    },
+    {
+      "district_name": "MF-3 Multifamily Residence Medium Density",
+      "front_ft": 15,
+      "rear_ft": 10,
+      "side_ft": 5,
+      "side_corner_ft": 15,
+      "max_height_ft": 40,
+      "max_lot_coverage_pct": 55,
+      "max_impervious_pct": 65,
+      "citation_url": "https://services.austintexas.gov/edims/document.cfm?id=419477",
+      "provenance": {
+        "front_ft": {
+          "atom_did": "austin_tx/ldc/25-2-492/25-2-492",
+          "section_number": "25-2-492",
+          "quote": "? 25-2-492 site-development table: MF-3 row provides the stated base-yard, height, building-coverage, and impervious-cover values.",
+          "confidence": 0.7,
+          "verification_state": "asserted"
+        },
+        "rear_ft": {
+          "atom_did": "austin_tx/ldc/25-2-492/25-2-492",
+          "section_number": "25-2-492",
+          "quote": "? 25-2-492 site-development table: MF-3 row provides the stated base-yard, height, building-coverage, and impervious-cover values.",
+          "confidence": 0.7,
+          "verification_state": "asserted"
+        },
+        "side_ft": {
+          "atom_did": "austin_tx/ldc/25-2-492/25-2-492",
+          "section_number": "25-2-492",
+          "quote": "? 25-2-492 site-development table: MF-3 row provides the stated base-yard, height, building-coverage, and impervious-cover values.",
+          "confidence": 0.7,
+          "verification_state": "asserted"
+        },
+        "side_corner_ft": {
+          "atom_did": "austin_tx/ldc/25-2-492/25-2-492",
+          "section_number": "25-2-492",
+          "quote": "? 25-2-492 site-development table: MF-3 row provides the stated base-yard, height, building-coverage, and impervious-cover values.",
+          "confidence": 0.6,
+          "verification_state": "asserted",
+          "not_specified": true
+        },
+        "max_height_ft": {
+          "atom_did": "austin_tx/ldc/25-2-492/25-2-492",
+          "section_number": "25-2-492",
+          "quote": "? 25-2-492 site-development table: MF-3 row provides the stated base-yard, height, building-coverage, and impervious-cover values.",
+          "confidence": 0.6,
+          "verification_state": "asserted",
+          "not_specified": true
+        },
+        "max_lot_coverage_pct": {
+          "atom_did": "austin_tx/ldc/25-2-492/25-2-492",
+          "section_number": "25-2-492",
+          "quote": "? 25-2-492 site-development table: MF-3 row provides the stated base-yard, height, building-coverage, and impervious-cover values.",
+          "confidence": 0.6,
+          "verification_state": "asserted",
+          "not_specified": true
+        },
+        "max_impervious_pct": {
+          "atom_did": "austin_tx/ldc/25-2-492/25-2-492",
+          "section_number": "25-2-492",
+          "quote": "? 25-2-492 site-development table: MF-3 row provides the stated base-yard, height, building-coverage, and impervious-cover values.",
+          "confidence": 0.6,
+          "verification_state": "asserted",
+          "not_specified": true
+        }
+      }
+    },
+    {
+      "district_name": "MF-4 Multifamily Residence Moderate-High Density",
+      "front_ft": 15,
+      "rear_ft": 10,
+      "side_ft": 5,
+      "side_corner_ft": 15,
+      "max_height_ft": 60,
+      "max_lot_coverage_pct": 60,
+      "max_impervious_pct": 70,
+      "citation_url": "https://services.austintexas.gov/edims/document.cfm?id=419477",
+      "provenance": {
+        "front_ft": {
+          "atom_did": "austin_tx/ldc/25-2-492/25-2-492",
+          "section_number": "25-2-492",
+          "quote": "? 25-2-492 site-development table: MF-4 row provides the stated base-yard, height, building-coverage, and impervious-cover values.",
+          "confidence": 0.7,
+          "verification_state": "asserted"
+        },
+        "rear_ft": {
+          "atom_did": "austin_tx/ldc/25-2-492/25-2-492",
+          "section_number": "25-2-492",
+          "quote": "? 25-2-492 site-development table: MF-4 row provides the stated base-yard, height, building-coverage, and impervious-cover values.",
+          "confidence": 0.7,
+          "verification_state": "asserted"
+        },
+        "side_ft": {
+          "atom_did": "austin_tx/ldc/25-2-492/25-2-492",
+          "section_number": "25-2-492",
+          "quote": "? 25-2-492 site-development table: MF-4 row provides the stated base-yard, height, building-coverage, and impervious-cover values.",
+          "confidence": 0.7,
+          "verification_state": "asserted"
+        },
+        "side_corner_ft": {
+          "atom_did": "austin_tx/ldc/25-2-492/25-2-492",
+          "section_number": "25-2-492",
+          "quote": "? 25-2-492 site-development table: MF-4 row provides the stated base-yard, height, building-coverage, and impervious-cover values.",
+          "confidence": 0.6,
+          "verification_state": "asserted",
+          "not_specified": true
+        },
+        "max_height_ft": {
+          "atom_did": "austin_tx/ldc/25-2-492/25-2-492",
+          "section_number": "25-2-492",
+          "quote": "? 25-2-492 site-development table: MF-4 row provides the stated base-yard, height, building-coverage, and impervious-cover values.",
+          "confidence": 0.6,
+          "verification_state": "asserted",
+          "not_specified": true
+        },
+        "max_lot_coverage_pct": {
+          "atom_did": "austin_tx/ldc/25-2-492/25-2-492",
+          "section_number": "25-2-492",
+          "quote": "? 25-2-492 site-development table: MF-4 row provides the stated base-yard, height, building-coverage, and impervious-cover values.",
+          "confidence": 0.6,
+          "verification_state": "asserted",
+          "not_specified": true
+        },
+        "max_impervious_pct": {
+          "atom_did": "austin_tx/ldc/25-2-492/25-2-492",
+          "section_number": "25-2-492",
+          "quote": "? 25-2-492 site-development table: MF-4 row provides the stated base-yard, height, building-coverage, and impervious-cover values.",
+          "confidence": 0.6,
+          "verification_state": "asserted",
+          "not_specified": true
+        }
+      }
+    },
+    {
+      "district_name": "MF-5 Multifamily Residence High Density",
+      "front_ft": 15,
+      "rear_ft": 10,
+      "side_ft": 5,
+      "side_corner_ft": 15,
+      "max_height_ft": 60,
+      "max_lot_coverage_pct": 60,
+      "max_impervious_pct": 70,
+      "citation_url": "https://services.austintexas.gov/edims/document.cfm?id=419477",
+      "provenance": {
+        "front_ft": {
+          "atom_did": "austin_tx/ldc/25-2-492/25-2-492",
+          "section_number": "25-2-492",
+          "quote": "? 25-2-492 site-development table: MF-5 row provides the stated base-yard, height, building-coverage, and impervious-cover values.",
+          "confidence": 0.7,
+          "verification_state": "asserted"
+        },
+        "rear_ft": {
+          "atom_did": "austin_tx/ldc/25-2-492/25-2-492",
+          "section_number": "25-2-492",
+          "quote": "? 25-2-492 site-development table: MF-5 row provides the stated base-yard, height, building-coverage, and impervious-cover values.",
+          "confidence": 0.7,
+          "verification_state": "asserted"
+        },
+        "side_ft": {
+          "atom_did": "austin_tx/ldc/25-2-492/25-2-492",
+          "section_number": "25-2-492",
+          "quote": "? 25-2-492 site-development table: MF-5 row provides the stated base-yard, height, building-coverage, and impervious-cover values.",
+          "confidence": 0.7,
+          "verification_state": "asserted"
+        },
+        "side_corner_ft": {
+          "atom_did": "austin_tx/ldc/25-2-492/25-2-492",
+          "section_number": "25-2-492",
+          "quote": "? 25-2-492 site-development table: MF-5 row provides the stated base-yard, height, building-coverage, and impervious-cover values.",
+          "confidence": 0.6,
+          "verification_state": "asserted",
+          "not_specified": true
+        },
+        "max_height_ft": {
+          "atom_did": "austin_tx/ldc/25-2-492/25-2-492",
+          "section_number": "25-2-492",
+          "quote": "? 25-2-492 site-development table: MF-5 row provides the stated base-yard, height, building-coverage, and impervious-cover values.",
+          "confidence": 0.6,
+          "verification_state": "asserted",
+          "not_specified": true
+        },
+        "max_lot_coverage_pct": {
+          "atom_did": "austin_tx/ldc/25-2-492/25-2-492",
+          "section_number": "25-2-492",
+          "quote": "? 25-2-492 site-development table: MF-5 row provides the stated base-yard, height, building-coverage, and impervious-cover values.",
+          "confidence": 0.6,
+          "verification_state": "asserted",
+          "not_specified": true
+        },
+        "max_impervious_pct": {
+          "atom_did": "austin_tx/ldc/25-2-492/25-2-492",
+          "section_number": "25-2-492",
+          "quote": "? 25-2-492 site-development table: MF-5 row provides the stated base-yard, height, building-coverage, and impervious-cover values.",
+          "confidence": 0.6,
+          "verification_state": "asserted",
+          "not_specified": true
+        }
+      }
+    },
+    {
+      "district_name": "MF-6 Multifamily Residence Highest Density",
+      "front_ft": 15,
+      "rear_ft": 10,
+      "side_ft": 5,
+      "side_corner_ft": 15,
+      "max_height_ft": 90,
+      "max_lot_coverage_pct": 70,
+      "max_impervious_pct": 80,
+      "citation_url": "https://services.austintexas.gov/edims/document.cfm?id=419477",
+      "provenance": {
+        "front_ft": {
+          "atom_did": "austin_tx/ldc/25-2-492/25-2-492",
+          "section_number": "25-2-492",
+          "quote": "? 25-2-492 site-development table: MF-6 row provides the stated base-yard, height, building-coverage, and impervious-cover values.",
+          "confidence": 0.7,
+          "verification_state": "asserted"
+        },
+        "rear_ft": {
+          "atom_did": "austin_tx/ldc/25-2-492/25-2-492",
+          "section_number": "25-2-492",
+          "quote": "? 25-2-492 site-development table: MF-6 row provides the stated base-yard, height, building-coverage, and impervious-cover values.",
+          "confidence": 0.7,
+          "verification_state": "asserted"
+        },
+        "side_ft": {
+          "atom_did": "austin_tx/ldc/25-2-492/25-2-492",
+          "section_number": "25-2-492",
+          "quote": "? 25-2-492 site-development table: MF-6 row provides the stated base-yard, height, building-coverage, and impervious-cover values.",
+          "confidence": 0.7,
+          "verification_state": "asserted"
+        },
+        "side_corner_ft": {
+          "atom_did": "austin_tx/ldc/25-2-492/25-2-492",
+          "section_number": "25-2-492",
+          "quote": "? 25-2-492 site-development table: MF-6 row provides the stated base-yard, height, building-coverage, and impervious-cover values.",
+          "confidence": 0.6,
+          "verification_state": "asserted",
+          "not_specified": true
+        },
+        "max_height_ft": {
+          "atom_did": "austin_tx/ldc/25-2-492/25-2-492",
+          "section_number": "25-2-492",
+          "quote": "? 25-2-492 site-development table: MF-6 row provides the stated base-yard, height, building-coverage, and impervious-cover values.",
+          "confidence": 0.6,
+          "verification_state": "asserted",
+          "not_specified": true
+        },
+        "max_lot_coverage_pct": {
+          "atom_did": "austin_tx/ldc/25-2-492/25-2-492",
+          "section_number": "25-2-492",
+          "quote": "? 25-2-492 site-development table: MF-6 row provides the stated base-yard, height, building-coverage, and impervious-cover values.",
+          "confidence": 0.6,
+          "verification_state": "asserted",
+          "not_specified": true
+        },
+        "max_impervious_pct": {
+          "atom_did": "austin_tx/ldc/25-2-492/25-2-492",
+          "section_number": "25-2-492",
+          "quote": "? 25-2-492 site-development table: MF-6 row provides the stated base-yard, height, building-coverage, and impervious-cover values.",
+          "confidence": 0.6,
+          "verification_state": "asserted",
+          "not_specified": true
+        }
+      }
+    }
+  ]
+}
