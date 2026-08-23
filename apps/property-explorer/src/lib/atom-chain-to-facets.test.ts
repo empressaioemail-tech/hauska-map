@@ -557,6 +557,31 @@ describe("mergeBakedBaseFacts — landUseFact from cortex JSON ROOT (WDLL 5 left
   });
 });
 
+describe("mergeBakedBaseFacts — P-63 structuralFact and verdict facets", () => {
+  it("copies structuralFact lookup-failed from cortex root", () => {
+    const adapted = adaptAtomChainToBakedFacets(haysChain)!;
+    const structuralFact = {
+      status: "absent" as const,
+      verdict: "lookup-failed" as const,
+      authority: "tad",
+      scopeSearched: "cad_property tax_year=2026 tier=cad-export",
+      asOf: "2026-08-22T00:00:00.000Z",
+      basis: "bulk_primary=true; CAMA structural fields not loaded",
+      source: "structural-fact",
+    };
+    const merged = mergeBakedBaseFacts(adapted, {
+      ...bakedCortexBody,
+      structuralFact,
+    });
+    expect(merged.structuralFact).toEqual(structuralFact);
+    expect(merged.facets.livingAreaSqft).toMatchObject({
+      status: "absent",
+      verdict: "lookup-failed",
+    });
+    expect(merged.facets.facetCoverage?.structural).toBe(true);
+  });
+});
+
 const colonyMudFact = {
   state: "present" as const,
   source: "special-district-fact",

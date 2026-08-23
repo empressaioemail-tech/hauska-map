@@ -14,6 +14,7 @@ import {
   lookupNotSpecified,
   type NotSpecifiedAxes,
 } from "./setback-not-specified.js";
+import { withVerdictLayerFields } from "./verdict-layer-merge.js";
 
 export interface AtomChainAbsence {
   kind?: string;
@@ -199,7 +200,20 @@ export interface PeBakedFacetPayload {
     acreage?: boolean;
     zoning?: boolean;
     envelope?: boolean;
+    structural?: boolean;
   };
+  /** P-63 doc 19 layer wire for living area (from cortex structuralFact). */
+  livingAreaSqft?:
+    | { status: "populated"; value: number }
+    | {
+        status: "absent";
+        verdict: string;
+        authority: string;
+        scopeSearched: string;
+        asOf: string;
+        basis: string;
+      }
+    | null;
   provenance?: {
     parcelSource?: string;
     parcelVintage?: string | null;
@@ -438,7 +452,32 @@ export interface PeBakedFacetsResponse {
    * Identified-session only.
    */
   ownerFact?: OwnerFactWire;
+  /**
+   * Structural/CAMA from structural-fact read (P-63). Copied from cortex JSON
+   * ROOT only. Never upgraded lookup-failed → absent-verified in transit.
+   */
+  structuralFact?: StructuralFactWire;
 }
+
+/** Cortex inspect GET sibling — P-63 verdict layer serve. */
+export type StructuralFactWire = {
+  state?: "present";
+  status?: "absent";
+  verdict?: string;
+  authority?: string;
+  scopeSearched?: string;
+  asOf?: string;
+  basis?: string;
+  provenanceClass?: string;
+  source?: string;
+  livingAreaSqft?: number | null;
+  yearBuilt?: number | null;
+  countyFips?: string;
+  propId?: string;
+  taxYear?: number;
+  tier?: string;
+  sourceVintage?: string | null;
+};
 
 export function isPropertyAtomPathEnabled(
   env: Record<string, string | undefined> = process.env as Record<
@@ -806,18 +845,51 @@ function withOwnerFact(
   return { ...atomResponse, ownerFact: fact };
 }
 
+export function isStructuralFactWire(value: unknown): value is StructuralFactWire {
+  if (!value || typeof value !== "object" || Array.isArray(value)) return false;
+  const o = value as StructuralFactWire;
+  if (o.state === "present") return true;
+  if (o.status === "absent" && typeof o.verdict === "string") return true;
+  return false;
+}
+
+export function structuralFactFromCortexRoot(
+  bakedBody: unknown,
+): StructuralFactWire | undefined {
+  if (!bakedBody || typeof bakedBody !== "object" || Array.isArray(bakedBody)) {
+    return undefined;
+  }
+  const fact = (bakedBody as { structuralFact?: unknown }).structuralFact;
+  return isStructuralFactWire(fact) ? fact : undefined;
+}
+
+function withStructuralFact(
+  atomResponse: PeBakedFacetsResponse,
+  bakedBody: unknown,
+): PeBakedFacetsResponse {
+  const fact = structuralFactFromCortexRoot(bakedBody);
+  if (fact === undefined) return atomResponse;
+  return { ...atomResponse, structuralFact: fact };
+}
+
 function withRootFacts(
   atomResponse: PeBakedFacetsResponse,
   bakedBody: unknown,
 ): PeBakedFacetsResponse {
-  return withOwnerFact(
-    withBoundaryEdgeFact(
-      withBuildingFootprintFact(
-        withWellFact(
-          withPipelineFact(
-            withSpecialDistrictFact(
-              withLandUseFact(
-                withFloodHazardFact(atomResponse, bakedBody),
+  return withVerdictLayerFields(
+    withStructuralFact(
+      withOwnerFact(
+        withBoundaryEdgeFact(
+          withBuildingFootprintFact(
+            withWellFact(
+              withPipelineFact(
+                withSpecialDistrictFact(
+                  withLandUseFact(
+                    withFloodHazardFact(atomResponse, bakedBody),
+                    bakedBody,
+                  ),
+                  bakedBody,
+                ),
                 bakedBody,
               ),
               bakedBody,
