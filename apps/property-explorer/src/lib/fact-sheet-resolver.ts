@@ -255,6 +255,17 @@ function cadProvenance(facets: BakedFacetPayload): Provenance {
   });
 }
 
+/** Travis-style sentinels (`, TX`) are not navigation or geocode anchors. */
+export function isUsableSitusAddress(raw: string | null | undefined): boolean {
+  if (!raw || typeof raw !== "string") return false;
+  const trimmed = raw.trim();
+  if (!trimmed) return false;
+  const street = (trimmed.split(",")[0] ?? "").trim();
+  if (!street || !/^\d/.test(street)) return false;
+  if (/^,\s*(TX)?\s*$/i.test(trimmed)) return false;
+  return true;
+}
+
 function identityFacts(facets: BakedFacetPayload, parcelNodeId: string) {
   const prov = cadProvenance(facets);
   const base = facets.baseFacts ?? {};
@@ -272,7 +283,7 @@ function identityFacts(facets: BakedFacetPayload, parcelNodeId: string) {
 
   // Genuinely absent on a material share of single-family parcels. Absence here
   // is a DATA gap: it must never degrade navigation or block an export.
-  const situsAddress: Fact<string> = str(base.situsAddress)
+  const situsAddress: Fact<string> = isUsableSitusAddress(str(base.situsAddress))
     ? { state: "present", value: str(base.situsAddress) as string, provenance: prov }
     : absentCovered(
         "no situs address on the county roll for this parcel",
@@ -1690,7 +1701,11 @@ export class PeFactSheetResolver implements FactSheetResolver {
 
     // 2. The backend's authoritative resolution of the situs address to a
     //    point. Best effort — never a lookup failure.
-    if (!seed && identity.situsAddress.state === "present") {
+    if (
+      !seed &&
+      identity.situsAddress.state === "present" &&
+      isUsableSitusAddress(identity.situsAddress.value)
+    ) {
       try {
         const env = await fetchBuildableEnvelope(
           { address: identity.situsAddress.value },
@@ -1726,7 +1741,11 @@ export class PeFactSheetResolver implements FactSheetResolver {
     //     stays because removing it outright would regress a parcel whose
     //     envelope declined into "cannot open at all", which is worse than a
     //     coarse centre.
-    if (!seed && identity.situsAddress.state === "present") {
+    if (
+      !seed &&
+      identity.situsAddress.state === "present" &&
+      isUsableSitusAddress(identity.situsAddress.value)
+    ) {
       try {
         const hits = await fetchGeocodeSuggestions(
           identity.situsAddress.value,

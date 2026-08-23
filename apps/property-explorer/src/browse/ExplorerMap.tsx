@@ -75,6 +75,7 @@ import {
 import { useMobileViewport } from "./useMobileViewport";
 import {
   deepLinkLookupQuery,
+  clearDeepLinkParams,
   resolveLookupToParcelNodeId,
 } from "../lib/parcel-lookup";
 import { factSheetResolver } from "../lib/fact-sheet-resolver";
@@ -809,7 +810,12 @@ function ExplorerMapSurface({
   const runParcelLookup = useCallback(
     async (
       query: string,
-      opts?: { fromDeepLink?: boolean; quiet?: boolean },
+      opts?: {
+        fromDeepLink?: boolean;
+        quiet?: boolean;
+        lat?: number;
+        lng?: number;
+      },
     ): Promise<boolean> => {
       const q = query.trim();
       if (!q) return false;
@@ -818,10 +824,18 @@ function ExplorerMapSurface({
       try {
         // 1. Query -> parcel node id. That is the ONLY thing the lookup path
         //    is authoritative for; it no longer reads a single parcel fact.
-        const found = await resolveLookupToParcelNodeId(q);
+        const found = await resolveLookupToParcelNodeId(q, {
+          lat: opts?.lat,
+          lng: opts?.lng,
+        });
         if (!found.ok) {
           if (!opts?.quiet) setLookupError(found.reason);
           return false;
+        }
+        if (found.resolvedPoint) {
+          factSheetResolver.hint(found.parcelNodeId, {
+            centroid: found.resolvedPoint,
+          });
         }
         // 2. ONE resolve, ONE sealed sheet, and it becomes THE subject. Every
         //    panel and every export reads it from here (invariant I1).
@@ -908,6 +922,7 @@ function ExplorerMapSurface({
             fit: true,
           });
         }
+        if (!opts?.fromDeepLink) clearDeepLinkParams();
         return true;
       } catch (err) {
         if (!opts?.quiet) {
@@ -1013,7 +1028,12 @@ function ExplorerMapSurface({
   const handleSearchSelect = useCallback(
     (suggestion: Suggestion) => {
       void executeSearchLanding(suggestion, {
-        runParcelLookup: (q, opts) => runParcelLookup(q, { quiet: opts?.quiet }),
+        runParcelLookup: (q, o) =>
+          runParcelLookup(q, {
+            quiet: o?.quiet,
+            lat: o?.lat,
+            lng: o?.lng,
+          }),
         flyTo: flyToPoint,
         fitExtent,
         showChip: showSearchChip,

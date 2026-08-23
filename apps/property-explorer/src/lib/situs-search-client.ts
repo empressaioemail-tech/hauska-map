@@ -3,7 +3,7 @@
 // Thin client for the /api/pe-situs-search BFF (cortex TxGIO situs index).
 
 import type { SitusSearchWireResponse } from "../../api/_lib/pe-situs-search-core";
-import { situsHitToSuggestion, type Suggestion } from "./search-kinds";
+import { placeSearchHitToSuggestion, type Suggestion } from "./search-kinds";
 
 export const PE_SITUS_SEARCH_URL = "/api/pe-situs-search";
 
@@ -30,6 +30,6 @@ export async function fetchSitusSearchSuggestions(
   const json = (await res.json()) as SitusSearchWireResponse;
   const hits = Array.isArray(json?.hits) ? json.hits : [];
   return hits
-    .map(situsHitToSuggestion)
+    .map(placeSearchHitToSuggestion)
     .filter((s): s is Suggestion => s != null);
 }

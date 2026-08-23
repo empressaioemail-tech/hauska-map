@@ -7,9 +7,12 @@ export const SITUS_SEARCH_DEFAULT_LIMIT = 7
 export const SITUS_SEARCH_MAX_LIMIT = 10
 
 export interface SitusSearchHit {
-  parcelNodeId: string
+  parcelNodeId: string | null
   situsAddress: string
   countyFips: string
+  latitude?: number | null
+  longitude?: number | null
+  source?: 'parcel-situs' | 'address-point'
 }
 
 export interface SitusSearchWireResponse {
@@ -61,14 +64,19 @@ export function buildCortexSitusSearchUrl(
 function isSitusHit(v: unknown): v is SitusSearchHit {
   if (!v || typeof v !== 'object' || Array.isArray(v)) return false
   const r = v as Record<string, unknown>
-  return (
-    typeof r.parcelNodeId === 'string' &&
-    r.parcelNodeId.trim().length > 0 &&
-    typeof r.situsAddress === 'string' &&
-    r.situsAddress.trim().length > 0 &&
-    typeof r.countyFips === 'string' &&
-    r.countyFips.trim().length > 0
-  )
+  const situs = typeof r.situsAddress === 'string' ? r.situsAddress.trim() : ''
+  const fips = typeof r.countyFips === 'string' ? r.countyFips.trim() : ''
+  if (!situs || !fips) return false
+  const nodeId = typeof r.parcelNodeId === 'string' ? r.parcelNodeId.trim() : ''
+  const lat = r.latitude
+  const lng = r.longitude
+  const hasPoint =
+    typeof lat === 'number' &&
+    Number.isFinite(lat) &&
+    typeof lng === 'number' &&
+    Number.isFinite(lng)
+  if (nodeId) return true
+  return hasPoint
 }
 
 /** Map cortex JSON to wire hits; drops malformed rows. */
@@ -76,9 +84,24 @@ export function mapSitusSearchResponse(json: unknown): SitusSearchWireResponse {
   const body = json as { hits?: unknown } | null
   const raw = Array.isArray(body?.hits) ? body!.hits : []
   const hits = raw.filter(isSitusHit).map((h) => ({
-    parcelNodeId: h.parcelNodeId.trim(),
+    parcelNodeId:
+      typeof h.parcelNodeId === 'string' && h.parcelNodeId.trim()
+        ? h.parcelNodeId.trim()
+        : null,
     situsAddress: h.situsAddress.trim(),
     countyFips: h.countyFips.trim(),
+    latitude:
+      typeof h.latitude === 'number' && Number.isFinite(h.latitude)
+        ? h.latitude
+        : null,
+    longitude:
+      typeof h.longitude === 'number' && Number.isFinite(h.longitude)
+        ? h.longitude
+        : null,
+    source:
+      h.source === 'address-point' || h.source === 'parcel-situs'
+        ? h.source
+        : undefined,
   }))
   return { hits }
 }
