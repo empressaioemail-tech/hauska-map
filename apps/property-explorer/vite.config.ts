@@ -54,6 +54,10 @@ export default defineConfig({
               target: spineProxyTarget,
               changeOrigin: true,
             },
+            "/api/pe-situs-search": {
+              target: spineProxyTarget,
+              changeOrigin: true,
+            },
             "/api/pe-share": {
               target: spineProxyTarget,
               changeOrigin: true,

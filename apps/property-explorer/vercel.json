@@ -23,6 +23,8 @@
     { "source": "/api/pe-hydrography", "destination": "/api/pe-map-layers?layer=hydrography" },
     { "source": "/api/pe-opportunity-zone", "destination": "/api/pe-map-layers?layer=opportunity-zone" },
     { "source": "/api/pe-geocode", "destination": "/api/pe-geocode" },
+    { "source": "/api/pe-situs-search", "destination": "/api/pe-situs-search" },
+    { "source": "/api/pe-situs-search", "destination": "/api/pe-situs-search" },
     { "source": "/api/pe-share", "destination": "/api/pe-share" },
     { "source": "/api/pe-share-view", "destination": "/api/pe-share-view" },
     { "source": "/api/pe-smart-files-mount", "destination": "/api/pe-smart-files-mount" },

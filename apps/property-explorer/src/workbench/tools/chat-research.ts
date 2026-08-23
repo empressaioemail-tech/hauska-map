@@ -29,8 +29,14 @@ import { postDeepResearch } from "../../lib/auth";
 import {
   fetchBakedNodeFacetsOrNull,
   type BakedFacetPayload,
+  type BakedFacetsResponse,
+  type FloodHazardFactCardInput,
+  type LandUseFactCardInput,
 } from "../../lib/baked-facets";
-import { zoningDistrictFromPayload } from "../../lib/layer-absence";
+import {
+  isLayerAbsenceWire,
+  zoningDistrictFromPayload,
+} from "../../lib/layer-absence";
 import { PE_FACETS_PROXY_BASE } from "../../lib/config";
 import {
   refsFromChatResponse,
@@ -171,6 +177,16 @@ export interface ChatSubjectEnvelope {
   citationUrl: string | null;
 }
 
+export interface ChatSubjectParcelFacts {
+  acreageAc: number | null;
+  acreageSqft: number | null;
+  livingAreaSqft: number | null;
+  floodZoneLabel: string | null;
+  landUseCode: string | null;
+  landUseDescription: string | null;
+  zoningDistrict: string | null;
+}
+
 export interface ChatSubjectContext {
   parcelNodeId: string;
   address: string | null;
@@ -178,6 +194,120 @@ export interface ChatSubjectContext {
   jurisdictionKey: string | null;
   setbacks: ChatSubjectSetbacks | null;
   envelope: ChatSubjectEnvelope | null;
+  parcelFacts: ChatSubjectParcelFacts;
+}
+
+function emptyParcelFacts(
+  zoningDistrict: string | null = null,
+): ChatSubjectParcelFacts {
+  return {
+    acreageAc: null,
+    acreageSqft: null,
+    livingAreaSqft: null,
+    floodZoneLabel: null,
+    landUseCode: null,
+    landUseDescription: null,
+    zoningDistrict,
+  };
+}
+
+function acreageFromFacets(
+  facets: BakedFacetPayload,
+): Pick<ChatSubjectParcelFacts, "acreageAc" | "acreageSqft"> {
+  const ac = facets.baseFacts?.acreage;
+  if (!ac || typeof ac.value !== "number" || !Number.isFinite(ac.value)) {
+    return { acreageAc: null, acreageSqft: null };
+  }
+  return {
+    acreageAc: ac.value,
+    acreageSqft:
+      typeof ac.sqft === "number" && Number.isFinite(ac.sqft) ? ac.sqft : null,
+  };
+}
+
+function livingAreaSqftFromFacets(facets: BakedFacetPayload): number | null {
+  const wire = facets.livingAreaSqft;
+  if (!wire || typeof wire !== "object" || isLayerAbsenceWire(wire)) return null;
+  if (
+    wire.status === "populated" &&
+    typeof wire.value === "number" &&
+    Number.isFinite(wire.value) &&
+    wire.value > 0
+  ) {
+    return wire.value;
+  }
+  return null;
+}
+
+function floodZoneLabelFromFact(
+  flood: FloodHazardFactCardInput | null | undefined,
+): string | null {
+  if (!flood || typeof flood !== "object") return null;
+  const state = str(flood.state);
+  if (state !== "present") return null;
+
+  const zones = Array.isArray(flood.zones) ? flood.zones : null;
+  if (zones && zones.length > 0) {
+    const codes = zones
+      .map((z) => {
+        const row = asRecord(z);
+        return row ? (str(row.floodZone) ?? str(row.zone)) : null;
+      })
+      .filter((c): c is string => !!c);
+    if (codes.length > 1) return `Zones ${codes.join(", ")}`;
+    if (codes.length === 1) return `Zone ${codes[0]}`;
+  }
+
+  const zone = str(flood.floodZone);
+  if (zone) return `Zone ${zone}`;
+  if (flood.inSpecialFloodHazardArea === true) {
+    return "Inside SFHA (zone unstated)";
+  }
+  return null;
+}
+
+function landUseFromFacetsResponse(
+  facets: BakedFacetPayload,
+  landUseFact: LandUseFactCardInput | null | undefined,
+): Pick<ChatSubjectParcelFacts, "landUseCode" | "landUseDescription"> {
+  if (landUseFact && typeof landUseFact === "object") {
+    const state = str(landUseFact.state);
+    if (state === "present") {
+      return {
+        landUseCode: str(landUseFact.landUseCode),
+        landUseDescription: str(landUseFact.landUseLabel),
+      };
+    }
+    return { landUseCode: null, landUseDescription: null };
+  }
+
+  const lu = facets.baseFacts?.landUse ?? null;
+  if (!lu) return { landUseCode: null, landUseDescription: null };
+  return {
+    landUseCode: str(lu.code),
+    landUseDescription: str(lu.description),
+  };
+}
+
+function buildParcelFactsFromFacetsResponse(
+  facets: BakedFacetPayload,
+  response: BakedFacetsResponse | null,
+  zoningDistrict: string | null,
+): ChatSubjectParcelFacts {
+  const { acreageAc, acreageSqft } = acreageFromFacets(facets);
+  const { landUseCode, landUseDescription } = landUseFromFacetsResponse(
+    facets,
+    response?.landUseFact,
+  );
+  return {
+    acreageAc,
+    acreageSqft,
+    livingAreaSqft: livingAreaSqftFromFacets(facets),
+    floodZoneLabel: floodZoneLabelFromFact(response?.floodHazardFact),
+    landUseCode,
+    landUseDescription,
+    zoningDistrict,
+  };
 }
 
 function asRecord(v: unknown): Record<string, unknown> | null {
@@ -249,6 +379,7 @@ export function buildChatSubjectContext(
     jurisdictionKey: zoning ? str(zoning.jurisdictionKey) : null,
     setbacks,
     envelope,
+    parcelFacts: emptyParcelFacts(district),
   };
 }
 
@@ -295,10 +426,11 @@ export function jurisdictionKeyFromFacets(
  */
 export function buildChatSubjectFromFacets(
   parcelNodeId: string,
-  facets: BakedFacetPayload | null,
+  facetsResponse: BakedFacetsResponse | null,
   brief: BriefLike | null | undefined,
   address: string | null,
 ): ChatSubjectContext {
+  const facets = facetsResponse?.facets ?? null;
   // The brief-derived subject (may be all-null when no brief was ever opened).
   const fromBrief = buildChatSubjectContext(parcelNodeId, brief, address);
   if (!facets) return fromBrief;
@@ -357,6 +489,11 @@ export function buildChatSubjectFromFacets(
       jurisdictionKeyFromFacets(facets) ?? fromBrief.jurisdictionKey,
     setbacks,
     envelope,
+    parcelFacts: buildParcelFactsFromFacetsResponse(
+      facets,
+      facetsResponse,
+      district,
+    ),
   };
 }
 
@@ -367,16 +504,12 @@ export function buildChatSubjectFromFacets(
 // property to "no context" forever.
 // ---------------------------------------------------------------------------
 
-const chatFacetsCache = new Map<string, Promise<BakedFacetPayload | null>>();
+const chatFacetsCache = new Map<string, Promise<BakedFacetsResponse | null>>();
 
 async function defaultChatFacetsFetcher(
   parcelNodeId: string,
-): Promise<BakedFacetPayload | null> {
-  const resp = await fetchBakedNodeFacetsOrNull(
-    parcelNodeId,
-    PE_FACETS_PROXY_BASE,
-  );
-  return resp?.facets ?? null;
+): Promise<BakedFacetsResponse | null> {
+  return fetchBakedNodeFacetsOrNull(parcelNodeId, PE_FACETS_PROXY_BASE);
 }
 
 /** Facets for the active property, module-cached per parcelNodeId. */
@@ -384,14 +517,14 @@ export function getChatPropertyFacets(
   parcelNodeId: string,
   fetcher: (
     parcelNodeId: string,
-  ) => Promise<BakedFacetPayload | null> = defaultChatFacetsFetcher,
-): Promise<BakedFacetPayload | null> {
+  ) => Promise<BakedFacetsResponse | null> = defaultChatFacetsFetcher,
+): Promise<BakedFacetsResponse | null> {
   const cached = chatFacetsCache.get(parcelNodeId);
   if (cached) return cached;
   const inFlight = fetcher(parcelNodeId).then(
-    (facets) => {
-      if (facets == null) chatFacetsCache.delete(parcelNodeId);
-      return facets;
+    (response) => {
+      if (response == null) chatFacetsCache.delete(parcelNodeId);
+      return response;
     },
     () => {
       chatFacetsCache.delete(parcelNodeId);
@@ -472,6 +605,7 @@ export function buildChatRequestBody(input: {
         address,
         setbacks: subject.setbacks,
         envelope: subject.envelope,
+        parcelFacts: subject.parcelFacts,
       },
     },
   };

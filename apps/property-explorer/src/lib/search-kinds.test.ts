@@ -9,6 +9,7 @@ import {
   groupSuggestions,
   highlightRanges,
   looksLikeParcelId,
+  mergeSearchSuggestions,
   parcelIdSuggestion,
   suggestionLookupTarget,
   type Suggestion,
@@ -141,6 +142,56 @@ describe("grouping", () => {
   it("de-dupes identical label+kind rows", () => {
     const grouped = groupSuggestions([mk("place", "Austin"), mk("place", "Austin")]);
     expect(grouped.length).toBe(1);
+  });
+});
+
+describe("mergeSearchSuggestions", () => {
+  const parcel = (
+    id: string,
+    label: string,
+    lookup: string,
+  ): Suggestion => ({
+    kind: "parcel",
+    label,
+    sublabel: "Buda, TX",
+    lat: null,
+    lng: null,
+    extent: null,
+    parcelNodeId: id,
+    lookupQuery: lookup,
+  });
+
+  const address = (label: string, lookup: string): Suggestion => ({
+    kind: "address",
+    label,
+    sublabel: "Buda, TX",
+    lat: 30.1,
+    lng: -97.8,
+    extent: null,
+    parcelNodeId: null,
+    lookupQuery: lookup,
+  });
+
+  it("ranks situs parcels before geocoder addresses", () => {
+    const merged = mergeSearchSuggestions(
+      [parcel("48209:193340", "6026 Marsh Ln", "6026 MARSH LN, BUDA, TX 78610")],
+      [address("6026 Marsh Ln", "6026 Marsh Ln, Buda, TX")],
+      7,
+    );
+    expect(merged[0]?.kind).toBe("parcel");
+    expect(merged[0]?.parcelNodeId).toBe("48209:193340");
+  });
+
+  it("dedupes by parcelNodeId and lookupQuery", () => {
+    const merged = mergeSearchSuggestions(
+      [parcel("48209:193340", "6026 Marsh Ln", "6026 MARSH LN, BUDA, TX 78610")],
+      [
+        parcel("48209:193340", "6026 Marsh Ln", "6026 MARSH LN, BUDA, TX 78610"),
+        address("6026 Marsh Ln", "6026 marsh ln, buda, tx 78610"),
+      ],
+      7,
+    );
+    expect(merged).toHaveLength(1);
   });
 });
 
