@@ -7,8 +7,8 @@
 // is touched; that surface belongs to lane SS-W8.
 //
 // The defect this pins: CC seeds `known` from every registry row, so six
-// source-less layers (ssurgo-soils, groundwater, mud-pid, edwards-aquifer,
-// texas-rrc, etj) render as ordinary checkboxes. Ticking one produced a blank
+// source-less layers (ssurgo-soils, groundwater, edwards-aquifer,
+// texas-rrc, etj) render as ordinary checkboxes. mud-pid flipped live P-60. Ticking one produced a blank
 // map and no explanation. An empty layer and a broken layer looked identical.
 //
 // Static markup only — renderToStaticMarkup, matching the existing PE pattern.
@@ -47,7 +47,6 @@ describe("LayersControl honest-empty rows (Command Center shape)", () => {
     for (const key of [
       "ssurgo-soils",
       "groundwater",
-      "mud-pid",
       "edwards-aquifer",
       "texas-rrc",
       "etj",
@@ -64,7 +63,14 @@ describe("LayersControl honest-empty rows (Command Center shape)", () => {
   it("does NOT mark layers that actually draw", () => {
     // The control must be able to say no. If every row were tagged, the tag
     // would carry no information and would be ignored.
-    for (const key of ["parcel-polygon", "flood-zone", "road-nodes"]) {
+    for (const key of [
+      "parcel-polygon",
+      "flood-zone",
+      "road-nodes",
+      "mud-pid",
+      "building-footprint",
+      "buildable-envelope",
+    ]) {
       expect(html).not.toContain(`layers-empty-tag-${key}`);
       expect(html).not.toContain(`layers-empty-basis-${key}`);
     }
