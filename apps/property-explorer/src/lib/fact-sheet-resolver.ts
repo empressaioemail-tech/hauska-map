@@ -79,7 +79,7 @@ import {
   FLOOD_HAZARD_FACT_MISSING_REASON,
   type BakedFacetPayload,
 } from "./baked-facets";
-import { isLayerAbsenceWire } from "./layer-absence";
+import { isLayerAbsenceWire, zoningDistrictFromPayload } from "./layer-absence";
 import type { VerdictLayerSnapshot } from "./sheet-to-card-model";
 import { fetchBuildableEnvelope, parsePlaceKey } from "./buildable-envelope.js";
 import { fetchGeocodeSuggestions } from "./geocodeClient";
@@ -871,19 +871,20 @@ function zoningFact(facets: BakedFacetPayload, countyFips: string): Fact<ZoningD
       retryable: true,
     };
   }
-  const district = str(facets.zoning?.district);
+  const zoningStamp = zoningDistrictFromPayload(facets.zoning);
+  const district = str(zoningStamp?.district);
   if (district) {
     return {
       state: "present",
       value: {
         code: district,
         name: null,
-        jurisdiction: str(facets.zoning?.jurisdictionKey) ?? countyFips,
+        jurisdiction: str(zoningStamp?.jurisdictionKey) ?? countyFips,
       },
       provenance: provenance({
         source: "zoning-stamp",
-        sourceLabel: str(facets.zoning?.jurisdictionKey)
-          ? `${facets.zoning?.jurisdictionKey} zoning layer`
+        sourceLabel: str(zoningStamp?.jurisdictionKey)
+          ? `${zoningStamp?.jurisdictionKey} zoning layer`
           : "Jurisdiction zoning layer",
         retrievedAt: facets.bakedAt ?? null,
         // The zoning atom has no section number of its own — it is a district

@@ -30,6 +30,7 @@ import {
   fetchBakedNodeFacetsOrNull,
   type BakedFacetPayload,
 } from "../../lib/baked-facets";
+import { zoningDistrictFromPayload } from "../../lib/layer-absence";
 import { PE_FACETS_PROXY_BASE } from "../../lib/config";
 import {
   refsFromChatResponse,
@@ -306,7 +307,7 @@ export function buildChatSubjectFromFacets(
   const envUsable = !!env && env.status !== "declined";
   const district =
     (envUsable ? str(env.district) : null) ??
-    str(facets.zoning?.district) ??
+    str(zoningDistrictFromPayload(facets.zoning)?.district) ??
     fromBrief.setbacks?.district ??
     null;
 

@@ -72,6 +72,19 @@ export function isPopulatedLayerWire<T>(
   return (value as { status?: unknown }).status === "populated";
 }
 
+/** Zoning stamp district when facets.zoning is a district object, not a verdict wire. */
+export function zoningDistrictFromPayload(
+  zoning: { district: string; jurisdictionKey?: string } | LayerAbsenceWire | null | undefined,
+): { district: string; jurisdictionKey?: string } | null {
+  if (zoning == null || isLayerAbsenceWire(zoning)) return null;
+  const district = zoning.district?.trim();
+  if (!district) return null;
+  return {
+    district,
+    jurisdictionKey: zoning.jurisdictionKey,
+  };
+}
+
 /** Primary row label — verdict string is always visible; never collapsed to atom-miss. */
 export function layerAbsenceDisplayLabel(verdict: LayerAbsenceVerdict): string {
   return verdict;

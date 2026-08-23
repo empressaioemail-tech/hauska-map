@@ -69,7 +69,7 @@ export type ParcelFactSheetWithVerdictLayers = ParcelFactSheet & {
 
 function verdictLayersToCardFacets(
   layers: VerdictLayerSnapshot | undefined,
-): Pick<BakedCardModel, "livingArea" | "zoning"> | null {
+): Partial<Pick<BakedCardModel, "livingArea" | "zoning">> | null {
   if (!layers) return null;
   const hasStructural =
     layers.facetCoverage?.structural === true ||
@@ -82,7 +82,7 @@ function verdictLayersToCardFacets(
     zoning: layers.zoning,
     facetCoverage: layers.facetCoverage,
   };
-  const out: Pick<BakedCardModel, "livingArea" | "zoning"> = {
+  const out: Partial<Pick<BakedCardModel, "livingArea" | "zoning">> = {
     livingArea: livingAreaLayerToCardFacet(payload),
   };
   if (hasZoningVerdict) {
@@ -551,7 +551,9 @@ export function bakedCardModelFromSheet(
 
   const verdictFacets = verdictLayersToCardFacets(sheet.verdictLayers);
   if (verdictFacets) {
-    model.livingArea = verdictFacets.livingArea;
+    if (verdictFacets.livingArea) {
+      model.livingArea = verdictFacets.livingArea;
+    }
     if (verdictFacets.zoning) {
       model.zoning = verdictFacets.zoning;
     }
