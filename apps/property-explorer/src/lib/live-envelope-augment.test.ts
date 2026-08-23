@@ -5,27 +5,27 @@ import {
 } from "./live-envelope-augment";
 import type { BakedFacetPayload } from "./baked-facets";
 
-const WITHHELD: BakedFacetPayload = {
+const GEO_ABSENT: BakedFacetPayload = {
   envelope: {
     status: "ok",
     district: "GC",
     setbacks: { front_ft: 20, side_ft: 5, rear_ft: 20 },
     disclosure:
-      "Atom-chain setback rule from live per-parcel record — depth-warm envelope geometry withheld (re-derive from live setbacks).",
+      "Atom-chain setback scalars from live per-parcel record (layer-23); geometry absent on depth-warm proof atom — re-derive from live setbacks.",
     approximate: true,
   },
 };
 
 describe("facetsNeedLiveEnvelopeDerive", () => {
-  it("true when setbacks present and geojson withheld", () => {
-    expect(facetsNeedLiveEnvelopeDerive(WITHHELD)).toBe(true);
+  it("true when setbacks present and geojson absent", () => {
+    expect(facetsNeedLiveEnvelopeDerive(GEO_ABSENT)).toBe(true);
   });
 
   it("false when geojson already present", () => {
     expect(
       facetsNeedLiveEnvelopeDerive({
         envelope: {
-          ...WITHHELD.envelope!,
+          ...GEO_ABSENT.envelope!,
           geojson: {
             type: "FeatureCollection",
             features: [
@@ -53,7 +53,7 @@ describe("facetsNeedLiveEnvelopeDerive", () => {
 });
 
 describe("augmentFacetsWithLiveEnvelope", () => {
-  it("merges live POST geometry when withheld", async () => {
+  it("merges live POST geometry when geojson still absent", async () => {
     const fetchImpl = vi.fn(async () => ({
       ok: true,
       json: async () => ({
@@ -85,7 +85,7 @@ describe("augmentFacetsWithLiveEnvelope", () => {
     })) as unknown as typeof fetch;
 
     const out = await augmentFacetsWithLiveEnvelope(
-      WITHHELD,
+      GEO_ABSENT,
       "1010 PECAN ST, BASTROP, TX 78602",
       "/api/spine/cortex/api",
       fetchImpl,
@@ -127,7 +127,7 @@ describe("augmentFacetsWithLiveEnvelope", () => {
     })) as unknown as typeof fetch;
 
     const out = await augmentFacetsWithLiveEnvelope(
-      WITHHELD,
+      GEO_ABSENT,
       "1010 PECAN ST, BASTROP, TX 78602",
       "/api/spine/cortex/api",
       fetchImpl,
@@ -142,13 +142,13 @@ describe("augmentFacetsWithLiveEnvelope", () => {
     }) as unknown as typeof fetch;
 
     const out = await augmentFacetsWithLiveEnvelope(
-      WITHHELD,
+      GEO_ABSENT,
       "1010 PECAN ST, BASTROP, TX 78602",
       "/api/spine/cortex/api",
       fetchImpl,
       "48021:47595",
     );
-    expect(out).toBe(WITHHELD);
+    expect(out).toBe(GEO_ABSENT);
     expect(out.envelope?.geojson).toBeUndefined();
   });
 });

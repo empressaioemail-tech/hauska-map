@@ -503,7 +503,7 @@ describe("PeFactSheetResolver.resolve", () => {
     });
   });
 
-  it("re-derives withheld depth-warm envelope geometry via live POST (preferLiveOverWarm)", async () => {
+  it("re-derives envelope geometry via live POST when geojson absent after adapt", async () => {
     const parcelNodeId = "48021:47595";
     const wire = facetsWire({
       parcelNodeId,
@@ -519,7 +519,7 @@ describe("PeFactSheetResolver.resolve", () => {
         district: "R-1",
         setbacks: { front_ft: 20, side_ft: 5, rear_ft: 20 },
         disclosure:
-          "Atom-chain setback rule from live per-parcel record — depth-warm envelope geometry withheld (re-derive from live setbacks).",
+          "Atom-chain setback scalars from live per-parcel record (layer-23); geometry absent on depth-warm proof atom — re-derive from live setbacks.",
       },
     });
     const subjectFeature = {
@@ -541,6 +541,63 @@ describe("PeFactSheetResolver.resolve", () => {
     expect(sheet.envelope.area.value).toBe(4100);
     expect(sheet.envelope.rings).toHaveLength(1);
     expect(stub.calls.some((u) => u.includes("buildable-envelope"))).toBe(true);
+  });
+
+  it("skips live POST when depth-warm geojson already on facets (48021:34137)", async () => {
+    const parcelNodeId = "48021:34137";
+    const wire = facetsWire({
+      parcelNodeId,
+      baseFacts: {
+        apn: "R34137",
+        situsAddress: "1102 Chestnut St, Bastrop TX",
+        landUse: { code: "A1", description: "Single-family residential", source: "cad-roll", vintage: "2026" },
+        acreage: { value: 0.15, sqft: 6534, method: "cad-roll" },
+      },
+      envelope: {
+        status: "ok",
+        approximate: true,
+        district: "SF-1",
+        setbacks: { front_ft: 25, side_ft: 5, rear_ft: 10 },
+        buildableAreaSqFt: 6325,
+        disclosure:
+          "Atom-chain setback scalars from live per-parcel record (layer-23); buildable envelope geometry from depth-warm promoted ledger.",
+        geojson: {
+          type: "FeatureCollection",
+          features: [
+            {
+              type: "Feature",
+              geometry: {
+                type: "Polygon",
+                coordinates: [
+                  [
+                    [-97.32, 30.11],
+                    [-97.319, 30.11],
+                    [-97.319, 30.109],
+                    [-97.32, 30.109],
+                    [-97.32, 30.11],
+                  ],
+                ],
+              },
+            },
+          ],
+        },
+      },
+    });
+    const subjectFeature = {
+      type: "Feature",
+      properties: { parcel_node_id: parcelNodeId, apn: "R34137" },
+      geometry: { type: "Polygon", coordinates: [square(SUBJECT_CENTRE.lng, SUBJECT_CENTRE.lat)] },
+    };
+    const stub = installFetchStub({
+      facets: wire,
+      gisFeatures: [subjectFeature],
+    });
+    const sheet = await sheetOf(makeResolver(stub), parcelNodeId);
+    expect(sheet.envelope.kind).toBe("derived");
+    if (sheet.envelope.kind !== "derived") throw new Error("unreachable");
+    expect(sheet.envelope.area.value).toBe(6325);
+    expect(sheet.envelope.rings).toHaveLength(1);
+    expect(stub.calls.some((u) => u.includes("buildable-envelope"))).toBe(false);
   });
 });
 

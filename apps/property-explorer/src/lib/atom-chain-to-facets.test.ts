@@ -280,7 +280,7 @@ describe("depth-warm read path (WDLL 8)", () => {
     ).toBe(true);
   });
 
-  it("live layer-23 setback on depth-warm parcel withholds promoted geometry", () => {
+  it("live layer-23 setback on depth-warm parcel serves scalars and promoted geometry", () => {
     const chain: PropertyAtomChain = {
       parcelNodeId: "48021:34177",
       zoningFact: {
@@ -319,10 +319,63 @@ describe("depth-warm read path (WDLL 8)", () => {
       side_ft: 5,
       rear_ft: 15,
     });
-    expect(resp!.facets.envelope?.geojson).toBeUndefined();
-    expect(resp!.facets.envelope?.buildableAreaSqFt).toBeUndefined();
+    expect(resp!.facets.envelope?.geojson).toBeDefined();
+    expect(resp!.facets.envelope?.buildableAreaSqFt).toBe(12000);
     expect(resp!.facets.envelope?.disclosure).toMatch(/live per-parcel record/i);
-    expect(resp!.facets.envelope?.disclosure).not.toMatch(/no live re-derive/i);
+    expect(resp!.facets.envelope?.disclosure).toMatch(/depth-warm/i);
+  });
+
+  it("gold 48021:34137 depth-warm + layer-23 serves geojson for map wedge parity", () => {
+    const chain: PropertyAtomChain = {
+      parcelNodeId: "48021:34137",
+      zoningFact: {
+        district: "SF-1",
+        sourceAdapter: "txgio-zoning-stamp:bastrop-city-tx",
+        extractedAt: "2026-07-25T22:00:00.000Z",
+      },
+      setbackRule: {
+        front: 25,
+        side: 5,
+        rear: 10,
+        districtCode: "SF-1",
+        sourceAdapter: BASTROP_LIVE_SETBACK_ADAPTER,
+      },
+      buildableEnvelope: {
+        outcome: { kind: "buildable", areaSqFt: 6325 },
+        sourceCitation: "depth-warm-verified mechanical promote (27c R3 WDLL 6)",
+        depthWarmPromotion: DEPTH_WARM_PROMOTION_MARKER,
+        geojson: {
+          type: "FeatureCollection",
+          features: [
+            {
+              type: "Feature",
+              geometry: {
+                type: "Polygon",
+                coordinates: [
+                  [
+                    [-97.32, 30.11],
+                    [-97.319, 30.11],
+                    [-97.319, 30.109],
+                    [-97.32, 30.109],
+                    [-97.32, 30.11],
+                  ],
+                ],
+              },
+            },
+          ],
+        },
+        extractedAt: "2026-07-25T22:00:00.000Z",
+      },
+      atoms: [{}, {}, {}],
+    };
+    const resp = adaptAtomChainToBakedFacets(chain);
+    expect(resp!.facets.envelope?.setbacks).toEqual({
+      front_ft: 25,
+      side_ft: 5,
+      rear_ft: 10,
+    });
+    expect(resp!.facets.envelope?.geojson).toBeDefined();
+    expect(resp!.facets.envelope?.buildableAreaSqFt).toBe(6325);
   });
 });
 

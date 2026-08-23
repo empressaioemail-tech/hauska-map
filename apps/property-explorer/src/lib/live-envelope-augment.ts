@@ -1,7 +1,7 @@
 /**
- * When atom-chain serve withholds depth-warm envelope geojson but live setbacks
- * are present (#188 preferLiveOverWarm), re-derive geometry via the live
- * buildable-envelope POST — no rebake.
+ * When atom-chain adapt leaves envelope geojson absent but setbacks are present,
+ * re-derive geometry via the live buildable-envelope POST — no rebake.
+ * Skipped when depth-warm geojson was already served on the facets payload.
  */
 
 import type { BakedFacetPayload } from "./baked-facets.js";
@@ -16,7 +16,7 @@ function num(v: unknown): number | undefined {
   return typeof v === "number" && Number.isFinite(v) ? v : undefined;
 }
 
-/** True when facets carry setbacks but no inset polygon (live-over-warm withhold). */
+/** True when facets carry setbacks but no inset polygon after atom-chain adapt. */
 export function facetsNeedLiveEnvelopeDerive(facets: BakedFacetPayload): boolean {
   const env = facets.envelope;
   if (!env || env.status !== "ok") return false;
@@ -29,13 +29,8 @@ export function facetsNeedLiveEnvelopeDerive(facets: BakedFacetPayload): boolean
     num(s.side_interior_ft) != null ||
     num(s.side_corner_ft) != null;
   if (!hasSetback) return false;
-  if (ringsFromGeoJson(env.geojson).length > 0) return false;
-  const disclosure = str(env.disclosure) ?? "";
-  return (
-    disclosure.includes("withheld") ||
-    disclosure.includes("re-derive") ||
-    disclosure.includes("geometry absent")
-  );
+  // Depth-warm or other atom-chain geojson already present — do not POST first.
+  return ringsFromGeoJson(env.geojson).length === 0;
 }
 
 export async function augmentFacetsWithLiveEnvelope(
