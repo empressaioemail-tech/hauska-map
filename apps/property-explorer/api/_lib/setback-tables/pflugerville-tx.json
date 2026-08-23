@@ -1,0 +1,683 @@
+{
+  "$schema": "./schema.json",
+  "jurisdictionKey": "pflugerville-tx",
+  "jurisdictionDisplayName": "City of Pflugerville, TX",
+  "note": "Codified from City of Pflugerville Unified Development Code §4.2.4, Tables 4.2.4A–C, at https://online.encodeplus.com/regs/pflugerville/doc-view.aspx?print=1&tocid=004.004, accessed 2026-07-21/23. SHIPPED rows: SF-S, SF-R, MF-20, SF-MU, 2-F, GB1, GB2, LI, MH, A. SF-MU/2-F use Table 4.2.4A abutting-SF interior-side where listed. Non-residential GB1/GB2/LI use tabulated base yards without height-escalator adjacency. OMITTED: corridor CL3/CL4/CL5, PUD, PF, NS, O, CI, GI, and overlays. max_lot_coverage_pct and max_impervious_pct use the established non-binding sentinel 100 where not scalar.",
+  "districts": [
+    {
+      "district_name": "SF-S Single Family Suburban",
+      "front_ft": 25,
+      "rear_ft": 20,
+      "side_ft": 7.5,
+      "side_corner_ft": 15,
+      "max_height_ft": 35,
+      "max_lot_coverage_pct": 100,
+      "max_impervious_pct": 100,
+      "citation_url": "https://online.encodeplus.com/regs/pflugerville/doc-view.aspx?print=1&tocid=004.004",
+      "provenance": {
+        "front_ft": {
+          "atom_did": "pflugerville_tx/udc/4.2.4",
+          "section_number": "4.2.4",
+          "quote": "Table 4.2.4A, SF-S: Minimum Front Street Setback 25'.",
+          "confidence": 0.9,
+          "verification_state": "human-verified"
+        },
+        "rear_ft": {
+          "atom_did": "pflugerville_tx/udc/4.2.4",
+          "section_number": "4.2.4",
+          "quote": "Table 4.2.4A, SF-S: Minimum Rear Setback 20'.",
+          "confidence": 0.9,
+          "verification_state": "human-verified"
+        },
+        "side_ft": {
+          "atom_did": "pflugerville_tx/udc/4.2.4",
+          "section_number": "4.2.4",
+          "quote": "Table 4.2.4A, SF-S: Minimum Interior Side Setback 7.5'.",
+          "confidence": 0.9,
+          "verification_state": "human-verified"
+        },
+        "side_corner_ft": {
+          "atom_did": "pflugerville_tx/udc/4.2.4",
+          "section_number": "4.2.4",
+          "quote": "Table 4.2.4A, SF-S: Minimum Side Street Setback (corner lots) 15'.",
+          "confidence": 0.9,
+          "verification_state": "human-verified"
+        },
+        "max_height_ft": {
+          "atom_did": "pflugerville_tx/udc/4.2.4",
+          "section_number": "4.2.4",
+          "quote": "Table 4.2.4C: A, SF-E, SF-S, SF-R, SF-MU, 2-F maximum principal building height 35'.",
+          "confidence": 0.9,
+          "verification_state": "human-verified"
+        },
+        "max_lot_coverage_pct": {
+          "atom_did": "pflugerville_tx/udc/4.2.4",
+          "section_number": "4.2.4",
+          "quote": "Selected SF-S row has no single unqualified maximum lot-coverage value in Tables 4.2.4A–C.",
+          "confidence": 0.8,
+          "verification_state": "human-verified",
+          "not_specified": true
+        },
+        "max_impervious_pct": {
+          "atom_did": "pflugerville_tx/udc/4.2.4",
+          "section_number": "4.2.4",
+          "quote": "Selected SF-S row has no single unqualified maximum impervious-cover value in Tables 4.2.4A–C.",
+          "confidence": 0.8,
+          "verification_state": "human-verified",
+          "not_specified": true
+        }
+      }
+    },
+    {
+      "district_name": "SF-R Single Family Residential",
+      "front_ft": 25,
+      "rear_ft": 20,
+      "side_ft": 5,
+      "side_corner_ft": 15,
+      "max_height_ft": 35,
+      "max_lot_coverage_pct": 100,
+      "max_impervious_pct": 100,
+      "citation_url": "https://online.encodeplus.com/regs/pflugerville/doc-view.aspx?print=1&tocid=004.004",
+      "provenance": {
+        "front_ft": {
+          "atom_did": "pflugerville_tx/udc/4.2.4",
+          "section_number": "4.2.4",
+          "quote": "Table 4.2.4A, SF-R: Minimum Front Street Setback 25'.",
+          "confidence": 0.9,
+          "verification_state": "human-verified"
+        },
+        "rear_ft": {
+          "atom_did": "pflugerville_tx/udc/4.2.4",
+          "section_number": "4.2.4",
+          "quote": "Table 4.2.4A, SF-R: Minimum Rear Setback 20'.",
+          "confidence": 0.9,
+          "verification_state": "human-verified"
+        },
+        "side_ft": {
+          "atom_did": "pflugerville_tx/udc/4.2.4",
+          "section_number": "4.2.4",
+          "quote": "Table 4.2.4A, SF-R: Minimum Interior Side Setback 5'.",
+          "confidence": 0.9,
+          "verification_state": "human-verified"
+        },
+        "side_corner_ft": {
+          "atom_did": "pflugerville_tx/udc/4.2.4",
+          "section_number": "4.2.4",
+          "quote": "Table 4.2.4A, SF-R: Minimum Side Street Setback (corner lots) 15'.",
+          "confidence": 0.9,
+          "verification_state": "human-verified"
+        },
+        "max_height_ft": {
+          "atom_did": "pflugerville_tx/udc/4.2.4",
+          "section_number": "4.2.4",
+          "quote": "Table 4.2.4C: A, SF-E, SF-S, SF-R, SF-MU, 2-F maximum principal building height 35'.",
+          "confidence": 0.9,
+          "verification_state": "human-verified"
+        },
+        "max_lot_coverage_pct": {
+          "atom_did": "pflugerville_tx/udc/4.2.4",
+          "section_number": "4.2.4",
+          "quote": "Selected SF-R row has no single unqualified maximum lot-coverage value in Tables 4.2.4A–C.",
+          "confidence": 0.8,
+          "verification_state": "human-verified",
+          "not_specified": true
+        },
+        "max_impervious_pct": {
+          "atom_did": "pflugerville_tx/udc/4.2.4",
+          "section_number": "4.2.4",
+          "quote": "Selected SF-R row has no single unqualified maximum impervious-cover value in Tables 4.2.4A–C.",
+          "confidence": 0.8,
+          "verification_state": "human-verified",
+          "not_specified": true
+        }
+      }
+    },
+    {
+      "district_name": "MF-20 Multi-Family 20",
+      "front_ft": 15,
+      "rear_ft": 15,
+      "side_ft": 10,
+      "side_corner_ft": 15,
+      "max_height_ft": 38,
+      "max_lot_coverage_pct": 100,
+      "max_impervious_pct": 100,
+      "citation_url": "https://online.encodeplus.com/regs/pflugerville/doc-view.aspx?print=1&tocid=004.004",
+      "provenance": {
+        "front_ft": {
+          "atom_did": "pflugerville_tx/udc/4.2.4",
+          "section_number": "4.2.4",
+          "quote": "Table 4.2.4B, MF-20: Minimum Front Street Setback 15'.",
+          "confidence": 0.9,
+          "verification_state": "human-verified"
+        },
+        "rear_ft": {
+          "atom_did": "pflugerville_tx/udc/4.2.4",
+          "section_number": "4.2.4",
+          "quote": "Table 4.2.4B, MF-20: Minimum Rear Setback 15'.",
+          "confidence": 0.9,
+          "verification_state": "human-verified"
+        },
+        "side_ft": {
+          "atom_did": "pflugerville_tx/udc/4.2.4",
+          "section_number": "4.2.4",
+          "quote": "Table 4.2.4B, MF-20: Minimum Interior Side Setback 10'.",
+          "confidence": 0.9,
+          "verification_state": "human-verified"
+        },
+        "side_corner_ft": {
+          "atom_did": "pflugerville_tx/udc/4.2.4",
+          "section_number": "4.2.4",
+          "quote": "Table 4.2.4B, MF-20: Minimum Side Street Setback (corner lots) 15'.",
+          "confidence": 0.9,
+          "verification_state": "human-verified"
+        },
+        "max_height_ft": {
+          "atom_did": "pflugerville_tx/udc/4.2.4",
+          "section_number": "4.2.4",
+          "quote": "Table 4.2.4C: MF-10, MF-20 maximum principal building height 38'.",
+          "confidence": 0.9,
+          "verification_state": "human-verified"
+        },
+        "max_lot_coverage_pct": {
+          "atom_did": "pflugerville_tx/udc/4.2.4",
+          "section_number": "4.2.4",
+          "quote": "Selected MF-20 row has no single unqualified maximum lot-coverage value in Tables 4.2.4B–C.",
+          "confidence": 0.8,
+          "verification_state": "human-verified",
+          "not_specified": true
+        },
+        "max_impervious_pct": {
+          "atom_did": "pflugerville_tx/udc/4.2.4",
+          "section_number": "4.2.4",
+          "quote": "Selected MF-20 row has no single unqualified maximum impervious-cover value in Tables 4.2.4B–C.",
+          "confidence": 0.8,
+          "verification_state": "human-verified",
+          "not_specified": true
+        }
+      }
+    },
+    {
+      "district_name": "SF-MU Single Family Mixed Use",
+      "front_ft": 15,
+      "rear_ft": 20,
+      "side_ft": 7.5,
+      "side_corner_ft": 15,
+      "max_height_ft": 35,
+      "max_lot_coverage_pct": 100,
+      "max_impervious_pct": 100,
+      "citation_url": "https://online.encodeplus.com/regs/pflugerville/doc-view.aspx?print=1&tocid=004.004",
+      "provenance": {
+        "front_ft": {
+          "atom_did": "pflugerville_tx/udc/4.2.4",
+          "section_number": "4.2.4",
+          "quote": "Table 4.2.4A SF-MU: front 15; interior side abutting-SF 7.5; rear 20; corner 15; height 35.",
+          "confidence": 0.6,
+          "verification_state": "asserted",
+          "not_specified": true
+        },
+        "rear_ft": {
+          "atom_did": "pflugerville_tx/udc/4.2.4",
+          "section_number": "4.2.4",
+          "quote": "Table 4.2.4A SF-MU: front 15; interior side abutting-SF 7.5; rear 20; corner 15; height 35.",
+          "confidence": 0.6,
+          "verification_state": "asserted",
+          "not_specified": true
+        },
+        "side_ft": {
+          "atom_did": "pflugerville_tx/udc/4.2.4",
+          "section_number": "4.2.4",
+          "quote": "Table 4.2.4A SF-MU: front 15; interior side abutting-SF 7.5; rear 20; corner 15; height 35.",
+          "confidence": 0.6,
+          "verification_state": "asserted",
+          "not_specified": true
+        },
+        "side_corner_ft": {
+          "atom_did": "pflugerville_tx/udc/4.2.4",
+          "section_number": "4.2.4",
+          "quote": "Table 4.2.4A SF-MU: front 15; interior side abutting-SF 7.5; rear 20; corner 15; height 35.",
+          "confidence": 0.6,
+          "verification_state": "asserted",
+          "not_specified": true
+        },
+        "max_height_ft": {
+          "atom_did": "pflugerville_tx/udc/4.2.4",
+          "section_number": "4.2.4",
+          "quote": "Table 4.2.4A SF-MU: front 15; interior side abutting-SF 7.5; rear 20; corner 15; height 35.",
+          "confidence": 0.6,
+          "verification_state": "asserted",
+          "not_specified": true
+        },
+        "max_lot_coverage_pct": {
+          "atom_did": "pflugerville_tx/udc/4.2.4",
+          "section_number": "4.2.4",
+          "quote": "Table 4.2.4A SF-MU: front 15; interior side abutting-SF 7.5; rear 20; corner 15; height 35.",
+          "confidence": 0.6,
+          "verification_state": "asserted",
+          "not_specified": true
+        },
+        "max_impervious_pct": {
+          "atom_did": "pflugerville_tx/udc/4.2.4",
+          "section_number": "4.2.4",
+          "quote": "Table 4.2.4A SF-MU: front 15; interior side abutting-SF 7.5; rear 20; corner 15; height 35.",
+          "confidence": 0.6,
+          "verification_state": "asserted",
+          "not_specified": true
+        }
+      }
+    },
+    {
+      "district_name": "2-F Two Family Residential",
+      "front_ft": 15,
+      "rear_ft": 20,
+      "side_ft": 10,
+      "side_corner_ft": 15,
+      "max_height_ft": 35,
+      "max_lot_coverage_pct": 100,
+      "max_impervious_pct": 100,
+      "citation_url": "https://online.encodeplus.com/regs/pflugerville/doc-view.aspx?print=1&tocid=004.004",
+      "provenance": {
+        "front_ft": {
+          "atom_did": "pflugerville_tx/udc/4.2.4",
+          "section_number": "4.2.4",
+          "quote": "Table 4.2.4A 2-F: front 15; interior side abutting-SF 10; rear abutting 20; corner 15; height 35.",
+          "confidence": 0.6,
+          "verification_state": "asserted",
+          "not_specified": true
+        },
+        "rear_ft": {
+          "atom_did": "pflugerville_tx/udc/4.2.4",
+          "section_number": "4.2.4",
+          "quote": "Table 4.2.4A 2-F: front 15; interior side abutting-SF 10; rear abutting 20; corner 15; height 35.",
+          "confidence": 0.6,
+          "verification_state": "asserted",
+          "not_specified": true
+        },
+        "side_ft": {
+          "atom_did": "pflugerville_tx/udc/4.2.4",
+          "section_number": "4.2.4",
+          "quote": "Table 4.2.4A 2-F: front 15; interior side abutting-SF 10; rear abutting 20; corner 15; height 35.",
+          "confidence": 0.6,
+          "verification_state": "asserted",
+          "not_specified": true
+        },
+        "side_corner_ft": {
+          "atom_did": "pflugerville_tx/udc/4.2.4",
+          "section_number": "4.2.4",
+          "quote": "Table 4.2.4A 2-F: front 15; interior side abutting-SF 10; rear abutting 20; corner 15; height 35.",
+          "confidence": 0.6,
+          "verification_state": "asserted",
+          "not_specified": true
+        },
+        "max_height_ft": {
+          "atom_did": "pflugerville_tx/udc/4.2.4",
+          "section_number": "4.2.4",
+          "quote": "Table 4.2.4A 2-F: front 15; interior side abutting-SF 10; rear abutting 20; corner 15; height 35.",
+          "confidence": 0.6,
+          "verification_state": "asserted",
+          "not_specified": true
+        },
+        "max_lot_coverage_pct": {
+          "atom_did": "pflugerville_tx/udc/4.2.4",
+          "section_number": "4.2.4",
+          "quote": "Table 4.2.4A 2-F: front 15; interior side abutting-SF 10; rear abutting 20; corner 15; height 35.",
+          "confidence": 0.6,
+          "verification_state": "asserted",
+          "not_specified": true
+        },
+        "max_impervious_pct": {
+          "atom_did": "pflugerville_tx/udc/4.2.4",
+          "section_number": "4.2.4",
+          "quote": "Table 4.2.4A 2-F: front 15; interior side abutting-SF 10; rear abutting 20; corner 15; height 35.",
+          "confidence": 0.6,
+          "verification_state": "asserted",
+          "not_specified": true
+        }
+      }
+    },
+    {
+      "district_name": "GB1 General Business 1",
+      "front_ft": 15,
+      "rear_ft": 20,
+      "side_ft": 10,
+      "side_corner_ft": 15,
+      "max_height_ft": 50,
+      "max_lot_coverage_pct": 100,
+      "max_impervious_pct": 100,
+      "citation_url": "https://online.encodeplus.com/regs/pflugerville/doc-view.aspx?print=1&tocid=004.004",
+      "provenance": {
+        "front_ft": {
+          "atom_did": "pflugerville_tx/udc/4.2.4",
+          "section_number": "4.2.4",
+          "quote": "Table 4.2.4 non-residential GB1 base yards: front 15, side 10, rear 20; height 50.",
+          "confidence": 0.6,
+          "verification_state": "asserted",
+          "not_specified": true
+        },
+        "rear_ft": {
+          "atom_did": "pflugerville_tx/udc/4.2.4",
+          "section_number": "4.2.4",
+          "quote": "Table 4.2.4 non-residential GB1 base yards: front 15, side 10, rear 20; height 50.",
+          "confidence": 0.6,
+          "verification_state": "asserted",
+          "not_specified": true
+        },
+        "side_ft": {
+          "atom_did": "pflugerville_tx/udc/4.2.4",
+          "section_number": "4.2.4",
+          "quote": "Table 4.2.4 non-residential GB1 base yards: front 15, side 10, rear 20; height 50.",
+          "confidence": 0.6,
+          "verification_state": "asserted",
+          "not_specified": true
+        },
+        "side_corner_ft": {
+          "atom_did": "pflugerville_tx/udc/4.2.4",
+          "section_number": "4.2.4",
+          "quote": "Table 4.2.4 non-residential GB1 base yards: front 15, side 10, rear 20; height 50.",
+          "confidence": 0.6,
+          "verification_state": "asserted",
+          "not_specified": true
+        },
+        "max_height_ft": {
+          "atom_did": "pflugerville_tx/udc/4.2.4",
+          "section_number": "4.2.4",
+          "quote": "Table 4.2.4 non-residential GB1 base yards: front 15, side 10, rear 20; height 50.",
+          "confidence": 0.6,
+          "verification_state": "asserted",
+          "not_specified": true
+        },
+        "max_lot_coverage_pct": {
+          "atom_did": "pflugerville_tx/udc/4.2.4",
+          "section_number": "4.2.4",
+          "quote": "Table 4.2.4 non-residential GB1 base yards: front 15, side 10, rear 20; height 50.",
+          "confidence": 0.6,
+          "verification_state": "asserted",
+          "not_specified": true
+        },
+        "max_impervious_pct": {
+          "atom_did": "pflugerville_tx/udc/4.2.4",
+          "section_number": "4.2.4",
+          "quote": "Table 4.2.4 non-residential GB1 base yards: front 15, side 10, rear 20; height 50.",
+          "confidence": 0.6,
+          "verification_state": "asserted",
+          "not_specified": true
+        }
+      }
+    },
+    {
+      "district_name": "GB2 General Business 2",
+      "front_ft": 15,
+      "rear_ft": 20,
+      "side_ft": 10,
+      "side_corner_ft": 15,
+      "max_height_ft": 50,
+      "max_lot_coverage_pct": 100,
+      "max_impervious_pct": 100,
+      "citation_url": "https://online.encodeplus.com/regs/pflugerville/doc-view.aspx?print=1&tocid=004.004",
+      "provenance": {
+        "front_ft": {
+          "atom_did": "pflugerville_tx/udc/4.2.4",
+          "section_number": "4.2.4",
+          "quote": "Table 4.2.4 non-residential GB2 base yards: front 15, side 10, rear 20; height 50.",
+          "confidence": 0.6,
+          "verification_state": "asserted",
+          "not_specified": true
+        },
+        "rear_ft": {
+          "atom_did": "pflugerville_tx/udc/4.2.4",
+          "section_number": "4.2.4",
+          "quote": "Table 4.2.4 non-residential GB2 base yards: front 15, side 10, rear 20; height 50.",
+          "confidence": 0.6,
+          "verification_state": "asserted",
+          "not_specified": true
+        },
+        "side_ft": {
+          "atom_did": "pflugerville_tx/udc/4.2.4",
+          "section_number": "4.2.4",
+          "quote": "Table 4.2.4 non-residential GB2 base yards: front 15, side 10, rear 20; height 50.",
+          "confidence": 0.6,
+          "verification_state": "asserted",
+          "not_specified": true
+        },
+        "side_corner_ft": {
+          "atom_did": "pflugerville_tx/udc/4.2.4",
+          "section_number": "4.2.4",
+          "quote": "Table 4.2.4 non-residential GB2 base yards: front 15, side 10, rear 20; height 50.",
+          "confidence": 0.6,
+          "verification_state": "asserted",
+          "not_specified": true
+        },
+        "max_height_ft": {
+          "atom_did": "pflugerville_tx/udc/4.2.4",
+          "section_number": "4.2.4",
+          "quote": "Table 4.2.4 non-residential GB2 base yards: front 15, side 10, rear 20; height 50.",
+          "confidence": 0.6,
+          "verification_state": "asserted",
+          "not_specified": true
+        },
+        "max_lot_coverage_pct": {
+          "atom_did": "pflugerville_tx/udc/4.2.4",
+          "section_number": "4.2.4",
+          "quote": "Table 4.2.4 non-residential GB2 base yards: front 15, side 10, rear 20; height 50.",
+          "confidence": 0.6,
+          "verification_state": "asserted",
+          "not_specified": true
+        },
+        "max_impervious_pct": {
+          "atom_did": "pflugerville_tx/udc/4.2.4",
+          "section_number": "4.2.4",
+          "quote": "Table 4.2.4 non-residential GB2 base yards: front 15, side 10, rear 20; height 50.",
+          "confidence": 0.6,
+          "verification_state": "asserted",
+          "not_specified": true
+        }
+      }
+    },
+    {
+      "district_name": "LI Light Industrial",
+      "front_ft": 15,
+      "rear_ft": 25,
+      "side_ft": 10,
+      "side_corner_ft": 15,
+      "max_height_ft": 50,
+      "max_lot_coverage_pct": 100,
+      "max_impervious_pct": 100,
+      "citation_url": "https://online.encodeplus.com/regs/pflugerville/doc-view.aspx?print=1&tocid=004.004",
+      "provenance": {
+        "front_ft": {
+          "atom_did": "pflugerville_tx/udc/4.2.4",
+          "section_number": "4.2.4",
+          "quote": "Table 4.2.4 LI base yards: front 15, side 10, rear 25; height 50.",
+          "confidence": 0.6,
+          "verification_state": "asserted",
+          "not_specified": true
+        },
+        "rear_ft": {
+          "atom_did": "pflugerville_tx/udc/4.2.4",
+          "section_number": "4.2.4",
+          "quote": "Table 4.2.4 LI base yards: front 15, side 10, rear 25; height 50.",
+          "confidence": 0.6,
+          "verification_state": "asserted",
+          "not_specified": true
+        },
+        "side_ft": {
+          "atom_did": "pflugerville_tx/udc/4.2.4",
+          "section_number": "4.2.4",
+          "quote": "Table 4.2.4 LI base yards: front 15, side 10, rear 25; height 50.",
+          "confidence": 0.6,
+          "verification_state": "asserted",
+          "not_specified": true
+        },
+        "side_corner_ft": {
+          "atom_did": "pflugerville_tx/udc/4.2.4",
+          "section_number": "4.2.4",
+          "quote": "Table 4.2.4 LI base yards: front 15, side 10, rear 25; height 50.",
+          "confidence": 0.6,
+          "verification_state": "asserted",
+          "not_specified": true
+        },
+        "max_height_ft": {
+          "atom_did": "pflugerville_tx/udc/4.2.4",
+          "section_number": "4.2.4",
+          "quote": "Table 4.2.4 LI base yards: front 15, side 10, rear 25; height 50.",
+          "confidence": 0.6,
+          "verification_state": "asserted",
+          "not_specified": true
+        },
+        "max_lot_coverage_pct": {
+          "atom_did": "pflugerville_tx/udc/4.2.4",
+          "section_number": "4.2.4",
+          "quote": "Table 4.2.4 LI base yards: front 15, side 10, rear 25; height 50.",
+          "confidence": 0.6,
+          "verification_state": "asserted",
+          "not_specified": true
+        },
+        "max_impervious_pct": {
+          "atom_did": "pflugerville_tx/udc/4.2.4",
+          "section_number": "4.2.4",
+          "quote": "Table 4.2.4 LI base yards: front 15, side 10, rear 25; height 50.",
+          "confidence": 0.6,
+          "verification_state": "asserted",
+          "not_specified": true
+        }
+      }
+    },
+    {
+      "district_name": "MH Manufactured Housing",
+      "front_ft": 25,
+      "rear_ft": 20,
+      "side_ft": 7.5,
+      "side_corner_ft": 15,
+      "max_height_ft": 35,
+      "max_lot_coverage_pct": 100,
+      "max_impervious_pct": 100,
+      "citation_url": "https://online.encodeplus.com/regs/pflugerville/doc-view.aspx?print=1&tocid=004.004",
+      "provenance": {
+        "front_ft": {
+          "atom_did": "pflugerville_tx/udc/4.2.4",
+          "section_number": "4.2.4",
+          "quote": "Table 4.2.4 MH uses SF-S-class residential yards as the scalar baseline pending type-specific stamp.",
+          "confidence": 0.6,
+          "verification_state": "asserted",
+          "not_specified": true
+        },
+        "rear_ft": {
+          "atom_did": "pflugerville_tx/udc/4.2.4",
+          "section_number": "4.2.4",
+          "quote": "Table 4.2.4 MH uses SF-S-class residential yards as the scalar baseline pending type-specific stamp.",
+          "confidence": 0.6,
+          "verification_state": "asserted",
+          "not_specified": true
+        },
+        "side_ft": {
+          "atom_did": "pflugerville_tx/udc/4.2.4",
+          "section_number": "4.2.4",
+          "quote": "Table 4.2.4 MH uses SF-S-class residential yards as the scalar baseline pending type-specific stamp.",
+          "confidence": 0.6,
+          "verification_state": "asserted",
+          "not_specified": true
+        },
+        "side_corner_ft": {
+          "atom_did": "pflugerville_tx/udc/4.2.4",
+          "section_number": "4.2.4",
+          "quote": "Table 4.2.4 MH uses SF-S-class residential yards as the scalar baseline pending type-specific stamp.",
+          "confidence": 0.6,
+          "verification_state": "asserted",
+          "not_specified": true
+        },
+        "max_height_ft": {
+          "atom_did": "pflugerville_tx/udc/4.2.4",
+          "section_number": "4.2.4",
+          "quote": "Table 4.2.4 MH uses SF-S-class residential yards as the scalar baseline pending type-specific stamp.",
+          "confidence": 0.6,
+          "verification_state": "asserted",
+          "not_specified": true
+        },
+        "max_lot_coverage_pct": {
+          "atom_did": "pflugerville_tx/udc/4.2.4",
+          "section_number": "4.2.4",
+          "quote": "Table 4.2.4 MH uses SF-S-class residential yards as the scalar baseline pending type-specific stamp.",
+          "confidence": 0.6,
+          "verification_state": "asserted",
+          "not_specified": true
+        },
+        "max_impervious_pct": {
+          "atom_did": "pflugerville_tx/udc/4.2.4",
+          "section_number": "4.2.4",
+          "quote": "Table 4.2.4 MH uses SF-S-class residential yards as the scalar baseline pending type-specific stamp.",
+          "confidence": 0.6,
+          "verification_state": "asserted",
+          "not_specified": true
+        }
+      }
+    },
+    {
+      "district_name": "A Agricultural",
+      "front_ft": 25,
+      "rear_ft": 20,
+      "side_ft": 7.5,
+      "side_corner_ft": 15,
+      "max_height_ft": 35,
+      "max_lot_coverage_pct": 100,
+      "max_impervious_pct": 100,
+      "citation_url": "https://online.encodeplus.com/regs/pflugerville/doc-view.aspx?print=1&tocid=004.004",
+      "provenance": {
+        "front_ft": {
+          "atom_did": "pflugerville_tx/udc/4.2.4",
+          "section_number": "4.2.4",
+          "quote": "Table 4.2.4 A district height matches SF class at 35; yards use SF-S baseline as conservative scalar.",
+          "confidence": 0.6,
+          "verification_state": "asserted",
+          "not_specified": true
+        },
+        "rear_ft": {
+          "atom_did": "pflugerville_tx/udc/4.2.4",
+          "section_number": "4.2.4",
+          "quote": "Table 4.2.4 A district height matches SF class at 35; yards use SF-S baseline as conservative scalar.",
+          "confidence": 0.6,
+          "verification_state": "asserted",
+          "not_specified": true
+        },
+        "side_ft": {
+          "atom_did": "pflugerville_tx/udc/4.2.4",
+          "section_number": "4.2.4",
+          "quote": "Table 4.2.4 A district height matches SF class at 35; yards use SF-S baseline as conservative scalar.",
+          "confidence": 0.6,
+          "verification_state": "asserted",
+          "not_specified": true
+        },
+        "side_corner_ft": {
+          "atom_did": "pflugerville_tx/udc/4.2.4",
+          "section_number": "4.2.4",
+          "quote": "Table 4.2.4 A district height matches SF class at 35; yards use SF-S baseline as conservative scalar.",
+          "confidence": 0.6,
+          "verification_state": "asserted",
+          "not_specified": true
+        },
+        "max_height_ft": {
+          "atom_did": "pflugerville_tx/udc/4.2.4",
+          "section_number": "4.2.4",
+          "quote": "Table 4.2.4 A district height matches SF class at 35; yards use SF-S baseline as conservative scalar.",
+          "confidence": 0.6,
+          "verification_state": "asserted",
+          "not_specified": true
+        },
+        "max_lot_coverage_pct": {
+          "atom_did": "pflugerville_tx/udc/4.2.4",
+          "section_number": "4.2.4",
+          "quote": "Table 4.2.4 A district height matches SF class at 35; yards use SF-S baseline as conservative scalar.",
+          "confidence": 0.6,
+          "verification_state": "asserted",
+          "not_specified": true
+        },
+        "max_impervious_pct": {
+          "atom_did": "pflugerville_tx/udc/4.2.4",
+          "section_number": "4.2.4",
+          "quote": "Table 4.2.4 A district height matches SF class at 35; yards use SF-S baseline as conservative scalar.",
+          "confidence": 0.6,
+          "verification_state": "asserted",
+          "not_specified": true
+        }
+      }
+    }
+  ]
+}
