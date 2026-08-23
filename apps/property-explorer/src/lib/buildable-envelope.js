@@ -42,9 +42,18 @@ function round6(n) {
  */
 export function envelopeRequestBody(sel) {
   const address = typeof sel?.address === "string" ? sel.address.trim() : "";
-  if (address) return { address };
   const lat = round6(sel?.lat);
   const lng = round6(sel?.lng);
+  if (address) {
+    const body = { address };
+    // Pass Photon / txgio_address coords WITH the address so cortex honors the
+    // rooftop point for situs disambiguation instead of re-geocoding alone.
+    if (lat != null && lng != null) {
+      body.lat = lat;
+      body.lng = lng;
+    }
+    return body;
+  }
   if (lat != null && lng != null) return { lat, lng };
   return null;
 }
@@ -204,6 +213,7 @@ export async function fetchBuildableEnvelope(sel, cortexBase, fetchImpl = fetch)
         `Buildable envelope unavailable (${status}).`,
       empty: true,
       parcelNodeId: parcelNodeIdFromEnvelope(json, earlyPayload, null),
+      placeKey: typeof json?.placeKey === "string" ? json.placeKey : null,
     };
   }
 
@@ -268,5 +278,6 @@ export async function fetchBuildableEnvelope(sel, cortexBase, fetchImpl = fetch)
     // without reaching into .properties. Absent on responses the backend PR
     // hasn't reached yet (undefined, never fabricated).
     provenanceRefs: props?.provenanceRefs ?? payload.provenanceRefs ?? undefined,
+    placeKey: typeof json?.placeKey === "string" ? json.placeKey : null,
   };
 }

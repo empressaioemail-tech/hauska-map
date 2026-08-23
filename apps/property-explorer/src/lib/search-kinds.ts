@@ -119,6 +119,41 @@ export function situsHitToSuggestion(hit: SitusSearchHit): Suggestion | null {
   };
 }
 
+/** Map a TxGIO address-point hit (rooftop, no parcel id) onto an address suggestion. */
+export function addressPointHitToSuggestion(hit: SitusSearchHit): Suggestion | null {
+  const situs = hit.situsAddress?.trim();
+  if (!situs) return null;
+  const lat =
+    hit.latitude != null && Number.isFinite(hit.latitude) ? hit.latitude : null;
+  const lng =
+    hit.longitude != null && Number.isFinite(hit.longitude) ? hit.longitude : null;
+  if (lat == null || lng == null) return null;
+  const comma = situs.indexOf(",");
+  const streetLine = comma >= 0 ? situs.slice(0, comma).trim() : situs;
+  const locality = comma >= 0 ? situs.slice(comma + 1).trim() : null;
+  return {
+    kind: "address",
+    label: streetLine || situs,
+    sublabel: locality || "authoritative address",
+    lat,
+    lng,
+    extent: null,
+    parcelNodeId: null,
+    lookupQuery: situs,
+  };
+}
+
+/** Route a combined place-search hit to the correct suggestion shape. */
+export function placeSearchHitToSuggestion(hit: SitusSearchHit): Suggestion | null {
+  if (hit.source === "address-point") return addressPointHitToSuggestion(hit);
+  const nodeId = hit.parcelNodeId?.trim();
+  if (nodeId && isValidParcelNodeId(nodeId)) return situsHitToSuggestion(hit);
+  if (hit.latitude != null && hit.longitude != null) {
+    return addressPointHitToSuggestion(hit);
+  }
+  return null;
+}
+
 /** Group order: parcel fast path, addresses, streets, places. Cap to `max`. */
 export function groupSuggestions(
   items: Suggestion[],

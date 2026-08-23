@@ -78,7 +78,9 @@ describe("resolveLookupToParcelNodeId", () => {
 
   it("pins an address to exactly one parcel via the backend resolve", async () => {
     const fetchImpl = envelopeStub({
-      status: "ok",
+      status: "declined",
+      parcel_node_id: "48453:812345",
+      placeKey: "coord:30.45901:-97.63542",
       payload: {
         parcel: { parcel_node_id: "48453:812345" },
         geojson: { type: "FeatureCollection", features: [] },
@@ -92,6 +94,33 @@ describe("resolveLookupToParcelNodeId", () => {
       ok: true,
       parcelNodeId: "48453:812345",
       source: "address",
+      resolvedPoint: { lat: 30.45901, lng: -97.63542 },
+    });
+  });
+
+  it("forwards viewport bias coords with the address envelope body", async () => {
+    const fetchImpl = vi.fn(async (_url, init) =>
+      new Response(
+        JSON.stringify({
+          status: "declined",
+          parcel_node_id: "48453:1",
+          placeKey: "coord:30.46:-97.64",
+          payload: { parcel: { parcel_node_id: "48453:1" } },
+        }),
+        { status: 200, headers: { "Content-Type": "application/json" } },
+      ),
+    ) as unknown as typeof fetch;
+    await resolveLookupToParcelNodeId("17005 Simsbrook Dr, Pflugerville, TX", {
+      cortexBase: CORTEX,
+      fetchImpl,
+      lat: 30.459,
+      lng: -97.635,
+    });
+    const body = JSON.parse(String((fetchImpl.mock.calls[0] as [string, RequestInit])[1]?.body));
+    expect(body).toEqual({
+      address: "17005 Simsbrook Dr, Pflugerville, TX",
+      lat: 30.459,
+      lng: -97.635,
     });
   });
 

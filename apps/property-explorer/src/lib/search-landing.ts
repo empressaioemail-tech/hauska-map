@@ -32,7 +32,10 @@ export interface SearchLandingDeps {
    * `quiet` misses must not paint the lookup-error line (the caller lands the
    * map honestly instead).
    */
-  runParcelLookup: (query: string, opts?: { quiet?: boolean }) => Promise<boolean>;
+  runParcelLookup: (
+    query: string,
+    opts?: { quiet?: boolean; lat?: number; lng?: number },
+  ) => Promise<boolean>;
   flyTo: (lat: number, lng: number, zoom: number) => void;
   /** Fit the camera to a Photon extent [minLon, maxLat, maxLon, minLat]. */
   fitExtent: (extent: GeoExtent) => void;
@@ -66,7 +69,11 @@ export async function executeSearchLanding(
       const query = suggestion.lookupQuery ?? suggestion.label;
       // Existing address→parcel path FIRST — a hit opens the inspect card on
       // OUR parcel data and the lookup flow flies the camera itself.
-      const opened = await deps.runParcelLookup(query, { quiet: true });
+      const opened = await deps.runParcelLookup(query, {
+        quiet: true,
+        lat: suggestion.lat ?? undefined,
+        lng: suggestion.lng ?? undefined,
+      });
       if (opened) return { kind: "address", opened: true, coverageMiss: false };
       // Honest miss: land the map at the geocoded point, say so, fabricate
       // NOTHING.

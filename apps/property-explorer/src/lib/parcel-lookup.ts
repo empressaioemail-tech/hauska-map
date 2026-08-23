@@ -13,7 +13,10 @@
 // node id this module produces. Navigation comes from the sheet's geometry
 // centroid, never from an address (invariant I5).
 
-import { fetchBuildableEnvelope } from "./buildable-envelope.js";
+import {
+  fetchBuildableEnvelope,
+  parsePlaceKey,
+} from "./buildable-envelope.js";
 import { CORTEX_PROXY_BASE } from "./config";
 import { isValidParcelNodeId, normalizeParcelNodeId } from "./parcel-node-id";
 
@@ -34,9 +37,41 @@ export function isParcelNodeIdQuery(raw: string): boolean {
   return classifyLookupQuery(raw)?.kind === "parcel-node-id";
 }
 
+export type ResolvedLookupPoint = { lat: number; lng: number };
+
 export type LookupResult =
-  | { ok: true; parcelNodeId: string; source: LookupKind }
+  | {
+      ok: true;
+      parcelNodeId: string;
+      source: LookupKind;
+      /** Backend-authoritative point from placeKey or caller bias. */
+      resolvedPoint?: ResolvedLookupPoint;
+    }
   | { ok: false; reason: string };
+
+const DEEP_LINK_PARAM_KEYS = [
+  "parcelNodeId",
+  "parcel",
+  "address",
+  "simulated",
+  "session_id",
+] as const;
+
+/** Drop sim/deep-link query params after a successful search handoff. */
+export function clearDeepLinkParams(): void {
+  if (typeof window === "undefined") return;
+  const url = new URL(window.location.href);
+  let changed = false;
+  for (const key of DEEP_LINK_PARAM_KEYS) {
+    if (url.searchParams.has(key)) {
+      url.searchParams.delete(key);
+      changed = true;
+    }
+  }
+  if (!changed) return;
+  const next = `${url.pathname}${url.search}${url.hash}`;
+  window.history.replaceState({}, "", next || "/");
+}
 
 /**
  * Resolve a query to a PARCEL NODE ID and nothing else.
@@ -47,7 +82,12 @@ export type LookupResult =
  */
 export async function resolveLookupToParcelNodeId(
   raw: string,
-  opts?: { cortexBase?: string; fetchImpl?: typeof fetch },
+  opts?: {
+    cortexBase?: string;
+    fetchImpl?: typeof fetch;
+    lat?: number;
+    lng?: number;
+  },
 ): Promise<LookupResult> {
   const classified = classifyLookupQuery(raw);
   if (!classified) {
@@ -57,8 +97,13 @@ export async function resolveLookupToParcelNodeId(
     return { ok: true, parcelNodeId: classified.value, source: "parcel-node-id" };
   }
 
+  const lat =
+    opts?.lat != null && Number.isFinite(opts.lat) ? opts.lat : undefined;
+  const lng =
+    opts?.lng != null && Number.isFinite(opts.lng) ? opts.lng : undefined;
+
   const env = await fetchBuildableEnvelope(
-    { address: classified.value },
+    { address: classified.value, lat, lng },
     opts?.cortexBase ?? CORTEX_PROXY_BASE,
     opts?.fetchImpl ?? fetch,
   );
@@ -74,7 +119,13 @@ export async function resolveLookupToParcelNodeId(
         `Address not found or not pinned to a single parcel: ${classified.value}`,
     };
   }
-  return { ok: true, parcelNodeId, source: "address" };
+  const fromPlaceKey = parsePlaceKey(
+    typeof env.placeKey === "string" ? env.placeKey : null,
+  );
+  const resolvedPoint =
+    fromPlaceKey ??
+    (lat != null && lng != null ? { lat, lng } : undefined);
+  return { ok: true, parcelNodeId, source: "address", resolvedPoint };
 }
 
 /** Read deep-link query from a URLSearchParams (parcelNodeId | parcel | address). */
