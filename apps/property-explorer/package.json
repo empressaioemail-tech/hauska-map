@@ -14,6 +14,7 @@
   "dependencies": {
     "@empressaio/cortex-client": "^0.1.2",
     "@empressaio/cortex-tiles": "^0.1.4",
+    "@hauska/instrument-registry": "workspace:*",
     "@hauska/map-renderer": "workspace:*",
     "@empressaio/parcel-fact-sheet": "workspace:*",
     "maplibre-gl": "^5.24.0",

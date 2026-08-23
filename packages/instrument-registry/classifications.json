@@ -1,0 +1,260 @@
+{
+  "id": "instrument_entity_type_classifications",
+  "title": "Instrument conformance — entity-type classification registry (T1.3 serve-layer)",
+  "version": "0.1.0",
+  "status": "active",
+  "operatorRulingsAt": "2026-08-23T15:00:00Z",
+  "operatorRulingsBy": "Nick",
+  "planRow": "P-66",
+  "programTrack": "T1.3",
+  "filedAt": "2026-08-23T14:00:00Z",
+  "scope": "Type-level metadata only. No row migration. Historical rows may remain thin; serve layer reads this registry to render class-correctly.",
+  "governingDocs": [
+    "24_instrument_conformance_program.md §T1.3",
+    "19_the_instrument_contract.md §Subject, §Layer",
+    "_inbox/2026-08-22_property_seat_instrument_brief.md",
+    "_inbox/2026-08-23_enumerated_family_provenance_sample.json"
+  ],
+  "snapshot": {
+    "hauska_mcp_atoms": {
+      "distinctEntityTypes": 21,
+      "totalRows": 104132919,
+      "authority": "80_adrs/adr_030_declared_is_not_armed_contract_surface_governance.md store query 2026-08-22"
+    },
+    "typeListAuthority": [
+      "P:/hauska-engine/packages/atoms/src/property-instances.ts PROPERTY_ENTITY_TYPES (16 types)",
+      "P:/hauska-engine/packages/atoms/src/boundary-instances.ts property-boundary-edge",
+      "P:/hauska-engine/packages/atoms/src/instances.ts code corpus (code-section, code-cross-reference, code-edition, jurisdiction-corpus, code-amendment)"
+    ],
+    "excludedFrom21": {
+      "utility-easement": "Contract type with zero rows in hauska_mcp.atoms (ADR-030); not in live store GROUP BY"
+    }
+  },
+  "vocabulary": {
+    "provenanceClass": ["Record", "Observation", "Derivation", "Synthesis"],
+    "subjectKind": ["extensional", "intensional"],
+    "chainAnchoring": ["contemporaneous", "backfill"],
+    "serveLayer": [
+      "geometry",
+      "boundary",
+      "cad",
+      "zoning",
+      "envelope",
+      "terrain",
+      "flood",
+      "landuse",
+      "owner",
+      "footprint",
+      "roads",
+      "rail-corridor",
+      "rrc-wells",
+      "rrc-pipelines",
+      "mud",
+      "code-corpus"
+    ]
+  },
+  "serveLayerNotes": {
+    "geometry": "County manifest rail geometry; parcel-node anchor",
+    "boundary": "Depth-warm boundary primitive edges; not a manifest rail key today",
+    "cad": "Manifest rail cad",
+    "zoning": "Manifest rail zoning (zoning-fact + setback-rule)",
+    "envelope": "Manifest rail envelope",
+    "terrain": "parcel-terrain-model; paid tier; no manifest rail",
+    "flood": "Manifest rail flood",
+    "landuse": "Manifest rail landuse",
+    "owner": "Manifest rail owner",
+    "footprint": "Manifest rail footprint",
+    "roads": "Manifest rail roads",
+    "rail-corridor": "Manifest rail rail-corridor",
+    "rrc-wells": "Manifest rail rrc-wells",
+    "rrc-pipelines": "Manifest rail rrc-pipelines",
+    "mud": "Manifest rail mud (special-district-fact)",
+    "code-corpus": "Code retrieval snapshot families; not parcel manifest rails"
+  },
+  "classifications": {
+    "parcel-node": {
+      "provenanceClass": "Record",
+      "subjectKind": "extensional",
+      "chainAnchoring": "backfill",
+      "serveLayer": "geometry",
+      "classificationStatus": "decided",
+      "evidence": "County GIS / StratMap bulk ingest; one node per parcel geometry; bulk county runs predated mint discipline."
+    },
+    "property-boundary-edge": {
+      "provenanceClass": "Derivation",
+      "subjectKind": "extensional",
+      "chainAnchoring": "backfill",
+      "serveLayer": "boundary",
+      "classificationStatus": "decided",
+      "operatorRuling": "chainAnchoring backfill — depth-warm batch compute; chain proves ingest/compute integrity not field survey at read time. Reverted from contemporaneous 2026-08-23 (no live re-derive scope).",
+      "evidence": "Boundary primitive compute from adjacency grid + stored interior; not a direct authority fetch per edge."
+    },
+    "zoning-fact": {
+      "provenanceClass": "Record",
+      "subjectKind": "extensional",
+      "chainAnchoring": "backfill",
+      "serveLayer": "zoning",
+      "classificationStatus": "decided",
+      "evidence": "AGOL / city GIS stamp to parcel; claim is district assigned to this parcel (Bastrop mold inventory)."
+    },
+    "setback-rule": {
+      "provenanceClass": "Record",
+      "subjectKind": "extensional",
+      "chainAnchoring": "backfill",
+      "serveLayer": "zoning",
+      "classificationStatus": "decided",
+      "operatorRuling": "provenanceClass Record — published code citation is the authority; table lookup must carry edition + section reference.",
+      "evidence": "Rules-derived from descriptor setbackTable cited to B3 code; resolved by (district, road-class, edge-role)."
+    },
+    "buildable-envelope": {
+      "provenanceClass": "Derivation",
+      "subjectKind": "extensional",
+      "chainAnchoring": "backfill",
+      "serveLayer": "envelope",
+      "classificationStatus": "decided",
+      "evidence": "Depth-warm promote from boundary + setback + zoning; BUILDABLE_ENVELOPE_DERIVATION_METHOD in contract."
+    },
+    "parcel-terrain-model": {
+      "provenanceClass": "Observation",
+      "subjectKind": "extensional",
+      "chainAnchoring": "backfill",
+      "serveLayer": "terrain",
+      "classificationStatus": "decided",
+      "operatorRuling": "provenanceClass Observation — DEM sample is a measurement claim; pipeline method documents how sample was taken.",
+      "evidence": "Federal DEM raster export per parcel; PARCEL_TERRAIN_DERIVATION_METHOD names derivation in contract."
+    },
+    "cad-parcel-roll": {
+      "provenanceClass": "Record",
+      "subjectKind": "extensional",
+      "chainAnchoring": "backfill",
+      "serveLayer": "cad",
+      "classificationStatus": "decided",
+      "evidence": "County appraisal roll export keyed parcelNodeId:taxYear."
+    },
+    "land-use-fact": {
+      "provenanceClass": "Record",
+      "subjectKind": "extensional",
+      "chainAnchoring": "backfill",
+      "serveLayer": "landuse",
+      "classificationStatus": "decided",
+      "evidence": "CAD roll land-use code field on parcel."
+    },
+    "owner-fact": {
+      "provenanceClass": "Record",
+      "subjectKind": "extensional",
+      "chainAnchoring": "backfill",
+      "serveLayer": "owner",
+      "classificationStatus": "decided",
+      "evidence": "CAD owner export; public-paid tier; OPS-15 gap closed by write-owner-fact-county."
+    },
+    "building-footprint": {
+      "provenanceClass": "Record",
+      "subjectKind": "extensional",
+      "chainAnchoring": "backfill",
+      "serveLayer": "footprint",
+      "classificationStatus": "decided",
+      "operatorRuling": "provenanceClass Record — when present, upstream footprint GIS feature is the authority; cite source dataset.",
+      "evidence": "Writer uses staged footprint join; absence kind no-footprint-feature documents threshold gate."
+    },
+    "flood-hazard-fact": {
+      "provenanceClass": "Derivation",
+      "subjectKind": "intensional",
+      "chainAnchoring": "backfill",
+      "serveLayer": "flood",
+      "classificationStatus": "decided",
+      "evidence": "P-65 CONFIRMED: county bulk FEMA polygon PIP materialised per parcel; target class Derivation with regional inputAtoms (T1.4 rescope). Rows today mislabel reasoningKind observed."
+    },
+    "rail-corridor-fact": {
+      "provenanceClass": "Derivation",
+      "subjectKind": "intensional",
+      "chainAnchoring": "backfill",
+      "serveLayer": "rail-corridor",
+      "classificationStatus": "decided",
+      "evidence": "NTAD NARN track buffer PIP to parcels; enumerated regional claim at parcel count (T1.4 family)."
+    },
+    "rrc-pipeline-fact": {
+      "provenanceClass": "Derivation",
+      "subjectKind": "intensional",
+      "chainAnchoring": "backfill",
+      "serveLayer": "rrc-pipelines",
+      "classificationStatus": "decided",
+      "evidence": "RRC T-4 pipeline line proximity from staged tx_rrc_pipeline; parcel-keyed materialisation."
+    },
+    "special-district-fact": {
+      "provenanceClass": "Derivation",
+      "subjectKind": "intensional",
+      "chainAnchoring": "backfill",
+      "serveLayer": "mud",
+      "classificationStatus": "decided",
+      "evidence": "District membership PIP; sd: discriminator on parcel key; T1.4 enumerated family."
+    },
+    "well-fact": {
+      "provenanceClass": "Record",
+      "subjectKind": "extensional",
+      "chainAnchoring": "backfill",
+      "serveLayer": "rrc-wells",
+      "classificationStatus": "decided",
+      "evidence": "Texas RRC GIS public-record well features linked to parcel via API14 on parcel key."
+    },
+    "road-node": {
+      "provenanceClass": null,
+      "provenanceClassSplit": {
+        "county-authoritative": {
+          "provenanceClass": "Record",
+          "basis": "County ROW / authoritative centerline source"
+        },
+        "osm-assumed": {
+          "provenanceClass": "Derivation",
+          "basis": "OpenStreetMap approximate geometry; not county-verified ROW"
+        }
+      },
+      "subjectKind": "extensional",
+      "chainAnchoring": "backfill",
+      "serveLayer": "roads",
+      "classificationStatus": "decided",
+      "operatorRuling": "Split by source adapter — county authoritative Record; OSM assumed Derivation with explicit approximate basis.",
+      "evidence": "roadNodeId keyed {fips}:road:{osm_id}; not parcelNodeId keyed; manifest roads rail."
+    },
+    "code-section": {
+      "provenanceClass": "Record",
+      "subjectKind": "extensional",
+      "chainAnchoring": "contemporaneous",
+      "serveLayer": "code-corpus",
+      "classificationStatus": "decided",
+      "evidence": "Jurisdiction code fetch at ingest; section is citable unit per doc 19 granularity rule."
+    },
+    "code-cross-reference": {
+      "provenanceClass": "Record",
+      "subjectKind": "extensional",
+      "chainAnchoring": "contemporaneous",
+      "serveLayer": "code-corpus",
+      "classificationStatus": "decided",
+      "evidence": "Parsed cross-ref edges from code corpus ingest."
+    },
+    "code-edition": {
+      "provenanceClass": "Record",
+      "subjectKind": "extensional",
+      "chainAnchoring": "contemporaneous",
+      "serveLayer": "code-corpus",
+      "classificationStatus": "decided",
+      "evidence": "Edition node metadata from adapter ingest."
+    },
+    "jurisdiction-corpus": {
+      "provenanceClass": "Record",
+      "subjectKind": "extensional",
+      "chainAnchoring": "contemporaneous",
+      "serveLayer": "code-corpus",
+      "classificationStatus": "decided",
+      "evidence": "Corpus root atom per jurisdiction tenant."
+    },
+    "code-amendment": {
+      "provenanceClass": "Record",
+      "subjectKind": "extensional",
+      "chainAnchoring": "backfill",
+      "serveLayer": "code-corpus",
+      "classificationStatus": "decided",
+      "operatorRuling": "chainAnchoring backfill — historical effective dates enable as-of code queries; chain proves ingest integrity not contemporaneous witness.",
+      "evidence": "Amendment atoms carry effectiveDate ranges; M1 lambda seam reads amendment history."
+    }
+  }
+}

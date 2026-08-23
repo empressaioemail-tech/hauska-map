@@ -3,6 +3,14 @@
 // Doc 19 §Layer absence verdicts on property inspect (P-63 Track B).
 // Vocabulary matches Smart Files / instrument contract — no PE-local strings.
 
+import {
+  classificationFieldsForFactSource,
+  enrichLayerAbsenceProvenance,
+  type ChainAnchoring,
+  type ProvenanceClass,
+  type SubjectKind,
+} from "@hauska/instrument-registry";
+
 /** Fixed absence verdict union per 19_the_instrument_contract.md §Layer. */
 export type LayerAbsenceVerdict =
   | "absent-verified"
@@ -17,6 +25,11 @@ export interface LayerAbsenceWire {
   scopeSearched: string;
   asOf: string;
   basis: string;
+  provenanceClass?: ProvenanceClass;
+  subjectKind?: SubjectKind;
+  chainAnchoring?: ChainAnchoring;
+  serveLayer?: string;
+  entityType?: string;
 }
 
 export interface PopulatedLayerWire<T> {
@@ -33,6 +46,11 @@ export interface LayerAbsenceProvenance {
   scopeSearched: string;
   asOf: string;
   basis: string;
+  provenanceClass?: ProvenanceClass;
+  subjectKind?: SubjectKind;
+  chainAnchoring?: ChainAnchoring;
+  serveLayer?: string;
+  entityType?: string;
 }
 
 const LAYER_ABSENCE_VERDICTS: readonly LayerAbsenceVerdict[] = [
@@ -99,7 +117,26 @@ export function layerAbsenceProvenanceFromWire(
     scopeSearched: wire.scopeSearched.trim(),
     asOf: wire.asOf.trim(),
     basis: wire.basis.trim(),
+    provenanceClass: wire.provenanceClass,
+    subjectKind: wire.subjectKind,
+    chainAnchoring: wire.chainAnchoring,
+    serveLayer: wire.serveLayer,
+    entityType: wire.entityType,
   };
+}
+
+/**
+ * When cortex omits registry fields, enrich from the synced serve-layer registry
+ * using the fact `source` string (P-66).
+ */
+export function enrichLayerAbsenceWireFromRegistry(
+  wire: LayerAbsenceWire,
+  factSource?: string | null,
+): LayerAbsenceWire {
+  if (!factSource) return wire;
+  const entityType = classificationFieldsForFactSource(factSource)?.entityType;
+  if (!entityType) return wire;
+  return enrichLayerAbsenceProvenance(wire, entityType);
 }
 
 export interface LayerFacetLike {
@@ -113,15 +150,17 @@ export interface LayerFacetLike {
 export function layerWireToCardFacet<T>(
   wire: LayerWire<T> | null | undefined,
   formatValue: (value: T) => string | null,
+  opts?: { factSource?: string | null },
 ): LayerFacetLike {
   if (wire == null) {
     return { state: "unknown", value: null };
   }
   if (isLayerAbsenceWire(wire)) {
+    const enriched = enrichLayerAbsenceWireFromRegistry(wire, opts?.factSource);
     return {
       state: "absent",
-      value: layerAbsenceDisplayLabel(wire.verdict),
-      layerAbsence: layerAbsenceProvenanceFromWire(wire),
+      value: layerAbsenceDisplayLabel(enriched.verdict),
+      layerAbsence: layerAbsenceProvenanceFromWire(enriched),
     };
   }
   if (isPopulatedLayerWire<T>(wire)) {
