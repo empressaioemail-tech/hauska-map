@@ -40,6 +40,20 @@ export function deployOrigin(req: { headers: Record<string, string | string[] | 
   return `${proto}://${host}`
 }
 
+/**
+ * Canonical origin for OAuth redirect_uri construction. When set
+ * (PE_OIDC_REDIRECT_ORIGIN), every provider uses this host so Google /
+ * Microsoft only need one authorized callback per deploy. Must match an
+ * entry in the OAuth client's Authorized redirect URIs list exactly.
+ */
+export function oidcRedirectOrigin(req: {
+  headers: Record<string, string | string[] | undefined>
+}): string {
+  const pinned = trimEnv('PE_OIDC_REDIRECT_ORIGIN')
+  if (pinned) return pinned.replace(/\/$/, '')
+  return deployOrigin(req)
+}
+
 export function redirectUri(provider: OidcProvider, origin: string): string {
   return `${origin}/api/auth/${provider}/callback`
 }

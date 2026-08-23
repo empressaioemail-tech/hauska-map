@@ -14,7 +14,7 @@
 import type { VercelRequest, VercelResponse } from '@vercel/node'
 import {
   authConfigured,
-  deployOrigin,
+  oidcRedirectOrigin,
   oidcStateSecret,
   providerConfig,
   redirectUri,
@@ -59,8 +59,9 @@ function notConfigured(res: VercelResponse, provider: OidcProvider): void {
   })
 }
 
-function handleStatus(_req: VercelRequest, res: VercelResponse): void {
+function handleStatus(req: VercelRequest, res: VercelResponse): void {
   const cfg = authConfigured()
+  const origin = oidcRedirectOrigin(req)
   res.status(200).json({
     configured: cfg,
     anyProvider: cfg.google || cfg.microsoft,
@@ -68,6 +69,10 @@ function handleStatus(_req: VercelRequest, res: VercelResponse): void {
       cfg.google || cfg.microsoft
         ? 'Sign-in available for configured providers.'
         : 'Sign-in not configured — browse anonymously.',
+    redirectUris: {
+      google: cfg.google ? redirectUri('google', origin) : null,
+      microsoft: cfg.microsoft ? redirectUri('microsoft', origin) : null,
+    },
   })
 }
 
@@ -81,7 +86,7 @@ function handleStart(req: VercelRequest, res: VercelResponse, provider: OidcProv
     notConfigured(res, provider)
     return
   }
-  const origin = deployOrigin(req)
+  const origin = oidcRedirectOrigin(req)
   const { verifier, challenge } = generatePkcePair()
   const sealed = sealOidcState({
     provider,
@@ -149,7 +154,7 @@ async function handleCallback(
     notConfigured(res, provider)
     return
   }
-  const origin = deployOrigin(req)
+  const origin = oidcRedirectOrigin(req)
   try {
     const tokens = await exchangeCodeForTokens(cfg, {
       code,

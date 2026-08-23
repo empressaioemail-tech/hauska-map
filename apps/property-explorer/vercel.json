@@ -10,6 +10,14 @@
     "api/pe-map-layers.ts": { "maxDuration": 60 },
     "api/pe-share-view.ts": { "maxDuration": 60 }
   },
+  "redirects": [
+    {
+      "source": "/:path*",
+      "has": [{ "type": "host", "value": "smartsite.cloud" }],
+      "destination": "https://www.smartsite.cloud/:path*",
+      "permanent": true
+    }
+  ],
   "rewrites": [
     { "source": "/api/auth/(.*)", "destination": "/api/auth?upath=$1" },
     { "source": "/api/spine-deep/(.*)", "destination": "/api/spine-deep?upath=$1" },
@@ -23,7 +31,6 @@
     { "source": "/api/pe-hydrography", "destination": "/api/pe-map-layers?layer=hydrography" },
     { "source": "/api/pe-opportunity-zone", "destination": "/api/pe-map-layers?layer=opportunity-zone" },
     { "source": "/api/pe-geocode", "destination": "/api/pe-geocode" },
-    { "source": "/api/pe-situs-search", "destination": "/api/pe-situs-search" },
     { "source": "/api/pe-situs-search", "destination": "/api/pe-situs-search" },
     { "source": "/api/pe-share", "destination": "/api/pe-share" },
     { "source": "/api/pe-share-view", "destination": "/api/pe-share-view" },
