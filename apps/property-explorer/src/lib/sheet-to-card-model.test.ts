@@ -299,6 +299,39 @@ describe("envelopeStateFromSheet", () => {
     expect(env.setbacks?.front_ft).toBe(25);
   });
 
+  it("passes derived envelope rings through as geojson for map draw", () => {
+    const ring: Array<[number, number]> = [
+      [-97.3186, 30.1103],
+      [-97.3182, 30.1103],
+      [-97.3182, 30.1107],
+      [-97.3186, 30.1107],
+      [-97.3186, 30.1103],
+    ];
+    const env = envelopeStateFromSheet(
+      sheet({
+        envelope: {
+          kind: "derived",
+          area: { value: 4100, unit: "sqft" },
+          areaPctOfLot: 38,
+          rings: [ring],
+          setbacksUsed: {
+            front: axis(20),
+            side: axis(5),
+            rear: axis(20),
+            cornerSide: null,
+          },
+          subtractions: [],
+          approximate: true,
+          provenance: prov(),
+        },
+      }),
+    );
+    expect(env.status).toBe("ok");
+    expect(env.geometry?.type).toBe("Polygon");
+    expect(env.geojson?.features?.[0]?.geometry?.type).toBe("Polygon");
+    expect(env.summary?.buildableAreaSqFt).toBe(4100);
+  });
+
   it("projects a consumed lot as empty, never as a 0 sq ft buildable area", () => {
     const env = envelopeStateFromSheet(
       sheet({

@@ -109,6 +109,13 @@ interface StubOpts {
   gisStatus?: number;
   /** Photon hit the LAST-RESORT address geocode returns, if it is reached. */
   geocodeHit?: { lat: number; lng: number } | null;
+  /** Live POST buildable-envelope response when the resolver re-derives geometry. */
+  buildableEnvelope?: {
+    parcelNodeId?: string;
+    geometry?: unknown;
+    buildableAreaSqFt?: number;
+    ok?: boolean;
+  } | null;
 }
 
 function installFetchStub(opts: StubOpts = {}) {
@@ -160,6 +167,42 @@ function installFetchStub(opts: StubOpts = {}) {
       );
     }
     if (url.includes("buildable-envelope")) {
+      const be = opts.buildableEnvelope;
+      if (be === null) {
+        return new Response(
+          JSON.stringify({ status: "declined", reason: "not called in this test" }),
+          { status: 200, headers: { "Content-Type": "application/json" } },
+        );
+      }
+      if (be) {
+        const parcelNodeId = be.parcelNodeId ?? NODE_ID;
+        const geometry =
+          be.geometry ??
+          ({
+            type: "Polygon",
+            coordinates: [square(SUBJECT_CENTRE.lng, SUBJECT_CENTRE.lat, 0.0002)],
+          } as const);
+        const buildableAreaSqFt = be.buildableAreaSqFt ?? 4100;
+        return new Response(
+          JSON.stringify({
+            status: "ok",
+            payload: {
+              geojson: {
+                type: "FeatureCollection",
+                features: [
+                  {
+                    type: "Feature",
+                    properties: { buildableAreaSqFt, kind: "buildable-envelope" },
+                    geometry,
+                  },
+                ],
+              },
+              parcel: { parcel_node_id: parcelNodeId },
+            },
+          }),
+          { status: 200, headers: { "Content-Type": "application/json" } },
+        );
+      }
       return new Response(JSON.stringify({ status: "declined", reason: "not called in this test" }), {
         status: 200,
         headers: { "Content-Type": "application/json" },
@@ -458,6 +501,46 @@ describe("PeFactSheetResolver.resolve", () => {
     await expect(makeResolver(stub).resolve(NODE_ID)).rejects.toMatchObject({
       kind: "unresolved",
     });
+  });
+
+  it("re-derives withheld depth-warm envelope geometry via live POST (preferLiveOverWarm)", async () => {
+    const parcelNodeId = "48021:47595";
+    const wire = facetsWire({
+      parcelNodeId,
+      baseFacts: {
+        apn: "R47595",
+        situsAddress: "101 Main St, Bastrop TX",
+        landUse: { code: "A1", description: "Single-family residential", source: "cad-roll", vintage: "2026" },
+        acreage: { value: 0.2345, sqft: 10214, method: "cad-roll" },
+      },
+      envelope: {
+        status: "ok",
+        approximate: true,
+        district: "R-1",
+        setbacks: { front_ft: 20, side_ft: 5, rear_ft: 20 },
+        disclosure:
+          "Atom-chain setback rule from live per-parcel record — depth-warm envelope geometry withheld (re-derive from live setbacks).",
+      },
+    });
+    const subjectFeature = {
+      type: "Feature",
+      properties: { parcel_node_id: parcelNodeId, apn: "R47595" },
+      geometry: { type: "Polygon", coordinates: [square(SUBJECT_CENTRE.lng, SUBJECT_CENTRE.lat)] },
+    };
+    const stub = installFetchStub({
+      facets: wire,
+      gisFeatures: [subjectFeature],
+      buildableEnvelope: {
+        parcelNodeId,
+        buildableAreaSqFt: 4100,
+      },
+    });
+    const sheet = await sheetOf(makeResolver(stub), parcelNodeId);
+    expect(sheet.envelope.kind).toBe("derived");
+    if (sheet.envelope.kind !== "derived") throw new Error("unreachable");
+    expect(sheet.envelope.area.value).toBe(4100);
+    expect(sheet.envelope.rings).toHaveLength(1);
+    expect(stub.calls.some((u) => u.includes("buildable-envelope"))).toBe(true);
   });
 });
 

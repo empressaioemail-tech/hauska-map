@@ -6,7 +6,14 @@
 // suggest controller in search-suggest.ts).
 
 import type { GeocodeWireResponse } from "../../api/_lib/pe-geocode-core";
-import { featureToSuggestion, type Suggestion } from "./search-kinds";
+import {
+  featureToSuggestion,
+  mergeSearchSuggestions,
+  type Suggestion,
+} from "./search-kinds";
+import {
+  fetchSitusSearchSuggestions,
+} from "./situs-search-client";
 
 export const PE_GEOCODE_URL = "/api/pe-geocode";
 
@@ -44,3 +51,32 @@ export async function fetchGeocodeSuggestions(
     .map(featureToSuggestion)
     .filter((s): s is Suggestion => s != null);
 }
+
+export async function fetchMergedSearchSuggestions(
+  query: string,
+  bias: GeocodeBias | null,
+  signal: AbortSignal,
+  opts?: {
+    baseGeocodeUrl?: string;
+    baseSitusUrl?: string;
+    limit?: number;
+    fetchImpl?: typeof fetch;
+  },
+): Promise<Suggestion[]> {
+  const limit = opts?.limit ?? 7;
+  const fetchImpl = opts?.fetchImpl ?? fetch;
+  const [situs, geocode] = await Promise.all([
+    fetchSitusSearchSuggestions(query, signal, {
+      baseUrl: opts?.baseSitusUrl,
+      limit,
+      fetchImpl,
+    }).catch(() => [] as Suggestion[]),
+    fetchGeocodeSuggestions(query, bias, signal, {
+      baseUrl: opts?.baseGeocodeUrl,
+      limit,
+      fetchImpl,
+    }),
+  ]);
+  return mergeSearchSuggestions(situs, geocode, limit);
+}
+

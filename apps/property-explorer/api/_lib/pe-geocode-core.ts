@@ -21,6 +21,35 @@ export const DEFAULT_GEOCODER_URL = 'https://photon.komoot.io'
 export const GEOCODE_MAX_LIMIT = 10
 export const GEOCODE_DEFAULT_LIMIT = 7
 
+/** Default viewport bias when a query signals Texas but the client sent no center. */
+export const TEXAS_DEFAULT_BIAS = { lat: 30.27, lon: -97.74, zoom: 10 }
+
+/** Photon bbox order: minLon, minLat, maxLon, maxLat — approximate Texas bounds. */
+export const TEXAS_BBOX: [number, number, number, number] = [
+  -106.65,
+  25.84,
+  -93.51,
+  36.5,
+]
+
+/** True when the query text signals Texas (state name, TX, Austin-metro 78xxx zip, or served city). */
+export function detectTexasIntent(query: string): boolean {
+  const q = query.trim()
+  if (!q) return false
+  if (/\b(texas|tx)\b/i.test(q)) return true
+  if (/\b78\d{3}(?:-\d{4})?\b/.test(q)) return true
+  // CAPCOG + Travis-metro cities we serve — without this, "Simsbrook, Pflugerville"
+  // has no TX signal and Photon can rank Maine first.
+  if (
+    /\b(pflugerville|bastrop|austin|round rock|cedar park|georgetown|kyle|buda|smithville|elgin|lockhart|san marcos|dripping springs|lakeway|bee cave|leander|taylor|hutto|manor|del valle|lago vista|liberty hill|jarrell|florence|coupland)\b/i.test(
+      q,
+    )
+  ) {
+    return true
+  }
+  return false
+}
+
 export interface GeocodeParams {
   q: string
   /** Viewport bias — current map center (Photon ranks nearer results first). */
@@ -52,10 +81,21 @@ export function parseGeocodeParams(
   const rawLimit = finiteInRange(query.limit, 1, GEOCODE_MAX_LIMIT)
   const limit = rawLimit ? Math.floor(rawLimit) : GEOCODE_DEFAULT_LIMIT
 
+  let biasLat = lon == null ? null : lat
+  let biasLon = lat == null ? null : lon
+  let biasZoom = zoom
+  // Texas-looking query with no viewport → Austin metro bias so Photon does not
+  // rank a same-name hit on another continent (e.g. Simsbrook → Maine).
+  if (detectTexasIntent(q) && biasLat == null && biasLon == null) {
+    biasLat = TEXAS_DEFAULT_BIAS.lat
+    biasLon = TEXAS_DEFAULT_BIAS.lon
+    if (biasZoom == null) biasZoom = TEXAS_DEFAULT_BIAS.zoom
+  }
+
   return {
     ok: true,
     // Bias only when BOTH coords came through (Photon needs the pair).
-    params: { q, lat: lon == null ? null : lat, lon: lat == null ? null : lon, zoom, limit },
+    params: { q, lat: biasLat, lon: biasLon, zoom: biasZoom, limit },
   }
 }
 
@@ -67,6 +107,9 @@ export function buildPhotonUrl(base: string, params: GeocodeParams): string {
     qs.set('lat', String(params.lat))
     qs.set('lon', String(params.lon))
     if (params.zoom != null) qs.set('zoom', String(Math.round(params.zoom)))
+  }
+  if (detectTexasIntent(params.q)) {
+    qs.set('bbox', TEXAS_BBOX.join(','))
   }
   qs.set('lang', 'en')
   return `${trimmedBase}/api?${qs.toString()}`
@@ -119,6 +162,42 @@ export function isServedCountry(feature: GeocodeWireFeature): boolean {
   return code !== null && GEOCODE_ALLOWED_COUNTRY_CODES.has(code.toUpperCase())
 }
 
+function isTexasState(state: string | null): boolean {
+  if (!state) return false
+  const s = state.trim().toUpperCase()
+  return s === 'TX' || s === 'TEXAS'
+}
+
+/** True when a wire feature is plausibly in Texas (state field or bbox fallback). */
+export function isTexasFeature(feature: GeocodeWireFeature): boolean {
+  if (isTexasState(feature.state)) return true
+  const [minLon, minLat, maxLon, maxLat] = TEXAS_BBOX
+  const { lat, lng } = feature
+  return lng >= minLon && lng <= maxLon && lat >= minLat && lat <= maxLat
+}
+
+function texasFeatureRank(feature: GeocodeWireFeature, query: string): number {
+  let rank = 0
+  const postcode = feature.postcode?.trim()
+  if (postcode?.startsWith('786')) rank += 20
+  const zipInQuery = query.match(/\b(78\d{3})/)
+  if (zipInQuery && postcode?.startsWith(zipInQuery[1].slice(0, 3))) rank += 10
+  if (isTexasState(feature.state)) rank += 5
+  return rank
+}
+
+/** Drop non-TX hits when the query signals Texas; prefer 786-prefix postcodes. */
+export function filterAndRankTexasFeatures(
+  features: GeocodeWireFeature[],
+  query: string,
+): GeocodeWireFeature[] {
+  const texas = features.filter(isTexasFeature)
+  const pool = texas.length > 0 ? texas : features
+  return [...pool].sort(
+    (a, b) => texasFeatureRank(b, query) - texasFeatureRank(a, query),
+  )
+}
+
 function str(v: unknown): string | null {
   return typeof v === 'string' && v.trim() ? v.trim() : null
 }
@@ -129,7 +208,10 @@ function str(v: unknown): string | null {
  * a bad payload maps to an empty feature list (the client shows the honest
  * empty state).
  */
-export function mapPhotonResponse(payload: unknown): GeocodeWireResponse {
+export function mapPhotonResponse(
+  payload: unknown,
+  query?: string,
+): GeocodeWireResponse {
   const empty: GeocodeWireResponse = { features: [], attribution: 'search © OSM' }
   const p = payload as Record<string, unknown> | null
   const features = p?.features
@@ -177,8 +259,13 @@ export function mapPhotonResponse(payload: unknown): GeocodeWireResponse {
   }
   // US-only, filtered HERE (server side) rather than in the dropdown, so the
   // limit the client asked for is spent on results it can actually open.
+  let served = out.filter(isServedCountry)
+  const q = typeof query === 'string' ? query.trim() : ''
+  if (q && detectTexasIntent(q)) {
+    served = filterAndRankTexasFeatures(served, q)
+  }
   return {
-    features: out.filter(isServedCountry),
+    features: served,
     attribution: 'search © OSM',
   }
 }

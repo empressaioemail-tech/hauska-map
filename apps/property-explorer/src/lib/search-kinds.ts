@@ -4,14 +4,9 @@
 // feature IS (address / street / place), build display labels, group + cap
 // suggestion lists, compute matched-substring highlight ranges, and decide
 // the LANDING each suggestion produces when selected.
-//
-// TODO(search-rank / future-flag, DO NOT BUILD YET): first-rank suggestions
-// from our OWN situs-address index. Source: the cortex facets situs data
-// (baked-facets `baseFacts.situsAddress` per parcel node) — serve a prefix
-// index through the spine BFF and rank OUR parcels above geocoder hits so an
-// in-coverage address is one keystroke away from its parcel card.
 
 import type { GeocodeWireFeature } from "../../api/_lib/pe-geocode-core";
+import type { SitusSearchHit } from "../../api/_lib/pe-situs-search-core";
 import { isValidParcelNodeId, normalizeParcelNodeId } from "./parcel-node-id";
 
 export type SuggestionKind = "parcel" | "address" | "street" | "place";
@@ -104,6 +99,26 @@ export function featureToSuggestion(f: GeocodeWireFeature): Suggestion | null {
   };
 }
 
+/** Map one authoritative situs hit onto a parcel suggestion. */
+export function situsHitToSuggestion(hit: SitusSearchHit): Suggestion | null {
+  const situs = hit.situsAddress?.trim();
+  const nodeId = hit.parcelNodeId?.trim();
+  if (!situs || !nodeId || !isValidParcelNodeId(nodeId)) return null;
+  const comma = situs.indexOf(",");
+  const streetLine = comma >= 0 ? situs.slice(0, comma).trim() : situs;
+  const locality = comma >= 0 ? situs.slice(comma + 1).trim() : null;
+  return {
+    kind: "parcel",
+    label: streetLine || situs,
+    sublabel: locality || "parcel situs",
+    lat: null,
+    lng: null,
+    extent: null,
+    parcelNodeId: nodeId,
+    lookupQuery: situs,
+  };
+}
+
 /** Group order: parcel fast path, addresses, streets, places. Cap to `max`. */
 export function groupSuggestions(
   items: Suggestion[],
@@ -125,6 +140,39 @@ export function groupSuggestions(
     if (out.length >= max) break;
   }
   return out;
+}
+
+/**
+ * Merge situs-index parcel hits ahead of geocoder suggestions. Dedupes by
+ * parcelNodeId and by normalized lookupQuery so the same address does not
+ * appear twice when both sources return it.
+ */
+export function mergeSearchSuggestions(
+  situs: Suggestion[],
+  geocode: Suggestion[],
+  max = 7,
+): Suggestion[] {
+  const seenParcel = new Set<string>();
+  const seenLookup = new Set<string>();
+  const merged: Suggestion[] = [];
+
+  const consider = (s: Suggestion) => {
+    if (s.parcelNodeId) {
+      const id = s.parcelNodeId.trim();
+      if (id && seenParcel.has(id)) return;
+      if (id) seenParcel.add(id);
+    }
+    const lookup = s.lookupQuery?.trim().toLowerCase();
+    if (lookup) {
+      if (seenLookup.has(lookup)) return;
+      seenLookup.add(lookup);
+    }
+    merged.push(s);
+  };
+
+  for (const s of situs) consider(s);
+  for (const s of geocode) consider(s);
+  return groupSuggestions(merged, max);
 }
 
 /** Case-insensitive matched-substring ranges of query TOKENS inside a label. */

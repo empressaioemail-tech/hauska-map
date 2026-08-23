@@ -24,7 +24,7 @@ import {
   type SuggestSnapshot,
 } from "../lib/search-suggest";
 import {
-  fetchGeocodeSuggestions,
+  fetchMergedSearchSuggestions,
   type GeocodeBias,
 } from "../lib/geocodeClient";
 import {
@@ -365,7 +365,7 @@ export function SearchBar({
         fetchSuggestions: (q, signal) =>
           fetchRef.current
             ? fetchRef.current(q, signal)
-            : fetchGeocodeSuggestions(q, getBiasRef.current(), signal),
+            : fetchMergedSearchSuggestions(q, getBiasRef.current(), signal),
         onChange: setSnap,
         loadRecents: () => loadRecents(),
         saveRecents: (r) => saveRecents(r),

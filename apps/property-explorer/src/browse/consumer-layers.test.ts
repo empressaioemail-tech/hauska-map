@@ -54,12 +54,16 @@ describe("consumer layer defaults (SS-W10 / P-46)", () => {
     expect(known.has(ROAD_NODES_TOGGLE_KEY as never)).toBe(true);
   });
 
+  it("lands with buildable envelope ON on a cold open", () => {
+    expect(consumerColdOpenVisible().has("buildable-envelope" as never)).toBe(
+      true,
+    );
+  });
+
   it("changes no other cold-open default", () => {
     // Regression fence. Off-by-default: zoning (2026-08-03), road nodes
-    // (2026-08-19), and P-60 atom-backed optional layers (footprint, envelope
-    // wedge, mud-pid districts).
+    // (2026-08-19), and P-60 atom-backed optional layers (footprint, mud-pid).
     expect([...COLD_OPEN_OFF_BY_DEFAULT].sort()).toEqual([
-      "buildable-envelope",
       "building-footprint",
       "mud-pid",
       "road-nodes",

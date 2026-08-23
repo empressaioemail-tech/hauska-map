@@ -301,6 +301,19 @@ describe("inline [n] anchors (PRO mode)", () => {
     expect(html).not.toContain('data-testid="chat-inline-citation"');
     expect(html).toContain("Plain prose.");
   });
+
+  it("renders **bold** and *italic* markdown inline", () => {
+    const html = renderToStaticMarkup(
+      <InlineAnswerText
+        content="**Important:** verify with the city. *Approximate* setbacks."
+        refs={[]}
+        onCitationTap={noop}
+      />,
+    );
+    expect(html).toContain("<strong>Important:</strong>");
+    expect(html).toContain("<em>Approximate</em>");
+    expect(html).not.toContain("**");
+  });
 });
 
 describe("the accordion card (BRIEF → more → FULL, lineage walk)", () => {

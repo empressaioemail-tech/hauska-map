@@ -19,6 +19,15 @@ const subject: ChatSubjectContext = {
   jurisdictionKey: "bastrop-tx",
   setbacks: null,
   envelope: null,
+  parcelFacts: {
+    acreageAc: null,
+    acreageSqft: null,
+    livingAreaSqft: null,
+    floodZoneLabel: null,
+    landUseCode: null,
+    landUseDescription: null,
+    zoningDistrict: null,
+  },
 };
 
 function turns(n: number) {

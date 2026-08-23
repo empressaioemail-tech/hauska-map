@@ -63,7 +63,7 @@ export default async function handler(
       'Cache-Control',
       'public, s-maxage=60, stale-while-revalidate=300',
     )
-    res.status(200).json(mapPhotonResponse(json))
+    res.status(200).json(mapPhotonResponse(json, parsed.params.q))
   } catch (err) {
     res.status(502).json({
       error: 'geocoder_unreachable',
