@@ -7,9 +7,11 @@ import {
   atomChainIsUsable,
   isPropertyAtomPathEnabled,
   isDepthWarmPromoted,
+  hasLiveAtomChainSetbackRule,
   mergeBakedBaseFacts,
   parsePropertyAtomsPath,
   shouldSkipColdDerive,
+  BASTROP_LIVE_SETBACK_ADAPTER,
   DEPTH_WARM_PROMOTION_MARKER,
   type PropertyAtomChain,
 } from "../../api/_lib/atom-chain-to-facets";
@@ -276,6 +278,51 @@ describe("depth-warm read path (WDLL 8)", () => {
     expect(
       (resp!.facets.provenance as { depthWarmPromoted?: boolean }).depthWarmPromoted,
     ).toBe(true);
+  });
+
+  it("live layer-23 setback on depth-warm parcel withholds promoted geometry", () => {
+    const chain: PropertyAtomChain = {
+      parcelNodeId: "48021:34177",
+      zoningFact: {
+        district: "MU",
+        sourceAdapter: "txgio-zoning-stamp:bastrop-city-tx",
+        extractedAt: "2026-07-25T22:00:00.000Z",
+      },
+      setbackRule: {
+        front: 15,
+        side: 5,
+        rear: 15,
+        districtCode: "MU",
+        sourceAdapter: BASTROP_LIVE_SETBACK_ADAPTER,
+      },
+      buildableEnvelope: {
+        outcome: { kind: "buildable", areaSqFt: 12000 },
+        sourceCitation: "depth-warm-verified mechanical promote (27c R3 WDLL 6)",
+        depthWarmPromotion: DEPTH_WARM_PROMOTION_MARKER,
+        geojson: {
+          type: "FeatureCollection",
+          features: [{ type: "Feature", geometry: { type: "Polygon", coordinates: [] } }],
+        },
+        extractedAt: "2026-07-25T22:00:00.000Z",
+      },
+      atoms: [{}, {}, {}],
+    };
+    expect(hasLiveAtomChainSetbackRule(
+      chain.parcelNodeId!,
+      chain.setbackRule,
+      chain.zoningFact?.sourceAdapter,
+    )).toBe(true);
+    expect(shouldSkipColdDerive(chain)).toBe(false);
+    const resp = adaptAtomChainToBakedFacets(chain);
+    expect(resp!.facets.envelope?.setbacks).toEqual({
+      front_ft: 15,
+      side_ft: 5,
+      rear_ft: 15,
+    });
+    expect(resp!.facets.envelope?.geojson).toBeUndefined();
+    expect(resp!.facets.envelope?.buildableAreaSqFt).toBeUndefined();
+    expect(resp!.facets.envelope?.disclosure).toMatch(/live per-parcel record/i);
+    expect(resp!.facets.envelope?.disclosure).not.toMatch(/no live re-derive/i);
   });
 });
 
