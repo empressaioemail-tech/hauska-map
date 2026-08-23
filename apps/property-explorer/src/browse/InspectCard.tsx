@@ -58,6 +58,7 @@ import {
   type BakedCardModel,
   type CardFacet,
 } from "../lib/baked-facets";
+import type { LayerAbsenceProvenance } from "../lib/layer-absence";
 import { factSheetResolver } from "../lib/fact-sheet-resolver";
 import {
   bakedCardModelFromSheet,
@@ -133,11 +134,40 @@ type Source = "loading" | "baked" | "live";
  *    any absence would re-buy a defect this codebase has already paid for.
  */
 export type FactPresentation =
-  | { state: "present"; value: string; provenance: string | null }
-  | { state: "absent-covered"; reason: string; provenance: string | null }
-  | { state: "absent-uncovered"; reason: string; wouldBeFilledBy: string }
-  | { state: "unresolved"; reason: string; retryable: boolean }
-  | { state: "pending"; label: string };
+  | {
+      state: "present";
+      value: string;
+      provenance: string | null;
+      layerAbsence?: LayerAbsenceProvenance;
+      silentEmpty?: boolean;
+    }
+  | {
+      state: "absent-covered";
+      reason: string;
+      provenance: string | null;
+      layerAbsence?: LayerAbsenceProvenance;
+      silentEmpty?: boolean;
+    }
+  | {
+      state: "absent-uncovered";
+      reason: string;
+      wouldBeFilledBy: string;
+      layerAbsence?: LayerAbsenceProvenance;
+      silentEmpty?: boolean;
+    }
+  | {
+      state: "unresolved";
+      reason: string;
+      retryable: boolean;
+      layerAbsence?: LayerAbsenceProvenance;
+      silentEmpty?: boolean;
+    }
+  | {
+      state: "pending";
+      label: string;
+      layerAbsence?: LayerAbsenceProvenance;
+      silentEmpty?: boolean;
+    };
 
 /**
  * Per-row instructions for mapping today's `CardFacet` onto the four contract
@@ -242,6 +272,22 @@ export function toFactPresentation(
   spec: FactRowSpec,
 ): FactPresentation | null {
   if (facet.state === "unknown") return null;
+  if (facet.silentEmpty) {
+    return {
+      state: "absent-covered",
+      reason: facet.value ?? "structural layer undeclared",
+      provenance: null,
+      silentEmpty: true,
+    };
+  }
+  if (facet.layerAbsence) {
+    return {
+      state: "absent-covered",
+      reason: facet.value ?? facet.layerAbsence.verdict,
+      provenance: null,
+      layerAbsence: facet.layerAbsence,
+    };
+  }
   if (facet.state === "pending") {
     return { state: "pending", label: facet.value ?? "Working…" };
   }
@@ -287,6 +333,10 @@ export const ROW_SPECS: Record<string, FactRowSpec> = {
     wouldBeFilledBy: "a recorded lot size on the county appraisal roll",
     labelledAbsenceIsCovered: true,
     splitProvenance: "machine-key",
+  },
+  livingArea: {
+    wouldBeFilledBy: "a structural living area on the county record",
+    labelledAbsenceIsCovered: true,
   },
   zoning: {
     wouldBeFilledBy: "a zoning district stamp from this parcel's city or county",
@@ -334,6 +384,25 @@ export const ROW_SPECS: Record<string, FactRowSpec> = {
 interface ProvenanceChip {
   did: string;
   label: string;
+}
+
+interface LayerProvenanceChip {
+  id: string;
+  label: string;
+  detail: string;
+}
+
+/** Doc 19 layer-absence provenance chips (authority / scope / asOf / basis). */
+export function chipsForLayerAbsence(
+  prov: LayerAbsenceProvenance | null | undefined,
+): LayerProvenanceChip[] {
+  if (!prov) return [];
+  return [
+    { id: "authority", label: "authority", detail: prov.authority },
+    { id: "scope", label: "scope", detail: prov.scopeSearched },
+    { id: "asOf", label: "asOf", detail: prov.asOf },
+    { id: "basis", label: "basis", detail: prov.basis },
+  ];
 }
 
 /**
@@ -446,6 +515,9 @@ export function InspectCard({
   const [openChipDid, setOpenChipDid] = useState<string | null>(null);
   const toggleChip = (did: string) =>
     setOpenChipDid((cur) => (cur === did ? null : did));
+  const [openLayerChipId, setOpenLayerChipId] = useState<string | null>(null);
+  const toggleLayerChip = (id: string) =>
+    setOpenLayerChipId((cur) => (cur === id ? null : id));
   // X-ray rule-details disclosure (ratification directive 2): collapsed by
   // default, independent of the provenance-chip popover state above.
   const [xrayOpen, setXrayOpen] = useState(false);
@@ -622,13 +694,21 @@ export function InspectCard({
     fact: FactPresentation | null;
     testid?: string;
     chipRow?: "zoning" | "setback" | "buildable";
+    layerVerdict?: boolean;
   }> = baked
     ? [
         { key: "apn", label: "APN", fact: toFactPresentation(baked.apn, ROW_SPECS.apn), testid: "inspect-apn" },
         { key: "landUse", label: "Land use", fact: toFactPresentation(baked.landUse, ROW_SPECS.landUse), testid: "inspect-landuse" },
         { key: "county", label: "County", fact: toFactPresentation(baked.county, ROW_SPECS.county) },
         { key: "acreage", label: "Acreage", fact: toFactPresentation(baked.acreage, ROW_SPECS.acreage) },
-        { key: "zoning", label: "Zoning", fact: toFactPresentation(baked.zoning, ROW_SPECS.zoning), testid: "inspect-zoning", chipRow: "zoning" },
+        {
+          key: "livingArea",
+          label: "Living area",
+          fact: toFactPresentation(baked.livingArea, ROW_SPECS.livingArea),
+          testid: "inspect-living-area",
+          layerVerdict: true,
+        },
+        { key: "zoning", label: "Zoning", fact: toFactPresentation(baked.zoning, ROW_SPECS.zoning), testid: "inspect-zoning", chipRow: "zoning", layerVerdict: true },
         { key: "setbacks", label: "Setbacks", fact: toFactPresentation(baked.setbacks, ROW_SPECS.setbacks), testid: "inspect-setbacks", chipRow: "setback" },
         { key: "buildable", label: "Buildable", fact: toFactPresentation(baked.buildablePct, ROW_SPECS.buildable), chipRow: "buildable" },
         { key: "flood", label: "Flood", fact: toFactPresentation(baked.flood, ROW_SPECS.flood), testid: "inspect-flood" },
@@ -725,6 +805,8 @@ export function InspectCard({
                 chips={r.chipRow ? chipsForRow(provenanceRefs, r.chipRow) : []}
                 openChipDid={openChipDid}
                 onChipToggle={r.chipRow ? toggleChip : undefined}
+                layerOpenChipId={r.layerVerdict ? openLayerChipId : null}
+                onLayerChipToggle={r.layerVerdict ? toggleLayerChip : undefined}
               />
             ))}
           </>
@@ -1298,30 +1380,59 @@ function RowChips({
   );
 }
 
+function LayerAbsenceChips({
+  chips,
+  openChipId,
+  onChipToggle,
+}: {
+  chips: LayerProvenanceChip[];
+  openChipId: string | null;
+  onChipToggle: (id: string) => void;
+}) {
+  if (chips.length === 0) return null;
+  const open = chips.find((c) => c.id === openChipId) ?? null;
+  return (
+    <span style={{ display: "block", marginTop: 4 }}>
+      <span
+        style={{
+          display: "inline-flex",
+          flexWrap: "wrap",
+          gap: 3,
+          verticalAlign: "middle",
+        }}
+      >
+        {chips.map((c) => (
+          <AtomChip
+            key={c.id}
+            label={c.label}
+            isOpen={c.id === openChipId}
+            onClick={() => onChipToggle(c.id)}
+            testId="layer-absence-chip"
+          />
+        ))}
+      </span>
+      {open && (
+        <div
+          data-testid="layer-absence-detail"
+          style={{
+            marginTop: 4,
+            fontSize: 10,
+            color: MUTED,
+            fontFamily: "ui-monospace, SFMono-Regular, Menlo, monospace",
+          }}
+        >
+          {open.detail}
+        </div>
+      )}
+    </span>
+  );
+}
+
 /**
  * THE ROW RENDERER (I4). One row, five states, five registers.
  *
- * Before this lane all three absences rendered identically: grey italic text
- * reading "not verified here". A user looking at a correctly honest Travis
- * County card reported that the box "looks like its displaying error
- * messages", and they were reading the design exactly as it was drawn.
- *
- *   present         normal body text. Provenance is NOT here (I3) — it is in
- *                   the Sources disclosure at the foot of the card.
- *   pending         muted roman. A live path that has not finished, never an
- *                   absence and never the word "verified".
- *   absent-covered  QUIET. Muted roman, no decoration. We cover this area and
- *                   the record simply carries no value. Nothing is wrong.
- *   absent-uncovered HATCHED. Absence hue with a dashed underline — the
- *                   portfolio's "unchecked" idiom. What would fill it is named
- *                   in the coverage block, keeping the row itself quiet.
- *   unresolved      ALARM. Error hue, bold. The lookup FAILED. This is the
- *                   only one of the five that is an error and the only one
- *                   that looks like one.
- *
- * Distinct STRUCTURALLY as well as visually: every state stamps its own
- * `data-state`, so a test and a screen reader can tell them apart without
- * reading colors.
+ * Layer-absence verdict rows (P-63) stamp `data-verdict`, `data-silent-empty`,
+ * basis text, and provenance chips when cortex serves doc 19 layer wires.
  *
  * Exported test seam — see the chipsForRow note above.
  */
@@ -1332,6 +1443,8 @@ export function FactRow({
   chips = [],
   openChipDid = null,
   onChipToggle,
+  layerOpenChipId = null,
+  onLayerChipToggle,
 }: {
   label: string;
   fact: FactPresentation | null;
@@ -1339,8 +1452,14 @@ export function FactRow({
   chips?: ProvenanceChip[];
   openChipDid?: string | null;
   onChipToggle?: (did: string) => void;
+  layerOpenChipId?: string | null;
+  onLayerChipToggle?: (id: string) => void;
 }) {
   if (!fact) return null;
+
+  const layerProv = fact.layerAbsence;
+  const silentEmpty = fact.silentEmpty === true;
+  const absenceChips = chipsForLayerAbsence(layerProv);
 
   let text: string;
   let style: CSSProperties = { margin: 0 };
@@ -1350,10 +1469,6 @@ export function FactRow({
       break;
     case "pending":
       text = fact.label;
-      // Muted AND held back, so an in-flight row cannot be mistaken for a
-      // settled one. Without the opacity this rendered byte-identical to
-      // absent-covered, which would have told the user "nothing on record"
-      // while the value was still on its way.
       style = { ...style, color: MUTED, opacity: 0.7 };
       break;
     case "absent-covered":
@@ -1376,6 +1491,21 @@ export function FactRow({
       break;
   }
 
+  const verdictStyle =
+    layerProv?.verdict === "lookup-failed"
+      ? { color: "var(--semantic-warning, #F59E0B)" }
+      : layerProv?.verdict === "not-applicable"
+        ? { color: "var(--semantic-not-applicable, #A78BFA)" }
+        : undefined;
+
+  if (layerProv || silentEmpty) {
+    style = {
+      ...style,
+      fontStyle: fact.state === "present" ? undefined : "italic",
+      ...verdictStyle,
+    };
+  }
+
   return (
     <>
       <dt style={{ color: MUTED }}>{label}</dt>
@@ -1383,12 +1513,27 @@ export function FactRow({
         style={style}
         data-testid={testid}
         data-state={fact.state}
-        // Kept for continuity with pre-existing selectors; `data-state` is the
-        // one to read, because it distinguishes the three absences.
         data-absent={fact.state.startsWith("absent") ? "true" : undefined}
         data-pending={fact.state === "pending" ? "true" : undefined}
+        data-verdict={layerProv?.verdict}
+        data-silent-empty={silentEmpty ? "true" : undefined}
       >
         {text}
+        {layerProv && (
+          <div
+            data-testid="layer-absence-basis"
+            style={{ marginTop: 3, fontSize: 10, fontStyle: "normal" }}
+          >
+            {layerProv.basis}
+          </div>
+        )}
+        {onLayerChipToggle && absenceChips.length > 0 && (
+          <LayerAbsenceChips
+            chips={absenceChips}
+            openChipId={layerOpenChipId}
+            onChipToggle={onLayerChipToggle}
+          />
+        )}
         {onChipToggle && (
           <RowChips
             chips={chips}
@@ -1416,6 +1561,8 @@ export function FacetRow({
   chips = [],
   openChipDid = null,
   onChipToggle,
+  layerOpenChipId = null,
+  onLayerChipToggle,
 }: {
   label: string;
   facet: CardFacet<string>;
@@ -1424,6 +1571,8 @@ export function FacetRow({
   chips?: ProvenanceChip[];
   openChipDid?: string | null;
   onChipToggle?: (did: string) => void;
+  layerOpenChipId?: string | null;
+  onLayerChipToggle?: (id: string) => void;
 }) {
   const resolved =
     spec ?? { wouldBeFilledBy: "a verified record for this parcel" };
@@ -1435,6 +1584,8 @@ export function FacetRow({
       chips={chips}
       openChipDid={openChipDid}
       onChipToggle={onChipToggle}
+      layerOpenChipId={layerOpenChipId}
+      onLayerChipToggle={onLayerChipToggle}
     />
   );
 }
