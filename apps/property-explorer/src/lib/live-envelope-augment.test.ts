@@ -93,4 +93,62 @@ describe("augmentFacetsWithLiveEnvelope", () => {
     expect(out.envelope?.geojson).toBeTruthy();
     expect(out.envelope?.buildableAreaSqFt).toBe(4200);
   });
+
+  it("rejects live geometry when parcelNodeId does not match expected", async () => {
+    const fetchImpl = vi.fn(async () => ({
+      ok: true,
+      json: async () => ({
+        status: "ok",
+        payload: {
+          parcel: { parcel_node_id: "48021:99999" },
+          geojson: {
+            type: "FeatureCollection",
+            features: [
+              {
+                type: "Feature",
+                properties: { buildableAreaSqFt: 4200 },
+                geometry: {
+                  type: "Polygon",
+                  coordinates: [
+                    [
+                      [-97.32, 30.11],
+                      [-97.319, 30.11],
+                      [-97.319, 30.109],
+                      [-97.32, 30.109],
+                      [-97.32, 30.11],
+                    ],
+                  ],
+                },
+              },
+            ],
+          },
+        },
+      }),
+    })) as unknown as typeof fetch;
+
+    const out = await augmentFacetsWithLiveEnvelope(
+      WITHHELD,
+      "1010 PECAN ST, BASTROP, TX 78602",
+      "/api/spine/cortex/api",
+      fetchImpl,
+      "48021:47595",
+    );
+    expect(out.envelope?.geojson).toBeUndefined();
+  });
+
+  it("degrades honestly when live POST throws", async () => {
+    const fetchImpl = vi.fn(async () => {
+      throw new Error("network down");
+    }) as unknown as typeof fetch;
+
+    const out = await augmentFacetsWithLiveEnvelope(
+      WITHHELD,
+      "1010 PECAN ST, BASTROP, TX 78602",
+      "/api/spine/cortex/api",
+      fetchImpl,
+      "48021:47595",
+    );
+    expect(out).toBe(WITHHELD);
+    expect(out.envelope?.geojson).toBeUndefined();
+  });
 });
