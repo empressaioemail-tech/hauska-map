@@ -79,6 +79,8 @@ import {
   FLOOD_HAZARD_FACT_MISSING_REASON,
   type BakedFacetPayload,
 } from "./baked-facets";
+import { isLayerAbsenceWire } from "./layer-absence";
+import type { VerdictLayerSnapshot } from "./sheet-to-card-model";
 import { fetchBuildableEnvelope, parsePlaceKey } from "./buildable-envelope.js";
 import { fetchGeocodeSuggestions } from "./geocodeClient";
 import { CORTEX_PROXY_BASE, PE_FACETS_PROXY_BASE } from "./config";
@@ -1295,6 +1297,22 @@ function floodFact(floodHazardFact: unknown): Fact<FloodDetermination> {
   };
 }
 
+function verdictLayersFromFacets(facets: BakedFacetPayload): VerdictLayerSnapshot | undefined {
+  const hasStructural =
+    facets.facetCoverage?.structural === true || facets.livingAreaSqft != null;
+  const hasZoningVerdict = isLayerAbsenceWire(facets.zoning);
+  if (!hasStructural && !hasZoningVerdict) return undefined;
+  return {
+    livingAreaSqft: facets.livingAreaSqft,
+    zoning: facets.zoning,
+    facetCoverage: facets.facetCoverage,
+    zoningDecline:
+      facets.envelope?.status === "declined"
+        ? facets.envelope.declineReason ?? null
+        : null,
+  };
+}
+
 // ---------------------------------------------------------------------------
 // Geometry acquisition.
 // ---------------------------------------------------------------------------
@@ -1525,6 +1543,7 @@ export class PeFactSheetResolver implements FactSheetResolver {
     const footprint = footprintFromInspectWire(buildingFootprintFact);
     const boundary = boundaryFromInspectWire(boundaryEdgeFact);
     const owner = ownerFromInspectWire(ownerFact);
+    const verdictLayers = verdictLayersFromFacets(facets);
 
     const site: ParcelFactSheet["site"] = {
       elevationRange: null,
@@ -1573,6 +1592,7 @@ export class PeFactSheetResolver implements FactSheetResolver {
       ...(footprint ? { footprint } : {}),
       ...(boundary ? { boundary } : {}),
       ...(owner ? { owner } : {}),
+      ...(verdictLayers ? { verdictLayers } : {}),
       site,
       // Composed ONCE, by the one composer, from the fields above.
       verdict: "",

@@ -431,3 +431,73 @@ describe("deriveBakedCardModel — governed_by resolution + X-ray field notes (E
     expect(m.setbackFieldNotes).toBeNull();
   });
 });
+
+describe("deriveBakedCardModel — layer absence verdicts (P-63 Track B)", () => {
+  const lookupFailedWire = {
+    status: "absent" as const,
+    verdict: "lookup-failed" as const,
+    authority: "Tarrant Appraisal District",
+    scopeSearched: "tier:stratmap-roll; county_fips:48439",
+    asOf: "2026-08-22T00:00:00.000Z",
+    basis:
+      "Registry bulk_primary=true; CAMA certified export not loaded for living_area_sqft",
+  };
+
+  const notApplicableZoning = {
+    status: "absent" as const,
+    verdict: "not-applicable" as const,
+    authority: "none",
+    scopeSearched: "unincorporated parcel — no zoning authority",
+    asOf: "2026-08-22T00:00:00.000Z",
+    basis: "Shape declares no zoning jurisdiction for this parcel",
+  };
+
+  const absentVerifiedWire = {
+    status: "absent" as const,
+    verdict: "absent-verified" as const,
+    authority: "Bastrop County CAD roll",
+    scopeSearched: "cad_property.living_area_sqft",
+    asOf: "2026-08-22T00:00:00.000Z",
+    basis: "No improvement area on record for this parcel",
+  };
+
+  it("lookup-failed structural layer maps verdict + basis, not atom-miss", () => {
+    const m = deriveBakedCardModel({
+      parcelNodeId: "48439:123456",
+      countyFips: "48439",
+      livingAreaSqft: lookupFailedWire,
+      facetCoverage: { structural: true },
+    });
+    expect(m.livingArea.state).toBe("absent");
+    expect(m.livingArea.value).toBe("lookup-failed");
+    expect(m.livingArea.layerAbsence?.basis).toContain("bulk_primary");
+    expect(m.livingArea.value).not.toBe("atom-miss");
+    expect(m.livingArea.silentEmpty).toBeFalsy();
+  });
+
+  it("not-applicable zoning is distinct from absent-verified structural", () => {
+    const zoningOnly = deriveBakedCardModel({
+      parcelNodeId: "48021:999",
+      zoning: notApplicableZoning,
+      livingAreaSqft: absentVerifiedWire,
+      facetCoverage: { structural: true, zoning: false },
+    });
+    expect(zoningOnly.zoning.layerAbsence?.verdict).toBe("not-applicable");
+    expect(zoningOnly.livingArea.layerAbsence?.verdict).toBe("absent-verified");
+    expect(zoningOnly.zoning.value).not.toBe(zoningOnly.livingArea.value);
+  });
+
+  it("metro structural coverage with empty chain and no verdict is silent-empty defect", () => {
+    const m = deriveBakedCardModel({
+      parcelNodeId: "48439:123456",
+      facetCoverage: { structural: true },
+    });
+    expect(m.livingArea.silentEmpty).toBe(true);
+    expect(m.livingArea.layerAbsence).toBeUndefined();
+    expect(m.livingArea.value).toContain("undeclared");
+  });
+
+  it.todo(
+    "live Tarrant metro GET returns lookup-failed livingAreaSqft (cortex Track A)",
+  );
+});

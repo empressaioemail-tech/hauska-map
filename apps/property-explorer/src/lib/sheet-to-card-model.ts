@@ -42,13 +42,58 @@ import {
   BOUNDARY_EDGE_FACT_MISSING_REASON,
   OWNER_FACT_MISSING_REASON,
   type BakedCardModel,
+  type BakedFacetPayload,
   type CardFacet,
+  livingAreaLayerToCardFacet,
+  zoningLayerToCardFacet,
 } from "./baked-facets";
+import { isLayerAbsenceWire } from "./layer-absence";
 import type {
   EnvelopeProvenanceRefs,
   SetbackFieldNotes,
   SetbackFieldProvenance,
 } from "./buildable-envelope.js";
+
+/** P-63 verdict layer wires copied from the facets payload at seal time. */
+export type VerdictLayerSnapshot = Pick<
+  BakedFacetPayload,
+  "livingAreaSqft" | "zoning" | "facetCoverage"
+> & {
+  zoningDecline?: string | null;
+};
+
+/** Parcel fact sheet plus optional P-63 verdict layer snapshot from facets. */
+export type ParcelFactSheetWithVerdictLayers = ParcelFactSheet & {
+  verdictLayers?: VerdictLayerSnapshot;
+};
+
+function verdictLayersToCardFacets(
+  layers: VerdictLayerSnapshot | undefined,
+): Pick<BakedCardModel, "livingArea" | "zoning"> | null {
+  if (!layers) return null;
+  const hasStructural =
+    layers.facetCoverage?.structural === true ||
+    layers.livingAreaSqft != null;
+  const hasZoningVerdict = isLayerAbsenceWire(layers.zoning);
+  if (!hasStructural && !hasZoningVerdict) return null;
+
+  const payload: BakedFacetPayload = {
+    livingAreaSqft: layers.livingAreaSqft,
+    zoning: layers.zoning,
+    facetCoverage: layers.facetCoverage,
+  };
+  const out: Pick<BakedCardModel, "livingArea" | "zoning"> = {
+    livingArea: livingAreaLayerToCardFacet(payload),
+  };
+  if (hasZoningVerdict) {
+    out.zoning = zoningLayerToCardFacet(
+      layers.zoning,
+      layers.facetCoverage?.zoning,
+      layers.zoningDecline ?? null,
+    );
+  }
+  return out;
+}
 
 /** Mirrors InspectCard's local EnvelopeState. Structural, so no type import. */
 export interface CardEnvelopeState {
@@ -405,7 +450,9 @@ export function provenanceRefsFromSheet(
  * still carries its reason, and a FAILED read uses the `pending` vocabulary
  * rather than the "not verified here" treatment.
  */
-export function bakedCardModelFromSheet(sheet: ParcelFactSheet): BakedCardModel {
+export function bakedCardModelFromSheet(
+  sheet: ParcelFactSheetWithVerdictLayers,
+): BakedCardModel {
   const env = sheet.envelope;
 
   // AMENDMENT 4: `areaPctOfLot` is NULLABLE. With no lot area there is no
@@ -432,7 +479,7 @@ export function bakedCardModelFromSheet(sheet: ParcelFactSheet): BakedCardModel 
       ? null
       : sheet.geometry.lotArea.value / 43560;
 
-  return {
+  const model: BakedCardModel = {
     parcelNodeId: sheet.identity.parcelNodeId,
     apn: facetFrom(sheet.identity.apn, (v) => v),
     situsAddress: facetFrom(sheet.identity.situsAddress, (v) => v),
@@ -499,7 +546,18 @@ export function bakedCardModelFromSheet(sheet: ParcelFactSheet): BakedCardModel 
     setbackFieldNotes: setbackFieldNotesFromSheet(
       isPresent(sheet.setbacks) ? sheet.setbacks.value : null,
     ),
+    livingArea: { state: "unknown", value: null },
   };
+
+  const verdictFacets = verdictLayersToCardFacets(sheet.verdictLayers);
+  if (verdictFacets) {
+    model.livingArea = verdictFacets.livingArea;
+    if (verdictFacets.zoning) {
+      model.zoning = verdictFacets.zoning;
+    }
+  }
+
+  return model;
 }
 
 /** The envelope state the card's live-path renderers read. */
