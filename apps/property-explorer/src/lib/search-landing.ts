@@ -12,7 +12,11 @@
 //   street  → fit the street's extent + a brief fading highlight of it.
 //   place   → fly/fit to the place bbox ("dock over it").
 
-import type { GeoExtent, Suggestion } from "./search-kinds";
+import {
+  identityQueryFromAddressSuggestion,
+  type GeoExtent,
+  type Suggestion,
+} from "./search-kinds";
 
 /** Honest chip when an address lands outside our parcel coverage. */
 export const OUTSIDE_COVERAGE_CHIP =
@@ -66,10 +70,10 @@ export async function executeSearchLanding(
     }
 
     case "address": {
-      const query = suggestion.lookupQuery ?? suggestion.label;
-      // Address string only. Lookup re-derives identity from the situs
-      // index. Photon / viewport lat/lng must not ride along — Cortex
-      // honors explicit coords over the address.
+      const query = identityQueryFromAddressSuggestion(suggestion);
+      // Situs / compact identity only. Photon labels 422 address-only.
+      // Photon / viewport lat/lng must not ride along — Cortex honors
+      // explicit coords over the address.
       const opened = await deps.runParcelLookup(query, {
         quiet: true,
       });

@@ -135,6 +135,29 @@ describe("resolveLookupToParcelNodeId", () => {
     });
   });
 
+  it("Photon Texas label with no pin: compact address-only, never the Photon label", async () => {
+    const fetchImpl = routeFetch({
+      situsHits: [],
+      onEnvelope: (body) => {
+        expect(body).toEqual({
+          address: "17005 Simsbrook, Pflugerville TX",
+        });
+        expect(String(JSON.stringify(body))).not.toContain("Texas");
+        return jsonResponse(envelopeOk("48453:280239", "coord:30.459:-97.635"));
+      },
+    });
+    const result = await resolveLookupToParcelNodeId(
+      "17005 Simsbrook Drive, Pflugerville, Texas, 78660",
+      {
+        cortexBase: CORTEX,
+        situsSearchUrl: SITUS,
+        fetchImpl,
+      },
+    );
+    expect(result.ok).toBe(true);
+    if (result.ok) expect(result.parcelNodeId).toBe("48453:280239");
+  });
+
   it("does not forward Photon or viewport coords onto envelope (WDLL 2)", async () => {
     const fetchImpl = routeFetch({
       situsHits: [],

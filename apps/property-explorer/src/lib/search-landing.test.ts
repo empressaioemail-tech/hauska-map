@@ -65,12 +65,13 @@ describe("address landing", () => {
       sugg({
         kind: "address",
         label: "714 Spring Street",
-        lookupQuery: "714 Spring Street, Bastrop, Texas",
+        lookupQuery: "714 Spring Street, Bastrop, Texas, 78602",
+        source: "photon",
       }),
       deps,
     );
     expect(deps.runParcelLookup).toHaveBeenCalledWith(
-      "714 Spring Street, Bastrop, Texas",
+      "714 Spring, Bastrop TX",
       { quiet: true },
     );
     expect(out).toEqual({ kind: "address", opened: true, coverageMiss: false });
@@ -87,6 +88,7 @@ describe("address landing", () => {
         lat: 37.7955,
         lng: -122.3937,
         lookupQuery: "1 Ferry Building, San Francisco, California",
+        source: "photon",
       }),
       deps,
     );

@@ -12,6 +12,9 @@ import {
   mergeSearchSuggestions,
   parcelIdSuggestion,
   suggestionLookupTarget,
+  compactEnvelopeAddressQuery,
+  identityQueryFromAddressSuggestion,
+  isPhotonAddressLabel,
   type Suggestion,
 } from "./search-kinds";
 
@@ -182,6 +185,54 @@ describe("mergeSearchSuggestions", () => {
     expect(merged[0]?.parcelNodeId).toBe("48209:193340");
   });
 
+  it("drops the Photon address row when a situs pin shares the house number", () => {
+    const situs: Suggestion = {
+      kind: "address",
+      label: "17005 SIMSBROOK DR",
+      sublabel: "Pflugerville, TX, 78660",
+      lat: 30.459,
+      lng: -97.635,
+      extent: null,
+      parcelNodeId: null,
+      lookupQuery: "17005 SIMSBROOK DR, Pflugerville, TX, 78660",
+      source: "situs-address-point",
+    };
+    const photon: Suggestion = {
+      kind: "address",
+      label: "17005 Simsbrook Drive",
+      sublabel: "Pflugerville, Texas",
+      lat: 30.439,
+      lng: -97.62,
+      extent: null,
+      parcelNodeId: null,
+      lookupQuery: "17005 Simsbrook Drive, Pflugerville, Texas, 78660",
+      source: "photon",
+    };
+    const merged = mergeSearchSuggestions([situs], [photon], 7);
+    expect(merged).toHaveLength(1);
+    expect(merged[0]?.source).toBe("situs-address-point");
+    expect(merged[0]?.lookupQuery).toBe(
+      "17005 SIMSBROOK DR, Pflugerville, TX, 78660",
+    );
+  });
+
+  it("keeps a Photon address when no situs pin shares the house number", () => {
+    const photon: Suggestion = {
+      kind: "address",
+      label: "1 Ferry Building",
+      sublabel: "San Francisco, California",
+      lat: 37.79,
+      lng: -122.39,
+      extent: null,
+      parcelNodeId: null,
+      lookupQuery: "1 Ferry Building, San Francisco, California, 94111",
+      source: "photon",
+    };
+    const merged = mergeSearchSuggestions([], [photon], 7);
+    expect(merged).toHaveLength(1);
+    expect(merged[0]?.source).toBe("photon");
+  });
+
   it("dedupes by parcelNodeId and lookupQuery", () => {
     const merged = mergeSearchSuggestions(
       [parcel("48209:193340", "6026 Marsh Ln", "6026 MARSH LN, BUDA, TX 78610")],
@@ -237,18 +288,19 @@ describe("suggestionLookupTarget — what the input carries after a pick", () =>
     extent: null,
   };
 
-  it("carries the FULL address, not the truncated display label", () => {
+  it("writes the compact identity query, not the Photon label or the display label", () => {
     const s = featureToSuggestion(SIMSBROOK);
     expect(s).not.toBeNull();
     if (!s) return;
-    // What the dropdown SHOWS is short, because the locality is the sublabel.
+    expect(s.source).toBe("photon");
     expect(s.label).toBe("17005 Simsbrook Drive");
-    // What the input must CARRY, and what Find re-submits, is the whole thing.
-    expect(suggestionLookupTarget(s)).toBe(
+    expect(s.lookupQuery).toBe(
       "17005 Simsbrook Drive, Pflugerville, TX, 78660",
     );
-    // The defect was writing `label` into the input, so Find submitted this:
+    // Pick / Find must not re-submit the Photon label (Drive + ZIP).
+    expect(suggestionLookupTarget(s)).toBe("17005 Simsbrook, Pflugerville TX");
     expect(suggestionLookupTarget(s)).not.toBe(s.label);
+    expect(suggestionLookupTarget(s)).not.toBe(s.lookupQuery);
   });
 
   it("carries the parcel node id for a parcel suggestion", () => {
@@ -272,5 +324,38 @@ describe("suggestionLookupTarget — what the input carries after a pick", () =>
     if (!street) return;
     expect(street.lookupQuery).toBeNull();
     expect(suggestionLookupTarget(street)).toBe("Simsbrook Drive");
+  });
+});
+
+describe("Photon label compaction (P-60 dropdown pick)", () => {
+  it("compacts the operator Photon string to the pasted form that docks", () => {
+    expect(
+      compactEnvelopeAddressQuery(
+        "17005 Simsbrook Drive, Pflugerville, Texas, 78660",
+      ),
+    ).toBe("17005 Simsbrook, Pflugerville TX");
+    expect(
+      isPhotonAddressLabel("17005 Simsbrook Drive, Pflugerville, Texas, 78660"),
+    ).toBe(true);
+    expect(
+      isPhotonAddressLabel("17005 SIMSBROOK DR, Pflugerville, TX, 78660"),
+    ).toBe(false);
+    expect(isPhotonAddressLabel("17005 Simsbrook, Pflugerville TX")).toBe(false);
+  });
+
+  it("identity query prefers situs lookupQuery over Photon compaction", () => {
+    expect(
+      identityQueryFromAddressSuggestion({
+        kind: "address",
+        label: "17005 SIMSBROOK DR",
+        sublabel: null,
+        lat: 30.459,
+        lng: -97.635,
+        extent: null,
+        parcelNodeId: null,
+        lookupQuery: "17005 SIMSBROOK DR, Pflugerville, TX, 78660",
+        source: "situs-address-point",
+      }),
+    ).toBe("17005 SIMSBROOK DR, Pflugerville, TX, 78660");
   });
 });
