@@ -11,6 +11,13 @@ import { isValidParcelNodeId, normalizeParcelNodeId } from "./parcel-node-id";
 
 export type SuggestionKind = "parcel" | "address" | "street" | "place";
 
+/** Who wrote this row. Photon is a camera hint, not the identity writer. */
+export type SuggestionSource =
+  | "photon"
+  | "situs-address-point"
+  | "situs-parcel"
+  | "direct-id";
+
 /** Photon extent order: [minLon, maxLat, maxLon, minLat]. */
 export type GeoExtent = [number, number, number, number];
 
@@ -27,6 +34,8 @@ export interface Suggestion {
   parcelNodeId: string | null;
   /** The raw text to feed the address→parcel lookup (address kind). */
   lookupQuery: string | null;
+  /** Absent on older fixtures. Construction sites set it. */
+  source?: SuggestionSource;
 }
 
 /** Parcel-id fast path — same shape family as the G6 contract (5-digit FIPS). */
@@ -46,12 +55,147 @@ export function parcelIdSuggestion(raw: string): Suggestion | null {
     extent: null,
     parcelNodeId: nodeId,
     lookupQuery: nodeId,
+    source: "direct-id",
   };
 }
 
 /** True when the input LOOKS like a parcel-id attempt (skip geocoding for it). */
 export function looksLikeParcelId(raw: string): boolean {
   return PARCEL_ID_FAST_PATH_RE.test(raw.trim());
+}
+
+const STREET_SUFFIX_RE =
+  /\s+(drive|street|avenue|lane|boulevard|court|circle|road|dr|st|ave|ln|blvd|ct|cir|rd)\.?$/i;
+
+const US_STATE_ABBREV: Record<string, string> = {
+  alabama: "AL",
+  alaska: "AK",
+  arizona: "AZ",
+  arkansas: "AR",
+  california: "CA",
+  colorado: "CO",
+  connecticut: "CT",
+  delaware: "DE",
+  florida: "FL",
+  georgia: "GA",
+  hawaii: "HI",
+  idaho: "ID",
+  illinois: "IL",
+  indiana: "IN",
+  iowa: "IA",
+  kansas: "KS",
+  kentucky: "KY",
+  louisiana: "LA",
+  maine: "ME",
+  maryland: "MD",
+  massachusetts: "MA",
+  michigan: "MI",
+  minnesota: "MN",
+  mississippi: "MS",
+  missouri: "MO",
+  montana: "MT",
+  nebraska: "NE",
+  nevada: "NV",
+  "new hampshire": "NH",
+  "new jersey": "NJ",
+  "new mexico": "NM",
+  "new york": "NY",
+  "north carolina": "NC",
+  "north dakota": "ND",
+  ohio: "OH",
+  oklahoma: "OK",
+  oregon: "OR",
+  pennsylvania: "PA",
+  "rhode island": "RI",
+  "south carolina": "SC",
+  "south dakota": "SD",
+  tennessee: "TN",
+  texas: "TX",
+  utah: "UT",
+  vermont: "VT",
+  virginia: "VA",
+  washington: "WA",
+  "west virginia": "WV",
+  wisconsin: "WI",
+  wyoming: "WY",
+};
+
+/**
+ * Photon address labels spell the state and keep the street suffix + ZIP.
+ * Cortex address-only geocode 422s that shape. The short form the operator
+ * pasted (`17005 Simsbrook, Pflugerville TX`) is the identity query.
+ */
+export function isPhotonAddressLabel(raw: string): boolean {
+  const q = raw.trim();
+  if (!q) return false;
+  return Object.keys(US_STATE_ABBREV).some((name) =>
+    new RegExp(`,\\s*${name}\\b`, "i").test(q),
+  );
+}
+
+export function houseNumberFromSuggestion(s: Suggestion): string | null {
+  const src = (s.lookupQuery ?? s.label).trim();
+  const m = src.match(/^(\d+)/);
+  return m?.[1] ?? null;
+}
+
+function abbreviateState(raw: string): string {
+  const t = raw.trim();
+  if (/^[A-Za-z]{2}$/.test(t)) return t.toUpperCase();
+  return US_STATE_ABBREV[t.toLowerCase()] ?? t;
+}
+
+/**
+ * `17005 Simsbrook Drive, Pflugerville, Texas, 78660`
+ * → `17005 Simsbrook, Pflugerville TX`
+ */
+export function compactEnvelopeAddressQuery(raw: string): string {
+  const parts = raw
+    .split(",")
+    .map((p) => p.trim())
+    .filter(Boolean);
+  if (!parts.length) return raw.trim();
+  const line = (parts[0] ?? raw).replace(STREET_SUFFIX_RE, "").trim();
+  let city = "";
+  let state = "";
+  if (parts.length >= 3) {
+    city = parts[1] ?? "";
+    const stateOrZip = parts[2] ?? "";
+    if (/^\d{5}(-\d{4})?$/.test(stateOrZip)) {
+      const cityState = city.match(/^(.+?)\s+([A-Za-z]{2}|[A-Za-z][A-Za-z .]+)$/);
+      if (cityState) {
+        city = cityState[1] ?? city;
+        state = abbreviateState(cityState[2] ?? "");
+      }
+    } else {
+      state = abbreviateState(stateOrZip);
+    }
+  } else if (parts.length === 2) {
+    const cityState = (parts[1] ?? "").match(
+      /^(.+?)\s+([A-Za-z]{2}|[A-Za-z][A-Za-z .]+)$/,
+    );
+    if (cityState) {
+      city = cityState[1] ?? "";
+      state = abbreviateState(cityState[2] ?? "");
+    } else {
+      city = parts[1] ?? "";
+    }
+  }
+  city = city.replace(/\s+\d{5}(-\d{4})?$/, "").trim();
+  const locality = [city, state].filter(Boolean).join(" ");
+  return locality ? `${line}, ${locality}` : line;
+}
+
+/** What Find / landing must send. Photon labels are compacted first. */
+export function identityQueryFromAddressSuggestion(s: Suggestion): string {
+  const raw = (s.lookupQuery ?? s.label).trim();
+  if (s.source === "situs-address-point" || s.source === "situs-parcel") {
+    return raw;
+  }
+  if (s.source === "photon" || isPhotonAddressLabel(raw)) {
+    return compactEnvelopeAddressQuery(raw);
+  }
+  return raw;
 }
 
 function localityLine(f: GeocodeWireFeature): string | null {
@@ -81,8 +225,9 @@ export function featureToSuggestion(f: GeocodeWireFeature): Suggestion | null {
       lng: f.lng,
       extent: f.extent,
       parcelNodeId: null,
-      // Full postal-ish string for the address→parcel lookup.
+      // Photon postal string. Identity query is compacted at pick / Find.
       lookupQuery: [line, f.city, f.state, f.postcode].filter(Boolean).join(", "),
+      source: "photon",
     };
   }
   const name = f.name ?? f.street;
@@ -116,6 +261,7 @@ export function situsHitToSuggestion(hit: SitusSearchHit): Suggestion | null {
     extent: null,
     parcelNodeId: nodeId,
     lookupQuery: situs,
+    source: "situs-parcel",
   };
 }
 
@@ -140,6 +286,7 @@ export function addressPointHitToSuggestion(hit: SitusSearchHit): Suggestion | n
     extent: null,
     parcelNodeId: null,
     lookupQuery: situs,
+    source: "situs-address-point",
   };
 }
 
@@ -192,6 +339,20 @@ export function mergeSearchSuggestions(
   const merged: Suggestion[] = [];
 
   const consider = (s: Suggestion) => {
+    if (s.kind === "address" && s.source === "photon") {
+      const hn = houseNumberFromSuggestion(s);
+      if (
+        hn &&
+        merged.some((m) => {
+          if (m.source !== "situs-address-point" && m.source !== "situs-parcel") {
+            return false;
+          }
+          return houseNumberFromSuggestion(m) === hn;
+        })
+      ) {
+        return;
+      }
+    }
     if (s.parcelNodeId) {
       const id = s.parcelNodeId.trim();
       if (id && seenParcel.has(id)) return;
@@ -261,6 +422,7 @@ export function highlightRanges(
  */
 export function suggestionLookupTarget(s: Suggestion): string {
   if (s.kind === "parcel") return s.parcelNodeId ?? s.lookupQuery ?? s.label;
+  if (s.kind === "address") return identityQueryFromAddressSuggestion(s);
   return s.lookupQuery ?? s.label;
 }
 

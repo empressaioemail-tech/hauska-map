@@ -21,6 +21,10 @@ import { CORTEX_PROXY_BASE } from "./config";
 import { isValidParcelNodeId, normalizeParcelNodeId } from "./parcel-node-id";
 import { PE_SITUS_SEARCH_URL } from "./situs-search-client";
 import { situsHitsFromResponse, uniqueSitusPin } from "./situs-pin";
+import {
+  compactEnvelopeAddressQuery,
+  isPhotonAddressLabel,
+} from "./search-kinds";
 
 export type LookupKind = "parcel-node-id" | "address";
 
@@ -121,6 +125,9 @@ export async function resolveLookupToParcelNodeId(
     };
   }
 
+  const fallbackAddress = isPhotonAddressLabel(classified.value)
+    ? compactEnvelopeAddressQuery(classified.value)
+    : classified.value;
   const envInput =
     pin && pin.lat != null && pin.lng != null
       ? {
@@ -128,7 +135,7 @@ export async function resolveLookupToParcelNodeId(
           lat: pin.lat,
           lng: pin.lng,
         }
-      : { address: classified.value };
+      : { address: fallbackAddress };
 
   const env = await fetchBuildableEnvelope(
     envInput,
