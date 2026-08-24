@@ -161,15 +161,18 @@ describe("PricingModal — ALL pricing in one popup, every string from config", 
     );
   });
 
-  it("dialog semantics + BOTH close affordances (scrim and X) render; card scrolls internally", () => {
+  it("dialog semantics + BOTH close affordances (scrim and X); card fits the viewport with no scrollbar", () => {
     const html = renderToStaticMarkup(
       <PricingModal parcelNodeId="48021:1" onClose={noop} />,
     );
     expect(html).toMatch(/role="dialog"[^>]*aria-modal="true"/);
     expect(html).toContain('data-testid="pricing-modal-scrim"');
     expect(html).toContain('data-testid="pricing-modal-close"');
-    expect(html).toContain("overflow-y:auto");
-    expect(html).toContain("min(980px, calc(100vw - 32px))");
+    expect(html).toContain('data-scroll="none"');
+    expect(html).toContain("overflow:hidden");
+    expect(html).not.toContain("overflow-y:auto");
+    expect(html).toContain("min(920px, calc(100vw - 24px))");
+    expect(html).toContain("calc(100dvh - 24px)");
   });
 
   it("honest status footnote renders when provided (ICC citation state)", () => {

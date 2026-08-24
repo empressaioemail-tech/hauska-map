@@ -46,6 +46,8 @@ function ent(
     freeMessagesLimit: 3,
     softFallback: false,
     subscriptionTier: null,
+    devRole: false,
+    entitlementSource: null,
     ...overrides,
   };
 }
@@ -59,6 +61,11 @@ const PRO = ent({ tier: "paid" });
 const SOLO = ent({ tier: "paid", subscriptionTier: "solo" });
 const STUDIO = ent({ tier: "paid", subscriptionTier: "studio" });
 const TEAM = ent({ tier: "paid", subscriptionTier: "team" });
+const DEV = ent({
+  tier: "paid",
+  devRole: true,
+  entitlementSource: "dev",
+});
 
 function renderTool(
   toolId: string,
@@ -178,6 +185,15 @@ describe("REPORTS bubble (site-plan + flood per-property; TERRAIN Pro-only)", ()
     expect(html).toContain('data-testid="flood-run"');
     expect(html).toContain('data-testid="terrain-pro-lock"');
     expect(html).not.toContain('data-testid="terrain-export-section"');
+  });
+
+  it("devRole (tester account, no Stripe, no subscriptionTier) grants terrain — live /entitlement omits the ladder field", () => {
+    primePropertyEntitlement(PARCEL, DEV);
+    const html = renderTool("reports");
+    expect(html).not.toContain('data-testid="reports-locked"');
+    expect(html).not.toContain('data-testid="terrain-pro-lock"');
+    expect(html).not.toContain('data-testid="view-pricing-button"');
+    expect(html).toContain('data-testid="flood-run"');
   });
 
   it("FAIL CLOSED: a paid row with NO subscriptionTier (stale cache / pre-ladder backend) gates terrain CLOSED — null never grants Studio", () => {

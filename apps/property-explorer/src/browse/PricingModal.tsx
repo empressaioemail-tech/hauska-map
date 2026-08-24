@@ -118,13 +118,13 @@ export function PricingModal({
       <div
         data-testid="pricing-modal"
         data-studio-only={studioOnly ? "true" : "false"}
+        data-scroll="none"
         onClick={(e) => e.stopPropagation()}
         style={{
-          width: "min(980px, calc(100vw - 32px))",
-          maxHeight: "min(88vh, 860px)",
-          overflowY: "auto",
-          overflowX: "auto",
-          borderRadius: 16,
+          width: "min(920px, calc(100vw - 24px))",
+          maxHeight: "calc(100dvh - 24px)",
+          overflow: "hidden",
+          borderRadius: 14,
           background: CARD_BG,
           border: "0.5px solid var(--brand-blue-border-soft, rgba(59,130,246,0.28))",
           boxShadow: "0 24px 80px rgba(0,0,0,0.55)",
@@ -135,11 +135,11 @@ export function PricingModal({
       >
         <div
           style={{
-            padding: "22px 26px 18px",
+            padding: "14px 20px 12px",
             display: "flex",
             alignItems: "flex-start",
             justifyContent: "space-between",
-            gap: 24,
+            gap: 16,
             borderBottom: ROW_BORDER,
           }}
         >
@@ -159,15 +159,15 @@ export function PricingModal({
               style={{
                 margin: 0,
                 fontFamily: DISPLAY,
-                fontSize: 24,
-                lineHeight: 1.2,
+                fontSize: 20,
+                lineHeight: 1.15,
                 fontWeight: 700,
                 letterSpacing: "-0.01em",
               }}
             >
               {PE_PRICING.header.title}
             </h2>
-            <p style={{ margin: 0, fontSize: 13, lineHeight: 1.5, color: BODY }}>
+            <p style={{ margin: 0, fontSize: 12, lineHeight: 1.4, color: BODY }}>
               {PE_PRICING.header.framing}
             </p>
           </div>
@@ -235,7 +235,7 @@ export function PricingModal({
             data-testid="pricing-context-line"
             style={{
               margin: 0,
-              padding: "10px 26px",
+              padding: "8px 20px",
               borderBottom: ROW_BORDER,
               background: "var(--brand-blue-bg-soft, rgba(59,130,246,0.08))",
               fontSize: 12.5,
@@ -250,7 +250,7 @@ export function PricingModal({
         <div
           data-testid="pricing-free-row"
           style={{
-            padding: "12px 26px",
+            padding: "8px 20px",
             borderBottom: ROW_BORDER,
             display: "flex",
             alignItems: "baseline",
@@ -269,11 +269,10 @@ export function PricingModal({
         <div
           style={{
             display: "grid",
-            gridTemplateColumns: "minmax(180px, 300px) 1fr 1fr 1fr",
-            minWidth: 720,
+            gridTemplateColumns: "minmax(160px, 1.15fr) 1fr 1fr 1fr",
           }}
         >
-          <div style={{ padding: "14px 26px", borderBottom: ROW_BORDER }} />
+          <div style={{ padding: "10px 20px", borderBottom: ROW_BORDER }} />
           {TIERS.map((tier) => (
             <ColumnHead
               key={tier}
@@ -296,7 +295,7 @@ export function PricingModal({
 
           <div
             style={{
-              padding: "16px 26px",
+              padding: "10px 20px",
               fontSize: 11.5,
               color: MUTED,
               lineHeight: 1.5,
@@ -309,7 +308,7 @@ export function PricingModal({
               key={`cta-${tier}`}
               data-testid={`pricing-${tier}-cta-cell`}
               style={{
-                padding: 16,
+                padding: 10,
                 borderLeft: emphasize(tier) ? EMPHASIS_BORDER : COL_BORDER,
                 background: emphasize(tier) ? EMPHASIS_BG : "transparent",
               }}
@@ -381,7 +380,7 @@ export function PricingModal({
           data-testid="pricing-unlock-card"
           data-not-applicable={studioOnly ? "true" : "false"}
           style={{
-            padding: "14px 26px",
+            padding: "10px 20px",
             borderTop: ROW_BORDER,
             display: "flex",
             alignItems: "center",
@@ -436,8 +435,8 @@ export function PricingModal({
             data-testid="pricing-note"
             style={{
               margin: 0,
-              padding: "10px 26px 0",
-              fontSize: 11.5,
+              padding: "8px 20px 0",
+              fontSize: 11,
               lineHeight: 1.45,
               color: note.tone === "amber" ? AMBER : MUTED,
             }}
@@ -451,8 +450,8 @@ export function PricingModal({
             data-testid="pricing-status-note"
             style={{
               margin: 0,
-              padding: "10px 26px 0",
-              fontSize: 10.5,
+              padding: "6px 20px 0",
+              fontSize: 10,
               color: MUTED,
               lineHeight: 1.45,
             }}
@@ -464,7 +463,7 @@ export function PricingModal({
         <p
           style={{
             margin: 0,
-            padding: "11px 26px",
+            padding: "8px 20px",
             borderTop: ROW_BORDER,
             fontSize: 11.5,
             lineHeight: 1.45,
@@ -493,7 +492,7 @@ function ColumnHead({
       data-testid={`pricing-${tier}-card`}
       data-emphasized={emphasized ? "true" : "false"}
       style={{
-        padding: "14px 16px",
+        padding: "8px 12px",
         borderBottom: ROW_BORDER,
         borderLeft: emphasized ? EMPHASIS_BORDER : COL_BORDER,
         borderTop: emphasized ? "2px solid var(--brand-blue-border, rgba(59,130,246,0.55))" : undefined,
@@ -519,7 +518,7 @@ function ColumnHead({
           </span>
         ) : null}
       </div>
-      <div style={{ fontFamily: DISPLAY, fontWeight: 700, fontSize: 20 }}>
+      <div style={{ fontFamily: DISPLAY, fontWeight: 700, fontSize: 18 }}>
         {headline.amount}
         <span style={{ fontSize: 12, fontWeight: 400, color: MUTED }}>
           {headline.suffix}
@@ -553,7 +552,7 @@ function GroupBlock({
       <div
         data-testid={testId}
         style={{
-          padding: "11px 26px 7px",
+          padding: "6px 20px 4px",
           gridColumn: "1 / -1",
           fontSize: 9.5,
           fontWeight: 700,
@@ -593,9 +592,9 @@ function FeatureRow({
     <>
       <div
         style={{
-          padding: "10px 26px",
+          padding: "5px 16px 5px 20px",
           borderBottom: ROW_BORDER_SOFT,
-          fontSize: 12.5,
+          fontSize: 12,
           color: BODY,
         }}
       >
@@ -609,11 +608,11 @@ function FeatureRow({
           <div
             key={`${label}-${tier}`}
             style={{
-              padding: "10px 16px",
+              padding: "5px 12px",
               borderBottom: ROW_BORDER_SOFT,
               borderLeft: emphasize(tier) ? EMPHASIS_BORDER : COL_BORDER,
               background: emphasize(tier) ? EMPHASIS_BG : "transparent",
-              fontSize: 12.5,
+              fontSize: 12,
               color: muted ? ABSENCE : TEXT,
             }}
           >
