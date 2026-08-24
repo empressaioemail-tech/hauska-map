@@ -59,27 +59,50 @@ describe("parcel landing", () => {
 });
 
 describe("address landing", () => {
-  it("IN coverage: resolves through the existing address→parcel lookup (card opens, no chip)", async () => {
+  it("situs address-point pick sends the trusted rooftop (#191)", async () => {
     const deps = mkDeps(true);
     const out = await executeSearchLanding(
       sugg({
         kind: "address",
-        label: "714 Spring Street",
-        lookupQuery: "714 Spring Street, Bastrop, Texas, 78602",
-        source: "photon",
+        label: "17005 SIMSBROOK DR",
+        lookupQuery: "17005 SIMSBROOK DR, Pflugerville, TX, 78660",
+        source: "situs-address-point",
+        lat: 30.459005,
+        lng: -97.635421,
       }),
       deps,
     );
     expect(deps.runParcelLookup).toHaveBeenCalledWith(
-      "714 Spring, Bastrop TX",
-      { quiet: true },
+      "17005 SIMSBROOK DR, Pflugerville, TX, 78660",
+      {
+        quiet: true,
+        trustedRooftop: { lat: 30.459005, lng: -97.635421 },
+      },
     );
     expect(out).toEqual({ kind: "address", opened: true, coverageMiss: false });
-    expect(deps.showChip).not.toHaveBeenCalled();
-    expect(deps.flyTo).not.toHaveBeenCalled(); // lookup flow owns the camera
+    expect(deps.flyTo).not.toHaveBeenCalled();
   });
 
-  it("OUTSIDE coverage: lands the map + honest chip, NEVER fabricates a parcel", async () => {
+  it("Photon pick is camera-only: no lookup, no envelope label", async () => {
+    const deps = mkDeps(true);
+    const out = await executeSearchLanding(
+      sugg({
+        kind: "address",
+        label: "17005 Simsbrook Drive",
+        lookupQuery: "17005 Simsbrook Drive, Pflugerville, Texas, 78660",
+        source: "photon",
+        lat: 30.4394,
+        lng: -97.6203,
+      }),
+      deps,
+    );
+    expect(deps.runParcelLookup).not.toHaveBeenCalled();
+    expect(deps.flyTo).toHaveBeenCalledWith(30.4394, -97.6203, ADDRESS_LANDING_ZOOM);
+    expect(deps.showChip).not.toHaveBeenCalled();
+    expect(out).toEqual({ kind: "address", opened: false, coverageMiss: true });
+  });
+
+  it("OUTSIDE coverage on a situs miss: lands the map + honest chip, NEVER fabricates a parcel", async () => {
     const deps = mkDeps(false);
     const out = await executeSearchLanding(
       sugg({
@@ -87,11 +110,12 @@ describe("address landing", () => {
         label: "1 Ferry Building",
         lat: 37.7955,
         lng: -122.3937,
-        lookupQuery: "1 Ferry Building, San Francisco, California",
-        source: "photon",
+        lookupQuery: "1 Ferry Building, San Francisco, CA 94111",
+        source: "situs-address-point",
       }),
       deps,
     );
+    expect(deps.runParcelLookup).toHaveBeenCalled();
     expect(deps.flyTo).toHaveBeenCalledWith(37.7955, -122.3937, ADDRESS_LANDING_ZOOM);
     expect(deps.showChip).toHaveBeenCalledWith(OUTSIDE_COVERAGE_CHIP);
     expect(out).toEqual({ kind: "address", opened: false, coverageMiss: true });

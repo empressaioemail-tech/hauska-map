@@ -85,7 +85,9 @@ export function clearDeepLinkParams(): void {
  * Identity writer is the situs index. A unique hit with a node id is the
  * answer. A unique address-point (node id null, rooftop present) asks
  * envelope with THAT rooftop — never a Photon or viewport coordinate.
- * Many hits or no pin: envelope ADDRESS ONLY. Caller lat/lng is ignored.
+ * Many hits or no pin: envelope ADDRESS ONLY, unless a trusted situs
+ * rooftop was supplied by an address-point pick (#191). Caller lat/lng
+ * (Photon / viewport) stay ignored.
  */
 export async function resolveLookupToParcelNodeId(
   raw: string,
@@ -96,6 +98,8 @@ export async function resolveLookupToParcelNodeId(
     /** Ignored for identity. Photon / viewport bias must not override address. */
     lat?: number;
     lng?: number;
+    /** Situs address-point rooftop from the picked row. Not Photon. */
+    trustedRooftop?: { lat: number; lng: number };
   },
 ): Promise<LookupResult> {
   const classified = classifyLookupQuery(raw);
@@ -128,6 +132,13 @@ export async function resolveLookupToParcelNodeId(
   const fallbackAddress = isPhotonAddressLabel(classified.value)
     ? compactEnvelopeAddressQuery(classified.value)
     : classified.value;
+  const roof = opts?.trustedRooftop;
+  const trusted =
+    roof &&
+    Number.isFinite(roof.lat) &&
+    Number.isFinite(roof.lng)
+      ? { lat: roof.lat, lng: roof.lng }
+      : null;
   const envInput =
     pin && pin.lat != null && pin.lng != null
       ? {
@@ -135,7 +146,13 @@ export async function resolveLookupToParcelNodeId(
           lat: pin.lat,
           lng: pin.lng,
         }
-      : { address: fallbackAddress };
+      : trusted
+        ? {
+            address: pin?.situsAddress ?? fallbackAddress,
+            lat: trusted.lat,
+            lng: trusted.lng,
+          }
+        : { address: fallbackAddress };
 
   const env = await fetchBuildableEnvelope(
     envInput,

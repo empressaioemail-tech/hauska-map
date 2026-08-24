@@ -158,6 +158,33 @@ describe("resolveLookupToParcelNodeId", () => {
     if (result.ok) expect(result.parcelNodeId).toBe("48453:280239");
   });
 
+  it("trusted situs rooftop is posted when the pin has no point", async () => {
+    const fetchImpl = routeFetch({
+      situsHits: [],
+      onEnvelope: (body) => {
+        expect(body).toEqual({
+          address: "17005 SIMSBROOK DR, Pflugerville, TX, 78660",
+          lat: 30.459005,
+          lng: -97.635421,
+        });
+        return jsonResponse(envelopeOk("48453:280239", "coord:30.459005:-97.635421"));
+      },
+    });
+    const result = await resolveLookupToParcelNodeId(
+      "17005 SIMSBROOK DR, Pflugerville, TX, 78660",
+      {
+        cortexBase: CORTEX,
+        situsSearchUrl: SITUS,
+        fetchImpl,
+        lat: 30.26,
+        lng: -97.74,
+        trustedRooftop: { lat: 30.459005, lng: -97.635421 },
+      },
+    );
+    expect(result.ok).toBe(true);
+    if (result.ok) expect(result.parcelNodeId).toBe("48453:280239");
+  });
+
   it("does not forward Photon or viewport coords onto envelope (WDLL 2)", async () => {
     const fetchImpl = routeFetch({
       situsHits: [],

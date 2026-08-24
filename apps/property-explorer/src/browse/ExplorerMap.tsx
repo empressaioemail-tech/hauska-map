@@ -883,6 +883,7 @@ function ExplorerMapSurface({
         quiet?: boolean;
         lat?: number;
         lng?: number;
+        trustedRooftop?: { lat: number; lng: number };
       },
     ): Promise<boolean> => {
       const q = query.trim();
@@ -895,6 +896,7 @@ function ExplorerMapSurface({
         const found = await resolveLookupToParcelNodeId(q, {
           lat: opts?.lat,
           lng: opts?.lng,
+          trustedRooftop: opts?.trustedRooftop,
         });
         if (!found.ok) {
           if (!opts?.quiet) setLookupError(found.reason);
@@ -1125,6 +1127,7 @@ function ExplorerMapSurface({
             quiet: o?.quiet,
             lat: o?.lat,
             lng: o?.lng,
+            trustedRooftop: o?.trustedRooftop,
           }),
         flyTo: flyToPoint,
         fitExtent,
