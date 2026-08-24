@@ -1008,31 +1008,22 @@ export function toLiveOverlays(
 }
 
 /**
- * P-60e parcel-line dedup: should the PMTiles baked parcel LINE layer be
- * suppressed because the live county mesh is ACTUALLY drawing exact parcel
- * boundaries for this viewport?
+ * P-60e parcel-line dedup — WITHDRAWN 2026-08-24 after operator visual.
  *
- * The PMTiles browse lines are tippecanoe-simplified (maxzoom 16, so past z16
- * they overzoom and the simplification error grows to many pixels), while the
- * live mesh is the exact county geometry for the same CAD fabric — drawing
- * both reads as "multiple shapes on one lot".
+ * The original contract hid PMTiles LINE when the live mesh fetch was ok,
+ * untruncated, and carried >= 1 feature. That predicate is not "the mesh is
+ * painted across this viewport." At parcel zoom the bbox is small enough that
+ * a thin or partial mesh hit is untruncated, every tile line goes to opacity
+ * 0, and lots vanish. Operator hard-refresh 2026-08-24: "when I zoom in most
+ * of the lots disappear."
  *
- * FAIL-OPEN, by construction: the trigger is "the live parcels fetch resolved
- * ok AND carries >= 1 feature the mesh will draw", never "live-gis is
- * enabled". Every other state keeps the tile lines on:
- *   - idle / zoom-gated / loading (the interval before a fetch resolves)
- *   - error / no-coverage (uncovered counties, fetch failures)
- *   - ok with zero features or a missing geojson (mesh draws nothing)
- *   - ok but TRUNCATED (the upstream bbox cap hit — the mesh only covers PART
- *     of the viewport, so suppressing every tile line would strip boundaries
- *     from the parcels the capped fetch left out)
- * Never leaves the map with no parcel lines where it used to have them.
+ * Fail-open is now unconditional. Double lines at high zoom are the residual;
+ * a missing lot line is the defect. Re-enable suppress only with a second
+ * derivation that the overlay layer is actually on the map and covering the
+ * viewport, not a fetch-status check.
  */
-export function shouldSuppressTileParcelLines(parcels: LiveLayerState): boolean {
-  if (parcels.status !== 'ok') return false
-  const r = parcels.response
-  if (r.truncated === true) return false
-  return (r.geojson?.features?.length ?? 0) >= 1
+export function shouldSuppressTileParcelLines(_parcels: LiveLayerState): boolean {
+  return false
 }
 
 /** What the parcel info card renders, extracted from a map click selection. */

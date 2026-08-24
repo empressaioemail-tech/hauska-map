@@ -268,7 +268,11 @@ export function createMapRenderer(options = {}) {
 
     map.on("load", () => {
       styleReady = true;
-      ensureProductionTerrainInfrastructure(map);
+      try {
+        ensureProductionTerrainInfrastructure(map);
+      } catch {
+        /* terrain infra must never abort parcel tiles / overlays */
+      }
       syncBasemapPitchDegrade(map);
       map.on("pitch", () => {
         syncBasemapPitchDegrade(map);

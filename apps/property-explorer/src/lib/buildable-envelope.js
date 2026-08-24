@@ -40,8 +40,21 @@ function round6(n) {
  * @param {{ address?: string|null, lat?: number|null, lng?: number|null }} sel
  * @returns {object|null}
  */
+/** Travis CAD sentinels and truncated ZIPs geocode-miss and 404 the envelope. */
+function isUsableEnvelopeAddress(raw) {
+  if (!raw) return false;
+  const street = (raw.split(",")[0] ?? "").trim();
+  if (!street || !/^\d/.test(street)) return false;
+  if (/^,\s*(TX)?\s*$/i.test(raw)) return false;
+  // "17006 DASHWOOD CREEK DR, TX 7866" — truncated ZIP, no city. Cortex
+  // geocode-low → 404 no-parcel while the map click already has the rooftop.
+  if (/,\s*TX\s+\d{1,4}\s*$/i.test(raw) && raw.split(",").length < 3) return false;
+  return true;
+}
+
 export function envelopeRequestBody(sel) {
-  const address = typeof sel?.address === "string" ? sel.address.trim() : "";
+  const rawAddress = typeof sel?.address === "string" ? sel.address.trim() : "";
+  const address = isUsableEnvelopeAddress(rawAddress) ? rawAddress : "";
   const lat = round6(sel?.lat);
   const lng = round6(sel?.lng);
   // parcel_node_id is NOT sent until cortex POST schema accepts it (LDT #467

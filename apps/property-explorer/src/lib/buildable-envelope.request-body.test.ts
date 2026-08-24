@@ -23,4 +23,24 @@ describe("envelopeRequestBody", () => {
       lng: -97.3,
     });
   });
+
+  it("drops a truncated Travis situs and sends the click point (404 path)", () => {
+    expect(
+      envelopeRequestBody({
+        address: "17006 DASHWOOD CREEK DR, TX 7866",
+        lat: 30.439,
+        lng: -97.62,
+      }),
+    ).toEqual({ lat: 30.439, lng: -97.62 });
+  });
+
+  it("drops a bare ', TX' sentinel", () => {
+    expect(
+      envelopeRequestBody({
+        address: ", TX",
+        lat: 30.439,
+        lng: -97.62,
+      }),
+    ).toEqual({ lat: 30.439, lng: -97.62 });
+  });
 });
