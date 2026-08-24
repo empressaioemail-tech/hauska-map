@@ -62,6 +62,8 @@ function parcelFillOpacityExpr(zoningFill = true) {
   if (!zoningFill) {
     return [
       "case",
+      ["boolean", ["feature-state", "countyRing"], false],
+      0,
       ["boolean", ["feature-state", "subject"], false],
       ROLE_BUDGET.SUBJECT.fillOpacityStrong,
       ["boolean", ["feature-state", "inspected"], false],
@@ -71,6 +73,8 @@ function parcelFillOpacityExpr(zoningFill = true) {
   }
   return [
     "case",
+    ["boolean", ["feature-state", "countyRing"], false],
+    0,
     ["boolean", ["feature-state", "subject"], false],
     ROLE_BUDGET.SUBJECT.fillOpacityStrong,
     ["boolean", ["feature-state", "inspected"], false],
@@ -147,6 +151,8 @@ function parcelLineBlurExpr() {
 function parcelGlowColorExpr() {
   return [
     "case",
+    ["boolean", ["feature-state", "countyRing"], false],
+    "rgba(0,0,0,0)",
     ["boolean", ["feature-state", "subject"], false],
     "rgba(255,225,77,0.55)",
     "rgba(0,0,0,0)",
@@ -156,9 +162,37 @@ function parcelGlowColorExpr() {
 function parcelGlowWidthExpr() {
   return [
     "case",
+    ["boolean", ["feature-state", "countyRing"], false],
+    0,
     ["boolean", ["feature-state", "subject"], false],
     9,
     0,
+  ];
+}
+
+/**
+ * Tile LINE opacity. countyRing (sealed inspect overlay) demotes this
+ * feature's stroke so the county-exact ring is the only outline. Viewport-wide
+ * suppress (P-60e) is a separate flag and stays fail-open in PE.
+ */
+function parcelLineOpacityExpr(suppressed = false) {
+  if (suppressed) {
+    return [
+      "case",
+      ["boolean", ["feature-state", "countyRing"], false],
+      0,
+      ["boolean", ["feature-state", "subject"], false],
+      1,
+      ["boolean", ["feature-state", "inspected"], false],
+      1,
+      0,
+    ];
+  }
+  return [
+    "case",
+    ["boolean", ["feature-state", "countyRing"], false],
+    0,
+    1,
   ];
 }
 
@@ -227,6 +261,7 @@ export function addParcelTiles(map, cfg) {
       paint: {
         "line-color": parcelLineColorExpr(),
         "line-width": parcelLineWidthExpr(),
+        "line-opacity": parcelLineOpacityExpr(false),
         // line-blur from feature-state is SAFE (unlike dasharray/gradient).
         "line-blur": parcelLineBlurExpr(),
       },
@@ -302,17 +337,6 @@ export function setParcelTilesToggles(map, toggles = {}) {
  * never dims. line-opacity from feature-state is SAFE (crash-guard: only
  * dasharray/gradient are prohibited).
  */
-function parcelLineSuppressedOpacityExpr() {
-  return [
-    "case",
-    ["boolean", ["feature-state", "subject"], false],
-    1,
-    ["boolean", ["feature-state", "inspected"], false],
-    1,
-    0,
-  ];
-}
-
 /**
  * Set (or clear) the live-mesh dedup suppression on the tile LINE layer.
  *
@@ -324,7 +348,8 @@ function parcelLineSuppressedOpacityExpr() {
  *
  * FAIL-OPEN is the caller's contract (shouldSuppressTileParcelLines in
  * live-gis.ts): suppression is only requested while the live mesh actually has
- * features; every other state restores full opacity.
+ * features; every other state restores full opacity except countyRing, which
+ * demotes the one sealed lot.
  *
  * @param {import('maplibre-gl').Map} map
  * @param {boolean} suppressed
@@ -336,7 +361,7 @@ export function setParcelTilesLineSuppressed(map, suppressed) {
     map.setPaintProperty(
       PARCEL_TILES_LINE_ID,
       "line-opacity",
-      suppressed ? parcelLineSuppressedOpacityExpr() : 1,
+      parcelLineOpacityExpr(suppressed),
     );
   } catch {
     /* style mid-swap — the next applyParcelTileToggles re-asserts */
@@ -371,7 +396,7 @@ export function removeParcelTiles(map) {
  * @param {import('maplibre-gl').Map} map
  * @param {string} sourceLayer  the vector source layer id
  * @param {string|number} parcelNodeId
- * @param {{ subject?: boolean, inspected?: boolean }} state
+ * @param {{ subject?: boolean, inspected?: boolean, countyRing?: boolean }} state
  */
 export function setParcelFeatureState(map, sourceLayer, parcelNodeId, state) {
   if (!map || parcelNodeId == null) return;
@@ -379,6 +404,7 @@ export function setParcelFeatureState(map, sourceLayer, parcelNodeId, state) {
   const next = {};
   if (typeof state?.subject === "boolean") next.subject = state.subject;
   if (typeof state?.inspected === "boolean") next.inspected = state.inspected;
+  if (typeof state?.countyRing === "boolean") next.countyRing = state.countyRing;
   try {
     map.setFeatureState(
       { source: PARCEL_TILES_SOURCE_ID, sourceLayer, id: parcelNodeId },

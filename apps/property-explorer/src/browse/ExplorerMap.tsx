@@ -101,6 +101,7 @@ import {
   consumedLotOutlineGeometry,
   countyExactInspectOverlays,
 } from "./inspect-highlight";
+import { liveOverlayVisibility } from "./parcel-ring-peel";
 import {
   roadOverlaysFromAttachingRoads,
   PEDESTRIAN_WAYS_TOGGLE_KEY,
@@ -764,7 +765,10 @@ function ExplorerMapSurface({
       // Clear the prior inspected feature-state (if any and still lit).
       const prior = inspectedRef.current;
       if (handle && prior?.parcelNodeId && prior.parcelNodeId !== parcelNodeId) {
-        handle.setParcelState(prior.parcelNodeId, {});
+        handle.setParcelState(prior.parcelNodeId, {
+          inspected: false,
+          countyRing: false,
+        });
       }
       // Light the new inspected parcel on the live map (no-op if no baked id or
       // no PMTiles source, e.g. a live-GIS-only selection).
@@ -821,6 +825,7 @@ function ExplorerMapSurface({
     mapRef.current?.setParcelState(parcelNodeId, {
       inspected: false,
       subject: subjectNodeIdRef.current === parcelNodeId,
+      countyRing: true,
     });
   }, []);
 
@@ -1367,11 +1372,11 @@ function ExplorerMapSurface({
     // Clear the inspected glow, but keep the subject glow if this parcel is the
     // subject (drop only the `inspected` flag by re-asserting subject-only).
     if (handle && prior?.parcelNodeId) {
-      if (subjectNodeIdRef.current === prior.parcelNodeId) {
-        handle.setParcelState(prior.parcelNodeId, { subject: true });
-      } else {
-        handle.setParcelState(prior.parcelNodeId, {});
-      }
+      handle.setParcelState(prior.parcelNodeId, {
+        subject: subjectNodeIdRef.current === prior.parcelNodeId,
+        inspected: false,
+        countyRing: false,
+      });
     }
     inspectedRef.current = null;
     clickedParcelGeomRef.current = null;
@@ -1411,12 +1416,16 @@ function ExplorerMapSurface({
       ...toLiveOverlays(
         parcels.data ? { status: "ok", response: parcels.data } : parcels.fetch,
         fema.data ? { status: "ok", response: fema.data } : fema.fetch,
-        // Bind the live parcel/FEMA overlays to their LAYERS-panel toggles so
-        // the panel actually controls them (was: always-on regardless of toggle).
-        {
-          parcels: visibleLayers ? visibleLayers.has("parcel-polygon" as LayerKey) : true,
-          fema: visibleLayers ? visibleLayers.has("flood-zone" as LayerKey) : true,
-        },
+        // Bind FEMA to its toggle. Live parcel MESH is peeled (P-60): PMTiles
+        // already draws the lot rings. Fetch-ok is not paint.
+        liveOverlayVisibility({
+          parcelToggle: visibleLayers
+            ? visibleLayers.has("parcel-polygon" as LayerKey)
+            : true,
+          femaToggle: visibleLayers
+            ? visibleLayers.has("flood-zone" as LayerKey)
+            : true,
+        }),
       ),
       // Track B1 road object under the envelope wedge.
       ...roadOverlays,

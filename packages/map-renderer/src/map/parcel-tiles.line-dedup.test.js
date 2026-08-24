@@ -79,12 +79,24 @@ test("suppressed → base line opacity 0, subject/inspected strokes stay at 1", 
   assert.equal(branchValues.length, 2, "subject + inspected branches stay 1");
 });
 
-test("restored → constant full opacity (the fail-open direction)", () => {
+test("restored → countyRing demotes one lot, everyone else stays 1", () => {
   const map = freshMap();
   setParcelTilesLineSuppressed(map, true);
   setParcelTilesLineSuppressed(map, false);
 
-  assert.equal(map.paint[PARCEL_TILES_LINE_ID]["line-opacity"], 1);
+  const opacity = map.paint[PARCEL_TILES_LINE_ID]["line-opacity"];
+  assert.ok(Array.isArray(opacity), "fail-open is still a case expr");
+  assert.equal(baseBranch(opacity), 1, "unsuppressed base stays painted");
+  assert.match(JSON.stringify(opacity), /countyRing/, "sealed lot can demote");
+});
+
+test("countyRing branch is 0 even when viewport suppress is off", () => {
+  const map = freshMap();
+  setParcelTilesLineSuppressed(map, false);
+  const opacity = map.paint[PARCEL_TILES_LINE_ID]["line-opacity"];
+  assert.equal(opacity[0], "case");
+  assert.equal(opacity[2], 0, "countyRing paint is transparent");
+  assert.equal(baseBranch(opacity), 1);
 });
 
 test("paint-only and line-layer-only: fill/glow paint + all layouts untouched", () => {

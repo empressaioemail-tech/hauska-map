@@ -41,6 +41,7 @@ declare module "./map-renderer.js" {
         parcelNodeId: string | number;
         subject?: boolean;
         inspected?: boolean;
+        countyRing?: boolean;
       };
       zoom?: number;
     }): void;
@@ -104,7 +105,7 @@ declare module "./map/parcel-tiles.js" {
     map: any,
     sourceLayer: string,
     parcelNodeId: string | number,
-    state: { subject?: boolean; inspected?: boolean },
+    state: { subject?: boolean; inspected?: boolean; countyRing?: boolean },
   ): void;
   export function clearParcelFeatureState(
     map: any,

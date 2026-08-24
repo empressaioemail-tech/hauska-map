@@ -102,6 +102,7 @@ export interface ParcelTilesConfig {
 export interface ParcelHighlightState {
   subject?: boolean;
   inspected?: boolean;
+  countyRing?: boolean;
 }
 
 /** A geographic bounding box in WGS84 degrees. */
