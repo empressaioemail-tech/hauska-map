@@ -1,10 +1,12 @@
 import { afterEach, describe, it, expect, vi } from "vitest";
 import {
+  fetchAtomChainOnce,
   fetchAtomChainWithAlias,
   cortexInspectAuthorization,
   fetchCortexFacetsWithAlias,
   handlePropertyAtomsFacets,
   isRetrievalAuthFailure,
+  isTransientAtomChainReason,
   stripCortexEnvelopeProductTruth,
 } from "../../api/_lib/pe-property-atoms";
 import type { VercelRequest, VercelResponse } from "@vercel/node";
@@ -438,6 +440,67 @@ describe("fetchAtomChainWithAlias (WDLL 5)", () => {
     const result = await fetchAtomChainWithAlias("48021:34137.1");
     expect(result.ok).toBe(false);
     expect(seen).toHaveLength(1);
+  });
+});
+
+describe("fetchAtomChainOnce upstream timeout (cold Cloud Run)", () => {
+  const prev = {
+    url: process.env.HAUSKA_RETRIEVAL_API_URL,
+    key: process.env.HAUSKA_RETRIEVAL_API_KEY,
+    timeout: process.env.PE_UPSTREAM_FETCH_TIMEOUT_MS,
+  };
+
+  afterEach(() => {
+    vi.unstubAllGlobals();
+    if (prev.url === undefined) delete process.env.HAUSKA_RETRIEVAL_API_URL;
+    else process.env.HAUSKA_RETRIEVAL_API_URL = prev.url;
+    if (prev.key === undefined) delete process.env.HAUSKA_RETRIEVAL_API_KEY;
+    else process.env.HAUSKA_RETRIEVAL_API_KEY = prev.key;
+    if (prev.timeout === undefined) delete process.env.PE_UPSTREAM_FETCH_TIMEOUT_MS;
+    else process.env.PE_UPSTREAM_FETCH_TIMEOUT_MS = prev.timeout;
+  });
+
+  it("aborts a hung upstream fetch and reports a TRANSIENT reason (retry loop runs)", async () => {
+    process.env.HAUSKA_RETRIEVAL_API_URL = "https://retrieval.test";
+    process.env.HAUSKA_RETRIEVAL_API_KEY = "rk";
+    process.env.PE_UPSTREAM_FETCH_TIMEOUT_MS = "30";
+    let sawSignal = false;
+    vi.stubGlobal(
+      "fetch",
+      (_input: RequestInfo | URL, init?: RequestInit) =>
+        new Promise((_resolve, reject) => {
+          // Hang forever; settle only when the timeout signal aborts us —
+          // exactly what a cold Cloud Run socket that never answers does.
+          const signal = init?.signal;
+          sawSignal = !!signal;
+          signal?.addEventListener("abort", () => reject(signal.reason));
+        }),
+    );
+
+    const result = await fetchAtomChainOnce("48453:280230");
+    expect(sawSignal).toBe(true);
+    expect(result.ok).toBe(false);
+    if (result.ok) throw new Error("expected timeout failure");
+    expect(result.reason).toMatch(/aborted after 30ms upstream timeout/);
+    // Load-bearing classification: a timeout must be TRANSIENT (503 retryable
+    // to the client), never a definitive outcome the card renders as absence.
+    expect(isTransientAtomChainReason(result.reason)).toBe(true);
+  });
+
+  it("falsifier: a definitive empty chain is NOT classified transient", () => {
+    expect(isTransientAtomChainReason("atom-chain empty")).toBe(false);
+    expect(isTransientAtomChainReason("missing HAUSKA_RETRIEVAL_API_KEY|RETRIEVAL_API_KEY")).toBe(
+      false,
+    );
+  });
+
+  it("a responsive upstream is unaffected by the timeout bound", async () => {
+    process.env.HAUSKA_RETRIEVAL_API_URL = "https://retrieval.test";
+    process.env.HAUSKA_RETRIEVAL_API_KEY = "rk";
+    process.env.PE_UPSTREAM_FETCH_TIMEOUT_MS = "5000";
+    vi.stubGlobal("fetch", async () => jsonResponse(GOLD_CHAIN));
+    const result = await fetchAtomChainOnce("48021:34137");
+    expect(result.ok).toBe(true);
   });
 });
 

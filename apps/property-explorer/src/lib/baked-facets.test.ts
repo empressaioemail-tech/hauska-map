@@ -6,8 +6,12 @@
 // wired into property-explorer CI today; this file documents + locks the
 // deriver contract and runs green under any vitest that picks it up).
 
-import { describe, it, expect } from "vitest";
-import { deriveBakedCardModel, type BakedFacetPayload } from "./baked-facets";
+import { afterEach, describe, it, expect, vi } from "vitest";
+import {
+  deriveBakedCardModel,
+  fetchBakedNodeFacets,
+  type BakedFacetPayload,
+} from "./baked-facets";
 
 const fullPayload: BakedFacetPayload = {
   parcelNodeId: "48055:10068",
@@ -500,4 +504,112 @@ describe("deriveBakedCardModel — layer absence verdicts (P-63 Track B)", () =>
   it.todo(
     "live Tarrant metro GET returns lookup-failed livingAreaSqft (cortex Track A)",
   );
+});
+
+// ---------------------------------------------------------------------------
+// fetchBakedNodeFacets — retry/timeout contract (2026-08-24 intermittent
+// parcel-inspect failure). The stuck "Reading this parcel…" state was a hung
+// or repeatedly-timing-out fetch with no per-attempt bound; the red
+// facets-load-error on a fresh retry was a platform 500 treated as
+// non-retryable. These pin: per-attempt timeout → transient → retried;
+// 500 → transient → retried; 400 stays a non-retried error; 404 stays
+// not_found. Small timeouts/backoffs via the options seam — no fake timers.
+// ---------------------------------------------------------------------------
+
+const OK_BODY = JSON.stringify({
+  parcelNodeId: "48453:280230",
+  adapterKey: "property-atom-chain",
+  source: "atom-chain",
+  snapshotAt: null,
+  facets: { parcelNodeId: "48453:280230" },
+});
+
+function res(status: number, body = "{}"): Response {
+  return new Response(status === 204 ? null : body, {
+    status,
+    headers: { "Content-Type": "application/json" },
+  });
+}
+
+describe("fetchBakedNodeFacets retry/timeout contract", () => {
+  afterEach(() => {
+    vi.unstubAllGlobals();
+  });
+
+  it("HTTP 500 (platform function failure) is TRANSIENT: retried, then ok", async () => {
+    let calls = 0;
+    vi.stubGlobal("fetch", async () => {
+      calls += 1;
+      return calls === 1 ? res(500, '{"error":"FUNCTION_INVOCATION_FAILED"}') : res(200, OK_BODY);
+    });
+    const result = await fetchBakedNodeFacets("48453:280230", "/api/spine/property-atoms", {
+      backoffMs: [1, 1, 1],
+    });
+    expect(calls).toBe(2);
+    expect(result.kind).toBe("ok");
+  });
+
+  it("a hung request is aborted at the per-attempt timeout, classified transient, and retried", async () => {
+    let calls = 0;
+    vi.stubGlobal(
+      "fetch",
+      (_input: RequestInfo | URL, init?: RequestInit) => {
+        calls += 1;
+        if (calls === 1) {
+          return new Promise<Response>((_resolve, reject) => {
+            init?.signal?.addEventListener("abort", () =>
+              reject(init.signal?.reason ?? new Error("aborted")),
+            );
+          });
+        }
+        return Promise.resolve(res(200, OK_BODY));
+      },
+    );
+    const result = await fetchBakedNodeFacets("48453:280230", "/api/spine/property-atoms", {
+      timeoutMs: 25,
+      backoffMs: [1, 1, 1],
+    });
+    expect(calls).toBe(2);
+    expect(result.kind).toBe("ok");
+  });
+
+  it("exhausted transient attempts return the LAST transient (never ok, never absence)", async () => {
+    let calls = 0;
+    vi.stubGlobal("fetch", async () => {
+      calls += 1;
+      return res(503, '{"error":"upstream_transient","retryable":true,"message":"retrying"}');
+    });
+    const result = await fetchBakedNodeFacets("48453:280230", "/api/spine/property-atoms", {
+      attempts: 3,
+      backoffMs: [1, 1],
+    });
+    expect(calls).toBe(3);
+    expect(result.kind).toBe("transient");
+  });
+
+  it("falsifier: HTTP 400 is a definitive error — exactly one attempt, no retry", async () => {
+    let calls = 0;
+    vi.stubGlobal("fetch", async () => {
+      calls += 1;
+      return res(400, '{"error":"invalid path"}');
+    });
+    const result = await fetchBakedNodeFacets("48453:280230", "/api/spine/property-atoms", {
+      backoffMs: [1, 1, 1],
+    });
+    expect(calls).toBe(1);
+    expect(result.kind).toBe("error");
+  });
+
+  it("falsifier: HTTP 404 stays not_found — exactly one attempt, no retry", async () => {
+    let calls = 0;
+    vi.stubGlobal("fetch", async () => {
+      calls += 1;
+      return res(404);
+    });
+    const result = await fetchBakedNodeFacets("48453:280230", "/api/spine/property-atoms", {
+      backoffMs: [1, 1, 1],
+    });
+    expect(calls).toBe(1);
+    expect(result.kind).toBe("not_found");
+  });
 });

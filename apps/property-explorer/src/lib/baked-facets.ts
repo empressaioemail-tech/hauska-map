@@ -728,13 +728,39 @@ export type BakedFacetsFetchResult =
 const CLIENT_FACETS_ATTEMPTS = 4;
 const CLIENT_FACETS_BACKOFF_MS = [500, 1_200, 2_000, 3_000];
 
+/**
+ * Per-attempt bound on one facets request. Without it a hung BFF socket (a
+ * spine function stalled on a cold Cloud Run upstream) holds `resolve()` —
+ * and therefore the "Reading this parcel…" state — open for the full
+ * function maxDuration per attempt, unbounded from the card's point of view.
+ * A timed-out attempt is a TRANSIENT (retried with backoff), never an error
+ * and never an absence.
+ */
+const CLIENT_FACETS_TIMEOUT_MS = 30_000;
+
+/** Test seam + tuning knobs; production callers pass nothing. */
+export interface FacetsFetchOptions {
+  timeoutMs?: number;
+  attempts?: number;
+  backoffMs?: number[];
+}
+
 function sleep(ms: number): Promise<void> {
   return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
+/** AbortSignal.timeout where the runtime has it; older Safari degrades to no bound. */
+function timeoutSignal(ms: number): AbortSignal | undefined {
+  return typeof AbortSignal !== "undefined" &&
+    typeof AbortSignal.timeout === "function"
+    ? AbortSignal.timeout(ms)
+    : undefined;
 }
 
 async function fetchBakedNodeFacetsOnce(
   parcelNodeId: string,
   facetsBase: string,
+  timeoutMs: number,
 ): Promise<BakedFacetsFetchResult> {
   const id = parcelNodeId.trim();
   if (!id) return { kind: "error", message: "parcelNodeId required", status: 0 };
@@ -744,8 +770,13 @@ async function fetchBakedNodeFacetsOnce(
     : `${base}/brokerage/v1/place/node/${encodeURIComponent(id)}/facets`;
   let res: Response;
   try {
-    res = await fetch(url, { method: "GET", headers: { Accept: "application/json" } });
+    res = await fetch(url, {
+      method: "GET",
+      headers: { Accept: "application/json" },
+      signal: timeoutSignal(timeoutMs),
+    });
   } catch (err) {
+    // Network failure AND per-attempt timeout both land here: transient.
     return {
       kind: "transient",
       message: err instanceof Error ? err.message : String(err),
@@ -753,7 +784,16 @@ async function fetchBakedNodeFacetsOnce(
     };
   }
   if (res.status === 404) return { kind: "not_found" };
-  if (res.status === 503 || res.status === 502 || res.status === 504 || res.status === 429) {
+  // 500 is retryable here: this BFF never returns 500 by design, so a 500 is
+  // a platform-level function failure (FUNCTION_INVOCATION_FAILED), the same
+  // recoverable class as a 502/504 — and the GET is idempotent.
+  if (
+    res.status === 503 ||
+    res.status === 502 ||
+    res.status === 504 ||
+    res.status === 500 ||
+    res.status === 429
+  ) {
     let message = `HTTP ${res.status}`;
     try {
       const body = (await res.json()) as { message?: string; retryable?: boolean };
@@ -800,19 +840,23 @@ async function fetchBakedNodeFacetsOnce(
 export async function fetchBakedNodeFacets(
   parcelNodeId: string,
   facetsBase: string,
+  options: FacetsFetchOptions = {},
 ): Promise<BakedFacetsFetchResult> {
+  const attempts = options.attempts ?? CLIENT_FACETS_ATTEMPTS;
+  const backoff = options.backoffMs ?? CLIENT_FACETS_BACKOFF_MS;
+  const timeoutMs = options.timeoutMs ?? CLIENT_FACETS_TIMEOUT_MS;
   let last: BakedFacetsFetchResult = {
     kind: "error",
     message: "facets unset",
     status: 0,
   };
-  for (let i = 0; i < CLIENT_FACETS_ATTEMPTS; i++) {
-    const result = await fetchBakedNodeFacetsOnce(parcelNodeId, facetsBase);
+  for (let i = 0; i < attempts; i++) {
+    const result = await fetchBakedNodeFacetsOnce(parcelNodeId, facetsBase, timeoutMs);
     if (result.kind === "ok" || result.kind === "not_found" || result.kind === "error") {
       return result;
     }
     last = result;
-    await sleep(CLIENT_FACETS_BACKOFF_MS[i] ?? 3_000);
+    if (i < attempts - 1) await sleep(backoff[i] ?? 3_000);
   }
   return last;
 }
