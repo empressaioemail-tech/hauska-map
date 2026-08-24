@@ -86,6 +86,16 @@ describe("normalizeEnvelope", () => {
     expect(n.kind).toBe("empty");
   });
 
+  it("card projection status empty -> kind empty (consumed lot)", () => {
+    const n = normalizeEnvelope({
+      status: "empty",
+      setbacks: { front_ft: 30, side_ft: 15, rear_ft: 20 },
+      reason: "setbacks consume the lot",
+    });
+    expect(n.kind).toBe("empty");
+    expect(n.insetGeometry).toBeNull();
+  });
+
   it("declined -> kind none, no inset", () => {
     const n = normalizeEnvelope({ status: "declined", declineReason: "no-setback-table" });
     expect(n.kind).toBe("none");

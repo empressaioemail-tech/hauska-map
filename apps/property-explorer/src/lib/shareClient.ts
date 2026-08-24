@@ -1,7 +1,8 @@
 // Share-link client — mints share links via POST /api/pe-share (Workbench W4).
 //
-// Auth is the export entitlement class: 401 → sign-in, 402 → paywall, 503
-// sharing_not_configured → honest unconfigured notice. The minted link
+// Auth: session required; share mint is FREE per canon. 401 → sign-in,
+// 402 → paywall (legacy backends only), 503 sharing_not_configured → honest
+// unconfigured notice. The minted link
 // ({url, expiresAt}) is per-property persisted by the Share tool through the
 // chassis store.
 
@@ -19,7 +20,7 @@ export type ShareMintOutcome =
   | { kind: 'unreachable' }
 
 export const SHARE_PAYWALL_MESSAGE =
-  'Sharing a property analysis link is part of the paid tier (same entitlement as exports). Sign in and upgrade to Pro to share.'
+  'Sign in to create a share link for this property.'
 
 export async function mintShareLink(
   parcelNodeId: string,

@@ -90,7 +90,7 @@ describe("BRIEF bubble", () => {
     const html = renderTool("brief");
     expect(html).toContain('data-testid="brief-locked"');
     expect(html).toContain('data-testid="unlock-property-choice"');
-    expect(html).toContain('data-testid="unlock-pro-choice"');
+    expect(html).toContain('data-testid="unlock-solo-choice"');
   });
 
   it("property-unlocked → runs as today (no lock)", () => {
@@ -122,13 +122,13 @@ describe("REPORTS bubble (site-plan + flood per-property; TERRAIN Pro-only)", ()
     const html = renderTool("reports");
     expect(html).toContain('data-testid="reports-locked"');
     expect(html).toContain('data-testid="unlock-property-choice"');
-    expect(html).toContain('data-testid="unlock-pro-choice"');
+    expect(html).toContain('data-testid="unlock-solo-choice"');
     // The whole tool is locked — no report sections behind the wall.
     expect(html).not.toContain('data-testid="terrain-pro-lock"');
     expect(html).not.toContain('data-testid="flood-drainage-section"');
   });
 
-  it("property-unlocked → site-plan AND flood run; TERRAIN shows its PRO-ONLY lock (only the Pro choice)", () => {
+  it("property-unlocked → site-plan AND flood run; TERRAIN shows its STUDIO-ONLY lock (only the Studio choice)", () => {
     primePropertyEntitlement(PARCEL, PROPERTY_UNLOCKED);
     const html = renderTool("reports");
     expect(html).not.toContain('data-testid="reports-locked"');
@@ -137,11 +137,11 @@ describe("REPORTS bubble (site-plan + flood per-property; TERRAIN Pro-only)", ()
     // FD2: the flood & drainage section is live in the SAME $15 scope.
     expect(html).toContain('data-testid="flood-drainage-section"');
     expect(html).toContain('data-testid="flood-run"');
-    // Terrain slot is the Pro-only lock: NO $15 choice inside it, and the
+    // Terrain slot is the Studio-only lock: NO $15 choice inside it, and the
     // copy says terrain is not part of the single-property unlock.
     expect(html).toContain('data-testid="terrain-pro-lock"');
     expect(html).not.toContain('data-testid="unlock-property-choice"');
-    expect(html).toContain('data-testid="unlock-pro-choice"');
+    expect(html).toContain('data-testid="unlock-studio-choice"');
     expect(html).toContain("not part of the single-property unlock");
   });
 
@@ -161,18 +161,18 @@ describe("REPORTS bubble (site-plan + flood per-property; TERRAIN Pro-only)", ()
   });
 });
 
-describe("SHARE bubble (mint requires property entitlement)", () => {
+describe("SHARE bubble (free for signed-in users — acquisition channel)", () => {
   it("anon → sign-in-first", () => {
     primePropertyEntitlement(PARCEL, ANON);
     expect(renderTool("share")).toContain('data-testid="share-locked-sign-in"');
   });
 
-  it("free signed-in → LOCKED with both choices (mint gate folded into per-property semantics)", () => {
+  it("free signed-in → the create-link flow renders (share is free)", () => {
     primePropertyEntitlement(PARCEL, FREE);
     const html = renderTool("share");
-    expect(html).toContain('data-testid="share-locked"');
-    expect(html).toContain('data-testid="unlock-property-choice"');
-    expect(html).not.toContain('data-testid="share-create"');
+    expect(html).not.toContain('data-testid="share-locked"');
+    expect(html).toContain('data-testid="share-create"');
+    expect(html).not.toContain('data-testid="unlock-property-choice"');
   });
 
   it("property-unlocked → the create-link flow renders", () => {
@@ -230,7 +230,7 @@ describe("CHAT bubble (3 signed-in-free messages → wall)", () => {
     const html = renderTool("chat", { store: storeWithThread() });
     expect(html).toContain('data-testid="chat-wall"');
     expect(html).toContain('data-testid="unlock-property-choice"');
-    expect(html).toContain('data-testid="unlock-pro-choice"');
+    expect(html).toContain('data-testid="unlock-solo-choice"');
     expect(html).not.toContain('data-testid="chat-input"');
     // The thread above the wall is still there.
     expect(html).toContain("Can I add an ADU?");
@@ -271,7 +271,7 @@ describe("CHAT bubble (3 signed-in-free messages → wall)", () => {
 describe("FREE tools stay free", () => {
   it("My Properties and Compare never render a lock", () => {
     primePropertyEntitlement(PARCEL, FREE);
-    expect(renderTool("properties")).not.toContain("unlock-pro-choice");
-    expect(renderTool("compare")).not.toContain("unlock-pro-choice");
+    expect(renderTool("properties")).not.toContain("unlock-solo-choice");
+    expect(renderTool("compare")).not.toContain("unlock-solo-choice");
   });
 });

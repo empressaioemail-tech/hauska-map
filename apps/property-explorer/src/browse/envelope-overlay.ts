@@ -100,10 +100,11 @@ export function normalizeEnvelope(result: unknown): NormalizedEnvelope {
   const declined = status === "declined";
   if (declined) return { kind: "none", insetGeometry: null };
 
-  // The honest 0% state: baked "no-buildable-area", or the live path's empty
-  // signal (ok:false + status "no-buildable-area").
+  // The honest 0% state: baked "no-buildable-area", card projection "empty",
+  // or the live path's empty signal (ok:false + status "no-buildable-area").
   const isEmpty =
     status === "no-buildable-area" ||
+    status === "empty" ||
     (r.ok === false && status === "no-buildable-area") ||
     r.empty === true;
 

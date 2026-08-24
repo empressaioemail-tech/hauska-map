@@ -46,9 +46,9 @@ export const REPORTS_LOCKED_VALUE_LINE =
   "Professional reports on this property — the cited site-plan export (layered DXF/IFC + PDF sheet with setbacks, contours, and provenance), the flood & drainage study drawn on the map with its PDF sheet, and every report that ships next.";
 export const SITE_PLAN_PAYWALL_MESSAGE =
   "Cited site-plan export — layered DXF/IFC plus a PDF sheet with setbacks, contours, and provenance.";
-/** TERRAIN IS PRO-ONLY: never claimed by the $15 property unlock. */
+/** TERRAIN IS STUDIO-ONLY: never claimed by the $15 property unlock. */
 export const TERRAIN_PAYWALL_MESSAGE =
-  "Multi-format terrain export (GLB, IFC, DXF) is a Pro feature — it is not part of the single-property unlock.";
+  "Multi-format terrain export (GLB, IFC, DXF) is a Studio feature — it is not part of the single-property unlock.";
 
 export function ReportsTool() {
   const { activeParcelNodeId, host } = useWorkbench();

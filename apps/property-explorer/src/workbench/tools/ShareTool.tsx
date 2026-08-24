@@ -7,9 +7,9 @@
 // Behavior:
 //   - The minted link is PER-PROPERTY PERSISTENT via useDockToolState: close
 //     the dock, switch tools, reopen → the same link for that property.
-//   - Create → POST /api/pe-share (session + export entitlement class):
-//     401 → sign-in notice; 402 → PaywallGate via host.openPaywall; 503
-//     sharing-not-configured → honest notice; network → honest notice.
+//   - Create → POST /api/pe-share (session required; share is FREE per canon):
+//     401 → sign-in notice; 503 sharing-not-configured → honest notice;
+//     network → honest notice.
 //   - Copy button (clipboard), expiry note, regenerate (mints a fresh token;
 //     old links stay valid until their own expiry — tokens are stateless).
 
@@ -19,19 +19,17 @@ import { useDockToolState, useWorkbench } from "../WorkbenchContext";
 import { LockedToolPanel } from "./LockedToolPanel";
 import {
   mintShareLink,
-  SHARE_PAYWALL_MESSAGE,
   type MintedShareLink,
 } from "../../lib/shareClient";
 
-/** R1 value line — share is a PAID bubble folded into the per-property
- *  unlock semantics (the mint requires property entitlement). */
-export const SHARE_LOCKED_VALUE_LINE =
-  "Share links carry this property's full analysis — the verdict and cited brief plus the site-plan and terrain downloads — readable by anyone you send them to.";
+/** Share value line — free for every signed-in user (acquisition channel). */
+export const SHARE_VALUE_LINE =
+  "Share links carry this property's full analysis — the verdict and cited brief plus the site-plan and terrain downloads when exported — readable by anyone you send them to.";
 
 const MUTED = "var(--surface-muted, #94A3B8)";
-const AMBER = "var(--semantic-warning, #F59E0B)"; // caution notice (was raw yellow #fcd34d)
+const AMBER = "var(--semantic-warning, #F59E0B)";
 const TEXT = "var(--text-body, #e5e7eb)";
-const ACCENT = "var(--brand-blue, #3B82F6)"; // PRIMARY interactive hue (was cyan #7dd3fc)
+const ACCENT = "var(--brand-blue, #3B82F6)";
 
 /** The chassis-stored (per-property, JSON-serializable) share tool state. */
 export interface ShareToolStoredState {
@@ -180,12 +178,10 @@ export function ShareBody({
 }
 
 export function ShareTool() {
-  const { activeParcelNodeId, host } = useWorkbench();
+  const { activeParcelNodeId } = useWorkbench();
   const [stored, setStored] = useDockToolState<ShareToolStoredState>("share");
   const [phase, setPhase] = useState<Phase>({ kind: "idle" });
-  // R1 PROACTIVE gate: the share MINT requires property entitlement ($15
-  // unlock or Pro). locked → in-dock LOCKED state; signedOut → sign-in-first;
-  // loading/error → run as today (the server-402 belt stays authoritative).
+  // Share is FREE per canon — only sign-in is required to mint.
   const ent = usePropertyEntitlement(activeParcelNodeId);
 
   const handleCreate = async () => {
@@ -194,7 +190,6 @@ export function ShareTool() {
     const outcome = await mintShareLink(activeParcelNodeId);
     switch (outcome.kind) {
       case "ready":
-        // setStored is bound to the property this mint STARTED for.
         setStored({ link: outcome.link, mintedAt: new Date().toISOString() });
         setPhase({ kind: "idle" });
         return;
@@ -206,10 +201,9 @@ export function ShareTool() {
         });
         return;
       case "paywall":
-        host.openPaywall(outcome.message || SHARE_PAYWALL_MESSAGE);
         setPhase({
           kind: "notice",
-          text: outcome.message || SHARE_PAYWALL_MESSAGE,
+          text: outcome.message,
           tone: "amber",
         });
         return;
@@ -250,18 +244,9 @@ export function ShareTool() {
     return (
       <LockedToolPanel
         parcelNodeId={activeParcelNodeId}
-        valueLine={SHARE_LOCKED_VALUE_LINE}
+        valueLine={SHARE_VALUE_LINE}
         signedOut
         signInLine="Sign in to create a share link for this property."
-        testId="share-locked"
-      />
-    );
-  }
-  if (ent.locked) {
-    return (
-      <LockedToolPanel
-        parcelNodeId={activeParcelNodeId}
-        valueLine={SHARE_LOCKED_VALUE_LINE}
         testId="share-locked"
       />
     );

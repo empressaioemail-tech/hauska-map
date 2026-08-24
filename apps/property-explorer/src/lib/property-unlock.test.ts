@@ -6,6 +6,7 @@
 import { describe, expect, it, vi } from "vitest";
 import {
   PROPERTY_UNLOCK_COMING_MESSAGE,
+  isStripeCheckoutUrl,
   startPropertyUnlock,
 } from "./billingClient";
 
@@ -93,6 +94,41 @@ describe("startPropertyUnlock — real checkout by default, never a fake success
     });
   });
 
+  it("200 with unlocked:true (simulated / dev server) → honest 'coming', never instant unlock", async () => {
+    const result = await startPropertyUnlock("48021:1", {
+      fetchImpl: fakeCheckoutFetch(200, { unlocked: true }),
+    });
+    expect(result).toEqual({
+      kind: "coming",
+      message: PROPERTY_UNLOCK_COMING_MESSAGE,
+    });
+    expect(result).not.toEqual({ kind: "unlocked", mode: "dev-bypass" });
+  });
+
+  it("200 with a same-origin success URL → error, never redirect bypass", async () => {
+    const result = await startPropertyUnlock("48021:1", {
+      fetchImpl: fakeCheckoutFetch(200, {
+        checkoutUrl:
+          "https://smartsite.cloud/?checkout=success&parcelNodeId=48021%3A1",
+      }),
+    });
+    expect(result.kind).toBe("error");
+    expect(result).toMatchObject({
+      message: expect.stringContaining("not from Stripe"),
+    });
+  });
+
+  it("VITE_PE_DEV_UNLOCK env (legacy) is ignored — prod path hits checkout only", async () => {
+    vi.stubEnv("VITE_PE_DEV_UNLOCK", "1");
+    const fetchImpl = vi.fn(fakeCheckoutFetch(200, { checkoutUrl: "https://checkout.stripe.com/x" }));
+    await startPropertyUnlock("48021:1", { fetchImpl: fetchImpl as unknown as typeof fetch });
+    expect(fetchImpl).toHaveBeenCalledTimes(1);
+    expect(String((fetchImpl.mock.calls[0] as unknown[])[0])).toContain(
+      "/entitlement/checkout",
+    );
+    vi.unstubAllEnvs();
+  });
+
   it("network throw → honest error", async () => {
     const result = await startPropertyUnlock("48021:1", {
       fetchImpl: (async () => {
@@ -100,6 +136,24 @@ describe("startPropertyUnlock — real checkout by default, never a fake success
       }) as unknown as typeof fetch,
     });
     expect(result.kind).toBe("error");
+  });
+});
+
+describe("isStripeCheckoutUrl", () => {
+  it("accepts checkout.stripe.com HTTPS URLs", () => {
+    expect(
+      isStripeCheckoutUrl("https://checkout.stripe.com/pay/cs_test_123"),
+    ).toBe(true);
+  });
+
+  it("rejects same-origin success URLs and non-HTTPS", () => {
+    expect(
+      isStripeCheckoutUrl(
+        "https://smartsite.cloud/?checkout=success&parcelNodeId=1",
+      ),
+    ).toBe(false);
+    expect(isStripeCheckoutUrl("http://checkout.stripe.com/pay/x")).toBe(false);
+    expect(isStripeCheckoutUrl("not-a-url")).toBe(false);
   });
 });
 
