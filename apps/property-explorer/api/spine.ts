@@ -411,6 +411,10 @@ export default async function handler(req: VercelRequest, res: VercelResponse): 
     const fetchOptions: RequestInit = {
       method,
       headers,
+      // Generic proxy had no bound. near-bbox 504s then waited out Cloud Run
+      // / Vercel (operator visual: 90s card + three 504s). Facets BFF already
+      // uses 10s; this is the same bound on the shared hop.
+      signal: AbortSignal.timeout(10_000),
     }
 
     if (method === 'POST' && req.body) {
@@ -438,7 +442,10 @@ export default async function handler(req: VercelRequest, res: VercelResponse): 
       const aliasPath = aliasedRetrievalPathIfEmpty(effectivePath, status, text)
       if (aliasPath) {
         const aliasUrl = `${upstream.baseUrl}/${aliasPath}${qsStr ? `?${qsStr}` : ''}`
-        const aliasRes = await fetch(aliasUrl, fetchOptions)
+        const aliasRes = await fetch(aliasUrl, {
+          ...fetchOptions,
+          signal: AbortSignal.timeout(10_000),
+        })
         const aliasType = aliasRes.headers.get('content-type')
         if (aliasType) res.setHeader('Content-Type', aliasType)
         text = await aliasRes.text()
@@ -464,6 +471,16 @@ export default async function handler(req: VercelRequest, res: VercelResponse): 
 
     res.status(status).send(text)
   } catch (err) {
+    const timedOut =
+      err instanceof Error && (err.name === 'TimeoutError' || /aborted|timeout/i.test(err.message))
+    if (timedOut) {
+      res.status(504).json({
+        error: 'upstream_timeout',
+        retryable: true,
+        message: 'upstream aborted after 10000ms',
+      })
+      return
+    }
     res.status(502).json({ error: 'upstream error', message: err instanceof Error ? err.message : String(err) })
   }
 }

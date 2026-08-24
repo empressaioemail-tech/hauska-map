@@ -315,51 +315,36 @@ export function ensureProductionTerrainInfrastructure(map) {
         : {}),
     });
   }
-  if (!map.getLayer(PRODUCTION_SKY_LAYER_ID)) {
-    map.addLayer({
-      id: PRODUCTION_SKY_LAYER_ID,
-      type: "sky",
-      paint: {
-        "sky-type": "gradient",
-        "sky-gradient-center": [0, 0],
-        "sky-gradient-radius": 90,
-        "sky-gradient": [
-          "interpolate",
-          ["linear"],
-          ["sky-radial-progress"],
-          0.0,
-          "rgba(160, 185, 210, 0.95)",
-          0.6,
-          "rgba(120, 145, 170, 0.85)",
-          1.0,
-          "rgba(70, 85, 100, 0.75)",
-        ],
-      },
-    });
-  }
+  // MapLibre does not support Mapbox `sky`. Adding it throws
+  // `layers.hauska-sky.type: expected one of [fill, line, …], "sky" found`
+  // and can abort the map `load` handler before parcel tiles apply.
+  // Hillshade-opacity is also Mapbox-only on the versions we ship.
   if (!map.getLayer(PRODUCTION_HILLSHADE_LAYER_ID)) {
     const beforeId =
       ["hauska-browse-parcels-fill", "hauska-parcel-tiles-fill"].find((id) =>
         map.getLayer(id),
       ) || undefined;
-    map.addLayer(
-      {
-        id: PRODUCTION_HILLSHADE_LAYER_ID,
-        type: "hillshade",
-        source: PRODUCTION_TERRAIN_SOURCE_ID,
-        paint: {
-          "hillshade-illumination-direction": 315,
-          "hillshade-illumination-anchor": "viewport",
-          "hillshade-exaggeration": 0.85,
-          "hillshade-shadow-color": "#2a241c",
-          "hillshade-highlight-color": "#e8e0d4",
-          "hillshade-accent-color": "#6b5e52",
-          "hillshade-opacity": 0.55,
+    try {
+      map.addLayer(
+        {
+          id: PRODUCTION_HILLSHADE_LAYER_ID,
+          type: "hillshade",
+          source: PRODUCTION_TERRAIN_SOURCE_ID,
+          paint: {
+            "hillshade-illumination-direction": 315,
+            "hillshade-illumination-anchor": "viewport",
+            "hillshade-exaggeration": 0.85,
+            "hillshade-shadow-color": "#2a241c",
+            "hillshade-highlight-color": "#e8e0d4",
+            "hillshade-accent-color": "#6b5e52",
+          },
+          layout: { visibility: "none" },
         },
-        layout: { visibility: "none" },
-      },
-      beforeId,
-    );
+        beforeId,
+      );
+    } catch {
+      /* style mid-swap or unsupported hillshade paint — tiles stay */
+    }
   }
 }
 
@@ -375,7 +360,11 @@ export function ensureProductionTerrainInfrastructure(map) {
  */
 export function syncProductionTerrainVisibility(map, visible, opts = {}) {
   if (!map?.isStyleLoaded()) return;
-  ensureProductionTerrainInfrastructure(map);
+  try {
+    ensureProductionTerrainInfrastructure(map);
+  } catch {
+    /* same contract as map load — never abort visibility sync */
+  }
 
   if (!visible) {
     terrainEngageGen += 1;

@@ -313,8 +313,8 @@ export async function fetchCortexFacetsWithAlias(
 /** Transient upstream failures — NEVER surface these as honest-absence. */
 const TRANSIENT_ATOM_CHAIN =
   /unreachable|ECONNRESET|ETIMEDOUT|fetch failed|HTTP 5\d\d|HTTP 429|aborted|network|invalid JSON/i;
-const ATOM_CHAIN_ATTEMPTS = 5;
-const ATOM_CHAIN_BACKOFF_MS = [400, 900, 1_600, 2_400, 3_200];
+const ATOM_CHAIN_ATTEMPTS = 2;
+const ATOM_CHAIN_BACKOFF_MS = [400, 900];
 
 function sleep(ms: number): Promise<void> {
   return new Promise((resolve) => setTimeout(resolve, ms));

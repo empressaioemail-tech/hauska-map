@@ -675,13 +675,10 @@ function ExplorerMapSurface({
       });
   }, []);
 
-  // P-60e parcel-line dedup: while the live county-GIS mesh is ACTUALLY
-  // drawing exact parcel boundaries for this viewport (fetch resolved ok,
-  // >= 1 feature, not truncated), fade the PMTiles simplified base lines so a
-  // lot reads as ONE shape past z16. Keyed on the FETCH state (not the stale
-  // `data` carried through a reload) so the interval before a fetch resolves,
-  // errors, no-coverage, zoom-gated, and empty responses all keep the tile
-  // lines on — fail-open, never a map with no parcel lines where it had them.
+  // P-60e withdrawn 2026-08-24: hiding tile lines on a thin live-mesh hit
+  // made lots vanish on zoom-in. shouldSuppressTileParcelLines is now
+  // unconditionally false. Keep the call so a later proven-paint check can
+  // reuse the seam without a second wiring pass.
   const suppressTileParcelLines = useMemo(
     () => shouldSuppressTileParcelLines(parcels.fetch),
     [parcels.fetch],

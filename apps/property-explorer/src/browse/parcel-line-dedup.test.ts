@@ -1,12 +1,9 @@
 /**
- * P-60e parcel-line dedup — the pure suppress-vs-keep decision for the PMTiles
- * baked parcel LINE layer against the live county-GIS mesh state.
+ * P-60e parcel-line dedup — withdrawn 2026-08-24.
  *
- * The load-bearing direction is the VIOLATION direction: any state in which
- * the live mesh is NOT actually drawing exact boundaries (empty, failed,
- * no-coverage, zoom-gated, still loading, truncated partial coverage) MUST
- * keep the tile lines on. Suppressing there would leave the map with no
- * parcel lines where it used to have them.
+ * Operator visual: zoom-in hid most lot lines. The old predicate (mesh ok,
+ * >=1 feature, not truncated) is not "the mesh is painted." Fail-open is
+ * now unconditional. These tests lock that: no fetch state may hide tiles.
  */
 
 import { describe, expect, it } from 'vitest'
@@ -32,14 +29,14 @@ function okState(featureCount: number, truncated?: boolean): LiveLayerState {
 }
 
 describe('shouldSuppressTileParcelLines', () => {
-  it('suppresses when the live mesh has >= 1 feature for the viewport', () => {
-    expect(shouldSuppressTileParcelLines(okState(1))).toBe(true)
-    expect(shouldSuppressTileParcelLines(okState(180))).toBe(true)
+  it('never hides tile lines on a live-mesh ok (operator visual 2026-08-24)', () => {
+    expect(shouldSuppressTileParcelLines(okState(1))).toBe(false)
+    expect(shouldSuppressTileParcelLines(okState(180))).toBe(false)
   })
 
-  it('suppresses when truncated is absent or explicitly false', () => {
-    expect(shouldSuppressTileParcelLines(okState(3, undefined))).toBe(true)
-    expect(shouldSuppressTileParcelLines(okState(3, false))).toBe(true)
+  it('keeps tile lines when truncated is absent or explicitly false', () => {
+    expect(shouldSuppressTileParcelLines(okState(3, undefined))).toBe(false)
+    expect(shouldSuppressTileParcelLines(okState(3, false))).toBe(false)
   })
 
   // --- VIOLATION DIRECTION: every one of these must keep the tile lines ---
