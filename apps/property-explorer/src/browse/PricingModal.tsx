@@ -86,7 +86,7 @@ export function PricingModal({
   const [interval, setInterval] = useState<PricingInterval>(
     initialInterval ?? defaultPricingInterval(),
   );
-  const [teamSeats, setTeamSeats] = useState(PE_PRICING.team.baseSeats);
+  const [teamSeats, setTeamSeats] = useState<number>(PE_PRICING.team.baseSeats);
   const showSeatStepper = teamSeatsControlVisible(interval);
 
   const emphasize = (tier: PeCheckoutTier): boolean =>
