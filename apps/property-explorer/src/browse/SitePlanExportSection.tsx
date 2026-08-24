@@ -53,6 +53,8 @@ export function SitePlanExportSection({
   onPaymentRequired,
   initialState,
   onStateChange,
+  embed,
+  lockedFormat,
 }: {
   parcelNodeId: string;
   address?: string | null;
@@ -63,9 +65,13 @@ export function SitePlanExportSection({
   initialState?: SitePlanExportSectionState | null;
   /** Fires with the full snapshot on every terminal outcome + format change. */
   onStateChange?: (next: SitePlanExportSectionState) => void;
+  /** Option D: drop the section title / top rule — the picker card owns them. */
+  embed?: boolean;
+  /** Option D: the picker already chose the format. Hide the in-section select. */
+  lockedFormat?: SitePlanExportFormat;
 }) {
   const [format, setFormat] = useState<SitePlanExportFormat>(
-    initialState?.format ?? "pdf-site-plan",
+    lockedFormat ?? initialState?.format ?? "pdf-site-plan",
   );
   const [busy, setBusy] = useState(false);
   const [notice, setNotice] = useState<string | null>(
@@ -165,47 +171,57 @@ export function SitePlanExportSection({
   return (
     <div
       data-testid="site-plan-export-section"
-      style={{
-        marginTop: 10,
-        paddingTop: 10,
-        borderTop: "0.5px solid rgba(154,166,178,0.22)",
-      }}
+      style={
+        embed
+          ? undefined
+          : {
+              marginTop: 10,
+              paddingTop: 10,
+              borderTop: "0.5px solid rgba(154,166,178,0.22)",
+            }
+      }
     >
-      <div style={{ fontSize: 10, color: MUTED, marginBottom: 6 }}>
-        Site-plan export · paid
-      </div>
+      {embed ? null : (
+        <div style={{ fontSize: 10, color: MUTED, marginBottom: 6 }}>
+          Site-plan export · paid
+        </div>
+      )}
 
-      <label style={{ display: "block", fontSize: 10.5, color: MUTED, marginBottom: 4 }}>
-        Format
-      </label>
-      <select
-        data-testid="site-plan-format-picker"
-        value={format}
-        disabled={busy}
-        onChange={(e) =>
-          settle({
-            format: e.target.value as SitePlanExportFormat,
-            notice,
-            result,
-          })
-        }
-        style={{
-          width: "100%",
-          marginBottom: 8,
-          padding: "6px 8px",
-          borderRadius: 6,
-          border: "0.5px solid rgba(154,166,178,0.35)",
-          background: "rgba(6,9,13,0.6)",
-          color: "#e6edf3",
-          fontSize: 12,
-        }}
-      >
-        {SITE_PLAN_FORMAT_OPTIONS.map((opt) => (
-          <option key={opt.id} value={opt.id}>
-            {opt.label}
-          </option>
-        ))}
-      </select>
+      {lockedFormat ? null : (
+        <>
+          <label style={{ display: "block", fontSize: 10.5, color: MUTED, marginBottom: 4 }}>
+            Format
+          </label>
+          <select
+            data-testid="site-plan-format-picker"
+            value={format}
+            disabled={busy}
+            onChange={(e) =>
+              settle({
+                format: e.target.value as SitePlanExportFormat,
+                notice,
+                result,
+              })
+            }
+            style={{
+              width: "100%",
+              marginBottom: 8,
+              padding: "6px 8px",
+              borderRadius: 6,
+              border: "0.5px solid rgba(154,166,178,0.35)",
+              background: "rgba(6,9,13,0.6)",
+              color: "#e6edf3",
+              fontSize: 12,
+            }}
+          >
+            {SITE_PLAN_FORMAT_OPTIONS.map((opt) => (
+              <option key={opt.id} value={opt.id}>
+                {opt.label}
+              </option>
+            ))}
+          </select>
+        </>
+      )}
 
       <Button
         variant="primary"

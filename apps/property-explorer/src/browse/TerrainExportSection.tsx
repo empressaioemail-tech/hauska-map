@@ -48,6 +48,8 @@ export function TerrainExportSection({
   onPaymentRequired,
   initialState,
   onStateChange,
+  embed,
+  lockedFormat,
 }: {
   parcelNodeId: string;
   onPaymentRequired: () => void;
@@ -56,9 +58,13 @@ export function TerrainExportSection({
   initialState?: TerrainExportSectionState | null;
   /** Fires with the full snapshot on every terminal outcome + format change. */
   onStateChange?: (next: TerrainExportSectionState) => void;
+  /** Option D: drop the section title / top rule — the picker card owns them. */
+  embed?: boolean;
+  /** Option D: the picker already chose the format. Hide the in-section select. */
+  lockedFormat?: TerrainExportFormat;
 }) {
   const [format, setFormat] = useState<TerrainExportFormat>(
-    initialState?.format ?? "glb",
+    lockedFormat ?? initialState?.format ?? "glb",
   );
   const [busy, setBusy] = useState(false);
   const [notice, setNotice] = useState<string | null>(
@@ -147,50 +153,60 @@ export function TerrainExportSection({
   return (
     <div
       data-testid="terrain-export-section"
-      style={{
-        marginTop: 10,
-        paddingTop: 10,
-        borderTop: "0.5px solid rgba(154,166,178,0.22)",
-      }}
+      style={
+        embed
+          ? undefined
+          : {
+              marginTop: 10,
+              paddingTop: 10,
+              borderTop: "0.5px solid rgba(154,166,178,0.22)",
+            }
+      }
     >
-      <div style={{ fontSize: 10, color: MUTED, marginBottom: 6 }}>
-        Terrain export · paid
-      </div>
+      {embed ? null : (
+        <div style={{ fontSize: 10, color: MUTED, marginBottom: 6 }}>
+          Terrain export · paid
+        </div>
+      )}
 
-      <label style={{ display: "block", fontSize: 10.5, color: MUTED, marginBottom: 4 }}>
-        Format
-      </label>
-      <select
-        data-testid="terrain-format-picker"
-        value={format}
-        disabled={busy}
-        onChange={(e) =>
-          settle({
-            format: e.target.value as TerrainExportFormat,
-            notice,
-            result,
-          })
-        }
-        style={{
-          width: "100%",
-          marginBottom: 8,
-          padding: "6px 8px",
-          borderRadius: 6,
-          border: "0.5px solid rgba(154,166,178,0.35)",
-          background: "rgba(6,9,13,0.6)",
-          color: "#e6edf3",
-          fontSize: 12,
-        }}
-      >
-        {TERRAIN_FORMAT_OPTIONS.map((opt) => (
-          <option key={opt.id} value={opt.id}>
-            {opt.label}
-          </option>
-        ))}
-        <option value="landxml-tin" disabled>
-          LandXML TIN (deferred)
-        </option>
-      </select>
+      {lockedFormat ? null : (
+        <>
+          <label style={{ display: "block", fontSize: 10.5, color: MUTED, marginBottom: 4 }}>
+            Format
+          </label>
+          <select
+            data-testid="terrain-format-picker"
+            value={format}
+            disabled={busy}
+            onChange={(e) =>
+              settle({
+                format: e.target.value as TerrainExportFormat,
+                notice,
+                result,
+              })
+            }
+            style={{
+              width: "100%",
+              marginBottom: 8,
+              padding: "6px 8px",
+              borderRadius: 6,
+              border: "0.5px solid rgba(154,166,178,0.35)",
+              background: "rgba(6,9,13,0.6)",
+              color: "#e6edf3",
+              fontSize: 12,
+            }}
+          >
+            {TERRAIN_FORMAT_OPTIONS.map((opt) => (
+              <option key={opt.id} value={opt.id}>
+                {opt.label}
+              </option>
+            ))}
+            <option value="landxml-tin" disabled>
+              LandXML TIN (deferred)
+            </option>
+          </select>
+        </>
+      )}
 
       <Button
         variant="primary"

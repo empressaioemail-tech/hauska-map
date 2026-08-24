@@ -71,8 +71,13 @@ function renderTool(
   toolId: string,
   opts: {
     store?: ReturnType<typeof createWorkbenchToolStateStore>;
+    selectedDoc?: string;
   } = {},
 ): string {
+  const store = opts.store ?? createWorkbenchToolStateStore({ storage: null });
+  if (opts.selectedDoc) {
+    store.set(PARCEL, "reports.selectedDoc", opts.selectedDoc);
+  }
   return renderToStaticMarkup(
     <Workbench
       tools={WORKBENCH_TOOLS}
@@ -80,7 +85,7 @@ function renderTool(
       onOpenToolChange={noop}
       activeParcelNodeId={PARCEL}
       host={host}
-      store={opts.store ?? createWorkbenchToolStateStore({ storage: null })}
+      store={store}
     />,
   );
 }
@@ -125,7 +130,7 @@ describe("BRIEF bubble", () => {
   });
 });
 
-describe("REPORTS bubble (site-plan + flood per-property; TERRAIN Pro-only)", () => {
+describe("REPORTS bubble (Option D picker; TERRAIN Studio-only when selected)", () => {
   it("anon → sign-in-first", () => {
     primePropertyEntitlement(PARCEL, ANON);
     expect(renderTool("reports")).toContain(
@@ -133,83 +138,96 @@ describe("REPORTS bubble (site-plan + flood per-property; TERRAIN Pro-only)", ()
     );
   });
 
-  it("free signed-in → LOCKED: value line + View-pricing button, NO inline checkout", () => {
+  it("free signed-in → LOCKED: picker + View-pricing button, NO inline checkout", () => {
     primePropertyEntitlement(PARCEL, FREE);
     const html = renderTool("reports");
     expect(html).toContain('data-testid="reports-locked"');
+    expect(html).toContain('data-testid="reports-doc-picker"');
     expect(html).toContain('data-testid="view-pricing-button"');
     expect(html).not.toContain('data-testid="unlock-property-choice"');
     expect(html).not.toContain('data-testid="unlock-solo-choice"');
-    // The whole tool is locked — no report sections behind the wall.
     expect(html).not.toContain('data-testid="terrain-pro-lock"');
     expect(html).not.toContain('data-testid="flood-drainage-section"');
   });
 
-  it("property-unlocked → site-plan AND flood run; TERRAIN shows its STUDIO-ONLY lock (View-pricing button, no inline checkout)", () => {
+  it("property-unlocked → picker, not locked; flood runs only when selected", () => {
     primePropertyEntitlement(PARCEL, PROPERTY_UNLOCKED);
     const html = renderTool("reports");
     expect(html).not.toContain('data-testid="reports-locked"');
-    // Site-plan export section is live.
-    expect(html).toContain("site-plan");
-    // FD2: the flood & drainage section is live in the SAME $15 scope.
+    expect(html).toContain('data-testid="reports-doc-picker"');
+    expect(html).toContain("Site plan sheet");
+    expect(html).not.toContain('data-testid="flood-run"');
+    expect(html).not.toContain('data-testid="terrain-pro-lock"');
+  });
+
+  it("property-unlocked + FLOOD selected → flood runs; terrain is not in the DOM", () => {
+    primePropertyEntitlement(PARCEL, PROPERTY_UNLOCKED);
+    const html = renderTool("reports", { selectedDoc: "FLOOD" });
     expect(html).toContain('data-testid="flood-drainage-section"');
     expect(html).toContain('data-testid="flood-run"');
-    // Terrain slot is the Studio-only lock: its note says terrain is not part
-    // of the single-property unlock, and pricing lives in the modal only.
+    expect(html).not.toContain('data-testid="terrain-pro-lock"');
+    expect(html).not.toContain('data-testid="terrain-export-section"');
+  });
+
+  it("property-unlocked + TERGLB selected → STUDIO-ONLY lock (View-pricing, no inline checkout)", () => {
+    primePropertyEntitlement(PARCEL, PROPERTY_UNLOCKED);
+    const html = renderTool("reports", { selectedDoc: "TERGLB" });
     expect(html).toContain('data-testid="terrain-pro-lock"');
     expect(html).toContain('data-testid="view-pricing-button"');
     expect(html).toContain("not part of the single-property unlock");
     expect(html).not.toContain('data-testid="unlock-property-choice"');
     expect(html).not.toContain('data-testid="unlock-studio-choice"');
+    expect(html).not.toContain('data-testid="terrain-export-section"');
   });
 
-  it("STUDIO grants terrain: the real terrain export section, no locks; flood runs", () => {
+  it("STUDIO + TERGLB → the real terrain export section, no lock", () => {
     primePropertyEntitlement(PARCEL, STUDIO);
-    const html = renderTool("reports");
+    const html = renderTool("reports", { selectedDoc: "TERGLB" });
     expect(html).not.toContain('data-testid="reports-locked"');
     expect(html).not.toContain('data-testid="terrain-pro-lock"');
-    expect(html).toContain('data-testid="flood-run"');
+    expect(html).toContain('data-testid="terrain-export-section"');
   });
 
   it("TEAM grants terrain too (everything in Studio)", () => {
     primePropertyEntitlement(PARCEL, TEAM);
-    const html = renderTool("reports");
+    const html = renderTool("reports", { selectedDoc: "TERGLB" });
     expect(html).not.toContain('data-testid="reports-locked"');
     expect(html).not.toContain('data-testid="terrain-pro-lock"');
+    expect(html).toContain('data-testid="terrain-export-section"');
   });
 
-  it("SOLO subscriber: site-plan and flood run, but terrain gates CLOSED — Solo must NOT clear Studio gates (operator ruling)", () => {
+  it("SOLO subscriber: flood runs when selected; terrain gates CLOSED", () => {
     primePropertyEntitlement(PARCEL, SOLO);
-    const html = renderTool("reports");
-    expect(html).not.toContain('data-testid="reports-locked"');
-    expect(html).toContain('data-testid="flood-run"');
-    expect(html).toContain('data-testid="terrain-pro-lock"');
-    expect(html).not.toContain('data-testid="terrain-export-section"');
+    const flood = renderTool("reports", { selectedDoc: "FLOOD" });
+    expect(flood).not.toContain('data-testid="reports-locked"');
+    expect(flood).toContain('data-testid="flood-run"');
+    const terrain = renderTool("reports", { selectedDoc: "TERGLB" });
+    expect(terrain).toContain('data-testid="terrain-pro-lock"');
+    expect(terrain).not.toContain('data-testid="terrain-export-section"');
   });
 
-  it("devRole (tester account, no Stripe, no subscriptionTier) grants terrain — live /entitlement omits the ladder field", () => {
+  it("devRole (tester account, no Stripe, no subscriptionTier) grants terrain", () => {
     primePropertyEntitlement(PARCEL, DEV);
-    const html = renderTool("reports");
+    const html = renderTool("reports", { selectedDoc: "TERGLB" });
     expect(html).not.toContain('data-testid="reports-locked"');
     expect(html).not.toContain('data-testid="terrain-pro-lock"');
     expect(html).not.toContain('data-testid="view-pricing-button"');
-    expect(html).toContain('data-testid="flood-run"');
+    expect(html).toContain('data-testid="terrain-export-section"');
   });
 
-  it("FAIL CLOSED: a paid row with NO subscriptionTier (stale cache / pre-ladder backend) gates terrain CLOSED — null never grants Studio", () => {
+  it("FAIL CLOSED: a paid row with NO subscriptionTier gates terrain CLOSED", () => {
     primePropertyEntitlement(PARCEL, PRO);
-    const html = renderTool("reports");
+    const html = renderTool("reports", { selectedDoc: "TERGLB" });
     expect(html).not.toContain('data-testid="reports-locked"');
     expect(html).toContain('data-testid="terrain-pro-lock"');
     expect(html).not.toContain('data-testid="terrain-export-section"');
-    expect(html).toContain('data-testid="flood-run"');
   });
 
-  it("entitlement unknown → sections render as today (reactive 402 belt)", () => {
+  it("entitlement unknown → picker renders (reactive 402 belt, not a hard lock)", () => {
     const html = renderTool("reports");
     expect(html).not.toContain('data-testid="reports-locked"');
     expect(html).not.toContain('data-testid="terrain-pro-lock"');
-    expect(html).toContain('data-testid="flood-drainage-section"');
+    expect(html).toContain('data-testid="reports-doc-picker"');
   });
 });
 

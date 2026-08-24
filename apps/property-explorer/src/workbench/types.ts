@@ -72,6 +72,11 @@ export interface WorkbenchHostActions {
     },
   ) => void;
   /**
+   * Switch the ONE open dock tool (Option D "Open brief"). Optional so
+   * injected test hosts stay valid.
+   */
+  openTool?: (toolId: string) => void;
+  /**
    * The ACTIVE property's situs address when the app shell knows it (inspect
    * card), else null. W3 chat sends it as the research-chat address selector;
    * tools must degrade honestly when it is null. Optional so injected test

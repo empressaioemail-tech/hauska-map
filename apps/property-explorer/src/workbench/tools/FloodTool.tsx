@@ -287,7 +287,7 @@ function Legend({ hasPonding = true }: { hasPonding?: boolean }) {
  * tool (which owns the entitlement lock around it). One study fetch feeds
  * BOTH the dock mini viz and the main-map overlay.
  */
-export function FloodDrainageSection() {
+export function FloodDrainageSection({ embed = false }: { embed?: boolean } = {}) {
   const { activeParcelNodeId, host } = useWorkbench();
   const [stored, setStored] = useDockToolState<FloodToolStoredState>("flood");
   const ent = usePropertyEntitlement(activeParcelNodeId);
@@ -413,17 +413,23 @@ export function FloodDrainageSection() {
   return (
     <div
       data-testid="flood-drainage-section"
-      style={{
-        marginTop: 10,
-        paddingTop: 10,
-        borderTop: "0.5px solid rgba(154,166,178,0.22)",
-      }}
+      style={
+        embed
+          ? undefined
+          : {
+              marginTop: 10,
+              paddingTop: 10,
+              borderTop: "0.5px solid rgba(154,166,178,0.22)",
+            }
+      }
     >
-      <div style={{ fontSize: 10, color: MUTED, marginBottom: 6 }}>
-        Flood &amp; drainage report · public-paid
-      </div>
+      {embed ? null : (
+        <div style={{ fontSize: 10, color: MUTED, marginBottom: 6 }}>
+          Flood &amp; drainage report · public-paid
+        </div>
+      )}
 
-      {!study && (
+      {!study && !embed && (
         <p style={{ margin: "0 0 8px", fontSize: 11.5, lineHeight: 1.5, color: TEXT }}>
           Model this parcel&apos;s drainage: the upstream catchment delivering
           runoff, where water concentrates, modeled ponding at the design
