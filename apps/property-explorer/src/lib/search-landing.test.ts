@@ -71,7 +71,7 @@ describe("address landing", () => {
     );
     expect(deps.runParcelLookup).toHaveBeenCalledWith(
       "714 Spring Street, Bastrop, Texas",
-      { quiet: true, lat: 30.11, lng: -97.31 },
+      { quiet: true },
     );
     expect(out).toEqual({ kind: "address", opened: true, coverageMiss: false });
     expect(deps.showChip).not.toHaveBeenCalled();
