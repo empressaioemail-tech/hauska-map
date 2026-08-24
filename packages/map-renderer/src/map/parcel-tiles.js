@@ -31,6 +31,7 @@ import { landUseFillColorExpr, landUseLineColorExpr } from "./gis-map-paint.js";
 import {
   CONTEXT_PARCEL_FILL_NEUTRAL,
   CONTEXT_PARCEL_LINE,
+  INTERACTION_CYAN,
   ROLE_BUDGET,
   SUBJECT_AMBER_BRIGHT,
   SUBJECT_AMBER_SOFT,
@@ -68,6 +69,8 @@ function parcelFillOpacityExpr(zoningFill = true) {
       ROLE_BUDGET.SUBJECT.fillOpacityStrong,
       ["boolean", ["feature-state", "inspected"], false],
       0.25,
+      ["boolean", ["feature-state", "hover"], false],
+      ROLE_BUDGET.INTERACTION.fillOpacity,
       0,
     ];
   }
@@ -79,6 +82,8 @@ function parcelFillOpacityExpr(zoningFill = true) {
     ROLE_BUDGET.SUBJECT.fillOpacityStrong,
     ["boolean", ["feature-state", "inspected"], false],
     ROLE_BUDGET.DATA.inspectedFillOpacity,
+    ["boolean", ["feature-state", "hover"], false],
+    ROLE_BUDGET.INTERACTION.fillOpacity,
     ROLE_BUDGET.DATA.baseFillOpacity,
   ];
 }
@@ -96,6 +101,8 @@ function parcelFillColorExpr(zoningFill = true) {
     "case",
     ["boolean", ["feature-state", "subject"], false],
     SUBJECT_AMBER_SOFT,
+    ["boolean", ["feature-state", "hover"], false],
+    INTERACTION_CYAN,
     zoningFill ? landUseFillColorExpr() : CONTEXT_PARCEL_FILL_NEUTRAL,
   ];
 }
@@ -115,11 +122,13 @@ function parcelLineColorExpr(zoningFill = true) {
     SUBJECT_AMBER_BRIGHT,
     ["boolean", ["feature-state", "inspected"], false],
     "#cfe8ff",
+    ["boolean", ["feature-state", "hover"], false],
+    INTERACTION_CYAN,
     zoningFill ? landUseLineColorExpr() : CONTEXT_PARCEL_LINE,
   ];
 }
 
-/** Line width: thick for subject, medium for inspected, hairline otherwise. */
+/** Line width: thick for subject, medium for inspected/hover, hairline otherwise. */
 function parcelLineWidthExpr() {
   return [
     "case",
@@ -127,6 +136,8 @@ function parcelLineWidthExpr() {
     3.2,
     ["boolean", ["feature-state", "inspected"], false],
     1.8,
+    ["boolean", ["feature-state", "hover"], false],
+    ROLE_BUDGET.INTERACTION.lineWidth,
     1.4,
   ];
 }
@@ -184,6 +195,8 @@ function parcelLineOpacityExpr(suppressed = false) {
       ["boolean", ["feature-state", "subject"], false],
       1,
       ["boolean", ["feature-state", "inspected"], false],
+      1,
+      ["boolean", ["feature-state", "hover"], false],
       1,
       0,
     ];
@@ -390,13 +403,15 @@ export function removeParcelTiles(map) {
 }
 
 /**
- * Set (or clear) the subject/inspected feature-state for one parcel node id.
- * Keyed on the promoted `parcel_node_id`. Passing `{}` clears both flags.
+ * Set (or clear) the subject/inspected/hover feature-state for one parcel node
+ * id. Keyed on the promoted `parcel_node_id` — MapLibre applies the state to
+ * EVERY tile fragment carrying that id, which is why hover highlight lives
+ * here and never as drawn fragment geometry (P-60 seam peel).
  *
  * @param {import('maplibre-gl').Map} map
  * @param {string} sourceLayer  the vector source layer id
  * @param {string|number} parcelNodeId
- * @param {{ subject?: boolean, inspected?: boolean, countyRing?: boolean }} state
+ * @param {{ subject?: boolean, inspected?: boolean, countyRing?: boolean, hover?: boolean }} state
  */
 export function setParcelFeatureState(map, sourceLayer, parcelNodeId, state) {
   if (!map || parcelNodeId == null) return;
@@ -405,6 +420,7 @@ export function setParcelFeatureState(map, sourceLayer, parcelNodeId, state) {
   if (typeof state?.subject === "boolean") next.subject = state.subject;
   if (typeof state?.inspected === "boolean") next.inspected = state.inspected;
   if (typeof state?.countyRing === "boolean") next.countyRing = state.countyRing;
+  if (typeof state?.hover === "boolean") next.hover = state.hover;
   try {
     map.setFeatureState(
       { source: PARCEL_TILES_SOURCE_ID, sourceLayer, id: parcelNodeId },

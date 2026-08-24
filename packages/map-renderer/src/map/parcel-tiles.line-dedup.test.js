@@ -73,10 +73,12 @@ test("suppressed → base line opacity 0, subject/inspected strokes stay at 1", 
   const opacity = map.paint[PARCEL_TILES_LINE_ID]["line-opacity"];
   assert.ok(Array.isArray(opacity), "feature-state case expression");
   assert.equal(baseBranch(opacity), 0, "base tile lines fully transparent");
-  // The subject and inspected branches keep full opacity so selection
-  // feedback never dims while the dedup is active.
+  // The subject, inspected, and hover branches keep full opacity so selection
+  // and hover feedback never dim while the dedup is active (hover is
+  // feature-state since the P-60 fragment peel).
   const branchValues = opacity.filter((v) => v === 1);
-  assert.equal(branchValues.length, 2, "subject + inspected branches stay 1");
+  assert.equal(branchValues.length, 3, "subject + inspected + hover branches stay 1");
+  assert.match(JSON.stringify(opacity), /"hover"/, "hover branch present");
 });
 
 test("restored → countyRing demotes one lot, everyone else stays 1", () => {

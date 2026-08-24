@@ -1,6 +1,13 @@
 /**
  * Renderer-level hover peel: mousemove queries the click layer (PMTiles fill)
- * and paints that promote-id geometry, never live-mesh hits[0].
+ * and highlights that promote id via FEATURE-STATE, never live-mesh hits[0]
+ * and never drawn fragment geometry.
+ *
+ * Identity half (#204): the pick queries PARCEL_TILES_FILL_ID only.
+ * Geometry half (P-60 fragment peel): the highlight is `hover` feature-state
+ * keyed on the promote id — queryRenderedFeatures geometry is one tile
+ * fragment and must never be drawn (see hover-feature-state.test.js for the
+ * seam-span violation fixture).
  *
  * Run: node --test src/hover-peel.test.js
  */
@@ -58,7 +65,7 @@ function makeFakeMap() {
   const state = { center: { lng: -97.3153, lat: 30.1109 }, zoom: 15.2, pitch: 0, bearing: 0 };
   const sources = new Map();
   const layers = new Map();
-  const calls = { on: [], query: [] };
+  const calls = { on: [], query: [], featureState: [] };
   const canvas = { style: { cursor: "" } };
   const map = {
     _state: state,
@@ -105,7 +112,7 @@ function makeFakeMap() {
       if (wanted.includes(MESH_FILL_ID)) out.push(...map.meshHits);
       return out;
     },
-    setFeatureState: () => {},
+    setFeatureState: (target, stateObj) => calls.featureState.push({ target, state: stateObj }),
     removeFeatureState: () => {},
     setPaintProperty: () => {},
     setLayoutProperty: () => {},
@@ -239,23 +246,31 @@ test("mousemove queries PARCEL_TILES_FILL_ID, not overlay fill ids", () => {
   });
 });
 
-test("hover paints the tile promote-id ring; entry edge does not swap to mesh hits[0]", () => {
+test("hover keys feature-state on the tile promote id; entry edge / mesh hits[0] cannot swap it", () => {
   withStubbedMaplibre((built) => {
     const { map } = mountWithParcelTiles(built);
     map.tileHits = [tileFeature("48021:280210")];
     map.meshHits = [meshFeature("edge-a", MESH_A_RING)];
 
     fireMousemove(map, { x: 4, y: 4 });
-    const src = map.sources.get(HOVER_SOURCE_ID);
-    assert.ok(src, "hover source created");
-    assert.deepEqual(src.data.features[0].geometry, TILE_RING);
+    const hoverSets = map.calls.featureState.filter(
+      (c) => c.state?.hover === true && String(c.target?.id) === "48021:280210",
+    );
+    assert.equal(hoverSets.length, 1, "hover feature-state set on the promote id");
+    assert.ok(
+      !map.sources.get(HOVER_SOURCE_ID),
+      "no hover geometry source is ever created (fragment geometry must not be drawn)",
+    );
 
     map.meshHits = [meshFeature("edge-b", MESH_B_RING)];
     fireMousemove(map, { x: 8, y: 8 });
-    assert.deepEqual(
-      src.data.features[0].geometry,
-      TILE_RING,
-      "same promote id keeps the tile ring when mesh hits[0] changes",
+    const hoverSetsAfter = map.calls.featureState.filter(
+      (c) => c.state?.hover === true && String(c.target?.id) === "48021:280210",
+    );
+    assert.equal(
+      hoverSetsAfter.length,
+      1,
+      "same promote id stays a no-op when mesh hits[0] changes",
     );
     assert.equal(map.canvas.style.cursor, "pointer");
   });
@@ -269,11 +284,12 @@ test("queryParcelAt and hover share the same promote id", () => {
 
     const at = r.queryParcelAt({ x: 1, y: 1 });
     fireMousemove(map);
-    const src = map.sources.get(HOVER_SOURCE_ID);
+    const hoverSet = map.calls.featureState.find((c) => c.state?.hover === true);
 
     assert.equal(at.parcelNodeId, "48021:280210");
     assert.deepEqual(at.feature.geometry, TILE_RING);
-    assert.deepEqual(src.data.features[0].geometry, at.feature.geometry);
+    assert.ok(hoverSet, "hover feature-state recorded");
+    assert.equal(String(hoverSet.target.id), at.parcelNodeId);
   });
 });
 
