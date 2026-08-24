@@ -11,10 +11,13 @@ import { renderToStaticMarkup } from "react-dom/server";
 import {
   FacetRow,
   FactRow,
+  FacetsLoadErrorBanner,
   InspectCard,
   Row,
   chipsForLayerAbsence,
   chipsForRow,
+  inspectCardStateFromResolve,
+  showsFacetsLoadError,
   SetbackXrayDetail,
   liveSetbackLine,
   toFactPresentation,
@@ -1048,5 +1051,41 @@ describe("InspectCard — P-63 layer absence verdict UI", () => {
       "asOf",
       "basis",
     ]);
+  });
+});
+
+describe("InspectCard — unplaceable is not facets-load-error (P-60 WDLL 2)", () => {
+  it("unplaceable used to paint the red box; now it must not", () => {
+    const state = inspectCardStateFromResolve({
+      kind: "unplaceable",
+      reason:
+        "No boundary or coordinate is on file for this parcel, so it cannot be placed on the map.",
+    });
+    expect(state.env.status).not.toBe("error");
+    expect(showsFacetsLoadError(state.source, state.env)).toBe(false);
+    const html = renderToStaticMarkup(
+      showsFacetsLoadError(state.source, state.env) ? (
+        <FacetsLoadErrorBanner onRetry={noop} />
+      ) : (
+        <div data-testid="inspect-card" />
+      ),
+    );
+    expect(html).not.toContain('data-testid="facets-load-error"');
+    expect(html).not.toContain("Could not load");
+  });
+
+  it("throw / transient still renders facets-load-error", () => {
+    const state = inspectCardStateFromResolve({
+      kind: "failed",
+      message: "Parcel facts temporarily unreachable for 48021:35772 — retry.",
+    });
+    expect(state.env.status).toBe("error");
+    expect(showsFacetsLoadError(state.source, state.env)).toBe(true);
+    const html = renderToStaticMarkup(
+      <FacetsLoadErrorBanner onRetry={noop} />,
+    );
+    expect(html).toContain('data-testid="facets-load-error"');
+    expect(html).toContain("Could not load");
+    expect(html).toContain('data-testid="facets-retry"');
   });
 });

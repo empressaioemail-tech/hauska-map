@@ -106,6 +106,12 @@ export const RESOLVER_VERSION = "pe-fact-sheet-2";
 const GEOMETRY_PROBE_METRES = 150;
 
 /**
+ * Bound for envelope and GIS hops. A declined sheet must seal from a
+ * matching placeKey centroid without waiting on unbounded GIS.
+ */
+export const GEOMETRY_HOP_TIMEOUT_MS = 4_000;
+
+/**
  * County names for the FIPS the served payload does not name. The FIPS is a
  * substring of every parcel node id, so a sheet that cannot name its county is
  * MALFORMED rather than honestly absent — this is what makes "County name is
@@ -1443,6 +1449,8 @@ export interface FactSheetResolverOptions {
   cortexBase?: string;
   fetchImpl?: typeof fetch;
   now?: () => Date;
+  /** Override for tests. Production stays GEOMETRY_HOP_TIMEOUT_MS. */
+  hopTimeoutMs?: number;
 }
 
 export class PeFactSheetResolver implements FactSheetResolver {
@@ -1450,6 +1458,7 @@ export class PeFactSheetResolver implements FactSheetResolver {
   private readonly cortexBase: string;
   private readonly fetchImpl: typeof fetch;
   private readonly now: () => Date;
+  private readonly hopTimeoutMs: number;
   private readonly byParcel = new Map<string, Promise<ResolveResult>>();
   private readonly bySheet = new Map<string, ParcelFactSheet>();
   private readonly seeds = new Map<string, GeometrySeedHint>();
@@ -1459,6 +1468,17 @@ export class PeFactSheetResolver implements FactSheetResolver {
     this.cortexBase = opts.cortexBase ?? CORTEX_PROXY_BASE;
     this.fetchImpl = opts.fetchImpl ?? ((...args) => fetch(...args));
     this.now = opts.now ?? (() => new Date());
+    this.hopTimeoutMs = opts.hopTimeoutMs ?? GEOMETRY_HOP_TIMEOUT_MS;
+  }
+
+  /** Envelope / GIS fetches abort after hopTimeoutMs. No retries. */
+  private hopFetch(): typeof fetch {
+    const ms = this.hopTimeoutMs;
+    const impl = this.fetchImpl;
+    return (input, init) => {
+      const timeout = AbortSignal.timeout(ms);
+      return impl(input, { ...(init ?? {}), signal: timeout });
+    };
   }
 
   /**
@@ -1758,7 +1778,7 @@ export class PeFactSheetResolver implements FactSheetResolver {
           env = await fetchBuildableEnvelope(
             { address: identity.situsAddress.value },
             this.cortexBase,
-            this.fetchImpl,
+            this.hopFetch(),
           );
         }
         if (!env) {
@@ -1766,6 +1786,8 @@ export class PeFactSheetResolver implements FactSheetResolver {
         } else {
           const envNodeId = str(env.parcelNodeId);
           // Only THIS parcel's resolution may seed THIS parcel's geometry.
+          // Declined is still a resolution: matching node + placeKey is a
+          // placeable centroid. GIS is not a precondition.
           if (envNodeId === parcelNodeId) {
             const placeKey =
               str((env as Record<string, unknown>).placeKey) ??
@@ -1803,7 +1825,7 @@ export class PeFactSheetResolver implements FactSheetResolver {
         const hits = await fetchGeocodeSuggestions(
           identity.situsAddress.value,
           null,
-          new AbortController().signal,
+          AbortSignal.timeout(this.hopTimeoutMs),
           { limit: 1, fetchImpl: this.fetchImpl },
         );
         const hit = hits.find((h) => h.lat != null && h.lng != null);
@@ -1820,7 +1842,7 @@ export class PeFactSheetResolver implements FactSheetResolver {
     if (seed) {
       try {
         const box = bboxAround(seed, GEOMETRY_PROBE_METRES);
-        const res = await this.fetchImpl(
+        const res = await this.hopFetch()(
           `${this.cortexBase.replace(/\/$/, "")}/brokerage/v1/map-data/gis-layer`,
           {
             method: "POST",

@@ -63,6 +63,7 @@ import { factSheetResolver } from "../lib/fact-sheet-resolver";
 import {
   bakedCardModelFromSheet,
   envelopeStateFromSheet,
+  type ParcelFactSheetWithVerdictLayers,
 } from "../lib/sheet-to-card-model";
 import { Button } from "../components/Button";
 import {
@@ -108,7 +109,63 @@ interface EnvelopeState {
   provenanceRefs?: EnvelopeProvenanceRefs | null;
 }
 
-type Source = "loading" | "baked" | "live";
+export type InspectCardSource = "loading" | "baked" | "live";
+
+type Source = InspectCardSource;
+
+/**
+ * Resolve outcome → card fetch state. Unplaceable is not a load failure:
+ * it used to set env.status === "error" and paint facets-load-error.
+ */
+export type InspectResolveOutcome =
+  | { kind: "sheet"; sheet: ParcelFactSheetWithVerdictLayers }
+  | { kind: "unplaceable"; reason: string }
+  | { kind: "failed"; message: string }
+  | { kind: "no-id" };
+
+export function inspectCardStateFromResolve(outcome: InspectResolveOutcome): {
+  source: Source;
+  baked: BakedCardModel | null;
+  env: EnvelopeState;
+} {
+  if (outcome.kind === "no-id") {
+    return {
+      source: "live",
+      baked: null,
+      env: {
+        status: "error",
+        reason: "This selection carries no parcel id, so its record cannot be read.",
+      },
+    };
+  }
+  if (outcome.kind === "unplaceable") {
+    return {
+      source: "live",
+      baked: null,
+      env: { status: "idle", reason: outcome.reason },
+    };
+  }
+  if (outcome.kind === "failed") {
+    return {
+      source: "live",
+      baked: null,
+      env: { status: "error", reason: outcome.message },
+    };
+  }
+  return {
+    source: "baked",
+    baked: bakedCardModelFromSheet(outcome.sheet),
+    env: envelopeStateFromSheet(outcome.sheet),
+  };
+}
+
+/** The red box is a failed hop only. Unplaceable / declined must not trip it. */
+export function showsFacetsLoadError(
+  source: Source,
+  env: Pick<EnvelopeState, "status">,
+): boolean {
+  return source === "live" && env.status === "error";
+}
 
 /* ------------------------------------------------------------------ */
 /* The render-side fact contract (I3 + I4).                            */
@@ -459,6 +516,49 @@ function findOpenChip(
   return seen.get(did) ?? null;
 }
 
+/** Failed hop only. Unplaceable / declined must not mount this. */
+export function FacetsLoadErrorBanner({ onRetry }: { onRetry: () => void }) {
+  return (
+    <div
+      data-testid="facets-load-error"
+      data-state="unresolved"
+      style={{
+        marginTop: 8,
+        padding: "6px 8px",
+        borderRadius: 6,
+        background: "rgba(239,68,68,0.10)",
+        border: `0.5px solid ${ERROR}`,
+        fontSize: 10.5,
+        lineHeight: 1.45,
+        color: TEXT,
+      }}
+    >
+      <span style={{ color: ERROR, fontWeight: 700 }}>Could not load </span>
+      this parcel&apos;s details. This is a loading problem, not a gap in
+      what we know about the parcel.
+      <button
+        type="button"
+        data-testid="facets-retry"
+        onClick={onRetry}
+        style={{
+          display: "block",
+          marginTop: 4,
+          background: "transparent",
+          border: "none",
+          color: ERROR,
+          cursor: "pointer",
+          fontSize: 10.5,
+          fontWeight: 600,
+          padding: 0,
+          textDecoration: "underline",
+        }}
+      >
+        Try again
+      </button>
+    </div>
+  );
+}
+
 export function InspectCard({
   card,
   parcelNodeId = null,
@@ -549,14 +649,10 @@ export function InspectCard({
 
     async function run() {
       if (!parcelNodeId) {
-        // No stable id: nothing a sheet can be sealed against. Honest absence,
-        // never a fabricated card.
-        setSource("live");
-        setBaked(null);
-        setEnv({
-          status: "error",
-          reason: "This selection carries no parcel id, so its record cannot be read.",
-        });
+        const state = inspectCardStateFromResolve({ kind: "no-id" });
+        setSource(state.source);
+        setBaked(state.baked);
+        setEnv(state.env);
         return;
       }
       setSource("loading");
@@ -566,30 +662,34 @@ export function InspectCard({
         const result = await factSheetResolver.resolve(parcelNodeId);
         if (cancelled) return;
         if (result.kind === "unplaceable") {
-          // A parcel we hold but cannot place. The card is not the surface for
-          // that state (ExplorerMap renders UnplaceableParcelCard); say so
-          // plainly rather than rendering empty rows.
-          setSource("live");
-          setEnv({ status: "error", reason: result.reason });
+          const state = inspectCardStateFromResolve({
+            kind: "unplaceable",
+            reason: result.reason,
+          });
+          setSource(state.source);
+          setBaked(state.baked);
+          setEnv(state.env);
           return;
         }
         const { kind: _kind, ...sheet } = result;
-        setBaked(bakedCardModelFromSheet(sheet));
-        setEnv(envelopeStateFromSheet(sheet));
-        setSource("baked");
+        const state = inspectCardStateFromResolve({ kind: "sheet", sheet });
+        setBaked(state.baked);
+        setEnv(state.env);
+        setSource(state.source);
         // The parent folds setbacks/envelope into the ported node store from
         // the SAME sheet, so the store and the card can never disagree. The
         // parcel node id travels with the result (identity guard upstream).
-        onEnvelope?.(envelopeStateFromSheet(sheet), parcelNodeId);
+        onEnvelope?.(state.env, parcelNodeId);
       } catch (err) {
         if (cancelled) return;
-        // I4: a FAILED read is an error, never an honest absence.
-        setSource("live");
-        setEnv({
-          status: "error",
-          reason:
+        const state = inspectCardStateFromResolve({
+          kind: "failed",
+          message:
             err instanceof Error ? err.message : "Could not load parcel facts.",
         });
+        setSource(state.source);
+        setBaked(state.baked);
+        setEnv(state.env);
       }
     }
 
@@ -941,44 +1041,8 @@ export function InspectCard({
           the only one styled as one. It gets a retry in place; the old copy
           told the user to reselect the parcel, which is a workaround dressed
           up as a message. */}
-      {source === "live" && env.status === "error" && (
-        <div
-          data-testid="facets-load-error"
-          data-state="unresolved"
-          style={{
-            marginTop: 8,
-            padding: "6px 8px",
-            borderRadius: 6,
-            background: "rgba(239,68,68,0.10)",
-            border: `0.5px solid ${ERROR}`,
-            fontSize: 10.5,
-            lineHeight: 1.45,
-            color: TEXT,
-          }}
-        >
-          <span style={{ color: ERROR, fontWeight: 700 }}>Could not load </span>
-          this parcel&apos;s details. This is a loading problem, not a gap in
-          what we know about the parcel.
-          <button
-            type="button"
-            data-testid="facets-retry"
-            onClick={() => setRetryNonce((n) => n + 1)}
-            style={{
-              display: "block",
-              marginTop: 4,
-              background: "transparent",
-              border: "none",
-              color: ERROR,
-              cursor: "pointer",
-              fontSize: 10.5,
-              fontWeight: 600,
-              padding: 0,
-              textDecoration: "underline",
-            }}
-          >
-            Try again
-          </button>
-        </div>
+      {showsFacetsLoadError(source, env) && (
+        <FacetsLoadErrorBanner onRetry={() => setRetryNonce((n) => n + 1)} />
       )}
 
       {/* Approximate / not-survey-grade treatment whenever an envelope shows. */}

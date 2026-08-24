@@ -641,8 +641,10 @@ export function envelopeStateFromSheet(sheet: ParcelFactSheet): CardEnvelopeStat
       ...(parcelRing ? { parcelRing } : {}),
     };
   }
+  // not-derived (declined / no setback table) is honest absence, not a
+  // failed hop. `error` is reserved for a throw / timed-out read.
   return {
-    status: "error",
+    status: "idle",
     setbacks: wire,
     reason: env.reason,
     district: wire?.district ?? null,

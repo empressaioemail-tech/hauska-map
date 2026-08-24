@@ -81,6 +81,10 @@ import {
 import { factSheetResolver } from "../lib/fact-sheet-resolver";
 import { setSubjectByParcelNodeId } from "../lib/subject-store";
 import { cardFromSheet } from "../lib/sheet-to-card";
+import {
+  inspectAsSoonAsIdKnown,
+  pendingInspectFromLookup,
+} from "../lib/inspect-pending-card";
 import { UnplaceableParcelCard } from "./UnplaceableParcelCard";
 import type {
   ParcelFactSheet,
@@ -906,11 +910,25 @@ function ExplorerMapSurface({
             navigationAddress: q,
           });
         }
-        // 2. ONE resolve, ONE sealed sheet, and it becomes THE subject. Every
-        //    panel and every export reads it from here (invariant I1).
-        const outcome = await setSubjectByParcelNodeId(
-          found.parcelNodeId,
-          opts?.fromDeepLink ? "deep-link" : "search",
+        // 2. Swap inspect to the found id NOW. The leftover card (Wainee /
+        //    51536) unmounts or changes id and cancels its in-flight resolve.
+        //    Do not wait for the sheet seal (WDLL item 3 / P-60). Miss and
+        //    unplaceable still leave the previous SUBJECT standing.
+        setUnplaceable(null);
+        const pending = pendingInspectFromLookup({
+          query: q,
+          parcelNodeId: found.parcelNodeId,
+          lat: found.resolvedPoint?.lat ?? null,
+          lng: found.resolvedPoint?.lng ?? null,
+        });
+        const outcome = await inspectAsSoonAsIdKnown(
+          pending,
+          inspectInPlace,
+          () =>
+            setSubjectByParcelNodeId(
+              found.parcelNodeId,
+              opts?.fromDeepLink ? "deep-link" : "search",
+            ),
         );
         if (outcome.kind === "unplaceable") {
           // We hold the record and cannot place it. Say so, in its own state,

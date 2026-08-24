@@ -386,6 +386,32 @@ describe("envelopeStateFromSheet", () => {
     expect((env.parcelRing as { type: string }).type).toBe("Polygon");
   });
 
+  it("projects declined / not-derived as idle, never as a load error", () => {
+    const env = envelopeStateFromSheet(
+      sheet({
+        envelope: {
+          kind: "not-derived",
+          reason: "no-zoning-stamp",
+          missing: ["setbacks", "envelope-derivation"],
+        },
+        setbacks: {
+          state: "absent-uncovered",
+          reason: "no setback table covers this parcel's district",
+          wouldBeFilledBy: "a ratified setback table for this jurisdiction",
+        },
+      }),
+    );
+    expect(env.status).toBe("idle");
+    expect(env.status).not.toBe("error");
+    expect(env.reason).toBe("no-zoning-stamp");
+  });
+
+  it("gold derived envelope still projects as ok", () => {
+    const env = envelopeStateFromSheet(sheet());
+    expect(env.status).toBe("ok");
+    expect(env.summary?.buildableAreaSqFt).toBe(6325);
+  });
+
   it("carries a not-specified axis as null rather than 0", () => {
     const env = envelopeStateFromSheet(
       sheet({
