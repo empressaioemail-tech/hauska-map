@@ -44,7 +44,8 @@ import {
   hideGisLayer,
 } from "./map/gis-map-render.js";
 import { DEFAULT_VISIBLE_LAYERS } from "./layer-registry.js";
-import { reconcileOverlays, overlaySourceId } from "./map/overlay-render.js";
+import { reconcileOverlays } from "./map/overlay-render.js";
+import { hoverHitFromRenderedFeatures, hoverQueryLayerIds } from "./map/hover-hit.js";
 
 /**
  * @typedef {Object} ParcelTilesConfig
@@ -86,7 +87,7 @@ function ensurePmtilesProtocol() {
 /** Debounce (ms) for moveend/zoomend viewport emission. */
 const VIEWPORT_DEBOUNCE_MS = 350;
 
-/** Source + layer ids for the interactive-overlay hover highlight. */
+/** Source + layer ids for the PMTiles-fill hover highlight (same pick as click). */
 const HOVER_SOURCE_ID = "hauska-ovl-hover-highlight";
 
 /**
@@ -300,16 +301,13 @@ export function createMapRenderer(options = {}) {
       // (+ county_fips) so the consumer can resolve the node + set feature-state.
       if (parcelTilesApplied && context.onParcelClick && map.getLayer(PARCEL_TILES_FILL_ID)) {
         const parcelHits = map.queryRenderedFeatures(e.point, {
-          layers: [PARCEL_TILES_FILL_ID],
+          layers: hoverQueryLayerIds(),
         });
-        if (parcelHits.length) {
-          const hit = parcelHits[0];
-          const promoteId = parcelTilesCfg?.promoteId || DEFAULT_PROMOTE_ID;
-          const { parcelNodeId } = parcelNodeIdFromFeature(hit, promoteId);
-          if (parcelNodeId != null) {
-            context.onParcelClick(parcelNodeId, hit);
-            return;
-          }
+        const promoteId = parcelTilesCfg?.promoteId || DEFAULT_PROMOTE_ID;
+        const picked = hoverHitFromRenderedFeatures(parcelHits, promoteId);
+        if (picked) {
+          context.onParcelClick(picked.parcelNodeId, picked.feature);
+          return;
         }
       }
 
@@ -358,29 +356,31 @@ export function createMapRenderer(options = {}) {
       }
     });
 
-    // Hover highlight + pointer cursor over interactive overlay fills.
+    // Hover highlight + pointer cursor. Same layer and promote id as click
+    // (PMTiles fill). Do not paint live-mesh hits[0] — those are a second
+    // composer for "this lot" and swap rings on entry-edge.
     map.on("mousemove", (e) => {
-      const layerIds = interactiveOverlayFillIds();
+      const layerIds = hoverQueryLayerIds().filter((id) => map.getLayer(id));
       if (!layerIds.length) {
         if (hoveredFeatureKey !== null) clearHover();
         return;
       }
       const hits = map.queryRenderedFeatures(e.point, { layers: layerIds });
-      if (!hits.length) {
+      const promoteId = parcelTilesCfg?.promoteId || DEFAULT_PROMOTE_ID;
+      const picked = hoverHitFromRenderedFeatures(hits, promoteId);
+      if (!picked) {
         clearHover();
         return;
       }
-      const f = hits[0];
       map.getCanvas().style.cursor = "pointer";
-      const key = `${f.layer.id}::${f.id ?? JSON.stringify(f.properties?.apn ?? "")}`;
-      if (key === hoveredFeatureKey) return;
-      hoveredFeatureKey = key;
+      if (picked.parcelNodeId === hoveredFeatureKey) return;
+      hoveredFeatureKey = picked.parcelNodeId;
       ensureHoverLayers();
       const src = map.getSource(HOVER_SOURCE_ID);
       if (src && typeof src.setData === "function") {
         src.setData({
           type: "FeatureCollection",
-          features: [{ type: "Feature", properties: {}, geometry: f.geometry }],
+          features: [{ type: "Feature", properties: {}, geometry: picked.feature.geometry }],
         });
       }
     });
@@ -393,13 +393,6 @@ export function createMapRenderer(options = {}) {
     return new Set(
       overlaySpecs.filter((s) => s && s.interactive).map((s) => String(s.layerKey)),
     );
-  }
-
-  function interactiveOverlayFillIds() {
-    return overlaySpecs
-      .filter((s) => s && s.interactive)
-      .map((s) => `${overlaySourceId(s.layerKey)}-fill`)
-      .filter((id) => map && map.getLayer(id));
   }
 
   function ensureHoverLayers() {
@@ -1043,12 +1036,12 @@ export function createMapRenderer(options = {}) {
      */
     queryParcelAt(point) {
       if (!map || !parcelTilesApplied || !map.getLayer(PARCEL_TILES_FILL_ID)) return null;
-      const hits = map.queryRenderedFeatures(point, { layers: [PARCEL_TILES_FILL_ID] });
-      if (!hits.length) return null;
-      const hit = hits[0];
+      const hits = map.queryRenderedFeatures(point, { layers: hoverQueryLayerIds() });
       const promoteId = parcelTilesCfg?.promoteId || DEFAULT_PROMOTE_ID;
-      const { parcelNodeId, countyFips } = parcelNodeIdFromFeature(hit, promoteId);
-      return { parcelNodeId, countyFips, feature: hit };
+      const picked = hoverHitFromRenderedFeatures(hits, promoteId);
+      if (!picked) return null;
+      const { countyFips } = parcelNodeIdFromFeature(picked.feature, promoteId);
+      return { parcelNodeId: picked.parcelNodeId, countyFips, feature: picked.feature };
     },
 
     /**
