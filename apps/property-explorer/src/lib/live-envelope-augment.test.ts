@@ -151,4 +151,38 @@ describe("augmentFacetsWithLiveEnvelope", () => {
     expect(out).toBe(GEO_ABSENT);
     expect(out.envelope?.geojson).toBeUndefined();
   });
+
+  it("seals no-buildable-area when live derive returns consumed lot", async () => {
+    const fetchImpl = vi.fn(async () => ({
+      ok: true,
+      json: async () => ({
+        status: "no-buildable-area",
+        payload: {
+          empty: true,
+          parcel: { parcel_node_id: "48453:280239" },
+          geojson: {
+            type: "FeatureCollection",
+            features: [
+              {
+                type: "Feature",
+                properties: { emptyReason: "Setbacks consume the lot." },
+                geometry: null,
+              },
+            ],
+          },
+        },
+      }),
+    })) as unknown as typeof fetch;
+
+    const out = await augmentFacetsWithLiveEnvelope(
+      GEO_ABSENT,
+      "101 Example St, Austin TX",
+      "/api/spine/cortex/api",
+      fetchImpl,
+      "48453:280239",
+    );
+    expect(out.envelope?.status).toBe("no-buildable-area");
+    expect(out.envelope?.geojson).toBeUndefined();
+    expect(out.envelope?.emptyReason).toContain("consume");
+  });
 });

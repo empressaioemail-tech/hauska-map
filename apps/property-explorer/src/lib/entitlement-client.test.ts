@@ -68,6 +68,16 @@ describe("fetchPropertyEntitlement — the pinned contract", () => {
     expect(freeMessagesLeft(state)).toBe(1);
   });
 
+  it("softFallback free tier is NOT entitled (proactive lock stays on)", async () => {
+    const state = await fetchPropertyEntitlement(
+      "48021:123",
+      fakeFetch(402, {}),
+    );
+    expect(state.softFallback).toBe(true);
+    expect(state.tier).toBe("free");
+    expect(isEntitled(state)).toBe(false);
+  });
+
   it("pro tier is entitled regardless of the property flag", async () => {
     const state = await fetchPropertyEntitlement(
       "48021:123",

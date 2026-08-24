@@ -115,6 +115,8 @@ interface StubOpts {
     geometry?: unknown;
     buildableAreaSqFt?: number;
     ok?: boolean;
+    status?: string;
+    emptyReason?: string;
   } | null;
 }
 
@@ -176,28 +178,36 @@ function installFetchStub(opts: StubOpts = {}) {
       }
       if (be) {
         const parcelNodeId = be.parcelNodeId ?? NODE_ID;
+        const status = be.status ?? "ok";
         const geometry =
           be.geometry ??
-          ({
-            type: "Polygon",
-            coordinates: [square(SUBJECT_CENTRE.lng, SUBJECT_CENTRE.lat, 0.0002)],
-          } as const);
+          (status === "no-buildable-area"
+            ? null
+            : ({
+                type: "Polygon",
+                coordinates: [square(SUBJECT_CENTRE.lng, SUBJECT_CENTRE.lat, 0.0002)],
+              } as const));
         const buildableAreaSqFt = be.buildableAreaSqFt ?? 4100;
         return new Response(
           JSON.stringify({
-            status: "ok",
+            status,
             payload: {
               geojson: {
                 type: "FeatureCollection",
                 features: [
                   {
                     type: "Feature",
-                    properties: { buildableAreaSqFt, kind: "buildable-envelope" },
+                    properties: {
+                      buildableAreaSqFt,
+                      kind: "buildable-envelope",
+                      ...(be.emptyReason ? { emptyReason: be.emptyReason } : {}),
+                    },
                     geometry,
                   },
                 ],
               },
               parcel: { parcel_node_id: parcelNodeId },
+              ...(status === "no-buildable-area" ? { empty: true } : {}),
             },
           }),
           { status: 200, headers: { "Content-Type": "application/json" } },
@@ -540,7 +550,8 @@ describe("PeFactSheetResolver.resolve", () => {
     if (sheet.envelope.kind !== "derived") throw new Error("unreachable");
     expect(sheet.envelope.area.value).toBe(4100);
     expect(sheet.envelope.rings).toHaveLength(1);
-    expect(stub.calls.some((u) => u.includes("buildable-envelope"))).toBe(true);
+    const deriveCalls = stub.calls.filter((u) => u.includes("buildable-envelope"));
+    expect(deriveCalls).toHaveLength(1);
   });
 
   it("always POSTs live derive even when facets carry depth-warm geojson (48021:34137)", async () => {
@@ -601,7 +612,49 @@ describe("PeFactSheetResolver.resolve", () => {
     if (sheet.envelope.kind !== "derived") throw new Error("unreachable");
     expect(sheet.envelope.area.value).toBe(6325);
     expect(sheet.envelope.rings).toHaveLength(1);
-    expect(stub.calls.some((u) => u.includes("buildable-envelope"))).toBe(true);
+    const deriveCalls = stub.calls.filter((u) => u.includes("buildable-envelope"));
+    expect(deriveCalls).toHaveLength(1);
+  });
+
+  it("seals consumed when live derive returns no-buildable-area (not stale table ok)", async () => {
+    const parcelNodeId = "48453:280239";
+    const wire = facetsWire({
+      parcelNodeId,
+      countyFips: "48453",
+      countyName: "Travis",
+      baseFacts: {
+        apn: "R280239",
+        situsAddress: "101 Example St, Austin TX",
+        landUse: { code: "A1", description: "Single-family residential", source: "cad-roll", vintage: "2026" },
+        acreage: { value: 0.12, sqft: 5227, method: "cad-roll" },
+      },
+      envelope: {
+        status: "ok",
+        approximate: true,
+        district: "SF-3",
+        buildableAreaSqFt: 9999,
+        setbacks: { front_ft: 25, side_ft: 5, rear_ft: 10 },
+        disclosure: "Stale table-backed ok must not survive live consumed derive.",
+      },
+    });
+    const subjectFeature = {
+      type: "Feature",
+      properties: { parcel_node_id: parcelNodeId, apn: "R280239" },
+      geometry: { type: "Polygon", coordinates: [square(SUBJECT_CENTRE.lng, SUBJECT_CENTRE.lat)] },
+    };
+    const stub = installFetchStub({
+      facets: wire,
+      gisFeatures: [subjectFeature],
+      buildableEnvelope: {
+        parcelNodeId,
+        status: "no-buildable-area",
+        emptyReason: "Setbacks consume the lot.",
+      },
+    });
+    const sheet = await sheetOf(makeResolver(stub), parcelNodeId);
+    expect(sheet.envelope.kind).toBe("consumed");
+    if (sheet.envelope.kind !== "consumed") throw new Error("unreachable");
+    expect(stub.calls.filter((u) => u.includes("buildable-envelope"))).toHaveLength(1);
   });
 });
 

@@ -116,6 +116,8 @@ export interface CardEnvelopeState {
   /** Atom-chain inset polygon (GeoJSON Polygon) when envelope is derived. */
   geometry?: unknown | null;
   geojson?: unknown | null;
+  /** Full parcel ring for the consumed-lot map outline when click geom is absent. */
+  parcelRing?: unknown | null;
 }
 
 function present<T>(value: T): CardFacet<T> {
@@ -623,12 +625,20 @@ export function envelopeStateFromSheet(sheet: ParcelFactSheet): CardEnvelopeStat
     };
   }
   if (env.kind === "consumed") {
+    const parcelRing =
+      sheet.geometry.rings.length > 0
+        ? {
+            type: "Polygon" as const,
+            coordinates: [sheet.geometry.rings[0]],
+          }
+        : undefined;
     return {
       status: "empty",
       setbacks: wire,
       reason: env.reason,
       district: wire?.district ?? null,
       provenanceRefs,
+      ...(parcelRing ? { parcelRing } : {}),
     };
   }
   return {

@@ -100,7 +100,7 @@ export function SignUpCard({ onDismiss }: { onDismiss: () => void }) {
             letterSpacing: "-0.01em",
           }}
         >
-          See what you can build on Central Texas parcels — where data is verified.
+          See what you can build on Texas parcels — where data is verified.
         </h1>
 
         <ul
@@ -113,9 +113,9 @@ export function SignUpCard({ onDismiss }: { onDismiss: () => void }) {
           }}
         >
           {[
-            "Tap a parcel for zoning, setbacks, and buildable envelope when gate-verified.",
-            "Real records, cited and dated — gaps show as not verified, never fabricated.",
-            "Free to browse. Deep research and reports require an account.",
+            "Browse the map and inspect card free — zoning, setbacks, flood, and buildable envelope when verified.",
+            "Save properties and share analysis links at no cost — share is free for every account.",
+            "Deep research, reports, and unlimited AI start at $15 per property for 30 days or Solo from $49/mo.",
           ].map((t) => (
             <li
               key={t}

@@ -41,9 +41,9 @@ describe('mintShareLink', () => {
     })
     const paywall = await mintShareLink(
       '48021:2',
-      fakeFetch(402, { error: 'payment_required', message: 'Pro required.' }),
+      fakeFetch(402, { error: 'payment_required', message: 'Legacy paywall.' }),
     )
-    expect(paywall).toEqual({ kind: 'paywall', message: 'Pro required.' })
+    expect(paywall).toEqual({ kind: 'paywall', message: 'Legacy paywall.' })
     const unconfigured = await mintShareLink(
       '48021:2',
       fakeFetch(503, { error: 'sharing_not_configured', message: 'PE_SHARE_SECRET missing.' }),

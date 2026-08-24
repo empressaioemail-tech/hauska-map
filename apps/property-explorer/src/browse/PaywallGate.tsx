@@ -23,7 +23,7 @@ export function PaywallGate({
   parcelNodeId: string | null;
   /** What the locked capability is worth — set by the bubble that gated. */
   valueLine: string;
-  /** Pro-only feature (terrain): the flow offers ONLY the Pro choice. */
+  /** Studio-only feature (terrain): the flow offers ONLY the Studio choice. */
   proOnly?: boolean;
   /** Honest status footnote (e.g. ICC citation licensing state). */
   statusNote?: string | null;
@@ -58,7 +58,7 @@ export function PaywallGate({
         }}
       >
         <div style={{ fontWeight: 700, fontSize: 16, marginBottom: 8 }}>
-          {proOnly ? "This is a Pro feature" : "Unlock this property's tools"}
+          {proOnly ? "This is a Studio feature" : "Unlock this property's tools"}
         </div>
         <p style={{ margin: "0 0 14px", fontSize: 13, lineHeight: 1.5, color: "#c6d0dc" }}>
           {valueLine}

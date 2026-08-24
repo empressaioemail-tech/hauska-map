@@ -73,7 +73,7 @@ import {
   composeVerdict,
 } from "@empressaio/parcel-fact-sheet";
 import { formatGovernedByFragment } from "../../api/_lib/setback-not-specified";
-import type { GovernedBy } from "./buildable-envelope.js";
+import type { BuildableEnvelopeResult, GovernedBy } from "./buildable-envelope.js";
 import {
   fetchBakedNodeFacets,
   FLOOD_HAZARD_FACT_MISSING_REASON,
@@ -85,6 +85,7 @@ import { fetchBuildableEnvelope, parsePlaceKey } from "./buildable-envelope.js";
 import {
   augmentFacetsWithLiveEnvelope,
   facetsNeedLiveEnvelopeDerive,
+  fetchLiveEnvelopeDerive,
 } from "./live-envelope-augment.js";
 import { fetchGeocodeSuggestions } from "./geocodeClient";
 import { CORTEX_PROXY_BASE, PE_FACETS_PROXY_BASE } from "./config";
@@ -1066,6 +1067,7 @@ async function patchFacetsEnvelopeFromLive(
   cortexBase: string,
   fetchImpl: typeof fetch,
   seed: GeometrySeedHint | null,
+  prefetchedLive: BuildableEnvelopeResult | null,
 ): Promise<void> {
   if (!facetsNeedLiveEnvelopeDerive(facets)) return;
   const patched = await augmentFacetsWithLiveEnvelope(
@@ -1078,6 +1080,7 @@ async function patchFacetsEnvelopeFromLive(
       navigationAddress: seed?.navigationAddress ?? null,
       lat: seed?.centroid?.lat ?? null,
       lng: seed?.centroid?.lng ?? null,
+      prefetchedLive,
     },
   );
   if (patched.envelope !== facets.envelope) {
@@ -1572,7 +1575,31 @@ export class PeFactSheetResolver implements FactSheetResolver {
       owner: identity.owner,
     };
 
-    const geometry = await this.resolveGeometry(parcelNodeId, facets, identity);
+    const seed = this.seeds.get(parcelNodeId) ?? null;
+    const situsForDerive =
+      identity.situsAddress.state === "present"
+        ? identity.situsAddress.value
+        : null;
+    const needsLiveDerive = facetsNeedLiveEnvelopeDerive(facets);
+    const liveDerive = needsLiveDerive
+      ? await fetchLiveEnvelopeDerive({
+          facets,
+          parcelNodeId,
+          situsAddress: situsForDerive,
+          navigationAddress: seed?.navigationAddress ?? null,
+          cortexBase: this.cortexBase,
+          fetchImpl: this.fetchImpl,
+          lat: seed?.centroid?.lat ?? null,
+          lng: seed?.centroid?.lng ?? null,
+        })
+      : null;
+
+    const geometry = await this.resolveGeometry(
+      parcelNodeId,
+      facets,
+      identity,
+      { liveDerive, liveDeriveAttempted: needsLiveDerive },
+    );
     if (!geometry) {
       // AMENDMENT 1: we hold the record and cannot place it. A DESIGNED state,
       // not a vanished parcel — the QA pass this programme answers was about
@@ -1595,12 +1622,7 @@ export class PeFactSheetResolver implements FactSheetResolver {
     const landUse = landUseFromInspectWire(landUseFact, facets);
     const zoning = zoningFact(facets, fips);
     const setbacks = setbacksFact(facets);
-    const seed = this.seeds.get(parcelNodeId) ?? null;
-    const situsForDerive =
-      identity.situsAddress.state === "present"
-        ? identity.situsAddress.value
-        : null;
-    if (facetsNeedLiveEnvelopeDerive(facets)) {
+    if (needsLiveDerive) {
       await patchFacetsEnvelopeFromLive(
         facets,
         parcelNodeId,
@@ -1608,6 +1630,7 @@ export class PeFactSheetResolver implements FactSheetResolver {
         this.cortexBase,
         this.fetchImpl,
         seed,
+        liveDerive,
       );
     }
     const envelope = envelopeValue(facets, setbacks, lotAreaSqFt);
@@ -1692,6 +1715,10 @@ export class PeFactSheetResolver implements FactSheetResolver {
     parcelNodeId: string,
     facets: BakedFacetPayload,
     identity: ReturnType<typeof identityFacts>,
+    liveDeriveCtx: {
+      liveDerive: BuildableEnvelopeResult | null;
+      liveDeriveAttempted: boolean;
+    } = { liveDerive: null, liveDeriveAttempted: false },
   ): Promise<ParcelGeometry | null> {
     const acreage = facets.baseFacts?.acreage ?? null;
     const cadAcreageSqFt =
@@ -1724,27 +1751,36 @@ export class PeFactSheetResolver implements FactSheetResolver {
       isUsableSitusAddress(identity.situsAddress.value)
     ) {
       try {
-        const env = await fetchBuildableEnvelope(
-          { address: identity.situsAddress.value },
-          this.cortexBase,
-          this.fetchImpl,
-        );
-        const envNodeId = str(env.parcelNodeId);
-        // Only THIS parcel's resolution may seed THIS parcel's geometry.
-        if (envNodeId === parcelNodeId) {
-          const placeKey =
-            str((env as Record<string, unknown>).placeKey) ??
-            str(rec(env.parcel)?.placeKey);
-          seed = parsePlaceKey(placeKey);
-          const envRings = ringsFromGeoJson(env.geometry);
-          if (!seedRings.length && envRings.length) seedRings = envRings;
-          if (!seed && envRings.length) {
-            seed =
-              buildParcelGeometry({
-                rings: envRings,
-                centroidFallback: null,
-                cadAcreageSqFt: null,
-              })?.centroid ?? null;
+        let env: BuildableEnvelopeResult | null = null;
+        if (liveDeriveCtx.liveDeriveAttempted) {
+          env = liveDeriveCtx.liveDerive;
+        } else {
+          env = await fetchBuildableEnvelope(
+            { address: identity.situsAddress.value },
+            this.cortexBase,
+            this.fetchImpl,
+          );
+        }
+        if (!env) {
+          /* live derive already attempted with no usable response */
+        } else {
+          const envNodeId = str(env.parcelNodeId);
+          // Only THIS parcel's resolution may seed THIS parcel's geometry.
+          if (envNodeId === parcelNodeId) {
+            const placeKey =
+              str((env as Record<string, unknown>).placeKey) ??
+              str(rec(env.parcel)?.placeKey);
+            seed = parsePlaceKey(placeKey);
+            const envRings = ringsFromGeoJson(env.geometry);
+            if (!seedRings.length && envRings.length) seedRings = envRings;
+            if (!seed && envRings.length) {
+              seed =
+                buildParcelGeometry({
+                  rings: envRings,
+                  centroidFallback: null,
+                  cadAcreageSqFt: null,
+                })?.centroid ?? null;
+            }
           }
         }
       } catch {

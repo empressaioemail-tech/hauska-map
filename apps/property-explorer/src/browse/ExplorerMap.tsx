@@ -1239,7 +1239,9 @@ function ExplorerMapSurface({
       // buildable area). Outline the whole parcel in the dashed setback style
       // when we have the ring; else draw nothing and let the card wording carry
       // the honesty.
-      const outline = setbackConsumedOverlay(clickedParcelGeomRef.current);
+      const parcelGeom =
+        clickedParcelGeomRef.current ?? result?.parcelRing ?? null;
+      const outline = setbackConsumedOverlay(parcelGeom);
       setEnvelopeOverlays(outline ? [outline] : []);
     } else {
       // No client uniform inset — geometry must come from live derive (WDLL).

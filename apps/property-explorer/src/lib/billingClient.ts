@@ -146,6 +146,19 @@ export const startProCheckout = startPeCheckout;
 export const PROPERTY_UNLOCK_COMING_MESSAGE =
   "The property unlock purchase flow is coming — contact us and we'll unlock this property for you today.";
 
+/** Property unlock redirects must land on Stripe Checkout — never a same-origin success URL. */
+export function isStripeCheckoutUrl(url: string): boolean {
+  try {
+    const { protocol, hostname } = new URL(url);
+    return (
+      protocol === "https:" &&
+      (hostname === "checkout.stripe.com" || hostname.endsWith(".stripe.com"))
+    );
+  } catch {
+    return false;
+  }
+}
+
 export type PropertyUnlockResult =
   /** TEST SEAM ONLY — a real server-side dev-bypass unlock landed. */
   | { kind: "unlocked"; mode: "dev-bypass" }
@@ -239,10 +252,23 @@ export async function startPropertyUnlock(
     }
     const body = (await res.json().catch(() => ({}))) as {
       checkoutUrl?: string;
+      unlocked?: boolean;
+      mode?: string;
       message?: string;
       error?: string;
     };
+    // A checkout route must never grant an instant unlock — payment completes on Stripe.
+    if (res.ok && body.unlocked === true) {
+      return { kind: "coming", message: PROPERTY_UNLOCK_COMING_MESSAGE };
+    }
     if (res.ok && typeof body.checkoutUrl === "string" && body.checkoutUrl) {
+      if (!isStripeCheckoutUrl(body.checkoutUrl)) {
+        return {
+          kind: "error",
+          message:
+            "Checkout could not be started — payment session URL was not from Stripe.",
+        };
+      }
       return { kind: "checkout", checkoutUrl: body.checkoutUrl };
     }
     if (!res.ok) {

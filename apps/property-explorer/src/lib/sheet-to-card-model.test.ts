@@ -351,6 +351,39 @@ describe("envelopeStateFromSheet", () => {
     expect(env.status).toBe("empty");
     expect(env.summary).toBeUndefined();
     expect(env.reason).toContain("consume the lot");
+    expect(env.parcelRing).toBeUndefined();
+  });
+
+  it("projects consumed lot parcelRing from sheet geometry for map outline", () => {
+    const ring: Array<[number, number]> = [
+      [-97.3186, 30.1103],
+      [-97.3182, 30.1103],
+      [-97.3182, 30.1107],
+      [-97.3186, 30.1107],
+      [-97.3186, 30.1103],
+    ];
+    const env = envelopeStateFromSheet(
+      sheet({
+        geometry: {
+          rings: [ring],
+          centroid: { lat: 30.1105, lng: -97.3184 },
+          lotArea: { value: 10214, unit: "sqft" },
+        },
+        envelope: {
+          kind: "consumed",
+          reason: "setbacks consume the lot",
+          setbacksUsed: {
+            front: axis(25),
+            side: axis(5),
+            rear: axis(10),
+            cornerSide: null,
+          },
+          provenance: prov(),
+        },
+      }),
+    );
+    expect(env.status).toBe("empty");
+    expect((env.parcelRing as { type: string }).type).toBe("Polygon");
   });
 
   it("carries a not-specified axis as null rather than 0", () => {
