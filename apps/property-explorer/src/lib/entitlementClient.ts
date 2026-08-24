@@ -35,6 +35,15 @@ import { PE_PRICING } from "./pricing";
 
 export type PeEntitlementTier = "free" | "paid";
 
+/**
+ * The subscription ladder tier on `/entitlement` (cortex, 2026-08-24 contract):
+ * null = free or unlock-only; legacy paid rows read "solo"; dev-role reads
+ * "team". A response missing the field (stale cache / older backend) parses
+ * to null — and null NEVER grants Studio (fail closed: a Solo subscriber or
+ * an unknown tier must not clear Studio gates).
+ */
+export type PeSubscriptionTier = "solo" | "studio" | "team";
+
 /** Snapshot of what we know about the (user, property) entitlement. */
 export interface PropertyEntitlementState {
   /** "ready" = usable answer; "error" = could not read (NEVER hard-locks). */
@@ -63,11 +72,25 @@ export interface PropertyEntitlementState {
    * when the server hasn't shipped the field yet (feature-detect).
    */
   entitlementSource: string | null;
+  /** Ladder tier — null when free, unlock-only, or the field is absent. */
+  subscriptionTier: PeSubscriptionTier | null;
 }
 
 /** Pro subscription? */
 export function isPro(s: PropertyEntitlementState): boolean {
   return s.tier === "paid";
+}
+
+/**
+ * Does this ladder tier grant the Studio-only surfaces (terrain export,
+ * site-plan CAD, owner data)? Studio and Team do; Solo and null do NOT —
+ * "Owner data is Studio, not Solo" is an operator ruling, and a missing
+ * field (null) gates CLOSED even on a `tier === "paid"` row.
+ */
+export function subscriptionTierGrantsStudio(
+  tier: PeSubscriptionTier | null,
+): boolean {
+  return tier === "studio" || tier === "team";
 }
 
 /** Entitled to this property's paid bubbles (per-property unlock, Pro, or dev role). */
@@ -90,6 +113,7 @@ function signedOutState(): PropertyEntitlementState {
     softFallback: false,
     devRole: false,
     entitlementSource: null,
+    subscriptionTier: null,
   };
 }
 
@@ -104,6 +128,7 @@ function softFreeState(status: "ready" | "error"): PropertyEntitlementState {
     softFallback: true,
     devRole: false,
     entitlementSource: null,
+    subscriptionTier: null,
   };
 }
 
@@ -152,6 +177,14 @@ export async function fetchPropertyEntitlement(
     const devRole = body.devRole === true || legacy?.devRole === true;
     const sourceRaw = body.entitlementSource ?? legacy?.entitlementSource;
     const entitlementSource = typeof sourceRaw === "string" ? sourceRaw : null;
+    // Ladder tier — ONLY the three known strings parse; anything else
+    // (absent field on a stale cache/older backend, unknown string) is null,
+    // and null gates Studio surfaces CLOSED even when tier is "paid".
+    const subRaw = body.subscriptionTier ?? legacy?.subscriptionTier;
+    const subscriptionTier: PeSubscriptionTier | null =
+      subRaw === "solo" || subRaw === "studio" || subRaw === "team"
+        ? subRaw
+        : null;
     const property = asRecord(body.property);
     if (!property) {
       // FEATURE-DETECT: older backend without the property block — CLIENT-SOFT.
@@ -165,6 +198,7 @@ export async function fetchPropertyEntitlement(
         softFallback: true,
         devRole,
         entitlementSource,
+        subscriptionTier,
       };
     }
     return {
@@ -178,6 +212,7 @@ export async function fetchPropertyEntitlement(
       softFallback: false,
       devRole,
       entitlementSource,
+      subscriptionTier,
     };
   } catch {
     return softFreeState("error");

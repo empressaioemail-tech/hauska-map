@@ -243,7 +243,6 @@ export function ShareTool() {
   if (ent.signedOut) {
     return (
       <LockedToolPanel
-        parcelNodeId={activeParcelNodeId}
         valueLine={SHARE_VALUE_LINE}
         signedOut
         signInLine="Sign in to create a share link for this property."

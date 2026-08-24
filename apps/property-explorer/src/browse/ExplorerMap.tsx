@@ -66,7 +66,7 @@ import { asMaplibreMap } from "./satelliteBase";
 import { createFloodMapOverlayController } from "./flood-map-overlay";
 import { SmartSiteBadge, MapSourceInfo } from "./MapCornerChrome";
 import { SearchBar } from "./SearchBar";
-import { PaywallGate } from "./PaywallGate";
+import { PricingModal } from "./PricingModal";
 import {
   MobilePanelProvider,
   MobileSheet,
@@ -429,8 +429,11 @@ function ExplorerMapSurface({
   useEffect(() => () => floodOverlay.destroy(), [floodOverlay]);
   const [paywallOpen, setPaywallOpen] = useState(false);
   const [paywallMessage, setPaywallMessage] = useState<string | null>(null);
-  // R1: the unified unlock flow's Pro-only variant (terrain) — set per open.
-  const [paywallProOnly, setPaywallProOnly] = useState(false);
+  // The pricing modal's Studio-only path (terrain) + card emphasis — per open.
+  const [paywallStudioOnly, setPaywallStudioOnly] = useState(false);
+  const [paywallHighlightTier, setPaywallHighlightTier] = useState<
+    "solo" | "studio" | "team" | undefined
+  >(undefined);
 
   // Phase 0A cold-open: parcel line-only visible; full consumer catalog known
   // so presets / checkboxes can disclose layers. Pins are chrome (not a map layer).
@@ -1606,9 +1609,16 @@ function ExplorerMapSurface({
   // Reads route through refs so the host identity stays stable.
   const workbenchHost = useMemo<WorkbenchHostActions>(
     () => ({
-      openPaywall: (message: string, opts?: { proOnly?: boolean }) => {
+      openPaywall: (
+        message: string,
+        opts?: {
+          studioOnly?: boolean;
+          highlightTier?: "solo" | "studio" | "team";
+        },
+      ) => {
         setPaywallMessage(message);
-        setPaywallProOnly(opts?.proOnly === true);
+        setPaywallStudioOnly(opts?.studioOnly === true);
+        setPaywallHighlightTier(opts?.highlightTier);
         setPaywallOpen(true);
       },
       getActivePropertyAddress: () => {
@@ -1714,9 +1724,9 @@ function ExplorerMapSurface({
     setOpenWorkbenchTool("properties");
   }, [cardNodeId, setOpenWorkbenchTool]);
 
-  // R1: checkout handling moved INTO the unified unlock flow (UnlockFlow.tsx
-  // useUnlockChoices actions) — the modal is self-contained; ExplorerMap only
-  // owns open/close + the value line + the Pro-only variant flag.
+  // Checkout handling lives in the shared useCheckoutActions hook consumed by
+  // the PricingModal — the modal is self-contained; ExplorerMap only owns
+  // open/close + the context line + the studio-only/highlight flags.
 
   // SHARE FUNNEL: on mobile, open the research sheet when landing with share.
   useEffect(() => {
@@ -1885,17 +1895,19 @@ function ExplorerMapSurface({
         </MobileSheet>
       )}
 
-      {/* R1: the unified two-choice unlock flow (replaces the Pro-hardcoded
-          "R1–R10 … Pro entitlement" copy). Value line comes from the bubble
-          that gated; prices come from the pricing config module. */}
+      {/* THE ONE pricing modal (2026-08-24 ruling) — serves the reactive
+          server-402 belt AND the dock locked-panels' "View pricing" button.
+          Context line comes from the bubble that gated; every price comes
+          from the pricing config module. */}
       {paywallOpen && (
-        <PaywallGate
+        <PricingModal
           parcelNodeId={activeParcelNodeId}
-          valueLine={
+          contextLine={
             paywallMessage ??
             "The full brief, AI chat, reports, and share links are the paid toolkit on this property — the inspect card and map stay free."
           }
-          proOnly={paywallProOnly}
+          studioOnly={paywallStudioOnly}
+          highlightTier={paywallHighlightTier}
           statusNote={iccCitationStatus().live ? null : iccCitationStatus().message}
           onClose={() => setPaywallOpen(false)}
         />

@@ -218,14 +218,16 @@ describe("flood & drainage — folded INSIDE the Reports bubble (no standalone b
     expect(html).not.toContain('data-testid="flood-run"');
   });
 
-  it("free signed-in → the Reports LOCK with the unified two-choice flow — NEVER Pro-only", () => {
+  it("free signed-in → the Reports LOCK (View-pricing button) — NEVER Pro-only", () => {
     primePropertyEntitlement(PARCEL, ent({}));
     const html = render({});
     expect(html).toContain('data-testid="reports-locked"');
-    // Flood & drainage is IN the $15 property unlock: the standard
-    // two-choice flow, not the Pro-only variant, and the value line names it.
+    // Flood & drainage is IN the $15 property unlock: the standard lock (not
+    // the Pro-only variant), the value line names it, and pricing lives in
+    // the ONE modal behind the View-pricing button (2026-08-24 ruling).
     expect(html).toMatch(/data-testid="reports-locked"[^>]*data-pro-only="false"/);
-    expect(html).toContain('data-testid="unlock-property-choice"');
+    expect(html).toContain('data-testid="view-pricing-button"');
+    expect(html).not.toContain('data-testid="unlock-property-choice"');
     expect(html).toContain("flood &amp; drainage study");
     expect(html).not.toContain('data-testid="flood-run"');
   });

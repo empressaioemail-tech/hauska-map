@@ -34,6 +34,7 @@ import {
   type TerrainExportSectionState,
 } from "../../browse/TerrainExportSection";
 import { recordPeGtmEvent } from "../../lib/gtmClient";
+import { subscriptionTierGrantsStudio } from "../../lib/entitlementClient";
 import { usePropertyEntitlement } from "../../lib/usePropertyEntitlement";
 import { useDockToolState, useWorkbench } from "../WorkbenchContext";
 import { LockedToolPanel } from "./LockedToolPanel";
@@ -90,7 +91,6 @@ export function ReportsTool() {
   if (ent.signedOut) {
     return (
       <LockedToolPanel
-        parcelNodeId={activeParcelNodeId}
         valueLine={REPORTS_LOCKED_VALUE_LINE}
         signedOut
         signInLine="Sign in to run reports and exports on this parcel."
@@ -101,7 +101,6 @@ export function ReportsTool() {
   if (ent.locked) {
     return (
       <LockedToolPanel
-        parcelNodeId={activeParcelNodeId}
         valueLine={REPORTS_LOCKED_VALUE_LINE}
         testId="reports-locked"
       />
@@ -123,7 +122,10 @@ export function ReportsTool() {
     countyName: null,
   };
 
-  const paywall = (message: string, opts?: { proOnly?: boolean }) => {
+  const paywall = (
+    message: string,
+    opts?: { studioOnly?: boolean; highlightTier?: "solo" | "studio" | "team" },
+  ) => {
     void recordPeGtmEvent({
       eventType: "pe_paywall_hit",
       parcelNodeId: activeParcelNodeId,
@@ -131,11 +133,13 @@ export function ReportsTool() {
     host.openPaywall(message, opts);
   };
 
-  // TERRAIN = PRO-ONLY: a property-unlocked (non-Pro) user gets the site-plan
-  // section live and the terrain slot as its Pro-only lock — the $15 unlock
-  // never claims terrain. Pro (or an unresolved/soft entitlement — belt
-  // decides) renders the real section.
-  const terrainProLocked = ent.status === "ready" && !ent.pro;
+  // TERRAIN = STUDIO-ONLY: gated on the ladder tier (studio|team grant), NOT
+  // on tier === "paid" — a Solo subscriber must NOT clear Studio gates, and a
+  // response missing subscriptionTier (null) gates CLOSED even on a paid row.
+  // An unresolved entitlement (loading/error) renders the real section — the
+  // server-402 belt stays authoritative.
+  const terrainProLocked =
+    ent.status === "ready" && !subscriptionTierGrantsStudio(ent.subscriptionTier);
 
   return (
     <div data-testid="reports-tool">
@@ -159,7 +163,6 @@ export function ReportsTool() {
       {terrainProLocked ? (
         <div style={{ marginTop: 14 }}>
           <LockedToolPanel
-            parcelNodeId={activeParcelNodeId}
             valueLine="Terrain export — the parcel's real terrain as GLB, IFC, or DXF for modeling tools."
             proOnly
             proOnlyNote={TERRAIN_PAYWALL_MESSAGE}
@@ -171,7 +174,10 @@ export function ReportsTool() {
           key={`terrain:${activeParcelNodeId}`}
           parcelNodeId={activeParcelNodeId}
           onPaymentRequired={() =>
-            paywall(TERRAIN_PAYWALL_MESSAGE, { proOnly: true })
+            paywall(TERRAIN_PAYWALL_MESSAGE, {
+              studioOnly: true,
+              highlightTier: "studio",
+            })
           }
           initialState={terrain}
           onStateChange={(next) => {
