@@ -88,19 +88,43 @@ export async function augmentFacetsWithLiveEnvelope(
       lng: options?.lng,
     }) ?? str(situsOrNavAddress);
 
-  if (!address && !expectedParcelNodeId) return facets;
+  if (!address && (options?.lat == null || options?.lng == null)) return facets;
 
   try {
-    const live = await fetchBuildableEnvelope(
+    const coords =
+      options?.lat != null && options?.lng != null
+        ? { lat: options.lat, lng: options.lng }
+        : {};
+    let live = await fetchBuildableEnvelope(
       {
         address: address ?? undefined,
-        parcelNodeId: expectedParcelNodeId ?? undefined,
-        lat: options?.lat ?? undefined,
-        lng: options?.lng ?? undefined,
+        lat: coords.lat,
+        lng: coords.lng,
       },
       cortexBase,
       fetchImpl,
     );
+    // Navigation addresses can geocode_miss while the map click already holds
+    // the rooftop point — retry coords-only and keep only a matching parcel.
+    if (
+      (!live.ok || !live.geometry) &&
+      coords.lat != null &&
+      coords.lng != null &&
+      expectedParcelNodeId
+    ) {
+      const retry = await fetchBuildableEnvelope(
+        { lat: coords.lat, lng: coords.lng },
+        cortexBase,
+        fetchImpl,
+      );
+      if (
+        retry.ok &&
+        retry.geometry &&
+        str(retry.parcelNodeId) === expectedParcelNodeId
+      ) {
+        live = retry;
+      }
+    }
     if (!live.ok || !live.geometry) return facets;
     const envNodeId = str(live.parcelNodeId);
     if (
