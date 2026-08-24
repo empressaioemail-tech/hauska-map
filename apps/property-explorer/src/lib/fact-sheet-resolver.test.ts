@@ -117,12 +117,28 @@ interface StubOpts {
     ok?: boolean;
     status?: string;
     emptyReason?: string;
+    placeKey?: string;
+    declineReason?: string;
   } | null;
+  /** GIS never settles unless the request signal aborts. */
+  gisHang?: boolean;
+}
+
+function abortAwareHang(signal: AbortSignal | null | undefined): Promise<Response> {
+  return new Promise((_, reject) => {
+    const fail = () =>
+      reject(Object.assign(new Error("The operation was aborted."), { name: "AbortError" }));
+    if (signal?.aborted) {
+      fail();
+      return;
+    }
+    signal?.addEventListener("abort", fail, { once: true });
+  });
 }
 
 function installFetchStub(opts: StubOpts = {}) {
   const calls: string[] = [];
-  const impl = vi.fn(async (input: RequestInfo | URL) => {
+  const impl = vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
     const url = String(input);
     calls.push(url);
     if (url.includes("/facets")) {
@@ -133,6 +149,7 @@ function installFetchStub(opts: StubOpts = {}) {
       });
     }
     if (url.includes("gis-layer")) {
+      if (opts.gisHang) return abortAwareHang(init?.signal);
       const status = opts.gisStatus ?? 200;
       return new Response(
         JSON.stringify({ layer: "parcels", geojson: { type: "FeatureCollection", features: opts.gisFeatures ?? [] } }),
@@ -191,6 +208,9 @@ function installFetchStub(opts: StubOpts = {}) {
         return new Response(
           JSON.stringify({
             status,
+            ...(be.placeKey ? { placeKey: be.placeKey } : {}),
+            parcel_node_id: parcelNodeId,
+            ...(be.declineReason ? { reason: be.declineReason } : {}),
             payload: {
               geojson: {
                 type: "FeatureCollection",
@@ -236,12 +256,16 @@ async function sheetOf(
   return result;
 }
 
-function makeResolver(stub: { impl: typeof fetch }) {
+function makeResolver(
+  stub: { impl: typeof fetch },
+  over: { hopTimeoutMs?: number } = {},
+) {
   return new PeFactSheetResolver({
     facetsBase: FACETS_BASE,
     cortexBase: CORTEX_BASE,
     fetchImpl: stub.impl,
     now: () => new Date("2026-08-18T12:00:00.000Z"),
+    hopTimeoutMs: over.hopTimeoutMs,
   });
 }
 
@@ -804,6 +828,99 @@ describe("AMENDMENT 1 — UnplaceableParcel", () => {
     });
     const result = await makeResolver(stub).resolve(NODE_ID);
     expect(result.kind).toBe("sheet");
+  });
+});
+
+// ---------------------------------------------------------------------------
+// P-60 WDLL 1 / 4 — declined envelope seals; gold still docks.
+// ---------------------------------------------------------------------------
+
+const WAINEE_ID = "48021:35772";
+const WAINEE_SITUS = "195 WAINEE DR , BASTROP, TX 78602";
+const WAINEE_PLACE_KEY = "coord:30.08477:-97.29651";
+
+function waineeFacetsWire() {
+  const wire = facetsWire();
+  wire.parcelNodeId = WAINEE_ID;
+  wire.facets.parcelNodeId = WAINEE_ID;
+  (wire.facets.baseFacts as Record<string, unknown>).situsAddress = WAINEE_SITUS;
+  (wire.facets as Record<string, unknown>).envelope = {
+    status: "declined",
+    declineReason: "no-zoning-stamp",
+  };
+  delete (wire.facets as Record<string, unknown>).zoning;
+  return wire;
+}
+
+describe("P-60 declined envelope seals (Wainee 48021:35772)", () => {
+  it("facets declined + envelope declined + matching node + placeKey → sheet", async () => {
+    const stub = installFetchStub({
+      facets: waineeFacetsWire(),
+      gisFeatures: [],
+      geocodeHit: null,
+      buildableEnvelope: {
+        status: "declined",
+        parcelNodeId: WAINEE_ID,
+        placeKey: WAINEE_PLACE_KEY,
+        declineReason: "no-zoning-stamp",
+      },
+    });
+    const result = await makeResolver(stub).resolve(WAINEE_ID);
+    expect(result.kind).toBe("sheet");
+    if (result.kind !== "sheet") throw new Error("unreachable");
+    expect(result.identity.parcelNodeId).toBe(WAINEE_ID);
+    expect(result.geometry.centroid).toEqual({ lat: 30.08477, lng: -97.29651 });
+    expect(result.envelope.kind).toBe("not-derived");
+    if (result.envelope.kind !== "not-derived") throw new Error("unreachable");
+    expect(result.envelope.reason).toBe("no-zoning-stamp");
+    expect(result.setbacks.state).toBe("absent-uncovered");
+    expect(stub.calls.some((u) => u.includes("/api/pe-geocode"))).toBe(false);
+  });
+
+  it("NOT VACUOUS: same fixture without placeKey, hint, or centroid stays unplaceable", async () => {
+    const stub = installFetchStub({
+      facets: waineeFacetsWire(),
+      gisFeatures: [],
+      geocodeHit: null,
+      buildableEnvelope: {
+        status: "declined",
+        parcelNodeId: WAINEE_ID,
+        declineReason: "no-zoning-stamp",
+      },
+    });
+    const result = await makeResolver(stub).resolve(WAINEE_ID);
+    expect(result.kind).toBe("unplaceable");
+  });
+
+  it("GIS hang is not a precondition when placeKey already placed the parcel", async () => {
+    const stub = installFetchStub({
+      facets: waineeFacetsWire(),
+      gisHang: true,
+      geocodeHit: null,
+      buildableEnvelope: {
+        status: "declined",
+        parcelNodeId: WAINEE_ID,
+        placeKey: WAINEE_PLACE_KEY,
+        declineReason: "no-zoning-stamp",
+      },
+    });
+    const result = await makeResolver(stub, { hopTimeoutMs: 40 }).resolve(WAINEE_ID);
+    expect(result.kind).toBe("sheet");
+    if (result.kind !== "sheet") throw new Error("unreachable");
+    expect(result.geometry.centroid).toEqual({ lat: 30.08477, lng: -97.29651 });
+  });
+});
+
+describe("P-60 gold path not inverted", () => {
+  it("envelope ok + setbacks still seals as derived", async () => {
+    const stub = installFetchStub({ gisFeatures: [SUBJECT_FEATURE] });
+    const sheet = await sheetOf(makeResolver(stub), NODE_ID);
+    expect(sheet.envelope.kind).toBe("derived");
+    expect(sheet.setbacks.state).toBe("present");
+    if (sheet.envelope.kind !== "derived") throw new Error("unreachable");
+    expect(sheet.envelope.area.value).toBe(6325);
+    if (sheet.setbacks.state !== "present") throw new Error("unreachable");
+    expect(sheet.setbacks.value.front.distance).toEqual({ value: 25, unit: "ft" });
   });
 });
 
