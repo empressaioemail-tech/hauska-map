@@ -120,6 +120,102 @@ export function normalizeEnvelope(result: unknown): NormalizedEnvelope {
   return { kind: "ok", insetGeometry: geom };
 }
 
+// ---------------------------------------------------------------------------
+// Ring-spike sanitizer (2026-08-24, 17005 Simsbrook / 48453:280239).
+//
+// On a curved frontage digitized as several near-collinear chords, the server's
+// derive can emit an inset ring carrying ZERO-WIDTH out-and-back excursions at
+// each chord junction: the ring runs the full setback distance perpendicular to
+// the frontage (25 ft = 7.61 m on the incident parcel), turns ~180deg, and
+// comes straight back. The fill is unaffected (the spikes enclose no area), but
+// the dashed line layer draws every excursion — a ladder of perpendicular
+// strokes across the setback gap instead of one clean line along the curve.
+//
+// The fix is DRAW-TIME ONLY: strip reversal spikes from the ring before
+// building the overlay feature. The verbatim server geometry still flows to the
+// node store / export paths untouched; removing a zero-width spike changes the
+// drawn fill by nothing. A spike is a vertex where the ring reverses direction
+// (deviation from straight > SPIKE_TURN_DEG) AND the two legs rejoin within
+// SPIKE_MOUTH_MAX_M — a genuinely pointed lot corner (long diverging legs) has
+// a wide mouth and is preserved.
+// ---------------------------------------------------------------------------
+
+/** Deviation-from-straight beyond which a vertex is a reversal, degrees. */
+const SPIKE_TURN_DEG = 160;
+/** Max gap between a spike's out-leg start and back-leg end, metres. */
+const SPIKE_MOUTH_MAX_M = 1.5;
+/** Consecutive vertices closer than this collapse to one, metres. */
+const DUP_EPS_M = 0.25;
+
+/**
+ * Remove zero-width out-and-back spikes from one closed ring. Returns the
+ * original ring untouched when nothing qualifies or when stripping would
+ * leave fewer than 3 distinct vertices (never fabricates a collapse).
+ */
+export function stripRingSpikes(ring: Ring): Ring {
+  if (!Array.isArray(ring) || ring.length < 5) return ring;
+  // Work on the OPEN ring; every index below is circular.
+  const open = ring.slice(0, ring.length - 1);
+  const lat0 = open[0]?.[1] ?? 0;
+  const mLat = 111_320;
+  const mLng = 111_320 * Math.cos((lat0 * Math.PI) / 180) || 1;
+  const dM = (a: [number, number], b: [number, number]) =>
+    Math.hypot((b[0] - a[0]) * mLng, (b[1] - a[1]) * mLat);
+
+  const pts = open.slice();
+  let removedAny = false;
+  let changed = true;
+  let guard = 0;
+  while (changed && pts.length >= 4 && guard++ <= open.length + 8) {
+    changed = false;
+    for (let i = 0; i < pts.length; i++) {
+      const prev = pts[(i - 1 + pts.length) % pts.length];
+      const cur = pts[i];
+      const next = pts[(i + 1) % pts.length];
+      const ul = dM(prev, cur);
+      const vl = dM(cur, next);
+      // Collapse duplicate / sub-epsilon vertices (spike removal leaves the
+      // out-start and back-end nearly coincident).
+      if (ul < DUP_EPS_M) {
+        pts.splice(i, 1);
+        changed = true;
+        removedAny = true;
+        break;
+      }
+      if (vl < 1e-9) continue; // next pass removes `next` as a duplicate.
+      const ux = (cur[0] - prev[0]) * mLng;
+      const uy = (cur[1] - prev[1]) * mLat;
+      const vx = (next[0] - cur[0]) * mLng;
+      const vy = (next[1] - cur[1]) * mLat;
+      const cos = (ux * vx + uy * vy) / (ul * vl);
+      const devDeg = (Math.acos(Math.max(-1, Math.min(1, cos))) * 180) / Math.PI;
+      if (devDeg > SPIKE_TURN_DEG && dM(prev, next) < SPIKE_MOUTH_MAX_M) {
+        pts.splice(i, 1); // drop the spike tip.
+        changed = true;
+        removedAny = true;
+        break;
+      }
+    }
+  }
+  if (!removedAny) return ring; // identity: callers detect the no-op cheaply.
+  if (pts.length < 3) return ring;
+  const out = pts.slice();
+  out.push([out[0][0], out[0][1]]); // re-close.
+  return out;
+}
+
+/**
+ * Sanitize a Polygon's rings for DRAWING (see block comment above). Any other
+ * geometry passes through verbatim — this never invents or drops a shape.
+ */
+export function stripEnvelopeSpikes(geometry: unknown): unknown {
+  if (!isPolygon(geometry)) return geometry;
+  const rings = geometry.coordinates.map((r) => stripRingSpikes(r));
+  const unchanged = rings.every((r, i) => r === geometry.coordinates[i]);
+  if (unchanged) return geometry;
+  return { ...geometry, coordinates: rings };
+}
+
 /**
  * Build the amber inset OverlaySpec — the wedge visual. Low-opacity amber fill
  * (parcel/imagery shows through) + a bold STATIC-dashed boundary (the setback
@@ -133,7 +229,13 @@ export function envelopeInsetOverlay(insetGeometry: unknown): OverlaySpec {
     geojson: {
       type: "FeatureCollection",
       features: [
-        { type: "Feature", properties: { kind: "buildable-envelope" }, geometry: insetGeometry },
+        {
+          type: "Feature",
+          properties: { kind: "buildable-envelope" },
+          // Draw-time sanitize only: the store/export paths keep the verbatim
+          // server geometry; the map never draws a zero-width setback spike.
+          geometry: stripEnvelopeSpikes(insetGeometry),
+        },
       ],
     },
     paint: {

@@ -44,6 +44,22 @@ const DEFAULT_RETRIEVAL =
   "https://hauska-retrieval-api-h7gvu7rgcq-uc.a.run.app";
 const DEFAULT_CORTEX = "https://cortex-api-tds7av26va-uc.a.run.app";
 
+/**
+ * Per-attempt bound on ONE upstream fetch (retrieval / cortex, both Cloud Run
+ * with possible min-instances 0). Without it a single hung cold-start socket
+ * consumes the entire function maxDuration, the retry loop below never gets
+ * its second attempt, and the client sees a platform 504 instead of a
+ * retried-and-recovered read. A timed-out attempt surfaces as an abort
+ * reason, which the transient matcher already classifies as retryable.
+ * Env-overridable for tests and emergency tuning.
+ */
+const DEFAULT_UPSTREAM_FETCH_TIMEOUT_MS = 10_000;
+
+function upstreamFetchTimeoutMs(): number {
+  const raw = Number(process.env.PE_UPSTREAM_FETCH_TIMEOUT_MS);
+  return Number.isFinite(raw) && raw > 0 ? raw : DEFAULT_UPSTREAM_FETCH_TIMEOUT_MS;
+}
+
 export type PeReadPathHeader =
   | "atom-chain"
   | "atom-chain-warm"
@@ -120,6 +136,9 @@ async function fetchCortexFacets(
       Authorization: auth.authorization,
       Accept: "application/json",
     },
+    // Throws TimeoutError on expiry — callers already treat a thrown cortex
+    // fetch as a failed/unusable cortex read (honest degrade, never invented).
+    signal: AbortSignal.timeout(upstreamFetchTimeoutMs()),
   });
   const text = await upstream.text();
   return {
@@ -326,8 +345,18 @@ export async function fetchAtomChainOnce(
         Authorization: `Bearer ${key}`,
         Accept: "application/json",
       },
+      signal: AbortSignal.timeout(upstreamFetchTimeoutMs()),
     });
   } catch (err) {
+    // A per-attempt timeout must classify as TRANSIENT so the retry loop
+    // runs — "aborted" is in the transient matcher. Name the bound so the
+    // reason is diagnosable, never a bare platform string.
+    if (err instanceof Error && err.name === "TimeoutError") {
+      return {
+        ok: false,
+        reason: `atom-chain aborted after ${upstreamFetchTimeoutMs()}ms upstream timeout`,
+      };
+    }
     return {
       ok: false,
       reason: err instanceof Error ? err.message : String(err),
