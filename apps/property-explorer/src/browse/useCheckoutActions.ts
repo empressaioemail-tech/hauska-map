@@ -7,7 +7,7 @@
 //
 // Both actions hit the SAME billing seams as before:
 //   - $15 unlock       → startPropertyUnlock(parcelNodeId)
-//   - subscriptions    → startPeCheckout({ parcelNodeId, tier, seats? })
+//   - subscriptions    → startPeCheckout({ parcelNodeId, tier, interval, seats? })
 // NEVER a fake success; every terminal state traces to a server response.
 
 import { useState } from "react";
@@ -16,6 +16,11 @@ import {
   startPropertyUnlock,
   type PeCheckoutTier,
 } from "../lib/billingClient";
+import {
+  teamSeatsOnWire,
+  toCheckoutInterval,
+  type PricingInterval,
+} from "../lib/pricing";
 import { invalidatePropertyEntitlement } from "../lib/entitlementClient";
 import { recordPeGtmEvent } from "../lib/gtmClient";
 
@@ -73,7 +78,11 @@ export function useCheckoutActions(
     }
   };
 
-  const handleSubscription = async (tier: PeCheckoutTier, seats?: number) => {
+  const handleSubscription = async (
+    tier: PeCheckoutTier,
+    interval: PricingInterval,
+    seats?: number,
+  ) => {
     if (busy) return;
     setBusy(tier);
     setNote(null);
@@ -84,7 +93,10 @@ export function useCheckoutActions(
     const result = await startPeCheckout({
       parcelNodeId,
       tier,
-      ...(tier === "team" ? { seats } : {}),
+      interval: toCheckoutInterval(interval),
+      ...(tier === "team" && seats !== undefined
+        ? { seats: teamSeatsOnWire(interval, seats) }
+        : {}),
     });
     setBusy(null);
     if (!result.ok) {

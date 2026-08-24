@@ -5,6 +5,7 @@
 import { CORTEX_PROXY_BASE } from "./config";
 import { getInstallId } from "./installId";
 import { CORTEX_DEEP_PROXY_BASE } from "./auth";
+import { PE_PRICING, type PeCheckoutInterval } from "./pricing";
 
 export type PeCheckoutResult = {
   ok: boolean;
@@ -19,6 +20,9 @@ export type PeCheckoutResult = {
 /** The three purchasable subscription tiers (locked ladder, 2026-08-10). */
 export type PeCheckoutTier = "solo" | "studio" | "team";
 
+/** Cortex billing enum — not the UI toggle ("annual" / "monthly"). */
+export type { PeCheckoutInterval };
+
 export const CHECKOUT_UNAVAILABLE_MESSAGE =
   "Checkout is temporarily unavailable — the payment configuration on the server is incomplete. Nothing was charged; try again later.";
 
@@ -27,8 +31,12 @@ export async function startPeCheckout(input: {
    *  default to Solo on cortex, which is the audit defect (a Studio click
    *  charging the Solo price). */
   tier: PeCheckoutTier;
+  /** REQUIRED: cortex enum. Omitted interval defaults to month on cortex,
+   *  which is the A1 defect (an annual Studio click charging monthly). */
+  interval: PeCheckoutInterval;
   /** Team only: TOTAL desired seats (base covers 10, +$25/mo each above).
-   *  Omitted from the body when undefined — cortex 400s seats on non-team. */
+   *  Omitted from the body when undefined — cortex 400s seats on non-team.
+   *  Annual Team is capped at PE_PRICING.team.baseSeats on the wire. */
   seats?: number;
   parcelNodeId?: string | null;
   successUrl?: string;
@@ -51,6 +59,20 @@ export async function startPeCheckout(input: {
   // install-scoped brokerage seam only updates brokerage_wallets — PE gates
   // read pe_user_entitlements, so Pro checkout MUST go through the signed-in
   // deep proxy route that carries pe_user_id in Stripe metadata.
+  if (input.interval !== "month" && input.interval !== "year") {
+    return {
+      ok: false,
+      message: "Checkout interval is required (month or year).",
+    };
+  }
+
+  const seatsOnWire =
+    input.seats === undefined
+      ? undefined
+      : input.interval === "year"
+        ? Math.min(input.seats, PE_PRICING.team.baseSeats)
+        : input.seats;
+
   try {
     const res = await fetch(
       `${CORTEX_DEEP_PROXY_BASE}/api/property-explorer/v1/billing/checkout`,
@@ -63,7 +85,8 @@ export async function startPeCheckout(input: {
         },
         body: JSON.stringify({
           tier: input.tier,
-          ...(input.seats !== undefined ? { seats: input.seats } : {}),
+          interval: input.interval,
+          ...(seatsOnWire !== undefined ? { seats: seatsOnWire } : {}),
           successUrl,
           cancelUrl,
         }),

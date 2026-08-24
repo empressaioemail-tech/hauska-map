@@ -1,37 +1,61 @@
 // apps/property-explorer/src/browse/PricingModal.tsx
 //
 // THE ONE PRICING POPUP (operator ruling 2026-08-24): ALL pricing info lives
-// here, styled after the cold-open SignUpCard. The dock's locked panels keep
-// only the tool's value line + a button that opens this modal (via the
-// host.openPaywall capability), and the reactive server-402 belt opens the
-// same modal — one surface, never a different wall per bubble.
+// here. A2 comparison table (Lane 2 / P-60): header + annual/monthly toggle,
+// Free as a caption strip, three purchasable columns, grouped rows, Unlock
+// as a footer offer. Studio is the emphasized Deliverables column.
 //
 // Every price string comes from src/lib/pricing.ts (PE_PRICING + label
 // helpers) — NO price literals here. Checkout wiring is the shared
 // useCheckoutActions hook (the same seams the retired UnlockFlow used):
-// $15 unlock → startPropertyUnlock; Solo/Studio/Team → startPeCheckout with
-// the exact tier the button shows. NEVER a fake success.
+// unlock → startPropertyUnlock; Solo/Studio/Team → startPeCheckout with
+// the exact tier the button shows and interval from the toggle (year/month
+// on the wire). NEVER a fake success.
+//
+// CTAs use Button.tsx. --brand-blue is the only interactive accent. Gold is
+// mark-only. No --sc-* tokens. No Oxygen CDN.
 
 import { useState } from "react";
+import { Button } from "../components/Button";
 import { useCheckoutActions, clampTeamSeats } from "./useCheckoutActions";
 import type { PeCheckoutTier } from "../lib/billingClient";
 import {
   PE_PRICING,
-  propertyChoiceLabel,
-  soloChoiceLabel,
-  studioChoiceLabel,
-  teamChoiceLabel,
+  defaultPricingInterval,
+  matrixCellText,
+  propertyUnlockOffer,
+  teamSeatsControlVisible,
+  tierHeadline,
+  toCheckoutInterval,
+  type MatrixCellKind,
+  type PricingInterval,
 } from "../lib/pricing";
 
-const CARD_BG = "rgba(17, 21, 28, 0.92)"; // same as SignUpCard
+const CARD_BG = "rgba(17, 21, 28, 0.92)";
 const ACCENT = "var(--brand-blue, #3B82F6)";
 const TEXT = "#e9eef5";
 const BODY = "#c6d0dc";
 const MUTED = "var(--surface-muted, #94A3B8)";
+const ABSENCE = "var(--semantic-absence, #7C8BA0)";
 const AMBER = "var(--semantic-warning, #F59E0B)";
 const ROW_BORDER = "0.5px solid var(--surface-border-rgba, rgba(154,166,178,0.3))";
-const EMPHASIS_BORDER =
-  "1px solid var(--brand-blue-border, rgba(59,130,246,0.55))";
+const ROW_BORDER_SOFT =
+  "0.5px solid var(--surface-border-rgba, rgba(154,166,178,0.22))";
+const COL_BORDER = "0.5px solid var(--surface-border-rgba, rgba(154,166,178,0.3))";
+const EMPHASIS_BORDER = "1px solid var(--brand-blue-border, rgba(59,130,246,0.55))";
+const EMPHASIS_BG = "var(--brand-blue-bg-soft, rgba(59,130,246,0.08))";
+const FONT =
+  "var(--font-body, ui-sans-serif, system-ui, -apple-system, 'Segoe UI', sans-serif)";
+const DISPLAY =
+  "var(--font-display, ui-sans-serif, system-ui, -apple-system, 'Segoe UI', sans-serif)";
+
+const TIERS: PeCheckoutTier[] = ["solo", "studio", "team"];
+
+const GROUPS = [
+  { key: "answer", testId: "pricing-group-answer", ...PE_PRICING.groups.answer },
+  { key: "handoff", testId: "pricing-group-handoff", ...PE_PRICING.groups.handoff },
+  { key: "firm", testId: "pricing-group-firm", ...PE_PRICING.groups.firm },
+] as const;
 
 export function PricingModal({
   parcelNodeId,
@@ -39,28 +63,39 @@ export function PricingModal({
   contextLine,
   studioOnly,
   statusNote,
+  initialInterval,
   onClose,
 }: {
-  /** The active property (null → the $15 unlock is disabled with honest copy). */
+  /** The active property (null → the unlock is disabled with honest copy). */
   parcelNodeId: string | null;
-  /** Visually emphasize one subscription card. */
+  /** Visually emphasize one subscription column in addition to Studio. */
   highlightTier?: PeCheckoutTier;
   /** The triggering tool's value line — why the user is seeing this. */
   contextLine?: string | null;
-  /** Studio-only feature path (terrain): emphasize Studio/Team; mark the $15
-   *  unlock as not applicable for this feature (still rendered). */
+  /** Studio-only feature path (terrain): mark the unlock as not applicable
+   *  for this feature (still rendered); Studio + Team stay the covering tiers. */
   studioOnly?: boolean;
   /** Honest status footnote (e.g. ICC citation licensing state). */
   statusNote?: string | null;
+  /** Test / first-paint override. Default is annual (PE_PRICING.interval.default). */
+  initialInterval?: PricingInterval;
   onClose: () => void;
 }) {
   const { busy, note, handleProperty, handleSubscription } =
     useCheckoutActions(parcelNodeId, { onUnlocked: onClose });
-  // Team seat count — TOTAL seats desired (the base covers 10).
-  const [teamSeats, setTeamSeats] = useState(10);
+  const [interval, setInterval] = useState<PricingInterval>(
+    initialInterval ?? defaultPricingInterval(),
+  );
+  const [teamSeats, setTeamSeats] = useState<number>(PE_PRICING.team.baseSeats);
+  const showSeatStepper = teamSeatsControlVisible(interval);
 
   const emphasize = (tier: PeCheckoutTier): boolean =>
-    highlightTier === tier || (studioOnly === true && tier !== "solo");
+    tier === "studio" ||
+    highlightTier === tier ||
+    (studioOnly === true && tier !== "solo");
+
+  const checkoutSeats =
+    interval === "annual" ? PE_PRICING.team.baseSeats : teamSeats;
 
   return (
     <div
@@ -85,80 +120,123 @@ export function PricingModal({
         data-studio-only={studioOnly ? "true" : "false"}
         onClick={(e) => e.stopPropagation()}
         style={{
-          width: "min(560px, calc(100vw - 32px))",
-          maxHeight: "min(84vh, 760px)",
+          width: "min(980px, calc(100vw - 32px))",
+          maxHeight: "min(88vh, 860px)",
           overflowY: "auto",
-          padding: "24px 24px 20px",
+          overflowX: "auto",
           borderRadius: 16,
           background: CARD_BG,
           border: "0.5px solid var(--brand-blue-border-soft, rgba(59,130,246,0.28))",
           boxShadow: "0 24px 80px rgba(0,0,0,0.55)",
           color: TEXT,
-          fontFamily:
-            "system-ui, -apple-system, Segoe UI, Roboto, Helvetica, Arial, sans-serif",
+          fontFamily: FONT,
           backdropFilter: "blur(2px)",
         }}
       >
         <div
           style={{
+            padding: "22px 26px 18px",
             display: "flex",
-            justifyContent: "space-between",
             alignItems: "flex-start",
-            marginBottom: 12,
+            justifyContent: "space-between",
+            gap: 24,
+            borderBottom: ROW_BORDER,
           }}
         >
-          <div
-            style={{
-              fontSize: 12,
-              fontWeight: 700,
-              letterSpacing: "0.16em",
-              color: ACCENT,
-            }}
-          >
-            SMART SITE
+          <div style={{ display: "flex", flexDirection: "column", gap: 7, minWidth: 0 }}>
+            <div
+              style={{
+                fontFamily: DISPLAY,
+                fontSize: 12,
+                fontWeight: 700,
+                letterSpacing: "0.16em",
+                color: ACCENT,
+              }}
+            >
+              SMART SITE
+            </div>
+            <h2
+              style={{
+                margin: 0,
+                fontFamily: DISPLAY,
+                fontSize: 24,
+                lineHeight: 1.2,
+                fontWeight: 700,
+                letterSpacing: "-0.01em",
+              }}
+            >
+              {PE_PRICING.header.title}
+            </h2>
+            <p style={{ margin: 0, fontSize: 13, lineHeight: 1.5, color: BODY }}>
+              {PE_PRICING.header.framing}
+            </p>
           </div>
-          <button
-            type="button"
-            aria-label="Close"
-            data-testid="pricing-modal-close"
-            onClick={onClose}
-            style={{
-              background: "transparent",
-              border: "none",
-              color: MUTED,
-              cursor: "pointer",
-              fontSize: 17,
-              lineHeight: 1,
-              padding: 0,
-            }}
-          >
-            ×
-          </button>
+          <div style={{ display: "flex", alignItems: "center", gap: 12, flexShrink: 0 }}>
+            <div
+              data-testid="pricing-interval"
+              data-interval={interval}
+              style={{
+                display: "flex",
+                padding: 3,
+                borderRadius: 8,
+                background: "rgba(11,14,19,0.6)",
+                border: ROW_BORDER,
+                gap: 2,
+              }}
+            >
+              <Button
+                type="button"
+                dense
+                variant={interval === "annual" ? "primary" : "ghost"}
+                data-testid="pricing-interval-annual"
+                aria-pressed={interval === "annual"}
+                disabled={busy !== null}
+                onClick={() => setInterval("annual")}
+              >
+                {PE_PRICING.interval.annualLabel}
+              </Button>
+              <Button
+                type="button"
+                dense
+                variant={interval === "monthly" ? "primary" : "ghost"}
+                data-testid="pricing-interval-monthly"
+                aria-pressed={interval === "monthly"}
+                disabled={busy !== null}
+                onClick={() => setInterval("monthly")}
+              >
+                {PE_PRICING.interval.monthlyLabel}
+              </Button>
+            </div>
+            <span style={{ fontSize: 11, color: ACCENT }}>
+              {PE_PRICING.interval.savingsNote}
+            </span>
+            <button
+              type="button"
+              aria-label="Close"
+              data-testid="pricing-modal-close"
+              onClick={onClose}
+              style={{
+                background: "transparent",
+                border: "none",
+                color: MUTED,
+                cursor: "pointer",
+                fontSize: 17,
+                lineHeight: 1,
+                padding: 0,
+              }}
+            >
+              ×
+            </button>
+          </div>
         </div>
-
-        <h2
-          style={{
-            margin: "0 0 4px",
-            fontSize: 22,
-            lineHeight: 1.22,
-            fontWeight: 700,
-            letterSpacing: "-0.01em",
-          }}
-        >
-          {PE_PRICING.header.title}
-        </h2>
-        <p style={{ margin: "0 0 12px", fontSize: 13, lineHeight: 1.5, color: BODY }}>
-          {PE_PRICING.header.framing}
-        </p>
 
         {contextLine ? (
           <p
             data-testid="pricing-context-line"
             style={{
-              margin: "0 0 14px",
-              padding: "9px 12px",
-              borderRadius: 8,
-              border: "0.5px solid var(--brand-blue-border-soft, rgba(59,130,246,0.28))",
+              margin: 0,
+              padding: "10px 26px",
+              borderBottom: ROW_BORDER,
               background: "var(--brand-blue-bg-soft, rgba(59,130,246,0.08))",
               fontSize: 12.5,
               lineHeight: 1.5,
@@ -169,19 +247,18 @@ export function PricingModal({
           </p>
         ) : null}
 
-        {/* FREE — what every account gets at $0. */}
         <div
           data-testid="pricing-free-row"
           style={{
-            display: "flex",
-            gap: 10,
-            alignItems: "baseline",
-            padding: "8px 0 12px",
+            padding: "12px 26px",
             borderBottom: ROW_BORDER,
-            marginBottom: 12,
+            display: "flex",
+            alignItems: "baseline",
+            gap: 10,
+            flexWrap: "wrap",
           }}
         >
-          <span style={{ fontWeight: 700, fontSize: 13 }}>
+          <span style={{ fontWeight: 700, fontSize: 12.5 }}>
             {PE_PRICING.free.title} — {PE_PRICING.free.priceLabel}
           </span>
           <span style={{ fontSize: 12, lineHeight: 1.45, color: BODY }}>
@@ -189,83 +266,84 @@ export function PricingModal({
           </span>
         </div>
 
-        {/* $15 PER-PROPERTY UNLOCK. */}
         <div
-          data-testid="pricing-unlock-card"
-          data-not-applicable={studioOnly ? "true" : "false"}
           style={{
-            borderRadius: 10,
-            border: ROW_BORDER,
-            padding: "12px 14px",
-            marginBottom: 10,
-            opacity: studioOnly ? 0.62 : 1,
+            display: "grid",
+            gridTemplateColumns: "minmax(180px, 300px) 1fr 1fr 1fr",
+            minWidth: 720,
           }}
         >
-          <div style={{ fontWeight: 700, fontSize: 13.5 }}>{propertyChoiceLabel()}</div>
-          <p style={{ margin: "3px 0 8px", fontSize: 12, lineHeight: 1.45, color: BODY }}>
-            {PE_PRICING.property.blurb}
-          </p>
-          {studioOnly ? (
-            <p
-              data-testid="pricing-unlock-na-note"
-              style={{ margin: "0 0 8px", fontSize: 11, lineHeight: 1.45, color: AMBER }}
-            >
-              {PE_PRICING.property.studioOnlyNote}
-            </p>
-          ) : null}
-          <button
-            type="button"
-            data-testid="pricing-unlock-button"
-            disabled={busy !== null || !parcelNodeId}
-            onClick={() => void handleProperty()}
-            style={secondaryBtnStyle(busy === "property")}
+          <div style={{ padding: "14px 26px", borderBottom: ROW_BORDER }} />
+          {TIERS.map((tier) => (
+            <ColumnHead
+              key={tier}
+              tier={tier}
+              interval={interval}
+              emphasized={emphasize(tier)}
+            />
+          ))}
+
+          {GROUPS.map((group) => (
+            <GroupBlock
+              key={group.key}
+              testId={group.testId}
+              title={group.title}
+              rows={group.rows}
+              interval={interval}
+              emphasize={emphasize}
+            />
+          ))}
+
+          <div
+            style={{
+              padding: "16px 26px",
+              fontSize: 11.5,
+              color: MUTED,
+              lineHeight: 1.5,
+            }}
           >
-            {busy === "property" ? "Unlocking…" : propertyChoiceLabel()}
-          </button>
-          {!parcelNodeId ? (
-            <p
-              data-testid="pricing-unlock-needs-property"
-              style={{ margin: "6px 0 0", fontSize: 10.5, color: MUTED }}
+            {PE_PRICING.team.annualCapNote}
+          </div>
+          {TIERS.map((tier) => (
+            <div
+              key={`cta-${tier}`}
+              data-testid={`pricing-${tier}-cta-cell`}
+              style={{
+                padding: 16,
+                borderLeft: emphasize(tier) ? EMPHASIS_BORDER : COL_BORDER,
+                background: emphasize(tier) ? EMPHASIS_BG : "transparent",
+              }}
             >
-              {PE_PRICING.property.needsPropertyNote}
-            </p>
-          ) : null}
+              <Button
+                type="button"
+                fullWidth
+                dense
+                variant={tier === "studio" ? "primary" : "subtle"}
+                data-testid={`pricing-${tier}-button`}
+                data-amount={tierHeadline(tier, interval).amount}
+                data-checkout-interval={toCheckoutInterval(interval)}
+                disabled={busy !== null}
+                onClick={() =>
+                  void handleSubscription(
+                    tier,
+                    interval,
+                    tier === "team" ? checkoutSeats : undefined,
+                  )
+                }
+              >
+                {busy === tier ? PE_PRICING.checkoutBusyLabel : PE_PRICING[tier].ctaLabel}
+              </Button>
+            </div>
+          ))}
         </div>
 
-        {/* SUBSCRIPTIONS — Solo / Studio / Team, all from config. */}
-        <SubscriptionCard
-          tier="solo"
-          label={soloChoiceLabel()}
-          blurb={PE_PRICING.solo.blurb}
-          features={PE_PRICING.solo.features}
-          emphasized={emphasize("solo")}
-          busy={busy}
-          onCheckout={() => void handleSubscription("solo")}
-        />
-        <SubscriptionCard
-          tier="studio"
-          label={studioChoiceLabel()}
-          blurb={PE_PRICING.studio.blurb}
-          features={PE_PRICING.studio.features}
-          emphasized={emphasize("studio")}
-          busy={busy}
-          onCheckout={() => void handleSubscription("studio")}
-        />
-        <SubscriptionCard
-          tier="team"
-          label={teamChoiceLabel()}
-          blurb={PE_PRICING.team.blurb}
-          features={PE_PRICING.team.features}
-          emphasized={emphasize("team")}
-          busy={busy}
-          onCheckout={() => void handleSubscription("team", teamSeats)}
-        >
+        {showSeatStepper ? (
           <label
             style={{
               display: "flex",
               alignItems: "center",
               gap: 8,
-              marginTop: 8,
+              padding: "0 26px 14px",
               fontSize: 11,
               color: MUTED,
             }}
@@ -297,13 +375,68 @@ export function PricingModal({
             />
             <span>{PE_PRICING.team.seatNote}</span>
           </label>
-        </SubscriptionCard>
+        ) : null}
+
+        <div
+          data-testid="pricing-unlock-card"
+          data-not-applicable={studioOnly ? "true" : "false"}
+          style={{
+            padding: "14px 26px",
+            borderTop: ROW_BORDER,
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "space-between",
+            gap: 20,
+            background: "rgba(11,14,19,0.35)",
+            opacity: studioOnly ? 0.62 : 1,
+          }}
+        >
+          <div style={{ display: "flex", flexDirection: "column", gap: 4, minWidth: 0 }}>
+            <div style={{ fontSize: 12.5, lineHeight: 1.45 }}>
+              {PE_PRICING.property.footerLead}{" "}
+              <span style={{ fontWeight: 700 }}>{propertyUnlockOffer()}</span>
+              {" — "}
+              {PE_PRICING.property.blurb}
+            </div>
+            <div style={{ fontSize: 11.5, color: MUTED }}>{PE_PRICING.soloNudge}</div>
+            {studioOnly ? (
+              <p
+                data-testid="pricing-unlock-na-note"
+                style={{ margin: 0, fontSize: 11, lineHeight: 1.45, color: AMBER }}
+              >
+                {PE_PRICING.property.studioOnlyNote}
+              </p>
+            ) : null}
+            {!parcelNodeId ? (
+              <p
+                data-testid="pricing-unlock-needs-property"
+                style={{ margin: 0, fontSize: 10.5, color: MUTED }}
+              >
+                {PE_PRICING.property.needsPropertyNote}
+              </p>
+            ) : null}
+          </div>
+          <Button
+            type="button"
+            dense
+            variant="subtle"
+            data-testid="pricing-unlock-button"
+            disabled={busy !== null || !parcelNodeId}
+            onClick={() => void handleProperty()}
+            style={{ flexShrink: 0, whiteSpace: "nowrap" }}
+          >
+            {busy === "property"
+              ? PE_PRICING.property.busyLabel
+              : PE_PRICING.property.title}
+          </Button>
+        </div>
 
         {note ? (
           <p
             data-testid="pricing-note"
             style={{
-              margin: "10px 0 0",
+              margin: 0,
+              padding: "10px 26px 0",
               fontSize: 11.5,
               lineHeight: 1.45,
               color: note.tone === "amber" ? AMBER : MUTED,
@@ -316,102 +449,193 @@ export function PricingModal({
         {statusNote ? (
           <p
             data-testid="pricing-status-note"
-            style={{ margin: "10px 0 0", fontSize: 10.5, color: MUTED, lineHeight: 1.45 }}
+            style={{
+              margin: 0,
+              padding: "10px 26px 0",
+              fontSize: 10.5,
+              color: MUTED,
+              lineHeight: 1.45,
+            }}
           >
             {statusNote}
           </p>
         ) : null}
 
-        <p style={{ margin: "12px 0 0", fontSize: 10.5, lineHeight: 1.45, color: MUTED }}>
-          The inspect card and map layers stay free.
+        <p
+          style={{
+            margin: 0,
+            padding: "11px 26px",
+            borderTop: ROW_BORDER,
+            fontSize: 11.5,
+            lineHeight: 1.45,
+            color: MUTED,
+          }}
+        >
+          {PE_PRICING.header.stayFree}
         </p>
       </div>
     </div>
   );
 }
 
-function SubscriptionCard({
+function ColumnHead({
   tier,
-  label,
-  blurb,
-  features,
+  interval,
   emphasized,
-  busy,
-  onCheckout,
-  children,
 }: {
   tier: PeCheckoutTier;
-  label: string;
-  blurb: string;
-  features: string;
+  interval: PricingInterval;
   emphasized: boolean;
-  busy: string | null;
-  onCheckout: () => void;
-  children?: React.ReactNode;
 }) {
+  const headline = tierHeadline(tier, interval);
   return (
     <div
       data-testid={`pricing-${tier}-card`}
       data-emphasized={emphasized ? "true" : "false"}
       style={{
-        borderRadius: 10,
-        border: emphasized ? EMPHASIS_BORDER : ROW_BORDER,
-        background: emphasized
-          ? "var(--brand-blue-bg-soft, rgba(59,130,246,0.08))"
-          : "transparent",
-        padding: "12px 14px",
-        marginBottom: 10,
+        padding: "14px 16px",
+        borderBottom: ROW_BORDER,
+        borderLeft: emphasized ? EMPHASIS_BORDER : COL_BORDER,
+        borderTop: emphasized ? "2px solid var(--brand-blue-border, rgba(59,130,246,0.55))" : undefined,
+        background: emphasized ? EMPHASIS_BG : "transparent",
+        display: "flex",
+        flexDirection: "column",
+        gap: 4,
       }}
     >
-      <div style={{ fontWeight: 700, fontSize: 13.5 }}>{label}</div>
-      <p style={{ margin: "3px 0 2px", fontSize: 12, lineHeight: 1.45, color: BODY }}>
-        {blurb}
-      </p>
-      <p style={{ margin: "0 0 8px", fontSize: 11, lineHeight: 1.45, color: MUTED }}>
-        {features}
-      </p>
-      <button
-        type="button"
-        data-testid={`pricing-${tier}-button`}
-        disabled={busy !== null}
-        onClick={onCheckout}
-        style={emphasized ? primaryBtnStyle(busy === tier) : secondaryBtnStyle(busy === tier)}
-      >
-        {busy === tier ? "Starting checkout…" : label}
-      </button>
-      {children}
+      <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+        <span style={{ fontSize: 14, fontWeight: 700 }}>{PE_PRICING[tier].title}</span>
+        {tier === "studio" ? (
+          <span
+            data-testid="pricing-studio-badge"
+            style={{
+              fontSize: 9.5,
+              letterSpacing: "0.12em",
+              textTransform: "uppercase",
+              color: ACCENT,
+            }}
+          >
+            {PE_PRICING.studio.badge}
+          </span>
+        ) : null}
+      </div>
+      <div style={{ fontFamily: DISPLAY, fontWeight: 700, fontSize: 20 }}>
+        {headline.amount}
+        <span style={{ fontSize: 12, fontWeight: 400, color: MUTED }}>
+          {headline.suffix}
+        </span>
+      </div>
+      <div style={{ fontSize: 11, color: MUTED }}>{headline.compare}</div>
     </div>
   );
 }
 
-function primaryBtnStyle(busy: boolean) {
-  return {
-    width: "100%",
-    padding: "9px 14px",
-    fontSize: 13,
-    fontWeight: 600,
-    color: "#f8fafc",
-    background: "var(--brand-blue, #3B82F6)",
-    border: "none",
-    borderRadius: 8,
-    cursor: busy ? "default" : "pointer",
-    opacity: busy ? 0.7 : 1,
-    fontFamily: "inherit",
-  } as const;
+function GroupBlock({
+  testId,
+  title,
+  rows,
+  interval,
+  emphasize,
+}: {
+  testId: string;
+  title: string;
+  rows: ReadonlyArray<{
+    label: string;
+    solo: MatrixCellKind;
+    studio: MatrixCellKind;
+    team: MatrixCellKind;
+  }>;
+  interval: PricingInterval;
+  emphasize: (tier: PeCheckoutTier) => boolean;
+}) {
+  return (
+    <>
+      <div
+        data-testid={testId}
+        style={{
+          padding: "11px 26px 7px",
+          gridColumn: "1 / -1",
+          fontSize: 9.5,
+          fontWeight: 700,
+          letterSpacing: "0.16em",
+          textTransform: "uppercase",
+          color: ACCENT,
+          background: "rgba(11,14,19,0.35)",
+        }}
+      >
+        {title}
+      </div>
+      {rows.map((row) => (
+        <FeatureRow
+          key={row.label}
+          label={row.label}
+          cells={{ solo: row.solo, studio: row.studio, team: row.team }}
+          interval={interval}
+          emphasize={emphasize}
+        />
+      ))}
+    </>
+  );
 }
 
-function secondaryBtnStyle(busy: boolean) {
-  return {
-    width: "100%",
-    padding: "9px 14px",
-    fontSize: 13,
-    fontWeight: 600,
-    color: "var(--text-body, #e5e7eb)",
-    background: "var(--brand-blue-bg-soft, rgba(59,130,246,0.08))",
-    border: "1px solid var(--brand-blue-border, rgba(59,130,246,0.4))",
-    borderRadius: 8,
-    cursor: busy ? "default" : "pointer",
-    opacity: busy ? 0.7 : 1,
-    fontFamily: "inherit",
-  } as const;
+function FeatureRow({
+  label,
+  cells,
+  interval,
+  emphasize,
+}: {
+  label: string;
+  cells: Record<PeCheckoutTier, MatrixCellKind>;
+  interval: PricingInterval;
+  emphasize: (tier: PeCheckoutTier) => boolean;
+}) {
+  return (
+    <>
+      <div
+        style={{
+          padding: "10px 26px",
+          borderBottom: ROW_BORDER_SOFT,
+          fontSize: 12.5,
+          color: BODY,
+        }}
+      >
+        {label}
+      </div>
+      {TIERS.map((tier) => {
+        const kind = cells[tier];
+        const text = matrixCellText(kind, interval);
+        const muted = kind === "notIncluded" || kind === "oneSeat" || kind === "comingSoon";
+        return (
+          <div
+            key={`${label}-${tier}`}
+            style={{
+              padding: "10px 16px",
+              borderBottom: ROW_BORDER_SOFT,
+              borderLeft: emphasize(tier) ? EMPHASIS_BORDER : COL_BORDER,
+              background: emphasize(tier) ? EMPHASIS_BG : "transparent",
+              fontSize: 12.5,
+              color: muted ? ABSENCE : TEXT,
+            }}
+          >
+            {kind === "comingSoon" ? (
+              <span
+                style={{
+                  fontSize: 10,
+                  color: ABSENCE,
+                  background: "var(--semantic-absence-bg, rgba(124,139,160,0.12))",
+                  border: "1px solid var(--semantic-absence-border, rgba(124,139,160,0.35))",
+                  borderRadius: 4,
+                  padding: "2px 6px",
+                }}
+              >
+                {text}
+              </span>
+            ) : (
+              text
+            )}
+          </div>
+        );
+      })}
+    </>
+  );
 }
