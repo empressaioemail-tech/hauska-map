@@ -67,12 +67,11 @@ export async function executeSearchLanding(
 
     case "address": {
       const query = suggestion.lookupQuery ?? suggestion.label;
-      // Existing address→parcel path FIRST — a hit opens the inspect card on
-      // OUR parcel data and the lookup flow flies the camera itself.
+      // Address string only. Lookup re-derives identity from the situs
+      // index. Photon / viewport lat/lng must not ride along — Cortex
+      // honors explicit coords over the address.
       const opened = await deps.runParcelLookup(query, {
         quiet: true,
-        lat: suggestion.lat ?? undefined,
-        lng: suggestion.lng ?? undefined,
       });
       if (opened) return { kind: "address", opened: true, coverageMiss: false };
       // Honest miss: land the map at the geocoded point, say so, fabricate

@@ -19,6 +19,8 @@ import {
 } from "./buildable-envelope.js";
 import { CORTEX_PROXY_BASE } from "./config";
 import { isValidParcelNodeId, normalizeParcelNodeId } from "./parcel-node-id";
+import { PE_SITUS_SEARCH_URL } from "./situs-search-client";
+import { situsHitsFromResponse, uniqueSitusPin } from "./situs-pin";
 
 export type LookupKind = "parcel-node-id" | "address";
 
@@ -76,15 +78,18 @@ export function clearDeepLinkParams(): void {
 /**
  * Resolve a query to a PARCEL NODE ID and nothing else.
  *
- * A parcel id is already the answer. An address is put to the backend's
- * situs-matching resolve, which pins it to exactly one parcel — that is the one
- * thing this path is authoritative for, and the only thing it is asked for now.
+ * Identity writer is the situs index. A unique hit with a node id is the
+ * answer. A unique address-point (node id null, rooftop present) asks
+ * envelope with THAT rooftop — never a Photon or viewport coordinate.
+ * Many hits or no pin: envelope ADDRESS ONLY. Caller lat/lng is ignored.
  */
 export async function resolveLookupToParcelNodeId(
   raw: string,
   opts?: {
     cortexBase?: string;
+    situsSearchUrl?: string;
     fetchImpl?: typeof fetch;
+    /** Ignored for identity. Photon / viewport bias must not override address. */
     lat?: number;
     lng?: number;
   },
@@ -97,15 +102,38 @@ export async function resolveLookupToParcelNodeId(
     return { ok: true, parcelNodeId: classified.value, source: "parcel-node-id" };
   }
 
-  const lat =
-    opts?.lat != null && Number.isFinite(opts.lat) ? opts.lat : undefined;
-  const lng =
-    opts?.lng != null && Number.isFinite(opts.lng) ? opts.lng : undefined;
+  const fetchImpl = opts?.fetchImpl ?? fetch;
+  const pin = await fetchUniqueSitusPin(classified.value, {
+    situsSearchUrl: opts?.situsSearchUrl ?? PE_SITUS_SEARCH_URL,
+    fetchImpl,
+  });
+
+  if (pin?.parcelNodeId && isValidParcelNodeId(pin.parcelNodeId)) {
+    const resolvedPoint =
+      pin.lat != null && pin.lng != null
+        ? { lat: pin.lat, lng: pin.lng }
+        : undefined;
+    return {
+      ok: true,
+      parcelNodeId: pin.parcelNodeId,
+      source: "address",
+      resolvedPoint,
+    };
+  }
+
+  const envInput =
+    pin && pin.lat != null && pin.lng != null
+      ? {
+          address: pin.situsAddress,
+          lat: pin.lat,
+          lng: pin.lng,
+        }
+      : { address: classified.value };
 
   const env = await fetchBuildableEnvelope(
-    { address: classified.value, lat, lng },
+    envInput,
     opts?.cortexBase ?? CORTEX_PROXY_BASE,
-    opts?.fetchImpl ?? fetch,
+    fetchImpl,
   );
   const parcelNodeId =
     typeof env.parcelNodeId === "string" && env.parcelNodeId.trim()
@@ -124,8 +152,27 @@ export async function resolveLookupToParcelNodeId(
   );
   const resolvedPoint =
     fromPlaceKey ??
-    (lat != null && lng != null ? { lat, lng } : undefined);
+    (envInput.lat != null && envInput.lng != null
+      ? { lat: envInput.lat, lng: envInput.lng }
+      : undefined);
   return { ok: true, parcelNodeId, source: "address", resolvedPoint };
+}
+
+async function fetchUniqueSitusPin(
+  query: string,
+  opts: { situsSearchUrl: string; fetchImpl: typeof fetch },
+) {
+  try {
+    const qs = new URLSearchParams({ q: query, limit: "7" });
+    const res = await opts.fetchImpl(`${opts.situsSearchUrl}?${qs.toString()}`, {
+      method: "GET",
+    });
+    if (!res.ok) return null;
+    const json: unknown = await res.json();
+    return uniqueSitusPin(situsHitsFromResponse(json));
+  } catch {
+    return null;
+  }
 }
 
 /** Read deep-link query from a URLSearchParams (parcelNodeId | parcel | address). */

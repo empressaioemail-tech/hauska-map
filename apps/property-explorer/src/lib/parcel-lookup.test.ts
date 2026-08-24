@@ -43,29 +43,50 @@ describe("deepLinkLookupQuery", () => {
   });
 });
 
-// UPDATED BEHAVIOUR (P-39). The removed suites here — "resolves parcel-node-id
-// via facets BFF" and the four "parcel-node-id navigation seam" cases —
-// exercised a module that built a whole inspect card and geocoded the situs
-// ADDRESS to find a camera centre. Both jobs moved: facts to the one
-// FactSheetResolver, centring to ParcelGeometry.centroid (invariant I5). What
-// is left here is the one thing this path is authoritative for.
-
 const CORTEX = "/api/spine/cortex/api";
+const SITUS = "/api/pe-situs-search";
 
-function envelopeStub(body: unknown) {
-  return vi.fn(async () =>
-    new Response(JSON.stringify(body), {
-      status: 200,
-      headers: { "Content-Type": "application/json" },
-    }),
-  ) as unknown as typeof fetch;
+function jsonResponse(body: unknown, status = 200) {
+  return new Response(JSON.stringify(body), {
+    status,
+    headers: { "Content-Type": "application/json" },
+  });
+}
+
+function envelopeOk(nodeId: string, placeKey?: string) {
+  return {
+    status: "ok",
+    parcel_node_id: nodeId,
+    placeKey: placeKey ?? `coord:30.459:-97.635`,
+    payload: { parcel: { parcel_node_id: nodeId } },
+  };
+}
+
+function routeFetch(opts: {
+  situsHits?: unknown[];
+  situsStatus?: number;
+  onEnvelope?: (body: unknown) => Response;
+}) {
+  return vi.fn(async (url: string | URL | Request, init?: RequestInit) => {
+    const href = typeof url === "string" ? url : url instanceof URL ? url.href : url.url;
+    if (href.includes("pe-situs-search") || href.includes("situs-search")) {
+      if (opts.situsStatus && opts.situsStatus !== 200) {
+        return jsonResponse({ error: "down" }, opts.situsStatus);
+      }
+      return jsonResponse({ hits: opts.situsHits ?? [] });
+    }
+    const body = init?.body ? JSON.parse(String(init.body)) : null;
+    if (opts.onEnvelope) return opts.onEnvelope(body);
+    return jsonResponse(envelopeOk("48453:0"));
+  }) as unknown as typeof fetch;
 }
 
 describe("resolveLookupToParcelNodeId", () => {
   it("returns a parcel id unchanged, with no network call at all", async () => {
-    const fetchImpl = envelopeStub({});
+    const fetchImpl = routeFetch({ situsHits: [] });
     const result = await resolveLookupToParcelNodeId(" 48209:156346 ", {
       cortexBase: CORTEX,
+      situsSearchUrl: SITUS,
       fetchImpl,
     });
     expect(result).toEqual({
@@ -76,63 +97,140 @@ describe("resolveLookupToParcelNodeId", () => {
     expect(fetchImpl).not.toHaveBeenCalled();
   });
 
-  it("pins an address to exactly one parcel via the backend resolve", async () => {
-    const fetchImpl = envelopeStub({
-      status: "declined",
-      parcel_node_id: "48453:812345",
-      placeKey: "coord:30.45901:-97.63542",
-      payload: {
-        parcel: { parcel_node_id: "48453:812345" },
-        geojson: { type: "FeatureCollection", features: [] },
+  it("Photon long-form Simsbrook: unique address-point rooftop, not the Photon label (WDLL 1)", async () => {
+    const fetchImpl = routeFetch({
+      situsHits: [
+        {
+          parcelNodeId: null,
+          situsAddress: "17005 SIMSBROOK DR, Pflugerville, TX, 78660",
+          latitude: 30.459005,
+          longitude: -97.635421,
+          source: "address-point",
+        },
+      ],
+      onEnvelope: (body) => {
+        expect(body).toEqual({
+          address: "17005 SIMSBROOK DR, Pflugerville, TX, 78660",
+          lat: 30.459005,
+          lng: -97.635421,
+        });
+        return jsonResponse(envelopeOk("48453:280239", "coord:30.459005:-97.635421"));
       },
     });
     const result = await resolveLookupToParcelNodeId(
-      "17005 Simsbrook Drive, Pflugerville, TX, 78660",
-      { cortexBase: CORTEX, fetchImpl },
+      "17005 Simsbrook Drive, Pflugerville, Texas, 78660",
+      {
+        cortexBase: CORTEX,
+        situsSearchUrl: SITUS,
+        fetchImpl,
+        lat: 30.11,
+        lng: -97.31,
+      },
     );
     expect(result).toEqual({
       ok: true,
-      parcelNodeId: "48453:812345",
+      parcelNodeId: "48453:280239",
       source: "address",
-      resolvedPoint: { lat: 30.45901, lng: -97.63542 },
+      resolvedPoint: { lat: 30.459005, lng: -97.635421 },
     });
   });
 
-  it("forwards viewport bias coords with the address envelope body", async () => {
-    const fetchImpl = vi.fn(async (_url, init) =>
-      new Response(
-        JSON.stringify({
+  it("does not forward Photon or viewport coords onto envelope (WDLL 2)", async () => {
+    const fetchImpl = routeFetch({
+      situsHits: [],
+      onEnvelope: (body) => {
+        expect(body).toEqual({ address: "17005 Simsbrook Dr, Pflugerville, TX" });
+        expect(body).not.toHaveProperty("lat");
+        expect(body).not.toHaveProperty("lng");
+        return jsonResponse({
           status: "declined",
-          parcel_node_id: "48453:1",
-          placeKey: "coord:30.46:-97.64",
-          payload: { parcel: { parcel_node_id: "48453:1" } },
-        }),
-        { status: 200, headers: { "Content-Type": "application/json" } },
-      ),
-    ) as unknown as typeof fetch;
-    await resolveLookupToParcelNodeId("17005 Simsbrook Dr, Pflugerville, TX", {
+          reason: "Could not geocode the provided address",
+        });
+      },
+    });
+    const result = await resolveLookupToParcelNodeId(
+      "17005 Simsbrook Dr, Pflugerville, TX",
+      {
+        cortexBase: CORTEX,
+        situsSearchUrl: SITUS,
+        fetchImpl,
+        lat: 30.26,
+        lng: -97.74,
+      },
+    );
+    expect(result.ok).toBe(false);
+  });
+
+  it("unique node-bearing situs hit is the identity; envelope is not called", async () => {
+    const fetchImpl = routeFetch({
+      situsHits: [
+        {
+          parcelNodeId: "48021:34137",
+          situsAddress: "908 PINE , BASTROP, TX 78602",
+          countyFips: "48021",
+        },
+      ],
+      onEnvelope: () => {
+        throw new Error("envelope must not run when situs already has the node");
+      },
+    });
+    const result = await resolveLookupToParcelNodeId("908 Pine, Bastrop TX", {
       cortexBase: CORTEX,
+      situsSearchUrl: SITUS,
       fetchImpl,
-      lat: 30.459,
-      lng: -97.635,
     });
-    const body = JSON.parse(String((fetchImpl.mock.calls[0] as [string, RequestInit])[1]?.body));
-    expect(body).toEqual({
-      address: "17005 Simsbrook Dr, Pflugerville, TX",
-      lat: 30.459,
-      lng: -97.635,
+    expect(result).toEqual({
+      ok: true,
+      parcelNodeId: "48021:34137",
+      source: "address",
     });
+  });
+
+  it("many-hit 908 Pine does not take Harker Heights hits[0]; address-only envelope (WDLL 3+4)", async () => {
+    const fetchImpl = routeFetch({
+      situsHits: [
+        {
+          parcelNodeId: "48027:70876",
+          situsAddress: "908 PINEWOOD DR, HARKER HEIGHTS, TX 76548",
+        },
+        {
+          parcelNodeId: "48491:R042064",
+          situsAddress: "908 PINE ST, GEORGETOWN, TX 78626",
+        },
+        {
+          parcelNodeId: null,
+          situsAddress: "908 PINE ST, Georgetown, TX, 78626",
+          latitude: 30.63,
+          longitude: -97.67,
+        },
+      ],
+      onEnvelope: (body) => {
+        expect(body).toEqual({ address: "908 Pine, Bastrop TX" });
+        return jsonResponse(envelopeOk("48021:34137", "coord:30.1103:-97.315"));
+      },
+    });
+    const result = await resolveLookupToParcelNodeId("908 Pine, Bastrop TX", {
+      cortexBase: CORTEX,
+      situsSearchUrl: SITUS,
+      fetchImpl,
+    });
+    expect(result.ok).toBe(true);
+    if (result.ok) expect(result.parcelNodeId).toBe("48021:34137");
   });
 
   it("resolves the parcel even when the envelope itself is declined", async () => {
-    // A no-setbacks jurisdiction is a corpus gap, not a missing parcel.
-    const fetchImpl = envelopeStub({
-      status: "no-setbacks",
-      reason: "no setback table",
-      parcel_node_id: "48021:36521",
+    const fetchImpl = routeFetch({
+      situsHits: [],
+      onEnvelope: () =>
+        jsonResponse({
+          status: "no-setbacks",
+          reason: "no setback table",
+          parcel_node_id: "48021:36521",
+        }),
     });
     const result = await resolveLookupToParcelNodeId("1503 Farm St", {
       cortexBase: CORTEX,
+      situsSearchUrl: SITUS,
       fetchImpl,
     });
     expect(result).toEqual({
@@ -143,12 +241,17 @@ describe("resolveLookupToParcelNodeId", () => {
   });
 
   it("is an honest miss when the address pins to no parcel", async () => {
-    const fetchImpl = envelopeStub({
-      status: "not-found",
-      reason: "Address not matched to a parcel.",
+    const fetchImpl = routeFetch({
+      situsHits: [],
+      onEnvelope: () =>
+        jsonResponse({
+          status: "not-found",
+          reason: "Address not matched to a parcel.",
+        }),
     });
     const result = await resolveLookupToParcelNodeId("nowhere at all", {
       cortexBase: CORTEX,
+      situsSearchUrl: SITUS,
       fetchImpl,
     });
     expect(result).toEqual({
@@ -158,12 +261,30 @@ describe("resolveLookupToParcelNodeId", () => {
   });
 
   it("rejects an empty query before touching the network", async () => {
-    const fetchImpl = envelopeStub({});
+    const fetchImpl = routeFetch({ situsHits: [] });
     const result = await resolveLookupToParcelNodeId("   ", {
       cortexBase: CORTEX,
+      situsSearchUrl: SITUS,
       fetchImpl,
     });
     expect(result.ok).toBe(false);
     expect(fetchImpl).not.toHaveBeenCalled();
+  });
+
+  it("situs down falls through to address-only envelope", async () => {
+    const fetchImpl = routeFetch({
+      situsStatus: 502,
+      onEnvelope: (body) => {
+        expect(body).toEqual({ address: "908 Pine, Bastrop TX" });
+        return jsonResponse(envelopeOk("48021:34137", "coord:30.11:-97.31"));
+      },
+    });
+    const result = await resolveLookupToParcelNodeId("908 Pine, Bastrop TX", {
+      cortexBase: CORTEX,
+      situsSearchUrl: SITUS,
+      fetchImpl,
+    });
+    expect(result.ok).toBe(true);
+    if (result.ok) expect(result.parcelNodeId).toBe("48021:34137");
   });
 });
