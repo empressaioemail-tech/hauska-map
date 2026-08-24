@@ -42,23 +42,12 @@ function round6(n) {
  */
 export function envelopeRequestBody(sel) {
   const address = typeof sel?.address === "string" ? sel.address.trim() : "";
-  const parcelNodeId =
-    typeof sel?.parcelNodeId === "string" ? sel.parcelNodeId.trim() : "";
   const lat = round6(sel?.lat);
   const lng = round6(sel?.lng);
-  if (parcelNodeId) {
-    const body = { parcel_node_id: parcelNodeId };
-    if (address) body.address = address;
-    if (lat != null && lng != null) {
-      body.lat = lat;
-      body.lng = lng;
-    }
-    return body;
-  }
+  // parcel_node_id is NOT sent until cortex POST schema accepts it (LDT #467
+  // follow-up). Sending it today yields 400 invalid_body and blocks the wedge.
   if (address) {
     const body = { address };
-    // Pass Photon / txgio_address coords WITH the address so cortex honors the
-    // rooftop point for situs disambiguation instead of re-geocoding alone.
     if (lat != null && lng != null) {
       body.lat = lat;
       body.lng = lng;

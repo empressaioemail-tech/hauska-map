@@ -689,7 +689,7 @@ function ExplorerMapSurface({
 
   const buildableEnvelopeVisible = visibleLayers
     ? visibleLayers.has("buildable-envelope" as LayerKey)
-    : false;
+    : true;
 
   const gatedEnvelopeOverlays = useMemo(
     () =>
