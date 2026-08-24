@@ -12,10 +12,6 @@ import {
   syncProductionTerrainVisibility,
 } from "./map/gis-terrain.js";
 import {
-  INTERACTION_CYAN,
-  ROLE_BUDGET,
-} from "./map/layer-role-taxonomy.js";
-import {
   addParcelTiles,
   removeParcelTiles,
   setParcelFeatureState,
@@ -87,8 +83,12 @@ function ensurePmtilesProtocol() {
 /** Debounce (ms) for moveend/zoomend viewport emission. */
 const VIEWPORT_DEBOUNCE_MS = 350;
 
-/** Source + layer ids for the PMTiles-fill hover highlight (same pick as click). */
-const HOVER_SOURCE_ID = "hauska-ovl-hover-highlight";
+// Hover highlight is FEATURE-STATE on the parcel tiles (P-60 seam peel), never
+// drawn geometry: queryRenderedFeatures returns the PER-TILE CLIPPED FRAGMENT
+// of a parcel, and on a lot spanning a z16 tile seam that fragment is cut at a
+// constant longitude/latitude — a straight line traceable across every seam
+// lot. Feature-state keys on the promoted parcel_node_id and paints every
+// fragment of the id, so the highlight is always the whole lot.
 
 /**
  * Bounded attempt cap for the subject-resolve latch. Matches the consumer's
@@ -358,8 +358,9 @@ export function createMapRenderer(options = {}) {
     });
 
     // Hover highlight + pointer cursor. Same layer and promote id as click
-    // (PMTiles fill). Do not paint live-mesh hits[0] — those are a second
-    // composer for "this lot" and swap rings on entry-edge.
+    // (PMTiles fill). The highlight is feature-state ONLY: never setData
+    // picked.feature.geometry — that is one tile fragment, and on a seam lot
+    // it draws a box cut at the tile boundary (P-60 fragment peel).
     map.on("mousemove", (e) => {
       const layerIds = hoverQueryLayerIds().filter((id) => map.getLayer(id));
       if (!layerIds.length) {
@@ -375,16 +376,17 @@ export function createMapRenderer(options = {}) {
       }
       map.getCanvas().style.cursor = "pointer";
       if (picked.parcelNodeId === hoveredFeatureKey) return;
-      hoveredFeatureKey = picked.parcelNodeId;
-      ensureHoverLayers();
-      const src = map.getSource(HOVER_SOURCE_ID);
-      if (src && typeof src.setData === "function") {
-        src.setData({
-          type: "FeatureCollection",
-          features: [{ type: "Feature", properties: {}, geometry: picked.feature.geometry }],
-        });
+      const sl = parcelTilesCfg?.sourceLayer;
+      if (hoveredFeatureKey !== null) {
+        setParcelFeatureState(map, sl, hoveredFeatureKey, { hover: false });
       }
+      hoveredFeatureKey = picked.parcelNodeId;
+      setParcelFeatureState(map, sl, picked.parcelNodeId, { hover: true });
     });
+
+    // Leaving the canvas must clear hover — a mousemove miss never fires when
+    // the pointer exits straight onto UI chrome (the lingering-ring defect).
+    map.on("mouseout", () => clearHover());
 
     resizeObs = new ResizeObserver(() => map?.resize());
     resizeObs.observe(mapEl);
@@ -396,41 +398,15 @@ export function createMapRenderer(options = {}) {
     );
   }
 
-  function ensureHoverLayers() {
-    if (!map) return;
-    if (!map.getSource(HOVER_SOURCE_ID)) {
-      map.addSource(HOVER_SOURCE_ID, { type: "geojson", data: EMPTY_FC });
-    }
-    if (!map.getLayer(`${HOVER_SOURCE_ID}-fill`)) {
-      map.addLayer({
-        id: `${HOVER_SOURCE_ID}-fill`,
-        type: "fill",
-        source: HOVER_SOURCE_ID,
-        paint: {
-          "fill-color": INTERACTION_CYAN,
-          "fill-opacity": ROLE_BUDGET.INTERACTION.fillOpacity,
-        },
-      });
-    }
-    if (!map.getLayer(`${HOVER_SOURCE_ID}-line`)) {
-      map.addLayer({
-        id: `${HOVER_SOURCE_ID}-line`,
-        type: "line",
-        source: HOVER_SOURCE_ID,
-        paint: {
-          "line-color": INTERACTION_CYAN,
-          "line-width": ROLE_BUDGET.INTERACTION.lineWidth,
-        },
-      });
-    }
-  }
-
   function clearHover() {
+    if (map && hoveredFeatureKey !== null) {
+      setParcelFeatureState(map, parcelTilesCfg?.sourceLayer, hoveredFeatureKey, {
+        hover: false,
+      });
+    }
     hoveredFeatureKey = null;
     if (!map) return;
     map.getCanvas().style.cursor = "";
-    const src = map.getSource(HOVER_SOURCE_ID);
-    if (src && typeof src.setData === "function") src.setData(EMPTY_FC);
   }
 
   function emitViewport() {
