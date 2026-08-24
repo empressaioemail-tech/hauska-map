@@ -180,11 +180,19 @@ export async function fetchPropertyEntitlement(
     // Ladder tier — ONLY the three known strings parse; anything else
     // (absent field on a stale cache/older backend, unknown string) is null,
     // and null gates Studio surfaces CLOSED even when tier is "paid".
+    // Exception: a server-granted devRole is the Team grant (cortex
+    // contract: "dev-role reads team"). Live /entitlement elevates tier
+    // to paid and sets entitlementSource "dev" but does not emit
+    // subscriptionTier yet — infer team ONLY from explicit devRole so a
+    // legacy paid Stripe row with a missing field still fail-closes.
     const subRaw = body.subscriptionTier ?? legacy?.subscriptionTier;
-    const subscriptionTier: PeSubscriptionTier | null =
+    let subscriptionTier: PeSubscriptionTier | null =
       subRaw === "solo" || subRaw === "studio" || subRaw === "team"
         ? subRaw
         : null;
+    if (subscriptionTier === null && devRole) {
+      subscriptionTier = "team";
+    }
     const property = asRecord(body.property);
     if (!property) {
       // FEATURE-DETECT: older backend without the property block — CLIENT-SOFT.

@@ -136,10 +136,13 @@ export function ReportsTool() {
   // TERRAIN = STUDIO-ONLY: gated on the ladder tier (studio|team grant), NOT
   // on tier === "paid" — a Solo subscriber must NOT clear Studio gates, and a
   // response missing subscriptionTier (null) gates CLOSED even on a paid row.
-  // An unresolved entitlement (loading/error) renders the real section — the
+  // Dev role is the Team grant (operator tester account; no Stripe). An
+  // unresolved entitlement (loading/error) renders the real section — the
   // server-402 belt stays authoritative.
   const terrainProLocked =
-    ent.status === "ready" && !subscriptionTierGrantsStudio(ent.subscriptionTier);
+    ent.status === "ready" &&
+    !ent.devRole &&
+    !subscriptionTierGrantsStudio(ent.subscriptionTier);
 
   return (
     <div data-testid="reports-tool">

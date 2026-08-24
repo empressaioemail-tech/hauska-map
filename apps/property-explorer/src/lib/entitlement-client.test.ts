@@ -211,6 +211,37 @@ describe("fetchPropertyEntitlement — the pinned contract", () => {
     expect(unknown.subscriptionTier).toBeNull();
   });
 
+  it("devRole without subscriptionTier infers team — live cortex omits the field; Solo Stripe rows stay null", async () => {
+    const dev = await fetchPropertyEntitlement(
+      "48021:123",
+      fakeFetch(200, {
+        authenticated: true,
+        tier: "paid",
+        devRole: true,
+        entitlementSource: "dev",
+        property: {
+          parcelNodeId: "48021:123",
+          unlocked: false,
+          freeMessagesUsed: 0,
+          freeMessagesLimit: 3,
+        },
+      }),
+    );
+    expect(dev.devRole).toBe(true);
+    expect(dev.subscriptionTier).toBe("team");
+    expect(subscriptionTierGrantsStudio(dev.subscriptionTier)).toBe(true);
+    expect(isEntitled(dev)).toBe(true);
+    const stripePaidNoLadder = await fetchPropertyEntitlement(
+      "48021:123",
+      fakeFetch(200, { authenticated: true, tier: "paid" }),
+    );
+    expect(stripePaidNoLadder.devRole).toBe(false);
+    expect(stripePaidNoLadder.subscriptionTier).toBeNull();
+    expect(subscriptionTierGrantsStudio(stripePaidNoLadder.subscriptionTier)).toBe(
+      false,
+    );
+  });
+
   it("subscriptionTierGrantsStudio: studio|team GRANT; solo and null DENY (operator ruling: owner data is Studio, not Solo)", () => {
     expect(subscriptionTierGrantsStudio("studio")).toBe(true);
     expect(subscriptionTierGrantsStudio("team")).toBe(true);
