@@ -176,6 +176,7 @@ export function createMapRenderer(options = {}) {
   // Currently-lit subject/inspected node ids, so a new set clears the prior one.
   let subjectNodeId = null;
   let inspectedNodeId = null;
+  let countyRingNodeId = null;
   // True once the map `load` event fired. Style MUTATIONS (addSource/addLayer)
   // are safe from that point on. Do NOT gate overlay writes on isStyleLoaded():
   // MapLibre reports isStyleLoaded()===false whenever any source/tile is still
@@ -967,7 +968,7 @@ export function createMapRenderer(options = {}) {
      * prior subject/inspected node so exactly one of each is lit at a time.
      * Keys on the promoted parcel_node_id via setFeatureState.
      * @param {string|number} parcelNodeId
-     * @param {{ subject?: boolean, inspected?: boolean }} state
+     * @param {{ subject?: boolean, inspected?: boolean, countyRing?: boolean }} state
      */
     setParcelState(parcelNodeId, state) {
       const sl = parcelTilesCfg?.sourceLayer;
@@ -994,6 +995,18 @@ export function createMapRenderer(options = {}) {
         } else {
           clearParcelFeatureState(map, sl, parcelNodeId, ["inspected"]);
           if (inspectedNodeId === parcelNodeId) inspectedNodeId = null;
+        }
+      }
+      if (typeof state?.countyRing === "boolean") {
+        if (state.countyRing) {
+          if (countyRingNodeId != null && countyRingNodeId !== parcelNodeId) {
+            clearParcelFeatureState(map, sl, countyRingNodeId, ["countyRing"]);
+          }
+          countyRingNodeId = parcelNodeId;
+          setParcelFeatureState(map, sl, parcelNodeId, { countyRing: true });
+        } else {
+          clearParcelFeatureState(map, sl, parcelNodeId, ["countyRing"]);
+          if (countyRingNodeId === parcelNodeId) countyRingNodeId = null;
         }
       }
     },
@@ -1150,7 +1163,7 @@ export const RENDERER_CONTRACT = {
     "getLayerVisibility(layerKey): boolean",
     "setOverlays(OverlaySpec[])",
     "setParcelTiles(ParcelTilesConfig | null)",
-    "setParcelState(parcelNodeId, { subject?, inspected? })",
+    "setParcelState(parcelNodeId, { subject?, inspected?, countyRing? })",
     "resolveSubjectAndFit({ parcelNodeId, center?, fit?, maxAttempts? })",
     "queryParcelAt(point)",
     "setSubjectMarkers(Array<{ id?, longitude, latitude, role?, label? }>)",

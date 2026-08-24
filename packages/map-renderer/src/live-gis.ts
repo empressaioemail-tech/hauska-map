@@ -960,7 +960,7 @@ export function parcelFillColor(fc: FeatureCollectionLike | undefined): unknown 
 export function toLiveOverlays(
   parcels: LiveLayerState,
   fema: LiveLayerState,
-  visibility?: { parcels?: boolean; fema?: boolean },
+  visibility?: { parcels?: boolean; fema?: boolean; peelParcelMesh?: boolean },
 ): OverlaySpec[] {
   const specs: OverlaySpec[] = []
   if (fema.status === 'ok' && fema.response.geojson) {
@@ -986,7 +986,14 @@ export function toLiveOverlays(
       },
     })
   }
-  if (parcels.status === 'ok' && parcels.response.geojson) {
+  // PE peel (P-60): omit the live parcel LINE. PMTiles already draws every
+  // lot. Fetch-ok is not a reason to paint a second ring. CC omits this flag
+  // and keeps the mesh (no browse tiles on that tile).
+  if (
+    !visibility?.peelParcelMesh &&
+    parcels.status === 'ok' &&
+    parcels.response.geojson
+  ) {
     specs.push({
       layerKey: LIVE_PARCELS_KEY,
       provider: parcels.response.provider,
