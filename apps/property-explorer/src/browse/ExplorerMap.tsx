@@ -82,7 +82,10 @@ import { factSheetResolver } from "../lib/fact-sheet-resolver";
 import { setSubjectByParcelNodeId } from "../lib/subject-store";
 import { cardFromSheet } from "../lib/sheet-to-card";
 import { UnplaceableParcelCard } from "./UnplaceableParcelCard";
-import type { UnplaceableParcel } from "@empressaio/parcel-fact-sheet";
+import type {
+  ParcelFactSheet,
+  UnplaceableParcel,
+} from "@empressaio/parcel-fact-sheet";
 import { executeSearchLanding } from "../lib/search-landing";
 import type { GeoExtent, Suggestion } from "../lib/search-kinds";
 import {
@@ -90,6 +93,10 @@ import {
   envelopeInsetOverlay,
   setbackConsumedOverlay,
 } from "./envelope-overlay";
+import {
+  consumedLotOutlineGeometry,
+  countyExactInspectOverlays,
+} from "./inspect-highlight";
 import {
   roadOverlaysFromAttachingRoads,
   PEDESTRIAN_WAYS_TOGGLE_KEY,
@@ -333,6 +340,15 @@ function ExplorerMapSurface({
   // Holds 0..2 specs: the amber inset fill+dashed-edge (status "ok"), or a
   // dashed full-parcel outline for the honest 0%/"entirely setback" case.
   const [envelopeOverlays, setEnvelopeOverlays] = useState<OverlaySpec[]>([]);
+  // COUNTY-EXACT inspect highlight (P-60d): once the fact sheet seals for the
+  // inspected parcel, the highlight is redrawn from sheet.geometry.rings as a
+  // dedicated overlay and the tile feature-state fill is demoted (the PMTiles
+  // bake is tippecanoe-simplified and feature-state paint can be tile-partial,
+  // so the tile highlight visibly disagrees with the exact county lines).
+  // Cleared on every new inspection and on card close — never a stale ring.
+  const [inspectRingOverlays, setInspectRingOverlays] = useState<OverlaySpec[]>(
+    [],
+  );
   // Track B1-map: viewport road-node network (streets + optional pedestrian).
   // Raw wires kept so pedestrian visibility can flip without re-fetch.
   const [roadWires, setRoadWires] = useState<AttachingRoadWire[]>([]);
@@ -344,7 +360,13 @@ function ExplorerMapSurface({
   // The clicked parcel's raw geometry (from the live-GIS overlay feature), kept
   // so the 0% case can outline the whole lot and the client-side inset fallback
   // can inset the parcel ring when the server returned setbacks but no polygon.
-  const clickedParcelGeomRef = useRef<unknown | null>(null);
+  // TAGGED with the parcel node id it was stashed for, so a late envelope
+  // resolve for a different parcel can never consume it (identity guard in
+  // handleEnvelope).
+  const clickedParcelGeomRef = useRef<{
+    parcelNodeId: string | null;
+    geometry: unknown;
+  } | null>(null);
 
   // The currently-inspected target (card + its baked node id). Tracked in a ref
   // so the click handler can clear the PRIOR inspected feature-state without a
@@ -714,7 +736,11 @@ function ExplorerMapSurface({
       // drawn; handleEnvelope re-draws it when this parcel's envelope resolves.
       // Road NETWORK stays (viewport-owned); do not clear on inspect.
       setEnvelopeOverlays([]);
-      clickedParcelGeomRef.current = parcelGeometry;
+      // A new inspection drops the previous parcel's county-exact ring overlay
+      // IMMEDIATELY — no stale highlight while the new sheet resolves.
+      setInspectRingOverlays([]);
+      clickedParcelGeomRef.current =
+        parcelGeometry != null ? { parcelNodeId, geometry: parcelGeometry } : null;
       // Clear the prior inspected feature-state (if any and still lit).
       const prior = inspectedRef.current;
       if (handle && prior?.parcelNodeId && prior.parcelNodeId !== parcelNodeId) {
@@ -758,6 +784,26 @@ function ExplorerMapSurface({
     [isMobile, openSheet],
   );
 
+  // Swap the inspected highlight to the sealed sheet's COUNTY-EXACT ring
+  // (P-60d). No-op when the inspection has already moved to another parcel (a
+  // late seal must not paint a stale ring) or when the sheet carries no usable
+  // ring (feature-state stays — an approximate highlight beats none). When the
+  // ring overlay draws, the tile feature-state fill is demoted: the overlay
+  // REPLACES it after seal; feature-state remains the instant pre-seal
+  // feedback. `inspected: false` is explicit because the renderer's
+  // setParcelState ignores `{}`.
+  const showCountyExactRing = useCallback((sheet: ParcelFactSheet) => {
+    const parcelNodeId = sheet.identity.parcelNodeId;
+    if (inspectedRef.current?.parcelNodeId !== parcelNodeId) return;
+    const overlays = countyExactInspectOverlays(sheet.geometry.rings);
+    if (!overlays.length) return;
+    setInspectRingOverlays(overlays);
+    mapRef.current?.setParcelState(parcelNodeId, {
+      inspected: false,
+      subject: subjectNodeIdRef.current === parcelNodeId,
+    });
+  }, []);
+
   // EVERY entry point makes the parcel THE subject (invariant I1). A map click
   // paints its card instantly from the tile feature it already has, and the
   // sealed sheet lands a moment later and replaces it — so the card the user
@@ -792,13 +838,16 @@ function ExplorerMapSurface({
           const next = cardFromSheet(outcome.subject.sheet);
           inspectedRef.current = { card: next, parcelNodeId };
           setCard(next);
+          // Sheet sealed for the STILL-inspected parcel: swap the highlight
+          // to its county-exact ring (replaces the tile feature-state fill).
+          showCountyExactRing(outcome.subject.sheet);
         })
         .catch(() => {
           // Honest degrade: the card stays on what the click carried. The
           // export seam refuses rather than exporting against a stale subject.
         });
     },
-    [],
+    [showCountyExactRing],
   );
 
   // Reachability: search bar + deep-link (?parcelNodeId= | ?parcel= | ?address=)
@@ -926,6 +975,11 @@ function ExplorerMapSurface({
             fit: true,
           });
         }
+        // The sheet is already sealed on this path — swap the highlight to the
+        // county-exact ring now. Runs AFTER rebindProperty so the demote wins
+        // over the `inspected: true` rebind lit above (resolveSubjectAndFit
+        // only ever re-asserts `subject`, never `inspected`).
+        showCountyExactRing(sheet);
         if (!opts?.fromDeepLink) clearDeepLinkParams();
         return true;
       } catch (err) {
@@ -939,7 +993,7 @@ function ExplorerMapSurface({
         setLookupBusy(false);
       }
     },
-    [inspectInPlace, isMobile, openSheet],
+    [inspectInPlace, isMobile, openSheet, showCountyExactRing],
   );
 
   // ---- Type-ahead search: kind-aware landing (parcel / address / street /
@@ -1158,12 +1212,10 @@ function ExplorerMapSurface({
         lng: typeof props.lng === "number" ? (props.lng as number) : null,
       };
       // PMTiles feature geometry is clipped-per-tile (not a clean full ring), so
-      // it's unreliable for the 0% outline / inset fallback — pass null and let
-      // the baked "ok" envelope's own inset polygon (which IS complete) carry the
-      // draw. The 0% case on this path shows the honest card wording only.
-      const geom =
-        (feature as { geometry?: unknown } | undefined)?.geometry ?? null;
-      inspectInPlace(bareCard, parcelNodeId, geom);
+      // it's unreliable for the 0% outline / inset fallback — pass NO geometry
+      // and let the sheet-sourced parcelRing (county-exact) or the baked "ok"
+      // envelope's own inset polygon (which IS complete) carry the draw.
+      inspectInPlace(bareCard, parcelNodeId);
       // PMTiles rings are clipped per tile, so they are NOT offered to the
       // resolver as a boundary seed — a clipped ring would measure a lot short.
       adoptSubject(parcelNodeId, null, "map-click");
@@ -1227,7 +1279,7 @@ function ExplorerMapSurface({
   // product deliverable — "what you can build, drawn"), and (2) patch
   // setbacks/envelope onto the inspected node (the subject/inspected source of
   // truth the ask/report path reads via getSubjectAreaContext when auth lands).
-  const handleEnvelope = useCallback((result: any) => {
+  const handleEnvelope = useCallback((result: any, forParcelNodeId?: string | null) => {
     // --- (1) DRAW the buildable-envelope wedge through the overlays path. ---
     const norm = normalizeEnvelope(result);
     if (norm.kind === "ok" && norm.insetGeometry) {
@@ -1238,9 +1290,19 @@ function ExplorerMapSurface({
       // Honest 0%: setbacks consume the lot. No amber fill (that would fabricate
       // buildable area). Outline the whole parcel in the dashed setback style
       // when we have the ring; else draw nothing and let the card wording carry
-      // the honesty.
-      const parcelGeom =
-        clickedParcelGeomRef.current ?? result?.parcelRing ?? null;
+      // the honesty. The sheet-sourced parcelRing (county-exact, and by
+      // construction the envelope's OWN parcel) wins over the click-time ref,
+      // and click-ref geometry is used only when it provably belongs to the
+      // same parcel node id as this envelope result — a late resolve for
+      // parcel A never draws geometry stashed from a click on parcel B.
+      const clickGeom = clickedParcelGeomRef.current;
+      const parcelGeom = consumedLotOutlineGeometry({
+        sheetParcelRing: result?.parcelRing ?? null,
+        clickGeometry: clickGeom?.geometry ?? null,
+        clickParcelNodeId: clickGeom?.parcelNodeId ?? null,
+        envelopeParcelNodeId:
+          forParcelNodeId ?? inspectedRef.current?.parcelNodeId ?? null,
+      });
       const outline = setbackConsumedOverlay(parcelGeom);
       setEnvelopeOverlays(outline ? [outline] : []);
     } else {
@@ -1277,6 +1339,7 @@ function ExplorerMapSurface({
     inspectedRef.current = null;
     clickedParcelGeomRef.current = null;
     setEnvelopeOverlays([]); // clear the wedge visual when the card closes.
+    setInspectRingOverlays([]); // and the county-exact ring highlight.
     // Road NETWORK is viewport-owned — keep drawing after card close.
     setCard(null);
     setCardNodeId(null);
@@ -1322,12 +1385,15 @@ function ExplorerMapSurface({
       ...roadOverlays,
       ...footprintOverlays,
       ...districtOverlays,
+      // County-exact inspected-parcel ring (post-seal highlight) above the
+      // parcel/road context, below the envelope wedge.
+      ...inspectRingOverlays,
       // The buildable-envelope wedge, drawn last so it sits above the parcels.
       ...gatedEnvelopeOverlays,
       // Brief street-search highlight (temporary, self-fading).
       ...searchOverlays,
     ],
-    [parcels, fema, topo, hydrography, opportunityZone, roadOverlays, footprintOverlays, districtOverlays, gatedEnvelopeOverlays, searchOverlays, visibleLayers],
+    [parcels, fema, topo, hydrography, opportunityZone, roadOverlays, footprintOverlays, districtOverlays, inspectRingOverlays, gatedEnvelopeOverlays, searchOverlays, visibleLayers],
   );
 
   // REBRAND map-chrome (2026-08-03): the transient scroll notifications
