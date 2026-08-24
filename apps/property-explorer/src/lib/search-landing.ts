@@ -38,7 +38,12 @@ export interface SearchLandingDeps {
    */
   runParcelLookup: (
     query: string,
-    opts?: { quiet?: boolean; lat?: number; lng?: number },
+    opts?: {
+      quiet?: boolean;
+      lat?: number;
+      lng?: number;
+      trustedRooftop?: { lat: number; lng: number };
+    },
   ) => Promise<boolean>;
   flyTo: (lat: number, lng: number, zoom: number) => void;
   /** Fit the camera to a Photon extent [minLon, maxLat, maxLon, minLat]. */
@@ -70,16 +75,28 @@ export async function executeSearchLanding(
     }
 
     case "address": {
+      // Photon is a camera hint. It is not an identity writer. Posting its
+      // label or its point is the 422 the operator keeps seeing.
+      if (suggestion.source === "photon") {
+        if (suggestion.lat != null && suggestion.lng != null) {
+          deps.flyTo(suggestion.lat, suggestion.lng, ADDRESS_LANDING_ZOOM);
+        }
+        return { kind: "address", opened: false, coverageMiss: true };
+      }
       const query = identityQueryFromAddressSuggestion(suggestion);
-      // Situs / compact identity only. Photon labels 422 address-only.
-      // Photon / viewport lat/lng must not ride along — Cortex honors
-      // explicit coords over the address.
+      const roof =
+        suggestion.source === "situs-address-point" &&
+        suggestion.lat != null &&
+        suggestion.lng != null &&
+        Number.isFinite(suggestion.lat) &&
+        Number.isFinite(suggestion.lng)
+          ? { lat: suggestion.lat, lng: suggestion.lng }
+          : undefined;
       const opened = await deps.runParcelLookup(query, {
         quiet: true,
+        ...(roof ? { trustedRooftop: roof } : {}),
       });
       if (opened) return { kind: "address", opened: true, coverageMiss: false };
-      // Honest miss: land the map at the geocoded point, say so, fabricate
-      // NOTHING.
       if (suggestion.lat != null && suggestion.lng != null) {
         deps.flyTo(suggestion.lat, suggestion.lng, ADDRESS_LANDING_ZOOM);
         deps.showChip(OUTSIDE_COVERAGE_CHIP);
