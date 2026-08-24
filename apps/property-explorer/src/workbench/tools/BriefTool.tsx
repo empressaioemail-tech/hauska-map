@@ -9,7 +9,7 @@
 //     property. Re-fetch happens ONLY when no brief is stored for the active
 //     property (absent, or the active property changed).
 //   - Fetch outcomes keep their existing states: 401 sign-in notice, 402 opens
-//     the PaywallGate (host.openPaywall) + records pe_paywall_hit, 503/404
+//     the pricing modal (host.openPaywall) + records pe_paywall_hit, 503/404
 //     honest notices, network-unreachable notice. Non-ready outcomes are NOT
 //     persisted — reopening the brief retries (e.g. after signing in).
 //   - The brief renders through PropertyBriefPanel in embedded mode (same
@@ -115,7 +115,6 @@ export function BriefTool() {
   if (ent.signedOut) {
     return (
       <LockedToolPanel
-        parcelNodeId={activeParcelNodeId}
         valueLine={BRIEF_PAYWALL_MESSAGE}
         signedOut
         signInLine="Sign in to unlock deep research on this parcel."
@@ -126,7 +125,6 @@ export function BriefTool() {
   if (ent.locked) {
     return (
       <LockedToolPanel
-        parcelNodeId={activeParcelNodeId}
         valueLine={BRIEF_PAYWALL_MESSAGE}
         testId="brief-locked"
       />

@@ -5,7 +5,7 @@
 // and it stays unit-testable with an injected transport. Same endpoint, same
 // status mapping:
 //   401                          → sign-in notice
-//   402                          → paywall (caller opens the PaywallGate)
+//   402                          → paywall (caller opens the pricing modal)
 //   503 + report_not_ready       → "wired; spine report_run integration pending"
 //   404 + baked_snapshot_not_found → "no baked snapshot" notice
 //   200 + runId + brief.sections → ready (the cited brief payload)

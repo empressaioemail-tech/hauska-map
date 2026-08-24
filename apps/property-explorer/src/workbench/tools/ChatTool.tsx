@@ -34,7 +34,7 @@
 //     nowhere else; websearch-derived sources render as distinct non-atom
 //     links labeled unverified.
 //   - Honest states: loading is "Researching…" (never an optimistic fake
-//     answer); 401 sign-in notice; 402 opens the PaywallGate + records
+//     answer); 401 sign-in notice; 402 opens the pricing modal + records
 //     pe_paywall_hit; 400/404 "could not scope" with the server's message in
 //     muted text; 5xx / network offer Try again. Notices are transient —
 //     never persisted into the thread.
@@ -1808,7 +1808,6 @@ export function ChatTool() {
           above stays readable). */}
       {chatWalled ? (
         <LockedToolPanel
-          parcelNodeId={activeParcelNodeId}
           valueLine={CHAT_FREE_EXHAUSTED_MESSAGE}
           testId="chat-wall"
         />

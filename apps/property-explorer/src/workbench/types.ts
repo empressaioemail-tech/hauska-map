@@ -57,11 +57,20 @@ export interface WorkbenchToolContext {
  */
 export interface WorkbenchHostActions {
   /**
-   * Open the unified unlock flow modal with the given VALUE LINE (the
-   * reactive server-402 belt). R1: `opts.proOnly` renders the Pro-only
-   * variant (terrain — the $15 property unlock never claims it).
+   * Open THE ONE pricing modal (2026-08-24 ruling: all pricing lives in one
+   * popup) with the given VALUE LINE as its context line. Serves BOTH the
+   * reactive server-402 belt and the dock locked-panels' "View pricing"
+   * button. `opts.studioOnly` marks the Studio-only feature path (terrain —
+   * the $15 unlock never claims it); `opts.highlightTier` emphasizes one
+   * subscription card.
    */
-  openPaywall: (message: string, opts?: { proOnly?: boolean }) => void;
+  openPaywall: (
+    message: string,
+    opts?: {
+      studioOnly?: boolean;
+      highlightTier?: "solo" | "studio" | "team";
+    },
+  ) => void;
   /**
    * The ACTIVE property's situs address when the app shell knows it (inspect
    * card), else null. W3 chat sends it as the research-chat address selector;

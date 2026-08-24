@@ -14,6 +14,7 @@ import {
   primePropertyEntitlement,
   resetPropertyEntitlementsForTests,
   subscribePropertyEntitlements,
+  subscriptionTierGrantsStudio,
   type PropertyEntitlementState,
 } from "./entitlementClient";
 import { PE_PRICING } from "./pricing";
@@ -62,6 +63,7 @@ describe("fetchPropertyEntitlement — the pinned contract", () => {
       softFallback: false,
       devRole: false,
       entitlementSource: null,
+      subscriptionTier: null,
     });
     expect(isEntitled(state)).toBe(true); // per-property unlock counts
     expect(isPro(state)).toBe(false);
@@ -175,6 +177,45 @@ describe("fetchPropertyEntitlement — the pinned contract", () => {
       tier: "free",
       softFallback: true,
     });
+  });
+
+  it("parses subscriptionTier from the 2026-08-24 cortex contract (solo/studio/team)", async () => {
+    for (const tier of ["solo", "studio", "team"] as const) {
+      const state = await fetchPropertyEntitlement(
+        "48021:123",
+        fakeFetch(200, {
+          authenticated: true,
+          tier: "paid",
+          subscriptionTier: tier,
+        }),
+      );
+      expect(state.subscriptionTier).toBe(tier);
+    }
+  });
+
+  it("FAIL CLOSED: absent or unknown subscriptionTier parses to null — even on a paid row", async () => {
+    const absent = await fetchPropertyEntitlement(
+      "48021:123",
+      fakeFetch(200, { authenticated: true, tier: "paid" }),
+    );
+    expect(absent.subscriptionTier).toBeNull();
+    expect(isPro(absent)).toBe(true); // paid stays paid — only Studio is denied
+    const unknown = await fetchPropertyEntitlement(
+      "48021:123",
+      fakeFetch(200, {
+        authenticated: true,
+        tier: "paid",
+        subscriptionTier: "enterprise",
+      }),
+    );
+    expect(unknown.subscriptionTier).toBeNull();
+  });
+
+  it("subscriptionTierGrantsStudio: studio|team GRANT; solo and null DENY (operator ruling: owner data is Studio, not Solo)", () => {
+    expect(subscriptionTierGrantsStudio("studio")).toBe(true);
+    expect(subscriptionTierGrantsStudio("team")).toBe(true);
+    expect(subscriptionTierGrantsStudio("solo")).toBe(false);
+    expect(subscriptionTierGrantsStudio(null)).toBe(false);
   });
 
   it("5xx / network error → status 'error' (NEVER a hard break — tools run optimistically)", async () => {

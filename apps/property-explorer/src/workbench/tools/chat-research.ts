@@ -617,7 +617,7 @@ export function buildChatRequestBody(input: {
 // ---------------------------------------------------------------------------
 // Turn runner — honest status mapping (the brief tool's idiom):
 //   401                → sign-in state
-//   402                → paywall (caller opens the PaywallGate)
+//   402                → paywall (caller opens the pricing modal)
 //   400 / 404          → "could not scope to this property" + server message
 //   5xx                → retryable honest error
 //   200 + message      → the answer turn (plain text + normalized citation refs)

@@ -45,6 +45,7 @@ function ent(
     freeMessagesUsed: 0,
     freeMessagesLimit: 3,
     softFallback: false,
+    subscriptionTier: null,
     ...overrides,
   };
 }
@@ -53,7 +54,11 @@ const ANON = ent({ authenticated: false });
 const FREE = ent({});
 const FREE_EXHAUSTED = ent({ freeMessagesUsed: 3 });
 const PROPERTY_UNLOCKED = ent({ propertyUnlocked: true });
+/** Legacy paid row — subscriptionTier null (stale cache / pre-ladder backend). */
 const PRO = ent({ tier: "paid" });
+const SOLO = ent({ tier: "paid", subscriptionTier: "solo" });
+const STUDIO = ent({ tier: "paid", subscriptionTier: "studio" });
+const TEAM = ent({ tier: "paid", subscriptionTier: "team" });
 
 function renderTool(
   toolId: string,
@@ -78,19 +83,23 @@ afterEach(() => {
 });
 
 describe("BRIEF bubble", () => {
-  it("anon → sign-in-first (existing idiom), no unlock choices yet", () => {
+  it("anon → sign-in-first (existing idiom), no purchase surface yet", () => {
     primePropertyEntitlement(PARCEL, ANON);
     const html = renderTool("brief");
     expect(html).toContain('data-testid="brief-locked-sign-in"');
-    expect(html).not.toContain('data-testid="unlock-property-choice"');
+    expect(html).not.toContain('data-testid="view-pricing-button"');
   });
 
-  it("free signed-in → LOCKED state with the unified two-choice flow (never broken/empty)", () => {
+  it("free signed-in → LOCKED state: value line + View-pricing button, NO inline pricing (2026-08-24 ruling)", () => {
     primePropertyEntitlement(PARCEL, FREE);
     const html = renderTool("brief");
     expect(html).toContain('data-testid="brief-locked"');
-    expect(html).toContain('data-testid="unlock-property-choice"');
-    expect(html).toContain('data-testid="unlock-solo-choice"');
+    expect(html).toContain('data-testid="view-pricing-button"');
+    // The dock never shows checkout buttons or price strings anymore.
+    expect(html).not.toContain('data-testid="unlock-property-choice"');
+    expect(html).not.toContain('data-testid="unlock-solo-choice"');
+    expect(html).not.toContain("$49/mo");
+    expect(html).not.toContain("$15");
   });
 
   it("property-unlocked → runs as today (no lock)", () => {
@@ -117,18 +126,19 @@ describe("REPORTS bubble (site-plan + flood per-property; TERRAIN Pro-only)", ()
     );
   });
 
-  it("free signed-in → LOCKED with both choices", () => {
+  it("free signed-in → LOCKED: value line + View-pricing button, NO inline checkout", () => {
     primePropertyEntitlement(PARCEL, FREE);
     const html = renderTool("reports");
     expect(html).toContain('data-testid="reports-locked"');
-    expect(html).toContain('data-testid="unlock-property-choice"');
-    expect(html).toContain('data-testid="unlock-solo-choice"');
+    expect(html).toContain('data-testid="view-pricing-button"');
+    expect(html).not.toContain('data-testid="unlock-property-choice"');
+    expect(html).not.toContain('data-testid="unlock-solo-choice"');
     // The whole tool is locked — no report sections behind the wall.
     expect(html).not.toContain('data-testid="terrain-pro-lock"');
     expect(html).not.toContain('data-testid="flood-drainage-section"');
   });
 
-  it("property-unlocked → site-plan AND flood run; TERRAIN shows its STUDIO-ONLY lock (only the Studio choice)", () => {
+  it("property-unlocked → site-plan AND flood run; TERRAIN shows its STUDIO-ONLY lock (View-pricing button, no inline checkout)", () => {
     primePropertyEntitlement(PARCEL, PROPERTY_UNLOCKED);
     const html = renderTool("reports");
     expect(html).not.toContain('data-testid="reports-locked"');
@@ -137,19 +147,45 @@ describe("REPORTS bubble (site-plan + flood per-property; TERRAIN Pro-only)", ()
     // FD2: the flood & drainage section is live in the SAME $15 scope.
     expect(html).toContain('data-testid="flood-drainage-section"');
     expect(html).toContain('data-testid="flood-run"');
-    // Terrain slot is the Studio-only lock: NO $15 choice inside it, and the
-    // copy says terrain is not part of the single-property unlock.
+    // Terrain slot is the Studio-only lock: its note says terrain is not part
+    // of the single-property unlock, and pricing lives in the modal only.
     expect(html).toContain('data-testid="terrain-pro-lock"');
-    expect(html).not.toContain('data-testid="unlock-property-choice"');
-    expect(html).toContain('data-testid="unlock-studio-choice"');
+    expect(html).toContain('data-testid="view-pricing-button"');
     expect(html).toContain("not part of the single-property unlock");
+    expect(html).not.toContain('data-testid="unlock-property-choice"');
+    expect(html).not.toContain('data-testid="unlock-studio-choice"');
   });
 
-  it("pro → the real terrain export section, no locks; flood runs", () => {
-    primePropertyEntitlement(PARCEL, PRO);
+  it("STUDIO grants terrain: the real terrain export section, no locks; flood runs", () => {
+    primePropertyEntitlement(PARCEL, STUDIO);
     const html = renderTool("reports");
     expect(html).not.toContain('data-testid="reports-locked"');
     expect(html).not.toContain('data-testid="terrain-pro-lock"');
+    expect(html).toContain('data-testid="flood-run"');
+  });
+
+  it("TEAM grants terrain too (everything in Studio)", () => {
+    primePropertyEntitlement(PARCEL, TEAM);
+    const html = renderTool("reports");
+    expect(html).not.toContain('data-testid="reports-locked"');
+    expect(html).not.toContain('data-testid="terrain-pro-lock"');
+  });
+
+  it("SOLO subscriber: site-plan and flood run, but terrain gates CLOSED — Solo must NOT clear Studio gates (operator ruling)", () => {
+    primePropertyEntitlement(PARCEL, SOLO);
+    const html = renderTool("reports");
+    expect(html).not.toContain('data-testid="reports-locked"');
+    expect(html).toContain('data-testid="flood-run"');
+    expect(html).toContain('data-testid="terrain-pro-lock"');
+    expect(html).not.toContain('data-testid="terrain-export-section"');
+  });
+
+  it("FAIL CLOSED: a paid row with NO subscriptionTier (stale cache / pre-ladder backend) gates terrain CLOSED — null never grants Studio", () => {
+    primePropertyEntitlement(PARCEL, PRO);
+    const html = renderTool("reports");
+    expect(html).not.toContain('data-testid="reports-locked"');
+    expect(html).toContain('data-testid="terrain-pro-lock"');
+    expect(html).not.toContain('data-testid="terrain-export-section"');
     expect(html).toContain('data-testid="flood-run"');
   });
 
@@ -172,7 +208,7 @@ describe("SHARE bubble (free for signed-in users — acquisition channel)", () =
     const html = renderTool("share");
     expect(html).not.toContain('data-testid="share-locked"');
     expect(html).toContain('data-testid="share-create"');
-    expect(html).not.toContain('data-testid="unlock-property-choice"');
+    expect(html).not.toContain('data-testid="view-pricing-button"');
   });
 
   it("property-unlocked → the create-link flow renders", () => {
@@ -225,12 +261,13 @@ describe("CHAT bubble (3 signed-in-free messages → wall)", () => {
     );
   });
 
-  it("free messages EXHAUSTED → the wall (unified flow) replaces the composer; thread stays readable", () => {
+  it("free messages EXHAUSTED → the wall replaces the composer: value line + View-pricing button, NO inline checkout; thread stays readable", () => {
     primePropertyEntitlement(PARCEL, FREE_EXHAUSTED);
     const html = renderTool("chat", { store: storeWithThread() });
     expect(html).toContain('data-testid="chat-wall"');
-    expect(html).toContain('data-testid="unlock-property-choice"');
-    expect(html).toContain('data-testid="unlock-solo-choice"');
+    expect(html).toContain('data-testid="view-pricing-button"');
+    expect(html).not.toContain('data-testid="unlock-property-choice"');
+    expect(html).not.toContain('data-testid="unlock-solo-choice"');
     expect(html).not.toContain('data-testid="chat-input"');
     // The thread above the wall is still there.
     expect(html).toContain("Can I add an ADU?");
@@ -271,7 +308,7 @@ describe("CHAT bubble (3 signed-in-free messages → wall)", () => {
 describe("FREE tools stay free", () => {
   it("My Properties and Compare never render a lock", () => {
     primePropertyEntitlement(PARCEL, FREE);
-    expect(renderTool("properties")).not.toContain("unlock-solo-choice");
-    expect(renderTool("compare")).not.toContain("unlock-solo-choice");
+    expect(renderTool("properties")).not.toContain("view-pricing-button");
+    expect(renderTool("compare")).not.toContain("view-pricing-button");
   });
 });

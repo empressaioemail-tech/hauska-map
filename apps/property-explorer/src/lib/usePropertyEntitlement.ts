@@ -26,6 +26,7 @@ import {
   isEntitled,
   isPro,
   subscribePropertyEntitlements,
+  type PeSubscriptionTier,
 } from "./entitlementClient";
 import { PE_PRICING } from "./pricing";
 
@@ -52,6 +53,12 @@ export interface UsePropertyEntitlement {
   devRole: boolean;
   /** Provenance of the entitlement when known (see entitlementClient.ts). */
   entitlementSource: string | null;
+  /**
+   * Ladder tier from `/entitlement` — null for free, unlock-only, or an
+   * absent field. Studio-only gates read this via
+   * subscriptionTierGrantsStudio; null gates CLOSED (never grants Studio).
+   */
+  subscriptionTier: PeSubscriptionTier | null;
   /** Drop this property's cached read and re-fetch. */
   refresh: () => void;
 }
@@ -70,6 +77,7 @@ const LOADING: UsePropertyEntitlement = {
   locked: false,
   devRole: false,
   entitlementSource: null,
+  subscriptionTier: null,
   refresh: () => {},
 };
 
@@ -113,6 +121,9 @@ export function usePropertyEntitlement(
     locked: ready && snapshot.authenticated && !entitled,
     devRole: snapshot.devRole,
     entitlementSource: snapshot.entitlementSource,
+    // ?? null: a primed/legacy snapshot without the field must read as null
+    // (fail closed at the Studio gates), never as undefined.
+    subscriptionTier: snapshot.subscriptionTier ?? null,
     refresh: () => invalidatePropertyEntitlement(parcelNodeId),
   };
 }

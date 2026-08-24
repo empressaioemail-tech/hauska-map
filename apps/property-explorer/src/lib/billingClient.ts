@@ -16,7 +16,20 @@ export type PeCheckoutResult = {
   message?: string;
 };
 
-export async function startPeCheckout(input?: {
+/** The three purchasable subscription tiers (locked ladder, 2026-08-10). */
+export type PeCheckoutTier = "solo" | "studio" | "team";
+
+export const CHECKOUT_UNAVAILABLE_MESSAGE =
+  "Checkout is temporarily unavailable — the payment configuration on the server is incomplete. Nothing was charged; try again later.";
+
+export async function startPeCheckout(input: {
+  /** REQUIRED: the tier the user actually clicked — a tierless body would
+   *  default to Solo on cortex, which is the audit defect (a Studio click
+   *  charging the Solo price). */
+  tier: PeCheckoutTier;
+  /** Team only: TOTAL desired seats (base covers 10, +$25/mo each above).
+   *  Omitted from the body when undefined — cortex 400s seats on non-team. */
+  seats?: number;
   parcelNodeId?: string | null;
   successUrl?: string;
   cancelUrl?: string;
@@ -26,13 +39,13 @@ export async function startPeCheckout(input?: {
       ? window.location.origin
       : "https://property-explorer.vercel.app";
   const successUrl =
-    input?.successUrl ??
+    input.successUrl ??
     `${origin}/?checkout=success${
-      input?.parcelNodeId
+      input.parcelNodeId
         ? `&parcelNodeId=${encodeURIComponent(input.parcelNodeId)}`
         : ""
     }`;
-  const cancelUrl = input?.cancelUrl ?? `${origin}/?checkout=cancel`;
+  const cancelUrl = input.cancelUrl ?? `${origin}/?checkout=cancel`;
 
   // User-authenticated Pro subscription checkout (WDLL item 1). The legacy
   // install-scoped brokerage seam only updates brokerage_wallets — PE gates
@@ -49,6 +62,8 @@ export async function startPeCheckout(input?: {
           "X-Hauska-Install-Id": getInstallId(),
         },
         body: JSON.stringify({
+          tier: input.tier,
+          ...(input.seats !== undefined ? { seats: input.seats } : {}),
           successUrl,
           cancelUrl,
         }),
@@ -62,6 +77,11 @@ export async function startPeCheckout(input?: {
       error?: string;
       message?: string;
     };
+    if (res.status === 503 && json.error === "checkout_unavailable") {
+      // Honest refusal: the requested tier's price is unconfigured on cortex.
+      // NEVER retried as another tier, never routed to the legacy fallback.
+      return { ok: false, message: CHECKOUT_UNAVAILABLE_MESSAGE };
+    }
     if (!res.ok) {
       return {
         ok: false,
@@ -125,7 +145,8 @@ async function startPeCheckoutInstallScoped(input: {
   }
 }
 
-/** @deprecated use startPeCheckout */
+/** @deprecated use startPeCheckout — callers must now pass an explicit tier
+ *  (the retired "Pro" framing maps to Solo; pass `tier: "solo"`). */
 export const startProCheckout = startPeCheckout;
 
 // ---------------------------------------------------------------------------
