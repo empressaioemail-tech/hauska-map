@@ -113,6 +113,17 @@ export interface FloatingMapHandle {
    */
   setParcelState: (parcelNodeId: string, state: ParcelHighlightState) => void;
   /**
+   * P-60e parcel-line dedup: suppress (true) or restore (false) the PMTiles
+   * base parcel LINE paint while the live county-GIS mesh is actually drawing
+   * exact boundaries in the viewport, so a lot reads as ONE shape at parcel
+   * zooms. Paint-only — subject/inspected strokes, the fill layer (instant
+   * click feedback / choropleth / feature-state), and the LAYERS-panel
+   * boundary toggle are untouched. Fail-open is the caller's contract: pass
+   * true only when the live mesh actually has features
+   * (shouldSuppressTileParcelLines). No-op unless `parcelTiles` was passed.
+   */
+  setParcelLineSuppression: (suppressed: boolean) => void;
+  /**
    * Subject-resolve / fit paint-gate primitive: on a property re-point the subject
    * parcel tile may still be streaming, so setting feature-state or fitting bounds
    * immediately no-ops. This schedules, waits (bounded, default 8 attempts) for the
@@ -344,6 +355,8 @@ export const FloatingMap = forwardRef<FloatingMapHandle, FloatingMapProps>(
         getMap: () => rendererRef.current?.getMap() ?? null,
         setParcelState: (parcelNodeId, state) =>
           rendererRef.current?.setParcelState(parcelNodeId, state),
+        setParcelLineSuppression: (suppressed) =>
+          rendererRef.current?.setParcelLineSuppression(suppressed),
         resolveSubjectAndFit: (opts) =>
           rendererRef.current?.resolveSubjectAndFit(opts),
         rebindProperty: (opts) => rendererRef.current?.rebindProperty(opts),

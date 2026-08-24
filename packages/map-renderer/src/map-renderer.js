@@ -20,6 +20,7 @@ import {
   removeParcelTiles,
   setParcelFeatureState,
   setParcelTilesToggles,
+  setParcelTilesLineSuppressed,
   clearParcelFeatureState,
   parcelNodeIdFromFeature,
   PARCEL_TILES_FILL_ID,
@@ -119,6 +120,7 @@ const EMPTY_FC = { type: "FeatureCollection", features: [] };
  *   getViewState: () => { center: [number, number], zoom: number, pitch: number, bearing: number },
  *   setViewState: (vs: Partial<{ center: [number, number], zoom: number, pitch: number, bearing: number }>) => void,
  *   setParcelTiles: (cfg: ParcelTilesConfig | null) => void,
+ *   setParcelLineSuppression: (suppressed: boolean) => void,
  *   setParcelState: (parcelNodeId: string|number, state: { subject?: boolean, inspected?: boolean }) => void,
  *   setSubjectMarkers: (markers: Array<{ id?: string|number, longitude?: number, latitude?: number, lng?: number, lat?: number, role?: 'primary'|'secondary', label?: string }>) => void,
  *   getSubjectMarkers: () => object[],
@@ -164,6 +166,12 @@ export function createMapRenderer(options = {}) {
   // the map so config changes reconcile idempotently.
   let parcelTilesCfg = null;
   let parcelTilesApplied = false;
+  // P-60e parcel-line dedup: true while the consumer reports the live county
+  // mesh is ACTUALLY drawing exact parcel boundaries in the viewport, so the
+  // simplified tile base lines fade out (paint-only; subject/inspected strokes
+  // stay). Held as renderer state so it survives layer re-adds and toggle
+  // re-applies. Defaults false — tile lines stay on (fail-open).
+  let parcelLineSuppressed = false;
   // Currently-lit subject/inspected node ids, so a new set clears the prior one.
   let subjectNodeId = null;
   let inspectedNodeId = null;
@@ -552,6 +560,9 @@ export function createMapRenderer(options = {}) {
       zoningFill: visibleLayers.has("zoning"),
       boundaryLines: visibleLayers.has("parcel-polygon"),
     });
+    // Re-assert the live-mesh dedup suppression alongside the toggles so it
+    // survives layer re-adds (applyParcelTiles calls here after addParcelTiles).
+    setParcelTilesLineSuppressed(map, parcelLineSuppressed);
   }
 
   function applyParcelTiles() {
@@ -936,6 +947,22 @@ export function createMapRenderer(options = {}) {
       if (!changed) return;
       parcelTilesCfg = next;
       applyParcelTiles();
+    },
+
+    /**
+     * P-60e parcel-line dedup: suppress (true) or restore (false) the PMTiles
+     * base parcel LINE paint. The consumer calls true ONLY while the live
+     * county mesh actually has features for the viewport
+     * (shouldSuppressTileParcelLines); anything else restores the tile lines —
+     * fail-open. Paint-only: subject/inspected strokes, the fill layer (clicks,
+     * choropleth, feature-state), and the boundary layout toggle are untouched.
+     * @param {boolean} suppressed
+     */
+    setParcelLineSuppression(suppressed) {
+      const next = suppressed === true;
+      if (next === parcelLineSuppressed) return;
+      parcelLineSuppressed = next;
+      applyParcelTileToggles();
     },
 
     /**

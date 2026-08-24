@@ -14,6 +14,7 @@ declare module "./map-renderer.js" {
     setParcelTiles(
       cfg: import("./postMessage").ParcelTilesConfig | null,
     ): void;
+    setParcelLineSuppression(suppressed: boolean): void;
     setParcelState(
       parcelNodeId: string | number,
       state: import("./postMessage").ParcelHighlightState,
@@ -95,6 +96,10 @@ declare module "./map/parcel-tiles.js" {
     },
   ): void;
   export function removeParcelTiles(map: any): void;
+  export function setParcelTilesLineSuppressed(
+    map: any,
+    suppressed: boolean,
+  ): void;
   export function setParcelFeatureState(
     map: any,
     sourceLayer: string,

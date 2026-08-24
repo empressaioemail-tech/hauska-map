@@ -48,6 +48,7 @@ export {
 export {
   addParcelTiles,
   removeParcelTiles,
+  setParcelTilesLineSuppressed,
   setParcelFeatureState,
   clearParcelFeatureState,
   parcelNodeIdFromFeature,
@@ -217,6 +218,7 @@ export {
   isHydrologyHonestEmpty,
   hydrologyHonestReason,
   parcelFillColor,
+  shouldSuppressTileParcelLines,
   toLiveOverlays,
   contourLinesOnly,
   toTopoOverlay,
