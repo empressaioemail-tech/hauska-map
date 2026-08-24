@@ -34,7 +34,7 @@ describe("envelopeRequestBody", () => {
     ).toEqual({ lat: 30.439, lng: -97.62 });
   });
 
-  it("drops a bare ', TX' sentinel", () => {
+  it("drops a bare ', TX' sentinel when a click point exists", () => {
     expect(
       envelopeRequestBody({
         address: ", TX",
@@ -42,5 +42,11 @@ describe("envelopeRequestBody", () => {
         lng: -97.62,
       }),
     ).toEqual({ lat: 30.439, lng: -97.62 });
+  });
+
+  it("still POSTs a free-typed search string with no coordinates", () => {
+    expect(envelopeRequestBody({ address: "nowhere at all" })).toEqual({
+      address: "nowhere at all",
+    });
   });
 });

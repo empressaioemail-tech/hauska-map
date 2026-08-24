@@ -40,23 +40,26 @@ function round6(n) {
  * @param {{ address?: string|null, lat?: number|null, lng?: number|null }} sel
  * @returns {object|null}
  */
-/** Travis CAD sentinels and truncated ZIPs geocode-miss and 404 the envelope. */
-function isUsableEnvelopeAddress(raw) {
+/** Travis CAD sentinels / truncated ZIPs. Only drop them when a click point exists. */
+function isTravisUnusableSitus(raw) {
   if (!raw) return false;
-  const street = (raw.split(",")[0] ?? "").trim();
-  if (!street || !/^\d/.test(street)) return false;
-  if (/^,\s*(TX)?\s*$/i.test(raw)) return false;
-  // "17006 DASHWOOD CREEK DR, TX 7866" — truncated ZIP, no city. Cortex
-  // geocode-low → 404 no-parcel while the map click already has the rooftop.
-  if (/,\s*TX\s+\d{1,4}\s*$/i.test(raw) && raw.split(",").length < 3) return false;
-  return true;
+  if (/^,\s*(TX)?\s*$/i.test(raw)) return true;
+  // "17006 DASHWOOD CREEK DR, TX 7866" — truncated ZIP, no city.
+  if (/,\s*TX\s+\d{1,4}\s*$/i.test(raw) && raw.split(",").length < 3) return true;
+  return false;
 }
 
 export function envelopeRequestBody(sel) {
   const rawAddress = typeof sel?.address === "string" ? sel.address.trim() : "";
-  const address = isUsableEnvelopeAddress(rawAddress) ? rawAddress : "";
   const lat = round6(sel?.lat);
   const lng = round6(sel?.lng);
+  // Search still POSTs a free-typed string (even "nowhere at all") so cortex
+  // can return an honest miss. A map click already has a rooftop: drop the
+  // Travis sentinel / truncated ZIP and send the point.
+  const address =
+    rawAddress && isTravisUnusableSitus(rawAddress) && lat != null && lng != null
+      ? ""
+      : rawAddress;
   // parcel_node_id is NOT sent until cortex POST schema accepts it (LDT #467
   // follow-up). Sending it today yields 400 invalid_body and blocks the wedge.
   if (address) {
