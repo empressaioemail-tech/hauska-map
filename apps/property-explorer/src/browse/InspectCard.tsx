@@ -491,8 +491,10 @@ export function InspectCard({
   isSaved?: boolean;
   onClose: () => void;
   // Fires when the envelope resolves so the parent can fold setbacks/envelope
-  // into the ported node store (the subject/inspected source of truth).
-  onEnvelope?: (result: unknown) => void;
+  // into the ported node store (the subject/inspected source of truth). The
+  // second argument names the parcel node id the result belongs to, so the
+  // parent can refuse click-time geometry stashed for a DIFFERENT parcel.
+  onEnvelope?: (result: unknown, forParcelNodeId?: string | null) => void;
   // The DISTINCT, explicit make-subject action. Re-points the LIVE map to this
   // parcel via the persistent-map API (rebindProperty + resolveSubjectAndFit) —
   // no remount. Separate from inspect (which is passive/in-place) and from the
@@ -576,8 +578,9 @@ export function InspectCard({
         setEnv(envelopeStateFromSheet(sheet));
         setSource("baked");
         // The parent folds setbacks/envelope into the ported node store from
-        // the SAME sheet, so the store and the card can never disagree.
-        onEnvelope?.(envelopeStateFromSheet(sheet));
+        // the SAME sheet, so the store and the card can never disagree. The
+        // parcel node id travels with the result (identity guard upstream).
+        onEnvelope?.(envelopeStateFromSheet(sheet), parcelNodeId);
       } catch (err) {
         if (cancelled) return;
         // I4: a FAILED read is an error, never an honest absence.
