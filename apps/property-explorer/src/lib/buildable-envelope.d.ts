@@ -1,6 +1,7 @@
 // Type shim for the ported buildable-envelope client (JS source).
 export interface EnvelopeSelection {
   address?: string | null;
+  parcelNodeId?: string | null;
   lat?: number | null;
   lng?: number | null;
 }

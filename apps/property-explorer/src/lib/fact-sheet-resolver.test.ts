@@ -543,7 +543,7 @@ describe("PeFactSheetResolver.resolve", () => {
     expect(stub.calls.some((u) => u.includes("buildable-envelope"))).toBe(true);
   });
 
-  it("skips live POST when depth-warm geojson already on facets (48021:34137)", async () => {
+  it("always POSTs live derive even when facets carry depth-warm geojson (48021:34137)", async () => {
     const parcelNodeId = "48021:34137";
     const wire = facetsWire({
       parcelNodeId,
@@ -560,7 +560,7 @@ describe("PeFactSheetResolver.resolve", () => {
         setbacks: { front_ft: 25, side_ft: 5, rear_ft: 10 },
         buildableAreaSqFt: 6325,
         disclosure:
-          "Atom-chain setback scalars from live per-parcel record (layer-23); buildable envelope geometry from depth-warm promoted ledger.",
+          "Atom-chain setback scalars; buildable envelope geometry from live derive (labelEdges+derive), not depth-warm ledger.",
         geojson: {
           type: "FeatureCollection",
           features: [
@@ -591,13 +591,17 @@ describe("PeFactSheetResolver.resolve", () => {
     const stub = installFetchStub({
       facets: wire,
       gisFeatures: [subjectFeature],
+      buildableEnvelope: {
+        parcelNodeId,
+        buildableAreaSqFt: 6325,
+      },
     });
     const sheet = await sheetOf(makeResolver(stub), parcelNodeId);
     expect(sheet.envelope.kind).toBe("derived");
     if (sheet.envelope.kind !== "derived") throw new Error("unreachable");
     expect(sheet.envelope.area.value).toBe(6325);
     expect(sheet.envelope.rings).toHaveLength(1);
-    expect(stub.calls.some((u) => u.includes("buildable-envelope"))).toBe(false);
+    expect(stub.calls.some((u) => u.includes("buildable-envelope"))).toBe(true);
   });
 });
 
