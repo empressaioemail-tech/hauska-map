@@ -136,6 +136,7 @@ import {
   hydrographyProvenanceLabel,
   opportunityZoneHonestReason,
   opportunityZoneProvenanceLabel,
+  shouldSuppressTileParcelLines,
   toLiveOverlays,
   toTopoOverlay,
   toHydrographyOverlay,
@@ -670,6 +671,21 @@ function ExplorerMapSurface({
         setDistrictWires([]);
       });
   }, []);
+
+  // P-60e parcel-line dedup: while the live county-GIS mesh is ACTUALLY
+  // drawing exact parcel boundaries for this viewport (fetch resolved ok,
+  // >= 1 feature, not truncated), fade the PMTiles simplified base lines so a
+  // lot reads as ONE shape past z16. Keyed on the FETCH state (not the stale
+  // `data` carried through a reload) so the interval before a fetch resolves,
+  // errors, no-coverage, zoom-gated, and empty responses all keep the tile
+  // lines on — fail-open, never a map with no parcel lines where it had them.
+  const suppressTileParcelLines = useMemo(
+    () => shouldSuppressTileParcelLines(parcels.fetch),
+    [parcels.fetch],
+  );
+  useEffect(() => {
+    mapRef.current?.setParcelLineSuppression?.(suppressTileParcelLines);
+  }, [suppressTileParcelLines]);
 
   // Both road children are driven by the LAYERS panel. Note the `: false`
   // fallbacks: before the seed lands, `visibleLayers` is null and BOTH stay

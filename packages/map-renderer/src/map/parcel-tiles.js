@@ -293,6 +293,56 @@ export function setParcelTilesToggles(map, toggles = {}) {
   }
 }
 
+/**
+ * P-60e parcel-line dedup: while the live county-GIS mesh is actually drawing
+ * exact parcel boundaries in the viewport, the base tile lines are redundant
+ * (same CAD fabric, simplified vs exact — the visible "two shapes on one lot"
+ * doubling). Suppressed = base stroke fades to 0 opacity; the SUBJECT and
+ * INSPECTED feature-state strokes stay at full opacity so selection feedback
+ * never dims. line-opacity from feature-state is SAFE (crash-guard: only
+ * dasharray/gradient are prohibited).
+ */
+function parcelLineSuppressedOpacityExpr() {
+  return [
+    "case",
+    ["boolean", ["feature-state", "subject"], false],
+    1,
+    ["boolean", ["feature-state", "inspected"], false],
+    1,
+    0,
+  ];
+}
+
+/**
+ * Set (or clear) the live-mesh dedup suppression on the tile LINE layer.
+ *
+ * PAINT-ONLY, and on a channel nothing else writes: the boundary toggle
+ * (setParcelTilesToggles) owns layout `visibility`, the zoning toggle owns
+ * `line-color` — this seam owns `line-opacity`. The three compose without
+ * fighting. The FILL layer (click feedback, choropleth, feature-state) and the
+ * subject GLOW are never touched.
+ *
+ * FAIL-OPEN is the caller's contract (shouldSuppressTileParcelLines in
+ * live-gis.ts): suppression is only requested while the live mesh actually has
+ * features; every other state restores full opacity.
+ *
+ * @param {import('maplibre-gl').Map} map
+ * @param {boolean} suppressed
+ */
+export function setParcelTilesLineSuppressed(map, suppressed) {
+  if (!map || !map.getSource(PARCEL_TILES_SOURCE_ID)) return;
+  if (!map.getLayer(PARCEL_TILES_LINE_ID)) return;
+  try {
+    map.setPaintProperty(
+      PARCEL_TILES_LINE_ID,
+      "line-opacity",
+      suppressed ? parcelLineSuppressedOpacityExpr() : 1,
+    );
+  } catch {
+    /* style mid-swap — the next applyParcelTileToggles re-asserts */
+  }
+}
+
 /** Remove the parcel-tiles layers + source (for reconfigure / teardown). */
 export function removeParcelTiles(map) {
   if (!map) return;

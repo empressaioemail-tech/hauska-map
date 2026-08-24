@@ -38,6 +38,7 @@ export {
   opportunityZoneHonestReason,
   opportunityZoneProvenanceLabel,
   parcelFillColor,
+  shouldSuppressTileParcelLines,
   toLiveOverlays,
   toTopoOverlay,
   toHydrographyOverlay,
