@@ -70,10 +70,18 @@ class PeSubjectStore implements SubjectStore {
 /** The app's ONE subject store. */
 export const subjectStore = new PeSubjectStore();
 
-/** What an entry point got back: a subject, or a parcel that cannot be placed. */
+/**
+ * Monotonic write generation for `setSubjectByParcelNodeId`. Incremented at
+ * each call start so a slower earlier resolve cannot `set()` after a newer
+ * call has already started.
+ */
+let subjectWriteGeneration = 0;
+
+/** What an entry point got back: a subject, a parcel that cannot be placed, or a stale race loser. */
 export type SubjectOutcome =
   | { kind: "subject"; subject: Subject }
-  | { kind: "unplaceable"; parcel: UnplaceableParcel };
+  | { kind: "unplaceable"; parcel: UnplaceableParcel }
+  | { kind: "stale"; parcelNodeId: string };
 
 /**
  * Resolve a parcel and make it the subject, in one step. Every entry point —
@@ -94,9 +102,13 @@ export async function setSubjectByParcelNodeId(
   origin: Subject["origin"],
   resolver: PeFactSheetResolver = factSheetResolver,
 ): Promise<SubjectOutcome> {
+  const generation = ++subjectWriteGeneration;
   const result: ResolveResult = await resolver.resolve(parcelNodeId);
   if (result.kind === "unplaceable") {
     return { kind: "unplaceable", parcel: result };
+  }
+  if (generation !== subjectWriteGeneration) {
+    return { kind: "stale", parcelNodeId };
   }
   const { kind: _kind, ...sheet } = result;
   const subject: Subject = { sheet, origin };

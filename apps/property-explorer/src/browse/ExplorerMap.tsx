@@ -24,7 +24,14 @@
 // is the mount-time seed only (DEFAULT_CENTER, stable identity) — it never
 // re-points on a subject change; the imperative handle owns re-pointing.
 
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import {
+  useCallback,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+  useSyncExternalStore,
+} from "react";
 import { FloatingMap } from "@hauska/map-renderer";
 import type {
   Center,
@@ -65,7 +72,8 @@ import type { MapToolsController } from "./mapToolsController";
 import { asMaplibreMap } from "./satelliteBase";
 import { createFloodMapOverlayController } from "./flood-map-overlay";
 import { SmartSiteBadge, MapSourceInfo } from "./MapCornerChrome";
-import { SearchBar } from "./SearchBar";
+import { SearchBar, subjectDisplayFromIdentity } from "./SearchBar";
+import { createLookupIntent } from "../lib/lookup-intent";
 import { PricingModal } from "./PricingModal";
 import {
   MobilePanelProvider,
@@ -79,7 +87,7 @@ import {
   resolveLookupToParcelNodeId,
 } from "../lib/parcel-lookup";
 import { factSheetResolver } from "../lib/fact-sheet-resolver";
-import { setSubjectByParcelNodeId } from "../lib/subject-store";
+import { setSubjectByParcelNodeId, subjectStore } from "../lib/subject-store";
 import { cardFromSheet } from "../lib/sheet-to-card";
 import {
   inspectAsSoonAsIdKnown,
@@ -281,6 +289,18 @@ function toCenter(lat: number | null, lng: number | null): Center | undefined {
   return { latitude: lat, longitude: lng };
 }
 
+function subscribeSubjectStore(onStoreChange: () => void): () => void {
+  return subjectStore.subscribe(() => {
+    onStoreChange();
+  });
+}
+
+function readSubjectDisplay(): string | null {
+  const subject = subjectStore.current();
+  if (!subject) return null;
+  return subjectDisplayFromIdentity(subject.sheet.identity);
+}
+
 export function ExplorerMap({
   share = null,
 }: {
@@ -378,6 +398,13 @@ function ExplorerMapSurface({
   // so the click handler can clear the PRIOR inspected feature-state without a
   // dependency churn — the map stays alive; only its feature-state changes.
   const inspectedRef = useRef<InspectedTarget | null>(null);
+  // One intent for the map lifetime. Map click bumps so an in-flight Find loses.
+  const lookupIntentRef = useRef(createLookupIntent());
+  const subjectDisplay = useSyncExternalStore(
+    subscribeSubjectStore,
+    readSubjectDisplay,
+    readSubjectDisplay,
+  );
   // The baked node id of the current SUBJECT, so a new subject clears the prior
   // subject glow. The subject is the ported store's source of truth; this ref
   // only mirrors the id needed to clear the last-lit feature-state.
@@ -843,6 +870,8 @@ function ExplorerMapSurface({
       geometry: unknown,
       origin: "map-click" | "share" | "compare",
     ) => {
+      // Bump first so an in-flight Find cannot inspect/rebind/fly after this click.
+      lookupIntentRef.current.bump();
       if (!parcelNodeId) {
         // No stable id: there is nothing a sheet could be sealed against, so
         // the previous subject stands rather than being replaced by a guess.
@@ -860,6 +889,9 @@ function ExplorerMapSurface({
             // card; the subject stays where it was, and an export refuses.
             return;
           }
+          // Implementer A added `stale` on SubjectOutcome. Do not rewrite the
+          // card from a race loser. Leave subject-store.ts to A.
+          if (outcome.kind !== "subject") return;
           const next = cardFromSheet(outcome.subject.sheet);
           inspectedRef.current = { card: next, parcelNodeId };
           setCard(next);
@@ -893,6 +925,7 @@ function ExplorerMapSurface({
     ): Promise<boolean> => {
       const q = query.trim();
       if (!q) return false;
+      const started = lookupIntentRef.current.bump();
       setLookupBusy(true);
       setLookupError(null);
       try {
@@ -903,6 +936,7 @@ function ExplorerMapSurface({
           lng: opts?.lng,
           trustedRooftop: opts?.trustedRooftop,
         });
+        if (!lookupIntentRef.current.isCurrent(started)) return false;
         if (!found.ok) {
           if (!opts?.quiet) setLookupError(found.reason);
           return false;
@@ -930,13 +964,21 @@ function ExplorerMapSurface({
         });
         const outcome = await inspectAsSoonAsIdKnown(
           pending,
-          inspectInPlace,
+          (card, id, geom) => {
+            // Click (or a newer Find) can land between lookup-ok and this
+            // pending paint. inspectAsSoonAsIdKnown calls inspectInPlace
+            // before awaiting the seal — without this gate the Find card
+            // overwrites the click and inspectedRef follows the race loser.
+            if (!lookupIntentRef.current.isCurrent(started)) return;
+            inspectInPlace(card, id, geom);
+          },
           () =>
             setSubjectByParcelNodeId(
               found.parcelNodeId,
               opts?.fromDeepLink ? "deep-link" : "search",
             ),
         );
+        if (!lookupIntentRef.current.isCurrent(started)) return false;
         if (outcome.kind === "unplaceable") {
           // We hold the record and cannot place it. Say so, in its own state,
           // rather than failing the Find or flying the map somewhere invented.
@@ -955,6 +997,8 @@ function ExplorerMapSurface({
           });
           return true;
         }
+        // A's generation guard can return `stale`. Do not inspect/rebind/fly.
+        if (outcome.kind !== "subject") return false;
         const sheet = outcome.subject.sheet;
         setUnplaceable(null);
 
@@ -1863,6 +1907,7 @@ function ExplorerMapSurface({
       <SearchBar
         busy={lookupBusy}
         error={lookupError}
+        subjectDisplay={subjectDisplay}
         onSelect={handleSearchSelect}
         onSubmitRaw={(q) => void runParcelLookup(q)}
         getBias={getSearchBias}

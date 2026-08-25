@@ -53,11 +53,46 @@ export interface SearchBarProps {
   /** Current map center/zoom for geocoder viewport bias. */
   getBias: () => GeocodeBias | null;
   initialValue?: string;
+  /**
+   * Subject the bar follows when the input is not focused. Present situs, or
+   * the parcel node id. Never a leftover Find string. Null leaves the current
+   * value.
+   */
+  subjectDisplay?: string | null;
   /** Test seam — replaces the BFF-backed suggestion fetcher. */
   fetchSuggestionsImpl?: (
     query: string,
     signal: AbortSignal,
   ) => Promise<Suggestion[]>;
+}
+
+/** Next input value when the subject changes. Focused typing is not yanked. */
+export function nextSearchBarValue(args: {
+  focused: boolean;
+  subjectDisplay: string | null;
+  current: string;
+}): string {
+  if (args.focused) return args.current;
+  if (args.subjectDisplay == null) return args.current;
+  return args.subjectDisplay;
+}
+
+/**
+ * What the Find bar shows for the standing subject. Present situs wins;
+ * otherwise the parcel node id. A Travis-style `, TX` sentinel is not an
+ * address and must not be written into the input.
+ */
+export function subjectDisplayFromIdentity(identity: {
+  parcelNodeId: string;
+  situsAddress: { state: string; value?: string };
+}): string {
+  if (identity.situsAddress.state === "present") {
+    const value = identity.situsAddress.value?.trim() ?? "";
+    if (value && !/^,\s*(TX)?\s*$/i.test(value)) {
+      return identity.situsAddress.value as string;
+    }
+  }
+  return identity.parcelNodeId;
 }
 
 const FONT = "system-ui, -apple-system, Segoe UI, Roboto, sans-serif";
@@ -348,11 +383,13 @@ export function SearchBar({
   onSubmitRaw,
   getBias,
   initialValue = "",
+  subjectDisplay = null,
   fetchSuggestionsImpl,
 }: SearchBarProps) {
   const { isMobile, setSearchFocused } = useMobilePanel();
   const [value, setValue] = useState(initialValue);
   const inputRef = useRef<HTMLInputElement>(null);
+  const focusedRef = useRef(false);
   const getBiasRef = useRef(getBias);
   getBiasRef.current = getBias;
   const fetchRef = useRef(fetchSuggestionsImpl);
@@ -373,6 +410,16 @@ export function SearchBar({
     [],
   );
   useEffect(() => () => controller.dispose(), [controller]);
+
+  useEffect(() => {
+    setValue((current) =>
+      nextSearchBarValue({
+        focused: focusedRef.current,
+        subjectDisplay,
+        current,
+      }),
+    );
+  }, [subjectDisplay]);
 
   const pick = (index?: number) => {
     const chosen = controller.select(index);
@@ -437,10 +484,12 @@ export function SearchBar({
             controller.input(e.target.value);
           }}
           onFocus={() => {
+            focusedRef.current = true;
             controller.focus();
             setSearchFocused(true);
           }}
           onBlur={() => {
+            focusedRef.current = false;
             controller.close();
             setSearchFocused(false);
           }}
