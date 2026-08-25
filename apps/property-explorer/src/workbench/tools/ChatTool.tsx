@@ -41,7 +41,7 @@
 
 import { useCallback, useEffect, useRef, useState, type ReactNode } from "react";
 import type { CSSProperties, KeyboardEvent } from "react";
-import { googleSignInUrl } from "../../lib/auth";
+import { GoogleSignInButton } from "../../components/GoogleSignInButton";
 import { invalidatePropertyEntitlement } from "../../lib/entitlementClient";
 import { recordPeGtmEvent } from "../../lib/gtmClient";
 import { usePropertyEntitlement } from "../../lib/usePropertyEntitlement";
@@ -1775,20 +1775,21 @@ export function ChatTool() {
           inspect card stay anonymous. The composer stays; the server-401
           reactive path still answers if they try anyway. */}
       {ent.signedOut && (
-        <p
-          data-testid="chat-sign-in-first"
-          style={{ margin: 0, fontSize: 10.5, color: MUTED }}
-        >
-          Sign in free to chat — {ent.freeMessagesLimit} free messages on every
-          property.{" "}
-          <a
-            href={googleSignInUrl()}
-            data-testid="chat-sign-in-first-link"
-            style={{ color: ACCENT }}
+        <div>
+          <p
+            data-testid="chat-sign-in-first"
+            style={{ margin: 0, fontSize: 10.5, color: MUTED }}
           >
-            Sign in
-          </a>
-        </p>
+            Sign in free to chat — {ent.freeMessagesLimit} free messages on every
+            property.
+          </p>
+          <div style={{ marginTop: 8 }}>
+            <GoogleSignInButton
+              size="sm"
+              testId="chat-sign-in-first-link"
+            />
+          </div>
+        </div>
       )}
 
       {/* R1 free-message meter — subtle, only while on the free allowance. */}

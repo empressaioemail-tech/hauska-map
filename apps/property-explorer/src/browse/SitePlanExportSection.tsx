@@ -5,7 +5,7 @@ import {
   type SitePlanExportBffResponse,
   type SitePlanExportFormat,
 } from "../lib/sitePlanExportClient";
-import { googleSignInUrl } from "../lib/auth";
+import { GoogleSignInButton } from "../components/GoogleSignInButton";
 import { Button } from "../components/Button";
 
 const MUTED = "var(--surface-muted, #94A3B8)";
@@ -243,13 +243,10 @@ export function SitePlanExportSection({
           {notice.includes("Sign in") && (
             <>
               {" "}
-              <a
-                href={googleSignInUrl()}
-                style={{ color: ACCENT }}
-                data-testid="site-plan-export-sign-in"
-              >
-                Continue with Google
-              </a>
+              <GoogleSignInButton
+                size="md"
+                testId="site-plan-export-sign-in"
+              />
             </>
           )}
         </div>

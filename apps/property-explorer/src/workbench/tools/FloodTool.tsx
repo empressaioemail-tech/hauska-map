@@ -46,7 +46,7 @@ import {
   requestFloodDrainageRefresh,
   type FloodDrainageStudyView,
 } from "../../lib/floodDrainageClient";
-import { googleSignInUrl } from "../../lib/auth";
+import { GoogleSignInButton } from "../../components/GoogleSignInButton";
 import { recordPeGtmEvent } from "../../lib/gtmClient";
 import { usePropertyEntitlement } from "../../lib/usePropertyEntitlement";
 import { useDockToolState, useWorkbench } from "../WorkbenchContext";
@@ -507,9 +507,7 @@ export function FloodDrainageSection({ embed = false }: { embed?: boolean } = {}
           {notice.includes("Sign in") && (
             <>
               {" "}
-              <a href={googleSignInUrl()} style={{ color: ACCENT }} data-testid="flood-sign-in">
-                Continue with Google
-              </a>
+              <GoogleSignInButton size="md" testId="flood-sign-in" />
             </>
           )}
         </div>

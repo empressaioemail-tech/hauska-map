@@ -33,7 +33,7 @@ import {
   type SavedPropertyRow,
 } from "../../lib/savedPropertiesClient";
 import { savedRowDisplayLabel } from "../../lib/propertyDossier";
-import { googleSignInUrl } from "../../lib/auth";
+import { GoogleSignInButton } from "../../components/GoogleSignInButton";
 import { useWorkbench } from "../WorkbenchContext";
 import {
   cellsDiffer,
@@ -123,12 +123,12 @@ export function CompareView({
 }) {
   if (phase.kind === "sign-in") {
     return (
-      <p data-testid="compare-sign-in" style={{ margin: 0, fontSize: 11.5, color: AMBER }}>
-        Sign in to compare saved properties — the saved list is account-scoped.{" "}
-        <a href={googleSignInUrl()} style={{ color: ACCENT }}>
-          Sign in
-        </a>
-      </p>
+      <div data-testid="compare-sign-in" style={{ margin: 0, fontSize: 11.5, color: AMBER }}>
+        Sign in to compare saved properties — the saved list is account-scoped.
+        <div style={{ marginTop: 8 }}>
+          <GoogleSignInButton size="sm" testId="compare-sign-in-link" />
+        </div>
+      </div>
     );
   }
   if (phase.kind === "notice") {

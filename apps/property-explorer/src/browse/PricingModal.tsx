@@ -121,7 +121,7 @@ export function PricingModal({
         data-scroll="none"
         onClick={(e) => e.stopPropagation()}
         style={{
-          width: "min(920px, calc(100vw - 24px))",
+          width: "min(940px, calc(100vw - 24px))",
           maxHeight: "calc(100dvh - 24px)",
           overflow: "hidden",
           borderRadius: 14,
@@ -147,19 +147,20 @@ export function PricingModal({
             <div
               style={{
                 fontFamily: DISPLAY,
-                fontSize: 12,
+                fontSize: 11,
                 fontWeight: 700,
-                letterSpacing: "0.16em",
+                letterSpacing: "0.2em",
+                textTransform: "uppercase",
                 color: ACCENT,
               }}
             >
-              SMART SITE
+              {PE_PRICING.header.eyebrow}
             </div>
             <h2
               style={{
                 margin: 0,
                 fontFamily: DISPLAY,
-                fontSize: 20,
+                fontSize: 26,
                 lineHeight: 1.15,
                 fontWeight: 700,
                 letterSpacing: "-0.01em",
@@ -167,9 +168,6 @@ export function PricingModal({
             >
               {PE_PRICING.header.title}
             </h2>
-            <p style={{ margin: 0, fontSize: 12, lineHeight: 1.4, color: BODY }}>
-              {PE_PRICING.header.framing}
-            </p>
           </div>
           <div style={{ display: "flex", alignItems: "center", gap: 12, flexShrink: 0 }}>
             <div
@@ -248,31 +246,25 @@ export function PricingModal({
         ) : null}
 
         <div
-          data-testid="pricing-free-row"
-          style={{
-            padding: "8px 20px",
-            borderBottom: ROW_BORDER,
-            display: "flex",
-            alignItems: "baseline",
-            gap: 10,
-            flexWrap: "wrap",
-          }}
-        >
-          <span style={{ fontWeight: 700, fontSize: 12.5 }}>
-            {PE_PRICING.free.title} — {PE_PRICING.free.priceLabel}
-          </span>
-          <span style={{ fontSize: 12, lineHeight: 1.45, color: BODY }}>
-            {PE_PRICING.free.blurb}
-          </span>
-        </div>
-
-        <div
           style={{
             display: "grid",
             gridTemplateColumns: "minmax(160px, 1.15fr) 1fr 1fr 1fr",
           }}
         >
-          <div style={{ padding: "10px 20px", borderBottom: ROW_BORDER }} />
+          <div
+            data-testid="pricing-free-row"
+            style={{
+              padding: "16px 26px",
+              borderBottom: ROW_BORDER,
+              display: "flex",
+              alignItems: "flex-end",
+              fontSize: 12,
+              color: ABSENCE,
+              lineHeight: 1.45,
+            }}
+          >
+            {PE_PRICING.free.blurb}
+          </div>
           {TIERS.map((tier) => (
             <ColumnHead
               key={tier}
@@ -397,7 +389,6 @@ export function PricingModal({
               {" — "}
               {PE_PRICING.property.blurb}
             </div>
-            <div style={{ fontSize: 11.5, color: MUTED }}>{PE_PRICING.soloNudge}</div>
             {studioOnly ? (
               <p
                 data-testid="pricing-unlock-na-note"
@@ -450,7 +441,7 @@ export function PricingModal({
             data-testid="pricing-status-note"
             style={{
               margin: 0,
-              padding: "6px 20px 0",
+              padding: "6px 20px 10px",
               fontSize: 10,
               color: MUTED,
               lineHeight: 1.45,
@@ -459,19 +450,6 @@ export function PricingModal({
             {statusNote}
           </p>
         ) : null}
-
-        <p
-          style={{
-            margin: 0,
-            padding: "8px 20px",
-            borderTop: ROW_BORDER,
-            fontSize: 11.5,
-            lineHeight: 1.45,
-            color: MUTED,
-          }}
-        >
-          {PE_PRICING.header.stayFree}
-        </p>
       </div>
     </div>
   );

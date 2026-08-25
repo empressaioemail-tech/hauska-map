@@ -10,13 +10,12 @@
 // notice + Google sign-in link, as in the export sections) — entitlement
 // flows AFTER sign-in.
 
-import { googleSignInUrl } from "../../lib/auth";
+import { GoogleSignInButton } from "../../components/GoogleSignInButton";
 import { useWorkbench } from "../WorkbenchContext";
 
 const TEXT = "var(--text-body, #e5e7eb)";
 const MUTED = "var(--surface-muted, #94A3B8)";
 const AMBER = "var(--semantic-warning, #F59E0B)"; // locked-state caution (was raw yellow #fcd34d)
-const ACCENT = "var(--brand-blue, #3B82F6)"; // PRIMARY interactive hue (was cyan #7dd3fc)
 
 /**
  * The exact arguments the View-pricing button hands to host.openPaywall —
@@ -61,13 +60,10 @@ export function LockedToolPanel({
         <p style={{ margin: "0 0 8px", color: AMBER }}>
           {signInLine ?? "Sign in to use this tool — browsing the map and inspect card stays free."}
         </p>
-        <a
-          href={googleSignInUrl()}
-          data-testid={`${testId}-sign-in-link`}
-          style={{ color: ACCENT, fontSize: 11.5 }}
-        >
-          Sign in with Google
-        </a>
+        <GoogleSignInButton
+          size="md"
+          testId={`${testId}-sign-in-link`}
+        />
       </div>
     );
   }

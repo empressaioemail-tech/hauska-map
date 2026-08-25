@@ -37,9 +37,11 @@ describe("PricingModal — ALL pricing in one popup, every string from config", 
       <PricingModal parcelNodeId="48021:1" onClose={noop} />,
     );
     expect(html).toContain('data-testid="pricing-modal"');
-    expect(html).toContain("SMART SITE");
+    expect(html).toContain(PE_PRICING.header.eyebrow);
     expect(html).toContain(PE_PRICING.header.title);
-    expect(html).toContain(PE_PRICING.header.framing);
+    expect(html).not.toContain("One ladder");
+    expect(html).not.toContain("stay free");
+    expect(html).not.toContain(PE_PRICING.soloNudge);
     expect(html).toContain('data-testid="pricing-free-row"');
     expect(html).toContain(PE_PRICING.free.blurb);
     expect(html).toContain('data-testid="pricing-unlock-card"');
@@ -154,9 +156,9 @@ describe("PricingModal — ALL pricing in one popup, every string from config", 
       <PricingModal parcelNodeId="48021:1" onClose={noop} />,
     );
     expect(without).not.toContain('data-testid="pricing-context-line"');
-    expect(withLine).toContain("SMART SITE");
+    expect(withLine).toContain(PE_PRICING.header.eyebrow);
     expect(withLine).toContain(PE_PRICING.header.title);
-    expect(withLine.indexOf("SMART SITE")).toBeLessThan(
+    expect(withLine.indexOf(PE_PRICING.header.eyebrow)).toBeLessThan(
       withLine.indexOf('data-testid="pricing-context-line"'),
     );
   });
@@ -171,7 +173,7 @@ describe("PricingModal — ALL pricing in one popup, every string from config", 
     expect(html).toContain('data-scroll="none"');
     expect(html).toContain("overflow:hidden");
     expect(html).not.toContain("overflow-y:auto");
-    expect(html).toContain("min(920px, calc(100vw - 24px))");
+    expect(html).toContain("min(940px, calc(100vw - 24px))");
     expect(html).toContain("calc(100dvh - 24px)");
   });
 

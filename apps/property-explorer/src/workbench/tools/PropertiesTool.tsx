@@ -36,7 +36,7 @@ import {
   type DossierStatus,
 } from "../../lib/propertyDossier";
 import { pinAccent, resolvePinForSave } from "../../lib/saved-pins";
-import { googleSignInUrl } from "../../lib/auth";
+import { GoogleSignInButton } from "../../components/GoogleSignInButton";
 import { parcelNodes } from "../../lib/parcel-node-store.js";
 import { recordPeGtmEvent } from "../../lib/gtmClient";
 import { useWorkbench } from "../WorkbenchContext";
@@ -172,12 +172,12 @@ export function PropertiesList({
   }
   if (phase.kind === "sign-in") {
     return (
-      <p data-testid="properties-sign-in" style={{ margin: 0, fontSize: 11.5, color: AMBER }}>
-        Sign in to save properties and see your workspace across devices.{" "}
-        <a href={googleSignInUrl()} style={{ color: ACCENT }}>
-          Sign in
-        </a>
-      </p>
+      <div data-testid="properties-sign-in" style={{ margin: 0, fontSize: 11.5, color: AMBER }}>
+        Sign in to save properties and see your workspace across devices.
+        <div style={{ marginTop: 8 }}>
+          <GoogleSignInButton size="sm" testId="properties-sign-in-link" />
+        </div>
+      </div>
     );
   }
   if (phase.kind === "notice") {

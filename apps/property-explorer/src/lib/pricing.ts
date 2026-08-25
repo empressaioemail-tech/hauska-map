@@ -43,10 +43,10 @@ export const PE_PRICING = {
    *  info lives in ONE popup; the dock shows value lines only). */
   header: {
     title: "Pricing",
-    framing:
-      "One ladder, no hidden tiers — start free, unlock one property, or subscribe.",
-    stayFree:
-      "The inspect card and map layers stay free. Share is free.",
+    eyebrow: "Smart Site",
+    /** Retired 3a copy cut — kept so stale imports do not invent a new line. */
+    framing: "",
+    stayFree: "",
   },
   /** Annual is the default presentation (locked GTM); monthly is one click. */
   interval: {
@@ -59,15 +59,14 @@ export const PE_PRICING = {
   free: {
     title: "Free",
     priceLabel: "$0",
-    blurb:
-      "Browse the map, inspect card, saved properties, and share links — free for every account.",
+    blurb: "Free covers the map, layers and inspect card.",
   },
   /** Per-property unlock — the low-commitment on-ramp (30-day freshness window). */
   property: {
     priceLabel: "$15",
     durationDays: 30,
     title: "Unlock this property",
-    blurb: "All reports + unlimited AI on this property for 30 days",
+    blurb: "every report on this parcel.",
     footerLead: "Just this one property?",
     /** Honest disabled copy when no parcel is active. */
     needsPropertyNote: "Inspect a property first to unlock it.",
@@ -83,7 +82,7 @@ export const PE_PRICING = {
     monthlySuffix: "/mo",
     annualPriceLabel: "$490",
     annualSuffix: "/yr",
-    annualCompare: "$49/mo monthly",
+    annualCompare: "$49/mo",
     monthlyCompare: "$490/yr billed annually",
     title: "Solo",
     ctaLabel: "Start Solo",
@@ -97,7 +96,7 @@ export const PE_PRICING = {
     monthlySuffix: "/mo",
     annualPriceLabel: "$1,290",
     annualSuffix: "/yr",
-    annualCompare: "$129/mo monthly",
+    annualCompare: "$129/mo",
     monthlyCompare: "$1,290/yr billed annually",
     title: "Studio",
     ctaLabel: "Start Studio",
@@ -112,14 +111,14 @@ export const PE_PRICING = {
     monthlySuffix: "/mo",
     annualPriceLabel: "$2,990",
     annualSuffix: "/yr",
-    annualCompare: "10 seats · $299/mo monthly",
+    annualCompare: "$299/mo · 10 seats",
     monthlyCompare: "10 seats · $2,990/yr billed annually",
     extraSeatPriceLabel: "$25",
     extraSeatPeriod: "/mo",
     baseSeats: 10,
     seatNote: "up to 10 seats, then $25 per seat",
-    annualSeatCell: "10 included",
-    monthlySeatCell: "10 included, then $25 per seat",
+    annualSeatCell: "10, then $25 each",
+    monthlySeatCell: "10, then $25 each",
     annualCapNote: "Annual Team carries 10 seats. Extra seats are monthly.",
     title: "Team",
     ctaLabel: "Start Team",
@@ -127,9 +126,9 @@ export const PE_PRICING = {
     features: "Everything in Studio for the whole firm — shared saved properties, one bill",
   },
   cells: {
-    included: "Included",
-    notIncluded: "Not included",
-    oneSeat: "1 seat",
+    included: "✓",
+    notIncluded: "—",
+    oneSeat: "1",
     comingSoon: "Coming soon",
   },
   checkoutBusyLabel: "Starting checkout…",
@@ -151,7 +150,7 @@ export const PE_PRICING = {
           team: "included",
         },
         {
-          label: "Unlimited AI, unlimited properties",
+          label: "Unlimited AI and properties",
           solo: "included",
           studio: "included",
           team: "included",
@@ -185,16 +184,10 @@ export const PE_PRICING = {
       title: "Work as a firm",
       rows: [
         {
-          label: "Seats and shared saved properties",
+          label: "Seats and shared properties",
           solo: "oneSeat",
           studio: "oneSeat",
           team: "teamSeats",
-        },
-        {
-          label: "Prospect · set-level answer",
-          solo: "notIncluded",
-          studio: "comingSoon",
-          team: "comingSoon",
         },
       ],
     },
