@@ -63,7 +63,7 @@ const NON_STRIPE_URL_MESSAGE =
 
 export function resolveSubscriptionNavigation(
   result: PeCheckoutResult,
-  ctx: {
+  _ctx: {
     tier: PeCheckoutTier;
     interval: PeCheckoutInterval;
     parcelNodeId?: string | null;

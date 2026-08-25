@@ -237,7 +237,7 @@ export async function resolveLookupToParcelNodeId(
     }
     return {
       ok: false,
-      reason: honestSearchMissReason(env.reason, classified.value),
+      reason: honestSearchMissReason(env.reason ?? undefined, classified.value),
     };
   }
   const fromPlaceKey = parsePlaceKey(
