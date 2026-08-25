@@ -22,9 +22,16 @@ import { fetchSession } from "./lib/auth";
 import { claimAnonymousStateOnSignIn } from "./lib/claimClient";
 import { recordPeGtmEvent } from "./lib/gtmClient";
 import { usePostCheckoutRefresh } from "./lib/usePostCheckoutRefresh";
-import { CheckoutPage } from "./checkout/CheckoutPage";
 import { CheckoutSuccessCard } from "./checkout/CheckoutSuccessCard";
-import { isCheckoutPath } from "./checkout/checkoutLanding";
+import { SubscriptionCheckoutModal } from "./checkout/SubscriptionCheckoutModal";
+import {
+  checkoutPageHref,
+  consumeCheckoutDeepLink,
+  parsePendingCheckout,
+  stripPendingCheckoutFromUrl,
+} from "./checkout/checkoutLanding";
+import { useCheckoutActions } from "./browse/useCheckoutActions";
+import { fromCheckoutInterval } from "./lib/pricing";
 
 const COLD_OPEN_DISMISSED_KEY = "pe_cold_open_dismissed";
 
@@ -40,6 +47,7 @@ function readInitialColdOpen(): boolean {
   // Mid-checkout-flow / just returned from Stripe — already engaged, never
   // bury the reconcile behind the cold-open sign-up card.
   if (params.get("checkout") === "success") return false;
+  if (params.get("peCheckout") === "1") return false;
   // Deep-link / share URLs open inspect immediately — don't bury under cold-open.
   if (
     params.get("parcelNodeId")?.trim() ||
@@ -67,9 +75,14 @@ function readShareLanding(): ShareLanding | null {
   return resolveShareLanding(window.location, defaultShareStash());
 }
 
-function readCheckoutLanding(): boolean {
-  if (typeof window === "undefined") return false;
-  return isCheckoutPath(window.location.pathname);
+function rewriteCheckoutDeepLink(): void {
+  if (typeof window === "undefined") return;
+  const consumed = consumeCheckoutDeepLink({
+    pathname: window.location.pathname,
+    search: window.location.search,
+  });
+  if (!consumed) return;
+  window.history.replaceState({}, "", consumed.mapHref);
 }
 
 export function App() {
@@ -82,11 +95,85 @@ export function App() {
   if (shareLanding) {
     return <ShareFunnelApp landing={shareLanding} />;
   }
-  const [checkoutLanding] = useState(readCheckoutLanding);
-  if (checkoutLanding) {
-    return <CheckoutPage />;
-  }
+  // /checkout?tier= rewrites onto the map. Never a bare checkout page.
+  const [rewrote] = useState(() => {
+    rewriteCheckoutDeepLink();
+    return true;
+  });
+  void rewrote;
   return <MapApp />;
+}
+
+function CheckoutDeepLinkHost() {
+  const pending =
+    typeof window !== "undefined"
+      ? parsePendingCheckout(window.location.search)
+      : null;
+  const {
+    handleSubscription,
+    subscriptionSession,
+    dismissSubscription,
+    note,
+  } = useCheckoutActions(pending?.parcelNodeId ?? null, {
+    situsAddress: pending?.situs ?? null,
+  });
+
+  useEffect(() => {
+    if (!pending) return;
+    const href = stripPendingCheckoutFromUrl(window.location.href);
+    window.history.replaceState({}, "", href);
+    void handleSubscription(
+      pending.tier,
+      fromCheckoutInterval(pending.interval),
+    );
+    // Start once for this boot's pending query.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  if (subscriptionSession) {
+    return (
+      <SubscriptionCheckoutModal
+        search={checkoutPageHref({
+          tier: subscriptionSession.tier,
+          interval: subscriptionSession.interval,
+          parcelNodeId: subscriptionSession.parcelNodeId,
+          situs: subscriptionSession.situs,
+        }).replace(/^\/checkout/, "")}
+        session={{
+          clientSecret: subscriptionSession.clientSecret,
+          publishableKey: subscriptionSession.publishableKey,
+          sessionId: subscriptionSession.sessionId,
+          kind: "subscription",
+        }}
+        onClose={dismissSubscription}
+      />
+    );
+  }
+  if (note) {
+    return (
+      <div
+        data-testid="checkout-deeplink-note"
+        role="status"
+        style={{
+          position: "absolute",
+          top: 16,
+          left: "50%",
+          transform: "translateX(-50%)",
+          zIndex: 40,
+          padding: "8px 16px",
+          borderRadius: 8,
+          background: "rgba(13,17,23,0.92)",
+          border: "0.5px solid rgba(245,158,11,0.5)",
+          color: "#FBBF24",
+          fontFamily: "system-ui, sans-serif",
+          fontSize: 12.5,
+        }}
+      >
+        {note.text}
+      </div>
+    );
+  }
+  return null;
 }
 
 function MapApp() {
@@ -153,6 +240,7 @@ function MapApp() {
     >
       {/* The live map is ALWAYS mounted underneath — it boots first. */}
       <ExplorerMap />
+      <CheckoutDeepLinkHost />
 
       {checkoutStatus === "checking" && (
         <div

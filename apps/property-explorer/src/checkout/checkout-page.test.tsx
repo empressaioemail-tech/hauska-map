@@ -3,11 +3,17 @@ import { resolve } from "node:path";
 import { describe, expect, it } from "vitest";
 import { renderToStaticMarkup } from "react-dom/server";
 import { CheckoutPage } from "./CheckoutPage";
-import { isCheckoutPath, parseCheckoutQuery } from "./checkoutLanding";
+import { SubscriptionCheckoutModal } from "./SubscriptionCheckoutModal";
+import {
+  consumeCheckoutDeepLink,
+  isCheckoutPath,
+  parseCheckoutQuery,
+  parsePendingCheckout,
+} from "./checkoutLanding";
 import { PE_PRICING, tierHeadline } from "../lib/pricing";
 import { includedLinesForTier, subscriptionSubmitLabel } from "./checkoutCopy";
 
-describe("checkout landing — /checkout pathname (mirror /share)", () => {
+describe("checkout landing — /checkout pathname is consumed into the map", () => {
   it("recognizes /checkout and trailing slash, not /share", () => {
     expect(isCheckoutPath("/checkout")).toBe(true);
     expect(isCheckoutPath("/checkout/")).toBe(true);
@@ -15,11 +21,30 @@ describe("checkout landing — /checkout pathname (mirror /share)", () => {
     expect(isCheckoutPath("/")).toBe(false);
   });
 
-  it("App routes /checkout into CheckoutPage the same way /share uses ShareFunnelApp", () => {
+  it("App never exclusive-routes /checkout onto a bare CheckoutPage", () => {
     const appSource = readFileSync(resolve(__dirname, "../App.tsx"), "utf8");
-    expect(appSource).toContain("isCheckoutPath");
-    expect(appSource).toContain("CheckoutPage");
-    expect(appSource).toContain("checkoutLanding");
+    expect(appSource).toContain("consumeCheckoutDeepLink");
+    expect(appSource).toContain("CheckoutDeepLinkHost");
+    expect(appSource).toContain("SubscriptionCheckoutModal");
+    expect(appSource).toContain("ExplorerMap");
+    expect(appSource).not.toMatch(/if \(checkoutLanding\) \{\s*return <CheckoutPage/);
+  });
+
+  it("deep link /checkout?tier= becomes the map plus a pending modal", () => {
+    const consumed = consumeCheckoutDeepLink({
+      pathname: "/checkout",
+      search:
+        "?tier=studio&interval=year&parcelNodeId=48021:34945&situs=1105%20Hill",
+    });
+    expect(consumed).not.toBeNull();
+    expect(consumed?.mapHref).toContain("parcelNodeId=48021%3A34945");
+    expect(consumed?.mapHref.startsWith("/?")).toBe(true);
+    expect(consumed?.mapHref).not.toContain("/checkout");
+    expect(parsePendingCheckout(consumed?.mapHref.split("?")[1] ?? "")).toMatchObject({
+      tier: "studio",
+      interval: "year",
+      parcelNodeId: "48021:34945",
+    });
   });
 
   it("CheckoutPage wires the Stripe mount hook and does not invent card fields", () => {
@@ -61,9 +86,35 @@ describe("CheckoutPage — left column from PE_PRICING + frame 3b", () => {
     }
   });
 
+  it("modal wrapper mounts the Payment Element when clientSecret exists", () => {
+    const html = renderToStaticMarkup(
+      <SubscriptionCheckoutModal
+        search="?tier=studio&interval=year"
+        session={SESSION}
+        onClose={() => {}}
+      />,
+    );
+    expect(html).toContain('data-testid="subscription-checkout-modal"');
+    expect(html).toContain('data-testid="stripe-payment-element"');
+    expect(html).not.toMatch(/Card number|ZIP|Name on card|4242/);
+  });
+
   it("missing session is an honest error and does not render a fake Element slot", () => {
     const html = renderToStaticMarkup(
       <CheckoutPage search="?tier=studio&interval=year" session={null} />,
+    );
+    expect(html).toContain('data-testid="checkout-mount-error"');
+    expect(html).toContain("Nothing was charged");
+    expect(html).not.toContain('data-testid="stripe-payment-element"');
+  });
+
+  it("modal missing secret is an honest error", () => {
+    const html = renderToStaticMarkup(
+      <SubscriptionCheckoutModal
+        search="?tier=studio&interval=year"
+        session={null}
+        onClose={() => {}}
+      />,
     );
     expect(html).toContain('data-testid="checkout-mount-error"');
     expect(html).toContain("Nothing was charged");

@@ -49,6 +49,47 @@ export function checkoutPageHref(input: {
   return `/checkout?${params.toString()}`;
 }
 
+/** Map URL that keeps the parcel inspect. /checkout itself is retired. */
+export function checkoutDeepLinkMapHref(query: CheckoutQuery): string {
+  const params = new URLSearchParams();
+  if (query.parcelNodeId) params.set("parcelNodeId", query.parcelNodeId);
+  params.set("peCheckout", "1");
+  params.set("tier", query.tier);
+  params.set("interval", query.interval);
+  if (query.situs) params.set("situs", query.situs);
+  return `/?${params.toString()}`;
+}
+
+/**
+ * A /checkout?tier= deep link becomes the map plus a pending modal.
+ * Never leaves the caller on a bare checkout page.
+ */
+export function consumeCheckoutDeepLink(input: {
+  pathname: string;
+  search: string;
+}): { mapHref: string; query: CheckoutQuery } | null {
+  if (!isCheckoutPath(input.pathname)) return null;
+  const query = parseCheckoutQuery(input.search);
+  return { mapHref: checkoutDeepLinkMapHref(query), query };
+}
+
+/** Pending Start from a consumed /checkout deep link (map URL). */
+export function parsePendingCheckout(search: string): CheckoutQuery | null {
+  const params = new URLSearchParams(search.startsWith("?") ? search : `?${search}`);
+  if (params.get("peCheckout") !== "1") return null;
+  return parseCheckoutQuery(search);
+}
+
+export function stripPendingCheckoutFromUrl(href: string): string {
+  const url = new URL(href, "https://smartsite.cloud");
+  url.searchParams.delete("peCheckout");
+  url.searchParams.delete("tier");
+  url.searchParams.delete("interval");
+  url.searchParams.delete("situs");
+  const qs = url.searchParams.toString();
+  return `${url.pathname}${qs ? `?${qs}` : ""}`;
+}
+
 export function isKnownCheckoutTier(tier: string): tier is PeCheckoutTier {
   return (TIERS as readonly string[]).includes(tier);
 }

@@ -89,6 +89,51 @@ export function clearDeepLinkParams(): void {
  * rooftop was supplied by an address-point pick (#191). Caller lat/lng
  * (Photon / viewport) stay ignored.
  */
+export type LookupSubjectHint = {
+  parcelNodeId: string;
+  situsAddress?: string | null;
+};
+
+export const HONEST_SEARCH_MISS =
+  "Address not matched to a parcel — search returned no hit.";
+
+export function normalizeFindAddress(raw: string): string {
+  return raw
+    .trim()
+    .toUpperCase()
+    .replace(/[.,#]/g, " ")
+    .replace(/\s+/g, " ")
+    .trim();
+}
+
+export function findQueryMatchesSubjectSitus(
+  query: string,
+  situs: string | null | undefined,
+): boolean {
+  if (!situs) return false;
+  const q = normalizeFindAddress(query);
+  const s = normalizeFindAddress(situs);
+  if (!q || !s) return false;
+  return q === s || q.includes(s) || s.includes(q);
+}
+
+export function isNakedPropertySearch404(reason: string | undefined): boolean {
+  if (!reason) return false;
+  return /property search results:\s*404|error fetch property search|http-404/i.test(
+    reason,
+  );
+}
+
+export function honestSearchMissReason(
+  raw: string | undefined,
+  query: string,
+): string {
+  if (isNakedPropertySearch404(raw) || /404/.test(raw ?? "")) {
+    return HONEST_SEARCH_MISS;
+  }
+  return raw?.trim() || `Address not found or not pinned to a single parcel: ${query}`;
+}
+
 export async function resolveLookupToParcelNodeId(
   raw: string,
   opts?: {
@@ -100,6 +145,8 @@ export async function resolveLookupToParcelNodeId(
     lng?: number;
     /** Situs address-point rooftop from the picked row. Not Photon. */
     trustedRooftop?: { lat: number; lng: number };
+    /** Already-mapped subject. A 404 must not toast if the query matches it. */
+    currentSubject?: LookupSubjectHint | null;
   },
 ): Promise<LookupResult> {
   const classified = classifyLookupQuery(raw);
@@ -126,6 +173,19 @@ export async function resolveLookupToParcelNodeId(
       parcelNodeId: pin.parcelNodeId,
       source: "address",
       resolvedPoint,
+    };
+  }
+
+  const subject = opts?.currentSubject;
+  if (
+    subject?.parcelNodeId &&
+    isValidParcelNodeId(subject.parcelNodeId) &&
+    findQueryMatchesSubjectSitus(classified.value, subject.situsAddress)
+  ) {
+    return {
+      ok: true,
+      parcelNodeId: subject.parcelNodeId,
+      source: "address",
     };
   }
 
@@ -164,11 +224,20 @@ export async function resolveLookupToParcelNodeId(
       ? env.parcelNodeId.trim()
       : null;
   if (!parcelNodeId) {
+    if (
+      subject?.parcelNodeId &&
+      isValidParcelNodeId(subject.parcelNodeId) &&
+      findQueryMatchesSubjectSitus(classified.value, subject.situsAddress)
+    ) {
+      return {
+        ok: true,
+        parcelNodeId: subject.parcelNodeId,
+        source: "address",
+      };
+    }
     return {
       ok: false,
-      reason:
-        env.reason?.trim() ||
-        `Address not found or not pinned to a single parcel: ${classified.value}`,
+      reason: honestSearchMissReason(env.reason, classified.value),
     };
   }
   const fromPlaceKey = parsePlaceKey(

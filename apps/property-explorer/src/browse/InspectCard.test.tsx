@@ -6,8 +6,11 @@
 // tests pin that removal and keep the honest status lines that are NOT
 // persona copy.
 
+import { readFileSync } from "node:fs";
+import { resolve } from "node:path";
 import { describe, expect, it } from "vitest";
 import { renderToStaticMarkup } from "react-dom/server";
+import { gateOwnerPresentation, OWNER_STUDIO_UPGRADE_CUE } from "../lib/owner-paint";
 import {
   FacetRow,
   FactRow,
@@ -937,6 +940,54 @@ describe("InspectCard Owner row — ownerFact (P-54)", () => {
     expect(html).not.toContain("inspect-owner");
     expect(html).not.toContain("Owner");
     expect(html).not.toContain("cad-parcel-roll");
+  });
+
+  it("free/Solo fixture with a CAD side-channel name does not render it", () => {
+    const html = renderToStaticMarkup(
+      <dl>
+        <FactRow
+          label="Owner"
+          fact={gateOwnerPresentation(
+            toFactPresentation(
+              { state: "present", value: "GEAUXNU HOLDINGS LLC" },
+              ROW_SPECS.owner,
+            ),
+            "solo",
+          )}
+          testid="inspect-owner"
+        />
+      </dl>,
+    );
+    expect(html).toContain('data-testid="inspect-owner"');
+    expect(html).toContain(OWNER_STUDIO_UPGRADE_CUE);
+    expect(html).not.toContain("GEAUXNU");
+    expect(html).not.toContain("cad-parcel-roll");
+  });
+
+  it("Studio fixture with ownerFact.ownerName may render it", () => {
+    const html = renderToStaticMarkup(
+      <dl>
+        <FactRow
+          label="Owner"
+          fact={gateOwnerPresentation(
+            toFactPresentation(
+              { state: "present", value: "GEAUXNU HOLDINGS LLC" },
+              ROW_SPECS.owner,
+            ),
+            "studio",
+          )}
+          testid="inspect-owner"
+        />
+      </dl>,
+    );
+    expect(html).toContain("GEAUXNU HOLDINGS LLC");
+    expect(html).not.toContain(OWNER_STUDIO_UPGRADE_CUE);
+  });
+
+  it("InspectCard wires the studio gate and never paints card.owner", () => {
+    const src = readFileSync(resolve(__dirname, "InspectCard.tsx"), "utf8");
+    expect(src).toContain("gateOwnerPresentation");
+    expect(src).not.toMatch(/card\.owner/);
   });
 });
 

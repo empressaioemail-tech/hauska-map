@@ -261,6 +261,12 @@ export function toCheckoutInterval(
   return interval === "annual" ? "year" : "month";
 }
 
+export function fromCheckoutInterval(
+  interval: PeCheckoutInterval,
+): PricingInterval {
+  return interval === "year" ? "annual" : "monthly";
+}
+
 /** Annual Team is capped at base seats. Extra seats are monthly-only. */
 export function teamSeatsOnWire(
   interval: PricingInterval,

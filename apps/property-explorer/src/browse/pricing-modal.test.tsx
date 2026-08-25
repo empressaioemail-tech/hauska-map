@@ -277,4 +277,11 @@ describe("PricingModal — unlock modal receives the custom session", () => {
     expect(src).toContain("clientSecret={unlockSession.clientSecret}");
     expect(src).toContain("publishableKey={unlockSession.publishableKey}");
   });
+
+  it("Start Solo/Studio/Team opens SubscriptionCheckoutModal, not /checkout", () => {
+    const src = readFileSync(resolve(__dirname, "PricingModal.tsx"), "utf8");
+    expect(src).toContain("SubscriptionCheckoutModal");
+    expect(src).toContain("subscriptionSession");
+    expect(src).not.toMatch(/window\.location\.assign/);
+  });
 });
