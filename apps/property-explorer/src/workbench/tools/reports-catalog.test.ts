@@ -40,6 +40,12 @@ describe("reports catalog — Option D picker source", () => {
     expect(readyCount(true)).toEqual({ ready: 9, total: 11 });
   });
 
+  it("the live package is X-ray, not Property dossier", () => {
+    const doss = REPORTS_CATALOG.find((d) => d.id === "DOSS");
+    expect(doss?.name).toBe("X-ray");
+    expect(REPORTS_CATALOG.some((d) => /dossier/i.test(d.name))).toBe(false);
+  });
+
   it("isReportDocId rejects garbage and accepts every catalog id", () => {
     expect(isReportDocId("SPPDF")).toBe(true);
     expect(isReportDocId("FLOOD")).toBe(true);
