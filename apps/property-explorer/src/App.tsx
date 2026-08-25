@@ -4,7 +4,7 @@
 //
 // COLD OPEN: the LIVE map boots FIRST (anonymous, no auth), full-bleed. A
 // sign-up card floats over it with the real app DIMMED behind it via a CSS
-// scrim (not a screenshot). Dismissing the card ("Continue with Google",
+// scrim (not a screenshot). Dismissing the card ("Sign in with Google",
 // or "Just browse the map") lifts the scrim into full browse. After a
 // successful OIDC callback (?signed_in=1) or an existing pe_session cookie,
 // cold-open is skipped.

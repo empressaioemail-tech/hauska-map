@@ -1,10 +1,8 @@
 // src/share/ShareLandingOverlay.tsx — the share landing's PERSISTENT,
 // NON-BLOCKING sign-up prompt + the invalid/expired-link notice.
 //
-// The prompt reuses the app's EXISTING standard sign-in entry point — the same
-// googleSignInUrl() anchor behind the "Sign in" affordances in
-// workbench/tools/ChatTool.tsx and LockedToolPanel.tsx (an <a> to
-// /api/auth/google/start; the OIDC callback lands back with ?signed_in=1).
+// The prompt reuses GoogleSignInButton — the same /api/auth/google/start
+// entry ChatTool and LockedToolPanel use.
 // Nothing is gated by the prompt: the whole app stays usable behind it
 // (anonymous entitlements unchanged) — pointer events only on the card.
 //
@@ -12,14 +10,13 @@
 // Invalid/expired link → the honest notice renders REGARDLESS of sign-in
 // state, so a signed-in viewer still learns why no dossier docked.
 
-import { googleSignInUrl } from "../lib/auth";
+import { GoogleSignInButton } from "../components/GoogleSignInButton";
 import { recordPeGtmEvent } from "../lib/gtmClient";
 import type { SharePhase } from "./ShareView";
 
 const CARD_BG = "var(--surface-card-translucent, rgba(13,17,23,0.94))";
 const TEXT = "var(--text-body, #e5e7eb)";
 const MUTED = "var(--surface-muted, #94A3B8)";
-const ACCENT = "var(--brand-blue, #3B82F6)"; // PRIMARY interactive hue (was cyan #7dd3fc)
 const AMBER = "var(--semantic-warning, #F59E0B)"; // caution notice (was raw yellow #fcd34d)
 
 export function ShareLandingOverlay({
@@ -87,14 +84,11 @@ export function ShareLandingOverlay({
             <strong>Shared with you</strong> — sign up free to explore this and
             any property.
           </p>
-          <a
-            href={googleSignInUrl()}
-            data-testid="share-signup-link"
+          <GoogleSignInButton
+            size="md"
+            testId="share-signup-link"
             onClick={() => void recordPeGtmEvent({ eventType: "pe_signup_intent" })}
-            style={{ color: ACCENT, fontSize: 12, fontWeight: 600 }}
-          >
-            Sign up free with Google
-          </a>
+          />
           <p style={{ margin: "6px 0 0", fontSize: 10, color: MUTED }}>
             Browsing the map stays free — no account needed to look around.
           </p>

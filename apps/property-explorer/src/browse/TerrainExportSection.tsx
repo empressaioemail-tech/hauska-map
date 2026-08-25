@@ -5,7 +5,7 @@ import {
   type TerrainExportBffResponse,
   type TerrainExportFormat,
 } from "../lib/terrainExportClient";
-import { googleSignInUrl } from "../lib/auth";
+import { GoogleSignInButton } from "../components/GoogleSignInButton";
 import { Button } from "../components/Button";
 
 const MUTED = "var(--surface-muted, #94A3B8)";
@@ -228,13 +228,10 @@ export function TerrainExportSection({
           {notice.includes("Sign in") && (
             <>
               {" "}
-              <a
-                href={googleSignInUrl()}
-                style={{ color: ACCENT }}
-                data-testid="terrain-export-sign-in"
-              >
-                Continue with Google
-              </a>
+              <GoogleSignInButton
+                size="md"
+                testId="terrain-export-sign-in"
+              />
             </>
           )}
         </div>
