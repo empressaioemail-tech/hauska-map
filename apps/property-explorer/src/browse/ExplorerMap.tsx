@@ -85,6 +85,7 @@ import {
   deepLinkLookupQuery,
   clearDeepLinkParams,
   resolveLookupToParcelNodeId,
+  honestSearchMissReason,
 } from "../lib/parcel-lookup";
 import { factSheetResolver } from "../lib/fact-sheet-resolver";
 import { setSubjectByParcelNodeId, subjectStore } from "../lib/subject-store";
@@ -931,10 +932,20 @@ function ExplorerMapSurface({
       try {
         // 1. Query -> parcel node id. That is the ONLY thing the lookup path
         //    is authoritative for; it no longer reads a single parcel fact.
+        const subjectNow = subjectStore.current();
         const found = await resolveLookupToParcelNodeId(q, {
           lat: opts?.lat,
           lng: opts?.lng,
           trustedRooftop: opts?.trustedRooftop,
+          currentSubject: subjectNow
+            ? {
+                parcelNodeId: subjectNow.sheet.identity.parcelNodeId,
+                situsAddress:
+                  subjectNow.sheet.identity.situsAddress.state === "present"
+                    ? subjectNow.sheet.identity.situsAddress.value
+                    : null,
+              }
+            : null,
         });
         if (!lookupIntentRef.current.isCurrent(started)) return false;
         if (!found.ok) {
@@ -1070,7 +1081,9 @@ function ExplorerMapSurface({
       } catch (err) {
         if (!opts?.quiet) {
           setLookupError(
-            err instanceof Error ? err.message : "Lookup failed — try again.",
+            err instanceof Error
+              ? honestSearchMissReason(err.message, q)
+              : "Lookup failed — try again.",
           );
         }
         return false;

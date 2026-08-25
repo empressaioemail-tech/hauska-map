@@ -19,6 +19,8 @@ import { useState } from "react";
 import { Button } from "../components/Button";
 import { useCheckoutActions, clampTeamSeats } from "./useCheckoutActions";
 import { UnlockCheckoutModal } from "../checkout/UnlockCheckoutModal";
+import { SubscriptionCheckoutModal } from "../checkout/SubscriptionCheckoutModal";
+import { checkoutPageHref } from "../checkout/checkoutLanding";
 import type { PeCheckoutTier } from "../lib/billingClient";
 import {
   PE_PRICING,
@@ -85,11 +87,19 @@ export function PricingModal({
   initialInterval?: PricingInterval;
   onClose: () => void;
 }) {
-  const { busy, note, handleProperty, handleSubscription, unlockSession, dismissUnlock } =
-    useCheckoutActions(parcelNodeId, {
-      onUnlocked: onClose,
-      situsAddress: situsAddress ?? null,
-    });
+  const {
+    busy,
+    note,
+    handleProperty,
+    handleSubscription,
+    unlockSession,
+    dismissUnlock,
+    subscriptionSession,
+    dismissSubscription,
+  } = useCheckoutActions(parcelNodeId, {
+    onUnlocked: onClose,
+    situsAddress: situsAddress ?? null,
+  });
   const [interval, setInterval] = useState<PricingInterval>(
     initialInterval ?? defaultPricingInterval(),
   );
@@ -112,6 +122,26 @@ export function PricingModal({
         publishableKey={unlockSession.publishableKey}
         parcelNodeId={unlockSession.parcelNodeId}
         onClose={dismissUnlock}
+      />
+    );
+  }
+
+  if (subscriptionSession) {
+    return (
+      <SubscriptionCheckoutModal
+        search={checkoutPageHref({
+          tier: subscriptionSession.tier,
+          interval: subscriptionSession.interval,
+          parcelNodeId: subscriptionSession.parcelNodeId,
+          situs: subscriptionSession.situs,
+        }).replace(/^\/checkout/, "")}
+        session={{
+          clientSecret: subscriptionSession.clientSecret,
+          publishableKey: subscriptionSession.publishableKey,
+          sessionId: subscriptionSession.sessionId,
+          kind: "subscription",
+        }}
+        onClose={dismissSubscription}
       />
     );
   }

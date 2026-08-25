@@ -60,6 +60,8 @@ import {
 } from "../lib/baked-facets";
 import type { LayerAbsenceProvenance } from "../lib/layer-absence";
 import { factSheetResolver } from "../lib/fact-sheet-resolver";
+import { usePropertyEntitlement } from "../lib/usePropertyEntitlement";
+import { gateOwnerPresentation } from "../lib/owner-paint";
 import {
   bakedCardModelFromSheet,
   envelopeStateFromSheet,
@@ -432,7 +434,7 @@ export const ROW_SPECS: Record<string, FactRowSpec> = {
     labelledAbsenceIsCovered: true,
   },
   owner: {
-    wouldBeFilledBy: "an owner-fact atom on this parcel for an identified session",
+    wouldBeFilledBy: "an owner-fact atom on this parcel for a Studio or Team session",
     labelledAbsenceIsCovered: true,
   },
 };
@@ -607,6 +609,7 @@ export function InspectCard({
   onUnsaveProperty?: () => void;
 }) {
   const { isMobile } = useMobilePanel();
+  const entitlement = usePropertyEntitlement(parcelNodeId);
   // Baked-first source state. `source` is "loading" until we know whether a
   // baked snapshot exists; then "baked" (pure read) or "live" (fallback).
   const [source, setSource] = useState<Source>("loading");
@@ -820,7 +823,15 @@ export function InspectCard({
         { key: "well", label: "Well", fact: toFactPresentation(baked.well, ROW_SPECS.well), testid: "inspect-well" },
         { key: "footprint", label: "Footprint", fact: toFactPresentation(baked.footprint, ROW_SPECS.footprint), testid: "inspect-footprint" },
         { key: "boundary", label: "Boundary", fact: toFactPresentation(baked.boundary, ROW_SPECS.boundary), testid: "inspect-boundary" },
-        { key: "owner", label: "Owner", fact: toFactPresentation(baked.owner, ROW_SPECS.owner), testid: "inspect-owner" },
+        {
+          key: "owner",
+          label: "Owner",
+          fact: gateOwnerPresentation(
+            toFactPresentation(baked.owner, ROW_SPECS.owner),
+            entitlement.status === "ready" ? entitlement.subscriptionTier : null,
+          ),
+          testid: "inspect-owner",
+        },
       ]
     : [];
 

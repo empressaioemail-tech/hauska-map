@@ -2,6 +2,8 @@ import { describe, expect, it, vi } from "vitest";
 import {
   classifyLookupQuery,
   deepLinkLookupQuery,
+  findQueryMatchesSubjectSitus,
+  HONEST_SEARCH_MISS,
   resolveLookupToParcelNodeId,
 } from "./parcel-lookup";
 
@@ -319,6 +321,81 @@ describe("resolveLookupToParcelNodeId", () => {
     });
     expect(result.ok).toBe(false);
     expect(fetchImpl).not.toHaveBeenCalled();
+  });
+
+  it("404 + matching subject situs resolves the current subject — not a naked 404 toast", async () => {
+    const fetchImpl = routeFetch({
+      situsStatus: 404,
+      onEnvelope: () =>
+        jsonResponse(
+          {
+            status: "http-404",
+            message: "Error fetch property search results: 404 (Not Found)",
+          },
+          404,
+        ),
+    });
+    const result = await resolveLookupToParcelNodeId(
+      "906 CHESTNUT ST, BASTROP, TX 78602",
+      {
+        cortexBase: CORTEX,
+        situsSearchUrl: SITUS,
+        fetchImpl,
+        currentSubject: {
+          parcelNodeId: "48021:34097",
+          situsAddress: "906 CHESTNUT ST, BASTROP, TX 78602",
+        },
+      },
+    );
+    expect(result).toEqual({
+      ok: true,
+      parcelNodeId: "48021:34097",
+      source: "address",
+    });
+    expect(JSON.stringify(result)).not.toMatch(/Error fetch property search/);
+  });
+
+  it("404 + non-matching query is an honest miss — does not invent the subject id", async () => {
+    const fetchImpl = routeFetch({
+      situsHits: [],
+      onEnvelope: () =>
+        jsonResponse(
+          {
+            status: "http-404",
+            message: "Error fetch property search results: 404 (Not Found)",
+          },
+          404,
+        ),
+    });
+    const result = await resolveLookupToParcelNodeId("nowhere at all", {
+      cortexBase: CORTEX,
+      situsSearchUrl: SITUS,
+      fetchImpl,
+      currentSubject: {
+        parcelNodeId: "48021:34097",
+        situsAddress: "906 CHESTNUT ST, BASTROP, TX 78602",
+      },
+    });
+    expect(result.ok).toBe(false);
+    if (result.ok) throw new Error("unreachable");
+    expect(result.reason).toBe(HONEST_SEARCH_MISS);
+    expect(result.reason).not.toMatch(/Error fetch property search/);
+    expect(JSON.stringify(result)).not.toMatch(/48021:34097/);
+  });
+
+  it("findQueryMatchesSubjectSitus matches Chestnut long-form to the subject", () => {
+    expect(
+      findQueryMatchesSubjectSitus(
+        "906 CHESTNUT ST, BASTROP, TX 78602",
+        "906 Chestnut St, Bastrop, TX 78602",
+      ),
+    ).toBe(true);
+    expect(
+      findQueryMatchesSubjectSitus(
+        "100 MAIN ST, AUSTIN, TX",
+        "906 CHESTNUT ST, BASTROP, TX 78602",
+      ),
+    ).toBe(false);
   });
 
   it("situs down falls through to address-only envelope", async () => {

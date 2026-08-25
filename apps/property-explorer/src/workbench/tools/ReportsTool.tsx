@@ -14,6 +14,7 @@ import {
   type TerrainExportSectionState,
 } from "../../browse/TerrainExportSection";
 import { Button } from "../../components/Button";
+import { DownloadFileButton } from "../../components/DownloadFileButton";
 import { recordPeGtmEvent } from "../../lib/gtmClient";
 import { subscriptionTierGrantsStudio } from "../../lib/entitlementClient";
 import { usePropertyEntitlement } from "../../lib/usePropertyEntitlement";
@@ -739,32 +740,22 @@ function DossierExportAction({
     });
   };
 
+  const hasFile = !!state?.downloadUrl;
+
   return (
     <div data-testid="reports-dossier-action">
-      <Button
-        type="button"
-        variant="primary"
-        fullWidth
-        data-testid="reports-dossier-run"
-        disabled={busy}
-        onClick={() => void run()}
-      >
-        {busy ? "Building…" : state?.downloadUrl ? "Generate again" : "Generate"}
-      </Button>
-      {state?.downloadUrl ? (
-        <a
+      {hasFile ? (
+        <DownloadFileButton
           href={state.downloadUrl}
-          data-testid="reports-dossier-download"
-          style={{
-            display: "inline-block",
-            marginTop: 8,
-            fontSize: 12,
-            fontWeight: 600,
-            color: BLUE,
-          }}
-        >
-          Download X-ray PDF
-        </a>
+          label="Download PDF"
+          testId="reports-dossier-download"
+        />
+      ) : busy ? (
+        <DownloadFileButton
+          label="Download PDF"
+          state="generating"
+          testId="reports-dossier-download"
+        />
       ) : null}
       {state?.notice ? (
         <div
@@ -774,6 +765,17 @@ function DossierExportAction({
           {state.notice}
         </div>
       ) : null}
+      <Button
+        type="button"
+        variant={hasFile ? "secondary" : "primary"}
+        fullWidth
+        data-testid="reports-dossier-run"
+        disabled={busy}
+        onClick={() => void run()}
+        style={{ marginTop: hasFile || busy || state?.notice ? 8 : 0 }}
+      >
+        {busy ? "Building…" : hasFile ? "Re-run" : "Generate"}
+      </Button>
     </div>
   );
 }

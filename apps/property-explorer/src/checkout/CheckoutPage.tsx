@@ -1,5 +1,6 @@
-// Full-page /checkout. Left column is Smart Site markup (WDLL item 4).
-// Right column mounts Stripe Payment Element. No invented card fields.
+// Subscription payment chrome (WDLL item 3 popup). Left column is Smart Site
+// markup. Right column mounts Stripe Payment Element. No invented card fields.
+// Mounted inside SubscriptionCheckoutModal so the map stays mounted.
 
 import { PE_PRICING, type PePricedTier } from "../lib/pricing";
 import {
@@ -40,10 +41,12 @@ export function CheckoutPage({
   search,
   originLabel,
   session,
+  onClose,
 }: {
   search?: string;
   originLabel?: string | null;
   session?: CustomCheckoutSession | null;
+  onClose?: () => void;
 } = {}) {
   const q = parseCheckoutQuery(
     search ?? (typeof window !== "undefined" ? window.location.search : ""),
@@ -70,12 +73,15 @@ export function CheckoutPage({
     <div
       data-testid="checkout-page"
       style={{
-        position: "fixed",
-        inset: 0,
+        width: "min(920px, calc(100vw - 24px))",
+        maxHeight: "calc(100dvh - 24px)",
+        overflow: "auto",
+        borderRadius: 14,
         background: INK,
         color: TEXT,
         fontFamily: FONT,
-        overflow: "auto",
+        border: "0.5px solid rgba(59,130,246,0.28)",
+        boxShadow: "0 24px 80px rgba(0,0,0,0.55)",
       }}
     >
       <header
@@ -99,20 +105,28 @@ export function CheckoutPage({
         >
           SMART<span style={{ color: "#F5B95C" }}>SITE</span>
         </span>
-        <a
-          href="/"
+        <button
+          type="button"
           data-testid="checkout-back"
-          style={{ fontSize: 12, color: ABSENCE, textDecoration: "none" }}
+          onClick={onClose}
+          style={{
+            fontSize: 12,
+            color: ABSENCE,
+            background: "transparent",
+            border: "none",
+            cursor: "pointer",
+            padding: 0,
+            fontFamily: FONT,
+          }}
         >
           ‹ Back to the map
-        </a>
+        </button>
       </header>
 
       <div
         style={{
           display: "grid",
           gridTemplateColumns: "1fr 1fr",
-          minHeight: "calc(100vh - 52px)",
         }}
       >
         <section

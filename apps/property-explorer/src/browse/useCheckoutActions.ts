@@ -1,8 +1,10 @@
 // apps/property-explorer/src/browse/useCheckoutActions.ts
 //
 // THE ONE checkout-handling implementation (2026-08-24 pricing-popup ruling).
-// Custom clientSecret opens /checkout or the unlock modal. Hosted checkoutUrl
-// still assigns to Stripe (WDLL item 3 fallback). Never assign a non-Stripe URL.
+// Custom clientSecret opens the subscription payment modal (map stays
+// mounted) or the unlock modal. Hosted checkoutUrl still assigns to Stripe
+// (WDLL item 3 fallback). Never assign a non-Stripe URL. Never assign
+// /checkout — that route unmounted the map.
 
 import { useState } from "react";
 import {
@@ -25,8 +27,6 @@ import {
 } from "../lib/pricing";
 import { invalidatePropertyEntitlement } from "../lib/entitlementClient";
 import { recordPeGtmEvent } from "../lib/gtmClient";
-import { checkoutPageHref } from "../checkout/checkoutLanding";
-
 export type CheckoutBusy = "property" | PeCheckoutTier | null;
 
 export interface CheckoutNote {
@@ -42,8 +42,18 @@ export type UnlockCheckoutSession = {
   situs: string | null;
 };
 
+export type SubscriptionCheckoutSession = {
+  clientSecret: string;
+  publishableKey?: string;
+  sessionId?: string;
+  tier: PeCheckoutTier;
+  interval: PeCheckoutInterval;
+  parcelNodeId: string | null;
+  situs: string | null;
+};
+
 export type CheckoutNav =
-  | { action: "in-app"; href: string }
+  | { action: "modal" }
   | { action: "hosted"; url: string }
   | { action: "error"; message: string }
   | { action: "idle" };
@@ -53,7 +63,7 @@ const NON_STRIPE_URL_MESSAGE =
 
 export function resolveSubscriptionNavigation(
   result: PeCheckoutResult,
-  ctx: {
+  _ctx: {
     tier: PeCheckoutTier;
     interval: PeCheckoutInterval;
     parcelNodeId?: string | null;
@@ -64,15 +74,7 @@ export function resolveSubscriptionNavigation(
     return { action: "error", message: result.message ?? "Checkout unavailable." };
   }
   if (result.clientSecret) {
-    return {
-      action: "in-app",
-      href: checkoutPageHref({
-        tier: ctx.tier,
-        interval: ctx.interval,
-        parcelNodeId: ctx.parcelNodeId,
-        situs: ctx.situs,
-      }),
-    };
+    return { action: "modal" };
   }
   if (result.checkoutUrl) {
     if (!isStripeCheckoutUrl(result.checkoutUrl)) {
@@ -109,6 +111,8 @@ export function useCheckoutActions(
   const [unlockSession, setUnlockSession] = useState<UnlockCheckoutSession | null>(
     null,
   );
+  const [subscriptionSession, setSubscriptionSession] =
+    useState<SubscriptionCheckoutSession | null>(null);
 
   const handleProperty = async () => {
     if (busy || !parcelNodeId) return;
@@ -218,16 +222,26 @@ export function useCheckoutActions(
       return;
     }
     if (result.honestNote) setNote({ text: result.honestNote, tone: "muted" });
-    if (nav.action === "in-app") {
-      if (result.clientSecret) {
-        persistCustomCheckoutSession({
-          clientSecret: result.clientSecret,
-          publishableKey: result.publishableKey,
-          sessionId: result.sessionId,
-          kind: "subscription",
-        });
+    if (nav.action === "modal") {
+      if (!result.clientSecret) {
+        setNote({ text: "Checkout session is missing. Nothing was charged.", tone: "amber" });
+        return;
       }
-      window.location.assign(nav.href);
+      persistCustomCheckoutSession({
+        clientSecret: result.clientSecret,
+        publishableKey: result.publishableKey,
+        sessionId: result.sessionId,
+        kind: "subscription",
+      });
+      setSubscriptionSession({
+        clientSecret: result.clientSecret,
+        publishableKey: result.publishableKey,
+        sessionId: result.sessionId,
+        tier,
+        interval: checkoutInterval,
+        parcelNodeId: parcelNodeId,
+        situs: opts.situsAddress ?? null,
+      });
       return;
     }
     if (nav.action === "hosted") {
@@ -242,6 +256,8 @@ export function useCheckoutActions(
     handleSubscription,
     unlockSession,
     dismissUnlock: () => setUnlockSession(null),
+    subscriptionSession,
+    dismissSubscription: () => setSubscriptionSession(null),
   } as const;
 }
 

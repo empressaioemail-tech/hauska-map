@@ -47,11 +47,14 @@ import {
   type FloodDrainageStudyView,
 } from "../../lib/floodDrainageClient";
 import { GoogleSignInButton } from "../../components/GoogleSignInButton";
+import { Button } from "../../components/Button";
+import { DownloadFileButton } from "../../components/DownloadFileButton";
 import { recordPeGtmEvent } from "../../lib/gtmClient";
 import { usePropertyEntitlement } from "../../lib/usePropertyEntitlement";
 import { useDockToolState, useWorkbench } from "../WorkbenchContext";
 import { attachExportToDossier } from "./reports-dossier";
 import { buildFloodVizModel, type FloodVizModel } from "./flood-viz";
+import { floodFindingLead } from "./flood-finding";
 import {
   pondingFeatureCount,
   FLOOD_ZONE_LOW_COLOR,
@@ -403,6 +406,7 @@ export function FloodDrainageSection({ embed = false }: { embed?: boolean } = {}
   // Counted off the SAME validation the map overlay uses, so the dock can
   // never claim ponding the map is not drawing (and vice versa).
   const hasPonding = pondingFeatureCount(study) > 0;
+  const finding = study ? floodFindingLead(study.briefing) : null;
 
   // Property switch disarms: the next parcel must be re-run to paint.
   useEffect(() => {
@@ -468,26 +472,18 @@ export function FloodDrainageSection({ embed = false }: { embed?: boolean } = {}
         </div>
       )}
 
-      <button
-        type="button"
-        data-testid="flood-run"
-        disabled={busy}
-        onClick={() => void run()}
-        style={{
-          width: "100%",
-          padding: "7px 10px",
-          borderRadius: "var(--btn-radius, 9px)",
-          border: "0.5px solid var(--brand-blue-border-soft, rgba(59,130,246,0.28))",
-          background: busy ? "transparent" : "var(--brand-blue-bg, rgba(59,130,246,0.12))",
-          color: ACCENT,
-          fontWeight: 600,
-          fontSize: 12,
-          cursor: busy ? "default" : "pointer",
-          opacity: busy ? 0.7 : 1,
-        }}
-      >
-        {busy ? "Running…" : study ? "Re-run study" : "Generate flood & drainage study"}
-      </button>
+      {!study ? (
+        <Button
+          type="button"
+          variant="primary"
+          fullWidth
+          data-testid="flood-run"
+          disabled={busy}
+          onClick={() => void run()}
+        >
+          {busy ? "Running…" : "Generate flood & drainage study"}
+        </Button>
+      ) : null}
 
       {busy && (
         <div
@@ -527,27 +523,107 @@ export function FloodDrainageSection({ embed = false }: { embed?: boolean } = {}
 
       {study && !study.honestEmpty && model && (
         <div data-testid="flood-result" style={{ marginTop: 10 }}>
-          {/* The map is the star: the same study is drawn ON the main map
-              while this report is open (host seam; absent host → dock only). */}
-          {overlayOnMap && host.setFloodMapOverlay && (
-            <div
-              data-testid="flood-map-overlay-hint"
-              style={{ marginBottom: 6, fontSize: 10, color: ACCENT }}
+          {finding ? (
+            <p
+              data-testid="flood-finding-lead"
+              style={{ margin: "0 0 12px", fontSize: 13, lineHeight: 1.5, color: TEXT }}
             >
-              Drainage overlay drawn on the map — arrows mark where flow
-              crosses the parcel boundary.
+              {finding}
+            </p>
+          ) : null}
+
+          <DownloadFileButton
+            href={floodDrainageDownloadPath(activeParcelNodeId)}
+            download={floodDrainageFilename(activeParcelNodeId)}
+            label="Download PDF sheet"
+            testId="flood-download-link"
+          />
+
+          <div
+            style={{
+              marginTop: 12,
+              borderRadius: 8,
+              overflow: "hidden",
+              border: "0.5px solid rgba(154,166,178,0.25)",
+              position: "relative",
+            }}
+          >
+            <div style={{ height: 150, overflow: "hidden" }}>
+              <FloodVizSvg model={model} />
             </div>
-          )}
-          {!overlayOnMap && host.setFloodMapOverlay && (
-            <div
-              data-testid="flood-overlay-idle"
-              style={{ marginBottom: 6, fontSize: 10, color: MUTED }}
-            >
-              Map is clean — re-run to draw this study.
-            </div>
-          )}
-          <FloodVizSvg model={model} />
-          <Legend hasPonding={hasPonding} />
+            {overlayOnMap && host.setFloodMapOverlay ? (
+              <div
+                data-testid="flood-map-overlay-hint"
+                style={{
+                  position: "absolute",
+                  right: 9,
+                  bottom: 9,
+                  height: 26,
+                  padding: "0 10px",
+                  borderRadius: 5,
+                  background: "rgba(11,14,19,0.85)",
+                  border: "0.5px solid rgba(154,166,178,0.35)",
+                  display: "flex",
+                  alignItems: "center",
+                  fontSize: 11,
+                  color: ACCENT,
+                }}
+              >
+                Drawn on the map
+              </div>
+            ) : null}
+            {!overlayOnMap && host.setFloodMapOverlay ? (
+              <button
+                type="button"
+                data-testid="flood-overlay-idle"
+                onClick={() => void run()}
+                style={{
+                  position: "absolute",
+                  right: 9,
+                  bottom: 9,
+                  height: 26,
+                  padding: "0 10px",
+                  borderRadius: 5,
+                  background: "rgba(11,14,19,0.85)",
+                  border: "0.5px solid rgba(154,166,178,0.35)",
+                  color: "#c6d0dc",
+                  fontSize: 11,
+                  cursor: "pointer",
+                  fontFamily: "inherit",
+                }}
+              >
+                Open on the map
+              </button>
+            ) : null}
+          </div>
+
+          <div
+            data-testid="flood-viz-legend-compact"
+            style={{
+              display: "flex",
+              gap: 12,
+              flexWrap: "wrap",
+              marginTop: 8,
+              fontSize: 10.5,
+              color: MUTED,
+            }}
+          >
+            <span style={{ display: "inline-flex", alignItems: "center", gap: 5 }}>
+              <span style={{ width: 9, height: 9, border: `1px solid ${PARCEL_STROKE}` }} />
+              Parcel
+            </span>
+            {hasPonding ? (
+              <span style={{ display: "inline-flex", alignItems: "center", gap: 5 }}>
+                <span style={{ width: 9, height: 9, background: "rgba(59,130,246,0.55)" }} />
+                Ponding
+              </span>
+            ) : null}
+            <span style={{ display: "inline-flex", alignItems: "center", gap: 5 }}>
+              <span style={{ width: 9, height: 2, background: ACCENT }} />
+              Flow path
+            </span>
+          </div>
+
           {!hasPonding && (
             <div
               data-testid="flood-no-ponding"
@@ -556,43 +632,56 @@ export function FloodDrainageSection({ embed = false }: { embed?: boolean } = {}
               {FLOOD_NO_PONDING_LINE}
             </div>
           )}
-          <div
-            data-testid="flood-provenance"
-            style={{ marginTop: 6, fontSize: 10, color: MUTED, lineHeight: 1.5 }}
+
+          <details
+            data-testid="flood-method-disclosure"
+            style={{ marginTop: 12 }}
           >
-            {floodProvenanceLine(study)}
-            {study.gradient?.note ? (
-              <span data-testid="flood-gradient-note"> · {study.gradient.note}</span>
-            ) : null}
-          </div>
-          {study.briefing && (
-            <p
-              data-testid="flood-briefing"
-              style={{ margin: "8px 0 0", fontSize: 11.5, lineHeight: 1.55, color: TEXT }}
+            <summary
+              style={{
+                cursor: "pointer",
+                fontSize: 12,
+                color: "#c6d0dc",
+                listStyle: "none",
+              }}
             >
-              {study.briefing}
-            </p>
-          )}
-          <a
-            data-testid="flood-download-link"
-            href={floodDrainageDownloadPath(activeParcelNodeId)}
-            download={floodDrainageFilename(activeParcelNodeId)}
-            style={{
-              display: "inline-block",
-              marginTop: 10,
-              padding: "6px 10px",
-              borderRadius: "var(--btn-radius, 9px)",
-              border: "0.5px solid var(--brand-blue-border-soft, rgba(59,130,246,0.28))",
-              color: ACCENT,
-              fontSize: 11.5,
-              fontWeight: 600,
-              textDecoration: "none",
-            }}
-          >
-            Export PDF sheet
-          </a>
+              Method, sources and full findings
+            </summary>
+            <div
+              data-testid="flood-provenance"
+              style={{ marginTop: 10, fontSize: 10, color: MUTED, lineHeight: 1.5 }}
+            >
+              {floodProvenanceLine(study)}
+              {study.gradient?.note ? (
+                <span data-testid="flood-gradient-note"> · {study.gradient.note}</span>
+              ) : null}
+            </div>
+            {study.briefing ? (
+              <p
+                data-testid="flood-briefing"
+                style={{ margin: "8px 0 0", fontSize: 11.5, lineHeight: 1.55, color: TEXT }}
+              >
+                {study.briefing}
+              </p>
+            ) : null}
+            <Legend hasPonding={hasPonding} />
+          </details>
         </div>
       )}
+
+      {study ? (
+        <Button
+          type="button"
+          variant="secondary"
+          fullWidth
+          data-testid="flood-run"
+          disabled={busy}
+          onClick={() => void run()}
+          style={{ marginTop: 10 }}
+        >
+          {busy ? "Running…" : "Re-run study"}
+        </Button>
+      ) : null}
     </div>
   );
 }
