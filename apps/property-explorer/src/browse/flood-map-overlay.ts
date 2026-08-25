@@ -1040,8 +1040,13 @@ export function createFloodMapOverlayController(
   getMap: () => FloodOverlayMapLike | null,
 ): FloodMapOverlayController {
   let drawnFor: string | null = null;
+  // Every set/clear bumps this. A deferred styledata callback from an older
+  // set() must no-op after a later clear() — otherwise a style reload or
+  // account remount resurrects the previous study on the live map.
+  let applyGen = 0;
 
   const clear = () => {
+    applyGen += 1;
     drawnFor = null;
     const map = getMap();
     if (map) clearFloodMapOverlay(map);
@@ -1055,7 +1060,9 @@ export function createFloodMapOverlayController(
       }
       const map = getMap();
       if (!map) return; // map not ready — honest no-op, the tool re-applies.
+      const gen = ++applyGen;
       const run = () => {
+        if (gen !== applyGen) return;
         applyFloodMapOverlay(map, buildFloodMapOverlayModel(study));
         drawnFor = forParcelNodeId ?? null;
       };

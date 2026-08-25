@@ -1233,4 +1233,23 @@ describe("controller — the setDossierOverlay lifecycle precedent", () => {
     expect(map._layers.has(FLOOD_FLOW_LINE_ID)).toBe(false);
     expect(ctl.appliedFor()).toBeNull();
   });
+
+  it("clear cancels a deferred styledata apply — an old study cannot resurrect", () => {
+    const listeners: Array<() => void> = [];
+    const map = fakeMap(styleLayers) as ReturnType<typeof fakeMap> & {
+      isStyleLoaded: () => boolean;
+      once: (ev: string, cb: () => void) => void;
+    };
+    map.isStyleLoaded = () => false;
+    map.once = (_ev, cb) => {
+      listeners.push(cb);
+    };
+    const ctl = createFloodMapOverlayController(() => map);
+    ctl.set(fixtureStudy(), "48021:1");
+    expect(map._layers.has(FLOOD_FLOW_LINE_ID)).toBe(false);
+    ctl.set(null);
+    for (const cb of listeners) cb();
+    expect(map._layers.has(FLOOD_FLOW_LINE_ID)).toBe(false);
+    expect(ctl.appliedFor()).toBeNull();
+  });
 });

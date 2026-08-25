@@ -151,6 +151,7 @@ describe("dock height model — scrolls instead of clipping below the viewport",
   it("ONE dock-owned scroll region wraps every tool's content (momentum scroll)", () => {
     const html = render({ openToolId: "brief", activeParcelNodeId: "p1" });
     expect(html.match(/data-testid="dock-scroll"/g)).toHaveLength(1);
+    expect(html).toContain('class="pe-dock-scroll"');
     const scroll = html.match(/data-testid="dock-scroll"[^>]*style="([^"]*)"/);
     expect(scroll).not.toBeNull();
     expect(scroll![1]).toContain("overflow-y:auto");
