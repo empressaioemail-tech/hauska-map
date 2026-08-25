@@ -93,7 +93,7 @@ export async function startPeCheckout(input: {
           tier: input.tier,
           interval: input.interval,
           ...(seatsOnWire !== undefined ? { seats: seatsOnWire } : {}),
-          uiMode: "custom",
+          uiMode: "elements",
           returnUrl,
           successUrl,
           cancelUrl,
@@ -339,7 +339,7 @@ export async function startPropertyUnlock(
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           parcelNodeId,
-          uiMode: "custom",
+          uiMode: "elements",
           returnUrl:
             deps.successUrl ??
             `${origin}/?checkout=success&parcelNodeId=${encodeURIComponent(parcelNodeId)}`,

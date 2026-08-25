@@ -35,7 +35,7 @@ afterEach(() => {
 });
 
 describe("startPeCheckout — custom session contract (WDLL item 7)", () => {
-  it("POST body sends uiMode custom and returnUrl", async () => {
+  it("POST body sends uiMode elements and returnUrl", async () => {
     const { calls } = stubCheckoutFetch(200, {
       clientSecret: "cs_test_secret",
       publishableKey: "pk_test_123",
@@ -46,7 +46,7 @@ describe("startPeCheckout — custom session contract (WDLL item 7)", () => {
     expect(result.clientSecret).toBe("cs_test_secret");
     expect(result.publishableKey).toBe("pk_test_123");
     expect(calls[0].url).toBe(DEEP_CHECKOUT_URL);
-    expect(calls[0].body.uiMode).toBe("custom");
+    expect(calls[0].body.uiMode).toBe("elements");
     expect(calls[0].body.returnUrl).toEqual(
       expect.stringContaining("checkout=success"),
     );
