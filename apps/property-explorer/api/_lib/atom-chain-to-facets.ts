@@ -438,6 +438,21 @@ export type BoundaryEdgeFactWire = {
  * No :sd: picker. No pipeline ANY bind. Does not share the texas-rrc
  * key. Never a bake / cad-parcel-roll / GIS owner.
  */
+/**
+ * Cortex inspect GET sibling (P-76 / city-limits). PIP against
+ * `tx_city_boundary`, not an atom. ETJ is typed absence (`etjStatus:
+ * unresolved`). No ETJ buffer ring on this wire.
+ */
+export type CityLimitsFactWire = {
+  status: "incorporated" | "unincorporated" | "unmeasured";
+  etjStatus: "unresolved";
+  source: "tx_city_boundary";
+  basis: string;
+  cityName?: string;
+  geoId?: string;
+  gnis?: string | null;
+};
+
 export type OwnerFactWire = {
   state: "present" | "absent" | "refused";
   taxYear?: unknown;
@@ -505,6 +520,12 @@ export interface PeBakedFacetsResponse {
    * Identified-session only.
    */
   ownerFact?: OwnerFactWire;
+  /**
+   * City limits from tx_city_boundary PIP (P-76). Copied from the cortex
+   * JSON ROOT only. Never populated from situsCity / bake / atom chain.
+   * ETJ is typed absence only — no buffer ring.
+   */
+  cityLimitsFact?: CityLimitsFactWire;
   /**
    * Structural/CAMA from structural-fact read (P-63). Copied from cortex JSON
    * ROOT only. Never upgraded lookup-failed → absent-verified in transit.
@@ -898,6 +919,106 @@ function withOwnerFact(
   return { ...atomResponse, ownerFact: fact };
 }
 
+/** Travis/CAD sentinels (`, TX`) are not situs. Same rule as fact-sheet-resolver. */
+export function isUsableSitusAddress(raw: string | null | undefined): boolean {
+  if (!raw || typeof raw !== "string") return false;
+  const trimmed = raw.trim();
+  if (!trimmed) return false;
+  const street = (trimmed.split(",")[0] ?? "").trim();
+  if (!street || !/^\d/.test(street)) return false;
+  if (/^,\s*(TX)?\s*$/i.test(trimmed)) return false;
+  return true;
+}
+
+/**
+ * Live txgio_parcel.situs_address from cortex JSON ROOT (P-74).
+ * Never Find / Photon / navigationAddress.
+ */
+export function txgioParcelSitusAddressFromCortexRoot(
+  bakedBody: unknown,
+): string | undefined {
+  if (!bakedBody || typeof bakedBody !== "object" || Array.isArray(bakedBody)) {
+    return undefined;
+  }
+  const root = bakedBody as {
+    txgioParcelSitusAddress?: unknown;
+    txgioParcelSitus?: unknown;
+  };
+  if (typeof root.txgioParcelSitusAddress === "string") {
+    const trimmed = root.txgioParcelSitusAddress.trim();
+    return isUsableSitusAddress(trimmed) ? trimmed : undefined;
+  }
+  const nested = root.txgioParcelSitus;
+  if (
+    nested &&
+    typeof nested === "object" &&
+    !Array.isArray(nested) &&
+    (nested as { source?: unknown }).source === "txgio_parcel" &&
+    typeof (nested as { situsAddress?: unknown }).situsAddress === "string"
+  ) {
+    const trimmed = (nested as { situsAddress: string }).situsAddress.trim();
+    return isUsableSitusAddress(trimmed) ? trimmed : undefined;
+  }
+  return undefined;
+}
+
+function resolveMergedSitusAddress(
+  bakedBase: { situsAddress?: string | null },
+  atomBase: { situsAddress?: string | null },
+  bakedBody: unknown,
+): string | null {
+  const bakedRaw =
+    typeof bakedBase.situsAddress === "string" ? bakedBase.situsAddress.trim() : "";
+  if (isUsableSitusAddress(bakedRaw)) return bakedRaw;
+  const txgio = txgioParcelSitusAddressFromCortexRoot(bakedBody);
+  if (txgio) return txgio;
+  const atomRaw =
+    typeof atomBase.situsAddress === "string" ? atomBase.situsAddress.trim() : "";
+  if (isUsableSitusAddress(atomRaw)) return atomRaw;
+  return null;
+}
+
+/** Cortex inspect GET sibling (P-76 / tx_city_boundary PIP). Not an atom. */
+export function isCityLimitsFactWire(
+  value: unknown,
+): value is CityLimitsFactWire {
+  if (!value || typeof value !== "object" || Array.isArray(value)) return false;
+  const o = value as CityLimitsFactWire;
+  if (
+    o.status !== "incorporated" &&
+    o.status !== "unincorporated" &&
+    o.status !== "unmeasured"
+  ) {
+    return false;
+  }
+  if (o.etjStatus !== "unresolved") return false;
+  if (o.source !== "tx_city_boundary") return false;
+  return typeof o.basis === "string" && o.basis.length > 0;
+}
+
+/**
+ * Cortex JSON ROOT only. Never reads situsCity, bake city, or a nested
+ * facets copy. A situsCity string parked on the root is rejected.
+ */
+export function cityLimitsFactFromCortexRoot(
+  bakedBody: unknown,
+): CityLimitsFactWire | undefined {
+  if (!bakedBody || typeof bakedBody !== "object" || Array.isArray(bakedBody)) {
+    return undefined;
+  }
+  const fact = (bakedBody as { cityLimitsFact?: unknown }).cityLimitsFact;
+  return isCityLimitsFactWire(fact) ? fact : undefined;
+}
+
+function withCityLimitsFact(
+  atomResponse: PeBakedFacetsResponse,
+  bakedBody: unknown,
+): PeBakedFacetsResponse {
+  const fact = cityLimitsFactFromCortexRoot(bakedBody);
+  if (fact === undefined) return atomResponse;
+  return { ...atomResponse, cityLimitsFact: fact };
+}
+
 export function isStructuralFactWire(value: unknown): value is StructuralFactWire {
   if (!value || typeof value !== "object" || Array.isArray(value)) return false;
   const o = value as StructuralFactWire;
@@ -931,14 +1052,17 @@ function withRootFacts(
 ): PeBakedFacetsResponse {
   return withVerdictLayerFields(
     withStructuralFact(
-      withOwnerFact(
-        withBoundaryEdgeFact(
-          withBuildingFootprintFact(
-            withWellFact(
-              withPipelineFact(
-                withSpecialDistrictFact(
-                  withLandUseFact(
-                    withFloodHazardFact(atomResponse, bakedBody),
+      withCityLimitsFact(
+        withOwnerFact(
+          withBoundaryEdgeFact(
+            withBuildingFootprintFact(
+              withWellFact(
+                withPipelineFact(
+                  withSpecialDistrictFact(
+                    withLandUseFact(
+                      withFloodHazardFact(atomResponse, bakedBody),
+                      bakedBody,
+                    ),
                     bakedBody,
                   ),
                   bakedBody,
@@ -1000,6 +1124,12 @@ function withRootFacts(
  * ROOT only. Do not adopt bake / CAD / cad-parcel-roll / GIS owner as
  * that field. Identified-session only. Do not treat a service key as
  * identified.
+ * cityLimitsFact is the same shape family (P-76): copy from the cortex
+ * JSON ROOT only. Do not adopt situsCity / bake city as that field. ETJ
+ * is typed absence only — never invent a buffer ring.
+ * P-74 situs sentinel: a trimmed `, TX` (or comma-tail without a street) is
+ * absent. Fall through to cortex-root txgio_parcel.situs_address. Never copy
+ * Find / Photon onto the county record.
  * If facets are missing, still attach the root fields when they are present.
  */
 export function mergeBakedBaseFacts(
@@ -1034,10 +1164,7 @@ export function mergeBakedBaseFacts(
     Number.isFinite(bakedBase.acreage.value)
       ? bakedBase.acreage
       : null;
-  const situsAddress =
-    typeof bakedBase.situsAddress === "string" && bakedBase.situsAddress.trim()
-      ? bakedBase.situsAddress
-      : atomBase.situsAddress ?? null;
+  const situsAddress = resolveMergedSitusAddress(bakedBase, atomBase, bakedBody);
   const apn =
     (typeof atomBase.apn === "string" && atomBase.apn.trim() ? atomBase.apn : null) ??
     (typeof bakedBase.apn === "string" && bakedBase.apn.trim() ? bakedBase.apn : null);
@@ -1065,7 +1192,8 @@ export function mergeBakedBaseFacts(
         baseFacts:
           atomFacets.facetCoverage?.baseFacts === true ||
           bakedCov.baseFacts === true ||
-          !!apn,
+          !!apn ||
+          !!situsAddress,
         // Coverage true when the baked side covers the facet OR carries a real
         // value; a baked-absent facet stays false (honest absence).
         landUse: bakedCov.landUse === true || !!landUse,

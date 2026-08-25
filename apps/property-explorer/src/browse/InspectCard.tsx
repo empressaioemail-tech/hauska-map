@@ -59,9 +59,14 @@ import {
   type CardFacet,
 } from "../lib/baked-facets";
 import type { LayerAbsenceProvenance } from "../lib/layer-absence";
-import { factSheetResolver, FactSheetResolveError } from "../lib/fact-sheet-resolver";
+import { factSheetResolver, FactSheetResolveError, isUsableSitusAddress } from "../lib/fact-sheet-resolver";
 import { usePropertyEntitlement } from "../lib/usePropertyEntitlement";
 import { gateOwnerPresentation } from "../lib/owner-paint";
+import {
+  loadWhoServesPresentation,
+  whoServesQueryPointFromCentroid,
+  type WhoServesCardPresentation,
+} from "../lib/pe-who-serves-client";
 import {
   bakedCardModelFromSheet,
   envelopeStateFromSheet,
@@ -129,6 +134,7 @@ export function inspectCardStateFromResolve(outcome: InspectResolveOutcome): {
   source: Source;
   baked: BakedCardModel | null;
   env: EnvelopeState;
+  queryPoint: { lat: number; lng: number } | null;
 } {
   if (outcome.kind === "no-id") {
     return {
@@ -138,6 +144,7 @@ export function inspectCardStateFromResolve(outcome: InspectResolveOutcome): {
         status: "error",
         reason: "This selection carries no parcel id, so its record cannot be read.",
       },
+      queryPoint: null,
     };
   }
   if (outcome.kind === "unplaceable") {
@@ -145,6 +152,7 @@ export function inspectCardStateFromResolve(outcome: InspectResolveOutcome): {
       source: "live",
       baked: null,
       env: { status: "idle", reason: outcome.reason },
+      queryPoint: null,
     };
   }
   if (outcome.kind === "failed") {
@@ -152,13 +160,43 @@ export function inspectCardStateFromResolve(outcome: InspectResolveOutcome): {
       source: "live",
       baked: null,
       env: { status: "error", reason: outcome.message },
+      queryPoint: null,
     };
   }
   return {
     source: "baked",
     baked: bakedCardModelFromSheet(outcome.sheet),
     env: envelopeStateFromSheet(outcome.sheet),
+    queryPoint: whoServesQueryPointFromCentroid(outcome.sheet.geometry.centroid),
   };
+}
+
+/** Map who-serves BFF state onto the inspect card row vocabulary. */
+export function whoServesFactPresentation(
+  presentation: WhoServesCardPresentation | null,
+): FactPresentation | null {
+  if (!presentation) return null;
+  if (presentation.state === "loading") {
+    return { state: "pending", label: "Loading who serves…" };
+  }
+  if (presentation.state === "error") {
+    return {
+      state: "pending",
+      label: presentation.error ?? "who-serves read failed",
+    };
+  }
+  if (presentation.state === "absent") {
+    return {
+      state: "absent-covered",
+      reason: presentation.summary ?? "Who serves unmeasured",
+    };
+  }
+  const summary = (presentation.summary ?? "").trim();
+  const residual = (presentation.residual ?? "").trim();
+  const value =
+    summary && residual ? `${summary} — ${residual}` : summary || residual;
+  if (!value) return null;
+  return { state: "present", value };
 }
 
 /** The red box is a failed hop only. Unplaceable / declined must not trip it. */
@@ -475,6 +513,14 @@ export const ROW_SPECS: Record<string, FactRowSpec> = {
     wouldBeFilledBy: "an owner-fact atom on this parcel for a Studio or Team session",
     labelledAbsenceIsCovered: true,
   },
+  cityLimits: {
+    wouldBeFilledBy: "a city-limits determination from the Texas city boundary layer",
+    labelledAbsenceIsCovered: true,
+  },
+  whoServes: {
+    wouldBeFilledBy: "utility territory staging loaded for this coordinate",
+    labelledAbsenceIsCovered: true,
+  },
 };
 
 /** One provenance chip: a labeled atom reference tappable to open detail. */
@@ -667,6 +713,13 @@ export function InspectCard({
   // I3 disclosure: sourcing is demoted here rather than shouted on the card
   // face. Collapsed by default, same idiom as the X-ray toggle.
   const [sourcesOpen, setSourcesOpen] = useState(false);
+  const [whoServes, setWhoServes] = useState<WhoServesCardPresentation | null>(
+    null,
+  );
+  const [queryPoint, setQueryPoint] = useState<{
+    lat: number;
+    lng: number;
+  } | null>(null);
   // A failed read is retryable IN PLACE. The card used to tell the user to
   // "reselect the parcel", which is an internal workaround dressed as copy.
   const [retryNonce, setRetryNonce] = useState(0);
@@ -694,11 +747,15 @@ export function InspectCard({
         setSource(state.source);
         setBaked(state.baked);
         setEnv(state.env);
+        setQueryPoint(state.queryPoint);
+        setWhoServes(null);
         return;
       }
       setSource("loading");
       setBaked(null);
       setEnv({ status: "idle" });
+      setWhoServes(null);
+      setQueryPoint(null);
       try {
         const result = await resolveSheetWithTransientRetry(() =>
           factSheetResolver.resolve(parcelNodeId),
@@ -712,6 +769,8 @@ export function InspectCard({
           setSource(state.source);
           setBaked(state.baked);
           setEnv(state.env);
+          setQueryPoint(state.queryPoint);
+          setWhoServes(null);
           return;
         }
         const { kind: _kind, ...sheet } = result;
@@ -719,6 +778,7 @@ export function InspectCard({
         setBaked(state.baked);
         setEnv(state.env);
         setSource(state.source);
+        setQueryPoint(state.queryPoint);
         // The parent folds setbacks/envelope into the ported node store from
         // the SAME sheet, so the store and the card can never disagree. The
         // parcel node id travels with the result (identity guard upstream).
@@ -733,6 +793,8 @@ export function InspectCard({
         setSource(state.source);
         setBaked(state.baked);
         setEnv(state.env);
+        setQueryPoint(state.queryPoint);
+        setWhoServes(null);
       }
     }
 
@@ -742,6 +804,21 @@ export function InspectCard({
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [parcelNodeId, retryNonce]);
+
+  useEffect(() => {
+    if (!queryPoint) {
+      setWhoServes(null);
+      return;
+    }
+    let cancelled = false;
+    setWhoServes({ state: "loading", summary: null, residual: null, error: null });
+    void loadWhoServesPresentation(queryPoint.lat, queryPoint.lng).then((result) => {
+      if (!cancelled) setWhoServes(result);
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, [queryPoint?.lat, queryPoint?.lng, parcelNodeId]);
 
   // SAVED STATE. Skipped entirely when the parent passes `isSaved` (the prop
   // wins) or when the card shows no save affordance at all. Reads the ONE
@@ -871,6 +948,18 @@ export function InspectCard({
             entitlement.status === "ready" ? entitlement.subscriptionTier : null,
           ),
           testid: "inspect-owner",
+        },
+        {
+          key: "cityLimits",
+          label: "City limits",
+          fact: toFactPresentation(baked.cityLimits, ROW_SPECS.cityLimits),
+          testid: "inspect-city-limits",
+        },
+        {
+          key: "whoServes",
+          label: "Who serves",
+          fact: whoServesFactPresentation(whoServes),
+          testid: "inspect-who-serves",
         },
       ]
     : [];
@@ -1244,7 +1333,9 @@ export function resolveCardHeading(
   apn: string | null | undefined,
 ): { title: string; isAddress: boolean } {
   const candidate = typeof situs === "string" ? situs.trim() : "";
-  if (/[\p{L}\p{N}]/u.test(candidate)) return { title: candidate, isAddress: true };
+  if (isUsableSitusAddress(candidate)) {
+    return { title: candidate, isAddress: true };
+  }
   const parcel = typeof apn === "string" ? apn.trim() : "";
   if (parcel) return { title: `Parcel ${parcel}`, isAddress: false };
   return { title: "Selected parcel", isAddress: false };

@@ -1840,3 +1840,40 @@ describe("ownerFact only (P-54 / WDLL 7)", () => {
     expect(sheet.owner).toBeUndefined();
   });
 });
+
+describe("cityLimitsFact only (P-76)", () => {
+  it("incorporated fixture cites tx_city_boundary and shows city name", async () => {
+    const wire = facetsWire() as unknown as Record<string, unknown>;
+    wire.cityLimitsFact = {
+      status: "incorporated",
+      etjStatus: "unresolved",
+      source: "tx_city_boundary",
+      basis: "point-in-polygon against tx_city_boundary",
+      cityName: "Bastrop",
+      geoId: "4805820",
+    };
+    const stub = installFetchStub({ facets: wire, gisFeatures: [SUBJECT_FEATURE] });
+    const sheet = await sheetOf(makeResolver(stub), NODE_ID);
+    expect(sheet.cityLimits?.state).toBe("present");
+    if (sheet.cityLimits?.state !== "present") throw new Error("unreachable");
+    expect(sheet.cityLimits.value.display).toContain("Bastrop");
+    expect(sheet.cityLimits.value.display).toContain("ETJ unresolved");
+    expect(sheet.cityLimits.provenance.source).toBe("tx_city_boundary");
+    expect(JSON.stringify(sheet.cityLimits)).not.toMatch(/situsCity/);
+  });
+
+  it("missing field stays missing — no invented city limits from situsCity", async () => {
+    const wire = facetsWire() as unknown as Record<string, unknown>;
+    delete wire.cityLimitsFact;
+    wire.facets = {
+      ...(wire.facets as object),
+      baseFacts: {
+        ...((wire.facets as { baseFacts?: object }).baseFacts ?? {}),
+        situsCity: "Bastrop",
+      },
+    };
+    const stub = installFetchStub({ facets: wire, gisFeatures: [SUBJECT_FEATURE] });
+    const sheet = await sheetOf(makeResolver(stub), NODE_ID);
+    expect(sheet.cityLimits).toBeUndefined();
+  });
+});

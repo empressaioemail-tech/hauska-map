@@ -65,6 +65,30 @@ describe("deriveBakedCardModel — present facets", () => {
   });
 });
 
+describe("deriveBakedCardModel — situs sentinel bind (P-74)", () => {
+  it("treats Travis , TX sentinel as absent on the card model", () => {
+    const m = deriveBakedCardModel({
+      ...fullPayload,
+      baseFacts: { ...fullPayload.baseFacts, situsAddress: ", TX" },
+    });
+    expect(m.situsAddress.state).toBe("absent");
+  });
+
+  it("gold 908 PINE bake situs stays present", () => {
+    const m = deriveBakedCardModel({
+      ...fullPayload,
+      baseFacts: {
+        ...fullPayload.baseFacts,
+        situsAddress: "908 PINE , BASTROP, TX 78602",
+      },
+    });
+    expect(m.situsAddress).toEqual({
+      state: "present",
+      value: "908 PINE , BASTROP, TX 78602",
+    });
+  });
+});
+
 describe("deriveBakedCardModel — present values are trusted over coverage flags", () => {
   it("renders land use + acreage when the values are present but coverage says false", () => {
     // The bug this locks: a baked payload carrying real baseFacts.landUse and

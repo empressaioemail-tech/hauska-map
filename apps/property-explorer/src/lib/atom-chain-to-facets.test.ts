@@ -1407,6 +1407,138 @@ describe("mergeBakedBaseFacts — ownerFact from cortex JSON ROOT (P-54)", () =>
   });
 });
 
+const goldCityLimitsIncorporated = {
+  status: "incorporated" as const,
+  etjStatus: "unresolved" as const,
+  source: "tx_city_boundary" as const,
+  basis: "point-in-polygon against tx_city_boundary",
+  cityName: "Bastrop",
+  geoId: "4805820",
+  gnis: null,
+};
+
+const goldCityLimitsUnincorporated = {
+  status: "unincorporated" as const,
+  etjStatus: "unresolved" as const,
+  source: "tx_city_boundary" as const,
+  basis: "point outside incorporated index",
+};
+
+describe("mergeBakedBaseFacts — situs sentinel bind (P-74)", () => {
+  const SIMSBROOK_TXGIO = "17005 SIMSBROOK DR, Pflugerville, TX, 78660";
+  const GOLD_SITUS = "908 PINE , BASTROP, TX 78602";
+
+  it("Travis sentinel baked situs falls through to cortex-root txgio_parcel.situs_address", () => {
+    const adapted = adaptAtomChainToBakedFacets(haysChain)!;
+    const merged = mergeBakedBaseFacts(adapted, {
+      ...bakedCortexBody,
+      facets: {
+        ...bakedCortexBody.facets,
+        baseFacts: {
+          ...bakedCortexBody.facets.baseFacts,
+          situsAddress: ", TX",
+        },
+      },
+      txgioParcelSitusAddress: SIMSBROOK_TXGIO,
+    });
+    expect(merged.facets.baseFacts?.situsAddress).toBe(SIMSBROOK_TXGIO);
+    expect(merged.facets.baseFacts?.situsAddress).not.toMatch(/^,\s*TX/i);
+  });
+
+  it("gold 48021:34137 keeps baked 908 PINE when the bake situs is usable", () => {
+    const adapted = adaptAtomChainToBakedFacets(haysChain)!;
+    const merged = mergeBakedBaseFacts(adapted, {
+      ...bakedCortexBody,
+      facets: {
+        ...bakedCortexBody.facets,
+        baseFacts: {
+          ...bakedCortexBody.facets.baseFacts,
+          situsAddress: GOLD_SITUS,
+        },
+      },
+      txgioParcelSitusAddress: "999 OTHER ST, BASTROP, TX 78602",
+    });
+    expect(merged.facets.baseFacts?.situsAddress).toBe(GOLD_SITUS);
+    expect(merged.facets.baseFacts?.situsAddress).toContain("908 PINE");
+  });
+
+  it("does not copy Find / Photon navigation strings parked on the root", () => {
+    const adapted = adaptAtomChainToBakedFacets(haysChain)!;
+    const merged = mergeBakedBaseFacts(adapted, {
+      ...bakedCortexBody,
+      facets: {
+        ...bakedCortexBody.facets,
+        baseFacts: {
+          ...bakedCortexBody.facets.baseFacts,
+          situsAddress: ", TX",
+        },
+      },
+      navigationAddress: "17005 Simsbrook Dr, Pflugerville, TX",
+    });
+    expect(merged.facets.baseFacts?.situsAddress).toBeNull();
+  });
+
+  it("sentinel with no txgio root leaves situs null", () => {
+    const adapted = adaptAtomChainToBakedFacets(haysChain)!;
+    const merged = mergeBakedBaseFacts(adapted, {
+      ...bakedCortexBody,
+      facets: {
+        ...bakedCortexBody.facets,
+        baseFacts: {
+          ...bakedCortexBody.facets.baseFacts,
+          situsAddress: ", TX 78660",
+        },
+      },
+    });
+    expect(merged.facets.baseFacts?.situsAddress).toBeNull();
+  });
+});
+
+describe("mergeBakedBaseFacts — cityLimitsFact from cortex JSON ROOT (P-76)", () => {
+  it("copies a fixture cityLimitsFact from the cortex root onto the atom-chain payload", () => {
+    const adapted = adaptAtomChainToBakedFacets(haysChain)!;
+    const merged = mergeBakedBaseFacts(adapted, {
+      ...bakedCortexBody,
+      cityLimitsFact: goldCityLimitsIncorporated,
+    });
+    expect(merged.cityLimitsFact).toEqual(goldCityLimitsIncorporated);
+    expect(merged.cityLimitsFact?.source).toBe("tx_city_boundary");
+    expect(merged.cityLimitsFact?.cityName).toBe("Bastrop");
+    expect(JSON.stringify(merged.cityLimitsFact)).not.toMatch(/situsCity/);
+  });
+
+  it("does not copy situsCity / bake city onto cityLimitsFact", () => {
+    const adapted = adaptAtomChainToBakedFacets(haysChain)!;
+    const merged = mergeBakedBaseFacts(adapted, {
+      ...bakedCortexBody,
+      facets: {
+        ...bakedCortexBody.facets,
+        baseFacts: {
+          ...bakedCortexBody.facets.baseFacts,
+          situsCity: "Bastrop",
+        },
+      },
+    });
+    expect("cityLimitsFact" in merged).toBe(false);
+    expect(merged.cityLimitsFact).toBeUndefined();
+  });
+
+  it("leaves cityLimitsFact absent when cortex has no root field", () => {
+    const adapted = adaptAtomChainToBakedFacets(haysChain)!;
+    const merged = mergeBakedBaseFacts(adapted, bakedCortexBody);
+    expect("cityLimitsFact" in merged).toBe(false);
+  });
+
+  it("early return (no facets) still attaches cityLimitsFact when the root carries it", () => {
+    const adapted = adaptAtomChainToBakedFacets(haysChain)!;
+    const merged = mergeBakedBaseFacts(adapted, {
+      cityLimitsFact: goldCityLimitsUnincorporated,
+    });
+    expect(merged.cityLimitsFact?.status).toBe("unincorporated");
+    expect(merged.cityLimitsFact?.etjStatus).toBe("unresolved");
+  });
+});
+
 describe("adaptAtomChainToBakedFacets — warm verify honest decline (141364 / superseded-prop-id)", () => {
   it("surfaces named superseded-prop-id decline instead of setback-rule-pending", () => {
     const chain: PropertyAtomChain = {

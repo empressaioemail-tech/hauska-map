@@ -41,6 +41,7 @@ import {
   BUILDING_FOOTPRINT_FACT_MISSING_REASON,
   BOUNDARY_EDGE_FACT_MISSING_REASON,
   OWNER_FACT_MISSING_REASON,
+  CITY_LIMITS_FACT_MISSING_REASON,
   type BakedCardModel,
   type BakedFacetPayload,
   type CardFacet,
@@ -366,6 +367,36 @@ export function ownerFacetFromSheet(
   return facetFrom(owner, () => "");
 }
 
+/**
+ * City limits row from sheet.cityLimits, which the resolver fills from
+ * cityLimitsFact only. Missing field → unknown (InspectCard hides the row).
+ * Never invented from situsCity / bake city. ETJ unresolved is typed absence.
+ */
+export function cityLimitsFacetFromSheet(
+  cityLimits:
+    | Fact<{
+        display: string;
+        etjStatus: string;
+      }>
+    | undefined,
+): CardFacet<string> {
+  if (!cityLimits) {
+    return { state: "unknown", value: null };
+  }
+  if (
+    cityLimits.state === "absent-uncovered" &&
+    cityLimits.reason === CITY_LIMITS_FACT_MISSING_REASON
+  ) {
+    return { state: "unknown", value: null };
+  }
+  if (cityLimits.state === "present") {
+    const display = (cityLimits.value.display ?? "").trim();
+    if (display) return present(display);
+    return absent("cityLimitsFact present with no display");
+  }
+  return facetFrom(cityLimits, () => "");
+}
+
 /** A setback axis -> the card's own display fragment. */
 function axisText(axis: SetbackAxis, label: string): string {
   // AMENDMENT 2: a NOT-SPECIFIED axis carries a NULL distance. The absence is
@@ -511,6 +542,7 @@ export function bakedCardModelFromSheet(
     footprint: footprintFacetFromSheet(sheet.footprint),
     boundary: boundaryFacetFromSheet(sheet.boundary),
     owner: ownerFacetFromSheet(sheet.owner),
+    cityLimits: cityLimitsFacetFromSheet(sheet.cityLimits),
     envelopeApproximate: env.kind === "derived" ? env.approximate : env.kind === "consumed",
     envelopeStatus:
       env.kind === "derived" ? "ok" : env.kind === "consumed" ? "no-buildable-area" : "declined",
