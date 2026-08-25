@@ -1636,6 +1636,9 @@ function ExplorerMapSurface({
   // Reads route through refs so the host identity stays stable.
   const workbenchHost = useMemo<WorkbenchHostActions>(
     () => ({
+      openTool: (toolId: string) => {
+        setOpenWorkbenchTool(toolId);
+      },
       openPaywall: (
         message: string,
         opts?: {
@@ -1685,7 +1688,7 @@ function ExplorerMapSurface({
         floodOverlay.set(study, forParcelNodeId ?? null);
       },
     }),
-    [runParcelLookup, floodOverlay],
+    [runParcelLookup, floodOverlay, setOpenWorkbenchTool],
   );
 
   // ACTIVE PROPERTY for the workbench: the currently-INSPECTED parcel's baked

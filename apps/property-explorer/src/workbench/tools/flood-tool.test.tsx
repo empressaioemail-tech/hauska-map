@@ -7,7 +7,7 @@
 // via the module cache; per-property state seeded through the chassis
 // store). Pins:
 //   - NO standalone flood bubble; the section renders inside the Reports
-//     tool alongside site-plan + terrain;
+//     tool when FLOOD is the selected Option D document;
 //   - PAID gate is the Reports tool's whole-tool lock: anon → sign-in-first;
 //     free signed-in → LOCKED with the unified two-choice flow (flood is IN
 //     the $15 unlock — NEVER Pro-only); property-unlocked and Pro render
@@ -75,16 +75,19 @@ function render(opts: {
   store?: ReturnType<typeof createWorkbenchToolStateStore>;
   host?: WorkbenchHostActions;
 }): string {
+  const parcel =
+    opts.activeParcelNodeId === undefined ? PARCEL : opts.activeParcelNodeId;
+  const store = opts.store ?? createWorkbenchToolStateStore({ storage: null });
+  // Option D mounts one engine. Flood tests select FLOOD so the section exists.
+  if (parcel) store.set(parcel, "reports.selectedDoc", "FLOOD");
   return renderToStaticMarkup(
     <Workbench
       tools={WORKBENCH_TOOLS}
       openToolId="reports"
       onOpenToolChange={noop}
-      activeParcelNodeId={
-        opts.activeParcelNodeId === undefined ? PARCEL : opts.activeParcelNodeId
-      }
+      activeParcelNodeId={parcel}
       host={opts.host ?? host}
-      store={opts.store ?? createWorkbenchToolStateStore({ storage: null })}
+      store={store}
     />,
   );
 }
@@ -201,14 +204,14 @@ afterEach(() => {
 });
 
 describe("flood & drainage — folded INSIDE the Reports bubble (no standalone bubble)", () => {
-  it("no flood bubble in the cluster; the section renders inside the reports dock", () => {
+  it("no flood bubble in the cluster; the section renders inside the reports dock when selected", () => {
     primePropertyEntitlement(PARCEL, ent({ propertyUnlocked: true }));
     const html = render({});
     expect(html).not.toContain('data-testid="workbench-bubble-flood"');
     expect(html).toContain('data-tool="reports"');
     expect(html).toContain('data-testid="flood-drainage-section"');
-    // Alongside the sibling report sections, in the ONE dock.
-    expect(html).toContain('data-testid="site-plan-export-section"');
+    expect(html).toContain('data-testid="reports-doc-picker"');
+    expect(html).not.toContain('data-testid="site-plan-export-section"');
   });
 
   it("anon → the Reports sign-in-first state (no flood run UI)", () => {
@@ -228,17 +231,17 @@ describe("flood & drainage — folded INSIDE the Reports bubble (no standalone b
     expect(html).toMatch(/data-testid="reports-locked"[^>]*data-pro-only="false"/);
     expect(html).toContain('data-testid="view-pricing-button"');
     expect(html).not.toContain('data-testid="unlock-property-choice"');
-    expect(html).toContain("flood &amp; drainage study");
+    expect(html).toContain("Flood &amp; drainage study");
     expect(html).not.toContain('data-testid="flood-run"');
   });
 
-  it("property-unlocked ($15) → the run state renders (terrain alone stays Pro-locked)", () => {
+  it("property-unlocked ($15) → the flood run state renders when FLOOD is selected", () => {
     primePropertyEntitlement(PARCEL, ent({ propertyUnlocked: true }));
     const html = render({});
     expect(html).toContain('data-testid="flood-drainage-section"');
     expect(html).toContain('data-testid="flood-run"');
     expect(html).not.toContain('data-testid="reports-locked"');
-    expect(html).toContain('data-testid="terrain-pro-lock"');
+    expect(html).not.toContain('data-testid="terrain-pro-lock"');
   });
 
   it("Pro → the run state renders", () => {
