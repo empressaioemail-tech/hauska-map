@@ -10,7 +10,13 @@ import { describe, expect, it } from "vitest";
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
 import { renderToStaticMarkup } from "react-dom/server";
-import { SearchBar, SuggestDropdown } from "./SearchBar";
+import {
+  nextSearchBarValue,
+  SearchBar,
+  subjectDisplayFromIdentity,
+  SuggestDropdown,
+  type SearchBarProps,
+} from "./SearchBar";
 import type { SuggestSnapshot } from "../lib/search-suggest";
 import type { Suggestion } from "../lib/search-kinds";
 
@@ -177,5 +183,92 @@ describe("SuggestDropdown states", () => {
       <SuggestDropdown snap={snap({ open: false })} onPick={noop} onHover={noop} onClearRecents={noop} />,
     );
     expect(html).toBe("");
+  });
+});
+
+describe("subjectDisplay prop and nextSearchBarValue", () => {
+  it("subjectDisplay exists on SearchBarProps and does not crash static render", () => {
+    const props: SearchBarProps = {
+      onSelect: noop,
+      onSubmitRaw: noop,
+      getBias: () => null,
+      subjectDisplay: "48453:280238",
+    };
+    const html = renderToStaticMarkup(<SearchBar {...props} />);
+    expect(html).toContain("parcel-lookup-input");
+    expect(html).toContain("parcel-lookup-bar");
+  });
+
+  it("focused + new subject keeps current", () => {
+    expect(
+      nextSearchBarValue({
+        focused: true,
+        subjectDisplay: "48453:280238",
+        current: "17005 SIMSBROOK DR",
+      }),
+    ).toBe("17005 SIMSBROOK DR");
+  });
+
+  it("unfocused + new subject takes subjectDisplay", () => {
+    expect(
+      nextSearchBarValue({
+        focused: false,
+        subjectDisplay: "48453:280238",
+        current: "17005 SIMSBROOK DR",
+      }),
+    ).toBe("48453:280238");
+  });
+
+  it("subjectDisplay null leaves current", () => {
+    expect(
+      nextSearchBarValue({
+        focused: false,
+        subjectDisplay: null,
+        current: "17005 SIMSBROOK DR",
+      }),
+    ).toBe("17005 SIMSBROOK DR");
+  });
+});
+
+describe("ExplorerMap search-bar wiring (source pin)", () => {
+  it("passes subjectDisplay from the store and guards Find with lookup intent", () => {
+    const text = readFileSync(join(__dirname, "ExplorerMap.tsx"), "utf8");
+    expect(text).toContain("subjectDisplay={subjectDisplay}");
+    expect(text).toContain("createLookupIntent");
+    expect(text).toContain("lookupIntentRef.current.bump()");
+    expect(text).toContain("isCurrent(started)");
+    expect(text).toContain(
+      "if (!lookupIntentRef.current.isCurrent(started)) return;",
+    );
+    expect(text).toContain("subjectDisplayFromIdentity");
+    expect(text).not.toContain('subjectDisplay=", TX"');
+  });
+});
+
+describe("subjectDisplayFromIdentity", () => {
+  it("uses present situs, else parcelNodeId; never a leftover Find string or , TX", () => {
+    expect(
+      subjectDisplayFromIdentity({
+        parcelNodeId: "48453:280239",
+        situsAddress: {
+          state: "present",
+          value: "17005 SIMSBROOK DR, Pflugerville, TX, 78660",
+        },
+      }),
+    ).toBe("17005 SIMSBROOK DR, Pflugerville, TX, 78660");
+
+    expect(
+      subjectDisplayFromIdentity({
+        parcelNodeId: "48453:280238",
+        situsAddress: { state: "absent-covered" },
+      }),
+    ).toBe("48453:280238");
+
+    expect(
+      subjectDisplayFromIdentity({
+        parcelNodeId: "48453:280238",
+        situsAddress: { state: "present", value: ", TX" },
+      }),
+    ).toBe("48453:280238");
   });
 });

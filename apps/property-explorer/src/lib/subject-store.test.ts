@@ -157,6 +157,58 @@ describe("subjectStore", () => {
     // A failed Find must not silently blank what the user was looking at.
     expect(subjectStore.currentSheetId()).toBe("fs_right");
   });
+
+  it("does not let a slower earlier resolve overwrite a later call", async () => {
+    // Not-vacuous race: A starts first and is held in resolve; B starts and
+    // finishes; then A is released. Last-resolve-wins would set A. Generation
+    // guard must leave B standing and return stale for A.
+    const sheets = {
+      "48027:498770": stubSheet("48027:498770", "fs_late"),
+      "48027:498778": stubSheet("48027:498778", "fs_later_click"),
+    };
+
+    let releaseA!: () => void;
+    const aBlocked = new Promise<void>((resolve) => {
+      releaseA = resolve;
+    });
+    let aEnteredResolve!: () => void;
+    const aHasEntered = new Promise<void>((resolve) => {
+      aEnteredResolve = resolve;
+    });
+
+    const resolver = {
+      resolve: vi.fn(async (id: string): Promise<ResolveResult> => {
+        if (id === "48027:498770") {
+          aEnteredResolve();
+          await aBlocked;
+        }
+        const sheet = sheets[id];
+        if (!sheet) throw new Error(`no sheet for ${id}`);
+        return { kind: "sheet", ...sheet };
+      }),
+    } as unknown as PeFactSheetResolver;
+
+    const pendingA = setSubjectByParcelNodeId("48027:498770", "search", resolver);
+    await aHasEntered;
+
+    const outcomeB = await setSubjectByParcelNodeId(
+      "48027:498778",
+      "map-click",
+      resolver,
+    );
+    expect(outcomeB.kind).toBe("subject");
+    if (outcomeB.kind !== "subject") throw new Error("expected B to be subject");
+    expect(outcomeB.subject.sheet.factSheetId).toBe("fs_later_click");
+    expect(subjectStore.currentSheetId()).toBe("fs_later_click");
+    expect(subjectStore.currentParcelNodeId()).toBe("48027:498778");
+
+    releaseA();
+    const outcomeA = await pendingA;
+    expect(outcomeA).toEqual({ kind: "stale", parcelNodeId: "48027:498770" });
+    expect(subjectStore.currentSheetId()).toBe("fs_later_click");
+    expect(subjectStore.currentParcelNodeId()).toBe("48027:498778");
+    expect(subjectStore.current()?.origin).toBe("map-click");
+  });
 });
 
 describe("setSubjectByParcelNodeId — AMENDMENT 1 unplaceable parcels", () => {
