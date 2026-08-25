@@ -70,26 +70,26 @@ describe("PricingModal — ALL pricing in one popup, every string from config", 
     expect(html).toContain(PE_PRICING.studio.badge);
   });
 
-  it("team seat input: hidden on annual (default); monthly shows default 10, min 1, max 500", () => {
-    const annual = renderToStaticMarkup(
+  it("team seat input: hidden on annual; monthly default shows default 10, min 1, max 500", () => {
+    const monthlyDefault = renderToStaticMarkup(
       <PricingModal parcelNodeId="48021:1" onClose={noop} />,
     );
-    expect(annual).not.toContain('data-testid="pricing-team-seats"');
-    expect(teamSeatsControlVisible("annual")).toBe(false);
+    expect(monthlyDefault).toContain('data-testid="pricing-team-seats"');
+    expect(monthlyDefault).toContain('min="1"');
+    expect(monthlyDefault).toContain('max="500"');
+    expect(monthlyDefault).toContain('value="10"');
+    expect(monthlyDefault).toContain(PE_PRICING.team.seatNote);
+    expect(teamSeatsControlVisible("monthly")).toBe(true);
 
-    const monthly = renderToStaticMarkup(
+    const annual = renderToStaticMarkup(
       <PricingModal
         parcelNodeId="48021:1"
-        initialInterval="monthly"
+        initialInterval="annual"
         onClose={noop}
       />,
     );
-    expect(monthly).toContain('data-testid="pricing-team-seats"');
-    expect(monthly).toContain('min="1"');
-    expect(monthly).toContain('max="500"');
-    expect(monthly).toContain('value="10"');
-    expect(monthly).toContain(PE_PRICING.team.seatNote);
-    expect(teamSeatsControlVisible("monthly")).toBe(true);
+    expect(annual).not.toContain('data-testid="pricing-team-seats"');
+    expect(teamSeatsControlVisible("annual")).toBe(false);
     expect(clampTeamSeats(0)).toBe(1);
     expect(clampTeamSeats(501)).toBe(500);
     expect(clampTeamSeats(14)).toBe(14);
@@ -199,16 +199,35 @@ describe("PricingModal — ALL pricing in one popup, every string from config", 
     expect(html).not.toContain('data-testid="pricing-note"');
   });
 
-  it("first paint is annual; toggle exposes interval; monthly switches amounts and reveals seats", () => {
-    expect(defaultPricingInterval()).toBe("annual");
-    const annual = renderToStaticMarkup(
+  it("first paint is monthly; toggle exposes interval; annual switches amounts and hides seats", () => {
+    expect(defaultPricingInterval()).toBe("monthly");
+    const monthly = renderToStaticMarkup(
       <PricingModal parcelNodeId="48021:1" onClose={noop} />,
+    );
+    expect(monthly).toMatch(
+      /data-testid="pricing-interval"[^>]*data-interval="monthly"/,
+    );
+    expect(monthly).toContain(PE_PRICING.interval.annualLabel);
+    expect(monthly).toContain(PE_PRICING.interval.monthlyLabel);
+    expect(monthly).toContain(tierHeadline("solo", "monthly").amount);
+    expect(monthly).toContain(tierHeadline("studio", "monthly").amount);
+    expect(monthly).toContain(tierHeadline("team", "monthly").amount);
+    expect(monthly).toContain(`data-amount="${PE_PRICING.solo.monthlyAmount}"`);
+    expect(monthly).not.toContain(`data-amount="${PE_PRICING.solo.annualPriceLabel}"`);
+    expect(monthly).toContain('data-checkout-interval="month"');
+    expect(monthly).not.toContain('data-checkout-interval="year"');
+    expect(monthly).toContain(PE_PRICING.team.monthlySeatCell);
+
+    const annual = renderToStaticMarkup(
+      <PricingModal
+        parcelNodeId="48021:1"
+        initialInterval="annual"
+        onClose={noop}
+      />,
     );
     expect(annual).toMatch(
       /data-testid="pricing-interval"[^>]*data-interval="annual"/,
     );
-    expect(annual).toContain(PE_PRICING.interval.annualLabel);
-    expect(annual).toContain(PE_PRICING.interval.monthlyLabel);
     expect(annual).toContain(tierHeadline("solo", "annual").amount);
     expect(annual).toContain(tierHeadline("studio", "annual").amount);
     expect(annual).toContain(tierHeadline("team", "annual").amount);
@@ -217,25 +236,6 @@ describe("PricingModal — ALL pricing in one popup, every string from config", 
     expect(annual).toContain(`data-checkout-interval="${toCheckoutInterval("annual")}"`);
     expect(annual).toContain('data-checkout-interval="year"');
     expect(annual).not.toContain('data-checkout-interval="month"');
-    expect(annual).not.toContain('data-checkout-interval="annual"');
-
-    const monthly = renderToStaticMarkup(
-      <PricingModal
-        parcelNodeId="48021:1"
-        initialInterval="monthly"
-        onClose={noop}
-      />,
-    );
-    expect(monthly).toMatch(
-      /data-testid="pricing-interval"[^>]*data-interval="monthly"/,
-    );
-    expect(monthly).toContain(tierHeadline("solo", "monthly").amount);
-    expect(monthly).toContain(tierHeadline("studio", "monthly").amount);
-    expect(monthly).toContain(tierHeadline("team", "monthly").amount);
-    expect(monthly).toContain(`data-amount="${PE_PRICING.solo.monthlyAmount}"`);
-    expect(monthly).toContain('data-checkout-interval="month"');
-    expect(monthly).not.toContain('data-checkout-interval="year"');
-    expect(monthly).toContain(PE_PRICING.team.monthlySeatCell);
     expect(annual).toContain(PE_PRICING.team.annualSeatCell);
   });
 
