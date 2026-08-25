@@ -68,7 +68,7 @@ function render(opts: {
 
 const SITE_PLAN_STATE: SitePlanExportSectionState = {
   format: "pdf-site-plan",
-  notice: "Site plan ready — download below.",
+  notice: "Site plan ready — download above.",
   result: {
     ok: true,
     parcelNodeId: "48021:123",
@@ -91,7 +91,7 @@ const SITE_PLAN_STATE: SitePlanExportSectionState = {
 
 const TERRAIN_STATE: TerrainExportSectionState = {
   format: "glb",
-  notice: "Terrain export ready — download below.",
+  notice: "Terrain export ready — download above.",
   result: {
     ok: true,
     parcelNodeId: "48021:123",
@@ -173,7 +173,11 @@ describe("reports tool — per-property persistence via the chassis store", () =
     const html = render({ activeParcelNodeId: "48021:123", store });
     expect(html).toContain('data-testid="site-plan-export-result"');
     expect(html).toContain('data-testid="site-plan-download-link"');
-    expect(html).toContain("Site plan ready");
+    expect(html).toContain("Download PDF");
+    expect(html).toContain("200 KB");
+    expect(html).toContain("Site plan ready — download above.");
+    expect(html).toContain("Re-run");
+    expect(html).not.toContain("Download pdf-site-plan");
     expect(html).toContain("Parcel GIS + setback-rule + USGS 3DEP");
     expect(html).not.toContain('data-testid="terrain-download-link"');
   });
@@ -186,6 +190,8 @@ describe("reports tool — per-property persistence via the chassis store", () =
     const html = render({ activeParcelNodeId: "48021:123", store });
     expect(html).toContain('data-testid="terrain-export-result"');
     expect(html).toContain('data-testid="terrain-download-link"');
+    expect(html).toContain("Download GLB");
+    expect(html).toContain("100 KB");
     expect(html).toContain("USGS 3DEP");
     expect(html).not.toContain('data-testid="site-plan-download-link"');
   });

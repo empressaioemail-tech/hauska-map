@@ -7,9 +7,13 @@ import {
 } from "../lib/sitePlanExportClient";
 import { GoogleSignInButton } from "../components/GoogleSignInButton";
 import { Button } from "../components/Button";
+import {
+  DownloadFileButton,
+  downloadFormatLabel,
+  formatByteCount,
+} from "../components/DownloadFileButton";
 
 const MUTED = "var(--surface-muted, #94A3B8)";
-const ACCENT = "var(--brand-blue, #3B82F6)"; // PRIMARY interactive hue (was cyan #7dd3fc)
 const WARN = "var(--semantic-warning, #F59E0B)"; // caution notice (was ochre #c98b3a)
 
 const HONESTY_LINE =
@@ -135,7 +139,7 @@ export function SitePlanExportSection({
 
     settle({
       format,
-      notice: "Site plan ready — download below.",
+      notice: "Site plan ready — download above.",
       result: resp.data,
     });
   }, [address, countyName, format, onPaymentRequired, parcelNodeId, settle]);
@@ -167,6 +171,10 @@ export function SitePlanExportSection({
       : (result?.downloads?.[format] ?? null));
   const selectedMeta = result?.atom.artifacts?.[format];
   const downloadName = filenameFor(parcelNodeId, format);
+  const sizeLabel = formatByteCount(
+    selectedMeta?.byteCount ?? (inlineMatches ? inline?.byteCount : null),
+  );
+  const hasFile = !!selectedDownload;
 
   return (
     <div
@@ -223,16 +231,21 @@ export function SitePlanExportSection({
         </>
       )}
 
-      <Button
-        variant="primary"
-        fullWidth
-        type="button"
-        data-testid="site-plan-export-run"
-        disabled={busy}
-        onClick={() => void handleExport()}
-      >
-        {busy ? "Building…" : "Export site plan"}
-      </Button>
+      {hasFile ? (
+        <DownloadFileButton
+          href={selectedDownload}
+          download={downloadName}
+          label={`Download ${downloadFormatLabel(format)}`}
+          sizeLabel={sizeLabel}
+          testId="site-plan-download-link"
+        />
+      ) : busy ? (
+        <DownloadFileButton
+          label={`Download ${downloadFormatLabel(format)}`}
+          state="generating"
+          testId="site-plan-download-link"
+        />
+      ) : null}
 
       {notice && (
         <div
@@ -250,6 +263,20 @@ export function SitePlanExportSection({
             </>
           )}
         </div>
+      )}
+
+      {hasFile ? null : (
+        <Button
+          variant="primary"
+          fullWidth
+          type="button"
+          data-testid="site-plan-export-run"
+          disabled={busy}
+          onClick={() => void handleExport()}
+          style={{ marginTop: notice || busy ? 8 : 0 }}
+        >
+          {busy ? "Building…" : "Export site plan"}
+        </Button>
       )}
 
       {result && (
@@ -275,35 +302,15 @@ export function SitePlanExportSection({
               : ""}
           </div>
 
-          {selectedDownload ? (
-            <a
-              href={selectedDownload}
-              download={downloadName}
-              data-testid="site-plan-download-link"
-              style={{
-                display: "inline-block",
-                marginTop: 8,
-                fontSize: 12,
-                fontWeight: 600,
-                color: ACCENT,
-              }}
-            >
-              Download {format}
-              {selectedMeta?.byteCount
-                ? ` (${Math.round(selectedMeta.byteCount / 1024)} KB)`
-                : inlineMatches && inline?.byteCount
-                  ? ` (${Math.round(inline.byteCount / 1024)} KB)`
-                  : ""}
-            </a>
-          ) : result && result.selectedFormat !== format ? (
+          {!selectedDownload && result.selectedFormat !== format ? (
             <div style={{ marginTop: 8, fontSize: 10.5, color: WARN }}>
-              Click Export site plan again for {format}.
+              Click Re-run again for {format}.
             </div>
-          ) : (
+          ) : !selectedDownload ? (
             <div style={{ marginTop: 8, fontSize: 10.5, color: WARN }}>
               Selected format unavailable in this export.
             </div>
-          )}
+          ) : null}
 
           {result.setbackHonestAbsence && (
             <div
@@ -360,6 +367,20 @@ export function SitePlanExportSection({
           )}
         </div>
       )}
+
+      {hasFile ? (
+        <Button
+          variant="secondary"
+          fullWidth
+          type="button"
+          data-testid="site-plan-export-run"
+          disabled={busy}
+          onClick={() => void handleExport()}
+          style={{ marginTop: 8 }}
+        >
+          {busy ? "Building…" : "Re-run"}
+        </Button>
+      ) : null}
     </div>
   );
 }

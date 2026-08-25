@@ -7,9 +7,13 @@ import {
 } from "../lib/terrainExportClient";
 import { GoogleSignInButton } from "../components/GoogleSignInButton";
 import { Button } from "../components/Button";
+import {
+  DownloadFileButton,
+  downloadFormatLabel,
+  formatByteCount,
+} from "../components/DownloadFileButton";
 
 const MUTED = "var(--surface-muted, #94A3B8)";
-const ACCENT = "var(--brand-blue, #3B82F6)"; // PRIMARY interactive hue (was cyan #7dd3fc)
 const WARN = "var(--semantic-warning, #F59E0B)"; // caution notice (was ochre #c98b3a)
 
 function filenameFor(parcelNodeId: string, format: string): string {
@@ -116,7 +120,7 @@ export function TerrainExportSection({
 
     settle({
       format,
-      notice: "Terrain export ready — download below.",
+      notice: "Terrain export ready — download above.",
       result: resp.data,
     });
   }, [format, onPaymentRequired, parcelNodeId, settle]);
@@ -149,6 +153,10 @@ export function TerrainExportSection({
   const selectedMeta = result?.atom.artifacts?.[format];
   const landxml = result?.atom.artifacts?.["landxml-tin"];
   const downloadName = filenameFor(parcelNodeId, format);
+  const sizeLabel = formatByteCount(
+    selectedMeta?.byteCount ?? (inlineMatches ? inline?.byteCount : null),
+  );
+  const hasFile = !!selectedDownload;
 
   return (
     <div
@@ -208,16 +216,21 @@ export function TerrainExportSection({
         </>
       )}
 
-      <Button
-        variant="primary"
-        fullWidth
-        type="button"
-        data-testid="terrain-export-run"
-        disabled={busy}
-        onClick={() => void handleExport()}
-      >
-        {busy ? "Exporting…" : "Export terrain"}
-      </Button>
+      {hasFile ? (
+        <DownloadFileButton
+          href={selectedDownload}
+          download={downloadName}
+          label={`Download ${downloadFormatLabel(format)}`}
+          sizeLabel={sizeLabel}
+          testId="terrain-download-link"
+        />
+      ) : busy ? (
+        <DownloadFileButton
+          label={`Download ${downloadFormatLabel(format)}`}
+          state="generating"
+          testId="terrain-download-link"
+        />
+      ) : null}
 
       {notice && (
         <div
@@ -235,6 +248,20 @@ export function TerrainExportSection({
             </>
           )}
         </div>
+      )}
+
+      {hasFile ? null : (
+        <Button
+          variant="primary"
+          fullWidth
+          type="button"
+          data-testid="terrain-export-run"
+          disabled={busy}
+          onClick={() => void handleExport()}
+          style={{ marginTop: notice || busy ? 8 : 0 }}
+        >
+          {busy ? "Exporting…" : "Export terrain"}
+        </Button>
       )}
 
       {result && (
@@ -260,35 +287,15 @@ export function TerrainExportSection({
               : ""}
           </div>
 
-          {selectedDownload ? (
-            <a
-              href={selectedDownload}
-              download={downloadName}
-              data-testid="terrain-download-link"
-              style={{
-                display: "inline-block",
-                marginTop: 8,
-                fontSize: 12,
-                fontWeight: 600,
-                color: ACCENT,
-              }}
-            >
-              Download {format}
-              {selectedMeta?.byteCount
-                ? ` (${Math.round(selectedMeta.byteCount / 1024)} KB)`
-                : inlineMatches && inline?.byteCount
-                  ? ` (${Math.round(inline.byteCount / 1024)} KB)`
-                  : ""}
-            </a>
-          ) : result && result.selectedFormat !== format ? (
+          {!selectedDownload && result.selectedFormat !== format ? (
             <div style={{ marginTop: 8, fontSize: 10.5, color: WARN }}>
-              Click Export terrain again for {format}.
+              Click Re-run again for {format}.
             </div>
-          ) : (
+          ) : !selectedDownload ? (
             <div style={{ marginTop: 8, fontSize: 10.5, color: WARN }}>
               Selected format unavailable in this export.
             </div>
-          )}
+          ) : null}
 
           {landxml?.deferred && (
             <div
@@ -310,6 +317,20 @@ export function TerrainExportSection({
           )}
         </div>
       )}
+
+      {hasFile ? (
+        <Button
+          variant="secondary"
+          fullWidth
+          type="button"
+          data-testid="terrain-export-run"
+          disabled={busy}
+          onClick={() => void handleExport()}
+          style={{ marginTop: 8 }}
+        >
+          {busy ? "Exporting…" : "Re-run"}
+        </Button>
+      ) : null}
     </div>
   );
 }

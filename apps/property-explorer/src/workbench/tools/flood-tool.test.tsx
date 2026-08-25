@@ -284,11 +284,16 @@ describe("flood section — persisted study renders the mini viz (KEPT) + map-ov
     expect(html).toContain("NOAA Atlas 14");
     expect(html).toContain('9.5&quot;');
 
-    // Layman briefing verbatim.
+    // Finding first (lead = briefing when one sentence), full briefing in disclosure.
+    expect(html).toContain('data-testid="flood-finding-lead"');
     expect(html).toContain("verify finished-floor elevation");
+    expect(html).toContain('data-testid="flood-method-disclosure"');
+    expect(html).toContain("Method, sources and full findings");
 
     // PDF export via the gated BFF download (folded function, report param).
     expect(html).toContain('data-testid="flood-download-link"');
+    expect(html).toContain("Download PDF sheet");
+    expect(html).not.toContain("Export PDF sheet");
     expect(html).toContain(
       "/api/pe-site-plan-export?report=flood-drainage&amp;action=download",
     );
@@ -308,7 +313,7 @@ describe("flood section — persisted study renders the mini viz (KEPT) + map-ov
     const html = render({ store, host: overlayHost });
     expect(html).not.toContain('data-testid="flood-map-overlay-hint"');
     expect(html).toContain('data-testid="flood-overlay-idle"');
-    expect(html).toContain("Map is clean");
+    expect(html).toContain("Open on the map");
     // Host WITHOUT the seam (older injected test hosts) → no map copy at all.
     const bare = render({ store });
     expect(bare).not.toContain('data-testid="flood-map-overlay-hint"');
