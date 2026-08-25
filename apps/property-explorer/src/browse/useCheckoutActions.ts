@@ -155,7 +155,10 @@ export function useCheckoutActions(
           return;
         }
         setBusy(null);
-        setNote({ text: nav.message, tone: "amber" });
+        setNote({
+          text: nav.action === "error" ? nav.message : NON_STRIPE_URL_MESSAGE,
+          tone: "amber",
+        });
         return;
       }
       case "sign-in":
