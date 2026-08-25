@@ -1977,6 +1977,7 @@ function ExplorerMapSurface({
       {paywallOpen && (
         <PricingModal
           parcelNodeId={activeParcelNodeId}
+          situsAddress={cardFactsRef.current.address}
           contextLine={
             paywallMessage ??
             "The full brief, AI chat, reports, and share links are the paid toolkit on this property — the inspect card and map stay free."

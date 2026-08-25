@@ -103,6 +103,9 @@ importers:
       '@hauska/map-renderer':
         specifier: workspace:*
         version: link:../../packages/map-renderer
+      '@stripe/stripe-js':
+        specifier: ^7.9.0
+        version: 7.9.0
       maplibre-gl:
         specifier: ^5.24.0
         version: 5.24.0
@@ -999,6 +1002,10 @@ packages:
 
   '@standard-schema/spec@1.1.0':
     resolution: {integrity: sha512-l2aFy5jALhniG5HgqrD6jXLi/rUWrKvqN/qJx6yoJsgKhblVd+iqqU4RCXavm/jPityDo5TCvKMnpjKnOriy0w==}
+
+  '@stripe/stripe-js@7.9.0':
+    resolution: {integrity: sha512-ggs5k+/0FUJcIgNY08aZTqpBTtbExkJMYMLSMwyucrhtWexVOEY1KJmhBsxf+E/Q15f5rbwBpj+t0t2AW2oCsQ==}
+    engines: {node: '>=12.16'}
 
   '@testing-library/dom@10.4.1':
     resolution: {integrity: sha512-o4PXJQidqJl82ckFaXUeoAW+XysPLauYI43Abki5hABd853iMhitooc6znOnczgbTYmEP6U6/y1ZyKAIsvMKGg==}
@@ -3235,6 +3242,8 @@ snapshots:
     optional: true
 
   '@standard-schema/spec@1.1.0': {}
+
+  '@stripe/stripe-js@7.9.0': {}
 
   '@testing-library/dom@10.4.1':
     dependencies:

@@ -22,6 +22,9 @@ import { fetchSession } from "./lib/auth";
 import { claimAnonymousStateOnSignIn } from "./lib/claimClient";
 import { recordPeGtmEvent } from "./lib/gtmClient";
 import { usePostCheckoutRefresh } from "./lib/usePostCheckoutRefresh";
+import { CheckoutPage } from "./checkout/CheckoutPage";
+import { CheckoutSuccessCard } from "./checkout/CheckoutSuccessCard";
+import { isCheckoutPath } from "./checkout/checkoutLanding";
 
 const COLD_OPEN_DISMISSED_KEY = "pe_cold_open_dismissed";
 
@@ -64,6 +67,11 @@ function readShareLanding(): ShareLanding | null {
   return resolveShareLanding(window.location, defaultShareStash());
 }
 
+function readCheckoutLanding(): boolean {
+  if (typeof window === "undefined") return false;
+  return isCheckoutPath(window.location.pathname);
+}
+
 export function App() {
   // SHARE FUNNEL: /share#<token> loads the FULL map app (not the old
   // standalone read-only page) — flight to the shared property, read-only
@@ -74,11 +82,16 @@ export function App() {
   if (shareLanding) {
     return <ShareFunnelApp landing={shareLanding} />;
   }
+  const [checkoutLanding] = useState(readCheckoutLanding);
+  if (checkoutLanding) {
+    return <CheckoutPage />;
+  }
   return <MapApp />;
 }
 
 function MapApp() {
   const [coldOpen, setColdOpen] = useState(readInitialColdOpen);
+  const [successDismissed, setSuccessDismissed] = useState(false);
   // WDLL item 7 — clears the entitlement cache and reconciles the post-Stripe
   // state; renders an honest "confirming" note while `checking`.
   const checkoutStatus = usePostCheckoutRefresh();
@@ -163,6 +176,14 @@ function MapApp() {
           Confirming your purchase…
         </div>
       )}
+
+      {!successDismissed &&
+        (checkoutStatus === "confirmed" || checkoutStatus === "timeout") && (
+          <CheckoutSuccessCard
+            status={checkoutStatus}
+            onDismiss={() => setSuccessDismissed(true)}
+          />
+        )}
 
       {coldOpen && (
         <>
