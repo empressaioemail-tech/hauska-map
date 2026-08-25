@@ -329,6 +329,7 @@ export function Workbench({
           </div>
           {/* THE SCROLL REGION — every tool's content lives inside it. */}
           <div
+            className="pe-dock-scroll"
             data-testid="dock-scroll"
             style={{
               flex: "1 1 auto",

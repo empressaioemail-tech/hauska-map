@@ -16,8 +16,9 @@
 //     state, not asserted here — static render can't click);
 //   - a persisted study renders the mini grid viz (KEPT per operator) —
 //     zones + ponding + exits + parcel ring — legend, provenance line,
-//     briefing, and the PDF export link, PLUS the map-overlay hint when the
-//     host implements setFloodMapOverlay (one study feeds dock AND map);
+//     briefing, and the PDF export link. A persisted study does NOT claim
+//     the map (idle copy when the host has the seam); only a this-session
+//     run paints, because persist/cache are not account-scoped;
 //   - PERSISTENCE MIGRATION: the chassis-store key stays "flood" — a study
 //     persisted before the bubble folded into Reports hydrates unchanged;
 //   - honest-empty renders the ENGINE reason verbatim, no viz, no export;
@@ -294,7 +295,10 @@ describe("flood section — persisted study renders the mini viz (KEPT) + map-ov
     expect(html).toContain("48021_54321_flood_drainage.pdf");
   });
 
-  it("host WITH the map seam → the map-overlay hint renders (one study feeds dock AND map)", () => {
+  it("host WITH the map seam + persisted study → map stays clean until re-run", () => {
+    // Persist / parcel-cache hydrate the dock. They do not paint the map:
+    // those stores are not account-scoped, so auto-paint is how an old
+    // study reappears after a sign-in swap. Static render never arms.
     primePropertyEntitlement(PARCEL, ent({ propertyUnlocked: true }));
     const store = createWorkbenchToolStateStore({ storage: null });
     store.set(PARCEL, "flood", {
@@ -302,11 +306,13 @@ describe("flood section — persisted study renders the mini viz (KEPT) + map-ov
       notice: null,
     } satisfies FloodToolStoredState);
     const html = render({ store, host: overlayHost });
-    expect(html).toContain('data-testid="flood-map-overlay-hint"');
-    expect(html).toContain("Drainage overlay drawn on the map");
-    // Host WITHOUT the seam (older injected test hosts) → no hint, dock only.
+    expect(html).not.toContain('data-testid="flood-map-overlay-hint"');
+    expect(html).toContain('data-testid="flood-overlay-idle"');
+    expect(html).toContain("Map is clean");
+    // Host WITHOUT the seam (older injected test hosts) → no map copy at all.
     const bare = render({ store });
     expect(bare).not.toContain('data-testid="flood-map-overlay-hint"');
+    expect(bare).not.toContain('data-testid="flood-overlay-idle"');
   });
 
   it("PERSISTENCE MIGRATION: the pre-consolidation chassis key \"flood\" hydrates unchanged", () => {

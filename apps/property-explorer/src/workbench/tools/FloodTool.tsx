@@ -11,9 +11,12 @@
 //                  flow lines with a handful of small direction arrows and
 //                  diamond exit markers. FEMA stays blue as the reference
 //                  layer, so the two layers no longer compete.
-//                  Applied on study load; cleared on section unmount (tool
-//                  close), study replacement (re-run), and property switch
-//                  (the app shell's auto-clear, WB6 precedent).
+//                  Painted ONLY after Generate / Re-run in THIS mount. A
+//                  study hydrated from localStorage or the parcel cache
+//                  stays dock-only — those stores are not account-scoped,
+//                  so auto-paint is how an old study reappears after a
+//                  sign-in swap. Cleared on section unmount, property
+//                  switch, and any persist-only hydrate.
 //   run-in-dock  → honest progress (the drainage study is real work,
 //                  ~15-45 s: DEM fetch + hydrology model);
 //   mini viz     → the sharp in-dock SVG grid stays (operator call) — parcel
@@ -297,6 +300,10 @@ export function FloodDrainageSection({ embed = false }: { embed?: boolean } = {}
   const attachedRef = useRef(new Map<string, unknown>());
   // One silent cache-hydration probe per (mount, property).
   const probedRef = useRef(new Set<string>());
+  // Map overlay is session-armed: persist / server-cache hydrate the dock,
+  // they do NOT paint the map. Only an explicit run() in this mount arms it.
+  const overlayArmedRef = useRef(false);
+  const [overlayGeneration, setOverlayGeneration] = useState(0);
 
   const settle = useCallback(
     (next: FloodToolStoredState) => {
@@ -351,6 +358,8 @@ export function FloodDrainageSection({ embed = false }: { embed?: boolean } = {}
       });
       return;
     }
+    overlayArmedRef.current = true;
+    setOverlayGeneration((n) => n + 1);
     settle({ study: resp.study, notice: null });
   }, [activeParcelNodeId, host, settle]);
 
@@ -395,17 +404,29 @@ export function FloodDrainageSection({ embed = false }: { embed?: boolean } = {}
   // never claim ponding the map is not drawing (and vice versa).
   const hasPonding = pondingFeatureCount(study) > 0;
 
-  // THE MAP OVERLAY SYNC — the one study snapshot feeds the main map through
-  // the host seam. Effect cleanup clears on section unmount (tool close /
-  // bubble switch) and on study replacement (re-run redraws); the app
-  // shell's property-switch auto-clear is the belt on top (WB6 precedent).
+  // Property switch disarms: the next parcel must be re-run to paint.
+  useEffect(() => {
+    overlayArmedRef.current = false;
+    setOverlayGeneration((n) => n + 1);
+  }, [activeParcelNodeId]);
+
+  // THE MAP OVERLAY SYNC — only a this-session run paints the main map.
+  // Persist / cache hydrate the dock result. Effect cleanup and the
+  // persist-only path both call set(null) so a leftover overlay cannot
+  // survive a remount or an account swap on the same browser.
   useEffect(() => {
     const setOverlay = host.setFloodMapOverlay;
     if (!setOverlay || !activeParcelNodeId) return undefined;
-    if (!study || study.honestEmpty) return undefined;
+    if (!overlayArmedRef.current || !study || study.honestEmpty) {
+      setOverlay(null);
+      return undefined;
+    }
     setOverlay(study, activeParcelNodeId);
     return () => setOverlay(null);
-  }, [study, activeParcelNodeId, host]);
+  }, [study, activeParcelNodeId, host, overlayGeneration]);
+
+  const overlayOnMap =
+    overlayArmedRef.current && !!study && !study.honestEmpty;
 
   // The Reports tool guarantees a non-null active property.
   if (!activeParcelNodeId) return null;
@@ -510,13 +531,21 @@ export function FloodDrainageSection({ embed = false }: { embed?: boolean } = {}
         <div data-testid="flood-result" style={{ marginTop: 10 }}>
           {/* The map is the star: the same study is drawn ON the main map
               while this report is open (host seam; absent host → dock only). */}
-          {host.setFloodMapOverlay && (
+          {overlayOnMap && host.setFloodMapOverlay && (
             <div
               data-testid="flood-map-overlay-hint"
               style={{ marginBottom: 6, fontSize: 10, color: ACCENT }}
             >
               Drainage overlay drawn on the map — arrows mark where flow
               crosses the parcel boundary.
+            </div>
+          )}
+          {!overlayOnMap && host.setFloodMapOverlay && (
+            <div
+              data-testid="flood-overlay-idle"
+              style={{ marginBottom: 6, fontSize: 10, color: MUTED }}
+            >
+              Map is clean — re-run to draw this study.
             </div>
           )}
           <FloodVizSvg model={model} />

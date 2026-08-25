@@ -71,3 +71,37 @@
   outline:none;
   box-shadow:var(--btn-focus-ring);
 }
+
+/* Native Windows/Chrome scrollbars default to a light OS chrome. PE is
+   dark-ink; a light track against --surface-ink is the 1998 defect.
+   color-scheme flips the OS thumb; the webkit/scrollbar-* rules restyle
+   it to a thin muted-slate pill on a transparent track. */
+:root, html, body {
+  color-scheme: dark;
+}
+* {
+  scrollbar-width: thin;
+  scrollbar-color: rgba(148, 163, 184, 0.42) transparent;
+}
+*::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+*::-webkit-scrollbar-track {
+  background: transparent;
+}
+*::-webkit-scrollbar-thumb {
+  background-color: rgba(148, 163, 184, 0.38);
+  border-radius: 999px;
+  border: 2px solid transparent;
+  background-clip: padding-box;
+}
+*::-webkit-scrollbar-thumb:hover {
+  background-color: rgba(148, 163, 184, 0.62);
+}
+*::-webkit-scrollbar-corner {
+  background: transparent;
+}
+.pe-dock-scroll {
+  scrollbar-gutter: stable;
+}
