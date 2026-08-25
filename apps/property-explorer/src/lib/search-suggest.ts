@@ -68,6 +68,8 @@ export interface SuggestController {
   /** Record an out-of-band selection (e.g. raw-submit fallback) into recents. */
   recordSelection(entry: RecentEntry): void;
   clearRecents(): void;
+  /** Close dropdown and drop in-flight suggestions when the subject commits. */
+  syncToSubjectCommit(): void;
   /** Dispose timers/in-flight fetches (component unmount). */
   dispose(): void;
 }
@@ -254,6 +256,19 @@ export function createSuggestController(
       snap = { ...snap, recents: [], showingRecents: snap.showingRecents, open: snap.showingRecents ? false : snap.open, highlighted: -1 };
       opts.saveRecents?.([]);
       opts.onChange(snap);
+    },
+
+    syncToSubjectCommit() {
+      cancelPending();
+      emit({
+        open: false,
+        loading: false,
+        highlighted: -1,
+        items: [],
+        unavailable: false,
+        empty: false,
+        showingRecents: false,
+      });
     },
 
     dispose() {

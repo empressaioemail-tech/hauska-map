@@ -67,12 +67,26 @@ export interface SearchBarProps {
 }
 
 /** Next input value when the subject changes. Focused typing is not yanked. */
+/** @deprecated Prefer searchBarValueOnSubjectCommit when the subject store commits. */
 export function nextSearchBarValue(args: {
   focused: boolean;
   subjectDisplay: string | null;
   current: string;
 }): string {
   if (args.focused) return args.current;
+  if (args.subjectDisplay == null) return args.current;
+  return args.subjectDisplay;
+}
+
+/**
+ * Find input after subjectStore commits (map click or successful Find).
+ * WDLL 2026-08-25 item 3: always mirror the standing subject; do not leave
+ * a prior query string or open typeahead rows from parcel A.
+ */
+export function searchBarValueOnSubjectCommit(args: {
+  subjectDisplay: string | null;
+  current: string;
+}): string {
   if (args.subjectDisplay == null) return args.current;
   return args.subjectDisplay;
 }
@@ -412,14 +426,11 @@ export function SearchBar({
   useEffect(() => () => controller.dispose(), [controller]);
 
   useEffect(() => {
+    controller.syncToSubjectCommit();
     setValue((current) =>
-      nextSearchBarValue({
-        focused: focusedRef.current,
-        subjectDisplay,
-        current,
-      }),
+      searchBarValueOnSubjectCommit({ subjectDisplay, current }),
     );
-  }, [subjectDisplay]);
+  }, [subjectDisplay, controller]);
 
   const pick = (index?: number) => {
     const chosen = controller.select(index);

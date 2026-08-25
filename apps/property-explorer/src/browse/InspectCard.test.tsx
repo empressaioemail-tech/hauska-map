@@ -1140,3 +1140,40 @@ describe("InspectCard — unplaceable is not facets-load-error (P-60 WDLL 2)", (
     expect(html).toContain('data-testid="facets-retry"');
   });
 });
+
+describe("resolveSheetWithTransientRetry", () => {
+  it("retries retryable FactSheetResolveError then succeeds", async () => {
+    const { resolveSheetWithTransientRetry } = await import("./InspectCard");
+    const { FactSheetResolveError } = await import("../lib/fact-sheet-resolver");
+    let calls = 0;
+    const out = await resolveSheetWithTransientRetry(
+      async () => {
+        calls += 1;
+        if (calls === 1) {
+          throw new FactSheetResolveError(
+            "unresolved",
+            "Parcel facts temporarily unreachable",
+            true,
+          );
+        }
+        return "ok";
+      },
+      { backoffMs: [1], sleep: async () => {} },
+    );
+    expect(out).toBe("ok");
+    expect(calls).toBe(2);
+  });
+
+  it("does not retry non-retryable failures", async () => {
+    const { resolveSheetWithTransientRetry } = await import("./InspectCard");
+    const { FactSheetResolveError } = await import("../lib/fact-sheet-resolver");
+    let calls = 0;
+    await expect(
+      resolveSheetWithTransientRetry(async () => {
+        calls += 1;
+        throw new FactSheetResolveError("not-found", "missing", false);
+      }),
+    ).rejects.toThrow("missing");
+    expect(calls).toBe(1);
+  });
+});

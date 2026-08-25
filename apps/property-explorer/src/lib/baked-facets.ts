@@ -725,8 +725,8 @@ export type BakedFacetsFetchResult =
   | { kind: "transient"; message: string; status: number }
   | { kind: "error"; message: string; status: number };
 
-const CLIENT_FACETS_ATTEMPTS = 2;
-const CLIENT_FACETS_BACKOFF_MS = [500, 1_200];
+const CLIENT_FACETS_ATTEMPTS = 3;
+const CLIENT_FACETS_BACKOFF_MS = [500, 1_200, 2_000];
 
 /**
  * Per-attempt bound on one facets request. Without it a hung BFF socket (a

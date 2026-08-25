@@ -59,7 +59,7 @@ import {
   type CardFacet,
 } from "../lib/baked-facets";
 import type { LayerAbsenceProvenance } from "../lib/layer-absence";
-import { factSheetResolver } from "../lib/fact-sheet-resolver";
+import { factSheetResolver, FactSheetResolveError } from "../lib/fact-sheet-resolver";
 import { usePropertyEntitlement } from "../lib/usePropertyEntitlement";
 import { gateOwnerPresentation } from "../lib/owner-paint";
 import {
@@ -167,6 +167,44 @@ export function showsFacetsLoadError(
   env: Pick<EnvelopeState, "status">,
 ): boolean {
   return source === "live" && env.status === "error";
+}
+
+export const INSPECT_RESOLVE_MAX_ATTEMPTS = 3;
+export const INSPECT_RESOLVE_RETRY_BACKOFF_MS = [600, 1_200] as const;
+
+function defaultInspectRetrySleep(ms: number): Promise<void> {
+  return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
+/**
+ * Retry transient facet/read failures before painting the red card.
+ * fetchBakedNodeFacets already retries; this covers cold cortex + PE race
+ * without treating a recoverable hop as permanent "not verified".
+ */
+export async function resolveSheetWithTransientRetry<T>(
+  run: () => Promise<T>,
+  opts?: {
+    maxAttempts?: number;
+    backoffMs?: readonly number[];
+    sleep?: (ms: number) => Promise<void>;
+  },
+): Promise<T> {
+  const maxAttempts = opts?.maxAttempts ?? INSPECT_RESOLVE_MAX_ATTEMPTS;
+  const backoff = opts?.backoffMs ?? INSPECT_RESOLVE_RETRY_BACKOFF_MS;
+  const sleep = opts?.sleep ?? defaultInspectRetrySleep;
+  let lastErr: unknown;
+  for (let attempt = 0; attempt < maxAttempts; attempt++) {
+    try {
+      return await run();
+    } catch (err) {
+      lastErr = err;
+      const retryable =
+        err instanceof FactSheetResolveError && err.retryable === true;
+      if (!retryable || attempt >= maxAttempts - 1) throw err;
+      await sleep(backoff[attempt] ?? 1_000);
+    }
+  }
+  throw lastErr;
 }
 
 /* ------------------------------------------------------------------ */
@@ -662,7 +700,9 @@ export function InspectCard({
       setBaked(null);
       setEnv({ status: "idle" });
       try {
-        const result = await factSheetResolver.resolve(parcelNodeId);
+        const result = await resolveSheetWithTransientRetry(() =>
+          factSheetResolver.resolve(parcelNodeId),
+        );
         if (cancelled) return;
         if (result.kind === "unplaceable") {
           const state = inspectCardStateFromResolve({
