@@ -73,10 +73,11 @@ export const REPORTS_CATALOG: readonly ReportDocDef[] = [
   {
     id: "DOSS",
     group: "Packages",
-    name: "Property dossier",
+    name: "X-ray",
     kind: "Package",
     catalogStatus: "ready",
-    promise: "Cover, verdict, facts, notes, and the site-plan sheets appended.",
+    promise:
+      "Verdict, cited brief facts, notes, and the site-plan sheets appended.",
     formatLabel: "PDF",
     engine: "dossier",
   },

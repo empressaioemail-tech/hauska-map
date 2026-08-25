@@ -45,7 +45,7 @@ export const SITE_PLAN_PAYWALL_MESSAGE =
 export const TERRAIN_PAYWALL_MESSAGE =
   "Multi-format terrain export (GLB, IFC, DXF) is a Studio feature — it is not part of the single-property unlock.";
 export const DOSSIER_PAYWALL_MESSAGE =
-  "Property dossier PDF — cover, verdict, facts, notes, and appended site-plan sheets.";
+  "The property X-ray PDF — verdict, cited brief facts, your notes and AI research summary, with the site-plan sheets appended.";
 
 const MUTED = "var(--surface-muted, #64748B)";
 const TEXT = "var(--text-body, #e5e7eb)";
@@ -757,7 +757,7 @@ function DossierExportAction({
             color: BLUE,
           }}
         >
-          Download dossier PDF
+          Download X-ray PDF
         </a>
       ) : null}
       {state?.notice ? (
