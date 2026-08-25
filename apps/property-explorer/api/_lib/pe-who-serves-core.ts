@@ -4,9 +4,10 @@
  * A miss is holders [] plus the fixed residual sentence, never HTTP 200 {}.
  * TCEQ additive rows stay complementary who-governs (water-district), never
  * restated as water CCN.
+ *
+ * Pure wire helpers live here (no Node env) so src/ can import them under the
+ * app tsconfig. Server fetch passes baseUrl from the BFF handler.
  */
-
-import { cortexApiUrl } from './oidc-config.js'
 
 export const WHO_SERVES_RESIDUAL =
   'SERVICE-LETTER-REQUIRED — territory is not tap/capacity/extension commitment.'
@@ -178,18 +179,18 @@ export function formatWhoServesDisplay(section: WhoServesSection): {
 export async function fetchWhoServesFromCortex(
   lat: number,
   lng: number,
-  opts?: {
-    baseUrl?: string
+  opts: {
+    baseUrl: string
     apiKey?: string
     fetchImpl?: typeof fetch
   },
 ): Promise<WhoServesSection> {
-  const baseUrl = opts?.baseUrl ?? cortexApiUrl()
-  const apiKey = opts?.apiKey?.trim()
+  const baseUrl = opts.baseUrl.replace(/\/$/, '')
+  const apiKey = opts.apiKey?.trim()
   if (!apiKey) {
     throw new Error('CORTEX_SERVICE_API_KEY not configured')
   }
-  const fetchImpl = opts?.fetchImpl ?? fetch
+  const fetchImpl = opts.fetchImpl ?? fetch
   const url = buildWhoServesUpstreamUrl(baseUrl, lat, lng)
   const res = await fetchImpl(url, {
     method: 'GET',

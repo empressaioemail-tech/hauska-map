@@ -189,6 +189,7 @@ export function whoServesFactPresentation(
     return {
       state: "absent-covered",
       reason: presentation.summary ?? "Who serves unmeasured",
+      provenance: null,
     };
   }
   const summary = (presentation.summary ?? "").trim();
@@ -196,7 +197,7 @@ export function whoServesFactPresentation(
   const value =
     summary && residual ? `${summary} — ${residual}` : summary || residual;
   if (!value) return null;
-  return { state: "present", value };
+  return { state: "present", value, provenance: null };
 }
 
 /** The red box is a failed hop only. Unplaceable / declined must not trip it. */

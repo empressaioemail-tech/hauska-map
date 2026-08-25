@@ -4,6 +4,7 @@
 // Proxies cortex GET /api/who-serves with the service key server-side.
 
 import type { VercelRequest, VercelResponse } from '@vercel/node'
+import { cortexApiUrl } from './_lib/oidc-config.js'
 import {
   fetchWhoServesFromCortex,
   parseWhoServesParams,
@@ -30,6 +31,7 @@ export default async function handler(
   const timer = setTimeout(() => ctrl.abort(), UPSTREAM_TIMEOUT_MS)
   try {
     const section = await fetchWhoServesFromCortex(parsed.lat, parsed.lng, {
+      baseUrl: cortexApiUrl(),
       apiKey: process.env.CORTEX_SERVICE_API_KEY?.trim(),
       fetchImpl: (url, init) =>
         fetch(url, { ...init, signal: ctrl.signal }),
