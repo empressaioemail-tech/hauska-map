@@ -65,7 +65,7 @@ describe("startPeCheckout — the tier on the wire matches the button the user s
       expect(calls[0].body.tier).toBe(tier);
       expect(calls[0].body.interval).toBe("month");
       expect(calls[0].body.interval).not.toBe("annual");
-      expect(calls[0].body.uiMode).toBe("custom");
+      expect(calls[0].body.uiMode).toBe("elements");
       expect(calls[0].body.successUrl).toEqual(
         expect.stringContaining("checkout=success"),
       );

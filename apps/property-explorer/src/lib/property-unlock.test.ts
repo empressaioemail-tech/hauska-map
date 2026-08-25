@@ -49,7 +49,7 @@ describe("startPropertyUnlock — real checkout by default, never a fake success
       } as unknown as Response;
     }) as typeof fetch;
     await startPropertyUnlock("48021:1", { fetchImpl });
-    expect(body).toMatchObject({ parcelNodeId: "48021:1", uiMode: "custom" });
+    expect(body).toMatchObject({ parcelNodeId: "48021:1", uiMode: "elements" });
     expect((body as Record<string, unknown>).successUrl).toEqual(
       expect.stringContaining("checkout=success"),
     );
