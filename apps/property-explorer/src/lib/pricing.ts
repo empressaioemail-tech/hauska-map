@@ -48,9 +48,9 @@ export const PE_PRICING = {
     framing: "",
     stayFree: "",
   },
-  /** Annual is the default presentation (locked GTM); monthly is one click. */
+  /** Monthly is the default presentation; annual is one click (operator 2026-08-25). */
   interval: {
-    default: "annual" as const,
+    default: "monthly" as const,
     annualLabel: "Annual",
     monthlyLabel: "Monthly",
     savingsNote: "2 months free",

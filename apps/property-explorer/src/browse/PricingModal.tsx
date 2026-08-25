@@ -83,7 +83,7 @@ export function PricingModal({
   studioOnly?: boolean;
   /** Honest status footnote (e.g. ICC citation licensing state). */
   statusNote?: string | null;
-  /** Test / first-paint override. Default is annual (PE_PRICING.interval.default). */
+  /** Test / first-paint override. Default is monthly (PE_PRICING.interval.default). */
   initialInterval?: PricingInterval;
   onClose: () => void;
 }) {

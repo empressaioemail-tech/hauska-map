@@ -235,3 +235,22 @@ describe("honest states", () => {
     expect(s.unavailable).toBe(false);
   });
 });
+
+describe("syncToSubjectCommit", () => {
+  it("closes the dropdown, clears suggestion rows, and aborts in-flight fetch", async () => {
+    const h = harness();
+    h.controller.input("simsbrook");
+    vi.advanceTimersByTime(SUGGEST_DEBOUNCE_MS);
+    expect(h.calls.length).toBe(1);
+    const signal = h.calls[0].signal;
+    h.controller.syncToSubjectCommit();
+    expect(signal.aborted).toBe(true);
+    const s = h.controller.getSnapshot();
+    expect(s.open).toBe(false);
+    expect(s.items).toEqual([]);
+    expect(s.loading).toBe(false);
+    h.resolveCall(0, [sugg("17001 Simsbrook Dr")]);
+    await vi.runAllTimersAsync();
+    expect(h.controller.getSnapshot().items).toEqual([]);
+  });
+});

@@ -12,6 +12,7 @@ import { join } from "node:path";
 import { renderToStaticMarkup } from "react-dom/server";
 import {
   nextSearchBarValue,
+  searchBarValueOnSubjectCommit,
   SearchBar,
   subjectDisplayFromIdentity,
   SuggestDropdown,
@@ -186,6 +187,33 @@ describe("SuggestDropdown states", () => {
   });
 });
 
+describe("searchBarValueOnSubjectCommit (WDLL 2026-08-25 item 3)", () => {
+  it("always takes subject situs or node id even when the old query differs", () => {
+    expect(
+      searchBarValueOnSubjectCommit({
+        subjectDisplay: "1003 Spring St, Bastrop, TX",
+        current: "17001 SIMSBROOK DR",
+      }),
+    ).toBe("1003 Spring St, Bastrop, TX");
+
+    expect(
+      searchBarValueOnSubjectCommit({
+        subjectDisplay: "48021:34873",
+        current: "17001 sims",
+      }),
+    ).toBe("48021:34873");
+  });
+
+  it("null subjectDisplay leaves the current input", () => {
+    expect(
+      searchBarValueOnSubjectCommit({
+        subjectDisplay: null,
+        current: "typing…",
+      }),
+    ).toBe("typing…");
+  });
+});
+
 describe("subjectDisplay prop and nextSearchBarValue", () => {
   it("subjectDisplay exists on SearchBarProps and does not crash static render", () => {
     const props: SearchBarProps = {
@@ -231,6 +259,12 @@ describe("subjectDisplay prop and nextSearchBarValue", () => {
 });
 
 describe("ExplorerMap search-bar wiring (source pin)", () => {
+  it("clears stale typeahead on subject commit via syncToSubjectCommit", () => {
+    const text = readFileSync(join(__dirname, "SearchBar.tsx"), "utf8");
+    expect(text).toContain("controller.syncToSubjectCommit()");
+    expect(text).toContain("searchBarValueOnSubjectCommit");
+  });
+
   it("passes subjectDisplay from the store and guards Find with lookup intent", () => {
     const text = readFileSync(join(__dirname, "ExplorerMap.tsx"), "utf8");
     expect(text).toContain("subjectDisplay={subjectDisplay}");
