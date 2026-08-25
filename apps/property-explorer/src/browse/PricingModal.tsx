@@ -18,6 +18,7 @@
 import { useState } from "react";
 import { Button } from "../components/Button";
 import { useCheckoutActions, clampTeamSeats } from "./useCheckoutActions";
+import { UnlockCheckoutModal } from "../checkout/UnlockCheckoutModal";
 import type { PeCheckoutTier } from "../lib/billingClient";
 import {
   PE_PRICING,
@@ -64,10 +65,13 @@ export function PricingModal({
   studioOnly,
   statusNote,
   initialInterval,
+  situsAddress,
   onClose,
 }: {
   /** The active property (null → the unlock is disabled with honest copy). */
   parcelNodeId: string | null;
+  /** Inspected situs for unlock-modal chrome. Absent → parcel id, never invented. */
+  situsAddress?: string | null;
   /** Visually emphasize one subscription column in addition to Studio. */
   highlightTier?: PeCheckoutTier;
   /** The triggering tool's value line — why the user is seeing this. */
@@ -81,8 +85,11 @@ export function PricingModal({
   initialInterval?: PricingInterval;
   onClose: () => void;
 }) {
-  const { busy, note, handleProperty, handleSubscription } =
-    useCheckoutActions(parcelNodeId, { onUnlocked: onClose });
+  const { busy, note, handleProperty, handleSubscription, unlockSession, dismissUnlock } =
+    useCheckoutActions(parcelNodeId, {
+      onUnlocked: onClose,
+      situsAddress: situsAddress ?? null,
+    });
   const [interval, setInterval] = useState<PricingInterval>(
     initialInterval ?? defaultPricingInterval(),
   );
@@ -96,6 +103,18 @@ export function PricingModal({
 
   const checkoutSeats =
     interval === "annual" ? PE_PRICING.team.baseSeats : teamSeats;
+
+  if (unlockSession) {
+    return (
+      <UnlockCheckoutModal
+        situs={unlockSession.situs?.trim() || parcelNodeId || "This parcel"}
+        clientSecret={unlockSession.clientSecret}
+        publishableKey={unlockSession.publishableKey}
+        parcelNodeId={unlockSession.parcelNodeId}
+        onClose={dismissUnlock}
+      />
+    );
+  }
 
   return (
     <div

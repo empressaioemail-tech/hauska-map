@@ -29,6 +29,10 @@ import {
   primePropertyEntitlement,
   type PropertyEntitlementState,
 } from "./entitlementClient";
+import {
+  kickQueuedJobIfOrigin,
+  type CheckoutOrigin,
+} from "./checkoutOrigin";
 
 export type PostCheckoutStatus = "idle" | "checking" | "confirmed" | "timeout";
 
@@ -69,6 +73,8 @@ export interface ReconcilePostCheckoutOpts {
   /** Injectable so tests never actually sleep — defaults to real setTimeout. */
   sleepImpl?: (ms: number) => Promise<void>;
   isCancelled?: () => boolean;
+  /** Injectable kick — production records the origin; tests assert no-origin does not fire. */
+  kickQueuedJob?: (origin: CheckoutOrigin) => void;
 }
 
 /**
@@ -94,10 +100,13 @@ export async function reconcilePostCheckout(
   invalidatePropertyEntitlement();
   opts.onStatusChange?.("checking");
 
-  if (!parcelNodeId) {
+    if (!parcelNodeId) {
     // No property context to poll — the cleared cache re-fetches honestly
     // the next time a property opens.
     if (cancelled()) return "checking";
+    kickQueuedJobIfOrigin({
+      kick: opts.kickQueuedJob ?? (() => {}),
+    });
     strip();
     opts.onStatusChange?.("confirmed");
     return "confirmed";
@@ -111,6 +120,9 @@ export async function reconcilePostCheckout(
     if (cancelled()) return "checking";
     if (state.status === "ready" && isEntitled(state)) {
       primePropertyEntitlement(parcelNodeId, state);
+      kickQueuedJobIfOrigin({
+        kick: opts.kickQueuedJob ?? (() => {}),
+      });
       strip();
       opts.onStatusChange?.("confirmed");
       return "confirmed";

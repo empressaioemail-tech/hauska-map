@@ -7,10 +7,15 @@ import { getInstallId } from "./installId";
 import { CORTEX_DEEP_PROXY_BASE } from "./auth";
 import { PE_PRICING, type PeCheckoutInterval } from "./pricing";
 
+export const CHECKOUT_NO_SESSION_MESSAGE =
+  "Checkout did not return a payment session. Nothing was charged.";
+
 export type PeCheckoutResult = {
   ok: boolean;
   mode?: "live" | "simulated";
   checkoutUrl?: string;
+  clientSecret?: string;
+  publishableKey?: string;
   sessionId?: string;
   stripeConfigured?: boolean;
   honestNote?: string;
@@ -46,13 +51,14 @@ export async function startPeCheckout(input: {
     typeof window !== "undefined"
       ? window.location.origin
       : "https://property-explorer.vercel.app";
-  const successUrl =
+  const returnUrl =
     input.successUrl ??
     `${origin}/?checkout=success${
       input.parcelNodeId
         ? `&parcelNodeId=${encodeURIComponent(input.parcelNodeId)}`
         : ""
     }`;
+  const successUrl = returnUrl;
   const cancelUrl = input.cancelUrl ?? `${origin}/?checkout=cancel`;
 
   // User-authenticated Pro subscription checkout (WDLL item 1). The legacy
@@ -87,6 +93,8 @@ export async function startPeCheckout(input: {
           tier: input.tier,
           interval: input.interval,
           ...(seatsOnWire !== undefined ? { seats: seatsOnWire } : {}),
+          uiMode: "custom",
+          returnUrl,
           successUrl,
           cancelUrl,
         }),
@@ -99,6 +107,8 @@ export async function startPeCheckout(input: {
     const json = (await res.json()) as PeCheckoutResult & {
       error?: string;
       message?: string;
+      clientSecret?: string;
+      publishableKey?: string;
     };
     if (res.status === 503 && json.error === "checkout_unavailable") {
       // Honest refusal: the requested tier's price is unconfigured on cortex.
@@ -111,14 +121,7 @@ export async function startPeCheckout(input: {
         message: json.message ?? json.error ?? `checkout failed (${res.status})`,
       };
     }
-    return {
-      ok: true,
-      mode: json.mode,
-      checkoutUrl: json.checkoutUrl,
-      sessionId: json.sessionId,
-      stripeConfigured: json.stripeConfigured,
-      honestNote: json.honestNote,
-    };
+    return resolveCustomOrHostedCheckout(json);
   } catch (err) {
     return { ok: false, message: (err as Error).message };
   }
@@ -203,11 +206,67 @@ export function isStripeCheckoutUrl(url: string): boolean {
   }
 }
 
+function readSecret(value: unknown): string | undefined {
+  return typeof value === "string" && value.trim() ? value.trim() : undefined;
+}
+
+function readHostedCheckoutUrl(value: unknown): string | undefined {
+  return typeof value === "string" && value.trim() ? value.trim() : undefined;
+}
+
+/**
+ * Custom-path success is clientSecret. Hosted checkoutUrl remains a fallback
+ * (WDLL item 3) until PE mounts. 200 with neither is an honest error.
+ */
+export function resolveCustomOrHostedCheckout(json: {
+  mode?: "live" | "simulated";
+  checkoutUrl?: string;
+  clientSecret?: string;
+  publishableKey?: string;
+  sessionId?: string;
+  stripeConfigured?: boolean;
+  honestNote?: string;
+  message?: string;
+}): PeCheckoutResult {
+  const clientSecret = readSecret(json.clientSecret);
+  const publishableKey = readSecret(json.publishableKey);
+  const hosted = readHostedCheckoutUrl(json.checkoutUrl);
+  if (clientSecret) {
+    return {
+      ok: true,
+      mode: json.mode,
+      clientSecret,
+      publishableKey,
+      sessionId: json.sessionId,
+      stripeConfigured: json.stripeConfigured,
+      honestNote: json.honestNote,
+      ...(hosted && isStripeCheckoutUrl(hosted) ? { checkoutUrl: hosted } : {}),
+    };
+  }
+  if (hosted && isStripeCheckoutUrl(hosted)) {
+    return {
+      ok: true,
+      mode: json.mode,
+      checkoutUrl: hosted,
+      sessionId: json.sessionId,
+      stripeConfigured: json.stripeConfigured,
+      honestNote: json.honestNote,
+    };
+  }
+  return { ok: false, message: json.message ?? CHECKOUT_NO_SESSION_MESSAGE };
+}
+
 export type PropertyUnlockResult =
   /** TEST SEAM ONLY — a real server-side dev-bypass unlock landed. */
   | { kind: "unlocked"; mode: "dev-bypass" }
-  /** Real Stripe Checkout session — caller redirects to `checkoutUrl`. */
-  | { kind: "checkout"; checkoutUrl: string }
+  /** Custom clientSecret and/or hosted Stripe Checkout URL. */
+  | {
+      kind: "checkout";
+      checkoutUrl?: string;
+      clientSecret?: string;
+      publishableKey?: string;
+      sessionId?: string;
+    }
   /** Session expired/absent server-side — the deep proxy requires auth. */
   | { kind: "sign-in" }
   /** FEATURE-DETECT: cortex checkout route not live yet — honest, never fake. */
@@ -280,6 +339,10 @@ export async function startPropertyUnlock(
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           parcelNodeId,
+          uiMode: "custom",
+          returnUrl:
+            deps.successUrl ??
+            `${origin}/?checkout=success&parcelNodeId=${encodeURIComponent(parcelNodeId)}`,
           successUrl:
             deps.successUrl ??
             `${origin}/?checkout=success&parcelNodeId=${encodeURIComponent(parcelNodeId)}`,
@@ -296,6 +359,9 @@ export async function startPropertyUnlock(
     }
     const body = (await res.json().catch(() => ({}))) as {
       checkoutUrl?: string;
+      clientSecret?: string;
+      publishableKey?: string;
+      sessionId?: string;
       unlocked?: boolean;
       mode?: string;
       message?: string;
@@ -305,15 +371,30 @@ export async function startPropertyUnlock(
     if (res.ok && body.unlocked === true) {
       return { kind: "coming", message: PROPERTY_UNLOCK_COMING_MESSAGE };
     }
-    if (res.ok && typeof body.checkoutUrl === "string" && body.checkoutUrl) {
-      if (!isStripeCheckoutUrl(body.checkoutUrl)) {
+    if (res.ok) {
+      const clientSecret = readSecret(body.clientSecret);
+      const publishableKey = readSecret(body.publishableKey);
+      const hosted = readHostedCheckoutUrl(body.checkoutUrl);
+      if (clientSecret) {
         return {
-          kind: "error",
-          message:
-            "Checkout could not be started — payment session URL was not from Stripe.",
+          kind: "checkout",
+          clientSecret,
+          publishableKey,
+          sessionId: body.sessionId,
+          ...(hosted && isStripeCheckoutUrl(hosted) ? { checkoutUrl: hosted } : {}),
         };
       }
-      return { kind: "checkout", checkoutUrl: body.checkoutUrl };
+      if (hosted) {
+        if (!isStripeCheckoutUrl(hosted)) {
+          return {
+            kind: "error",
+            message:
+              "Checkout could not be started — payment session URL was not from Stripe.",
+          };
+        }
+        return { kind: "checkout", checkoutUrl: hosted, sessionId: body.sessionId };
+      }
+      return { kind: "error", message: body.message ?? CHECKOUT_NO_SESSION_MESSAGE };
     }
     if (!res.ok) {
       return {
@@ -321,9 +402,7 @@ export async function startPropertyUnlock(
         message: body.message ?? body.error ?? `Unlock checkout failed (${res.status}).`,
       };
     }
-    // 200 without a checkoutUrl — treat as an incomplete/partial deploy,
-    // never a fake success.
-    return { kind: "coming", message: PROPERTY_UNLOCK_COMING_MESSAGE };
+    return { kind: "error", message: CHECKOUT_NO_SESSION_MESSAGE };
   } catch (err) {
     return { kind: "error", message: (err as Error).message };
   }

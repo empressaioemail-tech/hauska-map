@@ -11,6 +11,8 @@
 // click WIRING is proven through the pure lockedPanelPaywallArgs helper
 // (LockedToolPanel) and by the shared useCheckoutActions seam tests.
 
+import { readFileSync } from "node:fs";
+import { resolve } from "node:path";
 import { describe, expect, it } from "vitest";
 import { renderToStaticMarkup } from "react-dom/server";
 import { PricingModal } from "./PricingModal";
@@ -266,5 +268,13 @@ describe("lockedPanelPaywallArgs — the dock button's exact host.openPaywall wi
       "Terrain export.",
       { studioOnly: true, highlightTier: "studio" },
     ]);
+  });
+});
+
+describe("PricingModal — unlock modal receives the custom session", () => {
+  it("passes clientSecret and publishableKey into UnlockCheckoutModal", () => {
+    const src = readFileSync(resolve(__dirname, "PricingModal.tsx"), "utf8");
+    expect(src).toContain("clientSecret={unlockSession.clientSecret}");
+    expect(src).toContain("publishableKey={unlockSession.publishableKey}");
   });
 });

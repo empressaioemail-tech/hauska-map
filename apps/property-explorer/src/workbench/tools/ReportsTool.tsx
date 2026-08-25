@@ -19,6 +19,7 @@ import { subscriptionTierGrantsStudio } from "../../lib/entitlementClient";
 import { usePropertyEntitlement } from "../../lib/usePropertyEntitlement";
 import { useDockToolState, useWorkbench } from "../WorkbenchContext";
 import { LockedToolPanel } from "./LockedToolPanel";
+import { persistCheckoutOrigin } from "../../lib/checkoutOrigin";
 import { attachExportToDossier } from "./reports-dossier";
 import { FloodDrainageSection } from "./FloodTool";
 import {
@@ -138,6 +139,11 @@ export function ReportsTool() {
   ) => {
     void recordPeGtmEvent({
       eventType: "pe_paywall_hit",
+      parcelNodeId: activeParcelNodeId,
+    });
+    persistCheckoutOrigin({
+      kind: message.toLowerCase().includes("export") ? "export" : "report",
+      label: message,
       parcelNodeId: activeParcelNodeId,
     });
     host.openPaywall(message, opts);

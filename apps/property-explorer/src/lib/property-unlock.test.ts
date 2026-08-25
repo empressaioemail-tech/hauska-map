@@ -32,7 +32,7 @@ describe("startPropertyUnlock — real checkout by default, never a fake success
         sessionId: "cs_test_123",
       }),
     });
-    expect(result).toEqual({
+    expect(result).toMatchObject({
       kind: "checkout",
       checkoutUrl: "https://checkout.stripe.com/pay/cs_test_123",
     });
@@ -49,7 +49,7 @@ describe("startPropertyUnlock — real checkout by default, never a fake success
       } as unknown as Response;
     }) as typeof fetch;
     await startPropertyUnlock("48021:1", { fetchImpl });
-    expect(body).toMatchObject({ parcelNodeId: "48021:1" });
+    expect(body).toMatchObject({ parcelNodeId: "48021:1", uiMode: "custom" });
     expect((body as Record<string, unknown>).successUrl).toEqual(
       expect.stringContaining("checkout=success"),
     );
@@ -88,9 +88,9 @@ describe("startPropertyUnlock — real checkout by default, never a fake success
     const result = await startPropertyUnlock("48021:1", {
       fetchImpl: fakeCheckoutFetch(200, {}),
     });
-    expect(result).toEqual({
-      kind: "coming",
-      message: PROPERTY_UNLOCK_COMING_MESSAGE,
+    expect(result.kind).toBe("error");
+    expect(result).toMatchObject({
+      message: expect.stringMatching(/payment session|not return/i),
     });
   });
 
