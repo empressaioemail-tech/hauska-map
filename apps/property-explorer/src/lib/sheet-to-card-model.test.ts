@@ -25,8 +25,12 @@ import {
   footprintFacetFromSheet,
   boundaryFacetFromSheet,
   ownerFacetFromSheet,
+  cityLimitsFacetFromSheet,
 } from "./sheet-to-card-model";
-import { FLOOD_HAZARD_FACT_MISSING_REASON } from "./baked-facets";
+import {
+  FLOOD_HAZARD_FACT_MISSING_REASON,
+  CITY_LIMITS_FACT_MISSING_REASON,
+} from "./baked-facets";
 
 function prov(atomDids: AtomRef[] = []): Provenance {
   return {
@@ -953,5 +957,30 @@ describe("ownerFact inspect row (P-54 / WDLL 7)", () => {
       state: "unknown",
       value: null,
     });
+  });
+});
+
+describe("cityLimitsFact inspect row (P-76)", () => {
+  it("incorporated present fixture shows city name and ETJ unresolved", () => {
+    const facet = cityLimitsFacetFromSheet({
+      state: "present",
+      value: {
+        display: "Incorporated — Bastrop · ETJ unresolved",
+        etjStatus: "unresolved",
+      },
+      provenance: prov(),
+    });
+    expect(facet.state).toBe("present");
+    expect(facet.value).toContain("Bastrop");
+    expect(facet.value).toContain("ETJ unresolved");
+  });
+
+  it("missing field hides the row (unknown)", () => {
+    expect(
+      cityLimitsFacetFromSheet({
+        state: "absent-uncovered",
+        reason: CITY_LIMITS_FACT_MISSING_REASON,
+      }),
+    ).toEqual({ state: "unknown", value: null });
   });
 });

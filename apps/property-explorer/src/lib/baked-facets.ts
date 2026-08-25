@@ -27,6 +27,7 @@
 
 import { formatSetbackDisplay } from "../../api/_lib/setback-not-specified";
 import { mapBuildableDisplay } from "./buildable-display-vocab";
+import { isUsableSitusAddress } from "./fact-sheet-resolver";
 import type {
   EnvelopeProvenanceRefs,
   SetbackFieldProvenance,
@@ -189,6 +190,11 @@ export interface BakedFacetsResponse {
    * Identified-session only.
    */
   ownerFact?: OwnerFactCardInput;
+  /**
+   * City limits from tx_city_boundary PIP (P-76). Absent when the BFF did
+   * not copy it. Never populated from situsCity / bake city.
+   */
+  cityLimitsFact?: CityLimitsFactCardInput;
 }
 
 /** Cortex inspect GET flood determination (PR 449). Root sibling of facets. */
@@ -296,6 +302,17 @@ export type OwnerFactCardInput = {
   entityId?: unknown;
 };
 
+/** Cortex inspect GET city limits determination (P-76). Root sibling. */
+export type CityLimitsFactCardInput = {
+  status?: string;
+  etjStatus?: string;
+  source?: string;
+  basis?: string;
+  cityName?: string;
+  geoId?: string;
+  gnis?: string | null;
+};
+
 /**
  * Reason on sheet.specialDistrict when the inspect payload had no
  * specialDistrictFact. sheet-to-card-model maps this to CardFacet unknown
@@ -341,6 +358,14 @@ export const BOUNDARY_EDGE_FACT_MISSING_REASON =
  */
 export const OWNER_FACT_MISSING_REASON =
   "ownerFact was not on the inspect payload";
+
+/**
+ * Reason on sheet.cityLimits when the inspect payload had no cityLimitsFact.
+ * sheet-to-card-model maps this to CardFacet unknown so InspectCard hides
+ * the row.
+ */
+export const CITY_LIMITS_FACT_MISSING_REASON =
+  "cityLimitsFact was not on the inspect payload";
 
 /**
  * Reason on sheet.flood when the inspect payload had no floodHazardFact.
@@ -430,6 +455,12 @@ export interface BakedCardModel {
    * Identified present cites owner-fact 48021:34137:2025 taxYear=2025.
    */
   owner: CardFacet<string>;
+  /**
+   * City limits row from cityLimitsFact only. `unknown` when the field is
+   * missing (FactRow hides it). Never derived from situsCity / bake city.
+   * ETJ unresolved is typed absence, not a buffer ring.
+   */
+  cityLimits: CardFacet<string>;
   /** True whenever an envelope facet is present — the card must then render the
    *  "approximate / not survey grade" treatment (honesty commitment #1). */
   envelopeApproximate: boolean;
@@ -596,10 +627,11 @@ export function deriveBakedCardModel(payload: BakedFacetPayload): BakedCardModel
       ? present(bf.apn.trim())
       : absent<string>();
 
-  const situsAddress =
-    typeof bf.situsAddress === "string" && bf.situsAddress.trim()
-      ? present(bf.situsAddress.trim())
-      : absent<string>();
+  const situsAddress = isUsableSitusAddress(
+    typeof bf.situsAddress === "string" ? bf.situsAddress : null,
+  )
+    ? present((bf.situsAddress as string).trim())
+    : absent<string>();
 
   const countyStr = payload.countyName
     ? payload.countyFips
@@ -693,6 +725,7 @@ export function deriveBakedCardModel(payload: BakedFacetPayload): BakedCardModel
     footprint: { state: "unknown", value: null },
     boundary: { state: "unknown", value: null },
     owner: { state: "unknown", value: null },
+    cityLimits: { state: "unknown", value: null },
     // Any present envelope is Tier-1 (shape-only, no roads) — always approximate.
     envelopeApproximate: hasEnvelope,
     envelopeStatus: env?.status ?? null,

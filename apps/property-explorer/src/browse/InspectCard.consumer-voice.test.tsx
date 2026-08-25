@@ -459,6 +459,17 @@ describe("SS-W2 item 7 — the vacant-parcel header", () => {
     });
   });
 
+  it("Travis-style , TX sentinel is not an address title (P-74)", () => {
+    expect(resolveCardHeading(", TX", "280239")).toEqual({
+      title: "Parcel 280239",
+      isAddress: false,
+    });
+    expect(resolveCardHeading("908 PINE , BASTROP, TX 78602", "34137")).toEqual({
+      title: "908 PINE , BASTROP, TX 78602",
+      isAddress: true,
+    });
+  });
+
   it("the card renders the designed caption, never a stray quote as the title", () => {
     const vacant = renderToStaticMarkup(
       <InspectCard

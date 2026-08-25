@@ -892,6 +892,82 @@ function ownerFromInspectWire(
   };
 }
 
+/**
+ * City limits from cortex-root cityLimitsFact (P-76).
+ *
+ * Prefer the cortex field. Never adopt situsCity / bake city. Source must
+ * be tx_city_boundary. ETJ is typed absence only — no buffer ring.
+ */
+function cityLimitsFromInspectWire(
+  cityLimitsFact: unknown,
+):
+  | Fact<{
+      display: string;
+      etjStatus: string;
+    }>
+  | undefined {
+  if (
+    !cityLimitsFact ||
+    typeof cityLimitsFact !== "object" ||
+    Array.isArray(cityLimitsFact)
+  ) {
+    return undefined;
+  }
+  const fact = rec(cityLimitsFact);
+  if (!fact) return undefined;
+  const status = str(fact.status);
+  if (
+    status !== "incorporated" &&
+    status !== "unincorporated" &&
+    status !== "unmeasured"
+  ) {
+    return undefined;
+  }
+  const source = str(fact.source);
+  if (source !== "tx_city_boundary") {
+    return undefined;
+  }
+  const etjStatus = str(fact.etjStatus) ?? "unresolved";
+  const basis = str(fact.basis);
+  const prov = provenance({
+    source: "tx_city_boundary",
+    sourceLabel: "Texas city boundary",
+    vintage: null,
+    sourceUrl: null,
+  });
+
+  if (status === "unmeasured") {
+    return absentCovered(
+      basis ?? "city limits unmeasured",
+      prov,
+    );
+  }
+
+  const etjSuffix =
+    etjStatus === "unresolved" ? " · ETJ unresolved" : "";
+
+  if (status === "incorporated") {
+    const cityName = str(fact.cityName);
+    const display = cityName
+      ? `Incorporated — ${cityName}${etjSuffix}`
+      : `Incorporated${etjSuffix}`;
+    return {
+      state: "present",
+      value: { display, etjStatus },
+      provenance: prov,
+    };
+  }
+
+  return {
+    state: "present",
+    value: {
+      display: `Unincorporated${etjSuffix}`,
+      etjStatus,
+    },
+    provenance: prov,
+  };
+}
+
 function zoningFact(facets: BakedFacetPayload, countyFips: string): Fact<ZoningDistrict> {
   const declineReason = facets.envelope?.status === "declined"
     ? str(facets.envelope.declineReason)
@@ -1581,6 +1657,8 @@ export class PeFactSheetResolver implements FactSheetResolver {
     const boundaryEdgeFact =
       wire.boundaryEdgeFact ?? facetsResult.data.boundaryEdgeFact ?? null;
     const ownerFact = wire.ownerFact ?? facetsResult.data.ownerFact ?? null;
+    const cityLimitsFact =
+      wire.cityLimitsFact ?? facetsResult.data.cityLimitsFact ?? null;
 
     const fips = str(facets.countyFips) ?? parcelNodeId.split(":")[0] ?? "";
     const countyName =
@@ -1661,6 +1739,7 @@ export class PeFactSheetResolver implements FactSheetResolver {
     const footprint = footprintFromInspectWire(buildingFootprintFact);
     const boundary = boundaryFromInspectWire(boundaryEdgeFact);
     const owner = ownerFromInspectWire(ownerFact);
+    const cityLimits = cityLimitsFromInspectWire(cityLimitsFact);
     const verdictLayers = verdictLayersFromFacets(facets);
 
     const site: ParcelFactSheet["site"] = {
@@ -1689,6 +1768,7 @@ export class PeFactSheetResolver implements FactSheetResolver {
       footprint,
       boundary,
       owner,
+      cityLimits,
       site,
       county: { fips, name: countyName },
     });
@@ -1710,6 +1790,7 @@ export class PeFactSheetResolver implements FactSheetResolver {
       ...(footprint ? { footprint } : {}),
       ...(boundary ? { boundary } : {}),
       ...(owner ? { owner } : {}),
+      ...(cityLimits ? { cityLimits } : {}),
       ...(verdictLayers ? { verdictLayers } : {}),
       site,
       // Composed ONCE, by the one composer, from the fields above.

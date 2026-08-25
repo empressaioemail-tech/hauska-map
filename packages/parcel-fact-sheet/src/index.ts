@@ -452,6 +452,17 @@ export interface ParcelFactSheet {
     taxYear: number | null;
     display: string;
   }>;
+  /**
+   * ADDITIVE (P-76 / 2026-08-25). City limits from cortex-root
+   * cityLimitsFact. Optional so existing sealed stubs stay valid.
+   * Missing means the inspect payload did not carry the field (hide the
+   * row). Never populated from situsCity / bake city. ETJ is typed
+   * absence only — no buffer ring.
+   */
+  cityLimits?: Fact<{
+    display: string;
+    etjStatus: string;
+  }>;
   site: SiteConditions;
 
   /**

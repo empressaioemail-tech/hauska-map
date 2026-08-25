@@ -24,6 +24,7 @@ import {
   SetbackXrayDetail,
   liveSetbackLine,
   toFactPresentation,
+  whoServesFactPresentation,
   ROW_SPECS,
 } from "./InspectCard";
 import type { ParcelCardData } from "./liveGis";
@@ -988,6 +989,95 @@ describe("InspectCard Owner row — ownerFact (P-54)", () => {
     const src = readFileSync(resolve(__dirname, "InspectCard.tsx"), "utf8");
     expect(src).toContain("gateOwnerPresentation");
     expect(src).not.toMatch(/card\.owner/);
+  });
+});
+
+describe("InspectCard City limits row — cityLimitsFact (P-76)", () => {
+  it("incorporated fixture shows city name and ETJ unresolved", () => {
+    const html = renderToStaticMarkup(
+      <dl>
+        <FactRow
+          label="City limits"
+          fact={toFactPresentation(
+            {
+              state: "present",
+              value: "Incorporated — Bastrop · ETJ unresolved",
+            },
+            ROW_SPECS.cityLimits,
+          )}
+          testid="inspect-city-limits"
+        />
+      </dl>,
+    );
+    expect(html).toContain('data-testid="inspect-city-limits"');
+    expect(html).toContain("Incorporated — Bastrop");
+    expect(html).toContain("ETJ unresolved");
+    expect(html).not.toContain("situsCity");
+  });
+
+  it("missing cityLimitsFact hides the City limits row", () => {
+    const html = renderToStaticMarkup(
+      <dl>
+        <FactRow
+          label="City limits"
+          fact={toFactPresentation(
+            { state: "unknown", value: null },
+            ROW_SPECS.cityLimits,
+          )}
+          testid="inspect-city-limits"
+        />
+      </dl>,
+    );
+    expect(html).not.toContain("inspect-city-limits");
+  });
+});
+
+describe("InspectCard Who serves row — who-serves BFF (P-75)", () => {
+  it("measured fixture shows holder summary and residual", () => {
+    const html = renderToStaticMarkup(
+      <dl>
+        <FactRow
+          label="Who serves"
+          fact={whoServesFactPresentation({
+            state: "present",
+            summary: "water — City of Bastrop",
+            residual:
+              "SERVICE-LETTER-REQUIRED — territory is not tap/capacity/extension commitment.",
+            error: null,
+          })}
+          testid="inspect-who-serves"
+        />
+      </dl>,
+    );
+    expect(html).toContain('data-testid="inspect-who-serves"');
+    expect(html).toContain("water — City of Bastrop");
+    expect(html).toContain("SERVICE-LETTER-REQUIRED");
+  });
+
+  it("unmeasured fixture stays visible with basis only", () => {
+    const html = renderToStaticMarkup(
+      <dl>
+        <FactRow
+          label="Who serves"
+          fact={whoServesFactPresentation({
+            state: "absent",
+            summary: "tx_utility_territory_staging row count is 0",
+            residual: null,
+            error: null,
+          })}
+          testid="inspect-who-serves"
+        />
+      </dl>,
+    );
+    expect(html).toContain("tx_utility_territory_staging row count is 0");
+    expect(html).not.toContain("SERVICE-LETTER-REQUIRED");
+  });
+
+  it("InspectCard source wires who-serves fetch seam", () => {
+    const src = readFileSync(resolve(__dirname, "InspectCard.tsx"), "utf8");
+    expect(src).toContain("loadWhoServesPresentation");
+    expect(src).toContain("whoServesQueryPointFromCentroid");
+    expect(src).toContain('testid: "inspect-who-serves"');
   });
 });
 
