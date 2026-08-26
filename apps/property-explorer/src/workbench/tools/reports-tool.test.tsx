@@ -21,6 +21,7 @@ import {
   resetPropertyEntitlementsForTests,
   type PropertyEntitlementState,
 } from "../../lib/entitlementClient";
+import { RECORDS_NOT_WIRED_NOTICE } from "../../lib/recordsRequestClient";
 import { afterEach } from "vitest";
 
 const host: WorkbenchHostActions = {
@@ -152,6 +153,38 @@ describe("reports tool — Option D picker, not the stacked wall", () => {
     expect(html).toContain('data-testid="flood-run"');
     expect(html).not.toContain('data-testid="site-plan-export-section"');
     expect(html).not.toContain('data-testid="terrain-export-section"');
+  });
+
+  it("selecting REC mounts the records request scaffold", () => {
+    primePropertyEntitlement("48021:123", ent());
+    const store = createWorkbenchToolStateStore({ storage: null });
+    store.set("48021:123", "reports.selectedDoc", "REC");
+    const html = render({ activeParcelNodeId: "48021:123", store });
+    expect(html).toContain('data-testid="records-request-section"');
+    expect(html).toContain("Records request");
+    expect(html).toContain("Property records");
+    expect(html).toContain(RECORDS_NOT_WIRED_NOTICE);
+    expect(html).toContain('data-testid="records-request-run"');
+    expect(html).not.toContain('data-testid="site-plan-export-section"');
+  });
+
+  it("picker lists Records request under Packages with Studio status", () => {
+    primePropertyEntitlement("48021:123", ent());
+    const html = render({ activeParcelNodeId: "48021:123" });
+    expect(html).toContain('data-testid="reports-doc-option-REC"');
+    expect(html).toContain("Records request");
+  });
+
+  it("selecting REC without Studio shows the studio lock", () => {
+    primePropertyEntitlement(
+      "48021:123",
+      ent({ subscriptionTier: "solo", devRole: false }),
+    );
+    const store = createWorkbenchToolStateStore({ storage: null });
+    store.set("48021:123", "reports.selectedDoc", "REC");
+    const html = render({ activeParcelNodeId: "48021:123", store });
+    expect(html).toContain('data-testid="records-studio-lock"');
+    expect(html).not.toContain('data-testid="records-request-section"');
   });
 
   it("no active property → the honest select-first state, no export UI", () => {
