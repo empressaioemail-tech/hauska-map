@@ -127,15 +127,27 @@ export function RecordsRequestSection({
     );
   }
 
+  const countyFips = parcelNodeId.includes(":")
+    ? parcelNodeId.split(":")[0]?.trim()
+    : undefined;
+
   const runRequest = async () => {
     setBusy(true);
-    const result = await requestRecordsRun(parcelNodeId);
+    const result = await requestRecordsRun(parcelNodeId, countyFips);
     setBusy(false);
     if (!result.wired) {
       setMerged({ notice: result.notice, scaffoldView: "acknowledgement" });
       return;
     }
-    setMerged({ notice: result.notice, run: result.run, scaffoldView: "running" });
+    if (result.notice && !result.run) {
+      setMerged({ notice: result.notice, scaffoldView: "entry" });
+      return;
+    }
+    setMerged({
+      notice: result.notice,
+      run: result.run,
+      scaffoldView: result.run ? "running" : "entry",
+    });
   };
 
   const showScaffoldPreview = !merged.run;
