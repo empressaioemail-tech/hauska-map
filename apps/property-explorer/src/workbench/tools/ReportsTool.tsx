@@ -24,6 +24,10 @@ import { persistCheckoutOrigin } from "../../lib/checkoutOrigin";
 import { attachExportToDossier } from "./reports-dossier";
 import { FloodDrainageSection } from "./FloodTool";
 import {
+  RECORDS_PAYWALL_MESSAGE,
+  RecordsRequestSection,
+} from "./RecordsRequestSection";
+import {
   assembleDossierExportBody,
   dossierExportNotice,
   requestDossierExport,
@@ -629,6 +633,34 @@ function SelectedEngine({
 
   if (doc.engine === "flood") {
     return <FloodDrainageSection embed />;
+  }
+
+  if (doc.engine === "records") {
+    if (terrainProLocked) {
+      return (
+        <LockedToolPanel
+          valueLine="Recorded documents from the county clerk's index, read and cited."
+          proOnly
+          proOnlyNote={RECORDS_PAYWALL_MESSAGE}
+          testId="records-studio-lock"
+        />
+      );
+    }
+    return (
+      <RecordsRequestSection
+        parcelNodeId={parcelNodeId}
+        address={facts.address}
+        countyName={facts.countyName}
+        studioLocked={false}
+        onPaymentRequired={() =>
+          onPaymentRequired(RECORDS_PAYWALL_MESSAGE, {
+            studioOnly: true,
+            highlightTier: "studio",
+          })
+        }
+        embed
+      />
+    );
   }
 
   if (doc.engine === "site-plan" && doc.sitePlanFormat) {
