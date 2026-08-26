@@ -1,0 +1,37 @@
+name: Factory console CI
+
+# hauska-map main requires status context "test". PE and CC workflows are
+# path-filtered away from apps/factory/**, so a Factory-only PR never reports
+# that context and stays BLOCKED. This workflow's job id is `test`.
+
+on:
+  pull_request:
+    paths:
+      - "apps/factory/**"
+      - ".github/workflows/factory-console-ci.yml"
+  push:
+    branches: [main]
+    paths:
+      - "apps/factory/**"
+      - ".github/workflows/factory-console-ci.yml"
+
+permissions:
+  contents: read
+
+jobs:
+  test:
+    name: test
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: apps/factory
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+          cache: npm
+          cache-dependency-path: apps/factory/package-lock.json
+      - run: npm ci
+      - run: npm run typecheck
+      - run: npm test

@@ -1,25 +1,12 @@
 import { useEffect, useMemo, useState } from "react";
-
-const SCREENS = [
-  "States",
-  "County manifest",
-  "City manifest",
-  "Runs",
-  "Queues",
-  "Defects",
-  "Holds",
-  "Gates",
-  "Lanes",
-  "Walk",
-  "Cost",
-] as const;
+import { SCREENS, VIEW_PREF_KEY } from "./screens.mjs";
 
 const API = import.meta.env.VITE_FACTORY_CONTROL_API ?? "";
 const KEY = import.meta.env.VITE_FACTORY_CONTROL_API_KEY ?? "";
 
 function loadPref(): string {
   try {
-    return localStorage.getItem("factory.view.screen") ?? "States";
+    return localStorage.getItem(VIEW_PREF_KEY) ?? "States";
   } catch {
     return "States";
   }
@@ -37,7 +24,7 @@ export function App() {
 
   useEffect(() => {
     try {
-      localStorage.setItem("factory.view.screen", screen);
+      localStorage.setItem(VIEW_PREF_KEY, screen);
     } catch {
       /* view preference only */
     }
