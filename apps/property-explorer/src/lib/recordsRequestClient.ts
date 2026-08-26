@@ -86,7 +86,7 @@ async function parseJson(res: Response): Promise<Record<string, unknown>> {
 /** Fetch the latest run for a parcel. */
 export async function fetchRecordsRun(
   parcelNodeId: string,
-  countyFips?: string,
+  _countyFips?: string,
 ): Promise<RecordsRunFetchResult> {
   const qs = new URLSearchParams({ parcelNodeId });
   try {
