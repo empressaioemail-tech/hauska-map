@@ -17,13 +17,16 @@ function fakeFetch(status: number, body: unknown): typeof fetch {
 describe('mintShareLink', () => {
   it('POSTs the parcel and returns the minted link', async () => {
     const f = fakeFetch(200, {
-      url: 'https://pe.example/share#abc.def',
+      url: 'https://pe.example/s/2c1a9d4e-7b11-4f0a-9c3d-0a1b2c3d4e5f',
       expiresAt: '2026-08-28T00:00:00.000Z',
     })
     const outcome = await mintShareLink('48021:2', f)
     expect(outcome).toEqual({
       kind: 'ready',
-      link: { url: 'https://pe.example/share#abc.def', expiresAt: '2026-08-28T00:00:00.000Z' },
+      link: {
+        url: 'https://pe.example/s/2c1a9d4e-7b11-4f0a-9c3d-0a1b2c3d4e5f',
+        expiresAt: '2026-08-28T00:00:00.000Z',
+      },
     })
     expect(f).toHaveBeenCalledWith(
       '/api/pe-share',

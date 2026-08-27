@@ -39,6 +39,8 @@
     { "source": "/api/pe-who-serves", "destination": "/api/pe-who-serves" },
     { "source": "/api/pe-share", "destination": "/api/pe-share" },
     { "source": "/api/pe-share-view", "destination": "/api/pe-share-view" },
+    { "source": "/api/pe-share-grant", "destination": "/api/pe-share-grant" },
+    { "source": "/s/:grantId", "destination": "/api/pe-share-grant?grantId=:grantId" },
     { "source": "/api/pe-smart-files-mount", "destination": "/api/pe-smart-files-mount" },
     { "source": "/((?!api/).*)", "destination": "/index.html" }
   ]
