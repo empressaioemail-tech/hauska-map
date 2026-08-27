@@ -23,6 +23,10 @@ export const SMART_SITE_CONNECT_HOST = "mcp.smartsite.cloud";
 /** Full connector URL copied into Claude / Cursor. */
 export const SMART_SITE_CONNECT_URL = `https://${SMART_SITE_CONNECT_HOST}/mcp`;
 
+/** Claude moved Connectors from Settings to Customize (2026-08). */
+export const CLAUDE_CUSTOMIZE_CONNECTORS_URL =
+  "https://claude.ai/settings/customize/connectors";
+
 export type UseInAiVendorId = "claude" | "chatgpt" | "cursor" | "copilot";
 
 export type UseInAiVendorStatus = "connect" | "coming" | "unavailable";
@@ -82,7 +86,7 @@ type ConnectPhase =
 
 function connectBeatCopy(vendor: UseInAiVendorId): string {
   if (vendor === "claude") {
-    return "Claude will ask you to add Smart Site, then send you back here to approve.";
+    return "In Claude, open Customize → Connectors, tap +, choose Add custom connector, paste Smart Site, then approve here when prompted.";
   }
   return "Add Smart Site in Cursor, paste the address below, then finish sign-in when prompted.";
 }
@@ -151,10 +155,10 @@ function VendorConnectPanel({
             type="button"
             data-testid="use-in-ai-open-claude"
             onClick={() => {
-              window.open("https://claude.ai/settings/connectors", "_blank", "noopener,noreferrer");
+              window.open(CLAUDE_CUSTOMIZE_CONNECTORS_URL, "_blank", "noopener,noreferrer");
             }}
           >
-            Open Claude
+            Open Customize → Connectors
           </Button>
         ) : null}
         <Button

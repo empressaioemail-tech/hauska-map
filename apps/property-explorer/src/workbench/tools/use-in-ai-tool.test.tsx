@@ -8,6 +8,7 @@ import { WORKBENCH_TOOLS } from "../registry";
 import { createWorkbenchToolStateStore } from "../tool-state-store";
 import type { WorkbenchHostActions } from "../types";
 import {
+  CLAUDE_CUSTOMIZE_CONNECTORS_URL,
   SMART_SITE_CONNECT_HOST,
   USE_IN_AI_VENDORS,
   USE_IN_YOUR_AI_VALUE_LINE,
@@ -86,6 +87,14 @@ describe("Use in your AI vendor rows", () => {
 
   it("exposes the Smart Site address hostname without forbidden substrate strings", () => {
     expect(SMART_SITE_CONNECT_HOST).toBe("mcp.smartsite.cloud");
+  });
+
+  it("uses Claude Customize Connectors URL, not retired Settings-only path", () => {
+    expect(CLAUDE_CUSTOMIZE_CONNECTORS_URL).toBe(
+      "https://claude.ai/settings/customize/connectors",
+    );
+    expect(CLAUDE_CUSTOMIZE_CONNECTORS_URL).toContain("customize/connectors");
+    expect(CLAUDE_CUSTOMIZE_CONNECTORS_URL).not.toBe("https://claude.ai/settings/connectors");
   });
 
   it("never prints a key, Cloud Run URL, or substrate brand on the sheet", () => {
