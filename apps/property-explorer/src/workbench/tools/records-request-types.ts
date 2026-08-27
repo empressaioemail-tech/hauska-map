@@ -57,6 +57,14 @@ export interface RecordsVerdictCard {
   body: string;
 }
 
+/** Instant GIS easement hit shown at request acknowledgement (P-85 items 2–3). */
+export interface RecordsInstantGisHit {
+  id: string;
+  title: string;
+  citation: string;
+  mapNote: string;
+}
+
 export interface RecordsRunView {
   phase: RecordsRunPhase;
   parcelNodeId: string;
@@ -72,6 +80,8 @@ export interface RecordsRunView {
   errorMessage?: string | null;
   /** County clerk projected image fees (cents) when job paused at purchase gate. */
   projectedPurchaseCostCents?: number | null;
+  /** Live public-GIS easement hits from the job's instant query (not clerk index). */
+  instantGisHits?: RecordsInstantGisHit[];
 }
 
 export interface RecordsRunFetchResult {
