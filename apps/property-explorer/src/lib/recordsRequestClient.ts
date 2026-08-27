@@ -11,6 +11,9 @@ import type {
   RecordsRunFetchResult,
   RecordsRunPhase,
   RecordsRunView,
+  RecordsInstrumentRow,
+  RecordsInstrumentType,
+  RecordsTypeFilter,
 } from "../workbench/tools/records-request-types";
 
 const RECORDS_PATH = "api/property-explorer/v1/records-request";
@@ -31,6 +34,24 @@ type WireJob = {
   errorCode?: string | null;
   errorMessage?: string | null;
   scopeSearched?: Record<string, unknown> | null;
+};
+
+type WireIndexHit = {
+  recordingRef?: string | null;
+  documentType?: string | null;
+  recordingDate?: string | null;
+  parties?: string | null;
+  detailUrl?: string | null;
+};
+
+const FILTER_LABELS: Record<RecordsInstrumentType, string> = {
+  deed: "Deeds",
+  lien: "Liens",
+  easement: "Easements",
+  plat: "Plats",
+  restriction: "Restrictions",
+  notice: "Notices",
+  other: "Other",
 };
 
 type WireListBody = {
@@ -54,8 +75,9 @@ function phaseFromJobStatus(status: string | undefined): RecordsRunPhase {
     case "awaiting-purchase-approval":
       return "paused-fees";
     case "failed":
-    case "needs-human":
       return "failed";
+    case "needs-human":
+      return "paused-fees";
     case "complete":
       return "complete";
     default:
@@ -77,11 +99,86 @@ function formatSearchedAt(iso: string | null | undefined): string | null {
 function instrumentCountFromScope(
   scope: Record<string, unknown> | null | undefined,
 ): number {
+  const instruments = instrumentsFromScope(scope);
+  if (instruments.length > 0) return instruments.length;
   if (!scope || typeof scope !== "object") return 0;
-  const hits = scope.indexHits;
-  if (Array.isArray(hits)) return hits.length;
   const rc = scope.resultCount;
   return typeof rc === "number" && rc >= 0 ? rc : 0;
+}
+
+function isPlausibleIndexHit(hit: WireIndexHit): boolean {
+  const ref = hit.recordingRef?.trim();
+  return !!ref && /[\d-]{5,}/.test(ref) && /\d/.test(ref);
+}
+
+export function documentTypeToInstrumentType(
+  documentType: string | null | undefined,
+): RecordsInstrumentType {
+  if (!documentType?.trim()) return "other";
+  const u = documentType.toUpperCase();
+  if (u.includes("DEED")) return "deed";
+  if (u.includes("LIEN") || u.includes("MORTGAGE")) return "lien";
+  if (u.includes("EASEMENT")) return "easement";
+  if (u.includes("PLAT") || u.includes("MAP")) return "plat";
+  if (u.includes("RESTRICT") || u.includes("COVENANT")) return "restriction";
+  if (u.includes("NOTICE") || u.includes("LIS PEND")) return "notice";
+  return "other";
+}
+
+export function instrumentsFromScope(
+  scope: Record<string, unknown> | null | undefined,
+): RecordsInstrumentRow[] {
+  if (!scope || typeof scope !== "object") return [];
+  const rawHits = scope.indexHits;
+  if (!Array.isArray(rawHits)) return [];
+
+  const rows: RecordsInstrumentRow[] = [];
+  for (let i = 0; i < rawHits.length; i++) {
+    const raw = rawHits[i];
+    if (!raw || typeof raw !== "object") continue;
+    const hit = raw as WireIndexHit;
+    if (!isPlausibleIndexHit(hit)) continue;
+
+    const ref = hit.recordingRef!.trim();
+    rows.push({
+      id: `index-hit-${i}-${ref}`,
+      type: documentTypeToInstrumentType(hit.documentType),
+      label: hit.documentType?.trim() || "Recorded instrument",
+      instrumentNumber: ref,
+      recordedAt: hit.recordingDate?.trim() || "—",
+      partiesLine: hit.parties?.trim() || "Parties not extracted yet",
+      readDepth: "not-acquired",
+      acquisitionNote: "Index hit — image not acquired yet",
+    });
+  }
+  return rows;
+}
+
+export function filtersFromInstruments(
+  instruments: RecordsInstrumentRow[],
+): RecordsTypeFilter[] {
+  const counts = new Map<RecordsInstrumentType, number>();
+  for (const row of instruments) {
+    counts.set(row.type, (counts.get(row.type) ?? 0) + 1);
+  }
+  const filters: RecordsTypeFilter[] = [
+    { type: "all", label: "All", count: instruments.length },
+  ];
+  for (const type of [
+    "deed",
+    "easement",
+    "lien",
+    "plat",
+    "restriction",
+    "notice",
+    "other",
+  ] as const) {
+    const count = counts.get(type) ?? 0;
+    if (count > 0) {
+      filters.push({ type, label: FILTER_LABELS[type], count });
+    }
+  }
+  return filters;
 }
 
 function runFromLatestJob(
@@ -95,13 +192,15 @@ function runFromLatestJob(
       ? job.scopeSearched
       : null;
   const instrumentCount = instrumentCountFromScope(scope);
+  const instruments = instrumentsFromScope(scope);
   return {
     phase: phaseFromJobStatus(typeof status === "string" ? status : undefined),
     parcelNodeId,
     searchedAt: formatSearchedAt(job.completedAt ?? job.createdAt),
-    instrumentCount,
-    filters: [],
-    instruments: [],
+    instrumentCount:
+      instruments.length > 0 ? instruments.length : instrumentCount,
+    filters: filtersFromInstruments(instruments),
+    instruments,
     verdicts: [],
     live: true,
     jobId: typeof job.jobId === "string" ? job.jobId : null,
