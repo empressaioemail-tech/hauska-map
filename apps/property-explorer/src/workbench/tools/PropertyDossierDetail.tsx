@@ -23,7 +23,6 @@ import {
   SHARE_PERSONAS,
   SHARE_PERSONA_LABELS,
   defaultShareMessage,
-  isSharePersona,
   type SharePersona,
 } from "../../lib/share-personas";
 import type { ShareReportSelection } from "../../lib/share-package";
@@ -36,6 +35,8 @@ const AMBER = PE.warning;
 const TEXT = PE.text;
 const ACCENT = PE.accent;
 const SECTION_BORDER = "1px solid rgba(154,166,178,0.2)";
+const PERSONA_BG = "#0d1117";
+const PERSONA_FG = "#e5e7eb";
 
 /** Debounce delay for notes autosave (ms). Exported for tests. */
 export const NOTES_SAVE_DEBOUNCE_MS = 800;
@@ -543,6 +544,8 @@ export function PropertySharePicker({
   const [persona, setPersona] = useState<SharePersona>("agent");
   const [message, setMessage] = useState(defaultShareMessage("agent"));
   const [includeNotes, setIncludeNotes] = useState(notesPresent);
+  const [personaOpen, setPersonaOpen] = useState(false);
+  const [copied, setCopied] = useState(false);
   const lastDefaultRef = useRef(defaultShareMessage("agent"));
 
   const pickPersona = (next: SharePersona) => {
@@ -563,32 +566,86 @@ export function PropertySharePicker({
         Copy a message and a /s/{"{grantId}"} link. This does not send email.
       </p>
       <label style={{ display: "block", fontSize: 10.5, color: MUTED, marginBottom: 4 }}>
-        Persona
-        <select
+        Who I am sharing with
+        <div
           data-testid="dossier-share-persona"
-          value={persona}
-          disabled={busy}
-          onChange={(e) => {
-            if (isSharePersona(e.target.value)) pickPersona(e.target.value);
-          }}
-          style={{
-            display: "block",
-            width: "100%",
-            marginTop: 3,
-            fontSize: 11.5,
-            color: TEXT,
-            background: "rgba(154,166,178,0.08)",
-            border: PE.border,
-            borderRadius: PE.radiusCard,
-            padding: "6px 8px",
-          }}
+          data-value={persona}
+          style={{ position: "relative", marginTop: 3, colorScheme: "dark" }}
         >
-          {SHARE_PERSONAS.map((p) => (
-            <option key={p} value={p}>
-              {SHARE_PERSONA_LABELS[p]}
-            </option>
-          ))}
-        </select>
+          <button
+            type="button"
+            disabled={busy}
+            aria-haspopup="listbox"
+            aria-expanded={personaOpen}
+            aria-label="Who I am sharing with"
+            onClick={() => setPersonaOpen((open) => !open)}
+            style={{
+              display: "block",
+              width: "100%",
+              textAlign: "left",
+              fontSize: 11.5,
+              color: PERSONA_FG,
+              background: PERSONA_BG,
+              border: PE.border,
+              borderRadius: PE.radiusCard,
+              padding: "6px 8px",
+              cursor: busy ? "not-allowed" : "pointer",
+            }}
+          >
+            {SHARE_PERSONA_LABELS[persona]}
+          </button>
+          <ul
+            role="listbox"
+            data-testid="dossier-share-persona-menu"
+            hidden={!personaOpen}
+            style={{
+              display: personaOpen ? "block" : "none",
+              position: "absolute",
+              left: 0,
+              right: 0,
+              zIndex: 4,
+              margin: "4px 0 0",
+              padding: 4,
+              listStyle: "none",
+              background: PERSONA_BG,
+              color: PERSONA_FG,
+              border: PE.border,
+              borderRadius: PE.radiusCard,
+              boxShadow: "0 8px 20px rgba(0, 0, 0, 0.45)",
+            }}
+          >
+            {SHARE_PERSONAS.map((p) => (
+              <li key={p}>
+                <button
+                  type="button"
+                  role="option"
+                  aria-selected={p === persona}
+                  value={p}
+                  data-testid={`dossier-share-persona-${p}`}
+                  onClick={() => {
+                    pickPersona(p);
+                    setPersonaOpen(false);
+                  }}
+                  style={{
+                    display: "block",
+                    width: "100%",
+                    textAlign: "left",
+                    fontSize: 11.5,
+                    color: PERSONA_FG,
+                    background:
+                      p === persona ? "rgba(59,130,246,0.18)" : PERSONA_BG,
+                    border: "none",
+                    borderRadius: 4,
+                    padding: "6px 8px",
+                    cursor: "pointer",
+                  }}
+                >
+                  {SHARE_PERSONA_LABELS[p]}
+                </button>
+              </li>
+            ))}
+          </ul>
+        </div>
       </label>
       <TextArea
         data-testid="dossier-share-message"
@@ -624,7 +681,7 @@ export function PropertySharePicker({
         onToggle={onToggleShareReport}
         disabled={busy}
       />
-      {shareUrl && (
+      {shareUrl ? (
         <div
           data-testid="dossier-share-url"
           style={{
@@ -636,28 +693,52 @@ export function PropertySharePicker({
         >
           {shareUrl}
         </div>
-      )}
-      {onMintShare && (
-        <Button
-          variant="primary"
-          dense
-          type="button"
-          data-testid="dossier-share-create"
-          disabled={busy || !message.trim()}
-          onClick={() =>
-            onMintShare({
-              persona,
-              message: message.trim(),
-              includeNotes: notesPresent ? includeNotes : false,
-              includeXray,
-              includeFlood,
-            })
-          }
-          style={{ marginTop: 8 }}
-        >
-          {busy ? "Creating link…" : "Create share link"}
-        </Button>
-      )}
+      ) : null}
+      <div style={{ display: "flex", gap: 8, marginTop: 8 }}>
+        {shareUrl ? (
+          <Button
+            variant="primary"
+            dense
+            type="button"
+            data-testid="dossier-share-copy"
+            onClick={() => {
+              void navigator.clipboard.writeText(shareUrl).then(
+                () => {
+                  setCopied(true);
+                  window.setTimeout(() => setCopied(false), 1800);
+                },
+                () => {
+                  setCopied(false);
+                },
+              );
+            }}
+            style={{ flex: 1 }}
+          >
+            {copied ? "Copied" : "Copy link"}
+          </Button>
+        ) : null}
+        {onMintShare ? (
+          <Button
+            variant={shareUrl ? "secondary" : "primary"}
+            dense
+            type="button"
+            data-testid="dossier-share-create"
+            disabled={busy || !message.trim()}
+            onClick={() =>
+              onMintShare({
+                persona,
+                message: message.trim(),
+                includeNotes: notesPresent ? includeNotes : false,
+                includeXray,
+                includeFlood,
+              })
+            }
+            style={{ flex: 1 }}
+          >
+            {busy ? "Creating link…" : shareUrl ? "New link" : "Create share link"}
+          </Button>
+        ) : null}
+      </div>
     </div>
   );
 }

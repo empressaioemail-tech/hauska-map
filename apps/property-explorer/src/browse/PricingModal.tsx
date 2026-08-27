@@ -88,7 +88,7 @@ export function PricingModal({
   studioOnly?: boolean;
   /** Honest status footnote (e.g. ICC citation licensing state). */
   statusNote?: string | null;
-  /** Test / first-paint override. Default is annual (PE_PRICING.interval.default). */
+  /** Test / first-paint override. Default is monthly (PE_PRICING.interval.default). */
   initialInterval?: PricingInterval;
   /** Test override. Default is the 10-seat base. */
   initialTeamSeats?: number;
@@ -113,7 +113,6 @@ export function PricingModal({
   const [teamSeats, setTeamSeats] = useState<number>(
     initialTeamSeats ?? PE_PRICING.team.baseSeats,
   );
-  const showSeatStepper = teamSeatsControlVisible(interval);
 
   const emphasize = (tier: PeCheckoutTier): boolean =>
     tier === "studio" ||
@@ -264,9 +263,6 @@ export function PricingModal({
                 {PE_PRICING.interval.monthlyLabel}
               </Button>
             </div>
-            <span style={{ fontSize: 11, color: ACCENT }}>
-              {PE_PRICING.interval.savingsNote}
-            </span>
             <button
               type="button"
               aria-label="Close"
@@ -330,7 +326,13 @@ export function PricingModal({
               tier={tier}
               interval={interval}
               emphasized={emphasize(tier)}
-              teamSeats={tier === "team" ? checkoutSeats : undefined}
+              teamSeats={tier === "team" ? teamSeats : undefined}
+              onTeamSeatsChange={
+                tier === "team"
+                  ? (next) => setTeamSeats(clampTeamSeats(next))
+                  : undefined
+              }
+              seatsDisabled={busy !== null}
             />
           ))}
 
@@ -387,53 +389,6 @@ export function PricingModal({
             </div>
           ))}
         </div>
-
-        {showSeatStepper ? (
-          <label
-            style={{
-              display: "flex",
-              alignItems: "center",
-              gap: 8,
-              padding: "0 26px 14px",
-              fontSize: 11,
-              color: MUTED,
-            }}
-          >
-            Seats
-            <input
-              type="number"
-              data-testid="pricing-team-seats"
-              min={1}
-              max={500}
-              step={1}
-              value={teamSeats}
-              disabled={busy !== null}
-              onChange={(e) => {
-                const parsed = Number.parseInt(e.target.value, 10);
-                if (Number.isNaN(parsed)) return;
-                setTeamSeats(clampTeamSeats(parsed));
-              }}
-              style={{
-                width: 64,
-                borderRadius: 6,
-                border: "1px solid var(--brand-blue-border, rgba(59,130,246,0.4))",
-                background: "transparent",
-                color: TEXT,
-                padding: "3px 6px",
-                fontFamily: "inherit",
-                fontSize: 12,
-              }}
-            />
-            <span>{PE_PRICING.team.seatNote}</span>
-            <span
-              data-testid="pricing-team-12-total"
-              data-usd={String(teamMonthlyTotalUsd(12))}
-              style={{ color: TEXT }}
-            >
-              12 seats {teamMonthlyTotalLabel(12)}/mo
-            </span>
-          </label>
-        ) : null}
 
         <div
           data-testid="pricing-unlock-card"
@@ -535,11 +490,15 @@ function ColumnHead({
   interval,
   emphasized,
   teamSeats,
+  onTeamSeatsChange,
+  seatsDisabled,
 }: {
   tier: PeCheckoutTier;
   interval: PricingInterval;
   emphasized: boolean;
   teamSeats?: number;
+  onTeamSeatsChange?: (next: number) => void;
+  seatsDisabled?: boolean;
 }) {
   const headline =
     tier === "team" && interval === "monthly" && teamSeats != null
@@ -549,6 +508,11 @@ function ColumnHead({
           compare: `${teamSeats} seats · then ${PE_PRICING.team.extraSeatPriceLabel}${PE_PRICING.team.extraSeatPeriod} after ${PE_PRICING.team.baseSeats}`,
         }
       : tierHeadline(tier, interval);
+  const showSeats =
+    tier === "team" &&
+    teamSeats != null &&
+    onTeamSeatsChange != null &&
+    teamSeatsControlVisible(interval);
   return (
     <div
       data-testid={`pricing-${tier}-card`}
@@ -587,6 +551,61 @@ function ColumnHead({
         </span>
       </div>
       <div style={{ fontSize: 11, color: MUTED }}>{headline.compare}</div>
+      {tier === "team" && interval === "annual" ? (
+        <div
+          data-testid="pricing-team-annual-note"
+          style={{ fontSize: 11, color: ACCENT }}
+        >
+          {PE_PRICING.interval.teamAnnualNote}
+        </div>
+      ) : null}
+      {showSeats ? (
+        <label
+          style={{
+            display: "flex",
+            flexDirection: "column",
+            gap: 4,
+            marginTop: 4,
+            fontSize: 11,
+            color: MUTED,
+          }}
+        >
+          Seats
+          <input
+            type="number"
+            data-testid="pricing-team-seats"
+            min={1}
+            max={500}
+            step={1}
+            value={teamSeats}
+            disabled={seatsDisabled}
+            onChange={(e) => {
+              const parsed = Number.parseInt(e.target.value, 10);
+              if (Number.isNaN(parsed) || !onTeamSeatsChange) return;
+              onTeamSeatsChange(parsed);
+            }}
+            style={{
+              width: "100%",
+              boxSizing: "border-box",
+              borderRadius: 6,
+              border: "1px solid var(--brand-blue-border, rgba(59,130,246,0.4))",
+              background: "transparent",
+              color: TEXT,
+              padding: "3px 6px",
+              fontFamily: "inherit",
+              fontSize: 12,
+            }}
+          />
+          <span>{PE_PRICING.team.seatNote}</span>
+          <span
+            data-testid="pricing-team-12-total"
+            data-usd={String(teamMonthlyTotalUsd(12))}
+            style={{ color: TEXT }}
+          >
+            12 seats {teamMonthlyTotalLabel(12)}/mo
+          </span>
+        </label>
+      ) : null}
     </div>
   );
 }

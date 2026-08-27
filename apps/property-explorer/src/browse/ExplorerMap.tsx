@@ -1284,6 +1284,7 @@ function ExplorerMapSurface({
     shareFlightDoneRef.current = true;
     void runParcelLookup(flightQuery, {
       quiet: true,
+      keepDock: true,
     });
   }, [share, runParcelLookup]);
 

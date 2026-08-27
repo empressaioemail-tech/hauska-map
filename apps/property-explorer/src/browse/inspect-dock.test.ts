@@ -7,7 +7,7 @@ describe("inspectStealsWorkbenchDock", () => {
     expect(inspectStealsWorkbenchDock(false)).toBe(true);
   });
 
-  it("My properties reopen does not steal (violate: treat keepDock as brief)", () => {
+  it("My properties reopen and share landing do not steal (violate: treat keepDock as brief)", () => {
     expect(inspectStealsWorkbenchDock(true)).toBe(false);
   });
 });

@@ -94,6 +94,26 @@ describe("W3.3 on-property share personas with default message", () => {
     }
     expect(html).toContain("does not send email");
     expect(html).not.toMatch(/gmail/i);
+    expect(html).toContain("#0d1117");
+    expect(html).toContain("#e5e7eb");
+    expect(html).toContain("color-scheme:dark");
+    expect(html).not.toContain("<select");
+  });
+
+  it("minted link offers Copy link (violate: URL text only)", () => {
+    const html = renderToStaticMarkup(
+      <PropertySharePicker
+        notesPresent
+        reportSelection={{ xray: false, flood: true }}
+        busy={false}
+        shareUrl="https://smartsite.cloud/s/dae16d61-0f8d-4338-9983-83b0e8123bcb"
+        onMintShare={noop}
+      />,
+    );
+    expect(html).toContain('data-testid="dossier-share-url"');
+    expect(html).toContain('data-testid="dossier-share-copy"');
+    expect(html).toContain("Copy link");
+    expect(html).toContain("New link");
   });
 });
 

@@ -39,7 +39,7 @@ describe("PE_PRICING — locked 2026-08-10 ladder", () => {
     expect(PE_PRICING.team.annualPriceLabel).toBe("$2,990");
     expect(PE_PRICING.team.extraSeatPriceLabel).toBe("$25");
     expect(PE_PRICING.team.baseSeats).toBe(10);
-    expect(defaultPricingInterval()).toBe("annual");
+    expect(defaultPricingInterval()).toBe("monthly");
     expect(teamSeatsControlVisible("annual")).toBe(false);
     expect(teamSeatsControlVisible("monthly")).toBe(true);
     expect(tierHeadline("studio", "annual").amount).toBe("$1,290");
