@@ -422,20 +422,20 @@ function ExplorerMapSurface({
   // SUBJECT's node id as state (mirror of subjectNodeIdRef) so the workbench
   // active-property binding re-renders when the subject changes. A share
   // landing opens with the shared-analysis dock already docked.
-  const [openWorkbenchTools, setOpenWorkbenchTools] = useState<string[]>(
-    share ? [SHARED_ANALYSIS_TOOL_ID] : [],
+  const [openWorkbenchTool, setOpenWorkbenchToolState] = useState<string | null>(
+    share ? SHARED_ANALYSIS_TOOL_ID : null,
   );
   const [inspectBriefOpen, setInspectBriefOpen] = useState(false);
   const setOpenWorkbenchTool = useCallback(
     (next: string | null) => {
-      setOpenWorkbenchTools(next ? [next] : []);
+      setOpenWorkbenchToolState(next);
       if (isMobile && next) openSheet("research");
     },
     [isMobile, openSheet],
   );
   const ensureWorkbenchTool = useCallback(
     (id: string) => {
-      setOpenWorkbenchTools((cur) => (cur.includes(id) ? cur : [...cur, id]));
+      setOpenWorkbenchToolState(id);
       if (isMobile) openSheet("research");
     },
     [isMobile, openSheet],
@@ -820,9 +820,7 @@ function ExplorerMapSurface({
       setCardNodeId(parcelNodeId);
       if (isMobile) openSheet("property");
       else {
-        setOpenWorkbenchTools((cur) =>
-          cur.includes("brief") ? cur : [...cur, "brief"],
-        );
+        setOpenWorkbenchToolState("brief");
       }
       parcelNodes.setInspected(
         {
@@ -1456,7 +1454,7 @@ function ExplorerMapSurface({
     setCard(null);
     setCardNodeId(null);
     setInspectBriefOpen(false);
-    setOpenWorkbenchTools((cur) => cur.filter((id) => id !== "brief"));
+    setOpenWorkbenchToolState((cur) => (cur === "brief" ? null : cur));
     parcelNodes.setInspected(null, "close-inspect");
   }, []);
   closeInspectRef.current = closeInspect;
@@ -1675,8 +1673,7 @@ function ExplorerMapSurface({
     inspectedRef.current?.parcelNodeId != null &&
     inspectedRef.current.parcelNodeId === subjectNodeIdRef.current;
 
-  // Research this → expands the cited brief INSIDE the left inspect card.
-  // The right-hand Property brief dock is retired.
+  // Research this → opens the right-rail brief dock (inspect lives inside it).
   const handleResearch = useCallback(() => {
     const nodeId = cardNodeId ?? inspectedRef.current?.parcelNodeId ?? null;
     void recordPeGtmEvent({
@@ -1916,18 +1913,12 @@ function ExplorerMapSurface({
           card). */}
       <SmartSiteBadge isMobile={isMobile} />
 
-      {/* PE WORKBENCH: right-rail bubbles. Desktop docks stack on the left.
-          The inspect card is the brief dock. */}
+      {/* PE WORKBENCH: right-rail bubbles. One tool open. Dock on the right.
+          Inspect facts live inside the brief dock, not as a left overlay. */}
       <Workbench
         tools={workbenchTools}
-        openToolId={openWorkbenchTools[0] ?? null}
+        openToolId={openWorkbenchTool}
         onOpenToolChange={setOpenWorkbenchTool}
-        openToolIds={openWorkbenchTools}
-        onOpenToolIdsChange={(next) => {
-          setOpenWorkbenchTools(next);
-          if (isMobile && next.length) openSheet("research");
-        }}
-        dockSide="left"
         inspectSlot={
           card && !isMobile ? (
             <InspectCard

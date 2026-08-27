@@ -44,8 +44,8 @@
 // ownerFact only (P-54 / WDLL 7). Anonymous / identified-session-required
 // has no owner body. CAD-roll / GIS owner is not the atom.
 
-import { useCallback, useEffect, useState } from "react";
-import type { CSSProperties } from "react";
+import { Fragment, useCallback, useEffect, useState } from "react";
+import type { CSSProperties, ReactNode } from "react";
 import type { ParcelCardData } from "./liveGis";
 import { inspectCardShellStyle } from "./mobile-layout";
 import { useMobilePanel } from "./MobilePanelContext";
@@ -525,6 +525,31 @@ export const ROW_SPECS: Record<string, FactRowSpec> = {
   },
 };
 
+/** High-level inspect facts (address is the title). Zone / flood / lot. */
+export const INSPECT_HIGH_LEVEL_KEYS = ["landUse", "flood", "acreage"] as const;
+
+/**
+ * Accordion placement. Address lives in the title. Zone (land use), flood,
+ * and lot (acreage) stay open. Special district, who serves, zoning, and
+ * the rest start collapsed. Click expands — no hover-only path.
+ */
+export function inspectRowGroup(key: string): "high" | "collapsed" {
+  if (
+    key === "landUse" ||
+    key === "flood" ||
+    key === "acreage"
+  ) {
+    return "high";
+  }
+  return "collapsed";
+}
+
+export function inspectHighLevelLabel(key: string, fallback: string): string {
+  if (key === "landUse") return "Zone";
+  if (key === "acreage") return "Lot";
+  return fallback;
+}
+
 /** One provenance chip: a labeled atom reference tappable to open detail. */
 interface ProvenanceChip {
   did: string;
@@ -647,6 +672,73 @@ export function FacetsLoadErrorBanner({ onRetry }: { onRetry: () => void }) {
   );
 }
 
+function InspectFactsAccordion<T>({
+  highLevel,
+  collapsed,
+  detailsOpen,
+  onToggleDetails,
+  renderRow,
+}: {
+  highLevel: T[];
+  collapsed: T[];
+  detailsOpen: boolean;
+  onToggleDetails: () => void;
+  renderRow: (row: T) => ReactNode;
+}) {
+  return (
+    <>
+      <dl
+        data-testid="inspect-high-level"
+        style={{
+          margin: "9px 0 0",
+          display: "grid",
+          gridTemplateColumns: "auto 1fr",
+          gap: "3px 10px",
+        }}
+      >
+        {highLevel.map((r, i) => (
+          <Fragment key={i}>{renderRow(r)}</Fragment>
+        ))}
+      </dl>
+      {collapsed.length > 0 && (
+        <div data-testid="inspect-accordion" style={{ marginTop: 8 }}>
+          <button
+            type="button"
+            data-testid="inspect-accordion-toggle"
+            aria-expanded={detailsOpen}
+            onClick={onToggleDetails}
+            style={{
+              background: "transparent",
+              border: "none",
+              padding: 0,
+              color: MUTED,
+              cursor: "pointer",
+              fontSize: 11,
+              fontWeight: 600,
+            }}
+          >
+            {detailsOpen ? "Less facts" : "More facts"}
+          </button>
+          <dl
+            data-testid="inspect-accordion-body"
+            hidden={!detailsOpen}
+            style={{
+              margin: "6px 0 0",
+              display: detailsOpen ? "grid" : "none",
+              gridTemplateColumns: "auto 1fr",
+              gap: "3px 10px",
+            }}
+          >
+            {collapsed.map((r, i) => (
+              <Fragment key={i}>{renderRow(r)}</Fragment>
+            ))}
+          </dl>
+        </div>
+      )}
+    </>
+  );
+}
+
 export function InspectCard({
   card,
   parcelNodeId = null,
@@ -721,6 +813,7 @@ export function InspectCard({
   // I3 disclosure: sourcing is demoted here rather than shouted on the card
   // face. Collapsed by default, same idiom as the X-ray toggle.
   const [sourcesOpen, setSourcesOpen] = useState(false);
+  const [detailsOpen, setDetailsOpen] = useState(false);
   const [whoServes, setWhoServes] = useState<WhoServesCardPresentation | null>(
     null,
   );
@@ -1039,70 +1132,87 @@ export function InspectCard({
         )}
       </div>
 
-      <dl
-        style={{
-          margin: "9px 0 0",
-          display: "grid",
-          gridTemplateColumns: "auto 1fr",
-          gap: "3px 10px",
-        }}
-      >
-        {source === "baked" && baked ? (
-          <>
-            {factRows.map((r) => (
-              <FactRow
-                key={r.key}
-                label={r.label}
-                fact={r.fact}
-                testid={r.testid}
-                chips={r.chipRow ? chipsForRow(provenanceRefs, r.chipRow) : []}
-                openChipDid={openChipDid}
-                onChipToggle={r.chipRow ? toggleChip : undefined}
-                layerOpenChipId={r.layerVerdict ? openLayerChipId : null}
-                onLayerChipToggle={r.layerVerdict ? toggleLayerChip : undefined}
-              />
-            ))}
-          </>
-        ) : (
-          <>
-            <Row label="APN" value={card.apn} testid="inspect-apn" />
-            <Row
-              label="Land use"
-              value={card.landUseDescription}
-              testid="inspect-landuse"
-            />
-            <Row label="County" value={card.county} />
-            {/* No acreage row on the LIVE fallback: ParcelCardData carries no
-                acreage field and the live envelope compose returns no lot
-                acreage — rendering one would require fabricating or newly
-                fetching a value (honesty commitment #1). The baked branch
-                above renders acreage from the baked base facts. */}
-            <Row
-              label="Zoning"
-              value={env.district ?? (env.status === "loading" ? "…" : null)}
-              testid="inspect-zoning"
-              chips={chipsForRow(provenanceRefs, "zoning")}
+      {source === "baked" && baked ? (
+        <InspectFactsAccordion
+          highLevel={factRows.filter((r) => inspectRowGroup(r.key) === "high")}
+          collapsed={factRows.filter((r) => inspectRowGroup(r.key) === "collapsed")}
+          detailsOpen={detailsOpen}
+          onToggleDetails={() => setDetailsOpen((v) => !v)}
+          renderRow={(r) => (
+            <FactRow
+              key={r.key}
+              label={inspectHighLevelLabel(r.key, r.label)}
+              fact={r.fact}
+              testid={r.testid}
+              chips={r.chipRow ? chipsForRow(provenanceRefs, r.chipRow) : []}
               openChipDid={openChipDid}
-              onChipToggle={toggleChip}
+              onChipToggle={r.chipRow ? toggleChip : undefined}
+              layerOpenChipId={r.layerVerdict ? openLayerChipId : null}
+              onLayerChipToggle={r.layerVerdict ? toggleLayerChip : undefined}
             />
-            <Row
-              label="Setbacks"
-              value={liveSetbackLine(env) ?? (env.status === "loading" ? "…" : null)}
-              testid="inspect-setbacks"
-              chips={chipsForRow(provenanceRefs, "setback")}
-              openChipDid={openChipDid}
-              onChipToggle={toggleChip}
-            />
-            <Row
-              label="Buildable"
-              value={liveBuildablePct(env)}
-              chips={chipsForRow(provenanceRefs, "buildable")}
-              openChipDid={openChipDid}
-              onChipToggle={toggleChip}
-            />
-          </>
-        )}
-      </dl>
+          )}
+        />
+      ) : (
+        <InspectFactsAccordion
+          highLevel={[
+            {
+              key: "landUse",
+              node: (
+                <Row
+                  label="Zone"
+                  value={card.landUseDescription}
+                  testid="inspect-landuse"
+                />
+              ),
+            },
+          ]}
+          collapsed={[
+            { key: "apn", node: <Row label="APN" value={card.apn} testid="inspect-apn" /> },
+            { key: "county", node: <Row label="County" value={card.county} /> },
+            {
+              key: "zoning",
+              node: (
+                <Row
+                  label="Zoning"
+                  value={env.district ?? (env.status === "loading" ? "…" : null)}
+                  testid="inspect-zoning"
+                  chips={chipsForRow(provenanceRefs, "zoning")}
+                  openChipDid={openChipDid}
+                  onChipToggle={toggleChip}
+                />
+              ),
+            },
+            {
+              key: "setbacks",
+              node: (
+                <Row
+                  label="Setbacks"
+                  value={liveSetbackLine(env) ?? (env.status === "loading" ? "…" : null)}
+                  testid="inspect-setbacks"
+                  chips={chipsForRow(provenanceRefs, "setback")}
+                  openChipDid={openChipDid}
+                  onChipToggle={toggleChip}
+                />
+              ),
+            },
+            {
+              key: "buildable",
+              node: (
+                <Row
+                  label="Buildable"
+                  value={liveBuildablePct(env)}
+                  chips={chipsForRow(provenanceRefs, "buildable")}
+                  openChipDid={openChipDid}
+                  onChipToggle={toggleChip}
+                />
+              ),
+            },
+          ]}
+          detailsOpen={detailsOpen}
+          onToggleDetails={() => setDetailsOpen((v) => !v)}
+          renderRow={(r) => r.node}
+        />
+      )}
 
       {/* Provenance chip detail — one popover open at a time, tap a chip to
           open, re-tap to close. Absent when no provenance ref is open (the

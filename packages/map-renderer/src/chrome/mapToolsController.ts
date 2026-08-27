@@ -28,7 +28,7 @@
 // here: committed measurements, explicit finish, undo, per-item removal,
 // per-segment plus running totals, and area/square-footage on both tools.
 
-import type { Map as MaplibreMap, MapMouseEvent } from "maplibre-gl";
+import { Popup, type Map as MaplibreMap, type MapMouseEvent } from "maplibre-gl";
 import {
   polylineLengthMeters,
   ringAreaSqMeters,
@@ -36,6 +36,9 @@ import {
   formatArea,
   type LngLat,
 } from "./geoMeasure";
+import { noteColorAt, noteHoverText } from "./note-pins";
+
+export { NOTE_PIN_COLORS, noteColorAt, noteHoverText } from "./note-pins";
 
 const MEASURE_SRC = "explorer-tools-measure";
 const MEASURE_HALO_ID = "explorer-tools-measure-halo";
@@ -109,6 +112,8 @@ export interface NoteSummary {
   id: string;
   index: number;
   text: string;
+  /** One of NOTE_PIN_COLORS, assigned at drop. */
+  color: string;
   /** The parcel (or other host scope) selected when the note was dropped. */
   scopeId: string | null;
   scopeLabel: string | null;
@@ -224,6 +229,7 @@ interface NoteRecord {
   id: string;
   at: LngLat;
   text: string;
+  color: string;
   scopeId: string | null;
   scopeLabel: string | null;
 }
@@ -328,6 +334,7 @@ export function installMapTools(
       id: n.id,
       index: i + 1,
       text: n.text,
+      color: n.color,
       scopeId: n.scopeId,
       scopeLabel: n.scopeLabel,
       at: n.at,
@@ -509,8 +516,7 @@ export function installMapTools(
           },
         });
       }
-      // Notes: emerald pins, with a wider ring while a note is still untexted
-      // so an empty note reads as unfinished rather than silently blank.
+      // Notes: per-pin colour (up to 10), wider ring while untexted.
       if (!map.getLayer(NOTE_PENDING_ID)) {
         map.addLayer({
           id: NOTE_PENDING_ID,
@@ -519,7 +525,7 @@ export function installMapTools(
           filter: ["==", ["get", "pending"], true],
           paint: {
             "circle-radius": 10,
-            "circle-color": "#34d399",
+            "circle-color": ["coalesce", ["get", "color"], "#3B82F6"],
             "circle-opacity": 0.25,
           },
         });
@@ -531,8 +537,8 @@ export function installMapTools(
           source: NOTE_SRC,
           paint: {
             "circle-radius": 6,
-            "circle-color": "#34d399",
-            "circle-stroke-color": "#065f46",
+            "circle-color": ["coalesce", ["get", "color"], "#3B82F6"],
+            "circle-stroke-color": "#0b0f14",
             "circle-stroke-width": 2,
           },
         });
@@ -630,6 +636,7 @@ export function installMapTools(
         pointFeature(n.at, {
           id: n.id,
           text: n.text,
+          color: n.color,
           pending: n.text.trim().length === 0,
         }),
       ),
@@ -660,6 +667,7 @@ export function installMapTools(
         pointFeature(n.at, {
           tool: "note",
           text: n.text,
+          color: n.color,
           scopeId: n.scopeId,
           scopeLabel: n.scopeLabel,
         }),
@@ -1055,6 +1063,7 @@ export function installMapTools(
         id,
         at: pt,
         text: "",
+        color: noteColorAt(state.notes.length),
         scopeId: state.noteScope?.id ?? null,
         scopeLabel: state.noteScope?.label ?? null,
       });
@@ -1115,8 +1124,43 @@ export function installMapTools(
     }
   };
 
+  let notePopup: Popup | null = null;
+  try {
+    notePopup = new Popup({
+      closeButton: false,
+      closeOnClick: false,
+      offset: 10,
+      className: "map-note-hover",
+    });
+  } catch {
+    notePopup = null;
+  }
+  const onNoteEnter = (e: MapMouseEvent): void => {
+    const feat = e.features?.[0] as
+      | { properties?: { text?: string } }
+      | undefined;
+    const text = noteHoverText(feat?.properties?.text);
+    if (!text || !notePopup) return;
+    try {
+      map.getCanvas().style.cursor = "pointer";
+      notePopup.setLngLat(e.lngLat).setText(text).addTo(map);
+    } catch {
+      /* map torn down */
+    }
+  };
+  const onNoteLeave = (): void => {
+    try {
+      notePopup.remove();
+      if (!state.active) map.getCanvas().style.cursor = "";
+    } catch {
+      /* ignore */
+    }
+  };
+
   map.on("click", onMapClick);
   map.on("dblclick", onMapDblClick);
+  map.on("mouseenter", NOTE_ID, onNoteEnter);
+  map.on("mouseleave", NOTE_ID, onNoteLeave);
   // Guarded for non-browser callers (SSR / node tests) — Esc is a browser affordance.
   if (typeof window !== "undefined") {
     window.addEventListener("keydown", onKeyDown);
@@ -1152,6 +1196,9 @@ export function installMapTools(
       try {
         map.off("click", onMapClick);
         map.off("dblclick", onMapDblClick);
+        map.off("mouseenter", NOTE_ID, onNoteEnter);
+        map.off("mouseleave", NOTE_ID, onNoteLeave);
+        notePopup?.remove();
         if (typeof window !== "undefined") {
           window.removeEventListener("keydown", onKeyDown);
         }

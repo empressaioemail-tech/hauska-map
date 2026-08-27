@@ -3,7 +3,13 @@
 
 export { LayersControl } from "./LayersControl";
 export { MapTools } from "./MapTools";
-export { MapToolset, ToolsetToolsSection, LOCATE_ZOOM } from "./MapToolset";
+export {
+  MapToolset,
+  ToolsetToolsSection,
+  LOCATE_ZOOM,
+  leftUtilityMaxHeight,
+  nextOpenLeftKinds,
+} from "./MapToolset";
 export type { LayerStateBadge, LocatedPosition } from "./MapToolset";
 export {
   MAP_PANEL_Z,
@@ -19,7 +25,13 @@ export {
   SATELLITE_LABELS_ATTRIBUTION,
   SATELLITE_ATTRIBUTION,
 } from "./satelliteBase";
-export { installMapTools, EMPTY_TOOLS_SNAPSHOT } from "./mapToolsController";
+export {
+  installMapTools,
+  EMPTY_TOOLS_SNAPSHOT,
+  NOTE_PIN_COLORS,
+  noteColorAt,
+  noteHoverText,
+} from "./mapToolsController";
 export type {
   MapToolsController,
   ToolsSnapshot,
