@@ -283,6 +283,25 @@ describe("SHARE bubble (free for signed-in users — acquisition channel)", () =
   });
 });
 
+describe("USE IN YOUR AI bubble (Connect not live — Coming soon, share mint works)", () => {
+  it("anon → sign-in-first, no Connect", () => {
+    primePropertyEntitlement(PARCEL, ANON);
+    const html = renderTool("use-in-ai");
+    expect(html).toContain('data-testid="use-in-ai-locked-sign-in"');
+    expect(html).not.toMatch(/>\s*Connect\s*</);
+  });
+
+  it("free signed-in → sheet + share mint, no paywall, no Connect", () => {
+    primePropertyEntitlement(PARCEL, FREE);
+    const html = renderTool("use-in-ai");
+    expect(html).toContain('data-testid="use-in-ai-tool"');
+    expect(html).toContain('data-testid="use-in-ai-create-share"');
+    expect(html).toContain("Coming soon");
+    expect(html).not.toContain('data-testid="view-pricing-button"');
+    expect(html).not.toMatch(/>\s*Connect\s*</);
+  });
+});
+
 describe("CHAT bubble (3 signed-in-free messages → wall)", () => {
   function storeWithThread(): ReturnType<typeof createWorkbenchToolStateStore> {
     const store = createWorkbenchToolStateStore({ storage: null });

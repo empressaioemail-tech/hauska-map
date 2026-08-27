@@ -2,12 +2,16 @@
 //
 // Routes (via vercel rewrite /api/auth/(.*) -> /api/auth?upath=$1):
 //   GET  /api/auth/status
+//   GET  /api/auth/mcp-login          WorkOS External Sign-in URI (P-87)
 //   GET  /api/auth/google/start
 //   GET  /api/auth/google/callback
 //   GET  /api/auth/microsoft/start
 //   GET  /api/auth/microsoft/callback
 //   GET  /api/auth/session
 //   POST /api/auth/logout
+//
+// Vercel env: WORKOS_API_KEY — WorkOS sk_… key for AuthKit Standalone Connect
+// completion (POST api.workos.com/authkit/oauth2/complete) after MCP OIDC.
 //
 // WDLL items 12, 13, 16 — honest degrade when secrets missing.
 
@@ -39,6 +43,8 @@ import {
   fetchIdTokenClaims,
   fetchMicrosoftProfile,
 } from './_lib/cortex-exchange.js'
+import { completeWorkosExternalAuth } from './_lib/workos-complete.js'
+import { renderMcpLoginPage } from './_lib/mcp-login-page.js'
 
 function parseCookies(req: VercelRequest): Record<string, string> {
   const header = req.headers.cookie ?? ''
@@ -76,6 +82,42 @@ function handleStatus(req: VercelRequest, res: VercelResponse): void {
   })
 }
 
+function handleMcpLogin(req: VercelRequest, res: VercelResponse): void {
+  const externalAuthId =
+    typeof req.query.external_auth_id === 'string'
+      ? req.query.external_auth_id.trim()
+      : ''
+  if (!externalAuthId) {
+    res.status(400).json({
+      error: 'missing_external_auth_id',
+      message: 'WorkOS Standalone Connect requires external_auth_id.',
+    })
+    return
+  }
+  const html = renderMcpLoginPage({
+    externalAuthId,
+    configured: authConfigured(),
+  })
+  res.status(200).setHeader('Content-Type', 'text/html; charset=utf-8').send(html)
+}
+
+function applySessionRedirectCookies(
+  res: VercelResponse,
+  sessionToken: string,
+  secure: boolean,
+): void {
+  setPeSessionCookie(res, sessionToken, secure)
+  const clearOidc = `${oidcStateCookieName()}=; Path=/api/auth; HttpOnly; SameSite=Lax; Max-Age=0`
+  const existing = res.getHeader('Set-Cookie')
+  if (typeof existing === 'string') {
+    res.setHeader('Set-Cookie', [existing, clearOidc])
+  } else if (Array.isArray(existing)) {
+    res.setHeader('Set-Cookie', [...existing, clearOidc])
+  } else {
+    res.setHeader('Set-Cookie', clearOidc)
+  }
+}
+
 function handleStart(req: VercelRequest, res: VercelResponse, provider: OidcProvider): void {
   if (!oidcStateSecret()) {
     notConfigured(res, provider)
@@ -87,11 +129,16 @@ function handleStart(req: VercelRequest, res: VercelResponse, provider: OidcProv
     return
   }
   const origin = oidcRedirectOrigin(req)
+  const externalAuthId =
+    typeof req.query.external_auth_id === 'string'
+      ? req.query.external_auth_id.trim()
+      : undefined
   const { verifier, challenge } = generatePkcePair()
   const sealed = sealOidcState({
     provider,
     verifier,
     createdAt: Date.now(),
+    ...(externalAuthId ? { externalAuthId } : {}),
   })
   if (!sealed) {
     notConfigured(res, provider)
@@ -185,19 +232,36 @@ async function handleCallback(
       email,
       displayName,
     })
+
+    const secure = isProduction()
+
+    if (pending.externalAuthId) {
+      try {
+        const { redirectUri: workosRedirectUri } = await completeWorkosExternalAuth({
+          externalAuthId: pending.externalAuthId,
+          user: {
+            id: session.userId,
+            email: session.email ?? email ?? null,
+            displayName: session.displayName || displayName || '',
+          },
+        })
+        applySessionRedirectCookies(res, session.token, secure)
+        res.statusCode = 302
+        res.setHeader('Location', workosRedirectUri)
+        res.end()
+        return
+      } catch (err) {
+        res.status(502).json({
+          error: 'workos_complete_failed',
+          message: err instanceof Error ? err.message : String(err),
+        })
+        return
+      }
+    }
+
     // Set cookie + Location explicitly so Set-Cookie survives the redirect
     // (res.redirect alone has dropped cookies on some Vercel runtimes).
-    const secure = isProduction()
-    setPeSessionCookie(res, session.token, secure)
-    const clearOidc = `${oidcStateCookieName()}=; Path=/api/auth; HttpOnly; SameSite=Lax; Max-Age=0`
-    const existing = res.getHeader('Set-Cookie')
-    if (typeof existing === 'string') {
-      res.setHeader('Set-Cookie', [existing, clearOidc])
-    } else if (Array.isArray(existing)) {
-      res.setHeader('Set-Cookie', [...existing, clearOidc])
-    } else {
-      res.setHeader('Set-Cookie', clearOidc)
-    }
+    applySessionRedirectCookies(res, session.token, secure)
     res.statusCode = 302
     res.setHeader('Location', '/?signed_in=1')
     res.end()
@@ -246,6 +310,11 @@ export default async function handler(req: VercelRequest, res: VercelResponse): 
 
   if (parts[0] === 'logout' && method === 'POST') {
     handleLogout(req, res)
+    return
+  }
+
+  if (parts[0] === 'mcp-login' && method === 'GET') {
+    handleMcpLogin(req, res)
     return
   }
 
