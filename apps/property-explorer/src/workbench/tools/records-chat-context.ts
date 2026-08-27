@@ -2,11 +2,12 @@
 // When a clerk run is complete, PE sends the instrument list upstream and
 // merges recording-reference chips client-side so answers can cite by ref.
 
-import {
-  fetchRecordsRun,
-  type RecordsRunFetchResult,
-} from "../../lib/recordsRequestClient";
-import type { RecordsInstrumentRow, RecordsRunPhase } from "./records-request-types";
+import { fetchRecordsRun } from "../../lib/recordsRequestClient";
+import type {
+  RecordsInstrumentRow,
+  RecordsRunFetchResult,
+  RecordsRunPhase,
+} from "./records-request-types";
 import type { ChatRef } from "./chat-citations";
 import type { ChatAnswer, ChatSubjectContext } from "./chat-research";
 
