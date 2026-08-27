@@ -26,6 +26,13 @@ describe("classifyLookupQuery", () => {
     });
   });
 
+  it("parcel-id fast path accepts 48021:27479", () => {
+    expect(classifyLookupQuery("48021:27479")).toEqual({
+      kind: "parcel-node-id",
+      value: "48021:27479",
+    });
+  });
+
   it("rejects empty", () => {
     expect(classifyLookupQuery("   ")).toBeNull();
   });
@@ -96,6 +103,119 @@ describe("resolveLookupToParcelNodeId", () => {
       parcelNodeId: "48209:156346",
       source: "parcel-node-id",
     });
+    expect(fetchImpl).not.toHaveBeenCalled();
+  });
+
+  it("48021:27479 is a parcel-id lookup — no situs/geocode", async () => {
+    const fetchImpl = routeFetch({ situsHits: [] });
+    const result = await resolveLookupToParcelNodeId("48021:27479", {
+      cortexBase: CORTEX,
+      situsSearchUrl: SITUS,
+      fetchImpl,
+    });
+    expect(result).toEqual({
+      ok: true,
+      parcelNodeId: "48021:27479",
+      source: "parcel-node-id",
+    });
+    expect(fetchImpl).not.toHaveBeenCalled();
+  });
+
+  it("bare 1308 Pecan does not lock Guadalupe hits[0]", async () => {
+    const fetchImpl = routeFetch({
+      situsHits: [
+        {
+          parcelNodeId: "48187:29690",
+          situsAddress: "1308 PECAN DR, CIBOLO, TX",
+          countyFips: "48187",
+        },
+      ],
+    });
+    const result = await resolveLookupToParcelNodeId("1308 Pecan", {
+      cortexBase: CORTEX,
+      situsSearchUrl: SITUS,
+      fetchImpl,
+    });
+    expect(result.ok).toBe(false);
+    if (result.ok) throw new Error("unreachable");
+    expect(result.reason).toMatch(/pick one from the list/i);
+    expect(fetchImpl).not.toHaveBeenCalled();
+  });
+
+  it("1308 Pecan Bastrop expands the prefix and pins Bastrop when that row is unique", async () => {
+    const fetchImpl = vi.fn(async (url: string | URL | Request) => {
+      const href = typeof url === "string" ? url : url instanceof URL ? url.href : url.url;
+      const q = new URL(href, "http://local").searchParams.get("q") ?? "";
+      if (q === "1308 Pecan Bastrop") {
+        return jsonResponse({ hits: [] });
+      }
+      if (q === "1308 Pecan") {
+        return jsonResponse({
+          hits: [
+            {
+              parcelNodeId: "48021:27479",
+              situsAddress: "1308 PECAN ST, BASTROP, TX 78602",
+              countyFips: "48021",
+            },
+          ],
+        });
+      }
+      return jsonResponse({ hits: [] });
+    }) as unknown as typeof fetch;
+    const result = await resolveLookupToParcelNodeId("1308 Pecan Bastrop", {
+      cortexBase: CORTEX,
+      situsSearchUrl: SITUS,
+      fetchImpl,
+    });
+    expect(result).toEqual({
+      ok: true,
+      parcelNodeId: "48021:27479",
+      source: "address",
+    });
+    expect(fetchImpl).toHaveBeenCalled();
+  });
+
+  it("1308 Pecan Bastrop does not pin Guadalupe when both variant hits exist", async () => {
+    const fetchImpl = vi.fn(async (url: string | URL | Request) => {
+      const href = typeof url === "string" ? url : url instanceof URL ? url.href : url.url;
+      const q = new URL(href, "http://local").searchParams.get("q") ?? "";
+      if (q === "1308 Pecan") {
+        return jsonResponse({
+          hits: [
+            {
+              parcelNodeId: "48187:29690",
+              situsAddress: "1308 PECAN DR, CIBOLO, TX",
+              countyFips: "48187",
+            },
+            {
+              parcelNodeId: "48021:27479",
+              situsAddress: "1308 PECAN ST, BASTROP, TX 78602",
+              countyFips: "48021",
+            },
+          ],
+        });
+      }
+      return jsonResponse({ hits: [] });
+    }) as unknown as typeof fetch;
+    const result = await resolveLookupToParcelNodeId("1308 Pecan Bastrop", {
+      cortexBase: CORTEX,
+      situsSearchUrl: SITUS,
+      fetchImpl,
+    });
+    expect(result.ok).toBe(true);
+    if (result.ok) expect(result.parcelNodeId).toBe("48021:27479");
+  });
+
+  it("Bastrop Texas without a comma is a place, not an address lock", async () => {
+    const fetchImpl = routeFetch({ situsHits: [] });
+    const result = await resolveLookupToParcelNodeId("Bastrop Texas", {
+      cortexBase: CORTEX,
+      situsSearchUrl: SITUS,
+      fetchImpl,
+    });
+    expect(result.ok).toBe(false);
+    if (result.ok) throw new Error("unreachable");
+    expect(result.reason).toMatch(/city or county/i);
     expect(fetchImpl).not.toHaveBeenCalled();
   });
 

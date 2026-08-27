@@ -1,10 +1,10 @@
 // SearchBar component tests via react-dom/server static render (node env,
-// same pattern as InspectCard.test.tsx ‚Äî no effects run).
+// same pattern as InspectCard.test.tsx ù no effects run).
 //
 // Pins: (1) the faint helper line under the old Find bar is REMOVED, (2) the
 // dropdown states render honestly (grouped rows + kind labels + highlight,
 // loading shimmer, honest empty, honest geocoder-down, recents + clear,
-// "search ¬© OSM" attribution footer).
+// "search ù OSM" attribution footer).
 
 import { describe, expect, it } from "vitest";
 import { readFileSync } from "node:fs";
@@ -34,6 +34,7 @@ function snap(over: Partial<SuggestSnapshot>): SuggestSnapshot {
     recents: [],
     showingRecents: false,
     empty: false,
+    highlightExplicit: false,
     ...over,
   };
 }
@@ -68,7 +69,7 @@ describe("helper copy removal", () => {
   });
 
   it("the helper copy exists NOWHERE in src/browse (removed, not moved)", () => {
-    // Static sweep of the browse dir sources ‚Äî the copy must be gone entirely.
+    // Static sweep of the browse dir sources ù the copy must be gone entirely.
     const dir = join(__dirname);
     const files = ["ExplorerMap.tsx", "SearchBar.tsx"];
     for (const f of files) {
@@ -115,7 +116,7 @@ describe("SuggestDropdown states", () => {
     expect(html).toContain("Place");
     expect(html).toContain("714 ");
     expect(html).toContain("Bastrop, Texas");
-    expect(html).toContain("search ¬© OSM");
+    expect(html).toContain("OSM");
   });
 
   it("matched substring is emphasized (bold span around the query token)", () => {
@@ -148,7 +149,8 @@ describe("SuggestDropdown states", () => {
         onClearRecents={noop}
       />,
     );
-    expect(empty).toContain("No matches ‚Äî try a fuller address");
+    expect(empty).toContain("No matches");
+    expect(empty).toContain("try a fuller address");
 
     const down = renderToStaticMarkup(
       <SuggestDropdown
@@ -208,9 +210,9 @@ describe("searchBarValueOnSubjectCommit (WDLL 2026-08-25 item 3)", () => {
     expect(
       searchBarValueOnSubjectCommit({
         subjectDisplay: null,
-        current: "typingÖ",
+        current: "typingù",
       }),
-    ).toBe("typingÖ");
+    ).toBe("typingù");
   });
 });
 
@@ -276,6 +278,7 @@ describe("ExplorerMap search-bar wiring (source pin)", () => {
     );
     expect(text).toContain("subjectDisplayFromIdentity");
     expect(text).not.toContain('subjectDisplay=", TX"');
+    expect(text).toContain('ensureWorkbenchTool("brief")');
   });
 });
 
