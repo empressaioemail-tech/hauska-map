@@ -1,6 +1,13 @@
 {
   "rewrites": [
-    { "source": "/site", "destination": "/site.html" },
+    {
+      "source": "/site",
+      "destination": "https://property-explorer-staging.vercel.app/"
+    },
+    {
+      "source": "/site/:path*",
+      "destination": "https://property-explorer-staging.vercel.app/:path*"
+    },
     { "source": "/(.*)", "destination": "/index.html" }
   ]
 }
