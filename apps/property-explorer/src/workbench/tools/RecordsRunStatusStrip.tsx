@@ -13,11 +13,13 @@ const WARN = "var(--semantic-warning, #F59E0B)";
 export function RecordsRunStatusStrip({
   phase = "running",
   run,
+  preferLive,
 }: {
   phase?: RecordsRunPhase;
   run?: RecordsRunView | null;
+  preferLive?: boolean;
 }) {
-  const status = recordsRunStatusCopy(phase, run);
+  const status = recordsRunStatusCopy(phase, run, { preferLive });
 
   const borderColor =
     status.tone === "active"

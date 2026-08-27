@@ -1,6 +1,6 @@
 // Records request — Phase 1 UI scaffold (P-85 item 12).
 // Matches design artboards D1 (list + filters), D4–D5 (verdict cards), and
-// E1 corridor hook placeholder. API calls stub honest "not wired" until backend.
+// E1 corridor hook placeholder. Live API wired via cortex deep proxy.
 
 import { useCallback, useEffect, useState, type CSSProperties } from "react";
 import { Button } from "../../components/Button";
@@ -44,6 +44,8 @@ const BLUE = "var(--brand-blue, #3B82F6)";
 const ATOM = ATOM_ACCENT;
 const CARD_BORDER = "rgba(154,166,178,0.16)";
 
+const POLL_MS = 5000;
+
 export interface RecordsRequestSectionState {
   notice: string | null;
   run: RecordsRunView | null;
@@ -53,7 +55,7 @@ export interface RecordsRequestSectionState {
   scaffoldView: "entry" | "acknowledgement" | "running";
 }
 
-const DEFAULT_STATE: RecordsRequestSectionState = {
+export const DEFAULT_RECORDS_STATE: RecordsRequestSectionState = {
   notice: null,
   run: null,
   activeFilter: "all",
@@ -68,6 +70,24 @@ function isActiveRunPhase(phase: RecordsRunPhase): boolean {
 
 function isTerminalRunPhase(phase: RecordsRunPhase): boolean {
   return phase === "complete" || phase === "failed";
+}
+
+function applyFetchResult(
+  result: Awaited<ReturnType<typeof fetchRecordsRun>>,
+): Partial<RecordsRequestSectionState> {
+  if (!result.wired) {
+    return {
+      notice: result.notice,
+      run: null,
+      scaffoldView: "entry",
+    };
+  }
+  return {
+    notice: result.notice,
+    run: result.run,
+    scaffoldView:
+      result.run && isActiveRunPhase(result.run.phase) ? "running" : "entry",
+  };
 }
 
 export function RecordsRequestSection({
@@ -89,8 +109,9 @@ export function RecordsRequestSection({
   const [state, setState] = useDockToolState<RecordsRequestSectionState>(
     "reports.records",
   );
-  const merged = state ?? DEFAULT_STATE;
+  const merged = state ?? DEFAULT_RECORDS_STATE;
   const [busy, setBusy] = useState(false);
+  const [refreshing, setRefreshing] = useState(false);
   const [apiWired, setApiWired] = useState(false);
 
   const setMerged = useCallback(
@@ -100,21 +121,20 @@ export function RecordsRequestSection({
     [merged, setState],
   );
 
+  const syncFromApi = useCallback(async () => {
+    const result = await fetchRecordsRun(parcelNodeId);
+    setApiWired(result.wired);
+    setMerged(applyFetchResult(result));
+    return result;
+  }, [parcelNodeId, setMerged]);
+
   useEffect(() => {
     let cancelled = false;
     void (async () => {
       const result = await fetchRecordsRun(parcelNodeId);
       if (cancelled) return;
       setApiWired(result.wired);
-      const patch: Partial<RecordsRequestSectionState> = {
-        notice: result.notice,
-        run: result.run,
-      };
-      if (result.wired) {
-        patch.scaffoldView =
-          result.run && isActiveRunPhase(result.run.phase) ? "running" : "entry";
-      }
-      setMerged(patch);
+      setMerged(applyFetchResult(result));
     })();
     return () => {
       cancelled = true;
@@ -122,13 +142,28 @@ export function RecordsRequestSection({
     // eslint-disable-next-line react-hooks/exhaustive-deps -- parcel scope only
   }, [parcelNodeId]);
 
+  useEffect(() => {
+    if (!apiWired || !merged.run?.live) return;
+    if (!isActiveRunPhase(merged.run.phase)) return;
+    const id = window.setInterval(() => {
+      void syncFromApi();
+    }, POLL_MS);
+    return () => window.clearInterval(id);
+  }, [apiWired, merged.run?.live, merged.run?.phase, syncFromApi]);
+
   // Corridor map overlay — placeholder until ExplorerMap implements the host hook.
   useEffect(() => {
     const hook = (
       host as { setRecordsCorridorOverlay?: (payload: unknown, forParcel?: string) => void }
     ).setRecordsCorridorOverlay;
     if (!hook || studioLocked || !merged.run) return;
-    hook({ instruments: merged.run.instruments, scaffold: true }, parcelNodeId);
+    hook(
+      {
+        instruments: merged.run.instruments,
+        scaffold: !merged.run.live,
+      },
+      parcelNodeId,
+    );
     return () => {
       hook(null, parcelNodeId);
     };
@@ -149,7 +184,7 @@ export function RecordsRequestSection({
     ? parcelNodeId.split(":")[0]?.trim()
     : undefined;
 
-  const runRequest = async () => {
+  const runNewSearch = async () => {
     setBusy(true);
     const result = await requestRecordsRun(parcelNodeId, countyFips);
     setBusy(false);
@@ -161,6 +196,7 @@ export function RecordsRequestSection({
       setMerged({ notice: result.notice, scaffoldView: "entry" });
       return;
     }
+    setApiWired(true);
     setMerged({
       notice: result.notice,
       run: result.run,
@@ -168,8 +204,20 @@ export function RecordsRequestSection({
     });
   };
 
-  const showDemoResults = !apiWired && !merged.run?.live;
+  const refreshStatus = async () => {
+    setRefreshing(true);
+    await syncFromApi();
+    setRefreshing(false);
+  };
+
+  const clearLocalView = () => {
+    setState(DEFAULT_RECORDS_STATE);
+  };
+
+  const showDemoResults = !apiWired;
   const scaffoldView = merged.scaffoldView ?? "entry";
+  const runActive =
+    merged.run?.live === true && isActiveRunPhase(merged.run.phase);
   const showRequestButton =
     apiWired
       ? !merged.run ||
@@ -177,7 +225,7 @@ export function RecordsRequestSection({
       : !merged.run && scaffoldView === "entry";
   const requestButtonLabel =
     merged.run && isTerminalRunPhase(merged.run.phase)
-      ? "Run again"
+      ? "Run new search"
       : busy
         ? "Requesting…"
         : "Request records";
@@ -201,6 +249,7 @@ export function RecordsRequestSection({
     merged.run.phase === "complete" &&
     instruments.length === 0;
   const activeFilter = merged.activeFilter;
+  const showResultsPanel = apiWired ? merged.run != null : showDemoResults;
 
   const filtered =
     activeFilter === "all"
@@ -228,7 +277,19 @@ export function RecordsRequestSection({
         </div>
       ) : null}
 
-      {showRequestButton ? (
+      {apiWired ? (
+        <RecordsRunActions
+          busy={busy}
+          refreshing={refreshing}
+          runActive={runActive}
+          hasRun={merged.run != null}
+          onRunNewSearch={() => void runNewSearch()}
+          onRefresh={() => void refreshStatus()}
+          onClearLocal={clearLocalView}
+        />
+      ) : null}
+
+      {showRequestButton && !apiWired ? (
         <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
           {!merged.run ? (
             <p
@@ -249,15 +310,13 @@ export function RecordsRequestSection({
               variant="primary"
               data-testid="records-request-run"
               disabled={busy}
-              onClick={() => void runRequest()}
+              onClick={() => void runNewSearch()}
             >
               {requestButtonLabel}
             </Button>
-            {!apiWired ? (
-              <Button type="button" variant="secondary" data-testid="records-what-searched">
-                What gets searched
-              </Button>
-            ) : null}
+            <Button type="button" variant="secondary" data-testid="records-what-searched">
+              What gets searched
+            </Button>
           </div>
         </div>
       ) : null}
@@ -275,7 +334,11 @@ export function RecordsRequestSection({
       ) : null}
 
       {merged.run ? (
-        <RecordsRunStatusStrip phase={merged.run.phase} run={merged.run} />
+        <RecordsRunStatusStrip
+          phase={merged.run.phase}
+          run={merged.run}
+          preferLive={apiWired}
+        />
       ) : null}
 
       {!apiWired && !merged.run ? (
@@ -292,22 +355,24 @@ export function RecordsRequestSection({
         </div>
       ) : null}
 
-      <RecordsResultsPanel
-        address={address}
-        countyName={countyName}
-        filters={filters}
-        activeFilter={activeFilter}
-        onFilter={(type) => setMerged({ activeFilter: type })}
-        instruments={filtered}
-        verdicts={verdicts}
-        pendingMessage={
-          resultsPending
-            ? "Search in progress — instrument rows will appear when the clerk run completes."
-            : resultsEmptyComplete
-              ? "Run finished — no instrument rows in the UI yet (worker may have completed with reachability-only scaffold)."
-              : null
-        }
-      />
+      {showResultsPanel ? (
+        <RecordsResultsPanel
+          address={address}
+          countyName={countyName}
+          filters={filters}
+          activeFilter={activeFilter}
+          onFilter={(type) => setMerged({ activeFilter: type })}
+          instruments={filtered}
+          verdicts={verdicts}
+          pendingMessage={
+            resultsPending
+              ? "Search in progress — instrument rows will appear when the clerk run completes."
+              : resultsEmptyComplete
+                ? "Run finished — no instrument rows in the UI yet (worker may have completed with reachability-only scaffold)."
+                : null
+          }
+        />
+      ) : null}
 
       <div
         data-testid="records-corridor-hook"
@@ -315,6 +380,61 @@ export function RecordsRequestSection({
         aria-hidden
         data-placeholder="setRecordsCorridorOverlay"
       />
+    </div>
+  );
+}
+
+function RecordsRunActions({
+  busy,
+  refreshing,
+  runActive,
+  hasRun,
+  onRunNewSearch,
+  onRefresh,
+  onClearLocal,
+}: {
+  busy: boolean;
+  refreshing: boolean;
+  runActive: boolean;
+  hasRun: boolean;
+  onRunNewSearch: () => void;
+  onRefresh: () => void;
+  onClearLocal: () => void;
+}) {
+  return (
+    <div
+      data-testid="records-run-actions"
+      style={{ display: "flex", gap: 8, flexWrap: "wrap", alignItems: "center" }}
+    >
+      <Button
+        type="button"
+        variant="primary"
+        data-testid="records-run-new-search"
+        disabled={busy || runActive}
+        onClick={onRunNewSearch}
+      >
+        {busy ? "Starting…" : runActive ? "Search running…" : "Run new search"}
+      </Button>
+      <Button
+        type="button"
+        variant="secondary"
+        data-testid="records-refresh-status"
+        disabled={refreshing}
+        onClick={onRefresh}
+      >
+        {refreshing ? "Refreshing…" : "Refresh status"}
+      </Button>
+      {hasRun ? (
+        <Button
+          type="button"
+          variant="secondary"
+          data-testid="records-clear-local"
+          disabled={busy}
+          onClick={onClearLocal}
+        >
+          Clear local view
+        </Button>
+      ) : null}
     </div>
   );
 }
