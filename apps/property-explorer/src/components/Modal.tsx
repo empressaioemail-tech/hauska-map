@@ -1,5 +1,4 @@
 import type { CSSProperties, HTMLAttributes, MouseEvent } from "react";
-import { PE } from "../styles/pe-chrome";
 import { Card } from "./Card";
 
 export function Modal({
