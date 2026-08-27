@@ -251,9 +251,10 @@ describe("flood & drainage — folded INSIDE the Reports bubble (no standalone b
     expect(html).toContain('data-testid="flood-run"');
   });
 
-  it("no active property → the chassis' honest select-first state", () => {
+  it("no active property → My reports library, not the flood run UI", () => {
     const html = render({ activeParcelNodeId: null });
-    expect(html).toContain("Select a property");
+    expect(html).toContain('data-testid="reports-tabs"');
+    expect(html).not.toContain("Select a property first");
     expect(html).not.toContain('data-testid="flood-drainage-section"');
   });
 });

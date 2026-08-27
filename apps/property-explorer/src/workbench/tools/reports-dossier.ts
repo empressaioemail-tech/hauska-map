@@ -12,6 +12,7 @@ import {
   type DossierUpdateOutcome,
   type SavedPropertiesListOutcome,
   type SavedPropertyMutationOutcome,
+  type SavedPropertyRow,
 } from "../../lib/savedPropertiesClient";
 import {
   upsertExportEntry,
@@ -23,6 +24,43 @@ import {
 /** Reports auto-save the property (W3.2). Exports do not. */
 export function isAutoSaveReportKind(kind: DossierExportKind): boolean {
   return kind === "xray" || kind === "flood-drainage";
+}
+
+export function isPdfExportFormat(format: string): boolean {
+  return /pdf/i.test(format);
+}
+
+export interface FiledReportRow {
+  parcelNodeId: string;
+  address: string;
+  kind: DossierExportKind;
+  format: string;
+  savedAt: string;
+  downloadPath: string;
+}
+
+/** Flatten saved-property exports into a library list (newest first). */
+export function filedReportsFromSaved(items: SavedPropertyRow[]): FiledReportRow[] {
+  const out: FiledReportRow[] = [];
+  for (const row of items) {
+    const address =
+      row.snapshot?.address?.trim() ||
+      row.label?.trim() ||
+      row.parcelNodeId;
+    for (const entry of row.snapshot?.exports ?? []) {
+      const path = entry.downloadPath?.trim();
+      if (!path) continue;
+      out.push({
+        parcelNodeId: row.parcelNodeId,
+        address,
+        kind: entry.kind,
+        format: entry.format,
+        savedAt: entry.savedAt,
+        downloadPath: path,
+      });
+    }
+  }
+  return out.sort((a, b) => (a.savedAt < b.savedAt ? 1 : a.savedAt > b.savedAt ? -1 : 0));
 }
 
 /** The slice of an export BFF response the dossier entry needs. */

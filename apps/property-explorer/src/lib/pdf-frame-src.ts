@@ -34,7 +34,7 @@ export async function resolvePdfFrameSrc(
   if (!bytesArePdf(bytes)) {
     throw new Error("not a pdf");
   }
-  const blob = new Blob([buf], { type: "application/pdf" });
+  const file = new File([buf], "report.pdf", { type: "application/pdf" });
   const create = opts?.createObjectURL ?? ((b: Blob) => URL.createObjectURL(b));
-  return { src: create(blob), revoke: true };
+  return { src: create(file), revoke: true };
 }

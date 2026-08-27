@@ -8,7 +8,9 @@ import {
   attachExportToDossier,
   exportEntryFromResult,
   fileReportOnProperty,
+  filedReportsFromSaved,
   isAutoSaveReportKind,
+  isPdfExportFormat,
 } from "./reports-dossier";
 import type { PropertyDossier } from "../../lib/propertyDossier";
 
@@ -166,5 +168,40 @@ describe("W3.2 first report auto-saves the property", () => {
     );
     expect(save).not.toHaveBeenCalled();
     expect(outcome).toEqual({ kind: "not-saved" });
+  });
+});
+
+describe("filedReportsFromSaved", () => {
+  it("flattens PDF exports newest first and skips rows without a path", () => {
+    expect(isPdfExportFormat("pdf-flood-drainage")).toBe(true);
+    expect(isPdfExportFormat("glb")).toBe(false);
+    const rows = filedReportsFromSaved([
+      {
+        parcelNodeId: "48021:1",
+        label: "927 Main",
+        updatedAt: "2026-08-27T00:00:00Z",
+        snapshot: {
+          address: "927 MAIN ST, BASTROP, TX 78602",
+          exports: [
+            {
+              kind: "flood-drainage",
+              format: "pdf-flood-drainage",
+              savedAt: "2026-08-27T12:00:00Z",
+              downloadPath: "/api/pe-site-plan-export?report=flood-drainage&action=download",
+            },
+            {
+              kind: "terrain",
+              format: "glb",
+              savedAt: "2026-08-26T00:00:00Z",
+              downloadPath: null,
+            },
+          ],
+        },
+      },
+    ]);
+    expect(rows).toHaveLength(1);
+    expect(rows[0]?.parcelNodeId).toBe("48021:1");
+    expect(rows[0]?.address).toMatch(/927 MAIN/);
+    expect(rows[0]?.kind).toBe("flood-drainage");
   });
 });
