@@ -30,6 +30,7 @@ type WireJob = {
   liveInstantGis?: unknown;
   errorCode?: string | null;
   errorMessage?: string | null;
+  scopeSearched?: Record<string, unknown> | null;
 };
 
 type WireListBody = {
@@ -62,21 +63,48 @@ function phaseFromJobStatus(status: string | undefined): RecordsRunPhase {
   }
 }
 
+function formatSearchedAt(iso: string | null | undefined): string | null {
+  if (!iso) return null;
+  const d = new Date(iso);
+  if (Number.isNaN(d.getTime())) return iso.slice(0, 10);
+  return d.toLocaleDateString(undefined, {
+    month: "short",
+    day: "numeric",
+    year: "numeric",
+  });
+}
+
+function instrumentCountFromScope(
+  scope: Record<string, unknown> | null | undefined,
+): number {
+  if (!scope || typeof scope !== "object") return 0;
+  const hits = scope.indexHits;
+  if (Array.isArray(hits)) return hits.length;
+  const rc = scope.resultCount;
+  return typeof rc === "number" && rc >= 0 ? rc : 0;
+}
+
 function runFromLatestJob(
   parcelNodeId: string,
   job: WireJob | undefined,
 ): RecordsRunView | null {
   if (!job) return null;
   const status = job.jobStatus ?? job.status;
+  const scope =
+    job.scopeSearched && typeof job.scopeSearched === "object"
+      ? job.scopeSearched
+      : null;
+  const instrumentCount = instrumentCountFromScope(scope);
   return {
     phase: phaseFromJobStatus(typeof status === "string" ? status : undefined),
     parcelNodeId,
-    searchedAt: job.completedAt ?? job.createdAt ?? null,
-    instrumentCount: 0,
+    searchedAt: formatSearchedAt(job.completedAt ?? job.createdAt),
+    instrumentCount,
     filters: [],
     instruments: [],
     verdicts: [],
     live: true,
+    jobId: typeof job.jobId === "string" ? job.jobId : null,
     errorCode:
       typeof job.errorCode === "string" ? job.errorCode : null,
     errorMessage:
@@ -186,17 +214,22 @@ export async function requestRecordsRun(
       typeof body.jobStatus === "string"
         ? body.jobStatus
         : typeof body.status === "string"
-          ? body.status
+          ? body.status === "in-progress"
+            ? "running"
+            : body.status === "accepted"
+              ? "queued"
+              : body.status
           : "queued";
     const run: RecordsRunView = {
       phase: phaseFromJobStatus(jobStatus),
       parcelNodeId,
-      searchedAt: new Date().toISOString(),
+      searchedAt: formatSearchedAt(new Date().toISOString()),
       instrumentCount: 0,
       filters: [],
       instruments: [],
       verdicts: [],
       live: true,
+      jobId: typeof body.jobId === "string" ? body.jobId : null,
     };
     return { wired: true, run, notice: null };
   } catch {

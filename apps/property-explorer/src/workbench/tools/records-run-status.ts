@@ -52,7 +52,7 @@ export function liveRecordsRunStatus(run: RecordsRunView): RecordsRunStatusCopy 
             ? `Run complete · ${run.instrumentCount} instruments`
             : "Run complete",
         body: run.searchedAt
-          ? `Clerk index search finished ${run.searchedAt.slice(0, 10)}. Results are listed below.`
+          ? `Clerk index search finished ${run.searchedAt}. Results are listed below.`
           : "Clerk index search finished. Results are listed below.",
       };
     default:
@@ -67,8 +67,9 @@ export function liveRecordsRunStatus(run: RecordsRunView): RecordsRunStatusCopy 
 export function recordsRunStatusCopy(
   phase: RecordsRunPhase,
   run?: RecordsRunView | null,
+  options?: { preferLive?: boolean },
 ): RecordsRunStatusCopy {
-  if (run?.live) {
+  if (run && (run.live || options?.preferLive)) {
     return liveRecordsRunStatus(run);
   }
   return SCAFFOLD_RUN_STATUS[phase] ?? SCAFFOLD_RUN_STATUS.running;
