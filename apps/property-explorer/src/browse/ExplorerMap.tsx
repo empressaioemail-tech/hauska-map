@@ -44,7 +44,7 @@ import type {
 import "@hauska/map-renderer/styles.css";
 import "maplibre-gl/dist/maplibre-gl.css";
 import "./pe-mobile.css";
-import { DEFAULT_CENTER, PARCEL_TILES } from "../lib/config";
+import { DEFAULT_CENTER, PARCEL_TILES, resolveParcelTiles } from "../lib/config";
 import { cortexClient } from "../lib/cortexClient";
 import { parcelNodes } from "../lib/parcel-node-store.js";
 import { recordPeGtmEvent } from "../lib/gtmClient";
@@ -326,6 +326,7 @@ function ExplorerMapSurface({
 }) {
   const { isMobile, activeSheet, openSheet } = useMobilePanel();
   const mapRef = useRef<FloatingMapHandle>(null);
+  const [parcelTiles, setParcelTiles] = useState(PARCEL_TILES);
   const [parcels, setParcels] = useState<LayerSlot>(IDLE);
   const [fema, setFema] = useState<LayerSlot>(IDLE);
   const [topo, setTopo] = useState<TopoSlot>(TOPO_IDLE);
@@ -475,6 +476,17 @@ function ExplorerMapSurface({
   const [paywallHighlightTier, setPaywallHighlightTier] = useState<
     "solo" | "studio" | "team" | undefined
   >(undefined);
+
+  // F-06: prefer tiles.json manifest over the build-time hash pin when present.
+  useEffect(() => {
+    let cancelled = false;
+    resolveParcelTiles().then((resolved) => {
+      if (!cancelled) setParcelTiles(resolved);
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, []);
 
   // Phase 0A cold-open: parcel line-only visible; full consumer catalog known
   // so presets / checkboxes can disclose layers. Pins are chrome (not a map layer).
@@ -1880,7 +1892,7 @@ function ExplorerMapSurface({
         // Mount-time seed ONLY (stable identity). Subject changes re-point the
         // live handle via rebindProperty — the center prop never re-points.
         center={DEFAULT_CENTER}
-        parcelTiles={PARCEL_TILES}
+        parcelTiles={parcelTiles}
         overlays={mapOverlays}
         visibleLayers={rendererVisibleLayers}
         onParcelSelect={handleParcelSelect}
