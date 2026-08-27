@@ -16,7 +16,13 @@ import { resolve } from "node:path";
 import { describe, expect, it } from "vitest";
 import { renderToStaticMarkup } from "react-dom/server";
 import { createRef } from "react";
-import { MapToolset, ToolsetToolsSection } from "./MapToolset";
+import {
+  MapToolset,
+  ToolsetToolsSection,
+  leftUtilityMaxHeight,
+  nextOpenLeftKinds,
+} from "./MapToolset";
+import { nextOpenToolIds } from "../workbench/Workbench";
 import { LAYER_REGISTRY } from "../../../../packages/map-renderer/src/layer-registry.js";
 import type { FloatingMapHandle, LayerKey } from "@hauska/map-renderer";
 
@@ -182,5 +188,41 @@ describe("left map-utility stack", () => {
     expect(html).toContain('data-anchor="left"');
     expect(html).toContain('data-testid="map-toolset-draw-bubble"');
     expect(html).toContain('data-testid="map-toolset-bubble"');
+  });
+
+  it("left utilities can be multi-open independently", () => {
+    expect(nextOpenLeftKinds(["tools"], "layers")).toEqual(["tools", "layers"]);
+    expect(nextOpenToolIds(["tools"], "layers")).toEqual(["tools", "layers"]);
+    const mapRef = createRef<FloatingMapHandle>();
+    const known = new Set<LayerKey>(["parcel-polygon" as LayerKey]);
+    const html = renderToStaticMarkup(
+      <MapToolset
+        mapRef={mapRef}
+        known={known}
+        visible={new Set<LayerKey>(known)}
+        onLayersChange={noop}
+        layerStates={{}}
+        anchor="left"
+        splitBubbles
+        initialOpenKinds={["tools", "layers"]}
+      />,
+    );
+    expect(html).toContain('data-testid="map-toolset-draw-panel"');
+    expect(html).toContain('data-testid="map-toolset-layers-panel"');
+    expect(html).toContain('data-testid="map-toolset-collapse-all"');
+    expect(html).toContain('data-testid="map-toolset-layers"');
+  });
+
+  it("ExplorerMap no longer stacks workbench docks on the left", () => {
+    const explorer = readFileSync(resolve(__dirname, "ExplorerMap.tsx"), "utf8");
+    expect(explorer).not.toMatch(/dockSide="left"/);
+    expect(explorer).not.toMatch(/openToolIds=\{openWorkbenchTools\}/);
+    expect(explorer).toMatch(/openToolId=\{openWorkbenchTool\}/);
+  });
+
+  it("one open panel uses the column; two share height", () => {
+    expect(leftUtilityMaxHeight(1)).toBe("min(56vh, calc(100vh - 168px))");
+    expect(leftUtilityMaxHeight(2)).toBe("min(36vh, calc((100vh - 176px) / 2))");
+    expect(leftUtilityMaxHeight(1)).not.toBe(leftUtilityMaxHeight(2));
   });
 });

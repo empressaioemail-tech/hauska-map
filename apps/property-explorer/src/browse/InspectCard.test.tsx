@@ -26,6 +26,8 @@ import {
   toFactPresentation,
   whoServesFactPresentation,
   ROW_SPECS,
+  inspectRowGroup,
+  inspectHighLevelLabel,
 } from "./InspectCard";
 import type { ParcelCardData } from "./liveGis";
 import type {
@@ -88,6 +90,33 @@ describe("InspectCard — persona UI removed (map UX cluster item 4)", () => {
     expect(html).toContain("as of 2026-07-25");
     expect(html).toContain('data-testid="inspect-sources-toggle"');
     expect(html).not.toContain("Source: Bastrop County GIS");
+    expect(html).toContain('data-testid="inspect-high-level"');
+    expect(html).toContain('data-testid="inspect-accordion"');
+    expect(html).toContain('data-testid="inspect-accordion-toggle"');
+    expect(html).toContain('aria-expanded="false"');
+  });
+});
+
+describe("inspect accordion — high-level first, rest collapsed", () => {
+  it("places zone / flood / lot in the high-level group", () => {
+    expect(inspectRowGroup("landUse")).toBe("high");
+    expect(inspectRowGroup("flood")).toBe("high");
+    expect(inspectRowGroup("acreage")).toBe("high");
+    expect(inspectHighLevelLabel("landUse", "Land use")).toBe("Zone");
+    expect(inspectHighLevelLabel("acreage", "Acreage")).toBe("Lot");
+  });
+
+  it("collapses special district, who serves, and zoning", () => {
+    expect(inspectRowGroup("specialDistrict")).toBe("collapsed");
+    expect(inspectRowGroup("whoServes")).toBe("collapsed");
+    expect(inspectRowGroup("zoning")).toBe("collapsed");
+  });
+
+  it("mobile and desktop use the same click-to-expand toggle (not hover)", () => {
+    const src = readFileSync(resolve(__dirname, "InspectCard.tsx"), "utf8");
+    expect(src).toContain('data-testid="inspect-accordion-toggle"');
+    expect(src).toContain("onClick={onToggleDetails}");
+    expect(src).not.toMatch(/inspect-accordion-toggle[\s\S]{0,400}onMouseEnter/);
   });
 });
 

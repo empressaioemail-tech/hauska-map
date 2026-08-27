@@ -142,7 +142,7 @@ describe("share landing resolution — /share lands in the app", () => {
     // The shared-analysis dock tool joins the cluster only in share mode…
     expect(source).toMatch(/sharedAnalysisToolDef\(share\), \.\.\.WORKBENCH_TOOLS/);
     // …opens docked from the start…
-    expect(source).toMatch(/share \? \[SHARED_ANALYSIS_TOOL_ID\] : \[\]/);
+    expect(source).toMatch(/share \? SHARED_ANALYSIS_TOOL_ID : null/);
     // …and the flight REUSES runParcelLookup (the workbench reopen /
     // coordinate-resolution chain) — no second resolver.
     expect(source).toMatch(

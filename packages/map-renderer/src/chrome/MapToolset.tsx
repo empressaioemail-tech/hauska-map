@@ -108,6 +108,27 @@ const ICONS = {
   collapse: "m6 15 6-6 6 6",
 } as const;
 
+/**
+ * Left map utilities may all be open at once. One open uses the column
+ * without a tiny max-height (that forced needless scroll). Two or more
+ * share the remaining height.
+ */
+export function leftUtilityMaxHeight(openCount: number): string {
+  if (openCount <= 0) return "0px";
+  if (openCount === 1) return "min(56vh, calc(100vh - 168px))";
+  return `min(36vh, calc((100vh - 176px) / ${openCount}))`;
+}
+
+/** Same toggle rule as workbench nextOpenToolIds — left utilities only. */
+export function nextOpenLeftKinds(
+  current: Array<"tools" | "layers">,
+  tapped: "tools" | "layers",
+): Array<"tools" | "layers"> {
+  return current.includes(tapped)
+    ? current.filter((id) => id !== tapped)
+    : [...current, tapped];
+}
+
 function chromeBubbleStyle(active: boolean): CSSProperties {
   return {
     width: 34,
@@ -615,6 +636,7 @@ export function MapToolset({
   anchor = "right",
   splitBubbles = false,
   stackExtras,
+  initialOpenKinds,
 }: {
   mapRef: RefObject<FloatingMapHandle | null>;
   /** Full layer set this surface knows about (mount seed) — a toggled-off
@@ -646,6 +668,8 @@ export function MapToolset({
   splitBubbles?: boolean;
   /** Extra bubbles stacked above draw/layers (legend, notifications). */
   stackExtras?: ReactNode;
+  /** Test seam: start with draw and/or layers already open. */
+  initialOpenKinds?: Array<"tools" | "layers">;
 }) {
   // The live maplibre map, resolved once the handle is ready.
   const [map, setMap] = useState<MaplibreMap | null>(null);
@@ -668,7 +692,9 @@ export function MapToolset({
   // default so the map (and the top-right brief) own the screen.
   const [expanded, setExpanded] = useState(presentation === "embedded");
   const [panelKind, setPanelKind] = useState<"all" | "tools" | "layers">("all");
-  const [openKinds, setOpenKinds] = useState<Set<"tools" | "layers">>(new Set());
+  const [openKinds, setOpenKinds] = useState<Set<"tools" | "layers">>(
+    () => new Set(initialOpenKinds ?? []),
+  );
   // W4 panel manager: each section folds on its own, so a long layer list never
   // buries the tools and the results never bury the layers.
   const [toolsOpen, setToolsOpen] = useState(true);
@@ -857,10 +883,10 @@ export function MapToolset({
     : null;
   const resultCount = snap.measurements.length + snap.shapes.length + snap.notes.length;
 
-  const panelInner = (
+  const toolsInner = (
     <>
         {/* --- TOOLS --- */}
-        {(!splitBubbles || openKinds.has("tools")) && toolsReady && (
+        {toolsReady && (
           <div>
             <SectionHeader
               label="Tools"
@@ -904,7 +930,7 @@ export function MapToolset({
         {/* --- RESULTS: every committed measurement / shape / note, each
             removable ON ITS OWN. Before W4 the only removal operation was
             clear-everything. --- */}
-        {(!splitBubbles || openKinds.has("tools")) && toolsReady && (resultCount > 0 || pendingNote) && (
+        {toolsReady && (resultCount > 0 || pendingNote) && (
           <div
             data-testid="map-toolset-results"
             style={{ borderTop: "0.5px solid rgba(154,166,178,0.22)", paddingTop: 9 }}
@@ -956,7 +982,7 @@ export function MapToolset({
                           flexShrink: 0,
                           fontSize: 9.5,
                           fontWeight: 700,
-                          color: "#34d399",
+                          color: n.color ?? "#3B82F6",
                           textAlign: "right",
                         }}
                       >
@@ -1075,8 +1101,10 @@ export function MapToolset({
           </div>
         )}
 
-        {/* --- LAYERS --- */}
-        {(!splitBubbles || openKinds.has("layers")) && (
+    </>
+  );
+
+  const layersInner = (
         <div
           data-testid="map-toolset-layers"
           style={
@@ -1201,7 +1229,12 @@ export function MapToolset({
             </>
           )}
         </div>
-        )}
+  );
+
+  const panelInner = (
+    <>
+      {toolsInner}
+      {layersInner}
     </>
   );
 
@@ -1265,15 +1298,27 @@ export function MapToolset({
 
   const tipSide = anchor === "left" ? "right" : "left";
   const toggleKind = (kind: "tools" | "layers") => {
-    setOpenKinds((cur) => {
-      const next = new Set(cur);
-      if (next.has(kind)) next.delete(kind);
-      else next.add(kind);
-      return next;
-    });
+    setOpenKinds((cur) => new Set(nextOpenLeftKinds([...cur], kind)));
     setPanelKind(kind);
     setExpanded(true);
   };
+
+  const splitOpenCount = openKinds.size;
+  const splitPanelStyle = (kind: "tools" | "layers"): CSSProperties => ({
+    display: openKinds.has(kind) ? "flex" : "none",
+    width: 216,
+    flexDirection: "column",
+    gap: 9,
+    padding: "8px 12px 10px",
+    borderRadius: 9,
+    background: PANEL_BG,
+    border: PANEL_BORDER,
+    color: TEXT,
+    fontSize: 11.5,
+    boxShadow: "0 10px 32px rgba(0,0,0,0.45)",
+    maxHeight: leftUtilityMaxHeight(splitOpenCount),
+    overflowY: "auto",
+  });
 
   return (
     <div
@@ -1291,10 +1336,107 @@ export function MapToolset({
         fontFamily: "system-ui, -apple-system, Segoe UI, Roboto, sans-serif",
       }}
     >
-      {/* THE unified panel: Tools + Results + Layers (expanded only). */}
+      {/* Split left utilities: draw and layers are separate containers.
+          Unified (non-split) keeps the original single panel. */}
+      {splitBubbles ? (
+        <div
+          data-testid="map-toolset-left-stack"
+          style={{
+            display: splitOpenCount > 0 ? "flex" : "none",
+            flexDirection: "column",
+            gap: 8,
+            width: 216,
+          }}
+        >
+          {splitOpenCount > 1 && (
+            <button
+              type="button"
+              data-testid="map-toolset-collapse-all"
+              onClick={() => {
+                setExpanded(false);
+                setOpenKinds(new Set());
+                dispatchPanelDismiss("hide-all");
+                onRequestClose?.();
+              }}
+              style={{
+                alignSelf: "flex-start",
+                padding: "3px 8px",
+                borderRadius: 5,
+                border: "0.5px solid rgba(154,166,178,0.25)",
+                background: PANEL_BG,
+                color: MUTED,
+                cursor: "pointer",
+                fontSize: 10.5,
+              }}
+            >
+              Collapse all
+            </button>
+          )}
+          <div
+            data-testid="map-toolset-draw-panel"
+            style={splitPanelStyle("tools")}
+          >
+            <div
+              style={{
+                display: "flex",
+                alignItems: "center",
+                gap: 6,
+                paddingBottom: 6,
+                borderBottom: "0.5px solid rgba(154,166,178,0.18)",
+              }}
+            >
+              <span style={{ ...sectionHeaderStyle(), flex: 1 }}>Draw & measure</span>
+              <button
+                type="button"
+                data-testid="map-toolset-hide-all"
+                title="Hide all panels"
+                aria-label="Hide all panels"
+                onClick={() => {
+                  setExpanded(false);
+                  setOpenKinds(new Set());
+                  dispatchPanelDismiss("hide-all");
+                  onRequestClose?.();
+                }}
+                style={{
+                  display: "inline-flex",
+                  alignItems: "center",
+                  justifyContent: "center",
+                  width: 22,
+                  height: 22,
+                  borderRadius: 5,
+                  border: "0.5px solid rgba(154,166,178,0.25)",
+                  background: "transparent",
+                  color: MUTED,
+                  cursor: "pointer",
+                }}
+              >
+                <ToolIcon path={ICONS.hide} size={12} />
+              </button>
+            </div>
+            {toolsInner}
+          </div>
+          <div
+            data-testid="map-toolset-layers-panel"
+            style={splitPanelStyle("layers")}
+          >
+            <div
+              style={{
+                display: "flex",
+                alignItems: "center",
+                gap: 6,
+                paddingBottom: 6,
+                borderBottom: "0.5px solid rgba(154,166,178,0.18)",
+              }}
+            >
+              <span style={{ ...sectionHeaderStyle(), flex: 1 }}>Layers</span>
+            </div>
+            {layersInner}
+          </div>
+        </div>
+      ) : (
       <div
         style={{
-          display: (splitBubbles ? openKinds.size > 0 : expanded) ? "flex" : "none",
+          display: expanded ? "flex" : "none",
           width: 216,
           flexDirection: "column",
           gap: 9,
@@ -1309,9 +1451,6 @@ export function MapToolset({
           overflowY: "auto",
         }}
       >
-        {/* Panel bar: put THIS panel away, or ask the host to put every
-            overlay panel away ("How do i make the tools disappear so I can
-            read this"). */}
         <div
           style={{
             display: "flex",
@@ -1359,7 +1498,7 @@ export function MapToolset({
             data-testid="map-toolset-minimise"
             title="Minimise this panel"
             aria-label="Minimise this panel"
-            aria-expanded={expanded || openKinds.size > 0}
+            aria-expanded={expanded}
             onClick={() => {
               setExpanded(false);
               setOpenKinds(new Set());
@@ -1384,6 +1523,7 @@ export function MapToolset({
         </div>
         {panelInner}
       </div>
+      )}
 
       {/* The required Esri imagery credit is NOT rendered here as a standing chip
           anymore — it produced a dark "Imagery: Esri…" strip above this bubble on
