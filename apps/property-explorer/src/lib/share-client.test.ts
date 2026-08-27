@@ -1,5 +1,6 @@
 /**
  * Share-link mint client (Workbench W4) — outcome mapping with injected fetch.
+ * P-86 item 4: mint is sign-in only. 402 is not a product paywall path.
  */
 
 import { describe, expect, it, vi } from 'vitest'
@@ -38,15 +39,19 @@ describe('mintShareLink', () => {
     )
   })
 
-  it('maps 401 → sign-in, 402 → paywall, 503 unconfigured → honest notice', async () => {
+  it('maps 401 → sign-in; 402 is a message, not a product paywall', async () => {
     expect(await mintShareLink('48021:2', fakeFetch(401, {}))).toEqual({
       kind: 'sign-in',
     })
-    const paywall = await mintShareLink(
+    const leftover402 = await mintShareLink(
       '48021:2',
       fakeFetch(402, { error: 'payment_required', message: 'Legacy paywall.' }),
     )
-    expect(paywall).toEqual({ kind: 'paywall', message: 'Legacy paywall.' })
+    expect(leftover402).toEqual({
+      kind: 'message',
+      text: 'Legacy paywall.',
+    })
+    expect(leftover402).not.toMatchObject({ kind: 'paywall' })
     const unconfigured = await mintShareLink(
       '48021:2',
       fakeFetch(503, { error: 'sharing_not_configured', message: 'PE_SHARE_SECRET missing.' }),

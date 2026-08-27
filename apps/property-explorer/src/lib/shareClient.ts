@@ -1,10 +1,11 @@
 // Share-link client — mints share links via POST /api/pe-share (Workbench W4).
 //
 // Auth: session required; share mint is FREE per canon. 401 → sign-in,
-// 402 → paywall (legacy backends only), 503 sharing_not_configured → honest
-// unconfigured notice. The minted link
-// ({url, expiresAt}) is per-property persisted by the Share tool through the
-// chassis store.
+// 503 sharing_not_configured → honest unconfigured notice. Current
+// pe-share.ts cannot emit 402 (export entitlement is not a mint gate).
+// A 402 from a leftover backend is treated as a generic message, not a
+// product paywall. The minted link ({url, expiresAt}) is per-property
+// persisted by the Share tool through the chassis store.
 
 export interface MintedShareLink {
   url: string
@@ -14,13 +15,9 @@ export interface MintedShareLink {
 export type ShareMintOutcome =
   | { kind: 'ready'; link: MintedShareLink }
   | { kind: 'sign-in' }
-  | { kind: 'paywall'; message: string }
   | { kind: 'not-configured'; message: string }
   | { kind: 'message'; text: string }
   | { kind: 'unreachable' }
-
-export const SHARE_PAYWALL_MESSAGE =
-  'Sign in to create a share link for this property.'
 
 export async function mintShareLink(
   parcelNodeId: string,
@@ -40,9 +37,6 @@ export async function mintShareLink(
       message?: string
     }
     if (res.status === 401) return { kind: 'sign-in' }
-    if (res.status === 402) {
-      return { kind: 'paywall', message: body.message ?? SHARE_PAYWALL_MESSAGE }
-    }
     if (res.status === 503 && body.error === 'sharing_not_configured') {
       return {
         kind: 'not-configured',
