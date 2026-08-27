@@ -9,6 +9,11 @@ import {
 } from "../api/_lib/session.mjs";
 import { isAllowlisted, parseAllowlist } from "../api/_lib/allowlist.mjs";
 import { controlBaseUrl, resolveProxyPath } from "../api/_lib/proxy-policy.mjs";
+import {
+  ANONYMOUS_OPERATOR,
+  consoleAuthRequired,
+  resolveProxyOperator,
+} from "../api/_lib/console-auth.mjs";
 
 const env = { FACTORY_SESSION_SECRET: "test-session-secret-not-used-in-prod" };
 
@@ -61,6 +66,31 @@ test("proxy policy allows the named read and write routes and refuses the rest",
   assert.deepEqual(resolveProxyPath("start"), { ok: true, path: "start", allowedMethod: "POST" });
   assert.equal(resolveProxyPath("secret").ok, false);
   assert.equal(resolveProxyPath("../counts").ok, false);
+});
+
+test("FACTORY_CONSOLE_AUTH defaults on and only off disables", () => {
+  assert.equal(consoleAuthRequired({}), true);
+  assert.equal(consoleAuthRequired({ FACTORY_CONSOLE_AUTH: "" }), true);
+  assert.equal(consoleAuthRequired({ FACTORY_CONSOLE_AUTH: "on" }), true);
+  assert.equal(consoleAuthRequired({ FACTORY_CONSOLE_AUTH: "OFF" }), false);
+  assert.equal(consoleAuthRequired({ FACTORY_CONSOLE_AUTH: "off" }), false);
+});
+
+test("auth off stamps console:anonymous and never a fabricated subject", () => {
+  assert.equal(resolveProxyOperator(null, { FACTORY_CONSOLE_AUTH: "off" }), ANONYMOUS_OPERATOR);
+  assert.equal(ANONYMOUS_OPERATOR, "console:anonymous");
+  assert.equal(
+    resolveProxyOperator({ provider: "google", subject: "someone" }, { FACTORY_CONSOLE_AUTH: "off" }),
+    ANONYMOUS_OPERATOR,
+  );
+});
+
+test("auth on still requires a real session identity", () => {
+  assert.equal(resolveProxyOperator(null, {}), null);
+  assert.equal(
+    resolveProxyOperator({ provider: "google", subject: "sub-1" }, {}),
+    "google:sub-1",
+  );
 });
 
 test("control upstream must be a factory-control hostname", () => {
