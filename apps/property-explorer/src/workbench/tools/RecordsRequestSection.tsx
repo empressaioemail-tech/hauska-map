@@ -152,9 +152,20 @@ export function RecordsRequestSection({
 
   const showScaffoldPreview = !merged.run;
   const scaffoldView = merged.scaffoldView ?? "entry";
-  const filters = merged.run?.filters ?? SCAFFOLD_FILTERS;
-  const instruments = merged.run?.instruments ?? SCAFFOLD_INSTRUMENTS;
-  const verdicts = merged.run?.verdicts ?? SCAFFOLD_VERDICTS;
+  const showDemoResults = !merged.run?.live;
+  const filters = showDemoResults
+    ? SCAFFOLD_FILTERS
+    : (merged.run?.filters ?? []);
+  const instruments = showDemoResults
+    ? SCAFFOLD_INSTRUMENTS
+    : (merged.run?.instruments ?? []);
+  const verdicts = showDemoResults
+    ? SCAFFOLD_VERDICTS
+    : (merged.run?.verdicts ?? []);
+  const resultsPending =
+    merged.run?.live === true &&
+    merged.run.phase !== "complete" &&
+    instruments.length === 0;
   const activeFilter = merged.activeFilter;
 
   const filtered =
@@ -226,7 +237,7 @@ export function RecordsRequestSection({
       ) : null}
 
       {merged.run ? (
-        <RecordsRunStatusStrip phase={merged.run.phase} />
+        <RecordsRunStatusStrip phase={merged.run.phase} run={merged.run} />
       ) : null}
 
       {showScaffoldPreview ? (
@@ -251,6 +262,11 @@ export function RecordsRequestSection({
         onFilter={(type) => setMerged({ activeFilter: type })}
         instruments={filtered}
         verdicts={verdicts}
+        pendingMessage={
+          resultsPending
+            ? "Search in progress — instrument rows will appear when the clerk run completes."
+            : null
+        }
       />
 
       <div
@@ -271,6 +287,7 @@ function RecordsResultsPanel({
   onFilter,
   instruments,
   verdicts,
+  pendingMessage,
 }: {
   address: string | null;
   countyName: string | null;
@@ -279,6 +296,7 @@ function RecordsResultsPanel({
   onFilter: (type: RecordsInstrumentType | "all") => void;
   instruments: RecordsInstrumentRow[];
   verdicts: RecordsVerdictCard[];
+  pendingMessage?: string | null;
 }) {
   const sub = [address, countyName].filter(Boolean).join(" · ");
   return (
@@ -361,6 +379,19 @@ function RecordsResultsPanel({
       </div>
 
       <div data-testid="records-instrument-list">
+        {instruments.length === 0 && pendingMessage ? (
+          <div
+            data-testid="records-instrument-pending"
+            style={{
+              padding: "16px",
+              fontSize: 12,
+              lineHeight: 1.55,
+              color: SLATE,
+            }}
+          >
+            {pendingMessage}
+          </div>
+        ) : null}
         {instruments.map((row) => (
           <RecordsInstrumentListRow key={row.id} row={row} />
         ))}

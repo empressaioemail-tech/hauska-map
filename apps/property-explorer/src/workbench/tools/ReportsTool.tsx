@@ -16,7 +16,7 @@ import {
 import { Button } from "../../components/Button";
 import { DownloadFileButton } from "../../components/DownloadFileButton";
 import { recordPeGtmEvent } from "../../lib/gtmClient";
-import { subscriptionTierGrantsStudio } from "../../lib/entitlementClient";
+import { studioGrantedForEntitlement } from "../../lib/entitlementClient";
 import { usePropertyEntitlement } from "../../lib/usePropertyEntitlement";
 import { useDockToolState, useWorkbench } from "../WorkbenchContext";
 import { LockedToolPanel } from "./LockedToolPanel";
@@ -154,20 +154,16 @@ export function ReportsTool() {
     host.openPaywall(message, opts);
   };
 
-  const terrainProLocked =
-    ent.status === "ready" &&
-    !ent.devRole &&
-    !subscriptionTierGrantsStudio(ent.subscriptionTier);
-  const studioGranted = !terrainProLocked && ent.status === "ready"
-    ? ent.devRole || subscriptionTierGrantsStudio(ent.subscriptionTier)
-    : ent.status !== "ready";
+  const studioGranted =
+    ent.status === "ready" && studioGrantedForEntitlement(ent);
+  const terrainProLocked = ent.status === "ready" && !studioGranted;
 
   const selectedId = isReportDocId(selectedRaw)
     ? selectedRaw
     : lockedDefaultDoc(ent.locked);
   const selected = selectedId ? findReportDoc(selectedId) : null;
   const counts = readyCount(
-    ent.locked ? false : studioGranted && !terrainProLocked,
+    ent.locked ? false : studioGranted,
   );
   const locked = ent.locked;
 
@@ -181,7 +177,7 @@ export function ReportsTool() {
     : null;
   const status = selected
     ? reportDocStatus(selected, {
-        studioGranted: studioGranted && !terrainProLocked,
+        studioGranted,
         generatedLabel,
       })
     : null;
@@ -219,7 +215,7 @@ export function ReportsTool() {
           selected={selected}
           status={status}
           generatedLabel={generatedLabel}
-          studioGranted={studioGranted && !terrainProLocked}
+            studioGranted={studioGranted}
           onTogglePicker={() => setPickerOpen((v) => !v)}
           onPick={pick}
           onChange={() => {
@@ -636,16 +632,6 @@ function SelectedEngine({
   }
 
   if (doc.engine === "records") {
-    if (terrainProLocked) {
-      return (
-        <LockedToolPanel
-          valueLine="Recorded documents from the county clerk's index, read and cited."
-          proOnly
-          proOnlyNote={RECORDS_PAYWALL_MESSAGE}
-          testId="records-studio-lock"
-        />
-      );
-    }
     return (
       <RecordsRequestSection
         parcelNodeId={parcelNodeId}
