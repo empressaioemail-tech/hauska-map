@@ -11,9 +11,16 @@
 //     renders absence honestly);
 //   - chatSummary + notes: from the saved dossier snapshot;
 //   - address: dossier address (save-time) or the active-parcel facts.
-// Anything unavailable is honestly omitted — the engine renders "not on
-// file" chips, never invented content.
+// Three-way blank (W4.P0):
+//   1. World-fact values stay on the request so the engine can name the miss.
+//   2. User content (notes, saved AI summary) is omitted when absent.
+//   3. Pipeline output (verdict, brief facts) is refused at request time —
+//      never forwarded to the engine to be styled as UNAVAILABLE chips.
 
+import {
+  refuseHollowXrayExport,
+  XRAY_PIPELINE_ABSENT_MESSAGE,
+} from "../../../api/_lib/pe-dossier-export-core";
 import { verdictFromSubject } from "../../lib/sheet-verdict";
 import {
   deriveBriefViewModel,
@@ -75,8 +82,9 @@ export function flattenBriefForDossier(
 /**
  * Assemble the dossier export request from what the property already holds.
  * `brief` is the live R1 payload when the fetch succeeded; null when it did
- * not (sign-in / paywall / no snapshot) — verdict and brief are then honestly
- * omitted and the engine renders their absence.
+ * not. Pipeline output (verdict + brief facts) is assembled when present;
+ * requestDossierExport refuses the hop when either is missing. User content
+ * (notes, chat summary) is omitted silently when absent.
  */
 export function assembleDossierExportBody(input: {
   parcelNodeId: string;
@@ -84,6 +92,11 @@ export function assembleDossierExportBody(input: {
   brief: ResearchBriefPayload | null;
   /** Active-parcel facts fallback (only when this parcel is the active one). */
   facts?: { address: string | null; countyName: string | null } | null;
+  /**
+   * Caller-resolved sheet verdict. Preferred over the subject-store lookup
+   * so the brief panel can pass the line it already rendered.
+   */
+  verdictLine?: string | null;
 }): DossierExportRequestBody {
   const body: DossierExportRequestBody = { parcelNodeId: input.parcelNodeId };
 
@@ -91,13 +104,19 @@ export function assembleDossierExportBody(input: {
   if (address) body.address = address;
   if (input.facts?.countyName) body.countyName = input.facts.countyName;
 
-  if (input.brief) {
+  const explicitVerdict = input.verdictLine?.trim();
+  if (explicitVerdict) {
+    body.verdictLine = explicitVerdict;
+  } else if (input.brief) {
     // I2: the SHEET'S sealed sentence, not a second composition. A dossier
     // whose headline disagreed with the card it was exported from is exactly
-    // the class this replaces; when no sheet is on hand the line is OMITTED
-    // rather than invented.
+    // the class this replaces; when no sheet is on hand the line is omitted
+    // and requestDossierExport refuses rather than inventing a headline.
     const verdict = verdictFromSubject(input.parcelNodeId);
     if (verdict) body.verdictLine = verdict.line;
+  }
+
+  if (input.brief) {
     const flattened = flattenBriefForDossier(input.brief);
     if (flattened) body.brief = flattened;
   }
@@ -140,6 +159,15 @@ export async function requestDossierExport(
   body: DossierExportRequestBody,
   fetchImpl: typeof fetch = fetch,
 ): Promise<DossierExportClientResult> {
+  const hollow = refuseHollowXrayExport(body);
+  if (!hollow.ok) {
+    return {
+      ok: false,
+      status: 422,
+      error: hollow.error,
+      message: hollow.message,
+    };
+  }
   try {
     const res = await fetchImpl("/api/pe-site-plan-export?kind=dossier", {
       method: "POST",
@@ -197,6 +225,9 @@ export function dossierExportNotice(result: DossierExportClientResult): string {
   }
   if (result.status === 401) {
     return "Sign in to export the property X-ray.";
+  }
+  if (result.status === 422 || result.error === "pipeline_output_absent") {
+    return result.message ?? XRAY_PIPELINE_ABSENT_MESSAGE;
   }
   return result.message ?? "X-ray export failed — try again.";
 }

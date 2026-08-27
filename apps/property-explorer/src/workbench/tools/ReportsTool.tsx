@@ -33,6 +33,7 @@ import {
   dossierExportNotice,
   requestDossierExport,
 } from "./dossier-export";
+import { runBriefResearch } from "./brief-research";
 import {
   findReportDoc,
   isReportDocId,
@@ -727,10 +728,12 @@ function DossierExportAction({
 
   const run = async () => {
     setBusy(true);
+    const briefOutcome = await runBriefResearch(parcelNodeId);
+    const brief = briefOutcome.kind === "ready" ? briefOutcome.brief : null;
     const body = assembleDossierExportBody({
       parcelNodeId,
       dossier: null,
-      brief: null,
+      brief,
       facts,
     });
     const result = await requestDossierExport(body);

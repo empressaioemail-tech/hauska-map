@@ -13,11 +13,29 @@ import {
 } from "../../browse/__fixtures__/research-brief.fixture";
 import type { PropertyDossier } from "../../lib/propertyDossier";
 import {
+  XRAY_PIPELINE_ABSENT_ERROR,
+  XRAY_PIPELINE_ABSENT_MESSAGE,
+} from "../../../api/_lib/pe-dossier-export-core";
+import {
   assembleDossierExportBody,
   dossierExportNotice,
   flattenBriefForDossier,
   requestDossierExport,
 } from "./dossier-export";
+
+const READY_BODY = {
+  parcelNodeId: "48021:27303",
+  verdictLine: "Buildable · outside mapped flood hazard.",
+  brief: {
+    sections: [
+      {
+        id: "zoning",
+        title: "Zoning",
+        facts: [{ label: "District", value: "P-2" }],
+      },
+    ],
+  },
+} as const;
 
 const DOSSIER: PropertyDossier = {
   savedAt: "2026-07-28T00:00:00.000Z",
@@ -120,7 +138,7 @@ describe("requestDossierExport — BFF fold-in contract", () => {
       ),
     );
     const result = await requestDossierExport(
-      { parcelNodeId: "48021:27303", notes: "n" },
+      { ...READY_BODY, notes: "n" },
       fetchMock as unknown as typeof fetch,
     );
     expect(fetchMock).toHaveBeenCalledTimes(1);
@@ -128,7 +146,7 @@ describe("requestDossierExport — BFF fold-in contract", () => {
     expect(url).toBe("/api/pe-site-plan-export?kind=dossier");
     expect(init.method).toBe("POST");
     expect(JSON.parse(String(init.body))).toEqual({
-      parcelNodeId: "48021:27303",
+      ...READY_BODY,
       notes: "n",
     });
     expect(result.ok).toBe(true);
@@ -146,7 +164,7 @@ describe("requestDossierExport — BFF fold-in contract", () => {
       ),
     );
     const result = await requestDossierExport(
-      { parcelNodeId: "48021:27303" },
+      READY_BODY,
       fetchMock as unknown as typeof fetch,
     );
     expect(result.ok).toBe(false);
@@ -168,5 +186,86 @@ describe("requestDossierExport — BFF fold-in contract", () => {
         sitePlanUnavailableReason: "parcel geometry could not be resolved for this parcel",
       }),
     ).toMatch(/Site-plan sheets were not appended — parcel geometry/);
+  });
+});
+
+describe("W4.P0 three-way blank — fail closed vs omit", () => {
+  it("refuses a request with no verdict: fetch is never called (no PDF bytes)", async () => {
+    const fetchMock = vi.fn(async () => {
+      throw new Error("fetch must not run on a hollow X-ray");
+    });
+    const result = await requestDossierExport(
+      {
+        parcelNodeId: "48021:34161",
+        brief: READY_BODY.brief,
+      },
+      fetchMock as unknown as typeof fetch,
+    );
+    expect(fetchMock).not.toHaveBeenCalled();
+    expect(result.ok).toBe(false);
+    if (!result.ok) {
+      expect(result.status).toBe(422);
+      expect(result.error).toBe(XRAY_PIPELINE_ABSENT_ERROR);
+      expect(result.message).toBe(XRAY_PIPELINE_ABSENT_MESSAGE);
+    }
+    expect(dossierExportNotice(result)).toMatch(/hollow report will not be downloaded/i);
+  });
+
+  it("refuses a request with no brief facts: fetch is never called (no PDF bytes)", async () => {
+    const fetchMock = vi.fn(async () => {
+      throw new Error("fetch must not run on a hollow X-ray");
+    });
+    const result = await requestDossierExport(
+      {
+        parcelNodeId: "48021:34161",
+        verdictLine: READY_BODY.verdictLine,
+      },
+      fetchMock as unknown as typeof fetch,
+    );
+    expect(fetchMock).not.toHaveBeenCalled();
+    expect(result.ok).toBe(false);
+    if (!result.ok) {
+      expect(result.error).toBe(XRAY_PIPELINE_ABSENT_ERROR);
+    }
+  });
+
+  it("omits owner notes and still exports when verdict + brief exist", async () => {
+    const fetchMock = vi.fn(async () =>
+      new Response(
+        JSON.stringify({
+          ok: true,
+          parcelNodeId: "48021:34161",
+          format: "pdf-dossier",
+          downloadUrl:
+            "/api/pe-site-plan-export?parcelNodeId=48021%3A34161&kind=dossier&action=download",
+          pageCount: 4,
+          sitePlanAppended: true,
+          notesIncluded: false,
+        }),
+        { status: 200, headers: { "content-type": "application/json" } },
+      ),
+    );
+    const assembled = assembleDossierExportBody({
+      parcelNodeId: "48021:34161",
+      dossier: null,
+      brief: ZONED_BRIEF,
+      verdictLine: READY_BODY.verdictLine,
+    });
+    expect(assembled.notes).toBeUndefined();
+    expect(assembled.chatSummary).toBeUndefined();
+    expect(assembled.verdictLine).toBe(READY_BODY.verdictLine);
+    expect(assembled.brief?.sections.length).toBeGreaterThan(0);
+
+    const result = await requestDossierExport(
+      assembled,
+      fetchMock as unknown as typeof fetch,
+    );
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+    const posted = JSON.parse(
+      String((fetchMock.mock.calls[0] as unknown as [string, RequestInit])[1].body),
+    ) as { notes?: string; chatSummary?: unknown };
+    expect(posted.notes).toBeUndefined();
+    expect(posted.chatSummary).toBeUndefined();
+    expect(result.ok).toBe(true);
   });
 });
