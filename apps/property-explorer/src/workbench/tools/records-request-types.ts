@@ -67,6 +67,7 @@ export interface RecordsRunView {
   verdicts: RecordsVerdictCard[];
   /** Present when the run came from the live API (not design scaffold). */
   live?: boolean;
+  jobId?: string | null;
   errorCode?: string | null;
   errorMessage?: string | null;
 }

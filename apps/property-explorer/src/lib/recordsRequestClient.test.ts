@@ -58,4 +58,35 @@ describe("recordsRequestClient", () => {
     expect(result.wired).toBe(true);
     expect(result.run?.phase).toBe("queued");
   });
+
+  it("POST maps in-progress status to running phase", async () => {
+    fetchMock.mockResolvedValueOnce({
+      status: 200,
+      ok: true,
+      json: async () => ({ status: "in-progress", jobId: "job-1" }),
+    });
+    const result = await requestRecordsRun("48021:123", "48021");
+    expect(result.wired).toBe(true);
+    expect(result.run?.phase).toBe("running");
+    expect(result.run?.jobId).toBe("job-1");
+  });
+
+  it("maps instrument count from scopeSearched indexHits on GET", async () => {
+    fetchMock.mockResolvedValueOnce({
+      status: 200,
+      ok: true,
+      json: async () => ({
+        jobs: [
+          {
+            jobStatus: "complete",
+            completedAt: "2026-08-27T12:00:00.000Z",
+            scopeSearched: { indexHits: [{ id: "a" }, { id: "b" }] },
+          },
+        ],
+      }),
+    });
+    const result = await fetchRecordsRun("48021:123");
+    expect(result.run?.instrumentCount).toBe(2);
+    expect(result.run?.live).toBe(true);
+  });
 });
