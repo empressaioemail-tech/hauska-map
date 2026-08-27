@@ -31,6 +31,8 @@ jobs:
       # downstream is worth running.
       - run: pnpm --filter @empressaio/parcel-fact-sheet test
       - run: pnpm --filter property-explorer test
+      - name: Records copy guard (P-85 item 16)
+        run: node apps/property-explorer/scripts/records-copy-guard.mjs
 
   typecheck:
     name: Typecheck

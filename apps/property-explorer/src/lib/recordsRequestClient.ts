@@ -15,6 +15,7 @@ import type {
   RecordsInstrumentRow,
   RecordsInstrumentType,
   RecordsTypeFilter,
+  RecordsVerdictCard,
 } from "../workbench/tools/records-request-types";
 
 const RECORDS_PATH = "api/property-explorer/v1/records-request";
@@ -287,6 +288,68 @@ function formatProjectedCost(cents: number | null | undefined): string | null {
 
 export { formatProjectedCost };
 
+export function verdictsFromScopeAndJob(args: {
+  scope: Record<string, unknown> | null;
+  jobStatus: string | undefined;
+  errorCode?: string | null;
+  errorMessage?: string | null;
+  instrumentCount: number;
+}): RecordsVerdictCard[] {
+  const cards: RecordsVerdictCard[] = [];
+  const scope = args.scope;
+  const verdictRaw =
+    typeof scope?.verdict === "string" ? scope.verdict.trim() : "";
+  const absentVerified =
+    scope?.absentVerified === true || verdictRaw === "verified-absent";
+  const lookupFailed =
+    args.jobStatus === "failed" ||
+    verdictRaw === "lookup-failed" ||
+    args.errorCode === "portal_automated_search_refused";
+
+  if (lookupFailed) {
+    cards.push({
+      kind: "could-not-search",
+      title: "Clerk index search could not be completed",
+      body:
+        args.errorMessage?.trim() ||
+        "The county portal blocked automated search or the run failed before index hits were captured. This is a gap in the search, not a finding about the parcel.",
+    });
+    return cards;
+  }
+
+  if (
+    absentVerified ||
+    (args.jobStatus === "complete" &&
+      args.instrumentCount === 0 &&
+      scope?.finishReason !== "header-only")
+  ) {
+    const scopeNote =
+      typeof scope?.scopeSummary === "string"
+        ? scope.scopeSummary
+        : "We searched the clerk index in the scope recorded on this run and found no instruments tied to this parcel.";
+    cards.push({
+      kind: "verified-absent",
+      title: "No recorded instruments in the searched scope",
+      body: scopeNote,
+    });
+  }
+
+  if (
+    args.jobStatus === "needs-human" &&
+    args.errorCode !== "awaiting-purchase-approval"
+  ) {
+    cards.push({
+      kind: "could-not-search",
+      title: "Human clerk step required",
+      body:
+        args.errorMessage?.trim() ||
+        "The county portal requires a person to finish this search. The run is paused with the instrument list on the run record.",
+    });
+  }
+
+  return cards;
+}
+
 function runFromLatestJob(
   parcelNodeId: string,
   job: WireJob | undefined,
@@ -299,15 +362,25 @@ function runFromLatestJob(
       : null;
   const instrumentCount = instrumentCountFromScope(scope);
   const instruments = instrumentsFromScope(scope);
+  const statusStr = typeof status === "string" ? status : undefined;
+  const verdicts = verdictsFromScopeAndJob({
+    scope,
+    jobStatus: statusStr,
+    errorCode: typeof job.errorCode === "string" ? job.errorCode : null,
+    errorMessage:
+      typeof job.errorMessage === "string" ? job.errorMessage : null,
+    instrumentCount:
+      instruments.length > 0 ? instruments.length : instrumentCount,
+  });
   return {
-    phase: phaseFromJobStatus(typeof status === "string" ? status : undefined),
+    phase: phaseFromJobStatus(statusStr),
     parcelNodeId,
     searchedAt: formatSearchedAt(job.completedAt ?? job.createdAt),
     instrumentCount:
       instruments.length > 0 ? instruments.length : instrumentCount,
     filters: filtersFromInstruments(instruments),
     instruments,
-    verdicts: [],
+    verdicts,
     live: true,
     jobId: typeof job.jobId === "string" ? job.jobId : null,
     errorCode:
