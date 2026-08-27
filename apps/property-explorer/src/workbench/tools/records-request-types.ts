@@ -65,6 +65,10 @@ export interface RecordsRunView {
   filters: RecordsTypeFilter[];
   instruments: RecordsInstrumentRow[];
   verdicts: RecordsVerdictCard[];
+  /** Present when the run came from the live API (not design scaffold). */
+  live?: boolean;
+  errorCode?: string | null;
+  errorMessage?: string | null;
 }
 
 export interface RecordsRunFetchResult {

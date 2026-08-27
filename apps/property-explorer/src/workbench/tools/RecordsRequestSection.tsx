@@ -27,6 +27,7 @@ import type {
   RecordsInstrumentRow,
   RecordsInstrumentType,
   RecordsReadDepth,
+  RecordsRunPhase,
   RecordsRunView,
   RecordsVerdictCard,
 } from "./records-request-types";
@@ -59,6 +60,16 @@ const DEFAULT_STATE: RecordsRequestSectionState = {
   scaffoldView: "entry",
 };
 
+function isActiveRunPhase(phase: RecordsRunPhase): boolean {
+  return (
+    phase === "queued" || phase === "running" || phase === "paused-fees"
+  );
+}
+
+function isTerminalRunPhase(phase: RecordsRunPhase): boolean {
+  return phase === "complete" || phase === "failed";
+}
+
 export function RecordsRequestSection({
   parcelNodeId,
   address,
@@ -80,6 +91,7 @@ export function RecordsRequestSection({
   );
   const merged = state ?? DEFAULT_STATE;
   const [busy, setBusy] = useState(false);
+  const [apiWired, setApiWired] = useState(false);
 
   const setMerged = useCallback(
     (patch: Partial<RecordsRequestSectionState>) => {
@@ -93,10 +105,16 @@ export function RecordsRequestSection({
     void (async () => {
       const result = await fetchRecordsRun(parcelNodeId);
       if (cancelled) return;
-      setMerged({
+      setApiWired(result.wired);
+      const patch: Partial<RecordsRequestSectionState> = {
         notice: result.notice,
         run: result.run,
-      });
+      };
+      if (result.wired) {
+        patch.scaffoldView =
+          result.run && isActiveRunPhase(result.run.phase) ? "running" : "entry";
+      }
+      setMerged(patch);
     })();
     return () => {
       cancelled = true;
@@ -150,11 +168,38 @@ export function RecordsRequestSection({
     });
   };
 
-  const showScaffoldPreview = !merged.run;
+  const showDemoResults = !apiWired && !merged.run?.live;
   const scaffoldView = merged.scaffoldView ?? "entry";
-  const filters = merged.run?.filters ?? SCAFFOLD_FILTERS;
-  const instruments = merged.run?.instruments ?? SCAFFOLD_INSTRUMENTS;
-  const verdicts = merged.run?.verdicts ?? SCAFFOLD_VERDICTS;
+  const showRequestButton =
+    apiWired
+      ? !merged.run ||
+        (merged.run.live && isTerminalRunPhase(merged.run.phase))
+      : !merged.run && scaffoldView === "entry";
+  const requestButtonLabel =
+    merged.run && isTerminalRunPhase(merged.run.phase)
+      ? "Run again"
+      : busy
+        ? "Requesting…"
+        : "Request records";
+  const filters = showDemoResults
+    ? SCAFFOLD_FILTERS
+    : (merged.run?.filters ?? []);
+  const instruments = showDemoResults
+    ? SCAFFOLD_INSTRUMENTS
+    : (merged.run?.instruments ?? []);
+  const verdicts = showDemoResults
+    ? SCAFFOLD_VERDICTS
+    : (merged.run?.verdicts ?? []);
+  const resultsPending =
+    merged.run?.live === true &&
+    isActiveRunPhase(merged.run.phase) &&
+    instruments.length === 0;
+
+  const resultsEmptyComplete =
+    apiWired &&
+    merged.run?.live === true &&
+    merged.run.phase === "complete" &&
+    instruments.length === 0;
   const activeFilter = merged.activeFilter;
 
   const filtered =
@@ -183,19 +228,21 @@ export function RecordsRequestSection({
         </div>
       ) : null}
 
-      {!merged.run && scaffoldView === "entry" ? (
+      {showRequestButton ? (
         <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
-          <p
-            style={{
-              margin: 0,
-              fontSize: 12,
-              lineHeight: 1.55,
-              color: MUTED_2,
-            }}
-          >
-            Not requested for this parcel. Request pulls instruments from the
-            county clerk&apos;s index tied to this parcel.
-          </p>
+          {!merged.run ? (
+            <p
+              style={{
+                margin: 0,
+                fontSize: 12,
+                lineHeight: 1.55,
+                color: MUTED_2,
+              }}
+            >
+              Not requested for this parcel. Request pulls instruments from the
+              county clerk&apos;s index tied to this parcel.
+            </p>
+          ) : null}
           <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
             <Button
               type="button"
@@ -204,16 +251,18 @@ export function RecordsRequestSection({
               disabled={busy}
               onClick={() => void runRequest()}
             >
-              {busy ? "Requesting…" : "Request records"}
+              {requestButtonLabel}
             </Button>
-            <Button type="button" variant="secondary" data-testid="records-what-searched">
-              What gets searched
-            </Button>
+            {!apiWired ? (
+              <Button type="button" variant="secondary" data-testid="records-what-searched">
+                What gets searched
+              </Button>
+            ) : null}
           </div>
         </div>
       ) : null}
 
-      {!merged.run && scaffoldView === "acknowledgement" ? (
+      {!merged.run && !apiWired && scaffoldView === "acknowledgement" ? (
         <RecordsAcknowledgementPanel
           countyName={countyName}
           onBack={() => setMerged({ scaffoldView: "entry" })}
@@ -221,15 +270,15 @@ export function RecordsRequestSection({
         />
       ) : null}
 
-      {!merged.run && scaffoldView === "running" ? (
+      {!merged.run && !apiWired && scaffoldView === "running" ? (
         <RecordsRunStatusStrip phase="running" />
       ) : null}
 
       {merged.run ? (
-        <RecordsRunStatusStrip phase={merged.run.phase} />
+        <RecordsRunStatusStrip phase={merged.run.phase} run={merged.run} />
       ) : null}
 
-      {showScaffoldPreview ? (
+      {!apiWired && !merged.run ? (
         <div
           data-testid="records-scaffold-preview"
           style={{
@@ -251,6 +300,13 @@ export function RecordsRequestSection({
         onFilter={(type) => setMerged({ activeFilter: type })}
         instruments={filtered}
         verdicts={verdicts}
+        pendingMessage={
+          resultsPending
+            ? "Search in progress — instrument rows will appear when the clerk run completes."
+            : resultsEmptyComplete
+              ? "Run finished — no instrument rows in the UI yet (worker may have completed with reachability-only scaffold)."
+              : null
+        }
       />
 
       <div
@@ -271,6 +327,7 @@ function RecordsResultsPanel({
   onFilter,
   instruments,
   verdicts,
+  pendingMessage,
 }: {
   address: string | null;
   countyName: string | null;
@@ -279,6 +336,7 @@ function RecordsResultsPanel({
   onFilter: (type: RecordsInstrumentType | "all") => void;
   instruments: RecordsInstrumentRow[];
   verdicts: RecordsVerdictCard[];
+  pendingMessage?: string | null;
 }) {
   const sub = [address, countyName].filter(Boolean).join(" · ");
   return (
@@ -361,6 +419,19 @@ function RecordsResultsPanel({
       </div>
 
       <div data-testid="records-instrument-list">
+        {instruments.length === 0 && pendingMessage ? (
+          <div
+            data-testid="records-instrument-pending"
+            style={{
+              padding: "16px",
+              fontSize: 12,
+              lineHeight: 1.55,
+              color: SLATE,
+            }}
+          >
+            {pendingMessage}
+          </div>
+        ) : null}
         {instruments.map((row) => (
           <RecordsInstrumentListRow key={row.id} row={row} />
         ))}

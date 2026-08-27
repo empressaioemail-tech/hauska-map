@@ -206,6 +206,21 @@ describe("REPORTS bubble (Option D picker; TERRAIN Studio-only when selected)", 
     expect(terrain).not.toContain('data-testid="terrain-export-section"');
   });
 
+  it("solo subscriber opens Records request (paid tier, same gate as X-ray)", () => {
+    primePropertyEntitlement(PARCEL, SOLO);
+    const html = renderTool("reports", { selectedDoc: "REC" });
+    expect(html).not.toContain('data-testid="reports-locked"');
+    expect(html).not.toContain('data-testid="records-studio-lock"');
+    expect(html).toContain('data-testid="records-request-section"');
+  });
+
+  it("free signed-in without unlock → reports locked (Records request included)", () => {
+    primePropertyEntitlement(PARCEL, FREE);
+    const html = renderTool("reports", { selectedDoc: "REC" });
+    expect(html).toContain('data-testid="reports-locked"');
+    expect(html).not.toContain('data-testid="records-request-section"');
+  });
+
   it("devRole (tester account, no Stripe, no subscriptionTier) grants terrain", () => {
     primePropertyEntitlement(PARCEL, DEV);
     const html = renderTool("reports", { selectedDoc: "TERGLB" });
@@ -213,6 +228,16 @@ describe("REPORTS bubble (Option D picker; TERRAIN Studio-only when selected)", 
     expect(html).not.toContain('data-testid="terrain-pro-lock"');
     expect(html).not.toContain('data-testid="view-pricing-button"');
     expect(html).toContain('data-testid="terrain-export-section"');
+  });
+
+  it("devRole clears every generatable report row (not coming-soon)", () => {
+    primePropertyEntitlement(PARCEL, DEV);
+    for (const docId of ["REC", "DOSS", "FLOOD", "SPPDF", "SPDXF", "SPIFC", "TERGLB", "TERIFC", "TERDXF"]) {
+      const html = renderTool("reports", { selectedDoc: docId });
+      expect(html).not.toContain('data-testid="reports-locked"');
+      expect(html).not.toContain('data-testid="terrain-pro-lock"');
+      expect(html).not.toContain('data-testid="records-studio-lock"');
+    }
   });
 
   it("FAIL CLOSED: a paid row with NO subscriptionTier gates terrain CLOSED", () => {
