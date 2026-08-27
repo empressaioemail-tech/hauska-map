@@ -17,6 +17,7 @@
 
 import { useEffect, useState } from "react";
 import { PropertyBriefPanel } from "../../browse/PropertyBriefPanel";
+import { PE } from "../../styles/pe-chrome";
 import type { ResearchBriefPayload } from "../../browse/brief-view-model";
 import { recordPeGtmEvent } from "../../lib/gtmClient";
 import { usePropertyEntitlement } from "../../lib/usePropertyEntitlement";
@@ -28,8 +29,8 @@ import {
   runBriefResearch,
 } from "./brief-research";
 
-const MUTED = "var(--surface-muted, #94A3B8)";
-const AMBER = "var(--semantic-warning, #F59E0B)"; // caution/progress notice (was raw yellow #fcd34d)
+const MUTED = PE.muted;
+const AMBER = PE.warning;
 
 /** The chassis-stored (per-property, JSON-serializable) brief tool state. */
 export interface BriefToolStoredState {

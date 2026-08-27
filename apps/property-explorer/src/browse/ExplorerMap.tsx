@@ -71,7 +71,7 @@ import { MapToolset, type LayerStateBadge } from "./MapToolset";
 import type { MapToolsController } from "./mapToolsController";
 import { asMaplibreMap } from "./satelliteBase";
 import { createFloodMapOverlayController } from "./flood-map-overlay";
-import { SmartSiteBadge, MapSourceInfo } from "./MapCornerChrome";
+import { SmartSiteBadge, MapSourceInfo, MapLegendBubble } from "./MapCornerChrome";
 import { SearchBar, subjectDisplayFromIdentity } from "./SearchBar";
 import { createLookupIntent } from "../lib/lookup-intent";
 import { PricingModal } from "./PricingModal";
@@ -425,6 +425,7 @@ function ExplorerMapSurface({
   const [openWorkbenchTool, setOpenWorkbenchToolState] = useState<string | null>(
     share ? SHARED_ANALYSIS_TOOL_ID : null,
   );
+  const [inspectBriefOpen, setInspectBriefOpen] = useState(false);
   const setOpenWorkbenchTool = useCallback(
     (next: string | null) => {
       setOpenWorkbenchToolState(next);
@@ -1442,6 +1443,7 @@ function ExplorerMapSurface({
     // Road NETWORK is viewport-owned — keep drawing after card close.
     setCard(null);
     setCardNodeId(null);
+    setInspectBriefOpen(false);
     parcelNodes.setInspected(null, "close-inspect");
   }, []);
   closeInspectRef.current = closeInspect;
@@ -1660,19 +1662,16 @@ function ExplorerMapSurface({
     inspectedRef.current?.parcelNodeId != null &&
     inspectedRef.current.parcelNodeId === subjectNodeIdRef.current;
 
-  // WB1: "Research this →" now OPENS the workbench brief bubble/dock. The
-  // fetch itself (same endpoint, same 401/402/503/404 states) moved into the
-  // BriefTool (workbench/tools/brief-research.ts) and its result is
-  // per-property persistent via the chassis store. With no baked node id the
-  // dock renders the honest "select a property first" state.
+  // Research this → expands the cited brief INSIDE the left inspect card.
+  // The right-hand Property brief dock is retired.
   const handleResearch = useCallback(() => {
     const nodeId = cardNodeId ?? inspectedRef.current?.parcelNodeId ?? null;
     void recordPeGtmEvent({
       eventType: "pe_research_clicked",
       parcelNodeId: nodeId,
     });
-    setOpenWorkbenchTool("brief");
-    if (isMobile) openSheet("research");
+    setInspectBriefOpen((open) => !open);
+    if (isMobile) openSheet("property");
   }, [cardNodeId, isMobile, openSheet]);
 
   // W2: latest inspect-card display facts for the Reports tool's site-plan
@@ -1694,6 +1693,11 @@ function ExplorerMapSurface({
   const workbenchHost = useMemo<WorkbenchHostActions>(
     () => ({
       openTool: (toolId: string) => {
+        if (toolId === "brief") {
+          setInspectBriefOpen(true);
+          if (isMobile) openSheet("property");
+          return;
+        }
         setOpenWorkbenchTool(toolId);
       },
       openPaywall: (
@@ -1745,7 +1749,7 @@ function ExplorerMapSurface({
         floodOverlay.set(study, forParcelNodeId ?? null);
       },
     }),
-    [runParcelLookup, floodOverlay, setOpenWorkbenchTool],
+    [runParcelLookup, floodOverlay, setOpenWorkbenchTool, isMobile, openSheet],
   );
 
   // ACTIVE PROPERTY for the workbench: the currently-INSPECTED parcel's baked
@@ -1869,9 +1873,30 @@ function ExplorerMapSurface({
           onToolsController={handleToolsController}
           isMobile={isMobile}
           layersSheetOpen={isMobile && activeSheet === "layers"}
-          // Aerial ON by default on landing — makes a better first impression
-          // than the dark basemap (operator decision, 2026-08-03).
           defaultSatellite={true}
+          anchor="left"
+          splitBubbles
+          stackExtras={
+            isMobile ? null : (
+              <>
+                <MapSourceInfo
+                  lines={sourceLines}
+                  isMobile={false}
+                  variant="stack"
+                />
+                <MapLegendBubble
+                  rows={[...visibleLayers].map((key) => ({
+                    key,
+                    label:
+                      key === SAVED_PINS_KEY
+                        ? SAVED_PINS_LAYER_LABEL
+                        : key.replace(/-/g, " "),
+                    note: layerStates[key]?.note,
+                  }))}
+                />
+              </>
+            )
+          }
         />
       )}
 
@@ -1891,26 +1916,51 @@ function ExplorerMapSurface({
           card). */}
       <SmartSiteBadge isMobile={isMobile} />
 
-      {/* Lower-right: the REQUIRED source/attribution AND the single attribution
-          place for the map, collapsed by default into a circular ⓘ bubble next
-          to the layers bubble (MapToolset). Clicking the ⓘ expands the live
-          source lines PLUS the required basemap/imagery credit (© OSM / © CARTO,
-          Esri) — MapLibre's own AttributionControl is suppressed on this mount
-          path (suppressAttributionControl above) so there is one credit UI, not
-          two overlapping in this corner. */}
-      <MapSourceInfo lines={sourceLines} isMobile={isMobile} />
-
-      {/* PE WORKBENCH (WB1): top-right bubble cluster + the ONE shared dock.
-          One tool open at a time; per-property persistent state via the
-          chassis store; the brief is the first live tool. The bottom-right
-          MapToolset bubble is a SEPARATE cluster (map utilities) — untouched. */}
+      {/* PE WORKBENCH: top-right rail (brief is NOT on the rail — it lives
+          in the left inspect card). Inspect card mounts inside the provider
+          so Research this can render BriefTool. */}
       <Workbench
         tools={workbenchTools}
         openToolId={openWorkbenchTool}
         onOpenToolChange={setOpenWorkbenchTool}
         activeParcelNodeId={activeParcelNodeId}
         host={workbenchHost}
-      />
+      >
+        {card && !isMobile && (
+          <InspectCard
+            card={card}
+            parcelNodeId={cardNodeId}
+            isSubject={isSubject}
+            researchOpen={inspectBriefOpen}
+            onClose={closeInspect}
+            onEnvelope={handleEnvelope}
+            onMakeSubject={handleMakeSubject}
+            onResearch={handleResearch}
+            onSaveProperty={handleSaveProperty}
+          />
+        )}
+        {card && isMobile && (
+          <MobileSheet
+            open={activeSheet === "property"}
+            testId="mobile-property-sheet"
+          >
+            <InspectCard
+              card={card}
+              parcelNodeId={cardNodeId}
+              isSubject={isSubject}
+              researchOpen={inspectBriefOpen}
+              onClose={() => {
+                closeInspect();
+                openSheet("map");
+              }}
+              onEnvelope={handleEnvelope}
+              onMakeSubject={handleMakeSubject}
+              onResearch={handleResearch}
+              onSaveProperty={handleSaveProperty}
+            />
+          </MobileSheet>
+        )}
+      </Workbench>
 
       {/* Type-ahead search (rebuilt Find bar): grouped suggestions with
           viewport bias; kind-aware landing (parcel → inspect card, address →
@@ -1949,39 +1999,7 @@ function ExplorerMapSurface({
         </MobileSheet>
       )}
 
-      {card && !isMobile && (
-        <InspectCard
-          card={card}
-          parcelNodeId={cardNodeId}
-          isSubject={isSubject}
-          onClose={closeInspect}
-          onEnvelope={handleEnvelope}
-          onMakeSubject={handleMakeSubject}
-          onResearch={handleResearch}
-          onSaveProperty={handleSaveProperty}
-        />
-      )}
-
-      {card && isMobile && (
-        <MobileSheet
-          open={activeSheet === "property"}
-          testId="mobile-property-sheet"
-        >
-          <InspectCard
-            card={card}
-            parcelNodeId={cardNodeId}
-            isSubject={isSubject}
-            onClose={() => {
-              closeInspect();
-              openSheet("map");
-            }}
-            onEnvelope={handleEnvelope}
-            onMakeSubject={handleMakeSubject}
-            onResearch={handleResearch}
-            onSaveProperty={handleSaveProperty}
-          />
-        </MobileSheet>
-      )}
+      {/* Inspect card mounts inside <Workbench> so BriefTool has chassis context. */}
 
       {/* THE ONE pricing modal (2026-08-24 ruling) — serves the reactive
           server-402 belt AND the dock locked-panels' "View pricing" button.

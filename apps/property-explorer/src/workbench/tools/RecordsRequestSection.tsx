@@ -4,6 +4,7 @@
 
 import { useCallback, useEffect, useState, type CSSProperties } from "react";
 import { Button } from "../../components/Button";
+import { PE } from "../../styles/pe-chrome";
 import {
   fetchRecordsRun,
   RECORDS_NOT_WIRED_NOTICE,
@@ -35,12 +36,12 @@ import type {
 export const RECORDS_PAYWALL_MESSAGE =
   "Records request — recorded documents from the county clerk's index, read and cited.";
 
-const APP_INK = "var(--app-ink, #0b0e13)";
-const TEXT = "var(--text-body, #E9EEF5)";
-const MUTED = "var(--surface-muted, #64748B)";
-const MUTED_2 = "var(--text-muted, #94A3B8)";
-const SLATE = "var(--honest-absence, #7C8BA0)";
-const BLUE = "var(--brand-blue, #3B82F6)";
+const APP_INK = PE.ink;
+const TEXT = PE.textStrong;
+const MUTED = PE.muted2;
+const MUTED_2 = PE.muted;
+const SLATE = PE.absence;
+const BLUE = PE.accent;
 const ATOM = ATOM_ACCENT;
 const CARD_BORDER = "rgba(154,166,178,0.16)";
 

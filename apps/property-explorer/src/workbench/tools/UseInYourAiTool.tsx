@@ -8,17 +8,15 @@
 // (`/s/{grantId}`). This sheet mints that link into the same chassis key the
 // Share tool uses, so the two surfaces stay one grant.
 
-import { useState, type CSSProperties } from "react";
+import { useState } from "react";
+import { Button } from "../../components/Button";
+import { StatusChip } from "../../components/StatusChip";
 import { usePropertyEntitlement } from "../../lib/usePropertyEntitlement";
 import { mintShareLink } from "../../lib/shareClient";
+import { PE } from "../../styles/pe-chrome";
 import { useDockToolState, useWorkbench } from "../WorkbenchContext";
 import { LockedToolPanel } from "./LockedToolPanel";
 import type { ShareToolStoredState } from "./ShareTool";
-
-const TEXT = "var(--text-body, #e5e7eb)";
-const MUTED = "var(--surface-muted, #94A3B8)";
-const ACCENT = "var(--brand-blue, #3B82F6)";
-const AMBER = "var(--semantic-warning, #F59E0B)";
 
 export const USE_IN_YOUR_AI_VALUE_LINE =
   "Your Smart Site account, in the chat you already use. Same plan. No key.";
@@ -92,7 +90,7 @@ export function UseInYourAiBody({
     <div data-testid="use-in-ai-tool">
       <p
         data-testid="use-in-ai-lede"
-        style={{ margin: "0 0 12px", fontSize: 11.5, lineHeight: 1.5, color: TEXT }}
+        style={{ margin: "0 0 12px", fontSize: 11.5, lineHeight: 1.5, color: PE.text }}
       >
         {USE_IN_YOUR_AI_VALUE_LINE}
       </p>
@@ -102,18 +100,18 @@ export function UseInYourAiBody({
         style={{
           marginBottom: 14,
           padding: "10px 10px 8px",
-          borderRadius: 8,
-          border: "1px solid var(--brand-blue-border-soft, rgba(59,130,246,0.28))",
+          borderRadius: PE.radiusCard,
+          border: `1px solid ${PE.accentBorderSoft}`,
         }}
       >
-        <p style={{ margin: "0 0 8px", fontSize: 11.5, lineHeight: 1.5, color: TEXT }}>
+        <p style={{ margin: "0 0 8px", fontSize: 11.5, lineHeight: 1.5, color: PE.text }}>
           Connect is not live yet. Paste a share link into any chat that
           fetches URLs. Claude can read it today.
         </p>
         {!hasParcel ? (
           <p
             data-testid="use-in-ai-need-parcel"
-            style={{ margin: 0, fontSize: 11, color: MUTED }}
+            style={{ margin: 0, fontSize: 11, color: PE.muted }}
           >
             Select a property on the map, then create the link from this sheet.
           </p>
@@ -123,38 +121,36 @@ export function UseInYourAiBody({
               data-testid="use-in-ai-share-url"
               style={{
                 fontSize: 10.5,
-                color: ACCENT,
+                color: PE.accent,
                 wordBreak: "break-all",
                 marginBottom: 8,
               }}
             >
               {shareUrl}
             </div>
-            <button
+            <Button
+              variant="primary"
+              fullWidth
               type="button"
               data-testid="use-in-ai-copy-share"
               onClick={onCopyShare}
-              style={primaryBtn()}
             >
               {sharePhase.kind === "copied" ? "Copied" : "Copy share link"}
-            </button>
+            </Button>
           </>
         ) : (
-          <button
+          <Button
+            variant="primary"
+            fullWidth
             type="button"
             data-testid="use-in-ai-create-share"
             onClick={onCreateShare}
             disabled={sharePhase.kind === "minting"}
-            style={{
-              ...primaryBtn(),
-              opacity: sharePhase.kind === "minting" ? 0.6 : 1,
-              cursor: sharePhase.kind === "minting" ? "default" : "pointer",
-            }}
           >
             {sharePhase.kind === "minting"
               ? "Creating link…"
               : "Create a link Claude can fetch"}
-          </button>
+          </Button>
         )}
         {sharePhase.kind === "notice" ? (
           <p
@@ -162,7 +158,7 @@ export function UseInYourAiBody({
             style={{
               margin: "8px 0 0",
               fontSize: 11,
-              color: sharePhase.tone === "amber" ? AMBER : MUTED,
+              color: sharePhase.tone === "amber" ? PE.warning : PE.muted,
             }}
           >
             {sharePhase.text}
@@ -192,26 +188,21 @@ export function UseInYourAiBody({
                 gap: 8,
               }}
             >
-              <strong style={{ fontSize: 12, color: TEXT }}>{row.name}</strong>
-              <span
+              <strong style={{ fontSize: 12, color: PE.text }}>{row.name}</strong>
+              <StatusChip
                 data-testid={`use-in-ai-status-${row.id}`}
-                style={{
-                  fontSize: 10.5,
-                  fontWeight: 600,
-                  color: row.status === "unavailable" ? AMBER : MUTED,
-                  whiteSpace: "nowrap",
-                }}
+                tone={row.status === "unavailable" ? "warning" : "absence"}
               >
                 {row.statusLabel}
-              </span>
+              </StatusChip>
             </div>
-            <p style={{ margin: "4px 0 0", fontSize: 11, lineHeight: 1.45, color: MUTED }}>
+            <p style={{ margin: "4px 0 0", fontSize: 11, lineHeight: 1.45, color: PE.muted }}>
               {row.line}
             </p>
             {row.note ? (
               <p
                 data-testid={`use-in-ai-note-${row.id}`}
-                style={{ margin: "4px 0 0", fontSize: 10.5, lineHeight: 1.4, color: MUTED }}
+                style={{ margin: "4px 0 0", fontSize: 10.5, lineHeight: 1.4, color: PE.muted }}
               >
                 {row.note}
               </p>
@@ -221,21 +212,6 @@ export function UseInYourAiBody({
       </ul>
     </div>
   );
-}
-
-function primaryBtn(): CSSProperties {
-  return {
-    width: "100%",
-    padding: "8px 12px",
-    fontSize: 12,
-    fontWeight: 600,
-    color: "#0d1117",
-    background: ACCENT,
-    border: "none",
-    borderRadius: "var(--btn-radius, 9px)",
-    cursor: "pointer",
-    fontFamily: "inherit",
-  };
 }
 
 export function UseInYourAiTool() {

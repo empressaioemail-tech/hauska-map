@@ -14,7 +14,9 @@
 //     old links stay valid until their own expiry — tokens are stateless).
 
 import { useState } from "react";
+import { Button } from "../../components/Button";
 import { usePropertyEntitlement } from "../../lib/usePropertyEntitlement";
+import { PE } from "../../styles/pe-chrome";
 import { useDockToolState, useWorkbench } from "../WorkbenchContext";
 import { LockedToolPanel } from "./LockedToolPanel";
 import {
@@ -26,10 +28,10 @@ import {
 export const SHARE_VALUE_LINE =
   "Share links carry the grant-scoped instrument for this property. The public-record brief is one source. Site plan, terrain, and X-ray appear when the sharer exported them. Owner data is labelled when it cannot be served.";
 
-const MUTED = "var(--surface-muted, #94A3B8)";
-const AMBER = "var(--semantic-warning, #F59E0B)";
-const TEXT = "var(--text-body, #e5e7eb)";
-const ACCENT = "var(--brand-blue, #3B82F6)";
+const MUTED = PE.muted;
+const AMBER = PE.warning;
+const TEXT = PE.text;
+const ACCENT = PE.accent;
 
 /** The chassis-stored (per-property, JSON-serializable) share tool state. */
 export interface ShareToolStoredState {
@@ -90,42 +92,26 @@ export function ShareBody({
             {stored.link.url}
           </div>
           <div style={{ display: "flex", gap: 8, marginBottom: 6 }}>
-            <button
+            <Button
+              variant="primary"
+              dense
               type="button"
               data-testid="share-copy"
               onClick={onCopy}
-              style={{
-                flex: 1,
-                padding: "7px 10px",
-                fontSize: 11.5,
-                fontWeight: 600,
-                color: "#0d1117",
-                background: ACCENT,
-                border: "none",
-                borderRadius: "var(--btn-radius, 9px)",
-                cursor: "pointer",
-              }}
+              style={{ flex: 1 }}
             >
               {phase.kind === "copied" ? "Copied" : "Copy link"}
-            </button>
-            <button
+            </Button>
+            <Button
+              variant="secondary"
+              dense
               type="button"
               data-testid="share-regenerate"
               onClick={onCreate}
               disabled={phase.kind === "minting"}
-              style={{
-                padding: "7px 10px",
-                fontSize: 11.5,
-                fontWeight: 600,
-                color: TEXT,
-                background: "transparent",
-                border: "1px solid rgba(154,166,178,0.35)",
-                borderRadius: 6,
-                cursor: phase.kind === "minting" ? "default" : "pointer",
-              }}
             >
               {phase.kind === "minting" ? "…" : "Regenerate"}
-            </button>
+            </Button>
           </div>
           <p data-testid="share-expiry" style={{ margin: 0, fontSize: 10, color: MUTED }}>
             {fmtExpiry(stored.link.expiresAt)} Regenerating mints a fresh link;
@@ -140,26 +126,16 @@ export function ShareBody({
             appear when the sharer exported them. Owner data is labelled when
             withheld. No sign-in needed to view. This property only, 30 days.
           </p>
-          <button
+          <Button
+            variant="primary"
+            fullWidth
             type="button"
             data-testid="share-create"
             onClick={onCreate}
             disabled={phase.kind === "minting"}
-            style={{
-              width: "100%",
-              padding: "8px 12px",
-              fontSize: 12,
-              fontWeight: 600,
-              color: "#0d1117",
-              background: ACCENT,
-              border: "none",
-              borderRadius: "var(--btn-radius, 9px)",
-              cursor: phase.kind === "minting" ? "default" : "pointer",
-              opacity: phase.kind === "minting" ? 0.6 : 1,
-            }}
           >
             {phase.kind === "minting" ? "Creating link…" : "Create share link"}
-          </button>
+          </Button>
         </>
       )}
       {phase.kind === "notice" && (

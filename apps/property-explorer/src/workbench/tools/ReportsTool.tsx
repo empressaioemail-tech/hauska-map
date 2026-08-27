@@ -14,6 +14,7 @@ import {
   type TerrainExportSectionState,
 } from "../../browse/TerrainExportSection";
 import { Button } from "../../components/Button";
+import { PE } from "../../styles/pe-chrome";
 import { DownloadFileButton } from "../../components/DownloadFileButton";
 import { recordPeGtmEvent } from "../../lib/gtmClient";
 import { studioGrantedForEntitlement } from "../../lib/entitlementClient";
@@ -53,10 +54,10 @@ export const TERRAIN_PAYWALL_MESSAGE =
 export const DOSSIER_PAYWALL_MESSAGE =
   "The property X-ray PDF — verdict, cited brief facts, your notes and AI research summary, with the site-plan sheets appended.";
 
-const MUTED = "var(--surface-muted, #64748B)";
-const TEXT = "var(--text-body, #e5e7eb)";
+const MUTED = PE.muted2;
+const TEXT = PE.text;
 const CARD_BORDER = "var(--surface-border, #243247)";
-const BLUE = "var(--brand-blue, #3B82F6)";
+const BLUE = PE.accent;
 
 export interface DossierDockState {
   notice: string | null;

@@ -17,6 +17,7 @@
 
 import { useState } from "react";
 import { Button } from "../components/Button";
+import { PE } from "../styles/pe-chrome";
 import { useCheckoutActions, clampTeamSeats } from "./useCheckoutActions";
 import { UnlockCheckoutModal } from "../checkout/UnlockCheckoutModal";
 import { SubscriptionCheckoutModal } from "../checkout/SubscriptionCheckoutModal";
@@ -34,13 +35,13 @@ import {
   type PricingInterval,
 } from "../lib/pricing";
 
-const CARD_BG = "rgba(17, 21, 28, 0.92)";
-const ACCENT = "var(--brand-blue, #3B82F6)";
-const TEXT = "#e9eef5";
-const BODY = "#c6d0dc";
-const MUTED = "var(--surface-muted, #94A3B8)";
-const ABSENCE = "var(--semantic-absence, #7C8BA0)";
-const AMBER = "var(--semantic-warning, #F59E0B)";
+const CARD_BG = PE.card;
+const ACCENT = PE.accent;
+const TEXT = PE.textStrong;
+const BODY = PE.muted;
+const MUTED = PE.muted;
+const ABSENCE = PE.absence;
+const AMBER = PE.warning;
 const ROW_BORDER = "0.5px solid var(--surface-border-rgba, rgba(154,166,178,0.3))";
 const ROW_BORDER_SOFT =
   "0.5px solid var(--surface-border-rgba, rgba(154,166,178,0.22))";

@@ -36,7 +36,9 @@ import {
   type DossierStatus,
 } from "../../lib/propertyDossier";
 import { pinAccent, resolvePinForSave } from "../../lib/saved-pins";
+import { Button } from "../../components/Button";
 import { GoogleSignInButton } from "../../components/GoogleSignInButton";
+import { PE } from "../../styles/pe-chrome";
 import { parcelNodes } from "../../lib/parcel-node-store.js";
 import { recordPeGtmEvent } from "../../lib/gtmClient";
 import { useWorkbench } from "../WorkbenchContext";
@@ -52,10 +54,10 @@ import {
 export const DOSSIER_PAYWALL_MESSAGE =
   "The property X-ray PDF — verdict, cited brief facts, your notes and AI research summary, with the site-plan sheets appended.";
 
-const MUTED = "var(--surface-muted, #94A3B8)";
-const AMBER = "var(--semantic-warning, #F59E0B)"; // sign-in / caution notice (was raw yellow #fcd34d)
-const TEXT = "var(--text-body, #e5e7eb)";
-const ACCENT = "var(--brand-blue, #3B82F6)"; // PRIMARY interactive hue (was cyan #7dd3fc)
+const MUTED = PE.muted;
+const AMBER = PE.warning;
+const TEXT = PE.text;
+const ACCENT = PE.accent;
 
 type ListPhase =
   | { kind: "loading" }
@@ -200,27 +202,17 @@ export function PropertiesList({
   return (
     <div data-testid="properties-list">
       {activeParcelNodeId && !activeSaved && (
-        <button
+        <Button
+          variant="primary"
+          fullWidth
           type="button"
           data-testid="properties-save-current"
           onClick={onSaveCurrent}
           disabled={busy}
-          style={{
-            width: "100%",
-            marginBottom: 10,
-            padding: "7px 10px",
-            fontSize: 11.5,
-            fontWeight: 600,
-            color: "#0d1117",
-            background: ACCENT,
-            border: "none",
-            borderRadius: "var(--btn-radius, 9px)",
-            cursor: busy ? "default" : "pointer",
-            opacity: busy ? 0.6 : 1,
-          }}
+          style={{ marginBottom: 10 }}
         >
           Save current property
-        </button>
+        </Button>
       )}
 
       {showFilter && (
@@ -634,21 +626,16 @@ export function PropertiesTool() {
           <p style={{ margin: "0 0 8px", fontSize: 11.5, color: MUTED }}>
             This property is no longer saved.
           </p>
-          <button
+          <Button
+            variant="ghost"
+            dense
             type="button"
             data-testid="dossier-back"
             onClick={handleBack}
-            style={{
-              background: "transparent",
-              border: "none",
-              color: ACCENT,
-              cursor: "pointer",
-              padding: 0,
-              fontSize: 11.5,
-            }}
+            style={{ padding: 0, border: "none", fontSize: 11.5 }}
           >
             ← All saved properties
-          </button>
+          </Button>
         </div>
       );
     }

@@ -30,7 +30,7 @@
 // tool dismisses the sheet it was activated from — you cannot draw on a map
 // that a sheet is covering.
 
-import { useEffect, useRef, useState, type RefObject } from "react";
+import { useEffect, useRef, useState, type CSSProperties, type ReactNode, type RefObject } from "react";
 import { GeolocateControl } from "maplibre-gl";
 import type { Map as MaplibreMap } from "maplibre-gl";
 import type { FloatingMapHandle } from "../FloatingMap";
@@ -107,6 +107,85 @@ const ICONS = {
   hide: "m2 2 20 20M6.7 6.7A10.5 10.5 0 0 0 2 12s3.6 6.5 10 6.5a9.8 9.8 0 0 0 4.6-1.2m2.7-2.1A10.6 10.6 0 0 0 22 12s-3.6-6.5-10-6.5c-.7 0-1.4.1-2 .2",
   collapse: "m6 15 6-6 6 6",
 } as const;
+
+function chromeBubbleStyle(active: boolean): CSSProperties {
+  return {
+    width: 44,
+    height: 44,
+    borderRadius: "50%",
+    border: PANEL_BORDER,
+    background: active ? "rgba(59,130,246,0.18)" : PANEL_BG,
+    color: active ? "#3B82F6" : TEXT,
+    cursor: "pointer",
+    display: "flex",
+    alignItems: "center",
+    justifyContent: "center",
+    boxShadow: "0 8px 24px rgba(0,0,0,0.5)",
+  };
+}
+
+function MapFlyTip({
+  label,
+  detail,
+  side,
+  children,
+}: {
+  label: string;
+  detail: string;
+  side: "left" | "right";
+  children: ReactNode;
+}) {
+  const [open, setOpen] = useState(false);
+  const timer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const show = () => {
+    if (timer.current) clearTimeout(timer.current);
+    timer.current = setTimeout(() => setOpen(true), 80);
+  };
+  const hide = () => {
+    if (timer.current) clearTimeout(timer.current);
+    setOpen(false);
+  };
+  return (
+    <div
+      style={{ position: "relative", display: "inline-flex" }}
+      onMouseEnter={show}
+      onMouseLeave={hide}
+      onFocus={show}
+      onBlur={hide}
+    >
+      {children}
+      {open ? (
+        <div
+          role="tooltip"
+          data-testid="map-fly-tip"
+          style={{
+            position: "absolute",
+            zIndex: 40,
+            top: "50%",
+            ...(side === "left"
+              ? { right: "calc(100% + 10px)" }
+              : { left: "calc(100% + 10px)" }),
+            transform: "translateY(-50%)",
+            minWidth: 132,
+            maxWidth: 210,
+            padding: "7px 10px",
+            borderRadius: 8,
+            background: PANEL_BG,
+            border: PANEL_BORDER,
+            boxShadow: "0 10px 28px rgba(0,0,0,0.5)",
+            pointerEvents: "none",
+            color: TEXT,
+          }}
+        >
+          <div style={{ fontSize: 11.5, fontWeight: 700, lineHeight: 1.25 }}>{label}</div>
+          <div style={{ marginTop: 3, fontSize: 10.5, lineHeight: 1.35, color: MUTED }}>
+            {detail}
+          </div>
+        </div>
+      ) : null}
+    </div>
+  );
+}
 
 function ToolIcon({ path, size = 15 }: { path: string; size?: number }) {
   return (
@@ -533,6 +612,9 @@ export function MapToolset({
   onLocated,
   /** W4 panel seam: host-owned "put this panel away" (mobile sheet close). */
   onRequestClose,
+  anchor = "right",
+  splitBubbles = false,
+  stackExtras,
 }: {
   mapRef: RefObject<FloatingMapHandle | null>;
   /** Full layer set this surface knows about (mount seed) — a toggled-off
@@ -558,6 +640,12 @@ export function MapToolset({
   noteScope?: NoteScope | null;
   onLocated?: (position: LocatedPosition) => void;
   onRequestClose?: () => void;
+  /** Desktop corner. PE uses left so the inspect card / brand stay the left stack. */
+  anchor?: "left" | "right";
+  /** Separate draw + layers bubbles instead of one unified bubble. */
+  splitBubbles?: boolean;
+  /** Extra bubbles stacked above draw/layers (legend, notifications). */
+  stackExtras?: ReactNode;
 }) {
   // The live maplibre map, resolved once the handle is ready.
   const [map, setMap] = useState<MaplibreMap | null>(null);
@@ -579,6 +667,7 @@ export function MapToolset({
   // lower-right corner; clicking it expands the panel upward. Collapsed by
   // default so the map (and the top-right brief) own the screen.
   const [expanded, setExpanded] = useState(presentation === "embedded");
+  const [panelKind, setPanelKind] = useState<"all" | "tools" | "layers">("all");
   // W4 panel manager: each section folds on its own, so a long layer list never
   // buries the tools and the results never bury the layers.
   const [toolsOpen, setToolsOpen] = useState(true);
@@ -1171,17 +1260,28 @@ export function MapToolset({
     );
   }
 
+  const tipSide = anchor === "left" ? "right" : "left";
+  const toggleKind = (kind: "tools" | "layers") => {
+    if (expanded && panelKind === kind) {
+      setExpanded(false);
+      return;
+    }
+    setPanelKind(kind);
+    setExpanded(true);
+  };
+
   return (
     <div
       data-testid="map-toolset"
+      data-anchor={anchor}
       style={{
         position: "absolute",
-        bottom: 16,
-        right: 12,
+        bottom: anchor === "left" ? 56 : 16,
+        ...(anchor === "left" ? { left: 12 } : { right: 12 }),
         zIndex: MAP_PANEL_Z.toolset,
         display: "flex",
         flexDirection: "column",
-        alignItems: "flex-end",
+        alignItems: anchor === "left" ? "flex-start" : "flex-end",
         gap: 8,
         fontFamily: "system-ui, -apple-system, Segoe UI, Roboto, sans-serif",
       }}
@@ -1216,7 +1316,13 @@ export function MapToolset({
             borderBottom: "0.5px solid rgba(154,166,178,0.18)",
           }}
         >
-          <span style={{ ...sectionHeaderStyle(), flex: 1 }}>Map tools</span>
+          <span style={{ ...sectionHeaderStyle(), flex: 1 }}>
+            {panelKind === "layers"
+              ? "Layers"
+              : panelKind === "tools"
+                ? "Draw & measure"
+                : "Map tools"}
+          </span>
           <button
             type="button"
             data-testid="map-toolset-hide-all"
@@ -1277,42 +1383,78 @@ export function MapToolset({
           "Sources" panel (© OSM / © CARTO + SATELLITE_ATTRIBUTION), which is the
           single attribution place. See MapCornerChrome.tsx / ExplorerMap.tsx. */}
 
-      {/* The bubble: always visible, toggles the panel. */}
-      <button
-        type="button"
-        data-testid="map-toolset-bubble"
-        aria-label={expanded ? "Collapse map tools & layers" : "Expand map tools & layers"}
-        aria-expanded={expanded}
-        onClick={() => setExpanded((v) => !v)}
+      <div
         style={{
-          width: 44,
-          height: 44,
-          borderRadius: "50%",
-          border: PANEL_BORDER,
-          background: expanded ? "rgba(125,211,252,0.18)" : PANEL_BG,
-          color: expanded ? ACCENT : TEXT,
-          cursor: "pointer",
           display: "flex",
-          alignItems: "center",
-          justifyContent: "center",
-          boxShadow: "0 8px 24px rgba(0,0,0,0.5)",
+          flexDirection: "column",
+          alignItems: anchor === "left" ? "flex-start" : "flex-end",
+          gap: 8,
         }}
       >
-        {/* layer-stack glyph */}
-        <svg
-          viewBox="0 0 24 24"
-          width={20}
-          height={20}
-          aria-hidden="true"
-          fill="none"
-          stroke="currentColor"
-          strokeWidth={2}
-          strokeLinecap="round"
-          strokeLinejoin="round"
-        >
-          <path d="M12 2 2 7.5 12 13l10-5.5L12 2Zm-10 10L12 17.5 22 12M2 16.5 12 22l10-5.5" />
-        </svg>
-      </button>
+        {stackExtras}
+        {splitBubbles ? (
+          <>
+            <MapFlyTip
+              side={tipSide}
+              label="Draw"
+              detail="Measure, draw, drop a marker, or pin a note."
+            >
+              <button
+                type="button"
+                data-testid="map-toolset-draw-bubble"
+                aria-label={expanded && panelKind === "tools" ? "Hide drawing tools" : "Drawing tools"}
+                aria-expanded={expanded && panelKind === "tools"}
+                onClick={() => toggleKind("tools")}
+                style={chromeBubbleStyle(expanded && panelKind === "tools")}
+              >
+                <svg viewBox="0 0 24 24" width={20} height={20} aria-hidden="true" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round">
+                  <path d={ICONS.draw} />
+                </svg>
+              </button>
+            </MapFlyTip>
+            <MapFlyTip
+              side={tipSide}
+              label="Layers"
+              detail="Turn map layers on or off."
+            >
+              <button
+                type="button"
+                data-testid="map-toolset-bubble"
+                aria-label={expanded && panelKind === "layers" ? "Hide layers" : "Map layers"}
+                aria-expanded={expanded && panelKind === "layers"}
+                onClick={() => toggleKind("layers")}
+                style={chromeBubbleStyle(expanded && panelKind === "layers")}
+              >
+                <svg viewBox="0 0 24 24" width={20} height={20} aria-hidden="true" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round">
+                  <path d="M12 2 2 7.5 12 13l10-5.5L12 2Zm-10 10L12 17.5 22 12M2 16.5 12 22l10-5.5" />
+                </svg>
+              </button>
+            </MapFlyTip>
+          </>
+        ) : (
+          <MapFlyTip
+            side={tipSide}
+            label="Map tools"
+            detail="Drawing tools and the layer list."
+          >
+            <button
+              type="button"
+              data-testid="map-toolset-bubble"
+              aria-label={expanded ? "Collapse map tools & layers" : "Expand map tools & layers"}
+              aria-expanded={expanded}
+              onClick={() => {
+                setPanelKind("all");
+                setExpanded((v) => !v);
+              }}
+              style={chromeBubbleStyle(expanded)}
+            >
+              <svg viewBox="0 0 24 24" width={20} height={20} aria-hidden="true" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round">
+                <path d="M12 2 2 7.5 12 13l10-5.5L12 2Zm-10 10L12 17.5 22 12M2 16.5 12 22l10-5.5" />
+              </svg>
+            </button>
+          </MapFlyTip>
+        )}
+      </div>
     </div>
   );
 }

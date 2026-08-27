@@ -7,14 +7,15 @@ import {
 } from "../lib/sitePlanExportClient";
 import { GoogleSignInButton } from "../components/GoogleSignInButton";
 import { Button } from "../components/Button";
+import { PE } from "../styles/pe-chrome";
 import {
   DownloadFileButton,
   downloadFormatLabel,
   formatByteCount,
 } from "../components/DownloadFileButton";
 
-const MUTED = "var(--surface-muted, #94A3B8)";
-const WARN = "var(--semantic-warning, #F59E0B)"; // caution notice (was ochre #c98b3a)
+const MUTED = PE.muted;
+const WARN = PE.warning;
 
 const HONESTY_LINE =
   "Derived from public GIS records. Not a boundary survey. Not for legal record.";

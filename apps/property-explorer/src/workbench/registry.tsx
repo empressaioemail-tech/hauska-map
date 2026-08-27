@@ -30,9 +30,8 @@ const ICONS = {
   reports: "M9 3h7l4 4v11H9V3Zm7 0v4h4M5 8v13h11",
   // Bookmark (saved properties).
   properties: "M7 3h10v18l-5-4-5 4V3Z",
-  // Share nodes.
-  share:
-    "M18 8a2.5 2.5 0 1 0 0-5 2.5 2.5 0 0 0 0 5ZM6 14.5a2.5 2.5 0 1 0 0-5 2.5 2.5 0 0 0 0 5Zm12 6.5a2.5 2.5 0 1 0 0-5 2.5 2.5 0 0 0 0 5ZM8.2 10.9 15.8 7m-7.6 6.1 7.6 3.9",
+  // iOS share — tray with an arrow flying out the top.
+  share: "M4 12v8a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-8M16 6l-4-4-4 4M12 2v13",
   // Monitor face (Use in your AI — rail circle).
   useInAi: "M4 6h16a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2Zm5 5h.01M15 11h.01M9.5 14.5h5",
   // Two overlapping rectangles (compare).
@@ -40,10 +39,10 @@ const ICONS = {
 } as const;
 
 /**
- * The static v1 registry. Order = cluster order, top to bottom. SEVEN live
- * bubbles (brief, chat, reports, properties, share, use-in-ai, compare) —
- * Flood & Drainage folded INSIDE Reports & exports (FloodDrainageSection);
- * its map overlay renders through the host seam, not a bubble.
+ * The static v1 registry. Rail order = cluster order, top to bottom. SIX
+ * rail bubbles (chat, reports, properties, share, use-in-ai, compare).
+ * Property brief lives in the left inspect card — no right-rail bubble.
+ * Flood & Drainage stays inside Reports & exports.
  */
 export const WORKBENCH_TOOLS: WorkbenchToolDef[] = [
   {
@@ -52,6 +51,8 @@ export const WORKBENCH_TOOLS: WorkbenchToolDef[] = [
     icon: <WorkbenchIcon path={ICONS.brief} />,
     status: "live",
     propertyScoped: true,
+    inCluster: false,
+    tip: "Cited research on this parcel — now in the left card.",
     render: () => <BriefTool />,
   },
   {
@@ -60,6 +61,7 @@ export const WORKBENCH_TOOLS: WorkbenchToolDef[] = [
     icon: <WorkbenchIcon path={ICONS.chat} />,
     status: "live",
     propertyScoped: true,
+    tip: "Ask about this property. Answers come back cited.",
     render: () => <ChatTool />,
   },
   {
@@ -68,46 +70,44 @@ export const WORKBENCH_TOOLS: WorkbenchToolDef[] = [
     icon: <WorkbenchIcon path={ICONS.reports} />,
     status: "live",
     propertyScoped: true,
+    tip: "Site plan, flood study, records, and X-ray PDF.",
     render: () => <ReportsTool />,
   },
   {
-    // W4: saved-properties workspace (server is the truth; deep-proxy routes).
     id: "properties",
     label: "My properties",
     icon: <WorkbenchIcon path={ICONS.properties} />,
     status: "live",
     propertyScoped: false,
+    tip: "Saved parcels, notes, and drawings.",
     render: () => <PropertiesTool />,
   },
   {
-    // W4: share links that carry the analysis (signed one-parcel tokens).
     id: "share",
     label: "Share",
     icon: <WorkbenchIcon path={ICONS.share} />,
     status: "live",
     propertyScoped: true,
+    tip: "A link that carries this property's analysis.",
     render: () => <ShareTool />,
   },
   {
-    // P-87 items 15/16: Use in your AI. OAuth is not live — sheet is Coming
-    // soon / Unavailable, never a fake Connect. Share-link mint is the
-    // working hook until Connect ships.
     id: "use-in-ai",
     label: "Use in your AI",
     icon: <WorkbenchIcon path={ICONS.useInAi} />,
     status: "live",
     propertyScoped: false,
     expandable: false,
+    tip: "Open this property in Claude, ChatGPT, Cursor, or Copilot.",
     render: () => <UseInYourAiTool />,
   },
   {
-    // WB7: compare two SAVED properties side by side INSIDE the one dock.
-    // Operates on the saved list — works with no active property.
     id: "compare",
     label: "Compare",
     icon: <WorkbenchIcon path={ICONS.compare} />,
     status: "live",
     propertyScoped: false,
+    tip: "Two saved properties, side by side.",
     render: () => <CompareTool />,
   },
 ];

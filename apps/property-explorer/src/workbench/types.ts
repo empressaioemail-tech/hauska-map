@@ -163,6 +163,13 @@ export interface WorkbenchToolDef {
    * compact (e.g. a one-line action) and gains nothing from enlarging.
    */
   expandable?: boolean;
+  /**
+   * False → the tool is live but has no right-rail bubble (the inspect card
+   * owns it). The dock can still render it if a host opens that tool id.
+   */
+  inCluster?: boolean;
+  /** Fly-out tip body under the label. */
+  tip?: string;
   /** Dock content for live tools. Omit for "coming" entries. */
   render?: (ctx: WorkbenchToolContext) => ReactNode;
 }
