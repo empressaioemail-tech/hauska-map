@@ -637,7 +637,7 @@ function SelectedEngine({
         parcelNodeId={parcelNodeId}
         address={facts.address}
         countyName={facts.countyName}
-        studioLocked={false}
+        studioLocked={terrainProLocked}
         onPaymentRequired={() =>
           onPaymentRequired(RECORDS_PAYWALL_MESSAGE, {
             studioOnly: true,
