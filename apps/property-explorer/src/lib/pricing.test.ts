@@ -1,13 +1,16 @@
 import { describe, expect, it } from "vitest";
 import {
   PE_PRICING,
+  annualFromMonthlyUsd,
   defaultPricingInterval,
+  extraSeatUsd,
   matrixCellText,
   propertyChoiceLabel,
   propertyUnlockOffer,
   soloChoiceLabel,
   studioChoiceLabel,
   proChoiceLabel,
+  teamMonthlyTotalUsd,
   teamSeatsControlVisible,
   teamSeatsOnWire,
   tierHeadline,
@@ -36,7 +39,7 @@ describe("PE_PRICING — locked 2026-08-10 ladder", () => {
     expect(PE_PRICING.team.annualPriceLabel).toBe("$2,990");
     expect(PE_PRICING.team.extraSeatPriceLabel).toBe("$25");
     expect(PE_PRICING.team.baseSeats).toBe(10);
-    expect(defaultPricingInterval()).toBe("monthly");
+    expect(defaultPricingInterval()).toBe("annual");
     expect(teamSeatsControlVisible("annual")).toBe(false);
     expect(teamSeatsControlVisible("monthly")).toBe(true);
     expect(tierHeadline("studio", "annual").amount).toBe("$1,290");
@@ -51,6 +54,17 @@ describe("PE_PRICING — locked 2026-08-10 ladder", () => {
     expect(toCheckoutInterval("annual")).not.toBe("annual");
     expect(teamSeatsOnWire("annual", 14)).toBe(PE_PRICING.team.baseSeats);
     expect(teamSeatsOnWire("monthly", 14)).toBe(14);
+  });
+
+  it("Team 12-seat math is $25 after 10, never leftover $45", () => {
+    expect(extraSeatUsd()).toBe(25);
+    expect(extraSeatUsd()).not.toBe(45);
+    expect(teamMonthlyTotalUsd(10)).toBe(299);
+    expect(teamMonthlyTotalUsd(12)).toBe(349);
+    expect(teamMonthlyTotalUsd(12)).not.toBe(299 + 2 * 45);
+    expect(annualFromMonthlyUsd(49)).toBe(490);
+    expect(annualFromMonthlyUsd(129)).toBe(1290);
+    expect(annualFromMonthlyUsd(299)).toBe(2990);
   });
 
   it("retired Pro framing is gone from user-visible labels", () => {

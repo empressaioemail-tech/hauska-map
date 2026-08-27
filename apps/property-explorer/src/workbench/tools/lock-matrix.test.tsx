@@ -155,7 +155,7 @@ describe("REPORTS bubble (Option D picker; TERRAIN Studio-only when selected)", 
     const html = renderTool("reports");
     expect(html).not.toContain('data-testid="reports-locked"');
     expect(html).toContain('data-testid="reports-doc-picker"');
-    expect(html).toContain("Site plan sheet");
+    expect(html).toContain("Site plan");
     expect(html).not.toContain('data-testid="flood-run"');
     expect(html).not.toContain('data-testid="terrain-pro-lock"');
   });
@@ -232,7 +232,7 @@ describe("REPORTS bubble (Option D picker; TERRAIN Studio-only when selected)", 
 
   it("devRole clears every generatable report row (not coming-soon)", () => {
     primePropertyEntitlement(PARCEL, DEV);
-    for (const docId of ["REC", "DOSS", "FLOOD", "SPPDF", "SPDXF", "SPIFC", "TERGLB", "TERIFC", "TERDXF"]) {
+    for (const docId of ["REC", "DOSS", "FLOOD", "SITEPLAN", "TERRAIN", "SPPDF", "TERGLB"]) {
       const html = renderTool("reports", { selectedDoc: docId });
       expect(html).not.toContain('data-testid="reports-locked"');
       expect(html).not.toContain('data-testid="terrain-pro-lock"');
@@ -344,6 +344,9 @@ describe("CHAT bubble (3 signed-in-free messages → wall)", () => {
     const html = renderTool("chat", { store: storeWithThread() });
     expect(html).toContain('data-testid="chat-wall"');
     expect(html).toContain('data-testid="view-pricing-button"');
+    expect(html).toContain("last free question");
+    expect(html).not.toContain("3 of 3");
+    expect(html).not.toContain("chats used");
     expect(html).not.toContain('data-testid="unlock-property-choice"');
     expect(html).not.toContain('data-testid="unlock-solo-choice"');
     expect(html).not.toContain('data-testid="chat-input"');

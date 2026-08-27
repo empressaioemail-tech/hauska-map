@@ -2,7 +2,11 @@
 // markup. Right column mounts Stripe Payment Element. No invented card fields.
 // Mounted inside SubscriptionCheckoutModal so the map stays mounted.
 
-import { PE_PRICING, type PePricedTier } from "../lib/pricing";
+import {
+  PE_PRICING,
+  teamMonthlyTotalLabel,
+  type PePricedTier,
+} from "../lib/pricing";
 import {
   readCheckoutOrigin,
   readCustomCheckoutSession,
@@ -53,6 +57,10 @@ export function CheckoutPage({
   );
   const tier = q.tier as PePricedTier;
   const headline = tierCheckoutHeadline(tier, q.interval);
+  const dueToday =
+    tier === "team" && q.interval === "month" && q.seats
+      ? teamMonthlyTotalLabel(q.seats)
+      : headline.amount;
   const included = includedLinesForTier(tier);
   const origin =
     originLabel !== undefined ? originLabel : readCheckoutOrigin()?.label ?? null;
@@ -119,8 +127,26 @@ export function CheckoutPage({
             fontFamily: FONT,
           }}
         >
-          ‹ Back to the map
+          ‹ Back to cart
         </button>
+        {tier === "team" ? (
+          <button
+            type="button"
+            data-testid="checkout-change-seats"
+            onClick={onClose}
+            style={{
+              fontSize: 12,
+              color: ABSENCE,
+              background: "transparent",
+              border: "none",
+              cursor: "pointer",
+              padding: 0,
+              fontFamily: FONT,
+            }}
+          >
+            Change seats
+          </button>
+        ) : null}
       </header>
 
       <div
@@ -168,7 +194,7 @@ export function CheckoutPage({
                 data-testid="checkout-amount"
                 style={{ fontFamily: DISPLAY, fontWeight: 700, fontSize: 40 }}
               >
-                {headline.amount}
+                {dueToday}
               </span>
               <span data-testid="checkout-interval" style={{ fontSize: 14, color: MUTED }}>
                 {headline.periodWord}
@@ -261,6 +287,8 @@ export function CheckoutPage({
               aria-label="Stripe payment mount"
               style={{
                 minHeight: 220,
+                maxHeight: "min(420px, 50dvh)",
+                overflowY: "auto",
                 borderRadius: 6,
                 border: "1px dashed rgba(154,166,178,0.28)",
                 background: "rgba(20,25,33,0.6)",
@@ -296,9 +324,15 @@ export function CheckoutPage({
               data-testid="checkout-total"
               style={{ fontFamily: DISPLAY, fontWeight: 700, fontSize: 20 }}
             >
-              {headline.amount}
+              {dueToday}
             </span>
           </div>
+          <p
+            data-testid="checkout-wallet-note"
+            style={{ margin: 0, fontSize: 12, color: MUTED, lineHeight: 1.45 }}
+          >
+            {PE_PRICING.walletHonestDecline}
+          </p>
           <button
             type="button"
             data-testid="checkout-submit"

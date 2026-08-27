@@ -250,6 +250,12 @@ describe("sign-up prompt", () => {
       <ShareLandingOverlay phase={READY_PHASE} signedIn={false} />,
     );
     expect(html).toContain('data-testid="share-signup-prompt"');
+    expect(html).toContain('data-testid="share-inspect-cta"');
+    expect(html.indexOf("share-inspect-cta")).toBeLessThan(
+      html.indexOf("share-signup-link"),
+    );
+    expect(html).not.toContain("Start Solo");
+    expect(html).not.toContain("View pricing");
     expect(html).toContain("Shared with you");
     expect(html).toContain("sign up free to explore this and any property");
     // The SAME entry point ChatTool / LockedToolPanel use (googleSignInUrl).

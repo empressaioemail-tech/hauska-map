@@ -76,6 +76,8 @@ describe("CheckoutPage — left column from PE_PRICING + frame 3b", () => {
     expect(html).toContain('data-testid="stripe-payment-element"');
     expect(html).toContain("Started from");
     expect(html).toContain("906 Farm St");
+    expect(html).toContain("Back to cart");
+    expect(html).not.toContain("Back to the map");
     expect(html).toContain("Cancel any time");
     expect(html).toContain("Payments by Stripe");
     expect(html).not.toContain("checkout.stripe.com");
@@ -151,5 +153,21 @@ describe("CheckoutPage — left column from PE_PRICING + frame 3b", () => {
       tier: "team",
       interval: "year",
     });
+  });
+
+  it("Team checkout shows Change seats and 12-seat $349, never leftover $45", () => {
+    const html = renderToStaticMarkup(
+      <CheckoutPage
+        search="?tier=team&interval=month&seats=12"
+        session={SESSION}
+      />,
+    );
+    expect(html).toContain("Change seats");
+    expect(html).toContain('data-testid="checkout-change-seats"');
+    expect(html).toContain("$349");
+    expect(html).not.toContain("$389");
+    expect(html).not.toContain("$45");
+    expect(html).toContain("overflow-y:auto");
+    expect(html).toContain('data-testid="checkout-wallet-note"');
   });
 });

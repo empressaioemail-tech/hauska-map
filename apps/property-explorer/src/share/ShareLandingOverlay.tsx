@@ -80,6 +80,12 @@ export function ShareLandingOverlay({
             color: TEXT,
           }}
         >
+          <p
+            data-testid="share-inspect-cta"
+            style={{ margin: "0 0 8px", fontSize: 12.5, lineHeight: 1.45 }}
+          >
+            This property is open — use the inspect card.
+          </p>
           <p style={{ margin: "0 0 8px", fontSize: 12.5, lineHeight: 1.45 }}>
             <strong>Shared with you</strong> — sign up free to explore this and
             any property.

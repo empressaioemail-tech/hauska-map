@@ -102,7 +102,7 @@ function LockedPanelBody({
           host.openPaywall(...lockedPanelPaywallArgs(valueLine, proOnly === true))
         }
       >
-        View pricing &amp; unlock
+        Unlock this property, 30 days
       </Button>
       <p style={{ margin: "8px 0 0", fontSize: 10, color: PE.muted }}>
         The inspect card and map layers stay free.
