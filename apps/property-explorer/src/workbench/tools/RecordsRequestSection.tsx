@@ -6,7 +6,10 @@ import { useCallback, useEffect, useState, type CSSProperties } from "react";
 import { Button } from "../../components/Button";
 import { PE } from "../../styles/pe-chrome";
 import {
+  approveRecordsPurchase,
+  declineRecordsPurchase,
   fetchRecordsRun,
+  formatProjectedCost,
   RECORDS_NOT_WIRED_NOTICE,
   requestRecordsRun,
 } from "../../lib/recordsRequestClient";
@@ -113,6 +116,7 @@ export function RecordsRequestSection({
   const merged = state ?? DEFAULT_RECORDS_STATE;
   const [busy, setBusy] = useState(false);
   const [refreshing, setRefreshing] = useState(false);
+  const [feeBusy, setFeeBusy] = useState(false);
   const [apiWired, setApiWired] = useState(false);
 
   const setMerged = useCallback(
@@ -214,6 +218,41 @@ export function RecordsRequestSection({
   const clearLocalView = () => {
     setState(DEFAULT_RECORDS_STATE);
   };
+
+  const approveFees = async () => {
+    const jobId = merged.run?.jobId;
+    if (!jobId) return;
+    setFeeBusy(true);
+    const result = await approveRecordsPurchase(jobId, parcelNodeId);
+    setFeeBusy(false);
+    if (result.notice && !result.run) {
+      setMerged({ notice: result.notice });
+      return;
+    }
+    setMerged(applyFetchResult(result));
+  };
+
+  const declineFees = async () => {
+    const jobId = merged.run?.jobId;
+    if (!jobId) return;
+    setFeeBusy(true);
+    const result = await declineRecordsPurchase(jobId, parcelNodeId);
+    setFeeBusy(false);
+    if (result.notice && !result.run) {
+      setMerged({ notice: result.notice });
+      return;
+    }
+    setMerged(applyFetchResult(result));
+  };
+
+  const showFeeDecision =
+    apiWired &&
+    merged.run?.live === true &&
+    merged.run.phase === "paused-fees" &&
+    !!merged.run.jobId;
+  const projectedFeeLabel = formatProjectedCost(
+    merged.run?.projectedPurchaseCostCents,
+  );
 
   const showDemoResults = !apiWired;
   const scaffoldView = merged.scaffoldView ?? "entry";
@@ -334,6 +373,15 @@ export function RecordsRequestSection({
         <RecordsRunStatusStrip phase="running" />
       ) : null}
 
+      {showFeeDecision ? (
+        <RecordsFeeDecisionActions
+          busy={feeBusy}
+          projectedFeeLabel={projectedFeeLabel}
+          onApprove={() => void approveFees()}
+          onDecline={() => void declineFees()}
+        />
+      ) : null}
+
       {merged.run ? (
         <RecordsRunStatusStrip
           phase={merged.run.phase}
@@ -383,6 +431,60 @@ export function RecordsRequestSection({
         aria-hidden
         data-placeholder="setRecordsCorridorOverlay"
       />
+    </div>
+  );
+}
+
+function RecordsFeeDecisionActions({
+  busy,
+  projectedFeeLabel,
+  onApprove,
+  onDecline,
+}: {
+  busy: boolean;
+  projectedFeeLabel: string | null;
+  onApprove: () => void;
+  onDecline: () => void;
+}) {
+  return (
+    <div
+      data-testid="records-fee-decision"
+      style={{
+        display: "flex",
+        flexDirection: "column",
+        gap: 8,
+        padding: "12px 14px",
+        borderRadius: 10,
+        border: "1px solid rgba(245,158,11,0.35)",
+        background: "rgba(245,158,11,0.08)",
+      }}
+    >
+      <div style={{ fontSize: 12, lineHeight: 1.5, color: TEXT }}>
+        County clerk image fees
+        {projectedFeeLabel ? ` · projected ${projectedFeeLabel}` : ""}. Approve
+        to queue acquisition (human clerk checkout if the portal requires
+        purchase). Decline to keep header-only index rows.
+      </div>
+      <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
+        <Button
+          type="button"
+          variant="primary"
+          data-testid="records-approve-fees"
+          disabled={busy}
+          onClick={onApprove}
+        >
+          {busy ? "Submitting…" : "Approve county fees"}
+        </Button>
+        <Button
+          type="button"
+          variant="secondary"
+          data-testid="records-decline-fees"
+          disabled={busy}
+          onClick={onDecline}
+        >
+          Decline · header-only
+        </Button>
+      </div>
     </div>
   );
 }

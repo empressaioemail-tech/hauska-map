@@ -70,6 +70,8 @@ export interface RecordsRunView {
   jobId?: string | null;
   errorCode?: string | null;
   errorMessage?: string | null;
+  /** County clerk projected image fees (cents) when job paused at purchase gate. */
+  projectedPurchaseCostCents?: number | null;
 }
 
 export interface RecordsRunFetchResult {
