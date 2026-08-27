@@ -25,6 +25,16 @@ describe("map-pin notes — up to 10 colors, hover shows text", () => {
     expect(noteHoverText(null)).toBeNull();
   });
 
+  it("hover popup CSS is dark card + light text (violate: omit color)", () => {
+    const css = readFileSync(
+      resolve(__dirname, "../../../../packages/map-renderer/src/styles.css"),
+      "utf8",
+    );
+    expect(css).toContain(".map-note-hover .maplibregl-popup-content");
+    expect(css).toContain("background: #0d1117");
+    expect(css).toContain("color: #e5e7eb");
+  });
+
   it("controller paints per-pin color and wires map hover", () => {
     const src = readFileSync(
       resolve(

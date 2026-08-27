@@ -95,6 +95,7 @@ import {
   inspectAsSoonAsIdKnown,
   pendingInspectFromLookup,
 } from "../lib/inspect-pending-card";
+import { inspectStealsWorkbenchDock } from "./inspect-dock";
 import { UnplaceableParcelCard } from "./UnplaceableParcelCard";
 import type {
   ParcelFactSheet,
@@ -800,6 +801,7 @@ function ExplorerMapSurface({
       next: ParcelCardData,
       parcelNodeId: string | null,
       parcelGeometry: unknown = null,
+      dock?: { keepDock?: boolean },
     ) => {
       const handle = mapRef.current;
       // Clear any prior envelope wedge — a new parcel starts with no envelope
@@ -831,9 +833,11 @@ function ExplorerMapSurface({
       inspectedRef.current = { card: next, parcelNodeId };
       setCard(next);
       setCardNodeId(parcelNodeId);
-      if (isMobile) openSheet("property");
-      else {
-        setOpenWorkbenchToolState("brief");
+      if (inspectStealsWorkbenchDock(dock?.keepDock)) {
+        if (isMobile) openSheet("property");
+        else {
+          setOpenWorkbenchToolState("brief");
+        }
       }
       parcelNodes.setInspected(
         {
@@ -946,6 +950,8 @@ function ExplorerMapSurface({
         lat?: number;
         lng?: number;
         trustedRooftop?: { lat: number; lng: number };
+        /** Fly/inspect without switching the right rail to Brief (W3.1). */
+        keepDock?: boolean;
       },
     ): Promise<boolean> => {
       const q = query.trim();
@@ -1005,7 +1011,7 @@ function ExplorerMapSurface({
             // before awaiting the seal — without this gate the Find card
             // overwrites the click and inspectedRef follows the race loser.
             if (!lookupIntentRef.current.isCurrent(started)) return;
-            inspectInPlace(card, id, geom);
+            inspectInPlace(card, id, geom, { keepDock: opts?.keepDock });
           },
           () =>
             setSubjectByParcelNodeId(
@@ -1066,6 +1072,7 @@ function ExplorerMapSurface({
                 coordinates: [sheet.geometry.rings[0]],
               }
             : null,
+          { keepDock: opts?.keepDock },
         );
 
         // 4. I5: the camera follows the parcel's GEOMETRY. The centroid is
@@ -1771,7 +1778,7 @@ function ExplorerMapSurface({
       },
       getActiveParcelFacts: () => cardFactsRef.current,
       openProperty: (parcelNodeId: string) => {
-        void runParcelLookup(parcelNodeId);
+        void runParcelLookup(parcelNodeId, { keepDock: true });
       },
       // WB6 dossier: capture the live draw/measure/marker geometries. Null
       // when the toolset never installed (map still mounting) — honest absence.

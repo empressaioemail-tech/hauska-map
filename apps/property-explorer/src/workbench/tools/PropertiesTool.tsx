@@ -464,9 +464,8 @@ export function PropertiesTool() {
     [applyMutationOutcome],
   );
 
-  // OPEN a saved property: detail view in the SAME dock + the reopen flight
-  // (host.openProperty — find/fly+inspect, kept from #104) + redraw its saved
-  // drawings as the dossier overlay (cleared automatically on property switch).
+  // OPEN a saved property: detail view in THIS dock + fly the map.
+  // openProperty must not switch the rail to Brief (W3.1).
   const handleOpen = useCallback(
     (parcelNodeId: string) => {
       setDossierNotice(null);
