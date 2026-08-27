@@ -127,7 +127,7 @@ export function createSuggestController(
       .fetchSuggestions(query, ctrl.signal)
       .then((results) => {
         if (gen !== generation || ctrl.signal.aborted) return; // stale
-        const items = groupSuggestions(results, maxResults);
+        const items = groupSuggestions(results, maxResults, query);
         emit({
           loading: false,
           items,

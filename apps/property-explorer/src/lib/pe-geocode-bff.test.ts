@@ -181,6 +181,19 @@ describe('Texas-aware geocode bias and filtering', () => {
     expect(detectTexasIntent('78660')).toBe(true)
     expect(detectTexasIntent('Simsbrook Dr, Pflugerville')).toBe(true)
     expect(detectTexasIntent('Main Street, Bastrop')).toBe(true)
+    expect(detectTexasIntent('905 Pecan')).toBe(true)
+    expect(detectTexasIntent('1620 Bryant')).toBe(true)
+    expect(detectTexasIntent('17000 Simsbrook')).toBe(true)
+  })
+
+  it('bare house+street with no city still gets Texas default bias', () => {
+    const parsed = parseGeocodeParams({ q: '905 Pecan' })
+    expect(parsed.ok).toBe(true)
+    if (!parsed.ok) return
+    expect(parsed.params.lat).toBe(TEXAS_DEFAULT_BIAS.lat)
+    expect(parsed.params.lon).toBe(TEXAS_DEFAULT_BIAS.lon)
+    const url = new URL(buildPhotonUrl(DEFAULT_GEOCODER_URL, parsed.params))
+    expect(url.searchParams.get('bbox')).toBe(TEXAS_BBOX.join(','))
   })
 
   it('applies Austin metro default bias when Texas intent and no viewport', () => {
