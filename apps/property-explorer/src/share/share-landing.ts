@@ -19,7 +19,7 @@ import {
   isShareGrantId,
   isBrowserShareNavigation,
   shareAppLandingPath,
-} from "../../api/_lib/pe-share-grant.js";
+} from "../../api/_lib/pe-share-grant-id.js";
 
 export { isBrowserShareNavigation, shareAppLandingPath };
 

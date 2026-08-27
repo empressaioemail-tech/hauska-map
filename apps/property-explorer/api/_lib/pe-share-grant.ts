@@ -11,10 +11,19 @@ import { randomUUID } from 'node:crypto'
 import { isValidParcelNodeId } from './parcel-node-id.js'
 import { mintShareToken, SHARE_TOKEN_TTL_MS } from './pe-share-token.js'
 import type { ShareGrantStore } from './pe-share-grant-store.js'
+import {
+  SHARE_GRANT_ID_RE,
+  isShareGrantId,
+  isBrowserShareNavigation,
+  shareAppLandingPath,
+} from './pe-share-grant-id.js'
 
-/** UUID (any RFC-4122 version). Not an HMAC (those contain a '.'). */
-export const SHARE_GRANT_ID_RE =
-  /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
+export {
+  SHARE_GRANT_ID_RE,
+  isShareGrantId,
+  isBrowserShareNavigation,
+  shareAppLandingPath,
+}
 
 export interface ShareGrantRow {
   id: string
@@ -24,10 +33,6 @@ export interface ShareGrantRow {
   createdAt: string
   expiresAt: string
   revokedAt: string | null
-}
-
-export function isShareGrantId(value: unknown): value is string {
-  return typeof value === 'string' && SHARE_GRANT_ID_RE.test(value)
 }
 
 export function newShareGrantId(randomUuid: () => string = randomUUID): string {
@@ -50,37 +55,6 @@ export function buildHumanShareUrl(origin: string, hmacToken: string): string {
     throw new Error('hmac_token_invalid')
   }
   return `${origin.replace(/\/$/, '')}/share#${hmacToken}`
-}
-
-/** SPA path a human browser should land on for a grant-id share (W2.1). */
-export function shareAppLandingPath(grantId: string): string {
-  if (!isShareGrantId(grantId)) {
-    throw new Error('grant_id_required')
-  }
-  return `/share?g=${grantId}`
-}
-
-/**
- * True when GET /s/{id} is a browser document navigation and must 302 to
- * the SPA. Explicit format= (json / agent / html / markdown) stays the
- * instrument — that is how models fetch. A check observed only passing
- * is not a check: format=html + dest=document must NOT redirect.
- */
-export function isBrowserShareNavigation(input: {
-  queryFormat?: string | null
-  secFetchDest?: string | null
-  secFetchMode?: string | null
-}): boolean {
-  const format = input.queryFormat?.trim().toLowerCase() ?? ''
-  if (
-    format === 'json' ||
-    format === 'agent' ||
-    format === 'html' ||
-    format === 'markdown'
-  ) {
-    return false
-  }
-  return input.secFetchDest === 'document' || input.secFetchMode === 'navigate'
 }
 
 /** True when a minted URL put a token (hash or HMAC-shaped path) where a grant id belongs. */
