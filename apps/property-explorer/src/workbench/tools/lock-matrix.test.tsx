@@ -283,22 +283,23 @@ describe("SHARE bubble (free for signed-in users — acquisition channel)", () =
   });
 });
 
-describe("USE IN YOUR AI bubble (Connect not live — Coming soon, share mint works)", () => {
+describe("USE IN YOUR AI bubble (Connect live for Claude/Cursor, share mint secondary)", () => {
   it("anon → sign-in-first, no Connect", () => {
     primePropertyEntitlement(PARCEL, ANON);
     const html = renderTool("use-in-ai");
     expect(html).toContain('data-testid="use-in-ai-locked-sign-in"');
-    expect(html).not.toMatch(/>\s*Connect\s*</);
+    expect(html).not.toContain('data-testid="use-in-ai-connect-claude"');
   });
 
-  it("free signed-in → sheet + share mint, no paywall, no Connect", () => {
+  it("free signed-in → sheet + Connect for Claude/Cursor, no paywall", () => {
     primePropertyEntitlement(PARCEL, FREE);
     const html = renderTool("use-in-ai");
     expect(html).toContain('data-testid="use-in-ai-tool"');
     expect(html).toContain('data-testid="use-in-ai-create-share"');
+    expect(html).toContain('data-testid="use-in-ai-connect-claude"');
+    expect(html).toContain('data-testid="use-in-ai-connect-cursor"');
     expect(html).toContain("Coming soon");
     expect(html).not.toContain('data-testid="view-pricing-button"');
-    expect(html).not.toMatch(/>\s*Connect\s*</);
   });
 });
 

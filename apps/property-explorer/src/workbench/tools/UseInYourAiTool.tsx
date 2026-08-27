@@ -1,12 +1,8 @@
 // USE IN YOUR AI — P-87 items 15 and 16.
 //
-// A signed-in rail bubble that opens the vendor sheet. OAuth is not live, so
-// every vendor row is Coming soon or Unavailable. Never a Connect that does
-// nothing. Never a key, Cloud Run URL, or product-key string.
-//
-// Until Connect ships, the working hook is a grant-scoped share link
-// (`/s/{grantId}`). This sheet mints that link into the same chassis key the
-// Share tool uses, so the two surfaces stay one grant.
+// Signed-in rail bubble: vendor sheet with live Connect for Claude and Cursor.
+// No API key, Cloud Run URL, or product-key strings. Share mint remains a
+// secondary hook for URL-fetching chats.
 
 import { useState } from "react";
 import { Button } from "../../components/Button";
@@ -21,9 +17,15 @@ import type { ShareToolStoredState } from "./ShareTool";
 export const USE_IN_YOUR_AI_VALUE_LINE =
   "Your Smart Site account, in the chat you already use. Same plan. No key.";
 
+/** Customer-facing hostname only — never a Cloud Run hash. */
+export const SMART_SITE_CONNECT_HOST = "mcp.smartsite.cloud";
+
+/** Full connector URL copied into Claude / Cursor. */
+export const SMART_SITE_CONNECT_URL = `https://${SMART_SITE_CONNECT_HOST}/mcp`;
+
 export type UseInAiVendorId = "claude" | "chatgpt" | "cursor" | "copilot";
 
-export type UseInAiVendorStatus = "coming" | "unavailable";
+export type UseInAiVendorStatus = "connect" | "coming" | "unavailable";
 
 export interface UseInAiVendorRow {
   id: UseInAiVendorId;
@@ -34,14 +36,14 @@ export interface UseInAiVendorRow {
   note?: string;
 }
 
-/** Four rows, always this order. Statuses are honest while Connect is not live. */
+/** Four rows, always this order. Claude and Cursor Connect when OAuth is live. */
 export const USE_IN_AI_VENDORS: UseInAiVendorRow[] = [
   {
     id: "claude",
     name: "Claude",
     line: "Find a parcel, open its smart site, run reports from the chat you already use.",
-    status: "coming",
-    statusLabel: "Coming soon",
+    status: "connect",
+    statusLabel: "Connect",
   },
   {
     id: "chatgpt",
@@ -55,8 +57,8 @@ export const USE_IN_AI_VENDORS: UseInAiVendorRow[] = [
     id: "cursor",
     name: "Cursor",
     line: "Same account, in the editor you already use.",
-    status: "coming",
-    statusLabel: "Coming soon",
+    status: "connect",
+    statusLabel: "Connect",
   },
   {
     id: "copilot",
@@ -73,6 +75,110 @@ type SharePhase =
   | { kind: "notice"; text: string; tone: "muted" | "amber" }
   | { kind: "copied" };
 
+type ConnectPhase =
+  | { kind: "idle" }
+  | { kind: "copied" }
+  | { kind: "notice"; text: string };
+
+function connectBeatCopy(vendor: UseInAiVendorId): string {
+  if (vendor === "claude") {
+    return "Claude will ask you to add Smart Site, then send you back here to approve.";
+  }
+  return "Add Smart Site in Cursor, paste the address below, then finish sign-in when prompted.";
+}
+
+function VendorConnectPanel({
+  vendor,
+  connectPhase,
+  onCopyAddress,
+  onCancel,
+}: {
+  vendor: UseInAiVendorId;
+  connectPhase: ConnectPhase;
+  onCopyAddress: () => void;
+  onCancel: () => void;
+}) {
+  return (
+    <div
+      data-testid={`use-in-ai-connect-panel-${vendor}`}
+      style={{
+        marginTop: 8,
+        padding: "10px 10px 8px",
+        borderRadius: PE.radiusCard,
+        border: `1px solid ${PE.accentBorderSoft}`,
+        background: "rgba(15,23,42,0.35)",
+      }}
+    >
+      <p style={{ margin: "0 0 8px", fontSize: 11, lineHeight: 1.45, color: PE.text }}>
+        {connectBeatCopy(vendor)}
+      </p>
+      <p
+        style={{
+          margin: "0 0 4px",
+          fontSize: 10,
+          letterSpacing: "0.04em",
+          textTransform: "uppercase",
+          color: PE.muted,
+        }}
+      >
+        Smart Site address
+      </p>
+      <div
+        data-testid={`use-in-ai-connect-host-${vendor}`}
+        style={{
+          fontSize: 11,
+          color: PE.accent,
+          wordBreak: "break-all",
+          marginBottom: 8,
+        }}
+      >
+        {SMART_SITE_CONNECT_HOST}
+      </div>
+      <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
+        <Button
+          variant="primary"
+          fullWidth
+          type="button"
+          data-testid={`use-in-ai-copy-address-${vendor}`}
+          onClick={onCopyAddress}
+        >
+          {connectPhase.kind === "copied" ? "Copied" : "Copy Smart Site address"}
+        </Button>
+        {vendor === "claude" ? (
+          <Button
+            variant="secondary"
+            fullWidth
+            type="button"
+            data-testid="use-in-ai-open-claude"
+            onClick={() => {
+              window.open("https://claude.ai/settings/connectors", "_blank", "noopener,noreferrer");
+            }}
+          >
+            Open Claude
+          </Button>
+        ) : null}
+        <Button
+          variant="secondary"
+          fullWidth
+          type="button"
+          data-testid={`use-in-ai-connect-cancel-${vendor}`}
+          onClick={onCancel}
+        >
+          Cancel
+        </Button>
+      </div>
+      {connectPhase.kind === "notice" ? (
+        <p
+          data-testid={`use-in-ai-connect-notice-${vendor}`}
+          style={{ margin: "8px 0 0", fontSize: 11, color: PE.muted }}
+        >
+          {connectPhase.text}
+        </p>
+      ) : null}
+    </div>
+  );
+}
+
 export function UseInYourAiBody({
   hasParcel,
   shareUrl,
@@ -86,6 +192,29 @@ export function UseInYourAiBody({
   onCreateShare: () => void;
   onCopyShare: () => void;
 }) {
+  const [expandedConnect, setExpandedConnect] = useState<UseInAiVendorId | null>(null);
+  const [connectPhase, setConnectPhase] = useState<ConnectPhase>({ kind: "idle" });
+
+  const handleConnectClick = (vendor: UseInAiVendorId) => {
+    setConnectPhase({ kind: "idle" });
+    setExpandedConnect((current) => (current === vendor ? null : vendor));
+  };
+
+  const handleCopyAddress = async (vendor: UseInAiVendorId) => {
+    try {
+      await navigator.clipboard.writeText(SMART_SITE_CONNECT_URL);
+      setConnectPhase({ kind: "copied" });
+      window.setTimeout(() => {
+        setConnectPhase((p) => (p.kind === "copied" ? { kind: "idle" } : p));
+      }, 1800);
+    } catch {
+      setConnectPhase({
+        kind: "notice",
+        text: "Copy failed — select the address and copy it manually.",
+      });
+    }
+  };
+
   return (
     <div data-testid="use-in-ai-tool">
       <p
@@ -105,15 +234,15 @@ export function UseInYourAiBody({
         }}
       >
         <p style={{ margin: "0 0 8px", fontSize: 11.5, lineHeight: 1.5, color: PE.text }}>
-          Connect is not live yet. Paste a share link into any chat that
-          fetches URLs. Claude can read it today.
+          Connect Claude or Cursor below with your Smart Site account. Or paste a share
+          link into any chat that fetches URLs.
         </p>
         {!hasParcel ? (
           <p
             data-testid="use-in-ai-need-parcel"
             style={{ margin: 0, fontSize: 11, color: PE.muted }}
           >
-            Select a property on the map, then create the link from this sheet.
+            Select a property on the map to mint a share link from this sheet.
           </p>
         ) : shareUrl ? (
           <>
@@ -129,7 +258,7 @@ export function UseInYourAiBody({
               {shareUrl}
             </div>
             <Button
-              variant="primary"
+              variant="secondary"
               fullWidth
               type="button"
               data-testid="use-in-ai-copy-share"
@@ -140,16 +269,14 @@ export function UseInYourAiBody({
           </>
         ) : (
           <Button
-            variant="primary"
+            variant="secondary"
             fullWidth
             type="button"
             data-testid="use-in-ai-create-share"
             onClick={onCreateShare}
             disabled={sharePhase.kind === "minting"}
           >
-            {sharePhase.kind === "minting"
-              ? "Creating link…"
-              : "Create a link Claude can fetch"}
+            {sharePhase.kind === "minting" ? "Creating link…" : "Create a share link"}
           </Button>
         )}
         {sharePhase.kind === "notice" ? (
@@ -189,12 +316,24 @@ export function UseInYourAiBody({
               }}
             >
               <strong style={{ fontSize: 12, color: PE.text }}>{row.name}</strong>
-              <StatusChip
-                data-testid={`use-in-ai-status-${row.id}`}
-                tone={row.status === "unavailable" ? "warning" : "absence"}
-              >
-                {row.statusLabel}
-              </StatusChip>
+              {row.status === "connect" ? (
+                <Button
+                  variant="primary"
+                  type="button"
+                  data-testid={`use-in-ai-connect-${row.id}`}
+                  onClick={() => handleConnectClick(row.id)}
+                  style={{ padding: "4px 10px", fontSize: 11, minHeight: 0 }}
+                >
+                  Connect
+                </Button>
+              ) : (
+                <StatusChip
+                  data-testid={`use-in-ai-status-${row.id}`}
+                  tone={row.status === "unavailable" ? "warning" : "absence"}
+                >
+                  {row.statusLabel}
+                </StatusChip>
+              )}
             </div>
             <p style={{ margin: "4px 0 0", fontSize: 11, lineHeight: 1.45, color: PE.muted }}>
               {row.line}
@@ -206,6 +345,14 @@ export function UseInYourAiBody({
               >
                 {row.note}
               </p>
+            ) : null}
+            {expandedConnect === row.id && row.status === "connect" ? (
+              <VendorConnectPanel
+                vendor={row.id}
+                connectPhase={connectPhase}
+                onCopyAddress={() => void handleCopyAddress(row.id)}
+                onCancel={() => setExpandedConnect(null)}
+              />
             ) : null}
           </li>
         ))}
