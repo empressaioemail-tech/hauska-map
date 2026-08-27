@@ -37,12 +37,15 @@ function isDeepPathAllowed(method: string, upstreamPath: string): boolean {
     'api/property-explorer/v1/entitlement/dev-unlock',
   ])
   const SAVED_PROPERTY_ITEM_RE = /^api\/property-explorer\/v1\/saved-properties\/[^/]+$/
+  const RECORDS_REQUEST_PURCHASE_RE =
+    /^api\/property-explorer\/v1\/records-request\/[^/]+\/(approve-purchase|decline-purchase)$/
   if (method === 'GET' || method === 'HEAD') {
     if (DEEP_GET_EXACT.has(upstreamPath)) return true
     return DEEP_GET_PREFIX.some((p) => upstreamPath === p || upstreamPath.startsWith(`${p}/`))
   }
   if (method === 'POST') {
     if (DEEP_POST_EXACT.has(upstreamPath)) return true
+    if (RECORDS_REQUEST_PURCHASE_RE.test(upstreamPath)) return true
     return false
   }
   if (method === 'PUT' || method === 'DELETE') {
@@ -151,6 +154,28 @@ describe('proxy allowlists', () => {
     // Bare mutation on the collection stays blocked.
     expect(
       isDeepPathAllowed('DELETE', 'api/property-explorer/v1/saved-properties'),
+    ).toBe(false)
+  })
+
+  it('allows records-request fee approve/decline POST on deep proxy', () => {
+    const jobId = 'bab70fd3-3573-44fd-acda-61622c05d5e6'
+    expect(
+      isDeepPathAllowed(
+        'POST',
+        `api/property-explorer/v1/records-request/${jobId}/approve-purchase`,
+      ),
+    ).toBe(true)
+    expect(
+      isDeepPathAllowed(
+        'POST',
+        `api/property-explorer/v1/records-request/${jobId}/decline-purchase`,
+      ),
+    ).toBe(true)
+    expect(
+      isDeepPathAllowed(
+        'POST',
+        `api/property-explorer/v1/records-request/${jobId}/extra`,
+      ),
     ).toBe(false)
   })
 

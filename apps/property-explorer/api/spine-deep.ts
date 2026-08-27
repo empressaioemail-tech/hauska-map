@@ -52,6 +52,10 @@ const DEEP_POST_EXACT = new Set([
 // saved-properties/ — the :parcelNodeId. No nested subpaths.
 const SAVED_PROPERTY_ITEM_RE = /^api\/property-explorer\/v1\/saved-properties\/[^/]+$/
 
+// P-85 W1 item 6 — fee approve/decline on a specific records-request job.
+const RECORDS_REQUEST_PURCHASE_RE =
+  /^api\/property-explorer\/v1\/records-request\/[^/]+\/(approve-purchase|decline-purchase)$/
+
 function isDeepPathAllowed(method: string, upstreamPath: string): boolean {
   if (method === 'GET' || method === 'HEAD') {
     if (DEEP_GET_EXACT.has(upstreamPath)) return true
@@ -59,6 +63,7 @@ function isDeepPathAllowed(method: string, upstreamPath: string): boolean {
   }
   if (method === 'POST') {
     if (DEEP_POST_EXACT.has(upstreamPath)) return true
+    if (RECORDS_REQUEST_PURCHASE_RE.test(upstreamPath)) return true
     return false
   }
   if (method === 'PUT' || method === 'DELETE') {
