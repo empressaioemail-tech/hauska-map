@@ -1,7 +1,7 @@
 // W7 reports and exports picker. Coming soon is not on the purchase surface.
 // Persistence keys unchanged: reports.sitePlan, reports.terrain, flood.
 
-import { useCallback, useRef, useState, type ReactNode } from "react";
+import { useCallback, useEffect, useRef, useState, type ReactNode } from "react";
 import { liveViewHref } from "../../lib/live-view";
 import {
   defaultReceivedShareStore,
@@ -25,7 +25,16 @@ import { usePropertyEntitlement } from "../../lib/usePropertyEntitlement";
 import { useDockToolState, useWorkbench } from "../WorkbenchContext";
 import { LockedToolPanel } from "./LockedToolPanel";
 import { persistCheckoutOrigin } from "../../lib/checkoutOrigin";
-import { attachExportToDossier, fileReportOnProperty } from "./reports-dossier";
+import { PdfViewer } from "../../components/PdfViewer";
+import { GoogleSignInButton } from "../../components/GoogleSignInButton";
+import { listSavedProperties } from "../../lib/savedPropertiesClient";
+import {
+  attachExportToDossier,
+  fileReportOnProperty,
+  filedReportsFromSaved,
+  isPdfExportFormat,
+  type FiledReportRow,
+} from "./reports-dossier";
 import { FloodDrainageSection } from "./FloodTool";
 import {
   RECORDS_PAYWALL_MESSAGE,
@@ -120,7 +129,18 @@ export function ReportsTool() {
     [],
   );
 
-  if (!activeParcelNodeId) return null;
+  if (!activeParcelNodeId) {
+    return (
+      <div data-testid="reports-tool">
+        <ReportsTabs tab={reportsTab} onTab={setReportsTab} />
+        {reportsTab === "shared" ? (
+          <SharedWithMeList rows={receivedShares} />
+        ) : (
+          <ReportsLibrary />
+        )}
+      </div>
+    );
+  }
 
   if (ent.signedOut && reportsTab === "mine") {
     return (
@@ -267,6 +287,137 @@ export function ReportsTool() {
           ) : null}
         </OptionDChrome>
       )}
+    </div>
+  );
+}
+
+function filedKindLabel(kind: FiledReportRow["kind"]): string {
+  if (kind === "flood-drainage") return "Flood & drainage";
+  if (kind === "xray") return "X-ray";
+  if (kind === "site-plan") return "Site plan";
+  return "Terrain";
+}
+
+function ReportsLibrary() {
+  const [rows, setRows] = useState<FiledReportRow[] | null>(null);
+  const [mode, setMode] = useState<"loading" | "ready" | "sign-in" | "error">(
+    "loading",
+  );
+  const [viewing, setViewing] = useState<FiledReportRow | null>(null);
+
+  useEffect(() => {
+    let cancelled = false;
+    void listSavedProperties().then((outcome) => {
+      if (cancelled) return;
+      if (outcome.kind === "sign-in") {
+        setMode("sign-in");
+        setRows([]);
+        return;
+      }
+      if (outcome.kind !== "ready") {
+        setMode("error");
+        setRows([]);
+        return;
+      }
+      setRows(filedReportsFromSaved(outcome.items));
+      setMode("ready");
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  if (mode === "sign-in") {
+    return (
+      <div data-testid="reports-library-signin">
+        <p style={{ margin: "0 0 10px", fontSize: 12, color: MUTED }}>
+          Sign in to see reports you have already filed. You do not need to
+          pick a parcel first.
+        </p>
+        <GoogleSignInButton size="md" testId="reports-library-sign-in" />
+      </div>
+    );
+  }
+  if (mode === "loading") {
+    return (
+      <p data-testid="reports-library-loading" style={{ margin: 0, fontSize: 12, color: MUTED }}>
+        Loading your reports…
+      </p>
+    );
+  }
+  if (mode === "error") {
+    return (
+      <p data-testid="reports-library-error" style={{ margin: 0, fontSize: 12, color: MUTED }}>
+        Could not load filed reports. Open My properties and retry.
+      </p>
+    );
+  }
+  if (!rows?.length) {
+    return (
+      <p data-testid="reports-library-empty" style={{ margin: 0, fontSize: 12, color: MUTED }}>
+        No filed reports yet. Run Flood or X-ray on a property and it lands
+        here.
+      </p>
+    );
+  }
+  return (
+    <div data-testid="reports-library">
+      {rows.map((row) => (
+        <div
+          key={`${row.parcelNodeId}:${row.kind}:${row.format}:${row.savedAt}`}
+          data-testid="reports-library-row"
+          style={{
+            display: "flex",
+            alignItems: "baseline",
+            gap: 8,
+            padding: "6px 0",
+            borderBottom: "1px solid rgba(154,166,178,0.15)",
+            fontSize: 12,
+          }}
+        >
+          <span style={{ flex: 1, color: TEXT }}>
+            {filedKindLabel(row.kind)}
+            <span style={{ color: MUTED, fontSize: 10.5 }}>
+              {" "}
+              · {row.address}
+              {row.savedAt ? ` · ${row.savedAt.slice(0, 10)}` : ""}
+            </span>
+          </span>
+          {isPdfExportFormat(row.format) ? (
+            <button
+              type="button"
+              data-testid="reports-library-view"
+              onClick={() => setViewing(row)}
+              style={{
+                background: "transparent",
+                border: 0,
+                padding: 0,
+                color: BLUE,
+                fontSize: 11,
+                fontWeight: 600,
+                cursor: "pointer",
+              }}
+            >
+              View
+            </button>
+          ) : null}
+          <a
+            href={row.downloadPath}
+            data-testid="reports-library-download"
+            style={{ color: BLUE, fontSize: 11, fontWeight: 600 }}
+          >
+            Download
+          </a>
+        </div>
+      ))}
+      {viewing ? (
+        <PdfViewer
+          href={viewing.downloadPath}
+          title={filedKindLabel(viewing.kind)}
+          parcelNodeId={viewing.parcelNodeId}
+          onClose={() => setViewing(null)}
+        />
+      ) : null}
     </div>
   );
 }

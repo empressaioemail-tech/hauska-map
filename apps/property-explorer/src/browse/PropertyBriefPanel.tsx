@@ -22,7 +22,6 @@ import {
 } from "./brief-view-model";
 import { humanizeCitationLabel } from "../lib/citation-labels";
 import {
-  downloadDossierExportResult,
   dossierExportNotice,
   exportBriefAsXrayPdf,
 } from "../lib/brief-xray-export";
@@ -32,6 +31,7 @@ import {
   VERDICT_UNRESOLVED,
 } from "../lib/sheet-verdict";
 import { Button } from "../components/Button";
+import { PdfViewer } from "../components/PdfViewer";
 import { PE } from "../styles/pe-chrome";
 
 const MUTED = PE.muted;
@@ -251,6 +251,7 @@ export function PropertyBriefPanel({
     VERDICT_UNRESOLVED;
   const [exportBusy, setExportBusy] = useState(false);
   const [exportNotice, setExportNotice] = useState<string | null>(null);
+  const [viewerHref, setViewerHref] = useState<string | null>(null);
 
   const handleExportPdf = () => {
     const nodeId = parcelNodeId ?? brief.parcelNodeId;
@@ -277,11 +278,7 @@ export function PropertyBriefPanel({
         }
         setExportNotice(dossierExportNotice(result));
         if (!result.ok) return;
-        try {
-          await downloadDossierExportResult(result, nodeId);
-        } catch {
-          setExportNotice("X-ray downloaded response could not be saved — try again.");
-        }
+        setViewerHref(result.downloadUrl);
       },
     );
   };
@@ -447,6 +444,14 @@ export function PropertyBriefPanel({
         </div>
         <CitationAppendix citations={vm.citations} />
       </section>
+      {viewerHref ? (
+        <PdfViewer
+          href={viewerHref}
+          title="X-ray PDF"
+          parcelNodeId={parcelNodeId ?? brief.parcelNodeId}
+          onClose={() => setViewerHref(null)}
+        />
+      ) : null}
     </aside>
   );
 }

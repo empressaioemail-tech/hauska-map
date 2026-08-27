@@ -175,3 +175,27 @@ describe("W3.6 status stays; pass does not auto-delete", () => {
     expect(html).toContain('data-testid="dossier-status-passed"');
   });
 });
+
+describe("filed PDF on the property has View, not download-only", () => {
+  it("Flood export row offers View and Download", () => {
+    const html = renderDetail({
+      ...row,
+      snapshot: {
+        ...row.snapshot,
+        exports: [
+          {
+            kind: "flood-drainage",
+            format: "pdf-flood-drainage",
+            savedAt: "2026-08-27T12:00:00Z",
+            downloadPath:
+              "/api/pe-site-plan-export?report=flood-drainage&action=download",
+          },
+        ],
+      },
+    });
+    expect(html).toContain('data-testid="dossier-export-view"');
+    expect(html).toContain("View");
+    expect(html).toContain('data-testid="dossier-export-download"');
+    expect(html).toContain("Download");
+  });
+});

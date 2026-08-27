@@ -2,11 +2,13 @@
 // a narrow viewport. W2.4: the live-view link sits at the TOP of the
 // viewer chrome. Fail closed: no href → nothing to view.
 //
-// Export GETs send Content-Disposition: attachment. Pointing an iframe at
-// that href paints a navy empty sheet in Chrome. Fetch the bytes and show
-// a blob URL instead.
+// Export GETs send Content-Disposition: attachment. Chrome will not paint
+// that in an iframe. Fetch the bytes, require %PDF, and show a blob URL.
+// Portal to document.body: a transformed ancestor (dock / brief animation)
+// makes Chrome's PDF plugin show the sad-document error on a huge gray sheet.
 
 import { useEffect, useState } from "react";
+import { createPortal } from "react-dom";
 import { liveViewHref } from "../lib/live-view";
 import { resolvePdfFrameSrc } from "../lib/pdf-frame-src";
 
@@ -51,15 +53,23 @@ export function PdfViewer({
     };
   }, [href]);
 
-  return (
+  const dialog = (
     <div
       data-testid="pdf-viewer"
       role="dialog"
       aria-label={title}
       style={{
         position: "fixed",
-        inset: 8,
-        zIndex: 240,
+        top: 36,
+        left: 24,
+        right: 24,
+        bottom: 36,
+        maxWidth: 780,
+        maxHeight: 720,
+        width: "calc(100vw - 48px)",
+        height: "calc(100vh - 72px)",
+        margin: "0 auto",
+        zIndex: 400,
         display: "flex",
         flexDirection: "column",
         background: "var(--surface-card, #0d1117)",
@@ -121,15 +131,16 @@ export function PdfViewer({
           Could not open this PDF in the viewer. Use Download PDF.
         </div>
       ) : (
-        <iframe
+        <embed
           data-testid="pdf-viewer-frame"
           title={title}
           src={frameSrc ?? undefined}
+          type="application/pdf"
           style={{
             flex: 1,
             width: "100%",
             border: 0,
-            minHeight: 280,
+            minHeight: 320,
             background: "#ffffff",
           }}
         />
@@ -148,4 +159,7 @@ export function PdfViewer({
       </a>
     </div>
   );
+
+  if (typeof document === "undefined") return dialog;
+  return createPortal(dialog, document.body);
 }

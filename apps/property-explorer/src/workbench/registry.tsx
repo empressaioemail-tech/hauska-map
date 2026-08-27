@@ -67,7 +67,7 @@ export const WORKBENCH_TOOLS: WorkbenchToolDef[] = [
     label: "Reports & exports",
     icon: <WorkbenchIcon path={ICONS.reports} />,
     status: "live",
-    propertyScoped: true,
+    propertyScoped: false,
     tip: "Site plan, flood study, records, and X-ray PDF.",
     render: () => <ReportsTool />,
   },

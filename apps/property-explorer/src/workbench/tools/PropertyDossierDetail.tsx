@@ -28,7 +28,9 @@ import {
 import type { ShareReportSelection } from "../../lib/share-package";
 import { Button } from "../../components/Button";
 import { TextArea } from "../../components/Input";
+import { PdfViewer } from "../../components/PdfViewer";
 import { PE } from "../../styles/pe-chrome";
+import { isPdfExportFormat } from "./reports-dossier";
 
 const MUTED = PE.muted;
 const AMBER = PE.warning;
@@ -183,6 +185,10 @@ export function PropertyDossierDetail({
   const thread = dossier.chatThread ?? [];
   const chatThreads = dossier.chatThreads ?? [];
   const exports = dossier.exports ?? [];
+  const [viewing, setViewing] = useState<{
+    href: string;
+    title: string;
+  } | null>(null);
 
   return (
     <div data-testid="dossier-detail">
@@ -376,13 +382,38 @@ export function PropertyDossierDetail({
                     )}
                   </span>
                   {entry.downloadPath ? (
-                    <a
-                      href={entry.downloadPath}
-                      data-testid="dossier-export-download"
-                      style={{ color: ACCENT, fontSize: 10.5, fontWeight: 600 }}
-                    >
-                      Download
-                    </a>
+                    <span style={{ display: "flex", gap: 10, flexShrink: 0 }}>
+                      {isPdfExportFormat(entry.format) ? (
+                        <button
+                          type="button"
+                          data-testid="dossier-export-view"
+                          onClick={() =>
+                            setViewing({
+                              href: entry.downloadPath as string,
+                              title: exportLabel(entry),
+                            })
+                          }
+                          style={{
+                            background: "transparent",
+                            border: 0,
+                            padding: 0,
+                            color: ACCENT,
+                            fontSize: 10.5,
+                            fontWeight: 600,
+                            cursor: "pointer",
+                          }}
+                        >
+                          View
+                        </button>
+                      ) : null}
+                      <a
+                        href={entry.downloadPath}
+                        data-testid="dossier-export-download"
+                        style={{ color: ACCENT, fontSize: 10.5, fontWeight: 600 }}
+                      >
+                        Download
+                      </a>
+                    </span>
                   ) : (
                     <span style={{ color: MUTED, fontSize: 9.5 }}>
                       re-run in Reports to download
@@ -394,6 +425,14 @@ export function PropertyDossierDetail({
           </div>
         </>
       )}
+      {viewing ? (
+        <PdfViewer
+          href={viewing.href}
+          title={viewing.title}
+          parcelNodeId={row.parcelNodeId}
+          onClose={() => setViewing(null)}
+        />
+      ) : null}
     </div>
   );
 }

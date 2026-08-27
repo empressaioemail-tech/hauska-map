@@ -6,7 +6,7 @@
 //   - a store-seeded selection mounts exactly that engine;
 //   - persisted site-plan / terrain snapshots still hydrate when that
 //     document is selected; another property stays clean;
-//   - no active property → the chassis' honest select-first state.
+//   - no active property → My reports library, not select-first.
 
 import { describe, expect, it } from "vitest";
 import { renderToStaticMarkup } from "react-dom/server";
@@ -210,12 +210,14 @@ describe("reports tool — Option D picker, not the stacked wall", () => {
     expect(html).not.toContain('data-testid="records-request-section"');
   });
 
-  it("no active property → the honest select-first state, no export UI", () => {
+  it("no active property → My reports library, not select-a-parcel first", () => {
     const html = render({ activeParcelNodeId: null });
-    expect(html).toContain('data-testid="dock-no-property"');
+    expect(html).toContain('data-testid="reports-tool"');
+    expect(html).toContain('data-testid="reports-tabs"');
+    expect(html).not.toContain('data-testid="dock-no-property"');
+    expect(html).not.toContain("Select a property first");
     expect(html).not.toContain('data-testid="site-plan-export-section"');
     expect(html).not.toContain('data-testid="flood-drainage-section"');
-    expect(html).not.toContain('data-testid="terrain-export-section"');
     expect(html).not.toContain('data-testid="reports-doc-picker"');
   });
 });
