@@ -151,6 +151,9 @@ const CSS = `
 .${LEGEND_ROOT_CLASS}__badge{margin-left:auto;flex:0 0 auto;padding:1px 5px;border-radius:4px;font:600 9px/1.4 system-ui,-apple-system,"Segoe UI",sans-serif;letter-spacing:0.06em;}
 .${LEGEND_ROOT_CLASS}__note{margin:6px 0 0;color:#9aa6b2;font-size:10px;}
 @media (max-width:640px){.${LEGEND_ROOT_CLASS}{bottom:106px;}}
+.${LEGEND_ROOT_CLASS}--bubble{left:12px;bottom:182px;z-index:11;display:flex;flex-direction:column-reverse;align-items:flex-start;gap:8px;max-width:min(300px,calc(100% - 24px));}
+.${LEGEND_ROOT_CLASS}--bubble .${LEGEND_ROOT_CLASS}__toggle{width:34px;height:34px;padding:0;border-radius:50%;letter-spacing:0;text-transform:none;box-shadow:0 4px 14px rgba(0,0,0,0.35);justify-content:center;}
+.${LEGEND_ROOT_CLASS}--bubble .${LEGEND_ROOT_CLASS}__panel{margin-top:0;}
 `;
 
 function ensureStyles(doc) {
@@ -174,7 +177,10 @@ function ensureStyles(doc) {
  *             destroy: () => void,
  *             element: HTMLElement|null }}
  */
-export function createMapLegend(container) {
+const LEGEND_BUBBLE_SVG =
+  '<svg viewBox="0 0 24 24" width="16" height="16" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 6h16M4 12h10M4 18h7"/><circle cx="18" cy="12" r="2"/><circle cx="15" cy="18" r="2"/></svg>';
+
+export function createMapLegend(container, options = {}) {
   const doc = container && container.ownerDocument;
   if (!container || !doc || typeof doc.createElement !== "function") {
     return { update() {}, isOpen: () => false, destroy() {}, element: null };
@@ -182,15 +188,20 @@ export function createMapLegend(container) {
 
   ensureStyles(doc);
 
+  const bubble = options.chrome === "bubble";
   const root = doc.createElement("div");
-  root.className = LEGEND_ROOT_CLASS;
+  root.className = bubble
+    ? `${LEGEND_ROOT_CLASS} ${LEGEND_ROOT_CLASS}--bubble`
+    : LEGEND_ROOT_CLASS;
   root.hidden = true;
 
   const toggle = doc.createElement("button");
   toggle.type = "button";
   toggle.className = `${LEGEND_ROOT_CLASS}__toggle`;
   toggle.setAttribute("aria-expanded", "false");
-  toggle.textContent = "Legend";
+  toggle.setAttribute("aria-label", "Legend");
+  if (bubble) toggle.innerHTML = LEGEND_BUBBLE_SVG;
+  else toggle.textContent = "Legend";
 
   const panel = doc.createElement("div");
   panel.className = `${LEGEND_ROOT_CLASS}__panel`;

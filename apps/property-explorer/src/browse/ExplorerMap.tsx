@@ -71,7 +71,7 @@ import { MapToolset, type LayerStateBadge } from "./MapToolset";
 import type { MapToolsController } from "./mapToolsController";
 import { asMaplibreMap } from "./satelliteBase";
 import { createFloodMapOverlayController } from "./flood-map-overlay";
-import { SmartSiteBadge, MapSourceInfo, MapLegendBubble } from "./MapCornerChrome";
+import { SmartSiteBadge, MapSourceInfo } from "./MapCornerChrome";
 import { SearchBar, subjectDisplayFromIdentity } from "./SearchBar";
 import { createLookupIntent } from "../lib/lookup-intent";
 import { PricingModal } from "./PricingModal";
@@ -422,14 +422,21 @@ function ExplorerMapSurface({
   // SUBJECT's node id as state (mirror of subjectNodeIdRef) so the workbench
   // active-property binding re-renders when the subject changes. A share
   // landing opens with the shared-analysis dock already docked.
-  const [openWorkbenchTool, setOpenWorkbenchToolState] = useState<string | null>(
-    share ? SHARED_ANALYSIS_TOOL_ID : null,
+  const [openWorkbenchTools, setOpenWorkbenchTools] = useState<string[]>(
+    share ? [SHARED_ANALYSIS_TOOL_ID] : [],
   );
   const [inspectBriefOpen, setInspectBriefOpen] = useState(false);
   const setOpenWorkbenchTool = useCallback(
     (next: string | null) => {
-      setOpenWorkbenchToolState(next);
+      setOpenWorkbenchTools(next ? [next] : []);
       if (isMobile && next) openSheet("research");
+    },
+    [isMobile, openSheet],
+  );
+  const ensureWorkbenchTool = useCallback(
+    (id: string) => {
+      setOpenWorkbenchTools((cur) => (cur.includes(id) ? cur : [...cur, id]));
+      if (isMobile) openSheet("research");
     },
     [isMobile, openSheet],
   );
@@ -812,6 +819,11 @@ function ExplorerMapSurface({
       setCard(next);
       setCardNodeId(parcelNodeId);
       if (isMobile) openSheet("property");
+      else {
+        setOpenWorkbenchTools((cur) =>
+          cur.includes("brief") ? cur : [...cur, "brief"],
+        );
+      }
       parcelNodes.setInspected(
         {
           id:
@@ -1444,6 +1456,7 @@ function ExplorerMapSurface({
     setCard(null);
     setCardNodeId(null);
     setInspectBriefOpen(false);
+    setOpenWorkbenchTools((cur) => cur.filter((id) => id !== "brief"));
     parcelNodes.setInspected(null, "close-inspect");
   }, []);
   closeInspectRef.current = closeInspect;
@@ -1670,9 +1683,12 @@ function ExplorerMapSurface({
       eventType: "pe_research_clicked",
       parcelNodeId: nodeId,
     });
-    setInspectBriefOpen((open) => !open);
-    if (isMobile) openSheet("property");
-  }, [cardNodeId, isMobile, openSheet]);
+    ensureWorkbenchTool("brief");
+    if (isMobile) {
+      setInspectBriefOpen((open) => !open);
+      openSheet("research");
+    }
+  }, [cardNodeId, isMobile, openSheet, ensureWorkbenchTool]);
 
   // W2: latest inspect-card display facts for the Reports tool's site-plan
   // sheet header (mutable-latest ref so the memoized host stays stable).
@@ -1693,12 +1709,7 @@ function ExplorerMapSurface({
   const workbenchHost = useMemo<WorkbenchHostActions>(
     () => ({
       openTool: (toolId: string) => {
-        if (toolId === "brief") {
-          setInspectBriefOpen(true);
-          if (isMobile) openSheet("property");
-          return;
-        }
-        setOpenWorkbenchTool(toolId);
+        ensureWorkbenchTool(toolId);
       },
       openPaywall: (
         message: string,
@@ -1749,7 +1760,7 @@ function ExplorerMapSurface({
         floodOverlay.set(study, forParcelNodeId ?? null);
       },
     }),
-    [runParcelLookup, floodOverlay, setOpenWorkbenchTool, isMobile, openSheet],
+    [runParcelLookup, floodOverlay, ensureWorkbenchTool],
   );
 
   // ACTIVE PROPERTY for the workbench: the currently-INSPECTED parcel's baked
@@ -1843,6 +1854,7 @@ function ExplorerMapSurface({
         // into the same lower-right corner (a floating imagery strip overlapping
         // the ⓘ / layers bubbles). One attribution place, not two.
         suppressAttributionControl
+        legendChrome="bubble"
         // Mount-time seed ONLY (stable identity). Subject changes re-point the
         // live handle via rebindProperty — the center prop never re-points.
         center={DEFAULT_CENTER}
@@ -1878,23 +1890,11 @@ function ExplorerMapSurface({
           splitBubbles
           stackExtras={
             isMobile ? null : (
-              <>
-                <MapSourceInfo
-                  lines={sourceLines}
-                  isMobile={false}
-                  variant="stack"
-                />
-                <MapLegendBubble
-                  rows={[...visibleLayers].map((key) => ({
-                    key,
-                    label:
-                      key === SAVED_PINS_KEY
-                        ? SAVED_PINS_LAYER_LABEL
-                        : key.replace(/-/g, " "),
-                    note: layerStates[key]?.note,
-                  }))}
-                />
-              </>
+              <MapSourceInfo
+                lines={sourceLines}
+                isMobile={false}
+                variant="stack"
+              />
             )
           }
         />
@@ -1916,29 +1916,36 @@ function ExplorerMapSurface({
           card). */}
       <SmartSiteBadge isMobile={isMobile} />
 
-      {/* PE WORKBENCH: top-right rail (brief is NOT on the rail — it lives
-          in the left inspect card). Inspect card mounts inside the provider
-          so Research this can render BriefTool. */}
+      {/* PE WORKBENCH: right-rail bubbles. Desktop docks stack on the left.
+          The inspect card is the brief dock. */}
       <Workbench
         tools={workbenchTools}
-        openToolId={openWorkbenchTool}
+        openToolId={openWorkbenchTools[0] ?? null}
         onOpenToolChange={setOpenWorkbenchTool}
+        openToolIds={openWorkbenchTools}
+        onOpenToolIdsChange={(next) => {
+          setOpenWorkbenchTools(next);
+          if (isMobile && next.length) openSheet("research");
+        }}
+        dockSide="left"
+        inspectSlot={
+          card && !isMobile ? (
+            <InspectCard
+              card={card}
+              parcelNodeId={cardNodeId}
+              isSubject={isSubject}
+              embedded
+              onClose={closeInspect}
+              onEnvelope={handleEnvelope}
+              onMakeSubject={handleMakeSubject}
+              onResearch={handleResearch}
+              onSaveProperty={handleSaveProperty}
+            />
+          ) : null
+        }
         activeParcelNodeId={activeParcelNodeId}
         host={workbenchHost}
       >
-        {card && !isMobile && (
-          <InspectCard
-            card={card}
-            parcelNodeId={cardNodeId}
-            isSubject={isSubject}
-            researchOpen={inspectBriefOpen}
-            onClose={closeInspect}
-            onEnvelope={handleEnvelope}
-            onMakeSubject={handleMakeSubject}
-            onResearch={handleResearch}
-            onSaveProperty={handleSaveProperty}
-          />
-        )}
         {card && isMobile && (
           <MobileSheet
             open={activeSheet === "property"}

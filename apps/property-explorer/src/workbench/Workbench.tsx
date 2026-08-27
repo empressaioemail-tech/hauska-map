@@ -24,11 +24,14 @@ import { useEffect, useState } from "react";
 import type { CSSProperties, ReactNode } from "react";
 import {
   dockLayoutStyle as resolveDockLayoutStyle,
+  leftDockCardStyle,
+  leftDockStackStyle,
   mobileToolPickerStyle,
   workbenchClusterStyle,
 } from "../browse/mobile-layout";
 import { useMobilePanel } from "../browse/MobilePanelContext";
 import type { WorkbenchHostActions, WorkbenchToolDef } from "./types";
+
 import { WorkbenchProvider } from "./WorkbenchContext";
 import type { WorkbenchToolStateStore } from "./tool-state-store";
 import { BubbleTip } from "../components/BubbleTip";
@@ -50,6 +53,13 @@ export function nextOpenToolId(
   tapped: string,
 ): string | null {
   return current === tapped ? null : tapped;
+}
+
+/** Desktop: tapping a bubble toggles that tool in the left stack. */
+export function nextOpenToolIds(current: string[], tapped: string): string[] {
+  return current.includes(tapped)
+    ? current.filter((id) => id !== tapped)
+    : [...current, tapped];
 }
 
 /**
@@ -109,6 +119,12 @@ export interface WorkbenchProps {
   /** The single open tool (null → dock closed). Owned by the app shell. */
   openToolId: string | null;
   onOpenToolChange: (next: string | null) => void;
+  /** When set, more than one dock may be open and they stack on `dockSide`. */
+  openToolIds?: string[];
+  onOpenToolIdsChange?: (next: string[]) => void;
+  dockSide?: "left" | "right";
+  /** Inspect card rendered inside the brief dock (desktop). */
+  inspectSlot?: ReactNode;
   /** Active property = inspected parcel's node id, else the subject's. */
   activeParcelNodeId: string | null;
   host: WorkbenchHostActions;
@@ -126,6 +142,10 @@ export function Workbench({
   tools,
   openToolId,
   onOpenToolChange,
+  openToolIds,
+  onOpenToolIdsChange,
+  dockSide = "right",
+  inspectSlot,
   activeParcelNodeId,
   host,
   store,
@@ -134,10 +154,31 @@ export function Workbench({
   const { isMobile, activeSheet, openSheet } = useMobilePanel();
   const mobileResearchOpen = isMobile && activeSheet === "research";
   const railTools = tools.filter((t) => t.inCluster !== false);
-  const openTool = openToolId
-    ? (tools.find((t) => t.id === openToolId) ?? null)
-    : null;
-  const closeDock = () => onOpenToolChange(null);
+  const multi = openToolIds != null && onOpenToolIdsChange != null;
+  const openIds = multi ? openToolIds : openToolId ? [openToolId] : [];
+  const openTools = openIds
+    .map((id) => tools.find((t) => t.id === id) ?? null)
+    .filter((t): t is WorkbenchToolDef => t != null);
+  const openTool = openTools[0] ?? null;
+  const tapBubble = (id: string) => {
+    if (multi) {
+      onOpenToolIdsChange(nextOpenToolIds(openIds, id));
+      return;
+    }
+    onOpenToolChange(nextOpenToolId(openToolId, id));
+  };
+  const closeTool = (id: string) => {
+    if (multi) {
+      onOpenToolIdsChange(openIds.filter((x) => x !== id));
+      return;
+    }
+    onOpenToolChange(null);
+  };
+  const closeDock = () => {
+    if (multi) onOpenToolIdsChange([]);
+    else onOpenToolChange(null);
+  };
+  const useLeftStack = dockSide === "left" && !isMobile;
 
   // EXPAND-TO-FLOATING-BOX (general pattern for every right-side report/tool):
   // the dock can enlarge to a large floating box that keeps the map visible
@@ -175,7 +216,7 @@ export function Workbench({
         style={workbenchClusterStyle(isMobile)}
       >
         {railTools.map((tool) => {
-          const active = tool.id === openToolId;
+          const active = openIds.includes(tool.id);
           return (
             <BubbleTip
               key={tool.id}
@@ -192,7 +233,7 @@ export function Workbench({
                 data-testid={`workbench-bubble-${tool.id}`}
                 aria-label={tool.label}
                 aria-pressed={active}
-                onClick={() => onOpenToolChange(nextOpenToolId(openToolId, tool.id))}
+                onClick={() => tapBubble(tool.id)}
                 style={bubbleStyle(active, tool.status === "coming")}
               >
                 {tool.icon}
@@ -209,7 +250,7 @@ export function Workbench({
           style={mobileToolPickerStyle()}
         >
           {railTools.map((tool) => {
-            const active = tool.id === openToolId;
+            const active = openIds.includes(tool.id);
             return (
               <button
                 key={tool.id}
@@ -219,7 +260,7 @@ export function Workbench({
                 aria-pressed={active}
                 onClick={() => {
                   openSheet("research");
-                  onOpenToolChange(nextOpenToolId(openToolId, tool.id));
+                  tapBubble(tool.id);
                 }}
                 style={{
                   ...bubbleStyle(active, tool.status === "coming"),
@@ -233,14 +274,83 @@ export function Workbench({
         </div>
       )}
 
-      {/* THE ONE SHARED DOCK — exactly one tool's content, or nothing.
-          HEIGHT MODEL (polish wave): the dock never extends past the viewport.
-          maxHeight = 100vh minus the dock's top offset (12px) minus a 16px
-          bottom margin; content taller than that scrolls INSIDE the dock
-          (momentum scroll) while the header (title + ×) stays pinned. This is
-          dock chrome, owned HERE for every tool — tools do not add their own
-          outer scrollboxes. */}
-      {openTool && (!isMobile || mobileResearchOpen) && (
+      {useLeftStack && openTools.length > 0 && (
+        <div data-testid="workbench-left-stack" style={leftDockStackStyle()}>
+          {openTools.map((tool) => (
+            <section
+              key={tool.id}
+              data-testid="workbench-dock"
+              data-tool={tool.id}
+              style={{
+                ...leftDockCardStyle(),
+                display: "flex",
+                flexDirection: "column",
+                overflow: "hidden",
+                borderRadius: 8,
+                color: TEXT,
+                background: CARD_BG,
+                border: BORDER,
+                font: "12px/1.45 system-ui, -apple-system, Segoe UI, Roboto, sans-serif",
+              }}
+            >
+              <div
+                data-testid="dock-header"
+                style={{
+                  flex: "0 0 auto",
+                  display: "flex",
+                  justifyContent: "space-between",
+                  alignItems: "center",
+                  gap: 8,
+                  padding: "10px 14px 6px",
+                  marginBottom: 8,
+                  borderBottom: "1px solid rgba(154,166,178,0.2)",
+                }}
+              >
+                <strong style={{ fontSize: 12.5 }}>{tool.label}</strong>
+                <button
+                  type="button"
+                  aria-label="Close"
+                  data-testid="dock-close"
+                  onClick={() => closeTool(tool.id)}
+                  style={{
+                    background: "transparent",
+                    border: "none",
+                    color: MUTED,
+                    cursor: "pointer",
+                    fontSize: 15,
+                    lineHeight: 1,
+                    padding: 0,
+                  }}
+                >
+                  ×
+                </button>
+              </div>
+              <div
+                className="pe-dock-scroll"
+                data-testid="dock-scroll"
+                style={{
+                  flex: "1 1 auto",
+                  minHeight: 0,
+                  overflowY: "auto",
+                  WebkitOverflowScrolling: "touch",
+                  padding: "0 14px 14px",
+                }}
+              >
+                <DockBody
+                  tool={tool}
+                  activeParcelNodeId={activeParcelNodeId}
+                  closeDock={() => closeTool(tool.id)}
+                  host={host}
+                  prefix={tool.id === "brief" ? inspectSlot : null}
+                />
+              </div>
+            </section>
+          ))}
+        </div>
+      )}
+
+      {/* Single right/mobile dock — tests and the mobile research sheet. */}
+      {!useLeftStack && openTool && (!isMobile || mobileResearchOpen) && (
         <section
           data-testid="workbench-dock"
           data-tool={openTool.id}
@@ -373,11 +483,13 @@ function DockBody({
   activeParcelNodeId,
   closeDock,
   host,
+  prefix = null,
 }: {
   tool: WorkbenchToolDef;
   activeParcelNodeId: string | null;
   closeDock: () => void;
   host: WorkbenchHostActions;
+  prefix?: ReactNode;
 }): ReactNode {
   // Registered-but-not-live: an HONEST coming state — never dead-looking UI.
   if (tool.status === "coming" || !tool.render) {
@@ -404,5 +516,10 @@ function DockBody({
       </p>
     );
   }
-  return tool.render({ activeParcelNodeId, closeDock, host });
+  return (
+    <>
+      {prefix}
+      {tool.render({ activeParcelNodeId, closeDock, host })}
+    </>
+  );
 }
