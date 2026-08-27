@@ -78,12 +78,11 @@ export const REPORTS_CATALOG: readonly ReportDocDef[] = [
     group: "Packages",
     name: "Records request",
     kind: "Package",
-    catalogStatus: "studio",
+    catalogStatus: "ready",
     promise:
       "The recorded documents the county clerk's index ties to this parcel, read and cited.",
     formatLabel: "In-app instruments + cited clauses",
     engine: "records",
-    studioGated: true,
   },
   {
     id: "DOSS",

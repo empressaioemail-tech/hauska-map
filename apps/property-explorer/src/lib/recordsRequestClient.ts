@@ -76,6 +76,11 @@ function runFromLatestJob(
     filters: [],
     instruments: [],
     verdicts: [],
+    live: true,
+    errorCode:
+      typeof job.errorCode === "string" ? job.errorCode : null,
+    errorMessage:
+      typeof job.errorMessage === "string" ? job.errorMessage : null,
   };
 }
 
@@ -191,6 +196,7 @@ export async function requestRecordsRun(
       filters: [],
       instruments: [],
       verdicts: [],
+      live: true,
     };
     return { wired: true, run, notice: null };
   } catch {

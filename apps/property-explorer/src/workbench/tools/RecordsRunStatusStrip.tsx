@@ -1,7 +1,7 @@
 // Run status strip — design artboard C (Phase 1 scaffold, one state at a time).
 
-import type { RecordsRunPhase } from "./records-request-types";
-import { SCAFFOLD_RUN_STATUS } from "./records-request-scaffold-data";
+import type { RecordsRunPhase, RecordsRunView } from "./records-request-types";
+import { recordsRunStatusCopy } from "./records-run-status";
 
 const APP_INK = "var(--app-ink, #0b0e13)";
 const TEXT = "var(--text-body, #E9EEF5)";
@@ -12,11 +12,12 @@ const WARN = "var(--semantic-warning, #F59E0B)";
 
 export function RecordsRunStatusStrip({
   phase = "running",
+  run,
 }: {
   phase?: RecordsRunPhase;
+  run?: RecordsRunView | null;
 }) {
-  const status =
-    SCAFFOLD_RUN_STATUS[phase] ?? SCAFFOLD_RUN_STATUS.running;
+  const status = recordsRunStatusCopy(phase, run);
 
   const borderColor =
     status.tone === "active"
