@@ -200,7 +200,7 @@ export function UseInYourAiBody({
     setExpandedConnect((current) => (current === vendor ? null : vendor));
   };
 
-  const handleCopyAddress = async (vendor: UseInAiVendorId) => {
+  const handleCopyAddress = async (_vendor: UseInAiVendorId) => {
     try {
       await navigator.clipboard.writeText(SMART_SITE_CONNECT_URL);
       setConnectPhase({ kind: "copied" });
