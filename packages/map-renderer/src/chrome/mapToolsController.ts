@@ -1135,10 +1135,10 @@ export function installMapTools(
   } catch {
     notePopup = null;
   }
-  const onNoteEnter = (e: MapMouseEvent): void => {
-    const feat = e.features?.[0] as
-      | { properties?: { text?: string } }
-      | undefined;
+  const onNoteEnter = (
+    e: MapMouseEvent & { features?: Array<{ properties?: { text?: string } }> },
+  ): void => {
+    const feat = e.features?.[0];
     const text = noteHoverText(feat?.properties?.text);
     if (!text || !notePopup) return;
     try {
@@ -1150,7 +1150,7 @@ export function installMapTools(
   };
   const onNoteLeave = (): void => {
     try {
-      notePopup.remove();
+      notePopup?.remove();
       if (!state.active) map.getCanvas().style.cursor = "";
     } catch {
       /* ignore */
