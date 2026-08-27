@@ -43,6 +43,7 @@ import {
   type ChatRef,
   type ChatResponsePayload,
 } from "./chat-citations";
+import type { ChatRecordsRequestContext } from "./records-chat-context";
 
 export const CHAT_ENDPOINT = "api/brokerage/v1/research/chat";
 
@@ -195,6 +196,8 @@ export interface ChatSubjectContext {
   setbacks: ChatSubjectSetbacks | null;
   envelope: ChatSubjectEnvelope | null;
   parcelFacts: ChatSubjectParcelFacts;
+  /** Latest records-request run for this parcel (complete instruments only). */
+  recordsRequest?: ChatRecordsRequestContext | null;
 }
 
 function emptyParcelFacts(
@@ -609,6 +612,9 @@ export function buildChatRequestBody(input: {
         setbacks: subject.setbacks,
         envelope: subject.envelope,
         parcelFacts: subject.parcelFacts,
+        ...(subject.recordsRequest
+          ? { recordsRequest: subject.recordsRequest }
+          : {}),
       },
     },
   };

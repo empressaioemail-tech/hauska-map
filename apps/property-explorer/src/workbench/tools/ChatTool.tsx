@@ -63,6 +63,12 @@ import {
   type ChatTurn,
 } from "./chat-research";
 import {
+  attachRecordsToChatSubject,
+  chatRecordsContextFromFetch,
+  enrichChatAnswerWithRecords,
+  getChatPropertyRecords,
+} from "./records-chat-context";
+import {
   ATOM_ACCENT,
   ATOM_ACCENT_BG,
   ATOM_ACCENT_BORDER,
@@ -1274,11 +1280,16 @@ export function ChatTool() {
       // envelope, situs address — so answers know the property even when the
       // Brief tool was never opened. The stored brief supplements when present.
       const facets = await getChatPropertyFacets(activeParcelNodeId);
-      const subject = buildChatSubjectFromFacets(
-        activeParcelNodeId,
-        facets,
-        briefStored?.brief ?? null,
-        host.getActivePropertyAddress?.() ?? null,
+      const recordsFetch = await getChatPropertyRecords(activeParcelNodeId);
+      const recordsContext = chatRecordsContextFromFetch(recordsFetch);
+      const subject = attachRecordsToChatSubject(
+        buildChatSubjectFromFacets(
+          activeParcelNodeId,
+          facets,
+          briefStored?.brief ?? null,
+          host.getActivePropertyAddress?.() ?? null,
+        ),
+        recordsContext,
       );
       const outcome = await runChatTurn({
         message: messageForModel,
@@ -1289,13 +1300,14 @@ export function ChatTool() {
       });
 
       if (outcome.kind === "answer") {
+        const answer = enrichChatAnswerWithRecords(outcome.answer, recordsContext);
         // Persist even if the dock closed mid-flight — setStored is bound to
         // the property this send STARTED for and the store outlives the mount.
         // Writes the user+answer turns onto the session this send started on.
         setStored(
           setActiveTurns(
             stateNow,
-            [...withUser, answerTurn(outcome.answer)],
+            [...withUser, answerTurn(answer)],
             new Date().toISOString(),
           ),
         );
@@ -1350,11 +1362,16 @@ export function ChatTool() {
         // Same subject construction as a normal send — the summary call is
         // scoped exactly like the thread it summarizes.
         const facets = await getChatPropertyFacets(activeParcelNodeId);
-        const subject = buildChatSubjectFromFacets(
-          activeParcelNodeId,
-          facets,
-          briefStored?.brief ?? null,
-          host.getActivePropertyAddress?.() ?? null,
+        const recordsFetch = await getChatPropertyRecords(activeParcelNodeId);
+        const recordsContext = chatRecordsContextFromFetch(recordsFetch);
+        const subject = attachRecordsToChatSubject(
+          buildChatSubjectFromFacets(
+            activeParcelNodeId,
+            facets,
+            briefStored?.brief ?? null,
+            host.getActivePropertyAddress?.() ?? null,
+          ),
+          recordsContext,
         );
         if (opts.savePropertyFirst) {
           const saved = await savePropertyWithDossier(activeParcelNodeId, {
