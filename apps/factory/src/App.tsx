@@ -2,7 +2,6 @@ import { useEffect, useMemo, useState } from "react";
 import { SCREENS, VIEW_PREF_KEY } from "./screens.mjs";
 
 const API = import.meta.env.VITE_FACTORY_CONTROL_API ?? "";
-const KEY = import.meta.env.VITE_FACTORY_CONTROL_API_KEY ?? "";
 
 function loadPref(): string {
   try {
@@ -13,7 +12,7 @@ function loadPref(): string {
 }
 
 function headers(): HeadersInit {
-  return KEY ? { Authorization: `Bearer ${KEY}` } : {};
+  return {};
 }
 
 export function App() {
