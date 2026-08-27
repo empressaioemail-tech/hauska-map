@@ -2,6 +2,9 @@ import { describe, expect, it, vi, beforeEach, afterEach } from "vitest";
 import {
   fetchRecordsRun,
   instantGisHitsFromWire,
+  instrumentsFromClassifiedScope,
+  instrumentsFromIndexHits,
+  instrumentsFromScope,
   RECORDS_NOT_REQUESTED_NOTICE,
   RECORDS_NOT_WIRED_NOTICE,
   requestRecordsRun,
@@ -48,6 +51,110 @@ describe("instantGisHitsFromWire", () => {
   it("returns empty array for missing or empty hits", () => {
     expect(instantGisHitsFromWire(null)).toEqual([]);
     expect(instantGisHitsFromWire(RURAL_EMPTY_GIS_AUDIT)).toEqual([]);
+  });
+});
+
+describe("instrumentsFromScope", () => {
+  it("maps indexHits with honest clerk-index labels", () => {
+    const rows = instrumentsFromIndexHits({
+      indexHits: [
+        {
+          recordingRef: "2019012345",
+          documentType: "WARRANTY DEED",
+          recordingDate: "2019-01-02",
+          parties: "SMITH, JOHN",
+        },
+      ],
+    });
+    expect(rows).toHaveLength(1);
+    expect(rows[0]?.instrumentNumber).toBe("2019012345");
+    expect(rows[0]?.label).toBe("WARRANTY DEED");
+    expect(rows[0]?.readDepth).toBe("not-acquired");
+    expect(rows[0]?.acquisitionNote).toContain("Clerk index hit");
+  });
+
+  it("prefers classified recordedInstruments over indexHits", () => {
+    const rows = instrumentsFromScope({
+      recordedInstruments: [
+        {
+          id: "ri-1",
+          instrumentType: "deed",
+          documentKind: "Warranty deed",
+          recording: {
+            instrumentNumber: "2019012345",
+            recordingDate: "2019-01-02",
+          },
+          parties: "A TO B",
+          acquisitionMethod: "download",
+        },
+      ],
+      indexHits: [
+        {
+          recordingRef: "9999999999",
+          documentType: "SHOULD NOT WIN",
+        },
+      ],
+    });
+    expect(rows).toHaveLength(1);
+    expect(rows[0]?.instrumentNumber).toBe("2019012345");
+    expect(rows[0]?.readDepth).toBe("header-only");
+  });
+
+  it("falls back to indexHits when classified array is empty", () => {
+    const rows = instrumentsFromScope({
+      recordedInstruments: [],
+      indexHits: [
+        {
+          recordingRef: "2020-12345",
+          documentType: "EASEMENT",
+        },
+      ],
+    });
+    expect(rows[0]?.instrumentNumber).toBe("2020-12345");
+  });
+
+  it("maps classified scope via instrumentsFromClassifiedScope", () => {
+    const rows = instrumentsFromClassifiedScope({
+      recorded_instruments: [
+        {
+          recordingRef: "V.812 P.339",
+          documentKind: "Plat",
+          parties: ["COUNTY CLERK"],
+        },
+      ],
+    });
+    expect(rows[0]?.instrumentNumber).toBe("V.812 P.339");
+    expect(rows[0]?.type).toBe("plat");
+  });
+
+  it("maps scopeSearched indexHits on GET complete job", async () => {
+    const fetchMock = vi.fn();
+    vi.stubGlobal("fetch", fetchMock);
+    fetchMock.mockResolvedValueOnce({
+      status: 200,
+      ok: true,
+      json: async () => ({
+        jobs: [
+          {
+            jobStatus: "complete",
+            completedAt: "2026-08-27T00:00:00Z",
+            scopeSearched: {
+              indexHits: [
+                {
+                  recordingRef: "2019012345",
+                  documentType: "DEED",
+                  recordingDate: "2019-01-02",
+                },
+              ],
+            },
+          },
+        ],
+      }),
+    });
+    const result = await fetchRecordsRun("48021:123");
+    expect(result.run?.instruments).toHaveLength(1);
+    expect(result.run?.instruments[0]?.instrumentNumber).toBe("2019012345");
+    vi.unstubAllGlobals();
   });
 });
 

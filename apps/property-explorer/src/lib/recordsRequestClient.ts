@@ -46,6 +46,24 @@ type WireIndexHit = {
   detailUrl?: string | null;
 };
 
+type WireRecordingBlock = {
+  instrumentNumber?: string | null;
+  volume?: string | null;
+  page?: string | null;
+  recordingDate?: string | null;
+};
+
+type WireClassifiedInstrument = {
+  id?: string;
+  instrumentType?: string | null;
+  documentKind?: string | null;
+  recording?: WireRecordingBlock | null;
+  recordingRef?: string | null;
+  parties?: string | string[] | null;
+  readDepth?: string | null;
+  acquisitionMethod?: string | null;
+};
+
 type WireGisHit = {
   sourceLayerId?: string;
   sourceLayerName?: string;
@@ -192,6 +210,129 @@ function instrumentCountFromScope(
   return typeof rc === "number" && rc >= 0 ? rc : 0;
 }
 
+function classifiedInstrumentsArray(
+  scope: Record<string, unknown>,
+): unknown[] | null {
+  const raw =
+    scope.recordedInstruments ?? scope.recorded_instruments ?? scope.instruments;
+  return Array.isArray(raw) ? raw : null;
+}
+
+function recordingRefFromClassified(raw: WireClassifiedInstrument): string | null {
+  const flat = raw.recordingRef?.trim();
+  if (flat) return flat;
+  const rec = raw.recording;
+  if (!rec || typeof rec !== "object") return null;
+  const num = rec.instrumentNumber?.trim();
+  if (num) return num;
+  const vol = rec.volume?.trim();
+  const page = rec.page?.trim();
+  if (vol && page) return `${vol} P.${page}`;
+  if (vol) return vol;
+  return null;
+}
+
+function partiesLineFromWire(parties: string | string[] | null | undefined): string {
+  if (Array.isArray(parties)) {
+    const joined = parties.map((p) => p.trim()).filter(Boolean).join("; ");
+    return joined || "Parties not extracted yet";
+  }
+  const line = parties?.trim();
+  return line || "Parties not extracted yet";
+}
+
+function readDepthFromWire(
+  readDepth: string | null | undefined,
+  acquisitionMethod: string | null | undefined,
+): RecordsInstrumentRow["readDepth"] {
+  const d = readDepth?.trim().toLowerCase();
+  if (d === "clauses-vision" || d === "plat-clauses") return d;
+  if (d === "header-only") return "header-only";
+  if (acquisitionMethod?.trim()) return "header-only";
+  return "header-only";
+}
+
+function acquisitionNoteFromClassified(
+  raw: WireClassifiedInstrument,
+  readDepth: RecordsInstrumentRow["readDepth"],
+): string | undefined {
+  const method = raw.acquisitionMethod?.trim();
+  if (method) return `Acquired via ${method.replace(/_/g, " ")}`;
+  if (readDepth === "clauses-vision" || readDepth === "plat-clauses") {
+    return "Clauses read by vision, not verified";
+  }
+  return "Header facts from county clerk index";
+}
+
+/** Classified ADR-020 rows when the classify path has landed on scope. */
+export function instrumentsFromClassifiedScope(
+  scope: Record<string, unknown> | null | undefined,
+): RecordsInstrumentRow[] {
+  if (!scope || typeof scope !== "object") return [];
+  const rawList = classifiedInstrumentsArray(scope);
+  if (!rawList) return [];
+
+  const rows: RecordsInstrumentRow[] = [];
+  for (let i = 0; i < rawList.length; i++) {
+    const raw = rawList[i];
+    if (!raw || typeof raw !== "object") continue;
+    const hit = raw as WireClassifiedInstrument;
+    const ref = recordingRefFromClassified(hit);
+    if (!ref) continue;
+
+    const label =
+      hit.documentKind?.trim() ||
+      hit.instrumentType?.trim() ||
+      "Recorded instrument";
+    const readDepth = readDepthFromWire(hit.readDepth, hit.acquisitionMethod);
+    rows.push({
+      id:
+        typeof hit.id === "string" && hit.id.trim()
+          ? hit.id.trim()
+          : `classified-${i}-${ref}`,
+      type: documentTypeToInstrumentType(
+        hit.instrumentType ?? hit.documentKind ?? label,
+      ),
+      label,
+      instrumentNumber: ref,
+      recordedAt: hit.recording?.recordingDate?.trim() || "—",
+      partiesLine: partiesLineFromWire(hit.parties),
+      readDepth,
+      acquisitionNote: acquisitionNoteFromClassified(hit, readDepth),
+    });
+  }
+  return rows;
+}
+
+export function instrumentsFromIndexHits(
+  scope: Record<string, unknown> | null | undefined,
+): RecordsInstrumentRow[] {
+  if (!scope || typeof scope !== "object") return [];
+  const rawHits = scope.indexHits;
+  if (!Array.isArray(rawHits)) return [];
+
+  const rows: RecordsInstrumentRow[] = [];
+  for (let i = 0; i < rawHits.length; i++) {
+    const raw = rawHits[i];
+    if (!raw || typeof raw !== "object") continue;
+    const hit = raw as WireIndexHit;
+    if (!isPlausibleIndexHit(hit)) continue;
+
+    const ref = hit.recordingRef!.trim();
+    rows.push({
+      id: `index-hit-${i}-${ref}`,
+      type: documentTypeToInstrumentType(hit.documentType),
+      label: hit.documentType?.trim() || "Clerk index hit",
+      instrumentNumber: ref,
+      recordedAt: hit.recordingDate?.trim() || "—",
+      partiesLine: hit.parties?.trim() || "Parties not extracted yet",
+      readDepth: "not-acquired",
+      acquisitionNote: "Clerk index hit — image not acquired yet",
+    });
+  }
+  return rows;
+}
+
 function isPlausibleIndexHit(hit: WireIndexHit): boolean {
   const ref = hit.recordingRef?.trim();
   return !!ref && /[\d-]{5,}/.test(ref) && /\d/.test(ref);
@@ -211,33 +352,16 @@ export function documentTypeToInstrumentType(
   return "other";
 }
 
+/**
+ * Resolve instrument rows from a job scope: prefer classified
+ * `recordedInstruments` when present, else honest clerk `indexHits` labels.
+ */
 export function instrumentsFromScope(
   scope: Record<string, unknown> | null | undefined,
 ): RecordsInstrumentRow[] {
-  if (!scope || typeof scope !== "object") return [];
-  const rawHits = scope.indexHits;
-  if (!Array.isArray(rawHits)) return [];
-
-  const rows: RecordsInstrumentRow[] = [];
-  for (let i = 0; i < rawHits.length; i++) {
-    const raw = rawHits[i];
-    if (!raw || typeof raw !== "object") continue;
-    const hit = raw as WireIndexHit;
-    if (!isPlausibleIndexHit(hit)) continue;
-
-    const ref = hit.recordingRef!.trim();
-    rows.push({
-      id: `index-hit-${i}-${ref}`,
-      type: documentTypeToInstrumentType(hit.documentType),
-      label: hit.documentType?.trim() || "Recorded instrument",
-      instrumentNumber: ref,
-      recordedAt: hit.recordingDate?.trim() || "—",
-      partiesLine: hit.parties?.trim() || "Parties not extracted yet",
-      readDepth: "not-acquired",
-      acquisitionNote: "Index hit — image not acquired yet",
-    });
-  }
-  return rows;
+  const classified = instrumentsFromClassifiedScope(scope);
+  if (classified.length > 0) return classified;
+  return instrumentsFromIndexHits(scope);
 }
 
 export function filtersFromInstruments(

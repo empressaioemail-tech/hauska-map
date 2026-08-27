@@ -586,6 +586,44 @@ describe("buildChatRequestBody — the RESEARCH_CHAT_BODY shape", () => {
       zoningDistrict: "P-5",
     });
   });
+
+  it("carries completed records-request instruments on areaContext.subject", () => {
+    const body = buildChatRequestBody({
+      message: "Any easements on record?",
+      history: [],
+      subject: {
+        ...FULL_SUBJECT,
+        recordsRequest: {
+          phase: "complete",
+          jobId: "job-rec-1",
+          searchedAt: "Aug 27, 2026",
+          instrumentCount: 1,
+          verdictKind: null,
+          instruments: [
+            {
+              recordingRef: "2020-12345",
+              documentType: "Utility easement",
+              recordedAt: "2020-06-01",
+              parties: "CITY TO OWNER",
+              readDepth: "not-acquired",
+              source: "index-hit",
+            },
+          ],
+        },
+      },
+    }) as {
+      areaContext: {
+        subject: {
+          recordsRequest?: {
+            instruments: Array<{ recordingRef: string }>;
+          };
+        };
+      };
+    };
+    expect(body.areaContext.subject.recordsRequest?.instruments[0]?.recordingRef).toBe(
+      "2020-12345",
+    );
+  });
 });
 
 // ---------------------------------------------------------------------------
