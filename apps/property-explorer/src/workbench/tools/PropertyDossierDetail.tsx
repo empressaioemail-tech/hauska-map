@@ -447,10 +447,16 @@ export function NotesField({
   initial,
   disabled,
   onSave,
+  testId = "dossier-notes",
+  inputTestId = "dossier-notes-input",
+  counterTestId = "dossier-notes-counter",
 }: {
   initial: string;
   disabled: boolean;
   onSave: (text: string) => void;
+  testId?: string;
+  inputTestId?: string;
+  counterTestId?: string;
 }) {
   const [draft, setDraft] = useState(initial);
   const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -488,9 +494,9 @@ export function NotesField({
   };
 
   return (
-    <div data-testid="dossier-notes">
+    <div data-testid={testId}>
       <TextArea
-        data-testid="dossier-notes-input"
+        data-testid={inputTestId}
         value={draft}
         disabled={disabled}
         maxLength={DOSSIER_NOTES_MAX_CHARS}
@@ -504,7 +510,7 @@ export function NotesField({
         }}
       />
       <div
-        data-testid="dossier-notes-counter"
+        data-testid={counterTestId}
         style={{ fontSize: 9.5, color: MUTED, textAlign: "right" }}
       >
         {draft.length.toLocaleString()} / {DOSSIER_NOTES_MAX_CHARS.toLocaleString()}
