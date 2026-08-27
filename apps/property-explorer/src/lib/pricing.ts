@@ -48,13 +48,15 @@ export const PE_PRICING = {
     framing: "",
     stayFree: "",
   },
-  /** Annual is the default selected state (locked 2026-08-24). Monthly is the alternative. */
+  /** Monthly is the default selected state (operator 2026-08-27). Annual stays. */
   interval: {
-    default: "annual" as const,
+    default: "monthly" as const,
     annualLabel: "Annual",
     monthlyLabel: "Monthly",
-    /** Visible as annual = 10 × monthly. */
-    savingsNote: "2 months free · 10 × monthly",
+    /** Retired header chip. Annual math lives on the Team column. */
+    savingsNote: "",
+    /** Team column only, annual toggle. Not a header chip. */
+    teamAnnualNote: "10 × monthly",
   },
   /** The free row — what every account gets at $0. Caption strip, not a column. */
   free: {

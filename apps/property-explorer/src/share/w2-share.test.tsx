@@ -189,6 +189,18 @@ describe("W0 share pin stays a scalar — fails if share opens an array", () => 
     expect(source).not.toMatch(/openToolIds=\{share/);
     expect(SHARED_ANALYSIS_TOOL_ID).toBe("shared-analysis");
   });
+
+  it("share flight keeps shared-analysis (violate: lookup steals Brief)", () => {
+    const source = readFileSync(
+      resolve(__dirname, "../browse/ExplorerMap.tsx"),
+      "utf8",
+    );
+    const idx = source.indexOf("shareFlightDoneRef.current = true");
+    expect(idx).toBeGreaterThan(0);
+    const slice = source.slice(idx, idx + 220);
+    expect(slice).toContain("keepDock: true");
+    expect(slice).toContain("quiet: true");
+  });
 });
 
 describe("W2.1 browser /s/{id} 302s to the SPA (violate: HTML instrument for navigations)", () => {
