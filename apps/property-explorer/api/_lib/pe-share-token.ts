@@ -4,9 +4,8 @@
 //   - A share link carries a SIGNED, SELF-CONTAINED token: HMAC-SHA256 over
 //     {v:1, p:<parcelNodeId>, exp:<epoch-seconds>} using the server-only env
 //     `PE_SHARE_SECRET`. No database row, no session, no user id in the token.
-//   - MINTING is gated: POST /api/pe-share requires a PE session plus the same
-//     entitlement class as exporting (paid tier, or the operator dev bypass) —
-//     the sharer must be able to see what they share.
+//   - MINTING is sign-in only: POST /api/pe-share requires a PE session.
+//     Share is free (locked 2026-08-10). Export entitlement is not a mint gate.
 //   - VIEWING is anonymous by design (the realtor-hands-a-client wedge), but
 //     the token scopes the viewer to EXACTLY one parcel's artifacts, read-only,
 //     time-boxed (30 days). The share-view BFF validates the token server-side

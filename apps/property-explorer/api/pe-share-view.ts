@@ -34,15 +34,13 @@
 // validated token — never from the query string.
 
 import type { VercelRequest, VercelResponse } from '@vercel/node'
-import { cortexApiUrl } from './_lib/oidc-config.js'
 import { callMcpTool, mcpProductKey } from './_lib/mcp-server-client.js'
 import {
   peShareSecret,
   resolveShareViewAccess,
   type ShareOwnerScope,
 } from './_lib/pe-share-token.js'
-import { buildShareBriefPayload, sharePropertyHeader } from './_lib/pe-share-brief.js'
-import { buildShareDossierPayload } from './_lib/pe-share-dossier.js'
+import { loadShareBrief, loadShareDossier } from './_lib/pe-share-view-compose.js'
 import {
   extractInlineDownload as extractSitePlanInline,
   sitePlanFilename,
@@ -73,52 +71,17 @@ async function serveBrief(
   parcelNodeId: string,
   expiresAt: string,
 ): Promise<void> {
-  const url = `${cortexApiUrl()}/api/brokerage/v1/place/node/${encodeURIComponent(parcelNodeId)}/facets`
-  let upstream: Response
-  try {
-    upstream = await fetch(url, { headers: { Accept: 'application/json' } })
-  } catch (err) {
-    res.status(502).json({
-      error: 'upstream_error',
-      message: err instanceof Error ? err.message : String(err),
+  const loaded = await loadShareBrief(parcelNodeId)
+  if (!loaded.ok) {
+    res.status(loaded.status).json({
+      error: loaded.error,
+      message: loaded.message,
     })
     return
   }
-  if (upstream.status === 404) {
-    res.status(404).json({
-      error: 'baked_snapshot_not_found',
-      message: 'No baked facet snapshot exists for this parcel node.',
-    })
-    return
-  }
-  if (!upstream.ok) {
-    res.status(502).json({
-      error: 'upstream_error',
-      message: `Facet snapshot fetch returned ${upstream.status}.`,
-    })
-    return
-  }
-  const body = (await upstream.json().catch(() => null)) as {
-    facets?: unknown
-    tier2?: unknown
-    snapshotAt?: unknown
-  } | null
-  if (!body || body.facets === undefined) {
-    res.status(502).json({
-      error: 'upstream_error',
-      message: 'Facet snapshot response was not readable.',
-    })
-    return
-  }
-  const snapshotAt = typeof body.snapshotAt === 'string' ? body.snapshotAt : null
   res.status(200).json({
-    property: sharePropertyHeader(parcelNodeId, body.facets),
-    report: buildShareBriefPayload({
-      parcelNodeId,
-      facets: body.facets,
-      tier2: body.tier2 ?? null,
-      snapshotAt,
-    }),
+    property: loaded.property,
+    report: loaded.report,
     share: { expiresAt },
   })
 }
@@ -135,78 +98,19 @@ async function serveDossier(
   ownerScope: ShareOwnerScope | null,
   expiresAt: string,
 ): Promise<void> {
-  if (!ownerScope) {
-    // v1 token — read-only compat: no owner scope, no dossier, no error.
-    res.status(404).json({
-      error: 'dossier_not_available',
-      message: 'This share link does not carry a dossier.',
-    })
-    return
-  }
-  const serviceKey = process.env.CORTEX_SERVICE_API_KEY?.trim()
-  if (!serviceKey) {
-    res.status(404).json({
-      error: 'dossier_not_available',
-      message: 'Dossier sharing is not configured on this deployment.',
-    })
-    return
-  }
-  const qs = new URLSearchParams({
-    tenantId: ownerScope.tenantId,
-    ownerUserId: ownerScope.ownerUserId,
-    parcelNodeId,
-  })
-  const url = `${cortexApiUrl()}/api/property-explorer/v1/internal/share-dossier?${qs.toString()}`
-  let upstream: Response
-  try {
-    upstream = await fetch(url, {
-      headers: {
-        Authorization: `Bearer ${serviceKey}`,
-        Accept: 'application/json',
-      },
-    })
-  } catch (err) {
-    res.status(502).json({
-      error: 'upstream_error',
-      message: err instanceof Error ? err.message : String(err),
-    })
-    return
-  }
-  // Feature-detect: route absent (older cortex) OR row absent both surface
-  // as 404 — the share view renders as today, no dossier section.
-  if (upstream.status === 404) {
-    res.status(404).json({
-      error: 'dossier_not_available',
-      message: 'No saved dossier exists for this share.',
-    })
-    return
-  }
-  if (!upstream.ok) {
-    res.status(502).json({
-      error: 'upstream_error',
-      message: `Dossier fetch returned ${upstream.status}.`,
-    })
-    return
-  }
-  const body = (await upstream.json().catch(() => null)) as {
-    parcelNodeId?: unknown
-    label?: unknown
-    updatedAt?: unknown
-    snapshot?: unknown
-  } | null
-  const dossier = body ? buildShareDossierPayload(body.snapshot) : null
-  if (!dossier) {
-    res.status(404).json({
-      error: 'dossier_not_available',
-      message: 'The saved dossier has nothing to share yet.',
+  const loaded = await loadShareDossier(parcelNodeId, ownerScope)
+  if (!loaded.ok) {
+    res.status(loaded.status).json({
+      error: loaded.error,
+      message: loaded.message,
     })
     return
   }
   res.status(200).json({
-    parcelNodeId,
-    label: typeof body?.label === 'string' ? body.label : null,
-    updatedAt: typeof body?.updatedAt === 'string' ? body.updatedAt : null,
-    dossier,
+    parcelNodeId: loaded.parcelNodeId,
+    label: loaded.label,
+    updatedAt: loaded.updatedAt,
+    dossier: loaded.dossier,
     share: { expiresAt },
   })
 }

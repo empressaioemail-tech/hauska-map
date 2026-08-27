@@ -24,7 +24,7 @@ import {
 
 /** Share value line — free for every signed-in user (acquisition channel). */
 export const SHARE_VALUE_LINE =
-  "Share links carry this property's full analysis — the verdict and cited brief plus the site-plan and terrain downloads when exported — readable by anyone you send them to.";
+  "Share links carry the grant-scoped instrument for this property. The public-record brief is one source. Site plan, terrain, and X-ray appear when the sharer exported them. Owner data is labelled when it cannot be served.";
 
 const MUTED = "var(--surface-muted, #94A3B8)";
 const AMBER = "var(--semantic-warning, #F59E0B)";
@@ -70,9 +70,10 @@ export function ShareBody({
       {stored ? (
         <>
           <p style={{ margin: "0 0 6px", fontSize: 11.5, color: TEXT }}>
-            Anyone with this link can view this property's analysis — the cited
-            brief plus the site-plan and terrain downloads when exported.
-            Read-only, this property only.
+            Anyone with this link can fetch it. The public-record brief is one
+            source on the share, not the share by itself. Site plan, terrain,
+            and X-ray appear when exported. Owner data is labelled when
+            withheld. Read-only, this property only, 30 days.
           </p>
           <div
             data-testid="share-link-url"
@@ -134,10 +135,10 @@ export function ShareBody({
       ) : (
         <>
           <p style={{ margin: "0 0 8px", fontSize: 11.5, color: TEXT }}>
-            Create a read-only link that carries this property's ANALYSIS — the
-            verdict and full cited brief, plus the site-plan PDF and terrain
-            drawings when exported. No sign-in needed to view; the link covers
-            only this property and expires after 30 days.
+            Create a read-only /s/{"{grantId}"} link a model can fetch. The
+            public-record brief is one source. Site plan, terrain, and X-ray
+            appear when the sharer exported them. Owner data is labelled when
+            withheld. No sign-in needed to view. This property only, 30 days.
           </p>
           <button
             type="button"
@@ -197,13 +198,6 @@ export function ShareTool() {
         setPhase({
           kind: "notice",
           text: "Sign in to create a share link for this property.",
-          tone: "amber",
-        });
-        return;
-      case "paywall":
-        setPhase({
-          kind: "notice",
-          text: outcome.message,
           tone: "amber",
         });
         return;

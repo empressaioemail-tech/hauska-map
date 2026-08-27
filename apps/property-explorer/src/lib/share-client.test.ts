@@ -1,5 +1,6 @@
 /**
  * Share-link mint client (Workbench W4) — outcome mapping with injected fetch.
+ * P-86 item 4: mint is sign-in only. 402 is not a product paywall path.
  */
 
 import { describe, expect, it, vi } from 'vitest'
@@ -17,13 +18,16 @@ function fakeFetch(status: number, body: unknown): typeof fetch {
 describe('mintShareLink', () => {
   it('POSTs the parcel and returns the minted link', async () => {
     const f = fakeFetch(200, {
-      url: 'https://pe.example/share#abc.def',
+      url: 'https://pe.example/s/2c1a9d4e-7b11-4f0a-9c3d-0a1b2c3d4e5f',
       expiresAt: '2026-08-28T00:00:00.000Z',
     })
     const outcome = await mintShareLink('48021:2', f)
     expect(outcome).toEqual({
       kind: 'ready',
-      link: { url: 'https://pe.example/share#abc.def', expiresAt: '2026-08-28T00:00:00.000Z' },
+      link: {
+        url: 'https://pe.example/s/2c1a9d4e-7b11-4f0a-9c3d-0a1b2c3d4e5f',
+        expiresAt: '2026-08-28T00:00:00.000Z',
+      },
     })
     expect(f).toHaveBeenCalledWith(
       '/api/pe-share',
@@ -35,15 +39,19 @@ describe('mintShareLink', () => {
     )
   })
 
-  it('maps 401 → sign-in, 402 → paywall, 503 unconfigured → honest notice', async () => {
+  it('maps 401 → sign-in; 402 is a message, not a product paywall', async () => {
     expect(await mintShareLink('48021:2', fakeFetch(401, {}))).toEqual({
       kind: 'sign-in',
     })
-    const paywall = await mintShareLink(
+    const leftover402 = await mintShareLink(
       '48021:2',
       fakeFetch(402, { error: 'payment_required', message: 'Legacy paywall.' }),
     )
-    expect(paywall).toEqual({ kind: 'paywall', message: 'Legacy paywall.' })
+    expect(leftover402).toEqual({
+      kind: 'message',
+      text: 'Legacy paywall.',
+    })
+    expect(leftover402).not.toMatchObject({ kind: 'paywall' })
     const unconfigured = await mintShareLink(
       '48021:2',
       fakeFetch(503, { error: 'sharing_not_configured', message: 'PE_SHARE_SECRET missing.' }),
