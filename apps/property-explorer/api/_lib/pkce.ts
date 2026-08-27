@@ -22,6 +22,8 @@ export interface PendingOidcState {
   provider: 'google' | 'microsoft'
   verifier: string
   createdAt: number
+  /** WorkOS Standalone Connect external_auth_id when sign-in started from /api/auth/mcp-login */
+  externalAuthId?: string
 }
 
 const STATE_TTL_MS = 10 * 60 * 1000
