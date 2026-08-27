@@ -368,7 +368,9 @@ export function RecordsRequestSection({
             resultsPending
               ? "Search in progress — instrument rows will appear when the clerk run completes."
               : resultsEmptyComplete
-                ? "Run finished — no instrument rows in the UI yet (worker may have completed with reachability-only scaffold)."
+                ? (merged.run?.instrumentCount ?? 0) > 0
+                  ? "Run finished — refresh to load instrument rows."
+                  : "Clerk index search finished with no index hits for the owner and legal queries run."
                 : null
           }
         />
