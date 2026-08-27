@@ -98,7 +98,7 @@ describe("featureToSuggestion labels", () => {
       wire({ osmKey: "place", osmValue: "city", name: "Austin", state: "Texas" }),
     );
     expect(pl?.kind).toBe("place");
-    expect(pl?.label).toBe("Austin");
+    expect(pl?.label).toBe("Austin City Texas");
   });
 
   it("unusable feature (no name at all) -> null, never a blank row", () => {
@@ -185,7 +185,7 @@ describe("mergeSearchSuggestions", () => {
     expect(merged[0]?.parcelNodeId).toBe("48209:193340");
   });
 
-  it("drops the Photon address row when a situs pin shares the house number", () => {
+  it("drops the Photon address row when situs shares house, street, and city", () => {
     const situs: Suggestion = {
       kind: "address",
       label: "17005 SIMSBROOK DR",
@@ -214,6 +214,51 @@ describe("mergeSearchSuggestions", () => {
     expect(merged[0]?.lookupQuery).toBe(
       "17005 SIMSBROOK DR, Pflugerville, TX, 78660",
     );
+  });
+
+  it("keeps Street vs Drive and city rows that share a house number", () => {
+    const guadalupe: Suggestion = {
+      kind: "parcel",
+      label: "1308 PECAN DR",
+      sublabel: "Cibolo, TX",
+      lat: null,
+      lng: null,
+      extent: null,
+      parcelNodeId: "48187:29690",
+      lookupQuery: "1308 PECAN DR, CIBOLO, TX",
+      source: "situs-parcel",
+    };
+    const bastropPhoton: Suggestion = {
+      kind: "address",
+      label: "1308 Pecan Street",
+      sublabel: "Bastrop, Texas",
+      lat: 30.11,
+      lng: -97.31,
+      extent: null,
+      parcelNodeId: null,
+      lookupQuery: "1308 Pecan Street, Bastrop, Texas, 78602",
+      source: "photon",
+    };
+    const pecanSt: Suggestion = {
+      kind: "parcel",
+      label: "1308 PECAN ST",
+      sublabel: "Bastrop, TX",
+      lat: null,
+      lng: null,
+      extent: null,
+      parcelNodeId: "48021:27479",
+      lookupQuery: "1308 PECAN ST, BASTROP, TX 78602",
+      source: "situs-parcel",
+    };
+    const merged = mergeSearchSuggestions(
+      [guadalupe, pecanSt],
+      [bastropPhoton],
+      7,
+      "1308 Pecan",
+    );
+    expect(merged.length).toBeGreaterThan(1);
+    expect(merged.some((s) => s.parcelNodeId === "48021:27479")).toBe(true);
+    expect(merged.some((s) => s.parcelNodeId === "48187:29690")).toBe(true);
   });
 
   it("keeps a Photon address when no situs pin shares the house number", () => {

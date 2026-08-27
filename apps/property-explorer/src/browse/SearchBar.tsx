@@ -29,6 +29,7 @@ import {
 } from "../lib/geocodeClient";
 import {
   highlightRanges,
+  isAmbiguousSuggestionSet,
   KIND_LABELS,
   suggestionLookupTarget,
   type Suggestion,
@@ -116,8 +117,8 @@ const form: CSSProperties = {
   gap: 6,
   padding: 6,
   borderRadius: 8,
-  background: "rgba(13,17,23,0.92)",
-  border: "1px solid rgba(154,166,178,0.4)",
+  background: "var(--surface-card-translucent, rgba(13,17,23,0.94))",
+  border: "1px solid var(--surface-border-rgba, rgba(154,166,178,0.3))",
   boxShadow: "0 4px 18px rgba(0,0,0,0.35)",
 };
 
@@ -153,7 +154,7 @@ const rowBase: CSSProperties = {
   padding: "7px 12px",
   cursor: "pointer",
   font: `12.5px/1.3 ${FONT}`,
-  color: "#c3ccd6",
+  color: "var(--text-body, #e5e7eb)",
   border: "none",
   background: "transparent",
   width: "100%",
@@ -184,7 +185,7 @@ const infoRow: CSSProperties = {
 
 const footer: CSSProperties = {
   font: `10px/1.2 ${FONT}`,
-  color: "#6b7684",
+  color: "var(--surface-muted-2, #64748B)",
   padding: "5px 12px 7px",
   borderTop: "1px solid rgba(154,166,178,0.15)",
 };
@@ -443,6 +444,20 @@ export function SearchBar({
     }
   };
 
+  const canPickHighlighted = (current: NonNullable<typeof snap>): boolean => {
+    const hasRow =
+      current.open &&
+      current.highlighted >= 0 &&
+      (current.showingRecents
+        ? current.recents.length > current.highlighted
+        : current.items.length > current.highlighted);
+    if (!hasRow) return false;
+    if (current.showingRecents) return true;
+    const ambiguous = isAmbiguousSuggestionSet(current.items);
+    if (!ambiguous || current.items.length <= 1) return true;
+    return current.highlightExplicit;
+  };
+
   const handleKeyDown = (e: KeyboardEvent<HTMLInputElement>) => {
     if (e.key === "ArrowDown") {
       e.preventDefault();
@@ -453,13 +468,7 @@ export function SearchBar({
     } else if (e.key === "Enter") {
       e.preventDefault();
       const current = controller.getSnapshot();
-      const hasRow =
-        current.open &&
-        current.highlighted >= 0 &&
-        (current.showingRecents
-          ? current.recents.length > current.highlighted
-          : current.items.length > current.highlighted);
-      if (hasRow) {
+      if (canPickHighlighted(current)) {
         pick();
       } else {
         const q = value.trim();
@@ -516,7 +525,7 @@ export function SearchBar({
           disabled={busy || !value.trim()}
           onClick={() => {
             const current = controller.getSnapshot();
-            if (current.open && current.highlighted >= 0) {
+            if (canPickHighlighted(current)) {
               pick();
               return;
             }

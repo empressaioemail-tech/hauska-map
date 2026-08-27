@@ -1206,9 +1206,23 @@ function ExplorerMapSurface({
         fitExtent,
         showChip: showSearchChip,
         highlightStreet,
+      }).then((out) => {
+        if (
+          (out.kind === "parcel" && out.opened) ||
+          (out.kind === "address" && out.opened)
+        ) {
+          ensureWorkbenchTool("brief");
+        }
       });
     },
-    [runParcelLookup, flyToPoint, fitExtent, showSearchChip, highlightStreet],
+    [
+      runParcelLookup,
+      flyToPoint,
+      fitExtent,
+      showSearchChip,
+      highlightStreet,
+      ensureWorkbenchTool,
+    ],
   );
 
   // Viewport bias for the geocoder — current LIVE camera center + zoom.

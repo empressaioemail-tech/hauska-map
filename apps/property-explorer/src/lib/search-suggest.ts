@@ -44,6 +44,8 @@ export interface SuggestSnapshot {
   showingRecents: boolean;
   /** True when a completed fetch found nothing (honest empty state). */
   empty: boolean;
+  /** True after Arrow/hover — Find/Enter may pick. Default first row is not a choice. */
+  highlightExplicit: boolean;
 }
 
 export interface SuggestControllerOpts {
@@ -91,6 +93,7 @@ export function createSuggestController(
     recents: opts.loadRecents ? opts.loadRecents() : [],
     showingRecents: false,
     empty: false,
+    highlightExplicit: false,
   };
 
   let timer: ReturnType<typeof setTimeout> | null = null;
@@ -131,12 +134,20 @@ export function createSuggestController(
           empty: items.length === 0,
           unavailable: false,
           highlighted: items.length ? 0 : -1,
+          highlightExplicit: false,
         });
       })
       .catch((err) => {
         if (gen !== generation || (err as Error)?.name === "AbortError") return;
         // Honest unavailable state — parcel-id fast path still works.
-        emit({ loading: false, items: [], empty: false, unavailable: true, highlighted: -1 });
+        emit({
+          loading: false,
+          items: [],
+          empty: false,
+          unavailable: true,
+          highlighted: -1,
+          highlightExplicit: false,
+        });
       });
   };
 
@@ -168,6 +179,7 @@ export function createSuggestController(
           unavailable: false,
           empty: false,
           highlighted: -1,
+          highlightExplicit: false,
         });
         return;
       }
@@ -184,6 +196,7 @@ export function createSuggestController(
           unavailable: false,
           empty: !fast,
           highlighted: fast ? 0 : -1,
+          highlightExplicit: false,
         });
         return;
       }
@@ -202,7 +215,14 @@ export function createSuggestController(
         return;
       }
 
-      emit({ query, open: true, showingRecents: false, loading: true, empty: false });
+      emit({
+        query,
+        open: true,
+        showingRecents: false,
+        loading: true,
+        empty: false,
+        highlightExplicit: false,
+      });
       timer = setTimeout(() => {
         timer = null;
         startFetch(trimmed);
@@ -225,13 +245,13 @@ export function createSuggestController(
             ? 0
             : count - 1
           : (current + delta + count) % count;
-      emit({ highlighted: next });
+      emit({ highlighted: next, highlightExplicit: true });
     },
 
     setHighlight(index) {
       const count = rowsFor(snap);
       if (index < -1 || index >= count) return;
-      emit({ highlighted: index });
+      emit({ highlighted: index, highlightExplicit: index >= 0 });
     },
 
     select(index) {

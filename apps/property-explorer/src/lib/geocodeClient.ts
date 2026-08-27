@@ -77,6 +77,6 @@ export async function fetchMergedSearchSuggestions(
       fetchImpl,
     }),
   ]);
-  return mergeSearchSuggestions(situs, geocode, limit);
+  return mergeSearchSuggestions(situs, geocode, limit, query);
 }
 

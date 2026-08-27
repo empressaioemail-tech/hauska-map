@@ -67,6 +67,48 @@ export function looksLikeParcelId(raw: string): boolean {
 const STREET_SUFFIX_RE =
   /\s+(drive|street|avenue|lane|boulevard|court|circle|road|dr|st|ave|ln|blvd|ct|cir|rd)\.?$/i;
 
+const STREET_SUFFIX_CANON: Record<string, string> = {
+  drive: "dr",
+  dr: "dr",
+  street: "st",
+  st: "st",
+  avenue: "ave",
+  ave: "ave",
+  lane: "ln",
+  ln: "ln",
+  boulevard: "blvd",
+  blvd: "blvd",
+  court: "ct",
+  ct: "ct",
+  circle: "cir",
+  cir: "cir",
+  road: "rd",
+  rd: "rd",
+};
+
+const STREET_SUFFIX_TOKEN_RE =
+  /^(drive|street|avenue|lane|boulevard|court|circle|road|dr|st|ave|ln|blvd|ct|cir|rd)\.?$/i;
+
+const PLACE_TYPES = new Set([
+  "city",
+  "county",
+  "state",
+  "district",
+  "locality",
+  "neighbourhood",
+  "neighborhood",
+  "suburb",
+  "town",
+  "village",
+]);
+
+/** Honest chip when Photon/house lookup finds no parcel — not a neighborhood hover. */
+export const INDEX_MISS_CHIP = "No parcel in the index for that address";
+
+/** Raw Find of a bare house+street must not lock the first prefix hit. */
+export const AMBIGUOUS_FIND_REASON =
+  "Several streets or cities match — pick one from the list.";
+
 const US_STATE_ABBREV: Record<string, string> = {
   alabama: "AL",
   alaska: "AK",
@@ -139,6 +181,155 @@ export function houseNumberFromSuggestion(s: Suggestion): string | null {
   return m?.[1] ?? null;
 }
 
+function streetSuffixFromText(raw: string): string | null {
+  const tokens = raw
+    .toLowerCase()
+    .replace(/[.,#]/g, " ")
+    .split(/\s+/)
+    .filter(Boolean);
+  for (const t of tokens) {
+    const canon = STREET_SUFFIX_CANON[t.replace(/\.$/, "")];
+    if (canon) return canon;
+  }
+  return null;
+}
+
+function streetStemFromText(raw: string): string {
+  const first = raw.split(",")[0] ?? raw;
+  return first
+    .toLowerCase()
+    .replace(/[.,#]/g, " ")
+    .split(/\s+/)
+    .filter(Boolean)
+    .filter((t, i) => i > 0 && !STREET_SUFFIX_CANON[t.replace(/\.$/, "")])
+    .join(" ");
+}
+
+function unitFromText(raw: string): string {
+  const m = raw.match(/#\s*([a-z0-9-]+)|(?:apt|apartment|unit|ste|suite)\s+([a-z0-9-]+)/i);
+  return (m?.[1] ?? m?.[2] ?? "").toLowerCase();
+}
+
+function cityFromSuggestion(s: Suggestion): string {
+  const fromSub = (s.sublabel ?? "")
+    .split(",")[0]
+    ?.trim()
+    .toLowerCase()
+    .replace(/\s+(tx|texas)$/i, "")
+    .trim();
+  if (fromSub) return fromSub;
+  const parts = (s.lookupQuery ?? "").split(",").map((p) => p.trim());
+  return (parts[1] ?? "").toLowerCase().replace(/\s+(tx|texas)$/i, "").trim();
+}
+
+/** House + stem + suffix + city + unit. Street vs Drive and two cities are distinct. */
+export function suggestionIdentityKey(s: Suggestion): string {
+  const src = `${s.label} ${s.lookupQuery ?? ""} ${s.sublabel ?? ""}`;
+  const hn = houseNumberFromSuggestion(s) ?? "";
+  return [
+    hn,
+    streetStemFromText(src),
+    streetSuffixFromText(src) ?? "",
+    cityFromSuggestion(s),
+    unitFromText(src),
+  ].join("|");
+}
+
+export function isAmbiguousSuggestionSet(items: Suggestion[]): boolean {
+  const keys = new Set<string>();
+  for (const s of items) {
+    if (s.kind !== "parcel" && s.kind !== "address") continue;
+    keys.add(suggestionIdentityKey(s));
+    if (keys.size >= 2) return true;
+  }
+  return false;
+}
+
+/** House number + street name, no suffix and no city — never lock hits[0]. */
+export function isBareHouseStreetQuery(raw: string): boolean {
+  const q = raw.trim();
+  if (!q || looksLikeParcelId(q)) return false;
+  const tokens = q.replace(/,/g, " ").split(/\s+/).filter(Boolean);
+  if (tokens.length < 2 || !/^\d/.test(tokens[0] ?? "")) return false;
+  const rest = tokens.slice(1);
+  if (rest.some((t) => STREET_SUFFIX_TOKEN_RE.test(t))) return false;
+  if (rest.some((t) => US_STATE_ABBREV[t.toLowerCase()])) return false;
+  return rest.length === 1;
+}
+
+/** `Bastrop Texas` / `Bastrop, Texas` — no house number, state token present. */
+export function looksLikeBarePlaceQuery(raw: string): boolean {
+  const q = raw.trim();
+  if (!q || looksLikeParcelId(q) || /^\d/.test(q)) return false;
+  const tokens = q.replace(/,/g, " ").split(/\s+/).filter(Boolean);
+  if (tokens.length < 2) return false;
+  const last = tokens[tokens.length - 1]?.toLowerCase() ?? "";
+  return Boolean(US_STATE_ABBREV[last]);
+}
+
+/**
+ * Extra situs prefixes so a city token is not treated as part of the street.
+ * `1308 Pecan Bastrop` also queries `1308 Pecan`. Does not drop the original.
+ */
+export function situsQueryVariants(raw: string): string[] {
+  const q = raw.trim();
+  if (!q || looksLikeParcelId(q)) return [q];
+  const seen = new Set<string>();
+  const out: string[] = [];
+  const push = (s: string) => {
+    const t = s.trim().replace(/\s+/g, " ");
+    const k = t.toLowerCase();
+    if (!t || seen.has(k)) return;
+    seen.add(k);
+    out.push(t);
+  };
+  push(q);
+  const tokens = q.replace(/,/g, " ").split(/\s+/).filter(Boolean);
+  let trimmed = [...tokens];
+  const last = trimmed[trimmed.length - 1];
+  if (trimmed.length >= 2 && last && US_STATE_ABBREV[last.toLowerCase()]) {
+    trimmed = trimmed.slice(0, -1);
+    push(trimmed.join(" "));
+  }
+  const tail = trimmed[trimmed.length - 1];
+  if (
+    trimmed.length >= 3 &&
+    tail &&
+    !STREET_SUFFIX_TOKEN_RE.test(tail) &&
+    !/^\d/.test(tail)
+  ) {
+    push(trimmed.slice(0, -1).join(" "));
+  }
+  return out;
+}
+
+export function isPudOrSubdivisionLabel(label: string): boolean {
+  return /\b(pud|subdivision|condo(?:minium)?s?|townhomes?|hoa)\b/i.test(label);
+}
+
+/** Photon street bbox that covers a whole PUD (~9 km) must not be fitted. */
+export function streetExtentTooLarge(extent: GeoExtent | null): boolean {
+  if (!extent) return false;
+  const [minLon, maxLat, maxLon, minLat] = extent;
+  return Math.abs(maxLon - minLon) > 0.08 || Math.abs(maxLat - minLat) > 0.08;
+}
+
+function rankSuggestionForQuery(s: Suggestion, query: string): number {
+  const q = query.toLowerCase();
+  const blob = `${s.label} ${s.sublabel ?? ""} ${s.lookupQuery ?? ""}`.toLowerCase();
+  let rank = 0;
+  if (s.source === "situs-parcel" || s.source === "direct-id") rank += 40;
+  if (s.source === "situs-address-point") rank += 20;
+  const qSuffix = streetSuffixFromText(q);
+  const sSuffix = streetSuffixFromText(blob);
+  if (qSuffix && sSuffix && qSuffix === sSuffix) rank += 30;
+  for (const token of q.split(/\s+/).filter((t) => t.length >= 3)) {
+    if (blob.includes(token)) rank += 8;
+  }
+  if (s.kind === "parcel" && s.parcelNodeId?.startsWith("48021:")) rank += 4;
+  return rank;
+}
+
 function abbreviateState(raw: string): string {
   const t = raw.trim();
   if (/^[A-Za-z]{2}$/.test(t)) return t.toUpperCase();
@@ -203,24 +394,64 @@ function localityLine(f: GeocodeWireFeature): string | null {
   return parts.length ? parts.join(", ") : null;
 }
 
+function stateLongName(state: string | null): string | null {
+  if (!state) return null;
+  const abbr = abbreviateState(state);
+  const named = Object.entries(US_STATE_ABBREV).find(([, v]) => v === abbr);
+  if (!named) return state;
+  return named[0].replace(/\b\w/g, (c) => c.toUpperCase());
+}
+
+function placeTypeOf(f: GeocodeWireFeature): string | null {
+  const type = (f.type ?? "").toLowerCase();
+  if (PLACE_TYPES.has(type)) return type;
+  const osm = (f.osmValue ?? "").toLowerCase();
+  if (f.osmKey === "place" && PLACE_TYPES.has(osm)) return osm;
+  return null;
+}
+
+/** City vs county labels: `Bastrop City Texas` / `Bastrop County Texas`. */
+export function placeDisplayLabel(f: GeocodeWireFeature): {
+  label: string;
+  sublabel: string | null;
+} | null {
+  const name = (f.name ?? f.street ?? "").trim();
+  if (!name) return null;
+  const kind = placeTypeOf(f);
+  const state = stateLongName(f.state) ?? "Texas";
+  if (kind === "city" || kind === "town" || kind === "village") {
+    const city = name.replace(/\s+city$/i, "").trim();
+    return { label: `${city} City ${state}`, sublabel: f.county ? `${f.county}` : null };
+  }
+  if (kind === "county") {
+    const county = name.replace(/\s+county$/i, "").trim();
+    return { label: `${county} County ${state}`, sublabel: null };
+  }
+  return { label: name, sublabel: localityLine(f) };
+}
+
 /** Classify a geocoder wire feature into a suggestion kind. */
 export function classifyFeature(f: GeocodeWireFeature): SuggestionKind {
   if (f.housenumber || f.type === "house") return "address";
-  if (f.osmKey === "highway" || f.type === "street") return "street";
+  const place = placeTypeOf(f);
+  if (place) return "place";
+  if (f.osmKey === "highway" || f.type === "street") {
+    if (isPudOrSubdivisionLabel(f.name ?? f.street ?? "")) return "place";
+    return "street";
+  }
   return "place";
 }
 
 /** Map one geocoder wire feature onto a display suggestion (null = unusable). */
 export function featureToSuggestion(f: GeocodeWireFeature): Suggestion | null {
   const kind = classifyFeature(f);
-  const locality = localityLine(f);
   if (kind === "address") {
     const line = [f.housenumber, f.street ?? f.name].filter(Boolean).join(" ").trim();
     if (!line) return null;
     return {
       kind,
       label: line,
-      sublabel: locality,
+      sublabel: localityLine(f),
       lat: f.lat,
       lng: f.lng,
       extent: f.extent,
@@ -230,17 +461,33 @@ export function featureToSuggestion(f: GeocodeWireFeature): Suggestion | null {
       source: "photon",
     };
   }
+  if (kind === "place") {
+    const place = placeDisplayLabel(f);
+    if (!place) return null;
+    return {
+      kind,
+      label: place.label,
+      sublabel: place.sublabel,
+      lat: f.lat,
+      lng: f.lng,
+      extent: f.extent,
+      parcelNodeId: null,
+      lookupQuery: null,
+      source: "photon",
+    };
+  }
   const name = f.name ?? f.street;
   if (!name) return null;
   return {
     kind,
     label: name,
-    sublabel: locality,
+    sublabel: localityLine(f),
     lat: f.lat,
     lng: f.lng,
     extent: f.extent,
     parcelNodeId: null,
     lookupQuery: null,
+    source: "photon",
   };
 }
 
@@ -326,33 +573,21 @@ export function groupSuggestions(
 
 /**
  * Merge situs-index parcel hits ahead of geocoder suggestions. Dedupes by
- * parcelNodeId and by normalized lookupQuery so the same address does not
- * appear twice when both sources return it.
+ * parcelNodeId, lookupQuery, and address identity (house+stem+suffix+city).
+ * House number alone is NOT identity — Street vs Drive and two cities stay.
  */
 export function mergeSearchSuggestions(
   situs: Suggestion[],
   geocode: Suggestion[],
   max = 7,
+  query = "",
 ): Suggestion[] {
   const seenParcel = new Set<string>();
   const seenLookup = new Set<string>();
+  const seenIdentity = new Set<string>();
   const merged: Suggestion[] = [];
 
   const consider = (s: Suggestion) => {
-    if (s.kind === "address" && s.source === "photon") {
-      const hn = houseNumberFromSuggestion(s);
-      if (
-        hn &&
-        merged.some((m) => {
-          if (m.source !== "situs-address-point" && m.source !== "situs-parcel") {
-            return false;
-          }
-          return houseNumberFromSuggestion(m) === hn;
-        })
-      ) {
-        return;
-      }
-    }
     if (s.parcelNodeId) {
       const id = s.parcelNodeId.trim();
       if (id && seenParcel.has(id)) return;
@@ -363,11 +598,22 @@ export function mergeSearchSuggestions(
       if (seenLookup.has(lookup)) return;
       seenLookup.add(lookup);
     }
+    if (s.kind === "parcel" || s.kind === "address") {
+      const ident = suggestionIdentityKey(s);
+      if (ident && seenIdentity.has(ident)) return;
+      if (ident) seenIdentity.add(ident);
+    }
     merged.push(s);
   };
 
-  for (const s of situs) consider(s);
-  for (const s of geocode) consider(s);
+  const rankedSitus = [...situs].sort(
+    (a, b) => rankSuggestionForQuery(b, query) - rankSuggestionForQuery(a, query),
+  );
+  const rankedGeocode = [...geocode].sort(
+    (a, b) => rankSuggestionForQuery(b, query) - rankSuggestionForQuery(a, query),
+  );
+  for (const s of rankedSitus) consider(s);
+  for (const s of rankedGeocode) consider(s);
   return groupSuggestions(merged, max);
 }
 
@@ -421,7 +667,11 @@ export function highlightRanges(
  * target, so its label is the only honest thing to show.
  */
 export function suggestionLookupTarget(s: Suggestion): string {
-  if (s.kind === "parcel") return s.parcelNodeId ?? s.lookupQuery ?? s.label;
+  if (s.kind === "parcel") {
+    const addr = s.lookupQuery?.trim();
+    if (addr && !looksLikeParcelId(addr)) return addr;
+    return s.parcelNodeId ?? s.lookupQuery ?? s.label;
+  }
   if (s.kind === "address") return identityQueryFromAddressSuggestion(s);
   return s.lookupQuery ?? s.label;
 }

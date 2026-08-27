@@ -65,6 +65,11 @@ afterEach(() => {
 });
 
 describe("debounce", () => {
+  it("debounce is ~250ms — 10–15s is a fail, and there is no row-dropping fast path", () => {
+    expect(SUGGEST_DEBOUNCE_MS).toBe(250);
+    expect(SUGGEST_DEBOUNCE_MS).toBeLessThan(1000);
+  });
+
   it("fires ONE fetch ~250ms after the last keystroke, not per keystroke", async () => {
     const h = harness();
     h.controller.input("ma");
