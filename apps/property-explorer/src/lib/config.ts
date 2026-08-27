@@ -40,23 +40,62 @@ export const DEFAULT_CENTER = { latitude: 30.1105, longitude: -97.3184 };
 export const DEFAULT_ZOOM = 15;
 
 /** Rollback: set VITE_PARCEL_PMTILES_HASH=3431529a2e8d (Central-TX 19-county). */
-const PARCEL_PMTILES_HASH =
-  (typeof import.meta !== "undefined" &&
-    (import.meta as ImportMeta & { env?: Record<string, string> }).env
-      ?.VITE_PARCEL_PMTILES_HASH) ||
-  "b692c6534d26";
+const env =
+  typeof import.meta !== "undefined"
+    ? (import.meta as ImportMeta & { env?: Record<string, string> }).env
+    : undefined;
+
+const PARCEL_PMTILES_HASH = env?.VITE_PARCEL_PMTILES_HASH ?? "b692c6534d26";
 
 const PARCEL_PMTILES_BASE =
   "https://storage.googleapis.com/hauska-map-tiles/parcels";
 
+/** F-06: optional tiles.json manifest URL (data pointer, not a code deploy). */
+export const TILES_MANIFEST_URL =
+  env?.VITE_TILES_MANIFEST_URL ?? "/tiles.json";
+
+export type TilesManifest = {
+  hash: string;
+  url: string;
+  sourceLayer?: string;
+  promoteId?: string;
+};
+
+let cachedManifest: TilesManifest | null = null;
+
+export async function loadTilesManifest(): Promise<TilesManifest | null> {
+  if (cachedManifest) return cachedManifest;
+  try {
+    const res = await fetch(TILES_MANIFEST_URL);
+    if (!res.ok) return null;
+    cachedManifest = (await res.json()) as TilesManifest;
+    return cachedManifest;
+  } catch {
+    return null;
+  }
+}
+
 /**
- * PMTiles browse-parcel layer — same archive as SHARED_PARCEL_TILES (CC-A WDLL 7).
+ * PMTiles browse-parcel layer — hash pin or tiles.json manifest (F-06).
  */
 export const PARCEL_TILES = {
   url: `${PARCEL_PMTILES_BASE}.${PARCEL_PMTILES_HASH}.pmtiles`,
   sourceLayer: "parcels",
   promoteId: "parcel_node_id",
 };
+
+/** Resolve parcel tiles URL, preferring tiles.json when loaded. */
+export async function resolveParcelTiles(): Promise<typeof PARCEL_TILES> {
+  const manifest = await loadTilesManifest();
+  if (manifest?.url) {
+    return {
+      url: manifest.url,
+      sourceLayer: manifest.sourceLayer ?? PARCEL_TILES.sourceLayer,
+      promoteId: manifest.promoteId ?? PARCEL_TILES.promoteId,
+    };
+  }
+  return PARCEL_TILES;
+}
 
 /**
  * TxGIO terrain-RGB — same values as SHARED_TERRAIN_RGB (T-010).
