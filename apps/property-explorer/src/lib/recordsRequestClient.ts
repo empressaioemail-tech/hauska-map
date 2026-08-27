@@ -181,6 +181,27 @@ export function filtersFromInstruments(
   return filters;
 }
 
+function projectedCostFromScope(
+  scope: Record<string, unknown> | null,
+): number | null {
+  if (!scope) return null;
+  const direct = scope.projectedPurchaseCostCents;
+  if (typeof direct === "number" && direct >= 0) return direct;
+  const acquisition = scope.acquisition;
+  if (acquisition && typeof acquisition === "object") {
+    const cents = (acquisition as Record<string, unknown>).purchaseCostCents;
+    if (typeof cents === "number" && cents >= 0) return cents;
+  }
+  return null;
+}
+
+function formatProjectedCost(cents: number | null | undefined): string | null {
+  if (cents == null || cents < 0) return null;
+  return `$${(cents / 100).toFixed(2)}`;
+}
+
+export { formatProjectedCost };
+
 function runFromLatestJob(
   parcelNodeId: string,
   job: WireJob | undefined,
@@ -208,6 +229,7 @@ function runFromLatestJob(
       typeof job.errorCode === "string" ? job.errorCode : null,
     errorMessage:
       typeof job.errorMessage === "string" ? job.errorMessage : null,
+    projectedPurchaseCostCents: projectedCostFromScope(scope),
   };
 }
 
@@ -330,6 +352,126 @@ export async function requestRecordsRun(
       live: true,
       jobId: typeof body.jobId === "string" ? body.jobId : null,
     };
+    return { wired: true, run, notice: null };
+  } catch {
+    return {
+      wired: false,
+      run: null,
+      notice: RECORDS_NOT_WIRED_NOTICE,
+    };
+  }
+}
+
+function runFromPurchaseDecisionBody(
+  parcelNodeId: string,
+  body: Record<string, unknown>,
+): RecordsRunView | null {
+  const jobStatus =
+    typeof body.jobStatus === "string"
+      ? body.jobStatus
+      : typeof body.status === "string"
+        ? body.status
+        : null;
+  if (!jobStatus) return null;
+  const scope =
+    body.scopeSearched && typeof body.scopeSearched === "object"
+      ? (body.scopeSearched as Record<string, unknown>)
+      : null;
+  const instruments = instrumentsFromScope(scope);
+  return {
+    phase: phaseFromJobStatus(jobStatus),
+    parcelNodeId,
+    searchedAt: formatSearchedAt(
+      typeof body.completedAt === "string"
+        ? body.completedAt
+        : new Date().toISOString(),
+    ),
+    instrumentCount: instruments.length,
+    filters: filtersFromInstruments(instruments),
+    instruments,
+    verdicts: [],
+    live: true,
+    jobId: typeof body.jobId === "string" ? body.jobId : null,
+    errorCode:
+      typeof body.errorCode === "string" ? body.errorCode : null,
+    errorMessage:
+      typeof body.errorMessage === "string" ? body.errorMessage : null,
+    projectedPurchaseCostCents: projectedCostFromScope(scope),
+  };
+}
+
+/** User approves projected county clerk image fees — resumes acquisition. */
+export async function approveRecordsPurchase(
+  jobId: string,
+  parcelNodeId: string,
+): Promise<RecordsRunFetchResult> {
+  try {
+    const res = await fetch(
+      `${CORTEX_DEEP_PROXY_BASE}/${RECORDS_PATH}/${encodeURIComponent(jobId)}/approve-purchase`,
+      {
+        method: "POST",
+        credentials: "include",
+      },
+    );
+    if (res.status === 401) {
+      return {
+        wired: true,
+        run: null,
+        notice: "Sign in to approve county clerk fees.",
+      };
+    }
+    const body = await parseJson(res);
+    if (!res.ok) {
+      const message =
+        typeof body.message === "string"
+          ? body.message
+          : typeof body.error === "string"
+            ? body.error
+            : `Approve fees failed (${res.status}).`;
+      return { wired: true, run: null, notice: message };
+    }
+    const run = runFromPurchaseDecisionBody(parcelNodeId, body);
+    return { wired: true, run, notice: null };
+  } catch {
+    return {
+      wired: false,
+      run: null,
+      notice: RECORDS_NOT_WIRED_NOTICE,
+    };
+  }
+}
+
+/** User declines county fees — completes run header-only. */
+export async function declineRecordsPurchase(
+  jobId: string,
+  parcelNodeId: string,
+): Promise<RecordsRunFetchResult> {
+  try {
+    const res = await fetch(
+      `${CORTEX_DEEP_PROXY_BASE}/${RECORDS_PATH}/${encodeURIComponent(jobId)}/decline-purchase`,
+      {
+        method: "POST",
+        credentials: "include",
+      },
+    );
+    if (res.status === 401) {
+      return {
+        wired: true,
+        run: null,
+        notice: "Sign in to decline county clerk fees.",
+      };
+    }
+    const body = await parseJson(res);
+    if (!res.ok) {
+      const message =
+        typeof body.message === "string"
+          ? body.message
+          : typeof body.error === "string"
+            ? body.error
+            : `Decline fees failed (${res.status}).`;
+      return { wired: true, run: null, notice: message };
+    }
+    const run = runFromPurchaseDecisionBody(parcelNodeId, body);
     return { wired: true, run, notice: null };
   } catch {
     return {
