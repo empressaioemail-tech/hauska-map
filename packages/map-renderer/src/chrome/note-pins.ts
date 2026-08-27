@@ -16,9 +16,6 @@ export const NOTE_PIN_COLORS = [
 
 export function noteColorAt(index: number): string {
   const n = NOTE_PIN_COLORS.length;
-  if (n === 0) {
-    throw new Error("NOTE_PIN_COLORS must contain at least one colour");
-  }
   const i = Number.isFinite(index) ? Math.trunc(index) : 0;
   const wrapped = ((i % n) + n) % n;
   return NOTE_PIN_COLORS[wrapped];
