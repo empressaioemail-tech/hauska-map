@@ -50,10 +50,18 @@ describe("dock single-tenancy — the pure toggle rule", () => {
 });
 
 describe("bubble cluster", () => {
-  it("renders all six bubbles and no dock while closed", () => {
+  it("renders all seven bubbles and no dock while closed", () => {
     const html = render({});
     expect(html).toContain('data-testid="workbench-cluster"');
-    for (const id of ["brief", "chat", "reports", "properties", "share", "compare"]) {
+    for (const id of [
+      "brief",
+      "chat",
+      "reports",
+      "properties",
+      "share",
+      "use-in-ai",
+      "compare",
+    ]) {
       expect(html).toContain(`data-testid="workbench-bubble-${id}"`);
     }
     // FD2: flood folded INSIDE Reports & exports — no standalone bubble.
@@ -61,18 +69,27 @@ describe("bubble cluster", () => {
     expect(html).not.toContain('data-testid="workbench-dock"');
   });
 
-  it("registry: SIX tools live as of FD2 (flood consolidated into reports)", () => {
+  it("registry: SEVEN tools live (use-in-ai after share; flood stays in reports)", () => {
     expect(WORKBENCH_TOOLS.map((t) => t.id)).toEqual([
       "brief",
       "chat",
       "reports",
       "properties",
       "share",
+      "use-in-ai",
       "compare",
     ]);
     expect(
       WORKBENCH_TOOLS.filter((t) => t.status === "live").map((t) => t.id),
-    ).toEqual(["brief", "chat", "reports", "properties", "share", "compare"]);
+    ).toEqual([
+      "brief",
+      "chat",
+      "reports",
+      "properties",
+      "share",
+      "use-in-ai",
+      "compare",
+    ]);
     expect(
       WORKBENCH_TOOLS.find((t) => t.id === "reports")?.label,
     ).toBe("Reports & exports");

@@ -17,6 +17,7 @@ import { ChatTool } from "./tools/ChatTool";
 import { ReportsTool } from "./tools/ReportsTool";
 import { PropertiesTool } from "./tools/PropertiesTool";
 import { ShareTool } from "./tools/ShareTool";
+import { UseInYourAiTool } from "./tools/UseInYourAiTool";
 import { CompareTool } from "./tools/CompareTool";
 
 // Stroke glyphs in the MapToolset icon language (24-viewBox paths).
@@ -32,13 +33,15 @@ const ICONS = {
   // Share nodes.
   share:
     "M18 8a2.5 2.5 0 1 0 0-5 2.5 2.5 0 0 0 0 5ZM6 14.5a2.5 2.5 0 1 0 0-5 2.5 2.5 0 0 0 0 5Zm12 6.5a2.5 2.5 0 1 0 0-5 2.5 2.5 0 0 0 0 5ZM8.2 10.9 15.8 7m-7.6 6.1 7.6 3.9",
+  // Monitor face (Use in your AI — rail circle).
+  useInAi: "M4 6h16a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2Zm5 5h.01M15 11h.01M9.5 14.5h5",
   // Two overlapping rectangles (compare).
   compare: "M4 4h11v11H4V4Zm5 5h11v11H9V9Z",
 } as const;
 
 /**
- * The static v1 registry. Order = cluster order, top to bottom. SIX live
- * bubbles as of FD2 (brief, chat, reports, properties, share, compare) —
+ * The static v1 registry. Order = cluster order, top to bottom. SEVEN live
+ * bubbles (brief, chat, reports, properties, share, use-in-ai, compare) —
  * Flood & Drainage folded INSIDE Reports & exports (FloodDrainageSection);
  * its map overlay renders through the host seam, not a bubble.
  */
@@ -84,6 +87,18 @@ export const WORKBENCH_TOOLS: WorkbenchToolDef[] = [
     status: "live",
     propertyScoped: true,
     render: () => <ShareTool />,
+  },
+  {
+    // P-87 items 15/16: Use in your AI. OAuth is not live — sheet is Coming
+    // soon / Unavailable, never a fake Connect. Share-link mint is the
+    // working hook until Connect ships.
+    id: "use-in-ai",
+    label: "Use in your AI",
+    icon: <WorkbenchIcon path={ICONS.useInAi} />,
+    status: "live",
+    propertyScoped: false,
+    expandable: false,
+    render: () => <UseInYourAiTool />,
   },
   {
     // WB7: compare two SAVED properties side by side INSIDE the one dock.
