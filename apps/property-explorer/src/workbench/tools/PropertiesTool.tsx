@@ -43,6 +43,10 @@ import { parcelNodes } from "../../lib/parcel-node-store.js";
 import { recordPeGtmEvent } from "../../lib/gtmClient";
 import { useWorkbench } from "../WorkbenchContext";
 import { PropertyDossierDetail, STATUS_LABELS } from "./PropertyDossierDetail";
+import {
+  initialPropertiesView,
+  type PropertiesView,
+} from "./properties-pending-open";
 import { runBriefResearch } from "./brief-research";
 import {
   assembleDossierExportBody,
@@ -66,9 +70,7 @@ type ListPhase =
   | { kind: "notice"; text: string };
 
 /** Master list vs. one property's dossier detail — same dock, one surface. */
-export type PropertiesView =
-  | { kind: "list" }
-  | { kind: "detail"; parcelNodeId: string };
+export type { PropertiesView } from "./properties-pending-open";
 
 /** WB7d — list filter value: all, or one of the three statuses. */
 export type StatusFilter = "all" | DossierStatus;
@@ -359,7 +361,7 @@ export function PropertiesTool() {
   const { activeParcelNodeId, host } = useWorkbench();
   const [phase, setPhase] = useState<ListPhase>({ kind: "loading" });
   const [busy, setBusy] = useState(false);
-  const [view, setView] = useState<PropertiesView>({ kind: "list" });
+  const [view, setView] = useState<PropertiesView>(initialPropertiesView);
   // Transient dossier-action outcome shown in the detail view (honest line).
   const [dossierNotice, setDossierNotice] = useState<string | null>(null);
   // WB7d — transient list filter (renders only on lists with >5 entries).

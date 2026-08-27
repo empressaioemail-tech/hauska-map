@@ -26,7 +26,16 @@ import type { SavedPropertyRow } from "../../lib/savedPropertiesClient";
 import {
   COMPARE_GLOBAL_STATE_KEY,
   CompareView,
+  saveCompareNote,
 } from "./CompareTool";
+import { openCompareSlotInMyProperties } from "./compare-open";
+import {
+  initialPropertiesView,
+  peekOpenSavedPropertyRequest,
+  requestOpenSavedProperty,
+  resetOpenSavedPropertyRequest,
+  takeOpenSavedPropertyRequest,
+} from "./properties-pending-open";
 import type {
   BakedFacetPayload,
 } from "../../lib/baked-facets";
@@ -39,11 +48,13 @@ const noop = () => {};
 // Fixtures.
 // ---------------------------------------------------------------------------
 
+const NOTE_ON_A = "Check the drainage easement.";
+
 const ROW_A: SavedPropertyRow = {
   parcelNodeId: "48021:123",
   label: "104 Main St",
   updatedAt: "2026-07-28T10:00:00Z",
-  snapshot: null,
+  snapshot: { notes: NOTE_ON_A },
 };
 const ROW_B: SavedPropertyRow = {
   parcelNodeId: "48055:987",
@@ -138,6 +149,8 @@ function renderView(opts: {
   stored?: CompareStoredState | null;
   failures?: Record<string, string>;
   onView?: (id: string) => void;
+  onOpen?: (id: string) => void;
+  onSaveNote?: (id: string, text: string) => void;
 }): string {
   return renderToStaticMarkup(
     <CompareView
@@ -146,6 +159,8 @@ function renderView(opts: {
       failures={opts.failures ?? {}}
       onSelect={noop}
       onView={opts.onView}
+      onOpen={opts.onOpen}
+      onSaveNote={opts.onSaveNote}
     />,
   );
 }
@@ -359,6 +374,37 @@ describe("global persistence through the chassis store", () => {
     expect(html).toContain("no zoning stamp here");
   });
 
+  it("W5.2 click-through then reopen still renders the persisted pair", () => {
+    const store = createWorkbenchToolStateStore({ storage: null });
+    store.set(COMPARE_GLOBAL_STATE_KEY, "compare", BOTH_SELECTED);
+    const opened: string[] = [];
+    const flown: string[] = [];
+    resetOpenSavedPropertyRequest();
+    const outcome = openCompareSlotInMyProperties("48055:987", {
+      openTool: (id) => opened.push(id),
+      openProperty: (id) => flown.push(id),
+    });
+    expect(outcome).toEqual({ opened: true, parcelNodeId: "48055:987" });
+    expect(opened).toEqual(["properties"]);
+    expect(flown).toEqual(["48055:987"]);
+    expect(store.get(COMPARE_GLOBAL_STATE_KEY, "compare")).toEqual(BOTH_SELECTED);
+
+    const html = renderToStaticMarkup(
+      <Workbench
+        tools={WORKBENCH_TOOLS}
+        openToolId="compare"
+        onOpenToolChange={noop}
+        activeParcelNodeId={null}
+        host={host}
+        store={store}
+      />,
+    );
+    expect(html).toContain('data-testid="compare-table"');
+    expect(html).toContain("104 Main St, Bastrop, TX");
+    expect(html).toContain("48055:987");
+    resetOpenSavedPropertyRequest();
+  });
+
   it("nothing persisted + no active property → the loading state, not a crash", () => {
     const html = renderToStaticMarkup(
       <Workbench
@@ -371,5 +417,113 @@ describe("global persistence through the chassis store", () => {
       />,
     );
     expect(html).toContain('data-testid="compare-loading"');
+  });
+});
+
+// ---------------------------------------------------------------------------
+// W5.1 notes — existing note on A must render; add-note field present.
+// These FAIL if compare omits notes from the saved row.
+// ---------------------------------------------------------------------------
+
+describe("W5.1 compare notes", () => {
+  const html = renderView({
+    stored: BOTH_SELECTED,
+    onSaveNote: noop,
+  });
+
+  it("shows A's existing note (fails if notes are missing from compare)", () => {
+    expect(html).toContain('data-testid="compare-notes-a"');
+    expect(html).toContain('data-testid="compare-notes-existing-a"');
+    expect(html).toContain(NOTE_ON_A);
+    expect(html).toContain('data-testid="compare-notes-input-a"');
+  });
+
+  it("B with no note still offers a field to add one", () => {
+    expect(html).toContain('data-testid="compare-notes-b"');
+    expect(html).toContain('data-testid="compare-notes-empty-b"');
+    expect(html).toContain("No notes yet.");
+    expect(html).toContain('data-testid="compare-notes-input-b"');
+    expect(html).not.toContain('data-testid="compare-notes-existing-b"');
+  });
+
+  it("saveCompareNote refuses an empty parcel (fail closed)", async () => {
+    let called = false;
+    const outcome = await saveCompareNote("   ", "a note", async () => {
+      called = true;
+      return { kind: "ok" };
+    });
+    expect(outcome.kind).toBe("error");
+    expect(called).toBe(false);
+  });
+
+  it("saveCompareNote writes notes through the dossier updater", async () => {
+    const patches: Array<{ id: string; notes: unknown }> = [];
+    const outcome = await saveCompareNote(
+      "48021:123",
+      "  new note  ",
+      async (parcelNodeId, patch) => {
+        patches.push({
+          id: parcelNodeId,
+          notes: typeof patch === "function" ? "fn" : patch.notes,
+        });
+        return { kind: "ok" };
+      },
+    );
+    expect(outcome).toEqual({ kind: "ok" });
+    expect(patches).toEqual([{ id: "48021:123", notes: "new note" }]);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// W5.2 click-through — B opens My properties; pair is not cleared.
+// ---------------------------------------------------------------------------
+
+describe("W5.2 click-through to My properties", () => {
+  it("renders a click-B control when the host can switch tools", () => {
+    const html = renderView({ stored: BOTH_SELECTED, onOpen: noop });
+    expect(html).toContain('data-testid="compare-open-b"');
+    expect(html).toContain('data-testid="compare-open-a"');
+  });
+
+  it("click-B helper opens properties for B and leaves the compare pair", () => {
+    const store = createWorkbenchToolStateStore({ storage: null });
+    store.set(COMPARE_GLOBAL_STATE_KEY, "compare", BOTH_SELECTED);
+    resetOpenSavedPropertyRequest();
+    const opened: string[] = [];
+    const flown: string[] = [];
+    const outcome = openCompareSlotInMyProperties("48055:987", {
+      openTool: (id) => opened.push(id),
+      openProperty: (id) => flown.push(id),
+    });
+    expect(outcome).toEqual({ opened: true, parcelNodeId: "48055:987" });
+    expect(opened).toEqual(["properties"]);
+    expect(flown).toEqual(["48055:987"]);
+    expect(peekOpenSavedPropertyRequest()).toBe("48055:987");
+    expect(store.get(COMPARE_GLOBAL_STATE_KEY, "compare")).toEqual(BOTH_SELECTED);
+    expect(takeOpenSavedPropertyRequest()).toBe("48055:987");
+    expect(takeOpenSavedPropertyRequest()).toBeNull();
+  });
+
+  it("refuses click-through with no parcel and without openTool", () => {
+    resetOpenSavedPropertyRequest();
+    expect(openCompareSlotInMyProperties("", { openTool: () => {} })).toEqual({
+      opened: false,
+      reason: "no-parcel",
+    });
+    expect(openCompareSlotInMyProperties("48055:987", {})).toEqual({
+      opened: false,
+      reason: "no-open-tool",
+    });
+    expect(peekOpenSavedPropertyRequest()).toBeNull();
+  });
+
+  it("My properties consumes the pending B as detail (pair request survives consume)", () => {
+    resetOpenSavedPropertyRequest();
+    requestOpenSavedProperty("48055:987");
+    expect(initialPropertiesView()).toEqual({
+      kind: "detail",
+      parcelNodeId: "48055:987",
+    });
+    expect(initialPropertiesView()).toEqual({ kind: "list" });
   });
 });
