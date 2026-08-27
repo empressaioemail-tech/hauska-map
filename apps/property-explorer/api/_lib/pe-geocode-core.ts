@@ -47,6 +47,10 @@ export function detectTexasIntent(query: string): boolean {
   ) {
     return true
   }
+  // Bare house + street with no city ("905 Pecan", "1620 Bryant") has no TX
+  // token. This surface is Texas-only; without a bias Photon ranks Erath /
+  // Virginia / New Jersey first.
+  if (/^\d+\s+[A-Za-z][A-Za-z'-]+$/.test(q)) return true
   return false
 }
 

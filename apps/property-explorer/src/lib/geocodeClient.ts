@@ -8,6 +8,7 @@
 import type { GeocodeWireResponse } from "../../api/_lib/pe-geocode-core";
 import {
   featureToSuggestion,
+  isBareHouseStreetQuery,
   mergeSearchSuggestions,
   type Suggestion,
 } from "./search-kinds";
@@ -65,18 +66,23 @@ export async function fetchMergedSearchSuggestions(
 ): Promise<Suggestion[]> {
   const limit = opts?.limit ?? 7;
   const fetchImpl = opts?.fetchImpl ?? fetch;
-  const [situs, geocode] = await Promise.all([
+  const geocodeQueries = isBareHouseStreetQuery(query)
+    ? [query, `${query} Street`, `${query} Drive`]
+    : [query];
+  const [situs, ...geocodeBatches] = await Promise.all([
     fetchSitusSearchSuggestions(query, signal, {
       baseUrl: opts?.baseSitusUrl,
       limit,
       fetchImpl,
     }).catch(() => [] as Suggestion[]),
-    fetchGeocodeSuggestions(query, bias, signal, {
-      baseUrl: opts?.baseGeocodeUrl,
-      limit,
-      fetchImpl,
-    }),
+    ...geocodeQueries.map((q) =>
+      fetchGeocodeSuggestions(q, bias, signal, {
+        baseUrl: opts?.baseGeocodeUrl,
+        limit,
+        fetchImpl,
+      }).catch(() => [] as Suggestion[]),
+    ),
   ]);
-  return mergeSearchSuggestions(situs, geocode, limit, query);
+  return mergeSearchSuggestions(situs, geocodeBatches.flat(), limit, query);
 }
 

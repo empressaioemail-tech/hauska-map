@@ -300,6 +300,13 @@ export function situsQueryVariants(raw: string): string[] {
   ) {
     push(trimmed.slice(0, -1).join(" "));
   }
+  for (const candidate of [...out]) {
+    if (!isBareHouseStreetQuery(candidate)) continue;
+    push(`${candidate} ST`);
+    push(`${candidate} DR`);
+    push(`${candidate} Street`);
+    push(`${candidate} Drive`);
+  }
   return out;
 }
 
@@ -327,6 +334,10 @@ function rankSuggestionForQuery(s: Suggestion, query: string): number {
     if (blob.includes(token)) rank += 8;
   }
   if (s.kind === "parcel" && s.parcelNodeId?.startsWith("48021:")) rank += 4;
+  if (looksLikeBarePlaceQuery(query)) {
+    if (s.kind === "place") rank += 100;
+    if (s.kind === "address") rank -= 80;
+  }
   return rank;
 }
 
@@ -499,12 +510,16 @@ export function situsHitToSuggestion(hit: SitusSearchHit): Suggestion | null {
   const comma = situs.indexOf(",");
   const streetLine = comma >= 0 ? situs.slice(0, comma).trim() : situs;
   const locality = comma >= 0 ? situs.slice(comma + 1).trim() : null;
+  const lat =
+    hit.latitude != null && Number.isFinite(hit.latitude) ? hit.latitude : null;
+  const lng =
+    hit.longitude != null && Number.isFinite(hit.longitude) ? hit.longitude : null;
   return {
     kind: "parcel",
     label: streetLine || situs,
     sublabel: locality || "parcel situs",
-    lat: null,
-    lng: null,
+    lat,
+    lng,
     extent: null,
     parcelNodeId: nodeId,
     lookupQuery: situs,
@@ -552,8 +567,11 @@ export function placeSearchHitToSuggestion(hit: SitusSearchHit): Suggestion | nu
 export function groupSuggestions(
   items: Suggestion[],
   max = 7,
+  query = "",
 ): Suggestion[] {
-  const order: SuggestionKind[] = ["parcel", "address", "street", "place"];
+  const order: SuggestionKind[] = looksLikeBarePlaceQuery(query)
+    ? ["place", "street", "parcel", "address"]
+    : ["parcel", "address", "street", "place"];
   const grouped: Suggestion[] = [];
   for (const kind of order) {
     for (const s of items) if (s.kind === kind) grouped.push(s);
@@ -586,6 +604,9 @@ export function mergeSearchSuggestions(
   const seenLookup = new Set<string>();
   const seenIdentity = new Set<string>();
   const merged: Suggestion[] = [];
+  const geocodeKept = looksLikeBarePlaceQuery(query)
+    ? geocode.filter((s) => s.kind !== "address")
+    : geocode;
 
   const consider = (s: Suggestion) => {
     if (s.parcelNodeId) {
@@ -609,12 +630,12 @@ export function mergeSearchSuggestions(
   const rankedSitus = [...situs].sort(
     (a, b) => rankSuggestionForQuery(b, query) - rankSuggestionForQuery(a, query),
   );
-  const rankedGeocode = [...geocode].sort(
+  const rankedGeocode = [...geocodeKept].sort(
     (a, b) => rankSuggestionForQuery(b, query) - rankSuggestionForQuery(a, query),
   );
   for (const s of rankedSitus) consider(s);
   for (const s of rankedGeocode) consider(s);
-  return groupSuggestions(merged, max);
+  return groupSuggestions(merged, max, query);
 }
 
 /** Case-insensitive matched-substring ranges of query TOKENS inside a label. */

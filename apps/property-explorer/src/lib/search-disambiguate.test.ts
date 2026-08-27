@@ -5,6 +5,7 @@
 import { describe, expect, it, vi } from "vitest";
 import type { GeocodeWireFeature } from "../../api/_lib/pe-geocode-core";
 import {
+  ADDRESS_LANDING_ZOOM,
   executeSearchLanding,
   type SearchLandingDeps,
 } from "./search-landing";
@@ -154,8 +155,24 @@ describe("W1.1 / W1.8 — never assume one hit", () => {
     expect(situsQueryVariants("1308 Pecan Bastrop")).toEqual([
       "1308 Pecan Bastrop",
       "1308 Pecan",
+      "1308 Pecan ST",
+      "1308 Pecan DR",
+      "1308 Pecan Street",
+      "1308 Pecan Drive",
     ]);
     expect(situsQueryVariants("1308 Pecan st")).toEqual(["1308 Pecan st"]);
+  });
+
+  it("bare house+street fans Street and Drive situs prefixes", () => {
+    expect(situsQueryVariants("905 Pecan")).toEqual([
+      "905 Pecan",
+      "905 Pecan ST",
+      "905 Pecan DR",
+      "905 Pecan Street",
+      "905 Pecan Drive",
+    ]);
+    expect(situsQueryVariants("17000 Simsbrook")).toContain("17000 Simsbrook DR");
+    expect(situsQueryVariants("1620 Bryant")).toContain("1620 Bryant ST");
   });
 
   it("VIOLATION: house-number-only collapse would hide Bastrop — this merge must not", () => {
@@ -216,6 +233,30 @@ describe("W1.3 — history pick is a fresh Find and shows the address", () => {
     expect(deps.runParcelLookup).toHaveBeenNthCalledWith(1, "48021:27479");
     expect(deps.runParcelLookup).toHaveBeenNthCalledWith(2, "48021:27479");
   });
+
+  it("VIOLATION: recent with stored coords still flies when lookup misses", async () => {
+    const recent: Suggestion = {
+      kind: "parcel",
+      label: "1308 PECAN ST",
+      sublabel: "Bastrop, TX",
+      lat: 30.1104,
+      lng: -97.3152,
+      extent: null,
+      parcelNodeId: "48021:27479",
+      lookupQuery: "1308 PECAN ST, BASTROP, TX 78602",
+      source: "situs-parcel",
+    };
+    const deps: SearchLandingDeps = {
+      runParcelLookup: vi.fn(async () => false),
+      flyTo: vi.fn(),
+      fitExtent: vi.fn(),
+      showChip: vi.fn(),
+      highlightStreet: vi.fn(),
+    };
+    const out = await executeSearchLanding(recent, deps);
+    expect(out).toEqual({ kind: "parcel", opened: false });
+    expect(deps.flyTo).toHaveBeenCalledWith(30.1104, -97.3152, ADDRESS_LANDING_ZOOM);
+  });
 });
 
 describe("W1.4 — place without comma; city vs county labels", () => {
@@ -258,6 +299,50 @@ describe("W1.4 — place without comma; city vs county labels", () => {
     );
     expect(citySug?.kind).toBe("place");
     expect(citySug?.label).toBe("Bastrop City Texas");
+  });
+
+  it("Bastrop Texas ranks city and county above a prison house", () => {
+    const prison = featureToSuggestion(
+      wire({
+        name: "Federal Correctional Institution Bastrop",
+        housenumber: "1341",
+        street: "Fermatta Drive",
+        type: "house",
+        city: "Bastrop",
+        state: "Texas",
+      }),
+    );
+    const city = featureToSuggestion(
+      wire({
+        name: "Bastrop",
+        type: "city",
+        osmKey: "place",
+        osmValue: "city",
+        state: "Texas",
+        county: "Bastrop",
+      }),
+    );
+    const county = featureToSuggestion(
+      wire({
+        name: "Bastrop County",
+        type: "county",
+        osmKey: "place",
+        osmValue: "county",
+        state: "Texas",
+      }),
+    );
+    expect(prison?.kind).toBe("address");
+    const merged = mergeSearchSuggestions(
+      [],
+      [prison!, city!, county!],
+      7,
+      "Bastrop Texas",
+    );
+    expect(merged.map((s) => s.label)).toEqual([
+      "Bastrop City Texas",
+      "Bastrop County Texas",
+    ]);
+    expect(merged.some((s) => /correctional|prison/i.test(s.label))).toBe(false);
   });
 });
 

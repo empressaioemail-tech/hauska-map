@@ -73,7 +73,22 @@ export async function executeSearchLanding(
     case "parcel": {
       const id = suggestion.parcelNodeId ?? suggestion.lookupQuery;
       if (!id) return { kind: "noop" };
-      const opened = await deps.runParcelLookup(id);
+      const hasPoint =
+        suggestion.lat != null &&
+        suggestion.lng != null &&
+        Number.isFinite(suggestion.lat) &&
+        Number.isFinite(suggestion.lng);
+      const opened = hasPoint
+        ? await deps.runParcelLookup(id, {
+            lat: suggestion.lat ?? undefined,
+            lng: suggestion.lng ?? undefined,
+          })
+        : await deps.runParcelLookup(id);
+      // Recents of a parcel with stored coords must still zoom when lookup
+      // misses (history pick). Do not invent a point when none was stored.
+      if (!opened && hasPoint && suggestion.lat != null && suggestion.lng != null) {
+        deps.flyTo(suggestion.lat, suggestion.lng, ADDRESS_LANDING_ZOOM);
+      }
       return { kind: "parcel", opened };
     }
 

@@ -53,7 +53,10 @@ describe("parcel landing", () => {
       sugg({ kind: "parcel", parcelNodeId: "48021:34177", label: "Open parcel 48021:34177" }),
       deps,
     );
-    expect(deps.runParcelLookup).toHaveBeenCalledWith("48021:34177");
+    expect(deps.runParcelLookup).toHaveBeenCalledWith("48021:34177", {
+      lat: 30.11,
+      lng: -97.31,
+    });
     expect(out).toEqual({ kind: "parcel", opened: true });
     expect(deps.flyTo).not.toHaveBeenCalled();
   });
