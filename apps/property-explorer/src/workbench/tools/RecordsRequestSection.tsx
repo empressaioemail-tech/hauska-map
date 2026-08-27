@@ -256,6 +256,14 @@ export function RecordsRequestSection({
 
   const showDemoResults = !apiWired;
   const scaffoldView = merged.scaffoldView ?? "entry";
+  const showLiveAcknowledgement =
+    apiWired &&
+    merged.run?.live === true &&
+    isActiveRunPhase(merged.run.phase);
+  const showScaffoldAcknowledgement =
+    !apiWired && !merged.run && scaffoldView === "acknowledgement";
+  const showAcknowledgement =
+    showLiveAcknowledgement || showScaffoldAcknowledgement;
   const runActive =
     merged.run?.live === true && isActiveRunPhase(merged.run.phase);
   const showRequestButton =
@@ -361,11 +369,21 @@ export function RecordsRequestSection({
         </div>
       ) : null}
 
-      {!merged.run && !apiWired && scaffoldView === "acknowledgement" ? (
+      {showAcknowledgement ? (
         <RecordsAcknowledgementPanel
           countyName={countyName}
-          onBack={() => setMerged({ scaffoldView: "entry" })}
-          onWatchRun={() => setMerged({ scaffoldView: "running" })}
+          gisMode={showLiveAcknowledgement ? "live" : "scaffold"}
+          gisHits={showLiveAcknowledgement ? merged.run?.instantGisHits : undefined}
+          onBack={() =>
+            showLiveAcknowledgement
+              ? clearLocalView()
+              : setMerged({ scaffoldView: "entry" })
+          }
+          onWatchRun={
+            showLiveAcknowledgement
+              ? undefined
+              : () => setMerged({ scaffoldView: "running" })
+          }
         />
       ) : null}
 

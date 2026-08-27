@@ -8,6 +8,7 @@
 
 import { CORTEX_DEEP_PROXY_BASE } from "./auth";
 import type {
+  RecordsInstantGisHit,
   RecordsRunFetchResult,
   RecordsRunPhase,
   RecordsRunView,
@@ -43,6 +44,90 @@ type WireIndexHit = {
   parties?: string | null;
   detailUrl?: string | null;
 };
+
+type WireGisHit = {
+  sourceLayerId?: string;
+  sourceLayerName?: string;
+  recordingRef?: string | null;
+  easementType?: string | null;
+  corridorWidthFt?: number | null;
+  featureIds?: number[];
+};
+
+type WireGisAudit = {
+  queriedAt?: string;
+  hits?: WireGisHit[];
+};
+
+function gisHitTitle(hit: WireGisHit): string {
+  const type = hit.easementType?.trim();
+  const width =
+    typeof hit.corridorWidthFt === "number" && hit.corridorWidthFt > 0
+      ? hit.corridorWidthFt
+      : null;
+  if (type && width != null) {
+    return `${type} easement, ${width} ft`;
+  }
+  if (type) {
+    return `${type} easement`;
+  }
+  return "Easement";
+}
+
+function gisHitCitation(hit: WireGisHit, queriedAt?: string): string {
+  const layer = hit.sourceLayerName?.trim() || "Public GIS";
+  const ref = hit.recordingRef?.trim();
+  const datePart = queriedAt ? formatSearchedAt(queriedAt) : null;
+  const parts = [layer];
+  if (ref) parts.push(`rec. ${ref}`);
+  if (datePart) parts.push(datePart);
+  return parts.join(" · ");
+}
+
+function gisHitMapNote(hit: WireGisHit): string {
+  const width =
+    typeof hit.corridorWidthFt === "number" && hit.corridorWidthFt > 0
+      ? hit.corridorWidthFt
+      : null;
+  if (width != null) {
+    return `${width} ft corridor · drawn on the map now.`;
+  }
+  return "Drawn on the map now.";
+}
+
+/** Map backend `liveInstantGis` audit to acknowledgement rows. */
+export function instantGisHitsFromWire(
+  liveInstantGis: unknown,
+): RecordsInstantGisHit[] {
+  if (!liveInstantGis || typeof liveInstantGis !== "object") return [];
+  const audit = liveInstantGis as WireGisAudit;
+  if (!Array.isArray(audit.hits)) return [];
+
+  const hits: RecordsInstantGisHit[] = [];
+  for (let i = 0; i < audit.hits.length; i++) {
+    const raw = audit.hits[i];
+    if (!raw || typeof raw !== "object") continue;
+    const layerName =
+      typeof raw.sourceLayerName === "string" ? raw.sourceLayerName.trim() : "";
+    if (!layerName) continue;
+
+    hits.push({
+      id:
+        typeof raw.sourceLayerId === "string" && raw.sourceLayerId.trim()
+          ? raw.sourceLayerId.trim()
+          : `gis-hit-${i}`,
+      title: gisHitTitle(raw),
+      citation: gisHitCitation(raw, audit.queriedAt),
+      mapNote: gisHitMapNote(raw),
+    });
+  }
+  return hits;
+}
+
+function instantGisHitsFromJob(job: WireJob | undefined): RecordsInstantGisHit[] {
+  if (!job) return [];
+  return instantGisHitsFromWire(job.liveInstantGis);
+}
 
 const FILTER_LABELS: Record<RecordsInstrumentType, string> = {
   deed: "Deeds",
@@ -230,6 +315,7 @@ function runFromLatestJob(
     errorMessage:
       typeof job.errorMessage === "string" ? job.errorMessage : null,
     projectedPurchaseCostCents: projectedCostFromScope(scope),
+    instantGisHits: instantGisHitsFromJob(job),
   };
 }
 
@@ -351,6 +437,7 @@ export async function requestRecordsRun(
       verdicts: [],
       live: true,
       jobId: typeof body.jobId === "string" ? body.jobId : null,
+      instantGisHits: instantGisHitsFromWire(body.liveInstantGis),
     };
     return { wired: true, run, notice: null };
   } catch {
