@@ -12,6 +12,7 @@ import {
   unsealOidcState,
 } from "./_lib/oidc.mjs";
 import { allowlistFromEnv, isAllowlisted } from "./_lib/allowlist.mjs";
+import { consoleAuthRequired } from "./_lib/console-auth.mjs";
 import {
   clearSessionCookieHeader,
   mintSession,
@@ -48,6 +49,7 @@ function handleStatus(req, res) {
   const cfg = authConfigured();
   const origin = oidcRedirectOrigin(req);
   sendJson(res, 200, {
+    authRequired: consoleAuthRequired(),
     configured: cfg,
     anyProvider: cfg.google || cfg.microsoft,
     redirectUris: {
@@ -171,13 +173,18 @@ async function handleCallback(req, res, provider) {
 }
 
 function handleSession(req, res) {
+  if (!consoleAuthRequired()) {
+    sendJson(res, 200, { authenticated: false, authRequired: false });
+    return;
+  }
   const session = readSessionCookie(req.headers.cookie);
   if (!session || !isAllowlisted(session, allowlistFromEnv())) {
-    sendJson(res, 401, { authenticated: false, error: "UNAUTHENTICATED" });
+    sendJson(res, 401, { authenticated: false, authRequired: true, error: "UNAUTHENTICATED" });
     return;
   }
   sendJson(res, 200, {
     authenticated: true,
+    authRequired: true,
     provider: session.provider,
     email: session.email ?? null,
   });

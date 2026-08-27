@@ -1,6 +1,7 @@
 import { allowlistFromEnv, isAllowlisted } from "./_lib/allowlist.mjs";
+import { consoleAuthRequired, resolveProxyOperator } from "./_lib/console-auth.mjs";
 import { controlBaseUrl, resolveProxyPath } from "./_lib/proxy-policy.mjs";
-import { operatorIdentity, readSessionCookie } from "./_lib/session.mjs";
+import { readSessionCookie } from "./_lib/session.mjs";
 
 function sendJson(res, status, body) {
   res.statusCode = status;
@@ -10,14 +11,19 @@ function sendJson(res, status, body) {
 
 export default async function handler(req, res) {
   const session = readSessionCookie(req.headers.cookie);
-  if (!session || !isAllowlisted(session, allowlistFromEnv())) {
-    sendJson(res, 401, { error: "UNAUTHENTICATED" });
-    return;
-  }
-  const operator = operatorIdentity(session);
-  if (!operator) {
-    sendJson(res, 401, { error: "UNAUTHENTICATED" });
-    return;
+  let operator;
+  if (consoleAuthRequired()) {
+    if (!session || !isAllowlisted(session, allowlistFromEnv())) {
+      sendJson(res, 401, { error: "UNAUTHENTICATED" });
+      return;
+    }
+    operator = resolveProxyOperator(session);
+    if (!operator) {
+      sendJson(res, 401, { error: "UNAUTHENTICATED" });
+      return;
+    }
+  } else {
+    operator = resolveProxyOperator(null);
   }
 
   const { upath } = req.query;

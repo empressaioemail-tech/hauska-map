@@ -11,16 +11,16 @@ function loadPref(): string {
   }
 }
 
-type SessionState =
+type Gate =
   | { kind: "loading" }
-  | { kind: "signed-out"; authError: string | null }
-  | { kind: "signed-in"; email: string | null; provider: string };
+  | { kind: "open"; email: string | null }
+  | { kind: "sign-in"; authError: string | null };
 
 type ScreenRow = { name: string; state: string; note: string | null };
 
 export function App() {
   const [screen, setScreen] = useState(loadPref);
-  const [session, setSession] = useState<SessionState>({ kind: "loading" });
+  const [gate, setGate] = useState<Gate>({ kind: "loading" });
   const [counts, setCounts] = useState<Record<string, unknown> | null>(null);
   const [screens, setScreens] = useState<ScreenRow[]>([]);
   const [runs, setRuns] = useState<unknown[] | null>(null);
@@ -38,24 +38,31 @@ export function App() {
   useEffect(() => {
     const params = new URLSearchParams(window.location.search);
     const authError = params.get("auth_error");
-    fetch("/api/auth/session", { credentials: "same-origin" })
+    const open = () => setGate({ kind: "open", email: null });
+    fetch("/api/auth/status", { credentials: "same-origin" })
       .then(async (r) => {
-        if (r.status === 401) {
-          setSession({ kind: "signed-out", authError });
+        const status = await r.json();
+        if (status.authRequired === false) {
+          open();
           return;
         }
-        const body = await r.json();
-        if (!body.authenticated) {
-          setSession({ kind: "signed-out", authError });
+        const sessionRes = await fetch("/api/auth/session", { credentials: "same-origin" });
+        if (sessionRes.status === 401) {
+          setGate({ kind: "sign-in", authError });
           return;
         }
-        setSession({ kind: "signed-in", email: body.email ?? null, provider: body.provider });
+        const session = await sessionRes.json();
+        if (!session.authenticated) {
+          setGate({ kind: "sign-in", authError });
+          return;
+        }
+        setGate({ kind: "open", email: session.email ?? null });
       })
-      .catch(() => setSession({ kind: "signed-out", authError }));
+      .catch(() => setGate({ kind: "sign-in", authError }));
   }, []);
 
   useEffect(() => {
-    if (session.kind !== "signed-in") return;
+    if (gate.kind !== "open") return;
     setError(null);
     const load = async () => {
       const [cRes, sRes, rRes] = await Promise.all([
@@ -64,7 +71,7 @@ export function App() {
         fetch(`${PROXY}/runs`, { credentials: "same-origin" }),
       ]);
       if (cRes.status === 401 || sRes.status === 401 || rRes.status === 401) {
-        setSession({ kind: "signed-out", authError: null });
+        setGate({ kind: "sign-in", authError: null });
         return;
       }
       const c = await cRes.json();
@@ -75,10 +82,10 @@ export function App() {
       setRuns(Array.isArray(r.runs) ? r.runs : []);
     };
     load().catch((e) => setError(String(e)));
-  }, [session.kind]);
+  }, [gate.kind]);
 
   useEffect(() => {
-    if (session.kind !== "signed-in") return;
+    if (gate.kind !== "open") return;
     if (screen !== "Queues" && screen !== "Gates") {
       setExtra(null);
       return;
@@ -88,25 +95,25 @@ export function App() {
       .then((r) => r.json())
       .then((body) => setExtra(body))
       .catch((e) => setError(String(e)));
-  }, [session.kind, screen]);
+  }, [gate.kind, screen]);
 
   const title = useMemo(() => `Smart Site Factory — ${screen}`, [screen]);
   const current = screens.find((s) => s.name === screen);
 
-  if (session.kind === "loading") {
+  if (gate.kind === "loading") {
     return (
       <div>
         <header>
           <h1>Smart Site Factory</h1>
         </header>
         <main>
-          <p>Checking sign-in.</p>
+          <p>Loading the Factory console.</p>
         </main>
       </div>
     );
   }
 
-  if (session.kind === "signed-out") {
+  if (gate.kind === "sign-in") {
     return (
       <div>
         <header>
@@ -114,7 +121,7 @@ export function App() {
           <p>Operator sign-in required. The console holds no Factory data of its own.</p>
         </header>
         <main>
-          {session.authError ? <p>Sign-in refused: {session.authError}</p> : null}
+          {gate.authError ? <p>Sign-in refused: {gate.authError}</p> : null}
           <p>
             <a href="/api/auth/google/start">Sign in with Google</a>
           </p>
@@ -131,23 +138,10 @@ export function App() {
       <header>
         <h1>{title}</h1>
         <p>
-          Signed in as {session.email ?? session.provider}. Reads the Factory store through the
-          server-side proxy.
+          {gate.email
+            ? `Signed in as ${gate.email}. Reads the Factory store through the server-side proxy.`
+            : "Reads the Factory store through the server-side proxy."}
         </p>
-        <form
-          onSubmit={(e) => {
-            e.preventDefault();
-            fetch("/api/auth/logout", { method: "POST", credentials: "same-origin" }).then(() => {
-              setSession({ kind: "signed-out", authError: null });
-              setCounts(null);
-              setScreens([]);
-              setRuns(null);
-              setExtra(null);
-            });
-          }}
-        >
-          <button type="submit">Sign out</button>
-        </form>
       </header>
       <nav>
         {SCREENS.map((s) => (
