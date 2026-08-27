@@ -260,7 +260,14 @@ export function PropertyBriefPanel({
     }
     setExportBusy(true);
     setExportNotice("Building the X-ray PDF…");
-    void exportBriefAsXrayPdf({ parcelNodeId: nodeId, brief, facts }).then(
+    const resolvedVerdict =
+      verdict.line === VERDICT_UNRESOLVED.line ? null : verdict.line;
+    void exportBriefAsXrayPdf({
+      parcelNodeId: nodeId,
+      brief,
+      facts,
+      verdictLine: resolvedVerdict,
+    }).then(
       async (result) => {
         setExportBusy(false);
         if (!result.ok && result.status === 402) {

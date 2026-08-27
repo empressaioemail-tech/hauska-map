@@ -34,6 +34,7 @@ import {
   dossierFilename,
   mapMcpDossierPayload,
   parseDossierExportContent,
+  refuseHollowXrayExport,
   resolveDossierExportAuth,
 } from './_lib/pe-dossier-export-core.js'
 import {
@@ -463,9 +464,18 @@ async function handleDossierRefresh(
     return
   }
 
-  // Cap-trim the caller-supplied dossier content; absent pieces are honestly
-  // omitted (the engine renders their absence honestly — never fabricates).
+  // Cap-trim, then fail closed on missing verdict / brief facts (W4.P0).
+  // User-content (notes, AI summary) may be absent and is omitted silently.
   const content = parseDossierExportContent(body)
+  const hollow = refuseHollowXrayExport(content)
+  if (!hollow.ok) {
+    res.status(422).json({
+      error: hollow.error,
+      message: hollow.message,
+      missing: hollow.missing,
+    })
+    return
+  }
 
   try {
     const payload = await callMcpTool('refresh_parcel_dossier_export', {
