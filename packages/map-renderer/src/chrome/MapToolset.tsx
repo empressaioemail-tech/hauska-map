@@ -110,8 +110,8 @@ const ICONS = {
 
 function chromeBubbleStyle(active: boolean): CSSProperties {
   return {
-    width: 44,
-    height: 44,
+    width: 34,
+    height: 34,
     borderRadius: "50%",
     border: PANEL_BORDER,
     background: active ? "rgba(59,130,246,0.18)" : PANEL_BG,
@@ -120,7 +120,7 @@ function chromeBubbleStyle(active: boolean): CSSProperties {
     display: "flex",
     alignItems: "center",
     justifyContent: "center",
-    boxShadow: "0 8px 24px rgba(0,0,0,0.5)",
+    boxShadow: "0 4px 14px rgba(0,0,0,0.35)",
   };
 }
 
@@ -668,6 +668,7 @@ export function MapToolset({
   // default so the map (and the top-right brief) own the screen.
   const [expanded, setExpanded] = useState(presentation === "embedded");
   const [panelKind, setPanelKind] = useState<"all" | "tools" | "layers">("all");
+  const [openKinds, setOpenKinds] = useState<Set<"tools" | "layers">>(new Set());
   // W4 panel manager: each section folds on its own, so a long layer list never
   // buries the tools and the results never bury the layers.
   const [toolsOpen, setToolsOpen] = useState(true);
@@ -859,7 +860,7 @@ export function MapToolset({
   const panelInner = (
     <>
         {/* --- TOOLS --- */}
-        {toolsReady && (
+        {(!splitBubbles || openKinds.has("tools")) && toolsReady && (
           <div>
             <SectionHeader
               label="Tools"
@@ -903,7 +904,7 @@ export function MapToolset({
         {/* --- RESULTS: every committed measurement / shape / note, each
             removable ON ITS OWN. Before W4 the only removal operation was
             clear-everything. --- */}
-        {toolsReady && (resultCount > 0 || pendingNote) && (
+        {(!splitBubbles || openKinds.has("tools")) && toolsReady && (resultCount > 0 || pendingNote) && (
           <div
             data-testid="map-toolset-results"
             style={{ borderTop: "0.5px solid rgba(154,166,178,0.22)", paddingTop: 9 }}
@@ -1075,6 +1076,7 @@ export function MapToolset({
         )}
 
         {/* --- LAYERS --- */}
+        {(!splitBubbles || openKinds.has("layers")) && (
         <div
           data-testid="map-toolset-layers"
           style={
@@ -1199,6 +1201,7 @@ export function MapToolset({
             </>
           )}
         </div>
+        )}
     </>
   );
 
@@ -1262,10 +1265,12 @@ export function MapToolset({
 
   const tipSide = anchor === "left" ? "right" : "left";
   const toggleKind = (kind: "tools" | "layers") => {
-    if (expanded && panelKind === kind) {
-      setExpanded(false);
-      return;
-    }
+    setOpenKinds((cur) => {
+      const next = new Set(cur);
+      if (next.has(kind)) next.delete(kind);
+      else next.add(kind);
+      return next;
+    });
     setPanelKind(kind);
     setExpanded(true);
   };
@@ -1289,7 +1294,7 @@ export function MapToolset({
       {/* THE unified panel: Tools + Results + Layers (expanded only). */}
       <div
         style={{
-          display: expanded ? "flex" : "none",
+          display: (splitBubbles ? openKinds.size > 0 : expanded) ? "flex" : "none",
           width: 216,
           flexDirection: "column",
           gap: 9,
@@ -1300,7 +1305,7 @@ export function MapToolset({
           color: TEXT,
           fontSize: 11.5,
           boxShadow: "0 10px 32px rgba(0,0,0,0.45)",
-          maxHeight: "calc(100vh - 96px)",
+          maxHeight: "32vh",
           overflowY: "auto",
         }}
       >
@@ -1330,6 +1335,7 @@ export function MapToolset({
             aria-label="Hide all panels"
             onClick={() => {
               setExpanded(false);
+              setOpenKinds(new Set());
               dispatchPanelDismiss("hide-all");
               onRequestClose?.();
             }}
@@ -1353,8 +1359,11 @@ export function MapToolset({
             data-testid="map-toolset-minimise"
             title="Minimise this panel"
             aria-label="Minimise this panel"
-            aria-expanded={expanded}
-            onClick={() => setExpanded(false)}
+            aria-expanded={expanded || openKinds.size > 0}
+            onClick={() => {
+              setExpanded(false);
+              setOpenKinds(new Set());
+            }}
             style={{
               display: "inline-flex",
               alignItems: "center",
@@ -1402,12 +1411,12 @@ export function MapToolset({
               <button
                 type="button"
                 data-testid="map-toolset-draw-bubble"
-                aria-label={expanded && panelKind === "tools" ? "Hide drawing tools" : "Drawing tools"}
-                aria-expanded={expanded && panelKind === "tools"}
+                aria-label={openKinds.has("tools") ? "Hide drawing tools" : "Drawing tools"}
+                aria-expanded={openKinds.has("tools")}
                 onClick={() => toggleKind("tools")}
-                style={chromeBubbleStyle(expanded && panelKind === "tools")}
+                style={chromeBubbleStyle(openKinds.has("tools"))}
               >
-                <svg viewBox="0 0 24 24" width={20} height={20} aria-hidden="true" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round">
+                <svg viewBox="0 0 24 24" width={16} height={16} aria-hidden="true" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round">
                   <path d={ICONS.draw} />
                 </svg>
               </button>
@@ -1420,12 +1429,12 @@ export function MapToolset({
               <button
                 type="button"
                 data-testid="map-toolset-bubble"
-                aria-label={expanded && panelKind === "layers" ? "Hide layers" : "Map layers"}
-                aria-expanded={expanded && panelKind === "layers"}
+                aria-label={openKinds.has("layers") ? "Hide layers" : "Map layers"}
+                aria-expanded={openKinds.has("layers")}
                 onClick={() => toggleKind("layers")}
-                style={chromeBubbleStyle(expanded && panelKind === "layers")}
+                style={chromeBubbleStyle(openKinds.has("layers"))}
               >
-                <svg viewBox="0 0 24 24" width={20} height={20} aria-hidden="true" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round">
+                <svg viewBox="0 0 24 24" width={16} height={16} aria-hidden="true" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round">
                   <path d="M12 2 2 7.5 12 13l10-5.5L12 2Zm-10 10L12 17.5 22 12M2 16.5 12 22l10-5.5" />
                 </svg>
               </button>
@@ -1448,7 +1457,7 @@ export function MapToolset({
               }}
               style={chromeBubbleStyle(expanded)}
             >
-              <svg viewBox="0 0 24 24" width={20} height={20} aria-hidden="true" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round">
+              <svg viewBox="0 0 24 24" width={16} height={16} aria-hidden="true" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round">
                 <path d="M12 2 2 7.5 12 13l10-5.5L12 2Zm-10 10L12 17.5 22 12M2 16.5 12 22l10-5.5" />
               </svg>
             </button>

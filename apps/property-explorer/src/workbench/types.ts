@@ -164,8 +164,8 @@ export interface WorkbenchToolDef {
    */
   expandable?: boolean;
   /**
-   * False → the tool is live but has no right-rail bubble (the inspect card
-   * owns it). The dock can still render it if a host opens that tool id.
+   * False → the tool is live but has no right-rail bubble. The dock can still
+   * render it if a host opens that tool id.
    */
   inCluster?: boolean;
   /** Fly-out tip body under the label. */

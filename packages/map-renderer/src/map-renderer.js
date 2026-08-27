@@ -105,7 +105,7 @@ const SUBJECT_FALLBACK_ZOOM = 16.5;
 const EMPTY_FC = { type: "FeatureCollection", features: [] };
 
 /**
- * @param {{ suppressAttributionControl?: boolean }} [options] When
+ * @param {{ suppressAttributionControl?: boolean, legendChrome?: "chip" | "bubble" }} [options] When
  *   `suppressAttributionControl` is true the renderer does NOT mount MapLibre's
  *   AttributionControl; the consumer is responsible for surfacing the required
  *   © OSM / © CARTO / Esri credits in its own chrome (see MapSourceInfo in PE).
@@ -142,6 +142,7 @@ export function createMapRenderer(options = {}) {
   // LiveMapTile, which only credits the parcel provider) leave this false so the
   // MapLibre control keeps carrying the legally-required basemap credits.
   const suppressAttributionControl = options.suppressAttributionControl === true;
+  const legendChrome = options.legendChrome === "bubble" ? "bubble" : "chip";
   let slotEl = null;
   let mapEl = null;
   let map = null;
@@ -744,7 +745,7 @@ export function createMapRenderer(options = {}) {
       // The legend ships with the palette it explains: a 7-class choropleth and
       // a 9-class flood ramp are only legible with a key, so the key is part of
       // the renderer rather than of either consuming app.
-      legend = createMapLegend(mapEl);
+      legend = createMapLegend(mapEl, { chrome: legendChrome });
       applyLegend();
     },
 

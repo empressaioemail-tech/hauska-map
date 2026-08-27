@@ -39,10 +39,9 @@ const ICONS = {
 } as const;
 
 /**
- * The static v1 registry. Rail order = cluster order, top to bottom. SIX
- * rail bubbles (chat, reports, properties, share, use-in-ai, compare).
- * Property brief lives in the left inspect card — no right-rail bubble.
- * Flood & Drainage stays inside Reports & exports.
+ * The static v1 registry. Rail order = cluster order, top to bottom. SEVEN
+ * rail bubbles (brief, chat, reports, properties, share, use-in-ai, compare).
+ * The inspect card opens inside the brief dock. Flood stays in Reports.
  */
 export const WORKBENCH_TOOLS: WorkbenchToolDef[] = [
   {
@@ -51,8 +50,7 @@ export const WORKBENCH_TOOLS: WorkbenchToolDef[] = [
     icon: <WorkbenchIcon path={ICONS.brief} />,
     status: "live",
     propertyScoped: true,
-    inCluster: false,
-    tip: "Cited research on this parcel — now in the left card.",
+    tip: "Inspect card and cited research for this parcel.",
     render: () => <BriefTool />,
   },
   {

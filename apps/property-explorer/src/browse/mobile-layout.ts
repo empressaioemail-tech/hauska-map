@@ -120,9 +120,37 @@ export function mobileToolPickerStyle(): CSSProperties {
   };
 }
 
-/** Inspect card — desktop floats top-left; mobile lives in the property sheet. */
-export function inspectCardShellStyle(isMobile: boolean): CSSProperties {
-  if (isMobile) {
+/** Desktop workbench docks share the left column and shrink as more open. */
+export function leftDockStackStyle(): CSSProperties {
+  return {
+    position: "absolute",
+    top: 12,
+    left: 12,
+    bottom: "max(148px, 38vh)",
+    width: "min(360px, calc(100vw - 72px))",
+    zIndex: MAP_PANEL_Z.card,
+    display: "flex",
+    flexDirection: "column",
+    gap: 8,
+    pointerEvents: "none",
+  };
+}
+
+export function leftDockCardStyle(): CSSProperties {
+  return {
+    pointerEvents: "auto",
+    flex: "1 1 0",
+    minHeight: 96,
+    width: "100%",
+  };
+}
+
+/** Inspect card — desktop embeds in the brief dock; mobile is the property sheet. */
+export function inspectCardShellStyle(
+  isMobile: boolean,
+  embedded = false,
+): CSSProperties {
+  if (isMobile || embedded) {
     return {
       position: "relative",
       width: "100%",
@@ -133,7 +161,7 @@ export function inspectCardShellStyle(isMobile: boolean): CSSProperties {
       boxShadow: "none",
       borderRadius: 0,
       border: "none",
-      padding: "12px 14px 16px",
+      padding: embedded && !isMobile ? 0 : "12px 14px 16px",
     };
   }
   return {

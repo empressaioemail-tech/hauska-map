@@ -657,6 +657,7 @@ export function InspectCard({
   onMakeSubject,
   onResearch,
   researchOpen = false,
+  embedded = false,
   onSaveProperty,
   onUnsaveProperty,
 }: {
@@ -690,8 +691,10 @@ export function InspectCard({
   // stubbed ask/report path.
   onMakeSubject: () => void;
   onResearch: () => void;
-  /** When true, the cited brief mounts in this card (right-hand brief retired). */
+  /** When true, the cited brief mounts in this card (mobile research sheet). */
   researchOpen?: boolean;
+  /** Desktop: card lives inside the brief dock. */
+  embedded?: boolean;
   onSaveProperty?: () => void;
   /** Remove this parcel from saved properties. Omit and the card removes it
    *  through the same one saved-properties flow the Save button writes to. */
@@ -984,14 +987,7 @@ export function InspectCard({
       data-testid="inspect-card"
       data-source={source}
       style={{
-        ...inspectCardShellStyle(isMobile),
-        ...(researchOpen && !isMobile
-          ? {
-              width: 360,
-              maxHeight: "calc(100vh - 24px)",
-              overflowY: "auto" as const,
-            }
-          : {}),
+        ...inspectCardShellStyle(isMobile, embedded),
         background: CARD_BG,
         color: "#e6edf3",
         fontFamily: "system-ui, -apple-system, Segoe UI, Roboto, sans-serif",
@@ -1023,22 +1019,24 @@ export function InspectCard({
             </div>
           )}
         </div>
-        <button
-          type="button"
-          aria-label="Close"
-          onClick={onClose}
-          style={{
-            background: "transparent",
-            border: "none",
-            color: MUTED,
-            cursor: "pointer",
-            fontSize: 15,
-            lineHeight: 1,
-            padding: 0,
-          }}
-        >
-          ×
-        </button>
+        {!embedded && (
+          <button
+            type="button"
+            aria-label="Close"
+            onClick={onClose}
+            style={{
+              background: "transparent",
+              border: "none",
+              color: MUTED,
+              cursor: "pointer",
+              fontSize: 15,
+              lineHeight: 1,
+              padding: 0,
+            }}
+          >
+            ×
+          </button>
+        )}
       </div>
 
       <dl
@@ -1296,20 +1294,21 @@ export function InspectCard({
         </div>
       )}
 
-      {/* Paywalled deep research seam (auth + spine reports). */}
-      <Button
-        variant="ghost"
-        fullWidth
-        type="button"
-        data-testid="research-this"
-        onClick={onResearch}
-        aria-expanded={researchOpen}
-        style={{ marginTop: 8 }}
-      >
-        {researchOpen ? "Hide brief" : "Research this →"}
-      </Button>
+      {!embedded && (
+        <Button
+          variant="ghost"
+          fullWidth
+          type="button"
+          data-testid="research-this"
+          onClick={onResearch}
+          aria-expanded={researchOpen}
+          style={{ marginTop: 8 }}
+        >
+          {researchOpen ? "Hide brief" : "Research this →"}
+        </Button>
+      )}
 
-      {researchOpen ? (
+      {!embedded && researchOpen ? (
         <div
           data-testid="inspect-brief"
           style={{

@@ -24,7 +24,6 @@
 
 import { useState } from "react";
 import { BubbleTip } from "../components/BubbleTip";
-import { PE } from "../styles/pe-chrome";
 import { SATELLITE_ATTRIBUTION } from "./satelliteBase";
 
 /** PANEL chrome matched to the lower-right layers bubble (MapToolset). */
@@ -222,8 +221,8 @@ export function MapSourceInfo({
         aria-expanded={open}
         onClick={() => setOpen((v) => !v)}
         style={{
-          width: 44,
-          height: 44,
+          width: 34,
+          height: 34,
           borderRadius: "50%",
           border: PANEL_BORDER,
           background: open ? "rgba(59,130,246,0.18)" : PANEL_BG,
@@ -232,13 +231,13 @@ export function MapSourceInfo({
           display: "flex",
           alignItems: "center",
           justifyContent: "center",
-          boxShadow: "0 8px 24px rgba(0,0,0,0.5)",
+          boxShadow: "0 4px 14px rgba(0,0,0,0.35)",
         }}
       >
         <svg
           viewBox="0 0 24 24"
-          width={20}
-          height={20}
+          width={16}
+          height={16}
           aria-hidden="true"
           fill="none"
           stroke="currentColor"
@@ -255,113 +254,3 @@ export function MapSourceInfo({
   );
 }
 
-export function MapLegendBubble({
-  rows,
-}: {
-  rows: Array<{ key: string; label: string; note?: string }>;
-}) {
-  const [open, setOpen] = useState(false);
-  return (
-    <div
-      data-testid="map-legend"
-      style={{
-        position: "relative",
-        display: "flex",
-        flexDirection: "column",
-        alignItems: "flex-start",
-        gap: 8,
-      }}
-    >
-      {open ? (
-        <div
-          data-testid="map-legend-panel"
-          style={{
-            width: 210,
-            padding: "10px 12px",
-            borderRadius: 9,
-            background: PANEL_BG,
-            border: PANEL_BORDER,
-            boxShadow: "0 10px 32px rgba(0,0,0,0.45)",
-          }}
-        >
-          <div
-            style={{
-              fontSize: 10,
-              fontWeight: 700,
-              letterSpacing: 0.4,
-              textTransform: "uppercase",
-              color: PE.accent,
-              marginBottom: 8,
-            }}
-          >
-            Legend
-          </div>
-          {rows.length === 0 ? (
-            <div style={{ fontSize: 11, color: PE.muted }}>
-              No layers on. Open Layers to turn some on.
-            </div>
-          ) : (
-            rows.map((row) => (
-              <div
-                key={row.key}
-                style={{
-                  fontSize: 11,
-                  lineHeight: 1.4,
-                  color: PE.text,
-                  padding: "3px 0",
-                }}
-              >
-                {row.label}
-                {row.note ? (
-                  <div style={{ fontSize: 10, color: PE.muted }}>{row.note}</div>
-                ) : null}
-              </div>
-            ))
-          )}
-        </div>
-      ) : null}
-      <BubbleTip
-        side="right"
-        label="Legend"
-        detail="What is drawn on the map right now."
-      >
-        <button
-          type="button"
-          data-testid="map-legend-bubble"
-          aria-label={open ? "Hide legend" : "Legend"}
-          aria-expanded={open}
-          onClick={() => setOpen((v) => !v)}
-          style={{
-            width: 44,
-            height: 44,
-            borderRadius: "50%",
-            border: PANEL_BORDER,
-            background: open ? "rgba(59,130,246,0.18)" : PANEL_BG,
-            color: open ? "var(--brand-blue, #3B82F6)" : "#e6edf3",
-            cursor: "pointer",
-            display: "flex",
-            alignItems: "center",
-            justifyContent: "center",
-            boxShadow: "0 8px 24px rgba(0,0,0,0.5)",
-          }}
-        >
-          <svg
-            viewBox="0 0 24 24"
-            width={20}
-            height={20}
-            aria-hidden="true"
-            fill="none"
-            stroke="currentColor"
-            strokeWidth={2}
-            strokeLinecap="round"
-            strokeLinejoin="round"
-          >
-            <path d="M4 6h16M4 12h10M4 18h7" />
-            <circle cx="18" cy="12" r="2" />
-            <circle cx="15" cy="18" r="2" />
-          </svg>
-        </button>
-      </BubbleTip>
-    </div>
-  );
-}
