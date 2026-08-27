@@ -370,7 +370,7 @@ export function UseInYourAiTool() {
   const handleCreate = async () => {
     if (!activeParcelNodeId) return;
     setSharePhase({ kind: "minting" });
-    const outcome = await mintShareLink(activeParcelNodeId);
+    const outcome = await mintShareLink(activeParcelNodeId, { includeNotes: true });
     switch (outcome.kind) {
       case "ready":
         setStored({ link: outcome.link, mintedAt: new Date().toISOString() });

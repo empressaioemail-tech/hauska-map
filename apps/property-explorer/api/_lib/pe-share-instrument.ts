@@ -197,6 +197,7 @@ export async function composeShareInstrument(opts: {
     loadDossier(opts.grant.parcelNodeId, scope, {
       fetchImpl: opts.fetchImpl,
       serviceKey: opts.serviceKey,
+      grantId: opts.grant.id,
     }),
     probe('xray', opts.grant.parcelNodeId, {
       callTool: opts.callTool,
@@ -222,7 +223,15 @@ export async function composeShareInstrument(opts: {
       }
   const dossier = dossierLoad.ok ? dossierLoad.dossier : null
   const owner = opts.ownerOverride ?? ownerFieldForGrant(scope)
-  const artifacts = { xray, sitePlan, terrain, owner }
+  const xrayForShare =
+    dossierLoad.ok && dossierLoad.includeXray === false
+      ? {
+          state: 'withheld' as const,
+          kind: 'xray' as const,
+          reason: 'Excluded by the sharer.',
+        }
+      : xray
+  const artifacts = { xray: xrayForShare, sitePlan, terrain, owner }
   const withholdings = withholdingLines({ brief, dossier, artifacts })
 
   return {

@@ -15,6 +15,8 @@ import {
 } from './pe-share-brief.js'
 import {
   buildShareDossierPayload,
+  includeNotesForGrant,
+  reportsIncludedForGrant,
   type ShareDossierPayload,
 } from './pe-share-dossier.js'
 import type { ShareOwnerScope } from './pe-share-token.js'
@@ -40,6 +42,8 @@ export type ShareDossierLoad =
       label: string | null
       updatedAt: string | null
       dossier: ShareDossierPayload
+      /** Null when no package is bound to this grant. */
+      includeXray: boolean | null
     }
   | ShareLoadError
 
@@ -113,7 +117,11 @@ export async function loadShareBrief(
 export async function loadShareDossier(
   parcelNodeId: string,
   ownerScope: ShareOwnerScope | null,
-  opts: { fetchImpl?: ShareComposeFetch; serviceKey?: string | null } = {},
+  opts: {
+    fetchImpl?: ShareComposeFetch
+    serviceKey?: string | null
+    grantId?: string
+  } = {},
 ): Promise<ShareDossierLoad> {
   if (!ownerScope) {
     return {
@@ -180,7 +188,14 @@ export async function loadShareDossier(
     updatedAt?: unknown
     snapshot?: unknown
   } | null
-  const dossier = body ? buildShareDossierPayload(body.snapshot) : null
+  const includeNotes = opts.grantId
+    ? includeNotesForGrant(body?.snapshot, opts.grantId)
+    : null
+  const dossier = body
+    ? buildShareDossierPayload(body.snapshot, {
+        ...(includeNotes === false ? { includeNotes: false } : {}),
+      })
+    : null
   if (!dossier) {
     return {
       ok: false,
@@ -195,6 +210,10 @@ export async function loadShareDossier(
     label: typeof body?.label === 'string' ? body.label : null,
     updatedAt: typeof body?.updatedAt === 'string' ? body.updatedAt : null,
     dossier,
+    includeXray: opts.grantId
+      ? (reportsIncludedForGrant(body?.snapshot, opts.grantId)?.includeXray ??
+        null)
+      : null,
   }
 }
 

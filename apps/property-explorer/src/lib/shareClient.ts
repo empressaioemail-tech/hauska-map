@@ -10,6 +10,13 @@
 export interface MintedShareLink {
   url: string
   expiresAt: string | null
+  /** Present when the BFF echoed it. Never invented. Absent on older stored links. */
+  grantId?: string | null
+}
+
+export type ShareMintOpts = {
+  /** Explicit include/exclude. The picker always passes this. */
+  includeNotes: boolean
 }
 
 export type ShareMintOutcome =
@@ -21,6 +28,7 @@ export type ShareMintOutcome =
 
 export async function mintShareLink(
   parcelNodeId: string,
+  opts: ShareMintOpts,
   fetchImpl: typeof fetch = fetch,
 ): Promise<ShareMintOutcome> {
   try {
@@ -28,11 +36,15 @@ export async function mintShareLink(
       method: 'POST',
       credentials: 'include',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ parcelNodeId }),
+      body: JSON.stringify({
+        parcelNodeId,
+        includeNotes: opts.includeNotes,
+      }),
     })
     const body = (await res.json().catch(() => ({}))) as {
       url?: unknown
       expiresAt?: unknown
+      grantId?: unknown
       error?: string
       message?: string
     }
@@ -50,6 +62,10 @@ export async function mintShareLink(
         link: {
           url: body.url,
           expiresAt: typeof body.expiresAt === 'string' ? body.expiresAt : null,
+          grantId:
+            typeof body.grantId === 'string' && body.grantId.trim()
+              ? body.grantId
+              : null,
         },
       }
     }

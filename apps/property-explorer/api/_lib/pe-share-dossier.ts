@@ -122,15 +122,61 @@ function sanitizeChatSummary(value: unknown): ShareDossierChatSummary | null {
  * Returns null when NOTHING share-appropriate is present — the share view
  * then renders exactly as it does today (no dossier section, no error).
  */
+/**
+ * Read includeNotes for one grant off the raw snapshot. Null when the
+ * package is absent (existing shares keep today's include-notes compose).
+ * Never invents a boolean.
+ */
+export function includeNotesForGrant(
+  snapshot: unknown,
+  grantId: string,
+): boolean | null {
+  const rec = asRecord(snapshot)
+  if (!rec || !grantId.trim() || !Array.isArray(rec.sharePackages)) return null
+  for (const raw of rec.sharePackages) {
+    const pkg = asRecord(raw)
+    if (!pkg) continue
+    const id = str(pkg.grantId)
+    if (id !== grantId) continue
+    return typeof pkg.includeNotes === 'boolean' ? pkg.includeNotes : null
+  }
+  return null
+}
+
+export function reportsIncludedForGrant(
+  snapshot: unknown,
+  grantId: string,
+): { includeXray: boolean; includeFlood: boolean } | null {
+  const rec = asRecord(snapshot)
+  if (!rec || !grantId.trim() || !Array.isArray(rec.sharePackages)) return null
+  for (const raw of rec.sharePackages) {
+    const pkg = asRecord(raw)
+    if (!pkg) continue
+    const id = str(pkg.grantId)
+    if (id !== grantId) continue
+    if (typeof pkg.includeXray !== 'boolean' || typeof pkg.includeFlood !== 'boolean') {
+      return null
+    }
+    return { includeXray: pkg.includeXray, includeFlood: pkg.includeFlood }
+  }
+  return null
+}
+
 export function buildShareDossierPayload(
   snapshot: unknown,
+  opts: { includeNotes?: boolean } = {},
 ): ShareDossierPayload | null {
   const rec = asRecord(snapshot)
   if (!rec) return null
   const drawings = sanitizeDrawings(rec.drawings)
   const chatSummary = sanitizeChatSummary(rec.chatSummary)
   const rawNotes = str(rec.notes)
-  const notes = rawNotes ? cap(rawNotes, NOTES_MAX) : null
+  const notes =
+    opts.includeNotes === false
+      ? null
+      : rawNotes
+        ? cap(rawNotes, NOTES_MAX)
+        : null
   if (!drawings && !chatSummary && !notes) return null
   return {
     address: str(rec.address),

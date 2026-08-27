@@ -21,7 +21,10 @@ import {
   XRAY_PIPELINE_ABSENT_MESSAGE,
   resolveDossierExportAuth,
 } from '../../api/_lib/pe-dossier-export-core.js'
-import { buildShareDossierPayload } from '../../api/_lib/pe-share-dossier.js'
+import {
+  buildShareDossierPayload,
+  includeNotesForGrant,
+} from '../../api/_lib/pe-share-dossier.js'
 import { VERDICT_UNRESOLVED } from './sheet-verdict'
 
 describe('dossier export auth — property entitlement (the R1 line)', () => {
@@ -426,5 +429,48 @@ describe('share-view dossier projection (cortex #362 snapshot)', () => {
     })
     expect(projected?.drawings).toBeNull()
     expect(projected?.notes).toBe('still shared')
+  })
+
+  it('W3.1 exclude notes omits them (violate: still project notes)', () => {
+    const projected = buildShareDossierPayload(
+      { notes: 'Owner notes.', address: '104 Main St' },
+      { includeNotes: false },
+    )
+    expect(projected).toBeNull()
+    const withDrawings = buildShareDossierPayload(
+      {
+        notes: 'Owner notes.',
+        drawings: {
+          type: 'FeatureCollection',
+          features: [
+            {
+              type: 'Feature',
+              geometry: { type: 'Point', coordinates: [1, 2] },
+              properties: {},
+            },
+          ],
+        },
+      },
+      { includeNotes: false },
+    )
+    expect(withDrawings?.notes).toBeNull()
+    expect(withDrawings?.drawings).not.toBeNull()
+  })
+
+  it('W3.1 reads includeNotes from the grant package; absent package does not invent false', () => {
+    const snapshot = {
+      notes: 'keep',
+      sharePackages: [
+        {
+          grantId: '2c1a9d4e-7b11-4f0a-9c3d-0a1b2c3d4e5f',
+          includeNotes: false,
+        },
+      ],
+    }
+    expect(
+      includeNotesForGrant(snapshot, '2c1a9d4e-7b11-4f0a-9c3d-0a1b2c3d4e5f'),
+    ).toBe(false)
+    expect(includeNotesForGrant(snapshot, '00000000-0000-0000-0000-000000000000')).toBeNull()
+    expect(includeNotesForGrant({ notes: 'keep' }, '2c1a9d4e-7b11-4f0a-9c3d-0a1b2c3d4e5f')).toBeNull()
   })
 })

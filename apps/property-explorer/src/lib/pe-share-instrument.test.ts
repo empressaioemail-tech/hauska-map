@@ -216,6 +216,7 @@ describe('three Accept/format probes agree (item 2)', () => {
         label: 'Gold',
         updatedAt: '2026-08-20T00:00:00.000Z',
         dossier: DOSSIER,
+        includeXray: null,
       }),
       probeArtifact: async (kind) => ({ state: 'exported', kind }),
     })
