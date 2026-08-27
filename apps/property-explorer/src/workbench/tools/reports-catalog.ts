@@ -136,6 +136,7 @@ export const REPORTS_CATALOG: readonly ReportDocDef[] = [
       "The recorded documents the county clerk's index ties to this parcel.",
     formatLabel: "Request",
     engine: "records",
+    studioGated: true,
   },
   {
     id: "BRIEF",

@@ -186,7 +186,19 @@ describe("reports tool — Option D picker, not the stacked wall", () => {
     expect(html).toContain("Records request");
   });
 
-  it("selecting REC with property entitlement mounts the records section", () => {
+  it("selecting REC with Studio entitlement mounts the records section", () => {
+    primePropertyEntitlement(
+      "48021:123",
+      ent({ subscriptionTier: "studio", devRole: false }),
+    );
+    const store = createWorkbenchToolStateStore({ storage: null });
+    store.set("48021:123", "reports.selectedDoc", "REC");
+    const html = render({ activeParcelNodeId: "48021:123", store });
+    expect(html).toContain('data-testid="records-request-section"');
+    expect(html).not.toContain('data-testid="records-studio-lock"');
+  });
+
+  it("selecting REC with Solo entitlement shows the Studio lock", () => {
     primePropertyEntitlement(
       "48021:123",
       ent({ subscriptionTier: "solo", devRole: false }),
@@ -194,8 +206,8 @@ describe("reports tool — Option D picker, not the stacked wall", () => {
     const store = createWorkbenchToolStateStore({ storage: null });
     store.set("48021:123", "reports.selectedDoc", "REC");
     const html = render({ activeParcelNodeId: "48021:123", store });
-    expect(html).toContain('data-testid="records-request-section"');
-    expect(html).not.toContain('data-testid="records-studio-lock"');
+    expect(html).toContain('data-testid="records-studio-lock"');
+    expect(html).not.toContain('data-testid="records-request-section"');
   });
 
   it("no active property → the honest select-first state, no export UI", () => {

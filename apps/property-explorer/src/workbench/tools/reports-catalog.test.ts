@@ -84,4 +84,14 @@ describe("reports catalog — W7 purchase surface", () => {
       );
     }
   });
+
+  it("Records request is Studio-gated in Tools group", () => {
+    const rec = findReportDoc("REC");
+    expect(rec.studioGated).toBe(true);
+    expect(rec.group).toBe("Tools");
+    expect(reportDocIsGeneratable(rec, false)).toBe(false);
+    expect(reportDocIsGeneratable(rec, true)).toBe(true);
+    const locked = reportDocLockChip(rec, { studioGranted: false });
+    expect(locked?.text).toContain("Studio");
+  });
 });

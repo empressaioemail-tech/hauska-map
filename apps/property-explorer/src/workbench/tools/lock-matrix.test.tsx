@@ -206,15 +206,16 @@ describe("REPORTS bubble (Option D picker; TERRAIN Studio-only when selected)", 
     expect(terrain).not.toContain('data-testid="terrain-export-section"');
   });
 
-  it("solo subscriber opens Records request (paid tier, same gate as X-ray)", () => {
+  it("solo subscriber: Records request is STUDIO-ONLY (View-pricing, no inline checkout)", () => {
     primePropertyEntitlement(PARCEL, SOLO);
     const html = renderTool("reports", { selectedDoc: "REC" });
     expect(html).not.toContain('data-testid="reports-locked"');
-    expect(html).not.toContain('data-testid="records-studio-lock"');
-    expect(html).toContain('data-testid="records-request-section"');
+    expect(html).toContain('data-testid="records-studio-lock"');
+    expect(html).toContain('data-testid="view-pricing-button"');
+    expect(html).not.toContain('data-testid="records-request-section"');
   });
 
-  it("free signed-in without unlock → reports locked (Records request included)", () => {
+  it("free signed-in without unlock → reports locked (Records request withheld at bubble)", () => {
     primePropertyEntitlement(PARCEL, FREE);
     const html = renderTool("reports", { selectedDoc: "REC" });
     expect(html).toContain('data-testid="reports-locked"');
@@ -253,6 +254,49 @@ describe("REPORTS bubble (Option D picker; TERRAIN Studio-only when selected)", 
     expect(html).not.toContain('data-testid="reports-locked"');
     expect(html).not.toContain('data-testid="terrain-pro-lock"');
     expect(html).toContain('data-testid="reports-doc-picker"');
+  });
+});
+
+describe("RECORDS REQUEST bubble (Studio-only when selected — P-85 item 13)", () => {
+  it("STUDIO → records-request-section visible, not studio-locked", () => {
+    primePropertyEntitlement(PARCEL, STUDIO);
+    const html = renderTool("reports", { selectedDoc: "REC" });
+    expect(html).not.toContain('data-testid="reports-locked"');
+    expect(html).not.toContain('data-testid="records-studio-lock"');
+    expect(html).toContain('data-testid="records-request-section"');
+  });
+
+  it("TEAM → records-request-section visible, not studio-locked", () => {
+    primePropertyEntitlement(PARCEL, TEAM);
+    const html = renderTool("reports", { selectedDoc: "REC" });
+    expect(html).not.toContain('data-testid="reports-locked"');
+    expect(html).not.toContain('data-testid="records-studio-lock"');
+    expect(html).toContain('data-testid="records-request-section"');
+  });
+
+  it("FREE signed-in → reports bubble locked; Records withheld (no section, no studio lock)", () => {
+    primePropertyEntitlement(PARCEL, FREE);
+    const html = renderTool("reports", { selectedDoc: "REC" });
+    expect(html).toContain('data-testid="reports-locked"');
+    expect(html).not.toContain('data-testid="records-request-section"');
+    expect(html).not.toContain('data-testid="records-studio-lock"');
+  });
+
+  it("SOLO → studio lock on Records (LockedToolPanel, no request section)", () => {
+    primePropertyEntitlement(PARCEL, SOLO);
+    const html = renderTool("reports", { selectedDoc: "REC" });
+    expect(html).not.toContain('data-testid="reports-locked"');
+    expect(html).toContain('data-testid="records-studio-lock"');
+    expect(html).toContain('data-testid="view-pricing-button"');
+    expect(html).not.toContain('data-testid="records-request-section"');
+  });
+
+  it("anon → sign-in-first; Records withheld until authenticated", () => {
+    primePropertyEntitlement(PARCEL, ANON);
+    const html = renderTool("reports", { selectedDoc: "REC" });
+    expect(html).toContain('data-testid="reports-locked-sign-in"');
+    expect(html).not.toContain('data-testid="records-request-section"');
+    expect(html).not.toContain('data-testid="records-studio-lock"');
   });
 });
 
