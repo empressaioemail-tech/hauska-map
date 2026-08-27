@@ -31,13 +31,15 @@ import { useMobilePanel } from "../browse/MobilePanelContext";
 import type { WorkbenchHostActions, WorkbenchToolDef } from "./types";
 import { WorkbenchProvider } from "./WorkbenchContext";
 import type { WorkbenchToolStateStore } from "./tool-state-store";
+import { BubbleTip } from "../components/BubbleTip";
+import { PE } from "../styles/pe-chrome";
 
-const CARD_BG = "var(--surface-card-translucent, rgba(13,17,23,0.94))";
-const BORDER = "1px solid var(--surface-border-rgba, rgba(154,166,178,0.3))";
-const TEXT = "var(--text-body, #e5e7eb)";
-const MUTED = "var(--surface-muted, #94A3B8)";
-const ACCENT = "var(--brand-blue, #3B82F6)"; // PRIMARY interactive hue (was cyan #7dd3fc)
-const AMBER = "var(--semantic-warning, #F59E0B)"; // caution/notice (was raw yellow #fcd34d)
+const CARD_BG = PE.card;
+const BORDER = PE.border;
+const TEXT = PE.text;
+const MUTED = PE.muted;
+const ACCENT = PE.accent;
+const AMBER = PE.warning;
 
 /**
  * Dock single-tenancy, as a pure rule: tapping the active bubble closes the
@@ -112,6 +114,8 @@ export interface WorkbenchProps {
   host: WorkbenchHostActions;
   /** Injectable for tests; defaults to the app-wide singleton store. */
   store?: WorkbenchToolStateStore;
+  /** Surfaces that need the chassis context (inspect-card brief). */
+  children?: ReactNode;
 }
 
 /**
@@ -125,9 +129,11 @@ export function Workbench({
   activeParcelNodeId,
   host,
   store,
+  children,
 }: WorkbenchProps) {
   const { isMobile, activeSheet, openSheet } = useMobilePanel();
   const mobileResearchOpen = isMobile && activeSheet === "research";
+  const railTools = tools.filter((t) => t.inCluster !== false);
   const openTool = openToolId
     ? (tools.find((t) => t.id === openToolId) ?? null)
     : null;
@@ -156,6 +162,7 @@ export function Workbench({
       host={host}
       store={store}
     >
+      {children}
       {/* THE BUBBLE CLUSTER — the only always-on workbench element. Pushed
           DOWN below the MapLibre zoom/compass NavigationControl (added
           top-right in map-renderer.js): the control stack is ~10px margin +
@@ -167,21 +174,30 @@ export function Workbench({
         data-testid="workbench-cluster"
         style={workbenchClusterStyle(isMobile)}
       >
-        {tools.map((tool) => {
+        {railTools.map((tool) => {
           const active = tool.id === openToolId;
           return (
-            <button
+            <BubbleTip
               key={tool.id}
-              type="button"
-              data-testid={`workbench-bubble-${tool.id}`}
-              title={tool.status === "coming" ? `${tool.label} — coming` : tool.label}
-              aria-label={tool.label}
-              aria-pressed={active}
-              onClick={() => onOpenToolChange(nextOpenToolId(openToolId, tool.id))}
-              style={bubbleStyle(active, tool.status === "coming")}
+              side="left"
+              label={tool.label}
+              detail={
+                tool.status === "coming"
+                  ? "Coming soon"
+                  : tool.tip
+              }
             >
-              {tool.icon}
-            </button>
+              <button
+                type="button"
+                data-testid={`workbench-bubble-${tool.id}`}
+                aria-label={tool.label}
+                aria-pressed={active}
+                onClick={() => onOpenToolChange(nextOpenToolId(openToolId, tool.id))}
+                style={bubbleStyle(active, tool.status === "coming")}
+              >
+                {tool.icon}
+              </button>
+            </BubbleTip>
           );
         })}
       </div>
@@ -192,7 +208,7 @@ export function Workbench({
           data-testid="workbench-mobile-picker"
           style={mobileToolPickerStyle()}
         >
-          {tools.map((tool) => {
+          {railTools.map((tool) => {
             const active = tool.id === openToolId;
             return (
               <button
@@ -201,7 +217,6 @@ export function Workbench({
                 data-testid={`workbench-mobile-bubble-${tool.id}`}
                 aria-label={tool.label}
                 aria-pressed={active}
-                title={tool.label}
                 onClick={() => {
                   openSheet("research");
                   onOpenToolChange(nextOpenToolId(openToolId, tool.id));

@@ -1,6 +1,7 @@
 // Request acknowledgement — design artboard B (Phase 1 scaffold, stub GIS hits).
 
 import { Button } from "../../components/Button";
+import { PE } from "../../styles/pe-chrome";
 import {
   ATOM_ACCENT,
   ATOM_ACCENT_BG,
@@ -8,12 +9,12 @@ import {
 } from "../../shared/atom-chip/atom-accent";
 import { SCAFFOLD_ACK_GIS_HITS, SCAFFOLD_SEARCH_SCOPE } from "./records-request-scaffold-data";
 
-const APP_INK = "var(--app-ink, #0b0e13)";
-const TEXT = "var(--text-body, #E9EEF5)";
-const MUTED = "var(--surface-muted, #64748B)";
-const MUTED_2 = "var(--text-muted, #94A3B8)";
-const SLATE = "var(--honest-absence, #7C8BA0)";
-const BLUE = "var(--brand-blue, #3B82F6)";
+const APP_INK = PE.ink;
+const TEXT = PE.textStrong;
+const MUTED = PE.muted2;
+const MUTED_2 = PE.muted;
+const SLATE = PE.absence;
+const BLUE = PE.accent;
 const CARD_BORDER = "rgba(154,166,178,0.16)";
 
 export function RecordsAcknowledgementPanel({

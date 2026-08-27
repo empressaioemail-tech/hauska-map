@@ -50,11 +50,10 @@ describe("dock single-tenancy — the pure toggle rule", () => {
 });
 
 describe("bubble cluster", () => {
-  it("renders all seven bubbles and no dock while closed", () => {
+  it("renders six rail bubbles and no dock while closed; brief is not on the rail", () => {
     const html = render({});
     expect(html).toContain('data-testid="workbench-cluster"');
     for (const id of [
-      "brief",
       "chat",
       "reports",
       "properties",
@@ -64,12 +63,12 @@ describe("bubble cluster", () => {
     ]) {
       expect(html).toContain(`data-testid="workbench-bubble-${id}"`);
     }
-    // FD2: flood folded INSIDE Reports & exports — no standalone bubble.
+    expect(html).not.toContain('data-testid="workbench-bubble-brief"');
     expect(html).not.toContain('data-testid="workbench-bubble-flood"');
     expect(html).not.toContain('data-testid="workbench-dock"');
   });
 
-  it("registry: SEVEN tools live (use-in-ai after share; flood stays in reports)", () => {
+  it("registry: brief is live but off-rail; six rail tools after it", () => {
     expect(WORKBENCH_TOOLS.map((t) => t.id)).toEqual([
       "brief",
       "chat",
@@ -79,10 +78,10 @@ describe("bubble cluster", () => {
       "use-in-ai",
       "compare",
     ]);
+    expect(WORKBENCH_TOOLS.find((t) => t.id === "brief")?.inCluster).toBe(false);
     expect(
-      WORKBENCH_TOOLS.filter((t) => t.status === "live").map((t) => t.id),
+      WORKBENCH_TOOLS.filter((t) => t.inCluster !== false).map((t) => t.id),
     ).toEqual([
-      "brief",
       "chat",
       "reports",
       "properties",
@@ -96,12 +95,12 @@ describe("bubble cluster", () => {
   });
 
   it("marks the open tool's bubble active (aria-pressed)", () => {
-    const html = render({ openToolId: "brief", activeParcelNodeId: "p1" });
+    const html = render({ openToolId: "chat", activeParcelNodeId: "p1" });
     expect(html).toMatch(
-      /data-testid="workbench-bubble-brief"[^>]*aria-pressed="true"/,
+      /data-testid="workbench-bubble-chat"[^>]*aria-pressed="true"/,
     );
     expect(html).toMatch(
-      /data-testid="workbench-bubble-chat"[^>]*aria-pressed="false"/,
+      /data-testid="workbench-bubble-reports"[^>]*aria-pressed="false"/,
     );
   });
 });

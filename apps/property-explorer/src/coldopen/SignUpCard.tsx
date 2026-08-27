@@ -11,11 +11,13 @@ import {
   microsoftSignInUrl,
   type AuthStatus,
 } from "../lib/auth";
+import { Button } from "../components/Button";
 import { GoogleSignInButton } from "../components/GoogleSignInButton";
 import { recordPeGtmEvent } from "../lib/gtmClient";
+import { PE } from "../styles/pe-chrome";
 
-const CARD_BG = "rgba(17, 21, 28, 0.92)";
-const ACCENT = "var(--brand-blue, #3B82F6)"; // PRIMARY interactive hue (was cyan #7dd3fc)
+const CARD_BG = PE.card;
+const ACCENT = PE.accent;
 
 export function SignUpCard({ onDismiss }: { onDismiss: () => void }) {
   const [busy, setBusy] = useState<"google" | "microsoft" | null>(null);
@@ -186,25 +188,16 @@ export function SignUpCard({ onDismiss }: { onDismiss: () => void }) {
           </button>
         )}
 
-        <button
+        <Button
+          variant="secondary"
+          fullWidth
           type="button"
           data-testid="browse-instead"
           onClick={dismissBrowse}
-          style={{
-            width: "100%",
-            marginTop: 10,
-            padding: "10px 16px",
-            fontSize: 13,
-            fontWeight: 500,
-            color: "#aeb8c4",
-            background: "transparent",
-            border: "0.5px solid var(--surface-border-rgba, rgba(154,166,178,0.3))",
-            borderRadius: 10,
-            cursor: "pointer",
-          }}
+          style={{ marginTop: 10 }}
         >
           Just browse the map
-        </button>
+        </Button>
 
         <p
           style={{

@@ -17,11 +17,14 @@ import {
   type DossierStatus,
 } from "../../lib/propertyDossier";
 import { pinAccent } from "../../lib/saved-pins";
+import { Button } from "../../components/Button";
+import { TextArea } from "../../components/Input";
+import { PE } from "../../styles/pe-chrome";
 
-const MUTED = "var(--surface-muted, #94A3B8)";
-const AMBER = "var(--semantic-warning, #F59E0B)"; // caution notice (was raw yellow #fcd34d)
-const TEXT = "var(--text-body, #e5e7eb)";
-const ACCENT = "var(--brand-blue, #3B82F6)"; // PRIMARY interactive hue (was cyan #7dd3fc)
+const MUTED = PE.muted;
+const AMBER = PE.warning;
+const TEXT = PE.text;
+const ACCENT = PE.accent;
 const SECTION_BORDER = "1px solid rgba(154,166,178,0.2)";
 
 /** Debounce delay for notes autosave (ms). Exported for tests. */
@@ -163,22 +166,16 @@ export function PropertyDossierDetail({
   return (
     <div data-testid="dossier-detail">
       {/* BACK — returns to the master list (same dock, one surface). */}
-      <button
+      <Button
+        variant="ghost"
+        dense
         type="button"
         data-testid="dossier-back"
         onClick={onBack}
-        style={{
-          background: "transparent",
-          border: "none",
-          color: ACCENT,
-          cursor: "pointer",
-          padding: 0,
-          fontSize: 11.5,
-          marginBottom: 8,
-        }}
+        style={{ padding: 0, border: "none", marginBottom: 8, fontSize: 11.5 }}
       >
         ← All saved properties
-      </button>
+      </Button>
 
       {/* HEADER — label / address / parcel id / saved-at. */}
       <div data-testid="dossier-header" style={{ marginBottom: 4 }}>
@@ -227,25 +224,27 @@ export function PropertyDossierDetail({
             : "No drawings saved for this property yet."}
         </p>
         <div style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>
-          <button
+          <Button
+            variant="secondary"
+            dense
             type="button"
             data-testid="dossier-save-drawings"
             onClick={onSaveDrawings}
             disabled={busy}
-            style={actionButtonStyle(busy)}
           >
             Save current drawings
-          </button>
+          </Button>
           {drawingsCount > 0 && (
-            <button
+            <Button
+              variant="secondary"
+              dense
               type="button"
               data-testid="dossier-show-drawings"
               onClick={onShowDrawings}
               disabled={busy}
-              style={actionButtonStyle(busy)}
             >
               Show on map
-            </button>
+            </Button>
           )}
         </div>
       </div>
@@ -375,15 +374,16 @@ export function PropertyDossierDetail({
               chat summary, your notes, and the site-plan sheets when
               available.
             </p>
-            <button
+            <Button
+              variant="primary"
+              dense
               type="button"
               data-testid="dossier-export-pdf-button"
               onClick={onExportDossier}
               disabled={busy}
-              style={actionButtonStyle(busy)}
             >
               {busy ? "Working…" : "Export X-ray PDF"}
-            </button>
+            </Button>
           </div>
         </>
       )}
@@ -435,20 +435,6 @@ export function PropertyDossierDetail({
       )}
     </div>
   );
-}
-
-function actionButtonStyle(busy: boolean): React.CSSProperties {
-  return {
-    fontSize: 10.5,
-    fontWeight: 600,
-    color: ACCENT,
-    background: "transparent",
-    border: "1px solid var(--brand-blue-border, rgba(59,130,246,0.4))",
-    borderRadius: 5,
-    padding: "3px 9px",
-    cursor: busy ? "default" : "pointer",
-    opacity: busy ? 0.6 : 1,
-  };
 }
 
 /**
@@ -503,7 +489,7 @@ export function NotesField({
 
   return (
     <div data-testid="dossier-notes">
-      <textarea
+      <TextArea
         data-testid="dossier-notes-input"
         value={draft}
         disabled={disabled}
@@ -514,16 +500,7 @@ export function NotesField({
         style={{
           width: "100%",
           boxSizing: "border-box",
-          fontSize: 11,
-          lineHeight: 1.45,
-          color: TEXT,
-          background: "rgba(154,166,178,0.08)",
-          border: "1px solid rgba(154,166,178,0.35)",
-          borderRadius: 6,
-          padding: "6px 8px",
-          outline: "none",
           resize: "vertical",
-          fontFamily: "inherit",
         }}
       />
       <div

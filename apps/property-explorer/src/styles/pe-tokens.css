@@ -36,6 +36,7 @@
   --semantic-absence:#7C8BA0;      /* "not verified here" — recolored off yellow */
   --semantic-absence-bg:rgba(124,139,160,0.12);
   --semantic-absence-border:rgba(124,139,160,0.35);
+  --semantic-not-applicable:#A78BFA; /* layer/verdict N/A — not a warning */
 
   /* atom chip — recolored off purple */
   --atom-accent:#4CC9C0;

@@ -33,7 +33,9 @@ import {
   type SavedPropertyRow,
 } from "../../lib/savedPropertiesClient";
 import { savedRowDisplayLabel } from "../../lib/propertyDossier";
+import { Button } from "../../components/Button";
 import { GoogleSignInButton } from "../../components/GoogleSignInButton";
+import { PE } from "../../styles/pe-chrome";
 import { useWorkbench } from "../WorkbenchContext";
 import {
   cellsDiffer,
@@ -45,10 +47,10 @@ import {
   type CompareStoredState,
 } from "./compare-facts";
 
-const MUTED = "var(--surface-muted, #94A3B8)";
-const AMBER = "var(--semantic-warning, #F59E0B)"; // caution tone (was raw yellow #fcd34d)
-const TEXT = "var(--text-body, #e5e7eb)";
-const ACCENT = "var(--brand-blue, #3B82F6)"; // PRIMARY interactive hue (was cyan #7dd3fc)
+const MUTED = PE.muted;
+const AMBER = PE.warning;
+const TEXT = PE.text;
+const ACCENT = PE.accent;
 const FLAG = "#f87171";
 
 /**
@@ -301,22 +303,22 @@ function CompareTable({
               {onView && (
                 <>
                   {" · "}
-                  <button
+                  <Button
+                    variant="ghost"
+                    dense
                     type="button"
                     data-testid={`compare-view-${slot}`}
                     onClick={() => onView(parcelNodeId)}
                     title="Fly the map to this property"
                     style={{
-                      background: "transparent",
-                      border: "none",
-                      color: ACCENT,
-                      cursor: "pointer",
                       padding: 0,
                       fontSize: 10,
+                      border: "none",
+                      fontWeight: 600,
                     }}
                   >
                     view
-                  </button>
+                  </Button>
                 </>
               )}
             </div>

@@ -4,6 +4,7 @@
 
 import type { SitePlanExportFormat } from "../../lib/sitePlanExportClient";
 import type { TerrainExportFormat } from "../../lib/terrainExportClient";
+import { PE } from "../../styles/pe-chrome";
 
 export type ReportDocId =
   | "FEAS"
@@ -243,10 +244,10 @@ export function readyCount(studioGranted: boolean): {
   };
 }
 
-const SUCCESS = "var(--semantic-success, #10B981)";
-const MUTED = "var(--surface-muted, #7C8BA0)";
-const WARN = "var(--semantic-warning, #F59E0B)";
-const SLATE = "var(--text-muted, #94A3B8)";
+const SUCCESS = PE.success;
+const MUTED = PE.absence;
+const WARN = PE.warning;
+const SLATE = PE.muted;
 
 export function reportDocStatus(
   doc: ReportDocDef,

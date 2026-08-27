@@ -73,6 +73,7 @@ import {
   type ParcelFactSheetWithVerdictLayers,
 } from "../lib/sheet-to-card-model";
 import { Button } from "../components/Button";
+import { BriefTool } from "../workbench/tools/BriefTool";
 import {
   getSavedProperty,
   removeSavedProperty,
@@ -655,6 +656,7 @@ export function InspectCard({
   onEnvelope,
   onMakeSubject,
   onResearch,
+  researchOpen = false,
   onSaveProperty,
   onUnsaveProperty,
 }: {
@@ -688,6 +690,8 @@ export function InspectCard({
   // stubbed ask/report path.
   onMakeSubject: () => void;
   onResearch: () => void;
+  /** When true, the cited brief mounts in this card (right-hand brief retired). */
+  researchOpen?: boolean;
   onSaveProperty?: () => void;
   /** Remove this parcel from saved properties. Omit and the card removes it
    *  through the same one saved-properties flow the Save button writes to. */
@@ -981,6 +985,13 @@ export function InspectCard({
       data-source={source}
       style={{
         ...inspectCardShellStyle(isMobile),
+        ...(researchOpen && !isMobile
+          ? {
+              width: 360,
+              maxHeight: "calc(100vh - 24px)",
+              overflowY: "auto" as const,
+            }
+          : {}),
         background: CARD_BG,
         color: "#e6edf3",
         fontFamily: "system-ui, -apple-system, Segoe UI, Roboto, sans-serif",
@@ -1292,10 +1303,24 @@ export function InspectCard({
         type="button"
         data-testid="research-this"
         onClick={onResearch}
+        aria-expanded={researchOpen}
         style={{ marginTop: 8 }}
       >
-        Research this →
+        {researchOpen ? "Hide brief" : "Research this →"}
       </Button>
+
+      {researchOpen ? (
+        <div
+          data-testid="inspect-brief"
+          style={{
+            marginTop: 12,
+            paddingTop: 10,
+            borderTop: "1px solid rgba(154,166,178,0.2)",
+          }}
+        >
+          <BriefTool />
+        </div>
+      ) : null}
 
       {/* SS-W2: `SmartFilesMountStub` was removed from here and deleted. It was
           a development isolation probe that printed a raw folder id and the

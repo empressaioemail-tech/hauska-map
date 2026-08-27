@@ -10,12 +10,10 @@
 // notice + Google sign-in link, as in the export sections) — entitlement
 // flows AFTER sign-in.
 
+import { Button } from "../../components/Button";
 import { GoogleSignInButton } from "../../components/GoogleSignInButton";
+import { PE } from "../../styles/pe-chrome";
 import { useWorkbench } from "../WorkbenchContext";
-
-const TEXT = "var(--text-body, #e5e7eb)";
-const MUTED = "var(--surface-muted, #94A3B8)";
-const AMBER = "var(--semantic-warning, #F59E0B)"; // locked-state caution (was raw yellow #fcd34d)
 
 /**
  * The exact arguments the View-pricing button hands to host.openPaywall —
@@ -57,7 +55,7 @@ export function LockedToolPanel({
   if (signedOut) {
     return (
       <div data-testid={`${testId}-sign-in`} style={{ fontSize: 11.5 }}>
-        <p style={{ margin: "0 0 8px", color: AMBER }}>
+        <p style={{ margin: "0 0 8px", color: PE.warning }}>
           {signInLine ?? "Sign in to use this tool — browsing the map and inspect card stays free."}
         </p>
         <GoogleSignInButton
@@ -87,36 +85,26 @@ function LockedPanelBody({
   const { host } = useWorkbench();
   return (
     <div data-testid={testId} data-pro-only={proOnly ? "true" : "false"}>
-      <p style={{ margin: "0 0 10px", fontSize: 11.5, lineHeight: 1.5, color: TEXT }}>
+      <p style={{ margin: "0 0 10px", fontSize: 11.5, lineHeight: 1.5, color: PE.text }}>
         {valueLine}
       </p>
       {proOnly && proOnlyNote ? (
-        <p style={{ margin: "0 0 10px", fontSize: 10.5, lineHeight: 1.45, color: MUTED }}>
+        <p style={{ margin: "0 0 10px", fontSize: 10.5, lineHeight: 1.45, color: PE.muted }}>
           {proOnlyNote}
         </p>
       ) : null}
-      <button
+      <Button
+        variant="primary"
+        fullWidth
         type="button"
         data-testid="view-pricing-button"
         onClick={() =>
           host.openPaywall(...lockedPanelPaywallArgs(valueLine, proOnly === true))
         }
-        style={{
-          width: "100%",
-          padding: "8px 12px",
-          borderRadius: 8,
-          border: "none",
-          background: "var(--brand-blue, #3B82F6)",
-          color: "#f8fafc",
-          fontWeight: 600,
-          fontSize: 12.5,
-          cursor: "pointer",
-          fontFamily: "inherit",
-        }}
       >
         View pricing &amp; unlock
-      </button>
-      <p style={{ margin: "8px 0 0", fontSize: 10, color: MUTED }}>
+      </Button>
+      <p style={{ margin: "8px 0 0", fontSize: 10, color: PE.muted }}>
         The inspect card and map layers stay free.
       </p>
     </div>

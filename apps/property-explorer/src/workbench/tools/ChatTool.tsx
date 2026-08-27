@@ -41,7 +41,10 @@
 
 import { useCallback, useEffect, useRef, useState, type ReactNode } from "react";
 import type { CSSProperties, KeyboardEvent } from "react";
+import { Button } from "../../components/Button";
 import { GoogleSignInButton } from "../../components/GoogleSignInButton";
+import { TextArea } from "../../components/Input";
+import { PE } from "../../styles/pe-chrome";
 import { invalidatePropertyEntitlement } from "../../lib/entitlementClient";
 import { recordPeGtmEvent } from "../../lib/gtmClient";
 import { usePropertyEntitlement } from "../../lib/usePropertyEntitlement";
@@ -111,12 +114,12 @@ import {
   type ChatAttachment,
 } from "./chat-attach";
 
-const TEXT = "var(--text-body, #e5e7eb)";
-const MUTED = "var(--surface-muted, #94A3B8)";
-const ACCENT = "var(--brand-blue, #3B82F6)"; // PRIMARY interactive hue (was cyan #7dd3fc)
-const AMBER = "var(--semantic-warning, #F59E0B)"; // outdated/notice caution (was raw yellow #fcd34d)
-const CHIP_BORDER = "1px solid var(--surface-border-rgba, rgba(154,166,178,0.3))";
-const USER_BG = "var(--brand-blue-bg, rgba(59,130,246,0.12))";
+const TEXT = PE.text;
+const MUTED = PE.muted;
+const ACCENT = PE.accent;
+const AMBER = PE.warning;
+const CHIP_BORDER = PE.border;
+const USER_BG = PE.accentBg;
 const DETAIL_BG = "rgba(154,166,178,0.10)";
 
 // ---------------------------------------------------------------------------
@@ -1573,8 +1576,10 @@ export function ChatTool() {
             </p>
             <div style={{ display: "flex", flexWrap: "wrap", gap: 5 }}>
               {INVESTOR_STARTER_PROMPTS.map((p) => (
-                <button
+                <Button
                   key={p.id}
+                  variant="subtle"
+                  dense
                   type="button"
                   data-testid={`chat-starter-chip-${p.id}`}
                   style={starterChipStyle}
@@ -1587,7 +1592,7 @@ export function ChatTool() {
                   }
                 >
                   {p.chip}
-                </button>
+                </Button>
               ))}
             </div>
           </div>
@@ -1749,23 +1754,16 @@ export function ChatTool() {
             </span>
           )}
           {saveStatus?.offerSave && (
-            <button
+            <Button
+              variant="primary"
+              dense
               type="button"
               data-testid="chat-save-property-first"
               disabled={saveBusy}
               onClick={() => void handleSaveToProperty({ savePropertyFirst: true })}
-              style={{
-                fontSize: 10.5,
-                color: "#0b0f14",
-                background: ACCENT,
-                border: `1px solid ${ACCENT}`,
-                borderRadius: 5,
-                padding: "2px 8px",
-                cursor: saveBusy ? "default" : "pointer",
-              }}
             >
               Save property &amp; attach chat
-            </button>
+            </Button>
           )}
         </div>
       )}
@@ -1860,7 +1858,7 @@ export function ChatTool() {
         >
           {attachBusy ? "…" : "📎"}
         </button>
-        <textarea
+        <TextArea
           ref={chatInputRef}
           rows={1}
           data-testid="chat-input"
@@ -1869,40 +1867,18 @@ export function ChatTool() {
           disabled={phase.kind === "sending"}
           onChange={(e) => setDraft(e.target.value)}
           onKeyDown={onInputKeyDown}
-          style={{
-            flex: 1,
-            minWidth: 0,
-            resize: "none",
-            fontSize: 11.5,
-            lineHeight: 1.45,
-            color: TEXT,
-            background: "rgba(154,166,178,0.08)",
-            border: CHIP_BORDER,
-            borderRadius: 6,
-            padding: "6px 8px",
-            outline: "none",
-            fontFamily: "inherit",
-          }}
+          style={{ flex: 1, minWidth: 0 }}
         />
-        <button
+        <Button
+          variant="primary"
+          dense
           type="button"
           data-testid="chat-send"
           onClick={submitDraft}
           disabled={phase.kind === "sending" || !draft.trim()}
-          style={{
-            fontSize: 11.5,
-            fontWeight: 600,
-            color: "#0b0f14",
-            background: ACCENT,
-            border: `1px solid ${ACCENT}`,
-            borderRadius: "var(--btn-radius, 9px)",
-            padding: "5px 10px",
-            cursor: phase.kind === "sending" ? "default" : "pointer",
-            opacity: phase.kind === "sending" || !draft.trim() ? 0.55 : 1,
-          }}
         >
           Send
-        </button>
+        </Button>
       </div>
       </>
       )}

@@ -1267,3 +1267,32 @@ describe("resolveSheetWithTransientRetry", () => {
     expect(calls).toBe(1);
   });
 });
+
+describe("InspectCard — cited brief lives in the left card", () => {
+  it("researchOpen mounts inspect-brief and relabels the CTA", async () => {
+    const { WorkbenchProvider } = await import("../workbench/WorkbenchContext");
+    const { createWorkbenchToolStateStore } = await import(
+      "../workbench/tool-state-store"
+    );
+    const html = renderToStaticMarkup(
+      <WorkbenchProvider
+        activeParcelNodeId="48021:1"
+        closeDock={noop}
+        host={{ openPaywall: noop }}
+        store={createWorkbenchToolStateStore({ storage: null })}
+      >
+        <InspectCard
+          card={CARD}
+          parcelNodeId="48021:1"
+          onClose={noop}
+          onMakeSubject={noop}
+          onResearch={noop}
+          researchOpen
+        />
+      </WorkbenchProvider>,
+    );
+    expect(html).toContain('data-testid="inspect-brief"');
+    expect(html).toContain("Hide brief");
+    expect(html).not.toContain("Research this →");
+  });
+});

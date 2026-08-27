@@ -163,3 +163,24 @@ describe("parcel layer row — GIS Parcel Boundary, no persistent disclaimer", (
     expect(explorer).not.toMatch(/layerStates\[[^\]]*parcel-polygon[^\]]*\]\s*=\s*\{[^}]*note:\s*attribution/s);
   });
 });
+
+describe("left map-utility stack", () => {
+  it("splitBubbles + left anchor renders draw + layers bubbles", () => {
+    const mapRef = createRef<FloatingMapHandle>();
+    const known = new Set<LayerKey>(["parcel-polygon" as LayerKey]);
+    const html = renderToStaticMarkup(
+      <MapToolset
+        mapRef={mapRef}
+        known={known}
+        visible={new Set<LayerKey>(known)}
+        onLayersChange={noop}
+        layerStates={{}}
+        anchor="left"
+        splitBubbles
+      />,
+    );
+    expect(html).toContain('data-anchor="left"');
+    expect(html).toContain('data-testid="map-toolset-draw-bubble"');
+    expect(html).toContain('data-testid="map-toolset-bubble"');
+  });
+});

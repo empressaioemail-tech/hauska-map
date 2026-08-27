@@ -1,14 +1,15 @@
 // Run status strip — design artboard C (Phase 1 scaffold, one state at a time).
 
+import { PE } from "../../styles/pe-chrome";
 import type { RecordsRunPhase, RecordsRunView } from "./records-request-types";
 import { recordsRunStatusCopy } from "./records-run-status";
 
-const APP_INK = "var(--app-ink, #0b0e13)";
-const TEXT = "var(--text-body, #E9EEF5)";
-const MUTED_2 = "var(--text-muted, #94A3B8)";
-const SLATE = "var(--honest-absence, #7C8BA0)";
-const BLUE = "var(--brand-blue, #3B82F6)";
-const WARN = "var(--semantic-warning, #F59E0B)";
+const APP_INK = PE.ink;
+const TEXT = PE.textStrong;
+const MUTED_2 = PE.muted;
+const SLATE = PE.absence;
+const BLUE = PE.accent;
+const WARN = PE.warning;
 
 export function RecordsRunStatusStrip({
   phase = "running",
