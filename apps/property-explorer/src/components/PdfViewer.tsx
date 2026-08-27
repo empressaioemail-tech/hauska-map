@@ -1,8 +1,14 @@
 // In-app PDF viewer (W2.5). Preferred over a raw download, especially on
 // a narrow viewport. W2.4: the live-view link sits at the TOP of the
 // viewer chrome. Fail closed: no href → nothing to view.
+//
+// Export GETs send Content-Disposition: attachment. Pointing an iframe at
+// that href paints a navy empty sheet in Chrome. Fetch the bytes and show
+// a blob URL instead.
 
+import { useEffect, useState } from "react";
 import { liveViewHref } from "../lib/live-view";
+import { resolvePdfFrameSrc } from "../lib/pdf-frame-src";
 
 export function PdfViewer({
   href,
@@ -18,6 +24,33 @@ export function PdfViewer({
   onClose: () => void;
 }) {
   const live = liveViewHref({ parcelNodeId, grantId });
+  const [frameSrc, setFrameSrc] = useState<string | null>(null);
+  const [error, setError] = useState<string | null>(null);
+
+  useEffect(() => {
+    let revoked: string | null = null;
+    let cancelled = false;
+    setFrameSrc(null);
+    setError(null);
+    void resolvePdfFrameSrc(href)
+      .then((resolved) => {
+        if (cancelled) {
+          if (resolved.revoke) URL.revokeObjectURL(resolved.src);
+          return;
+        }
+        if (resolved.revoke) revoked = resolved.src;
+        setFrameSrc(resolved.src);
+      })
+      .catch((err: unknown) => {
+        if (cancelled) return;
+        setError(err instanceof Error ? err.message : "pdf failed");
+      });
+    return () => {
+      cancelled = true;
+      if (revoked) URL.revokeObjectURL(revoked);
+    };
+  }, [href]);
+
   return (
     <div
       data-testid="pdf-viewer"
@@ -26,7 +59,7 @@ export function PdfViewer({
       style={{
         position: "fixed",
         inset: 8,
-        zIndex: 80,
+        zIndex: 240,
         display: "flex",
         flexDirection: "column",
         background: "var(--surface-card, #0d1117)",
@@ -70,12 +103,37 @@ export function PdfViewer({
           Close
         </button>
       </div>
-      <iframe
-        data-testid="pdf-viewer-frame"
-        title={title}
-        src={href}
-        style={{ flex: 1, width: "100%", border: 0, minHeight: 280 }}
-      />
+      {error ? (
+        <div
+          data-testid="pdf-viewer-error"
+          style={{
+            flex: 1,
+            minHeight: 280,
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "center",
+            padding: 24,
+            color: "var(--text-body, #e5e7eb)",
+            fontSize: 13,
+            background: "#111827",
+          }}
+        >
+          Could not open this PDF in the viewer. Use Download PDF.
+        </div>
+      ) : (
+        <iframe
+          data-testid="pdf-viewer-frame"
+          title={title}
+          src={frameSrc ?? undefined}
+          style={{
+            flex: 1,
+            width: "100%",
+            border: 0,
+            minHeight: 280,
+            background: "#ffffff",
+          }}
+        />
+      )}
       <a
         href={href}
         download
