@@ -1,8 +1,5 @@
-// W2 REPORTS BUBBLE — Option D (2026-08-24): one document at a time.
-// Picker holds the catalog (including Coming soon). The selected row gets
-// one description and one action. Live engines stay the existing sections;
-// they mount only when that document is selected. Persistence keys unchanged:
-// reports.sitePlan, reports.terrain, flood.
+// W7 reports and exports picker. Coming soon is not on the purchase surface.
+// Persistence keys unchanged: reports.sitePlan, reports.terrain, flood.
 
 import { useCallback, useRef, useState, type ReactNode } from "react";
 import {
@@ -37,10 +34,12 @@ import { runBriefResearch } from "./brief-research";
 import {
   findReportDoc,
   isReportDocId,
-  readyCount,
+  normalizeReportDocId,
   reportCatalogGroups,
+  reportDocLockChip,
   reportDocMeta,
   reportDocStatus,
+  reportsFreshnessLine,
   type ReportDocDef,
   type ReportDocId,
 } from "./reports-catalog";
@@ -67,7 +66,7 @@ export interface DossierDockState {
 }
 
 function lockedDefaultDoc(locked: boolean): ReportDocId | null {
-  return locked ? "SPPDF" : null;
+  return locked ? "SITEPLAN" : null;
 }
 
 function shortAddress(address: string | null | undefined): string | null {
@@ -159,15 +158,20 @@ export function ReportsTool() {
   const studioGranted =
     ent.status === "ready" && studioGrantedForEntitlement(ent);
   const terrainProLocked = ent.status === "ready" && !studioGranted;
-
-  const selectedId = isReportDocId(selectedRaw)
-    ? selectedRaw
-    : lockedDefaultDoc(ent.locked);
-  const selected = selectedId ? findReportDoc(selectedId) : null;
-  const counts = readyCount(
-    ent.locked ? false : studioGranted,
-  );
   const locked = ent.locked;
+
+  const selectedIdRaw = isReportDocId(selectedRaw)
+    ? normalizeReportDocId(selectedRaw)
+    : lockedDefaultDoc(locked);
+  const selectedCandidate = selectedIdRaw ? findReportDoc(selectedIdRaw) : null;
+  const selected =
+    selectedCandidate && selectedCandidate.purchaseSurface
+      ? selectedCandidate
+      : locked
+        ? findReportDoc("SITEPLAN")
+        : null;
+  const selectedId = selected?.id ?? null;
+  const freshness = reportsFreshnessLine(address, new Date());
 
   const pick = (id: ReportDocId) => {
     setSelectedRaw(id);
@@ -192,8 +196,7 @@ export function ReportsTool() {
       {locked ? (
         <div data-testid="reports-locked" data-pro-only="false">
           <OptionDChrome
-            address={address}
-            readyLine={null}
+            freshness={freshness}
             pickerOpen={pickerOpen}
             selected={selected}
             status={status}
@@ -211,8 +214,7 @@ export function ReportsTool() {
         </div>
       ) : (
         <OptionDChrome
-          address={address}
-          readyLine={`${counts.ready} ready of ${counts.total}`}
+          freshness={freshness}
           pickerOpen={pickerOpen}
           selected={selected}
           status={status}
@@ -274,8 +276,7 @@ function generatedLabelFor(
 }
 
 function OptionDChrome({
-  address,
-  readyLine,
+  freshness,
   pickerOpen,
   selected,
   status,
@@ -288,8 +289,7 @@ function OptionDChrome({
   onViewPricing,
   children,
 }: {
-  address: string | null;
-  readyLine: string | null;
+  freshness: string;
   pickerOpen: boolean;
   selected: ReportDocDef | null;
   status: { text: string; color: string } | null;
@@ -302,17 +302,14 @@ function OptionDChrome({
   onViewPricing?: () => void;
   children?: ReactNode;
 }) {
-  const sub = [address, readyLine].filter(Boolean).join(" · ");
   return (
     <div>
-      {sub ? (
-        <div
-          data-testid="reports-ready-count"
-          style={{ fontSize: 11, color: MUTED, marginBottom: 10 }}
-        >
-          {sub}
-        </div>
-      ) : null}
+      <div
+        data-testid="reports-freshness"
+        style={{ fontSize: 11, color: MUTED, marginBottom: 10 }}
+      >
+        {freshness}
+      </div>
 
       <div
         style={{
@@ -323,7 +320,7 @@ function OptionDChrome({
           marginBottom: 6,
         }}
       >
-        Document
+        Reports and exports
       </div>
 
       <button
@@ -379,7 +376,8 @@ function OptionDChrome({
               {g.group}
             </div>
             {g.rows.map((row) => {
-              const rowStatus = reportDocStatus(row, { studioGranted });
+              const lock = reportDocLockChip(row, { studioGranted });
+              const rowStatus = lock ?? reportDocStatus(row, { studioGranted });
               const isSel = selected?.id === row.id;
               return (
                 <button
@@ -530,7 +528,7 @@ function OptionDChrome({
               data-testid="view-pricing-button"
               onClick={onViewPricing}
             >
-              View pricing & unlock
+              Unlock this property, 30 days
             </Button>
           ) : (
             children
@@ -651,31 +649,28 @@ function SelectedEngine({
     );
   }
 
-  if (doc.engine === "site-plan" && doc.sitePlanFormat) {
+  if (doc.engine === "site-plan") {
     return (
       <SitePlanExportSection
-        key={`site-plan:${parcelNodeId}:${doc.sitePlanFormat}`}
+        key={`site-plan:${parcelNodeId}`}
         parcelNodeId={parcelNodeId}
         address={facts.address}
         countyName={facts.countyName}
         onPaymentRequired={() => onPaymentRequired(SITE_PLAN_PAYWALL_MESSAGE)}
         initialState={
-          sitePlan
-            ? { ...sitePlan, format: doc.sitePlanFormat }
-            : {
-                format: doc.sitePlanFormat,
-                notice: null,
-                result: null,
-              }
+          sitePlan ?? {
+            format: "pdf-site-plan",
+            notice: null,
+            result: null,
+          }
         }
         onStateChange={onSitePlan}
         embed
-        lockedFormat={doc.sitePlanFormat}
       />
     );
   }
 
-  if (doc.engine === "terrain" && doc.terrainFormat) {
+  if (doc.engine === "terrain") {
     if (terrainProLocked) {
       return (
         <LockedToolPanel
@@ -688,7 +683,7 @@ function SelectedEngine({
     }
     return (
       <TerrainExportSection
-        key={`terrain:${parcelNodeId}:${doc.terrainFormat}`}
+        key={`terrain:${parcelNodeId}`}
         parcelNodeId={parcelNodeId}
         onPaymentRequired={() =>
           onPaymentRequired(TERRAIN_PAYWALL_MESSAGE, {
@@ -697,13 +692,10 @@ function SelectedEngine({
           })
         }
         initialState={
-          terrain
-            ? { ...terrain, format: doc.terrainFormat }
-            : { format: doc.terrainFormat, notice: null, result: null }
+          terrain ?? { format: "glb", notice: null, result: null }
         }
         onStateChange={onTerrain}
         embed
-        lockedFormat={doc.terrainFormat}
       />
     );
   }

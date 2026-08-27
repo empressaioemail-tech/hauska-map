@@ -21,6 +21,8 @@ describe("UnlockCheckoutModal — situs + $15.00 + 30 days + Pay $15.00", () => 
     expect(html).toContain(`${PE_PRICING.property.durationDays} days`);
     expect(html).toContain(UNLOCK_SUBMIT);
     expect(html).toContain('data-testid="stripe-payment-element"');
+    expect(html).toContain("overflow-y:auto");
+    expect(html).toContain('data-testid="unlock-wallet-note"');
     expect(html).not.toContain("checkout.stripe.com");
     expect(html).not.toMatch(/Card number|ZIP|Name on card|4242/);
   });

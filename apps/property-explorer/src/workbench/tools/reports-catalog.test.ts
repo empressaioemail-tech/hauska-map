@@ -1,77 +1,87 @@
 import { describe, expect, it } from "vitest";
 import {
+  findReportDoc,
   isReportDocId,
+  normalizeReportDocId,
+  purchaseSurfaceCatalog,
   readyCount,
   reportCatalogGroups,
   reportDocIsGeneratable,
+  reportDocLockChip,
   reportDocStatus,
+  reportsFreshnessLine,
   REPORTS_CATALOG,
 } from "./reports-catalog";
 
-describe("reports catalog — Option D picker source", () => {
-  it("has 12 documents in Packages / Studies / Exports", () => {
-    // Frame caption said "4 ready of 12"; the catalog() list is 12 rows.
-    expect(REPORTS_CATALOG).toHaveLength(12);
+describe("reports catalog — W7 purchase surface", () => {
+  it("Coming soon rows are off the purchase surface (violate: a Coming soon row must fail)", () => {
+    const purchase = purchaseSurfaceCatalog();
+    expect(purchase.some((d) => d.catalogStatus === "coming")).toBe(false);
+    expect(purchase.some((d) => /coming soon/i.test(d.name))).toBe(false);
+    expect(purchase.map((d) => d.id).sort()).toEqual(
+      ["BRIEF", "DOSS", "FLOOD", "REC", "SITEPLAN", "TERRAIN"].sort(),
+    );
     const groups = reportCatalogGroups();
-    expect(groups.map((g) => g.group)).toEqual([
-      "Packages",
-      "Studies",
-      "Exports",
-    ]);
-    expect(groups.reduce((n, g) => n + g.rows.length, 0)).toBe(12);
+    const htmlish = groups
+      .flatMap((g) => g.rows.map((r) => `${g.group}:${r.name}:${r.catalogStatus}`))
+      .join("|");
+    expect(htmlish.toLowerCase()).not.toContain("coming soon");
   });
 
-  it("coming-soon rows are in the catalog and never count as ready", () => {
-    const coming = REPORTS_CATALOG.filter((d) => d.catalogStatus === "coming");
-    expect(coming.map((d) => d.name).sort()).toEqual([
-      "Comparison report",
-      "Feasibility Study",
+  it("the 10-of-12 meter is retired (violate: readyCount must fail)", () => {
+    expect(() => readyCount(true)).toThrow(/10\/12|retired/i);
+  });
+
+  it("groups are Reports / Exports / Tools — not Packages", () => {
+    expect(reportCatalogGroups().map((g) => g.group)).toEqual([
+      "Reports",
+      "Exports",
+      "Tools",
     ]);
+  });
+
+  it("exports collapse to Site plan (PDF, DXF, IFC) and Terrain (DXF, IFC, GLB)", () => {
+    const exports = reportCatalogGroups().find((g) => g.group === "Exports");
+    expect(exports?.rows.map((r) => r.name)).toEqual(["Site plan", "Terrain"]);
+    expect(exports?.rows[0]?.formatLabel).toBe("PDF, DXF, IFC");
+    expect(exports?.rows[1]?.formatLabel).toBe("DXF, IFC, GLB");
+  });
+
+  it("locked extras stay as live verbs, not new report SKUs", () => {
+    expect(findReportDoc("REC").kind).toBe("Tool");
+    expect(findReportDoc("BRIEF").kind).toBe("Tool");
+    expect(findReportDoc("FEAS").purchaseSurface).toBe(false);
+    expect(findReportDoc("COMP").purchaseSurface).toBe(false);
+  });
+
+  it("Studio lock chip carries tier and price", () => {
+    const terrain = findReportDoc("TERRAIN");
+    const locked = reportDocLockChip(terrain, { studioGranted: false });
+    expect(locked?.text).toBe("Studio, $129/mo");
+    expect(reportDocIsGeneratable(terrain, false)).toBe(false);
+    expect(reportDocIsGeneratable(terrain, true)).toBe(true);
+  });
+
+  it("format aliases normalize to the collapsed export rows", () => {
+    expect(normalizeReportDocId("SPPDF")).toBe("SITEPLAN");
+    expect(normalizeReportDocId("TERGLB")).toBe("TERRAIN");
+    expect(isReportDocId("SPPDF")).toBe(true);
+    expect(isReportDocId("SITEPLAN")).toBe(true);
+  });
+
+  it("freshness line is address + verified day, never a 10/12 meter", () => {
+    expect(
+      reportsFreshnessLine("905 Pecan St", new Date("2026-08-27T12:00:00.000Z")),
+    ).toBe("905 Pecan St, verified 27 August 2026");
+  });
+
+  it("coming-soon catalog rows never count as generatable", () => {
+    const coming = REPORTS_CATALOG.filter((d) => d.catalogStatus === "coming");
     for (const doc of coming) {
       expect(reportDocIsGeneratable(doc, true)).toBe(false);
       expect(reportDocStatus(doc, { studioGranted: true }).text).toBe(
         "Coming soon",
       );
     }
-  });
-
-  it("ready count: paid/unlock can generate 7; Studio adds terrain rows", () => {
-    expect(readyCount(false)).toEqual({ ready: 7, total: 12 });
-    expect(readyCount(true)).toEqual({ ready: 10, total: 12 });
-  });
-
-  it("Records request is ready in the Packages group (property-entitlement gate)", () => {
-    const rec = REPORTS_CATALOG.find((d) => d.id === "REC");
-    expect(rec?.name).toBe("Records request");
-    expect(rec?.group).toBe("Packages");
-    expect(rec?.engine).toBe("records");
-    expect(rec?.studioGated).toBeFalsy();
-    expect(reportDocStatus(rec!, { studioGranted: false }).text).toBe("Ready");
-    expect(reportDocIsGeneratable(rec!, false)).toBe(true);
-    expect(reportDocIsGeneratable(rec!, true)).toBe(true);
-  });
-
-  it("the live package is X-ray, not Property dossier", () => {
-    const doss = REPORTS_CATALOG.find((d) => d.id === "DOSS");
-    expect(doss?.name).toBe("X-ray");
-    expect(REPORTS_CATALOG.some((d) => /dossier/i.test(d.name))).toBe(false);
-  });
-
-  it("isReportDocId rejects garbage and accepts every catalog id", () => {
-    expect(isReportDocId("SPPDF")).toBe(true);
-    expect(isReportDocId("FLOOD")).toBe(true);
-    expect(isReportDocId("reports.sitePlan")).toBe(false);
-    expect(isReportDocId(null)).toBe(false);
-    expect(isReportDocId("")).toBe(false);
-  });
-
-  it("Studio status is warning-colored, never a gold CTA token", () => {
-    const terrain = REPORTS_CATALOG.find((d) => d.id === "TERGLB");
-    expect(terrain).toBeTruthy();
-    const locked = reportDocStatus(terrain!, { studioGranted: false });
-    expect(locked.text).toBe("Studio");
-    expect(locked.color).toContain("--semantic-warning");
-    expect(locked.color.toLowerCase()).not.toContain("f5b95c");
-    expect(locked.color.toLowerCase()).not.toContain("e8963b");
   });
 });

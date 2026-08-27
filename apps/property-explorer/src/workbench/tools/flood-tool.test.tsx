@@ -232,7 +232,7 @@ describe("flood & drainage — folded INSIDE the Reports bubble (no standalone b
     expect(html).toMatch(/data-testid="reports-locked"[^>]*data-pro-only="false"/);
     expect(html).toContain('data-testid="view-pricing-button"');
     expect(html).not.toContain('data-testid="unlock-property-choice"');
-    expect(html).toContain("Flood &amp; drainage study");
+    expect(html).toContain("Flood and Drainage");
     expect(html).not.toContain('data-testid="flood-run"');
   });
 

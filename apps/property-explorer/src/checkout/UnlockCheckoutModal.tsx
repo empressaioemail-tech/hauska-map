@@ -64,11 +64,12 @@ export function UnlockCheckoutModal({
         style={{
           width: 470,
           maxWidth: "100%",
+          maxHeight: "calc(100dvh - 24px)",
+          overflowY: "auto",
           borderRadius: 12,
           background: "rgba(17,21,28,0.96)",
           border: "0.5px solid rgba(59,130,246,0.28)",
           boxShadow: "0 24px 80px rgba(0,0,0,0.55)",
-          overflow: "hidden",
           color: TEXT,
           fontFamily: FONT,
         }}
@@ -134,6 +135,8 @@ export function UnlockCheckoutModal({
               aria-label="Stripe payment mount"
               style={{
                 minHeight: 88,
+                maxHeight: "min(360px, 50dvh)",
+                overflowY: "auto",
                 borderRadius: 6,
                 border: "1px dashed rgba(154,166,178,0.28)",
                 background: "rgba(20,25,33,0.9)",
@@ -155,6 +158,12 @@ export function UnlockCheckoutModal({
               {mount.error}
             </div>
           ) : null}
+          <p
+            data-testid="unlock-wallet-note"
+            style={{ margin: 0, fontSize: 12, color: MUTED, lineHeight: 1.45 }}
+          >
+            {PE_PRICING.walletHonestDecline}
+          </p>
           <button
             type="button"
             data-testid="unlock-checkout-submit"

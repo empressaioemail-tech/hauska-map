@@ -121,27 +121,38 @@ describe("reports tool — Option D picker, not the stacked wall", () => {
     expect(html).toContain('data-testid="reports-tool"');
     expect(html).toContain('data-testid="reports-doc-picker"');
     expect(html).toContain("Choose a report or export");
-    expect(html).toContain("Feasibility Study");
-    expect(html).toContain("Comparison report");
-    expect(html).toContain("Coming soon");
+    expect(html).toContain("X-ray");
+    expect(html).toContain("Flood and Drainage");
+    expect(html).toContain("Site plan");
+    expect(html).toContain("Terrain");
+    expect(html).not.toContain('data-testid="reports-doc-option-FEAS"');
+    expect(html).not.toContain('data-testid="reports-doc-option-COMP"');
+    expect(html).not.toContain("Feasibility Study");
+    expect(html).not.toContain("Comparison report");
+    expect(html).not.toContain("ready of");
+    expect(html).not.toContain("10 ready");
+    expect(html).toContain('data-testid="reports-freshness"');
+    expect(html).toContain("Reports and exports");
+    expect(html).not.toContain(">Document<");
+    expect(html).not.toContain("In-app instruments");
     expect(html).not.toContain('data-testid="site-plan-export-section"');
     expect(html).not.toContain('data-testid="flood-drainage-section"');
     expect(html).not.toContain('data-testid="terrain-export-section"');
     expect(html).toContain("The inspect card and map layers stay free.");
   });
 
-  it("selecting SPPDF mounts only the site-plan engine", () => {
+  it("selecting SITEPLAN mounts the site-plan engine with format picker", () => {
     primePropertyEntitlement("48021:123", ent());
     const store = createWorkbenchToolStateStore({ storage: null });
-    store.set("48021:123", "reports.selectedDoc", "SPPDF");
+    store.set("48021:123", "reports.selectedDoc", "SITEPLAN");
     const html = render({ activeParcelNodeId: "48021:123", store });
     expect(html).toContain('data-testid="site-plan-export-section"');
     expect(html).toContain('data-testid="site-plan-export-run"');
-    expect(html).not.toContain('data-testid="site-plan-format-picker"');
+    expect(html).toContain('data-testid="site-plan-format-picker"');
     expect(html).not.toContain('data-testid="flood-drainage-section"');
     expect(html).not.toContain('data-testid="terrain-export-section"');
     expect(html).toContain('data-testid="reports-doc-card"');
-    expect(html).toContain("Site plan sheet");
+    expect(html).toContain("Site plan");
   });
 
   it("selecting FLOOD mounts only the flood engine", () => {
@@ -168,7 +179,7 @@ describe("reports tool — Option D picker, not the stacked wall", () => {
     expect(html).not.toContain('data-testid="site-plan-export-section"');
   });
 
-  it("picker lists Records request under Packages with Studio status", () => {
+  it("picker lists Records request as a live verb, not a Coming soon report", () => {
     primePropertyEntitlement("48021:123", ent());
     const html = render({ activeParcelNodeId: "48021:123" });
     expect(html).toContain('data-testid="reports-doc-option-REC"');
@@ -201,7 +212,7 @@ describe("reports tool — per-property persistence via the chassis store", () =
   it("reopen of SPPDF renders the persisted last result + download link", () => {
     primePropertyEntitlement("48021:123", ent());
     const store = createWorkbenchToolStateStore({ storage: null });
-    store.set("48021:123", "reports.selectedDoc", "SPPDF");
+    store.set("48021:123", "reports.selectedDoc", "SITEPLAN");
     store.set("48021:123", "reports.sitePlan", SITE_PLAN_STATE);
     const html = render({ activeParcelNodeId: "48021:123", store });
     expect(html).toContain('data-testid="site-plan-export-result"');
@@ -218,7 +229,7 @@ describe("reports tool — per-property persistence via the chassis store", () =
   it("reopen of TERGLB renders the persisted terrain result", () => {
     primePropertyEntitlement("48021:123", ent());
     const store = createWorkbenchToolStateStore({ storage: null });
-    store.set("48021:123", "reports.selectedDoc", "TERGLB");
+    store.set("48021:123", "reports.selectedDoc", "TERRAIN");
     store.set("48021:123", "reports.terrain", TERRAIN_STATE);
     const html = render({ activeParcelNodeId: "48021:123", store });
     expect(html).toContain('data-testid="terrain-export-result"');
@@ -232,10 +243,10 @@ describe("reports tool — per-property persistence via the chassis store", () =
   it("another property renders CLEAN — persisted state never bleeds through", () => {
     primePropertyEntitlement("48491:999", ent());
     const store = createWorkbenchToolStateStore({ storage: null });
-    store.set("48021:123", "reports.selectedDoc", "SPPDF");
+    store.set("48021:123", "reports.selectedDoc", "SITEPLAN");
     store.set("48021:123", "reports.sitePlan", SITE_PLAN_STATE);
     store.set("48021:123", "reports.terrain", TERRAIN_STATE);
-    store.set("48491:999", "reports.selectedDoc", "SPPDF");
+    store.set("48491:999", "reports.selectedDoc", "SITEPLAN");
     const html = render({ activeParcelNodeId: "48491:999", store });
     expect(html).not.toContain('data-testid="site-plan-download-link"');
     expect(html).not.toContain('data-testid="terrain-download-link"');

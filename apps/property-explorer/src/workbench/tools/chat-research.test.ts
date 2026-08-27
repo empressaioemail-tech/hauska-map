@@ -674,7 +674,11 @@ describe("runChatTurn — honest status mapping", () => {
       freeMessagesUsed: 3,
       freeMessagesLimit: 3,
     });
-    expect(chatOutcomeNotice(outcome as never)).toMatch(/free messages/i);
+    expect(chatOutcomeNotice(outcome as never)).toMatch(
+      /last free question.*Unlock this property, 30 days/i,
+    );
+    expect(chatOutcomeNotice(outcome as never)).not.toMatch(/3 of 3/);
+    expect(chatOutcomeNotice(outcome as never)).not.toMatch(/chats used/i);
   });
 
   it("400 (run-selector/areaContext rejection) → scope-failed with the server's words", async () => {

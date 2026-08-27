@@ -20,6 +20,7 @@ import {
   persistCustomCheckoutSession,
 } from "../lib/checkoutOrigin";
 import {
+  PE_PRICING,
   teamSeatsOnWire,
   toCheckoutInterval,
   type PeCheckoutInterval,
@@ -27,6 +28,7 @@ import {
 } from "../lib/pricing";
 import { invalidatePropertyEntitlement } from "../lib/entitlementClient";
 import { recordPeGtmEvent } from "../lib/gtmClient";
+import { notePropertyUnlockIntent } from "../lib/unlock-week";
 export type CheckoutBusy = "property" | PeCheckoutTier | null;
 
 export interface CheckoutNote {
@@ -50,6 +52,7 @@ export type SubscriptionCheckoutSession = {
   interval: PeCheckoutInterval;
   parcelNodeId: string | null;
   situs: string | null;
+  seats?: number;
 };
 
 export type CheckoutNav =
@@ -127,6 +130,7 @@ export function useCheckoutActions(
       parcelNodeId,
       situs: opts.situsAddress ?? null,
     });
+    notePropertyUnlockIntent(parcelNodeId);
     const result = await startPropertyUnlock(parcelNodeId);
     switch (result.kind) {
       case "unlocked":
@@ -241,6 +245,7 @@ export function useCheckoutActions(
         interval: checkoutInterval,
         parcelNodeId: parcelNodeId,
         situs: opts.situsAddress ?? null,
+        seats: tier === "team" ? teamSeatsOnWire(interval, seats ?? PE_PRICING.team.baseSeats) : undefined,
       });
       return;
     }

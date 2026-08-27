@@ -57,8 +57,8 @@ import {
   resolvePinForSave,
 } from "../lib/saved-pins";
 import { SavedPropertyPins } from "./SavedPropertyPins";
-import { iccCitationStatus } from "../lib/iccCitation";
 import { InspectCard } from "./InspectCard";
+import { getPropertyEntitlementSnapshot, isEntitled } from "../lib/entitlementClient";
 import { Workbench } from "../workbench/Workbench";
 import { WORKBENCH_TOOLS } from "../workbench/registry";
 import type { WorkbenchHostActions } from "../workbench/types";
@@ -1407,9 +1407,16 @@ function ExplorerMapSurface({
     // --- (1) DRAW the buildable-envelope wedge through the overlays path. ---
     const norm = normalizeEnvelope(result);
     if (norm.kind === "ok" && norm.insetGeometry) {
-      // Real server-computed inset polygon (baked "ok" or live ok) -> amber
-      // inset fill + dashed setback edge. The primary wedge visual.
-      setEnvelopeOverlays([envelopeInsetOverlay(norm.insetGeometry)]);
+      // W7.5: Free states the envelope as a number. Drawing is the X-ray.
+      const snap = forParcelNodeId
+        ? getPropertyEntitlementSnapshot(forParcelNodeId)
+        : null;
+      const mayDraw = snap != null && isEntitled(snap);
+      if (mayDraw) {
+        setEnvelopeOverlays([envelopeInsetOverlay(norm.insetGeometry)]);
+      } else {
+        setEnvelopeOverlays([]);
+      }
     } else if (norm.kind === "empty") {
       // Honest 0%: setbacks consume the lot. No amber fill (that would fabricate
       // buildable area). Outline the whole parcel in the dashed setback style
@@ -1427,7 +1434,11 @@ function ExplorerMapSurface({
         envelopeParcelNodeId:
           forParcelNodeId ?? inspectedRef.current?.parcelNodeId ?? null,
       });
-      const outline = setbackConsumedOverlay(parcelGeom);
+      const snap = forParcelNodeId
+        ? getPropertyEntitlementSnapshot(forParcelNodeId)
+        : null;
+      const mayDraw = snap != null && isEntitled(snap);
+      const outline = mayDraw ? setbackConsumedOverlay(parcelGeom) : null;
       setEnvelopeOverlays(outline ? [outline] : []);
     } else {
       // No client uniform inset — geometry must come from live derive (WDLL).
@@ -2027,7 +2038,6 @@ function ExplorerMapSurface({
           }
           studioOnly={paywallStudioOnly}
           highlightTier={paywallHighlightTier}
-          statusNote={iccCitationStatus().live ? null : iccCitationStatus().message}
           onClose={() => setPaywallOpen(false)}
         />
       )}

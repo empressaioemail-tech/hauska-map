@@ -42,18 +42,19 @@ export const PE_PRICING = {
   /** The one pricing popup's header (2026-08-24 operator ruling: ALL pricing
    *  info lives in ONE popup; the dock shows value lines only). */
   header: {
-    title: "Pricing",
+    title: "Plans",
     eyebrow: "Smart Site",
     /** Retired 3a copy cut — kept so stale imports do not invent a new line. */
     framing: "",
     stayFree: "",
   },
-  /** Monthly is the default presentation; annual is one click (operator 2026-08-25). */
+  /** Annual is the default selected state (locked 2026-08-24). Monthly is the alternative. */
   interval: {
-    default: "monthly" as const,
+    default: "annual" as const,
     annualLabel: "Annual",
     monthlyLabel: "Monthly",
-    savingsNote: "2 months free",
+    /** Visible as annual = 10 × monthly. */
+    savingsNote: "2 months free · 10 × monthly",
   },
   /** The free row — what every account gets at $0. Caption strip, not a column. */
   free: {
@@ -65,7 +66,7 @@ export const PE_PRICING = {
   property: {
     priceLabel: "$15",
     durationDays: 30,
-    title: "Unlock this property",
+    title: "Unlock this property, 30 days",
     blurb: "every report on this parcel.",
     footerLead: "Just this one property?",
     /** Honest disabled copy when no parcel is active. */
@@ -100,9 +101,9 @@ export const PE_PRICING = {
     monthlyCompare: "$1,290/yr billed annually",
     title: "Studio",
     ctaLabel: "Start Studio",
-    badge: "Deliverables",
-    blurb: "Solo plus site-plan CAD, terrain export, and owner data",
-    features: "Everything in Solo + site-plan CAD (DXF, IFC), terrain export, owner data",
+    badge: "The packet",
+    blurb: "The packet you hand to someone else — site plan, terrain, and owner data",
+    features: "The packet you hand off: site-plan CAD (DXF, IFC), terrain export, owner data",
   },
   /** Team subscription — firm tier (self-serve; seat expansion priced per seat). */
   team: {
@@ -203,9 +204,13 @@ export const PE_PRICING = {
       }>;
     }
   >,
-  /** The many-unlocks→Solo nudge shown under the two choices. */
+  /** First unlock this week stays quiet. Second unlock states the fact. */
   soloNudge:
     "Unlocking more than a few properties? Solo covers unlimited properties — one subscription instead of many 30-day unlocks.",
+  soloSecondUnlockFact:
+    "This is your second property this week. Solo is unlimited at $49.",
+  walletHonestDecline:
+    "Cash App Pay and wallets open as a QR in this box. If they do not appear, they are not available for this charge — use a card.",
   /** Free AI chat allowance per free account per property (server-counted;
    *  the server value wins when the entitlement response carries one). */
   freeMessages: {
@@ -276,6 +281,36 @@ export function teamSeatsOnWire(
     return Math.min(seats, PE_PRICING.team.baseSeats);
   }
   return seats;
+}
+
+export function usdFromLabel(label: string): number {
+  const n = Number(label.replace(/[^0-9.]/g, ""));
+  if (!Number.isFinite(n)) {
+    throw new Error(`pricing: unreadable amount ${label}`);
+  }
+  return n;
+}
+
+export function extraSeatUsd(): number {
+  return usdFromLabel(PE_PRICING.team.extraSeatPriceLabel);
+}
+
+export function extraSeatCount(seats: number): number {
+  return Math.max(0, seats - PE_PRICING.team.baseSeats);
+}
+
+/** Team monthly total: $299 through 10 seats, then $25 each. 12 seats is $349. */
+export function teamMonthlyTotalUsd(seats: number): number {
+  return usdFromLabel(PE_PRICING.team.monthlyAmount) + extraSeatCount(seats) * extraSeatUsd();
+}
+
+export function teamMonthlyTotalLabel(seats: number): string {
+  return `$${teamMonthlyTotalUsd(seats).toLocaleString("en-US")}`;
+}
+
+/** Annual is 10 × monthly (2 months free). */
+export function annualFromMonthlyUsd(monthlyUsd: number): number {
+  return monthlyUsd * 10;
 }
 
 export function propertyUnlockOffer(): string {
