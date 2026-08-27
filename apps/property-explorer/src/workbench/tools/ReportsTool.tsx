@@ -25,7 +25,7 @@ import { usePropertyEntitlement } from "../../lib/usePropertyEntitlement";
 import { useDockToolState, useWorkbench } from "../WorkbenchContext";
 import { LockedToolPanel } from "./LockedToolPanel";
 import { persistCheckoutOrigin } from "../../lib/checkoutOrigin";
-import { attachExportToDossier } from "./reports-dossier";
+import { attachExportToDossier, fileReportOnProperty } from "./reports-dossier";
 import { FloodDrainageSection } from "./FloodTool";
 import {
   RECORDS_PAYWALL_MESSAGE,
@@ -888,6 +888,15 @@ function DossierExportAction({
       downloadUrl: result.downloadUrl,
       generatedAt: new Date().toISOString(),
     });
+    void fileReportOnProperty(
+      parcelNodeId,
+      "xray",
+      {
+        selectedFormat: "pdf-dossier",
+        downloadUrl: result.downloadUrl,
+      },
+      { label: facts.address, address: facts.address },
+    );
   };
 
   const hasFile = !!state?.downloadUrl;

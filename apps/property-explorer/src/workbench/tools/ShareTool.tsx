@@ -23,6 +23,12 @@ import {
   mintShareLink,
   type MintedShareLink,
 } from "../../lib/shareClient";
+import { updatePropertyDossier } from "../../lib/savedPropertiesClient";
+import {
+  notesExcludeNeedsGrantId,
+  upsertSharePackage,
+} from "../../lib/share-package";
+import { defaultShareMessage } from "../../lib/share-personas";
 
 /** Share value line — free for every signed-in user (acquisition channel). */
 export const SHARE_VALUE_LINE =
@@ -59,11 +65,15 @@ function fmtExpiry(iso: string | null): string {
 export function ShareBody({
   stored,
   phase,
+  includeNotes,
+  onIncludeNotesChange,
   onCreate,
   onCopy,
 }: {
   stored: ShareToolStoredState | null;
   phase: Phase;
+  includeNotes: boolean;
+  onIncludeNotesChange: (include: boolean) => void;
   onCreate: () => void;
   onCopy: () => void;
 }) {
@@ -91,6 +101,26 @@ export function ShareBody({
           >
             {stored.link.url}
           </div>
+          <label
+            data-testid="share-include-notes"
+            style={{
+              display: "flex",
+              alignItems: "center",
+              gap: 8,
+              marginBottom: 8,
+              fontSize: 11.5,
+              color: TEXT,
+              cursor: "pointer",
+            }}
+          >
+            <input
+              type="checkbox"
+              data-testid="share-include-notes-input"
+              checked={includeNotes}
+              onChange={(e) => onIncludeNotesChange(e.target.checked)}
+            />
+            Include notes on this share
+          </label>
           <div style={{ display: "flex", gap: 8, marginBottom: 6 }}>
             <Button
               variant="primary"
@@ -126,6 +156,26 @@ export function ShareBody({
             appear when the sharer exported them. Owner data is labelled when
             withheld. No sign-in needed to view. This property only, 30 days.
           </p>
+          <label
+            data-testid="share-include-notes"
+            style={{
+              display: "flex",
+              alignItems: "center",
+              gap: 8,
+              marginBottom: 10,
+              fontSize: 11.5,
+              color: TEXT,
+              cursor: "pointer",
+            }}
+          >
+            <input
+              type="checkbox"
+              data-testid="share-include-notes-input"
+              checked={includeNotes}
+              onChange={(e) => onIncludeNotesChange(e.target.checked)}
+            />
+            Include notes on this share
+          </label>
           <Button
             variant="primary"
             fullWidth
@@ -158,18 +208,51 @@ export function ShareTool() {
   const { activeParcelNodeId } = useWorkbench();
   const [stored, setStored] = useDockToolState<ShareToolStoredState>("share");
   const [phase, setPhase] = useState<Phase>({ kind: "idle" });
+  const [includeNotes, setIncludeNotes] = useState(true);
   // Share is FREE per canon — only sign-in is required to mint.
   const ent = usePropertyEntitlement(activeParcelNodeId);
 
   const handleCreate = async () => {
     if (!activeParcelNodeId) return;
     setPhase({ kind: "minting" });
-    const outcome = await mintShareLink(activeParcelNodeId);
+    const outcome = await mintShareLink(activeParcelNodeId, { includeNotes });
     switch (outcome.kind) {
-      case "ready":
+      case "ready": {
+        const grantId = outcome.link.grantId ?? null;
+        if (notesExcludeNeedsGrantId(includeNotes, grantId)) {
+          setPhase({
+            kind: "notice",
+            text: "Notes were excluded, but the grant id did not return. The link was not shown.",
+            tone: "amber",
+          });
+          return;
+        }
+        if (grantId) {
+          const bound = await updatePropertyDossier(activeParcelNodeId, (current) => ({
+            sharePackages: upsertSharePackage(current.sharePackages ?? undefined, {
+              grantId,
+              includeNotes,
+              persona: "other",
+              message: defaultShareMessage("other"),
+              savedAt: new Date().toISOString(),
+            }),
+          }));
+          if (includeNotes === false && bound.kind !== "ok") {
+            setPhase({
+              kind: "notice",
+              text:
+                bound.kind === "not-saved"
+                  ? "Save the property to exclude notes from a share."
+                  : "Share package could not be stored. The link was not shown because notes were excluded.",
+              tone: "amber",
+            });
+            return;
+          }
+        }
         setStored({ link: outcome.link, mintedAt: new Date().toISOString() });
         setPhase({ kind: "idle" });
         return;
+      }
       case "sign-in":
         setPhase({
           kind: "notice",
@@ -225,6 +308,8 @@ export function ShareTool() {
     <ShareBody
       stored={stored}
       phase={phase}
+      includeNotes={includeNotes}
+      onIncludeNotesChange={setIncludeNotes}
       onCreate={() => void handleCreate()}
       onCopy={() => void handleCopy()}
     />

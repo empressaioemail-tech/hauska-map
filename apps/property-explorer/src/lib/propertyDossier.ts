@@ -12,6 +12,13 @@
 //   - Everything is plain JSON — unknown/malformed fields are dropped on
 //     parse, never thrown.
 
+import {
+  sanitizeSharePackages,
+  sanitizeShareReportSelection,
+  type DossierSharePackage,
+  type ShareReportSelection,
+} from "./share-package";
+
 // ---------------------------------------------------------------------------
 // Caps.
 // ---------------------------------------------------------------------------
@@ -78,7 +85,7 @@ export interface DossierChatThread {
   turns: DossierChatTurn[];
 }
 
-export type DossierExportKind = "site-plan" | "terrain" | "flood-drainage";
+export type DossierExportKind = "site-plan" | "terrain" | "flood-drainage" | "xray";
 
 /**
  * WB7c: the property's map-pin coordinate, captured ONCE at save time from the
@@ -103,6 +110,11 @@ export const DOSSIER_STATUSES: readonly DossierStatus[] = [
   "passed",
 ];
 
+/** Pass is a status, not a delete. No status auto-removes the property. */
+export function statusRemovesProperty(_status: DossierStatus | null): false {
+  return false;
+}
+
 export interface DossierExportEntry {
   kind: DossierExportKind;
   format: string;
@@ -125,6 +137,10 @@ export interface PropertyDossier {
   chatThreads?: DossierChatThread[] | null;
   notes?: string | null;
   exports?: DossierExportEntry[];
+  /** Last add/exclude report picks on this property (W3.4). */
+  shareReportSelection?: ShareReportSelection | null;
+  /** Per-grant include/exclude bindings (W3.1). Never shown to a viewer. */
+  sharePackages?: DossierSharePackage[] | null;
 }
 
 // ---------------------------------------------------------------------------
@@ -349,7 +365,8 @@ function sanitizeExports(value: unknown): DossierExportEntry[] {
     const kind =
       rec.kind === "site-plan" ||
       rec.kind === "terrain" ||
-      rec.kind === "flood-drainage"
+      rec.kind === "flood-drainage" ||
+      rec.kind === "xray"
         ? rec.kind
         : null;
     const format = str(rec.format);
@@ -397,6 +414,14 @@ export function sanitizeDossier(input: PropertyDossier): PropertyDossier {
   if (notes) out.notes = cap(notes, DOSSIER_NOTES_MAX_CHARS);
   const exports = sanitizeExports(input.exports);
   if (exports.length > 0) out.exports = exports;
+  const shareReportSelection = sanitizeShareReportSelection(
+    input.shareReportSelection ?? null,
+  );
+  if (shareReportSelection) out.shareReportSelection = shareReportSelection;
+  const sharePackages = input.sharePackages
+    ? sanitizeSharePackages(input.sharePackages)
+    : null;
+  if (sharePackages) out.sharePackages = sharePackages;
   return out;
 }
 

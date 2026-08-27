@@ -53,7 +53,7 @@ import { DownloadFileButton } from "../../components/DownloadFileButton";
 import { recordPeGtmEvent } from "../../lib/gtmClient";
 import { usePropertyEntitlement } from "../../lib/usePropertyEntitlement";
 import { useDockToolState, useWorkbench } from "../WorkbenchContext";
-import { attachExportToDossier } from "./reports-dossier";
+import { fileReportOnProperty } from "./reports-dossier";
 import { buildFloodVizModel, type FloodVizModel } from "./flood-viz";
 import { floodFindingLead } from "./flood-finding";
 import {
@@ -316,14 +316,20 @@ export function FloodDrainageSection({ embed = false }: { embed?: boolean } = {}
         const key = activeParcelNodeId;
         if (attachedRef.current.get(key) !== next.study) {
           attachedRef.current.set(key, next.study);
-          void attachExportToDossier(activeParcelNodeId, "flood-drainage", {
-            selectedFormat: "pdf-flood-drainage",
-            downloadUrl: floodDrainageDownloadPath(activeParcelNodeId),
-          });
+          const address = host.getActivePropertyAddress?.() ?? null;
+          void fileReportOnProperty(
+            activeParcelNodeId,
+            "flood-drainage",
+            {
+              selectedFormat: "pdf-flood-drainage",
+              downloadUrl: floodDrainageDownloadPath(activeParcelNodeId),
+            },
+            { label: address, address },
+          );
         }
       }
     },
-    [activeParcelNodeId, setStored],
+    [activeParcelNodeId, host, setStored],
   );
 
   const run = useCallback(async () => {
