@@ -104,9 +104,11 @@ export function isEntitled(s: PropertyEntitlementState): boolean {
  * devRole. While entitlement is still loading, return true so the dock does not
  * flash a false Studio lock — server 402 stays authoritative.
  */
-export function studioGrantedForEntitlement(
-  s: Pick<PropertyEntitlementState, "devRole" | "subscriptionTier" | "status">,
-): boolean {
+export function studioGrantedForEntitlement(s: {
+  devRole: boolean;
+  subscriptionTier: PeSubscriptionTier | null;
+  status: "ready" | "error" | "loading";
+}): boolean {
   if (s.status !== "ready") return true;
   return s.devRole || subscriptionTierGrantsStudio(s.subscriptionTier);
 }
