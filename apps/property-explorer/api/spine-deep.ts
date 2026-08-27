@@ -13,6 +13,8 @@ const DEEP_GET_EXACT = new Set([
   // W4 My Properties: the saved-properties LIST (exact — the only GET the
   // saved-properties surface needs; per-item reads don't exist upstream).
   'api/property-explorer/v1/saved-properties',
+  // P-85 Records Request — latest jobs for a parcel (parcelNodeId query).
+  'api/property-explorer/v1/records-request',
 ])
 
 const DEEP_GET_PREFIX = [
@@ -42,6 +44,8 @@ const DEEP_POST_EXACT = new Set([
   // WDLL item 6 — anonymous → authenticated claim, fired once on sign-in.
   'api/property-explorer/v1/claim-session',
   'api/property-explorer/v1/claim-local-state',
+  // P-85 Records Request — enqueue clerk-index job by parcelNodeId.
+  'api/property-explorer/v1/records-request',
 ])
 
 // W4 My Properties: PUT (upsert) / DELETE on exactly ONE path segment after

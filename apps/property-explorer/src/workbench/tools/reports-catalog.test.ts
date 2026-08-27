@@ -9,16 +9,16 @@ import {
 } from "./reports-catalog";
 
 describe("reports catalog — Option D picker source", () => {
-  it("has 11 documents in Packages / Studies / Exports", () => {
-    // Frame caption said "4 ready of 12"; the catalog() list is 11 rows.
-    expect(REPORTS_CATALOG).toHaveLength(11);
+  it("has 12 documents in Packages / Studies / Exports", () => {
+    // Frame caption said "4 ready of 12"; the catalog() list is 12 rows.
+    expect(REPORTS_CATALOG).toHaveLength(12);
     const groups = reportCatalogGroups();
     expect(groups.map((g) => g.group)).toEqual([
       "Packages",
       "Studies",
       "Exports",
     ]);
-    expect(groups.reduce((n, g) => n + g.rows.length, 0)).toBe(11);
+    expect(groups.reduce((n, g) => n + g.rows.length, 0)).toBe(12);
   });
 
   it("coming-soon rows are in the catalog and never count as ready", () => {
@@ -35,9 +35,19 @@ describe("reports catalog — Option D picker source", () => {
     }
   });
 
-  it("ready count: paid/unlock can generate 6; Studio adds the three terrain rows", () => {
-    expect(readyCount(false)).toEqual({ ready: 6, total: 11 });
-    expect(readyCount(true)).toEqual({ ready: 9, total: 11 });
+  it("ready count: paid/unlock can generate 6; Studio adds terrain + records rows", () => {
+    expect(readyCount(false)).toEqual({ ready: 6, total: 12 });
+    expect(readyCount(true)).toEqual({ ready: 10, total: 12 });
+  });
+
+  it("Records request is Studio-gated in the Packages group", () => {
+    const rec = REPORTS_CATALOG.find((d) => d.id === "REC");
+    expect(rec?.name).toBe("Records request");
+    expect(rec?.group).toBe("Packages");
+    expect(rec?.engine).toBe("records");
+    expect(reportDocStatus(rec!, { studioGranted: false }).text).toBe("Studio");
+    expect(reportDocIsGeneratable(rec!, true)).toBe(true);
+    expect(reportDocIsGeneratable(rec!, false)).toBe(false);
   });
 
   it("the live package is X-ray, not Property dossier", () => {

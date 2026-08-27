@@ -7,6 +7,7 @@ import type { TerrainExportFormat } from "../../lib/terrainExportClient";
 
 export type ReportDocId =
   | "FEAS"
+  | "REC"
   | "DOSS"
   | "COMP"
   | "FLOOD"
@@ -26,7 +27,8 @@ export type ReportEngine =
   | "terrain"
   | "flood"
   | "dossier"
-  | "brief";
+  | "brief"
+  | "records";
 
 export interface ReportDocDef {
   id: ReportDocId;
@@ -46,6 +48,7 @@ export interface ReportDocDef {
 
 export const REPORT_DOC_IDS: readonly ReportDocId[] = [
   "FEAS",
+  "REC",
   "DOSS",
   "COMP",
   "FLOOD",
@@ -69,6 +72,18 @@ export const REPORTS_CATALOG: readonly ReportDocDef[] = [
     formatLabel: "PDF, 16 sections + appended sheets",
     engine: "none",
     covers: "Site plan and flood sheets",
+  },
+  {
+    id: "REC",
+    group: "Packages",
+    name: "Records request",
+    kind: "Package",
+    catalogStatus: "studio",
+    promise:
+      "The recorded documents the county clerk's index ties to this parcel, read and cited.",
+    formatLabel: "In-app instruments + cited clauses",
+    engine: "records",
+    studioGated: true,
   },
   {
     id: "DOSS",

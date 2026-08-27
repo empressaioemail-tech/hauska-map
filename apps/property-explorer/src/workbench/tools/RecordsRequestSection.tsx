@@ -1,0 +1,506 @@
+// Records request — Phase 1 UI scaffold (P-85 item 12).
+// Matches design artboards D1 (list + filters), D4–D5 (verdict cards), and
+// E1 corridor hook placeholder. API calls stub honest "not wired" until backend.
+
+import { useCallback, useEffect, useState, type CSSProperties } from "react";
+import { Button } from "../../components/Button";
+import {
+  fetchRecordsRun,
+  RECORDS_NOT_WIRED_NOTICE,
+  requestRecordsRun,
+} from "../../lib/recordsRequestClient";
+import {
+  ATOM_ACCENT,
+  ATOM_ACCENT_BG,
+  ATOM_ACCENT_BORDER,
+} from "../../shared/atom-chip/atom-accent";
+import { useDockToolState, useWorkbench } from "../WorkbenchContext";
+import { LockedToolPanel } from "./LockedToolPanel";
+import { RecordsAcknowledgementPanel } from "./RecordsAcknowledgementPanel";
+import { RecordsRunStatusStrip } from "./RecordsRunStatusStrip";
+import {
+  SCAFFOLD_FILTERS,
+  SCAFFOLD_INSTRUMENTS,
+  SCAFFOLD_VERDICTS,
+} from "./records-request-scaffold-data";
+import type {
+  RecordsInstrumentRow,
+  RecordsInstrumentType,
+  RecordsReadDepth,
+  RecordsRunView,
+  RecordsVerdictCard,
+} from "./records-request-types";
+
+export const RECORDS_PAYWALL_MESSAGE =
+  "Records request — recorded documents from the county clerk's index, read and cited.";
+
+const APP_INK = "var(--app-ink, #0b0e13)";
+const TEXT = "var(--text-body, #E9EEF5)";
+const MUTED = "var(--surface-muted, #64748B)";
+const MUTED_2 = "var(--text-muted, #94A3B8)";
+const SLATE = "var(--honest-absence, #7C8BA0)";
+const BLUE = "var(--brand-blue, #3B82F6)";
+const ATOM = ATOM_ACCENT;
+const CARD_BORDER = "rgba(154,166,178,0.16)";
+
+export interface RecordsRequestSectionState {
+  notice: string | null;
+  run: RecordsRunView | null;
+  /** UI-only filter while API is stubbed. */
+  activeFilter: RecordsInstrumentType | "all";
+  /** UI-only view while API is stubbed (entry → acknowledgement → running). */
+  scaffoldView: "entry" | "acknowledgement" | "running";
+}
+
+const DEFAULT_STATE: RecordsRequestSectionState = {
+  notice: null,
+  run: null,
+  activeFilter: "all",
+  scaffoldView: "entry",
+};
+
+export function RecordsRequestSection({
+  parcelNodeId,
+  address,
+  countyName,
+  studioLocked,
+  onPaymentRequired: _onPaymentRequired,
+  embed,
+}: {
+  parcelNodeId: string;
+  address: string | null;
+  countyName: string | null;
+  studioLocked: boolean;
+  onPaymentRequired: () => void;
+  embed?: boolean;
+}) {
+  const { host } = useWorkbench();
+  const [state, setState] = useDockToolState<RecordsRequestSectionState>(
+    "reports.records",
+  );
+  const merged = state ?? DEFAULT_STATE;
+  const [busy, setBusy] = useState(false);
+
+  const setMerged = useCallback(
+    (patch: Partial<RecordsRequestSectionState>) => {
+      setState({ ...merged, ...patch });
+    },
+    [merged, setState],
+  );
+
+  useEffect(() => {
+    let cancelled = false;
+    void (async () => {
+      const result = await fetchRecordsRun(parcelNodeId);
+      if (cancelled) return;
+      setMerged({
+        notice: result.notice,
+        run: result.run,
+      });
+    })();
+    return () => {
+      cancelled = true;
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- parcel scope only
+  }, [parcelNodeId]);
+
+  // Corridor map overlay — placeholder until ExplorerMap implements the host hook.
+  useEffect(() => {
+    const hook = (
+      host as { setRecordsCorridorOverlay?: (payload: unknown, forParcel?: string) => void }
+    ).setRecordsCorridorOverlay;
+    if (!hook || studioLocked || !merged.run) return;
+    hook({ instruments: merged.run.instruments, scaffold: true }, parcelNodeId);
+    return () => {
+      hook(null, parcelNodeId);
+    };
+  }, [host, merged.run, parcelNodeId, studioLocked]);
+
+  if (studioLocked) {
+    return (
+      <LockedToolPanel
+        valueLine="Recorded documents from the county clerk's index, read and cited."
+        proOnly
+        proOnlyNote={RECORDS_PAYWALL_MESSAGE}
+        testId="records-studio-lock"
+      />
+    );
+  }
+
+  const countyFips = parcelNodeId.includes(":")
+    ? parcelNodeId.split(":")[0]?.trim()
+    : undefined;
+
+  const runRequest = async () => {
+    setBusy(true);
+    const result = await requestRecordsRun(parcelNodeId, countyFips);
+    setBusy(false);
+    if (!result.wired) {
+      setMerged({ notice: result.notice, scaffoldView: "acknowledgement" });
+      return;
+    }
+    if (result.notice && !result.run) {
+      setMerged({ notice: result.notice, scaffoldView: "entry" });
+      return;
+    }
+    setMerged({
+      notice: result.notice,
+      run: result.run,
+      scaffoldView: result.run ? "running" : "entry",
+    });
+  };
+
+  const showScaffoldPreview = !merged.run;
+  const scaffoldView = merged.scaffoldView ?? "entry";
+  const filters = merged.run?.filters ?? SCAFFOLD_FILTERS;
+  const instruments = merged.run?.instruments ?? SCAFFOLD_INSTRUMENTS;
+  const verdicts = merged.run?.verdicts ?? SCAFFOLD_VERDICTS;
+  const activeFilter = merged.activeFilter;
+
+  const filtered =
+    activeFilter === "all"
+      ? instruments
+      : instruments.filter((row) => row.type === activeFilter);
+
+  return (
+    <div
+      data-testid="records-request-section"
+      data-embed={embed ? "true" : undefined}
+      style={{ display: "flex", flexDirection: "column", gap: 12 }}
+    >
+      {(merged.notice ?? (!merged.run ? RECORDS_NOT_WIRED_NOTICE : null)) ? (
+        <div
+          data-testid="records-request-notice"
+          style={{
+            fontSize: 11,
+            lineHeight: 1.5,
+            color: SLATE,
+            borderLeft: `2px solid ${SLATE}`,
+            paddingLeft: 10,
+          }}
+        >
+          {merged.notice ?? RECORDS_NOT_WIRED_NOTICE}
+        </div>
+      ) : null}
+
+      {!merged.run && scaffoldView === "entry" ? (
+        <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
+          <p
+            style={{
+              margin: 0,
+              fontSize: 12,
+              lineHeight: 1.55,
+              color: MUTED_2,
+            }}
+          >
+            Not requested for this parcel. Request pulls instruments from the
+            county clerk&apos;s index tied to this parcel.
+          </p>
+          <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
+            <Button
+              type="button"
+              variant="primary"
+              data-testid="records-request-run"
+              disabled={busy}
+              onClick={() => void runRequest()}
+            >
+              {busy ? "Requesting…" : "Request records"}
+            </Button>
+            <Button type="button" variant="secondary" data-testid="records-what-searched">
+              What gets searched
+            </Button>
+          </div>
+        </div>
+      ) : null}
+
+      {!merged.run && scaffoldView === "acknowledgement" ? (
+        <RecordsAcknowledgementPanel
+          countyName={countyName}
+          onBack={() => setMerged({ scaffoldView: "entry" })}
+          onWatchRun={() => setMerged({ scaffoldView: "running" })}
+        />
+      ) : null}
+
+      {!merged.run && scaffoldView === "running" ? (
+        <RecordsRunStatusStrip phase="running" />
+      ) : null}
+
+      {merged.run ? (
+        <RecordsRunStatusStrip phase={merged.run.phase} />
+      ) : null}
+
+      {showScaffoldPreview ? (
+        <div
+          data-testid="records-scaffold-preview"
+          style={{
+            fontSize: 10.5,
+            letterSpacing: "0.12em",
+            textTransform: "uppercase",
+            color: MUTED,
+          }}
+        >
+          Scaffold preview — structure only until API wires
+        </div>
+      ) : null}
+
+      <RecordsResultsPanel
+        address={address}
+        countyName={countyName}
+        filters={filters}
+        activeFilter={activeFilter}
+        onFilter={(type) => setMerged({ activeFilter: type })}
+        instruments={filtered}
+        verdicts={verdicts}
+      />
+
+      <div
+        data-testid="records-corridor-hook"
+        hidden
+        aria-hidden
+        data-placeholder="setRecordsCorridorOverlay"
+      />
+    </div>
+  );
+}
+
+function RecordsResultsPanel({
+  address,
+  countyName,
+  filters,
+  activeFilter,
+  onFilter,
+  instruments,
+  verdicts,
+}: {
+  address: string | null;
+  countyName: string | null;
+  filters: Array<{ type: RecordsInstrumentType | "all"; label: string; count: number }>;
+  activeFilter: RecordsInstrumentType | "all";
+  onFilter: (type: RecordsInstrumentType | "all") => void;
+  instruments: RecordsInstrumentRow[];
+  verdicts: RecordsVerdictCard[];
+}) {
+  const sub = [address, countyName].filter(Boolean).join(" · ");
+  return (
+    <div
+      data-testid="records-results-panel"
+      style={{
+        borderRadius: 12,
+        border: `1px solid ${CARD_BORDER}`,
+        background: APP_INK,
+        overflow: "hidden",
+      }}
+    >
+      <div
+        style={{
+          padding: "14px 16px",
+          borderBottom: `1px solid ${CARD_BORDER}`,
+          display: "flex",
+          flexDirection: "column",
+          gap: 8,
+        }}
+      >
+        <div
+          style={{
+            fontFamily: "Oxygen, system-ui, sans-serif",
+            fontWeight: 700,
+            fontSize: 15,
+            color: TEXT,
+          }}
+        >
+          Property records
+        </div>
+        {sub ? (
+          <div style={{ fontSize: 11.5, color: SLATE }}>{sub}</div>
+        ) : null}
+        <div
+          style={{
+            borderLeft: `2px solid rgba(59,130,246,0.55)`,
+            paddingLeft: 10,
+            fontSize: 12,
+            lineHeight: 1.6,
+            color: MUTED_2,
+          }}
+        >
+          The recorded documents the clerk&apos;s index ties to this parcel, as
+          read by us. Not a title opinion or statement of priority.
+        </div>
+      </div>
+
+      <div
+        data-testid="records-type-filters"
+        style={{
+          padding: "10px 16px",
+          borderBottom: `1px solid ${CARD_BORDER}`,
+          display: "flex",
+          gap: 6,
+          flexWrap: "wrap",
+          alignItems: "center",
+        }}
+      >
+        {filters.map((f) => {
+          const active = f.type === activeFilter;
+          return (
+            <button
+              key={f.type}
+              type="button"
+              data-testid={`records-filter-${f.type}`}
+              onClick={() => onFilter(f.type)}
+              style={filterChipStyle(active)}
+            >
+              {f.label}
+              {f.type !== "all" ? (
+                <span style={{ color: SLATE, marginLeft: 4 }}>{f.count}</span>
+              ) : null}
+            </button>
+          );
+        })}
+        <span style={{ marginLeft: "auto", fontSize: 11, color: MUTED }}>
+          Newest recording first
+        </span>
+      </div>
+
+      <div data-testid="records-instrument-list">
+        {instruments.map((row) => (
+          <RecordsInstrumentListRow key={row.id} row={row} />
+        ))}
+      </div>
+
+      {verdicts.length > 0 ? (
+        <div
+          data-testid="records-verdict-cards"
+          style={{
+            padding: "14px 16px",
+            borderTop: `1px solid ${CARD_BORDER}`,
+            display: "flex",
+            flexDirection: "column",
+            gap: 10,
+          }}
+        >
+          {verdicts.map((v) => (
+            <RecordsVerdictCardView key={v.title} card={v} />
+          ))}
+        </div>
+      ) : null}
+    </div>
+  );
+}
+
+function RecordsInstrumentListRow({ row }: { row: RecordsInstrumentRow }) {
+  return (
+    <div
+      data-testid={`records-instrument-${row.id}`}
+      style={{
+        padding: "12px 16px",
+        borderBottom: `1px solid rgba(154,166,178,0.09)`,
+        display: "flex",
+        gap: 12,
+        alignItems: "flex-start",
+      }}
+    >
+      <span
+        style={{
+          width: 22,
+          height: 22,
+          borderRadius: 5,
+          background: row.readDepth === "header-only" ? "rgba(124,139,160,0.12)" : ATOM_ACCENT_BG,
+          flex: "none",
+          marginTop: 1,
+        }}
+        aria-hidden
+      />
+      <div style={{ flex: 1, display: "flex", flexDirection: "column", gap: 4 }}>
+        <div style={{ display: "flex", flexWrap: "wrap", gap: 8, alignItems: "baseline" }}>
+          <span style={{ fontSize: 13.5, fontWeight: 600, color: TEXT }}>{row.label}</span>
+          <span
+            style={{
+              fontFamily: "ui-monospace, Menlo, monospace",
+              fontSize: 11.5,
+              color: ATOM,
+            }}
+          >
+            {row.instrumentNumber}
+          </span>
+          <span style={{ fontSize: 11.5, color: SLATE }}>{row.recordedAt}</span>
+        </div>
+        <div style={{ fontSize: 12, lineHeight: 1.5, color: MUTED_2 }}>{row.partiesLine}</div>
+        <div style={{ display: "flex", gap: 6, flexWrap: "wrap", alignItems: "center" }}>
+          <ReadDepthChip depth={row.readDepth} />
+          {row.acquisitionNote ? (
+            <span style={{ fontSize: 11, color: SLATE }}>{row.acquisitionNote}</span>
+          ) : null}
+          {row.corridorPlaced ? (
+            <span style={{ fontSize: 11, color: ATOM }}>Corridor drawn</span>
+          ) : null}
+        </div>
+      </div>
+      <span style={{ fontSize: 12, color: BLUE, flex: "none" }}>Image</span>
+    </div>
+  );
+}
+
+function ReadDepthChip({ depth }: { depth: RecordsReadDepth }) {
+  const label =
+    depth === "clauses-vision"
+      ? "Clauses read by vision, not verified"
+      : depth === "header-only"
+        ? "Header facts and image only"
+        : depth === "plat-clauses"
+          ? "Clauses read by vision, not verified"
+          : "Not acquired";
+  const teal = depth === "clauses-vision" || depth === "plat-clauses";
+  return (
+    <span
+      style={{
+        fontFamily: "ui-monospace, Menlo, monospace",
+        fontSize: 10.5,
+        color: teal ? ATOM : SLATE,
+        border: `1px solid ${teal ? ATOM_ACCENT_BORDER : "rgba(124,139,160,0.35)"}`,
+        background: teal ? ATOM_ACCENT_BG : "rgba(124,139,160,0.10)",
+        borderRadius: 4,
+        padding: "2px 6px",
+      }}
+    >
+      {label}
+    </span>
+  );
+}
+
+function RecordsVerdictCardView({ card }: { card: RecordsVerdictCard }) {
+  const absent = card.kind === "verified-absent";
+  return (
+    <div
+      data-testid={`records-verdict-${card.kind}`}
+      style={{
+        borderRadius: 10,
+        border: `1px solid ${absent ? "rgba(124,139,160,0.3)" : "rgba(245,158,11,0.4)"}`,
+        padding: 14,
+        display: "flex",
+        flexDirection: "column",
+        gap: 6,
+      }}
+    >
+      <div style={{ fontSize: 14, fontWeight: 700, color: TEXT }}>{card.title}</div>
+      <div style={{ fontSize: 12.5, lineHeight: 1.6, color: MUTED_2 }}>{card.body}</div>
+    </div>
+  );
+}
+
+function filterChipStyle(active: boolean): CSSProperties {
+  return {
+    height: 28,
+    padding: "0 11px",
+    borderRadius: 4,
+    border: active
+      ? "1px solid rgba(59,130,246,0.5)"
+      : "1px solid rgba(154,166,178,0.24)",
+    background: active ? "rgba(59,130,246,0.16)" : "transparent",
+    color: active ? TEXT : "#c6d0dc",
+    fontSize: 12,
+    fontWeight: active ? 600 : 400,
+    cursor: "pointer",
+    fontFamily: "inherit",
+    display: "inline-flex",
+    alignItems: "center",
+  };
+}
