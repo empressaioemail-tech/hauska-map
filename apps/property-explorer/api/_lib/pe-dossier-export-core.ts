@@ -56,6 +56,7 @@ export interface DossierExportRequestContent {
   brief?: { sections: DossierBriefSection[] }
   chatSummary?: DossierChatSummary
   notes?: string
+  liveViewUrl?: string
 }
 
 function asRecord(v: unknown): Record<string, unknown> | null {
@@ -147,6 +148,8 @@ export function parseDossierExportContent(
   if (chatSummary) out.chatSummary = chatSummary
   const notes = capStr(rec.notes, DOSSIER_NOTES_MAX_CHARS)
   if (notes) out.notes = notes
+  const liveViewUrl = capStr(rec.liveViewUrl, 500)
+  if (liveViewUrl) out.liveViewUrl = liveViewUrl
   return out
 }
 

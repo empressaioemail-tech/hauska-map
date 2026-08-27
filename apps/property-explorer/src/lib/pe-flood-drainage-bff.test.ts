@@ -150,6 +150,19 @@ describe('refresh body validation', () => {
     ).toBe(false)
   })
 
+  it('forwards liveViewUrl onto the engine body (W2.4; violate: dropping the field)', () => {
+    const parsed = parseFloodDrainageRefreshBody({
+      parcelNodeId: PARCEL,
+      liveViewUrl: '/?parcelNodeId=48021%3A34137',
+    })
+    expect(parsed.ok).toBe(true)
+    if (parsed.ok) {
+      expect(buildEngineRefreshBody(parsed.request)).toEqual({
+        liveViewUrl: '/?parcelNodeId=48021%3A34137',
+      })
+    }
+  })
+
   it('parses a raw JSON string body and strips absent optionals', () => {
     const parsed = parseFloodDrainageRefreshBody(
       JSON.stringify({ parcelNodeId: PARCEL }),

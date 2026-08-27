@@ -2,6 +2,12 @@
 // Persistence keys unchanged: reports.sitePlan, reports.terrain, flood.
 
 import { useCallback, useRef, useState, type ReactNode } from "react";
+import { liveViewHref } from "../../lib/live-view";
+import {
+  defaultReceivedShareStore,
+  readReceivedShares,
+  type ReceivedShareRow,
+} from "../../share/share-received";
 import {
   SitePlanExportSection,
   type SitePlanExportSectionState,
@@ -92,6 +98,8 @@ export function ReportsTool() {
   const [dossier, setDossier] =
     useDockToolState<DossierDockState>("reports.dossier");
   const [pickerOpen, setPickerOpen] = useState(false);
+  const [reportsTab, setReportsTab] = useState<"mine" | "shared">("mine");
+  const receivedShares = readReceivedShares(defaultReceivedShareStore());
   const ent = usePropertyEntitlement(activeParcelNodeId);
 
   const attachedRef = useRef(new Map<string, unknown>());
@@ -114,14 +122,17 @@ export function ReportsTool() {
 
   if (!activeParcelNodeId) return null;
 
-  if (ent.signedOut) {
+  if (ent.signedOut && reportsTab === "mine") {
     return (
-      <LockedToolPanel
-        valueLine={REPORTS_LOCKED_VALUE_LINE}
-        signedOut
-        signInLine="Sign in to run reports and exports on this parcel."
-        testId="reports-locked"
-      />
+      <div data-testid="reports-tool">
+        <ReportsTabs tab={reportsTab} onTab={setReportsTab} />
+        <LockedToolPanel
+          valueLine={REPORTS_LOCKED_VALUE_LINE}
+          signedOut
+          signInLine="Sign in to run reports and exports on this parcel."
+          testId="reports-locked"
+        />
+      </div>
     );
   }
 
@@ -193,7 +204,10 @@ export function ReportsTool() {
       data-testid="reports-tool"
       data-selected-doc={selectedId ?? ""}
     >
-      {locked ? (
+      <ReportsTabs tab={reportsTab} onTab={setReportsTab} />
+      {reportsTab === "shared" ? (
+        <SharedWithMeList rows={receivedShares} />
+      ) : locked ? (
         <div data-testid="reports-locked" data-pro-only="false">
           <OptionDChrome
             freshness={freshness}
@@ -253,6 +267,128 @@ export function ReportsTool() {
           ) : null}
         </OptionDChrome>
       )}
+    </div>
+  );
+}
+
+function ReportsTabs({
+  tab,
+  onTab,
+}: {
+  tab: "mine" | "shared";
+  onTab: (next: "mine" | "shared") => void;
+}) {
+  return (
+    <div
+      data-testid="reports-tabs"
+      style={{ display: "flex", gap: 8, marginBottom: 12 }}
+    >
+      <button
+        type="button"
+        data-testid="reports-tab-mine"
+        aria-pressed={tab === "mine"}
+        onClick={() => onTab("mine")}
+        style={{
+          flex: 1,
+          padding: "7px 8px",
+          fontSize: 12,
+          fontWeight: 600,
+          borderRadius: 6,
+          border: "1px solid var(--surface-border, #243247)",
+          background: tab === "mine" ? "rgba(59,130,246,0.12)" : "transparent",
+          color: TEXT,
+          cursor: "pointer",
+        }}
+      >
+        My reports
+      </button>
+      <button
+        type="button"
+        data-testid="reports-tab-shared"
+        aria-pressed={tab === "shared"}
+        onClick={() => onTab("shared")}
+        style={{
+          flex: 1,
+          padding: "7px 8px",
+          fontSize: 12,
+          fontWeight: 600,
+          borderRadius: 6,
+          border: "1px solid var(--surface-border, #243247)",
+          background: tab === "shared" ? "rgba(59,130,246,0.12)" : "transparent",
+          color: TEXT,
+          cursor: "pointer",
+        }}
+      >
+        Shared with me
+      </button>
+    </div>
+  );
+}
+
+function SharedWithMeList({ rows }: { rows: ReceivedShareRow[] }) {
+  if (rows.length === 0) {
+    return (
+      <p data-testid="reports-shared-empty" style={{ margin: 0, fontSize: 12, color: MUTED }}>
+        Nothing has been shared with this browser yet. Open a share link to
+        file it here. You can read shared reports; generating new ones stays
+        on My reports after upgrade.
+      </p>
+    );
+  }
+  return (
+    <div data-testid="reports-shared-list">
+      {rows.map((row) => {
+        const live = liveViewHref({
+          parcelNodeId: row.parcelNodeId,
+          grantId: row.grantId,
+        });
+        return (
+          <article
+            key={row.id}
+            data-testid="reports-shared-row"
+            style={{
+              marginBottom: 10,
+              padding: "10px 12px",
+              borderRadius: 8,
+              border: "1px solid var(--surface-border, #243247)",
+            }}
+          >
+            <strong style={{ display: "block", fontSize: 13 }}>
+              {row.address ?? `Parcel ${row.parcelNodeId}`}
+            </strong>
+            <div style={{ fontSize: 11, color: MUTED, marginTop: 2 }}>
+              {row.parcelNodeId}
+              {row.expiresAt ? ` · expires ${row.expiresAt.slice(0, 10)}` : ""}
+            </div>
+            {row.notes ? (
+              <p
+                data-testid="reports-shared-notes"
+                style={{ margin: "6px 0 0", fontSize: 12, whiteSpace: "pre-wrap" }}
+              >
+                {row.notes}
+              </p>
+            ) : null}
+            <div style={{ marginTop: 6, fontSize: 11, color: MUTED }}>
+              {[
+                row.artifacts.xray ? "X-ray" : null,
+                row.artifacts.sitePlan ? "Site plan" : null,
+                row.artifacts.terrain ? "Terrain" : null,
+              ]
+                .filter(Boolean)
+                .join(" · ") || "Shared analysis"}
+            </div>
+            {live ? (
+              <a
+                href={live}
+                data-testid="reports-shared-live-view"
+                style={{ display: "inline-block", marginTop: 6, fontSize: 12, color: BLUE }}
+              >
+                Open live view
+              </a>
+            ) : null}
+          </article>
+        );
+      })}
     </div>
   );
 }
@@ -763,6 +899,7 @@ function DossierExportAction({
           href={state.downloadUrl}
           label="Download PDF"
           testId="reports-dossier-download"
+          parcelNodeId={parcelNodeId}
         />
       ) : busy ? (
         <DownloadFileButton

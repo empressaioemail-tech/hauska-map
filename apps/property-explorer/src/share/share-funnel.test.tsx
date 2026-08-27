@@ -61,8 +61,10 @@ const READY_PHASE: SharePhase = { kind: "ready", data: READY_DATA };
 
 const READY_BINDING: ShareFunnelBinding = {
   token: "tok-abc",
+  grantId: null,
   phase: READY_PHASE,
   dossier: null,
+  parcelNodeId: "48021:34177",
 };
 
 const TOOL_CTX: WorkbenchToolContext = {
@@ -88,7 +90,7 @@ describe("share landing resolution — /share lands in the app", () => {
       { pathname: "/share", hash: "#tok-abc", search: "" },
       stash,
     );
-    expect(landing).toEqual({ token: "tok-abc", restored: false });
+    expect(landing).toEqual({ token: "tok-abc", grantId: null, restored: false });
     // The token is stashed so the OIDC round-trip (/?signed_in=1) can restore.
     expect(stash.bag.get(SHARE_FUNNEL_STASH_KEY)).toBe("tok-abc");
   });
@@ -99,7 +101,7 @@ describe("share landing resolution — /share lands in the app", () => {
       { pathname: "/share/", hash: "", search: "" },
       memStash(),
     );
-    expect(landing).toEqual({ token: null, restored: false });
+    expect(landing).toEqual({ token: null, grantId: null, restored: false });
   });
 
   it("post-sign-in load (?signed_in=1) restores and CONSUMES the stashed token", () => {
@@ -108,7 +110,7 @@ describe("share landing resolution — /share lands in the app", () => {
       { pathname: "/", hash: "", search: "?signed_in=1" },
       stash,
     );
-    expect(landing).toEqual({ token: "tok-abc", restored: true });
+    expect(landing).toEqual({ token: "tok-abc", grantId: null, restored: true });
     expect(stash.bag.has(SHARE_FUNNEL_STASH_KEY)).toBe(false);
     // A later plain load is the normal app again.
     expect(
@@ -132,6 +134,8 @@ describe("share landing resolution — /share lands in the app", () => {
     const funnelSource = readFileSync(resolve(__dirname, "ShareFunnelApp.tsx"), "utf8");
     // The funnel mounts the REAL map app, with the share binding threaded in.
     expect(funnelSource).toMatch(/<ExplorerMap share=\{share\} \/>/);
+    // W2.3 — share sign-in must claim anonymous work (would fail if skipped).
+    expect(funnelSource).toMatch(/claimAnonymousStateOnSignIn/);
   });
 
   it("ExplorerMap wires the share binding: tool prepended, dock auto-opened, flight via the EXISTING reopen chain", () => {
@@ -145,9 +149,8 @@ describe("share landing resolution — /share lands in the app", () => {
     expect(source).toMatch(/share \? SHARED_ANALYSIS_TOOL_ID : null/);
     // …and the flight REUSES runParcelLookup (the workbench reopen /
     // coordinate-resolution chain) — no second resolver.
-    expect(source).toMatch(
-      /runParcelLookup\(share\.phase\.data\.property\.parcelNodeId/,
-    );
+    expect(source).toMatch(/shareFlightQuery\(share\)/);
+    expect(source).toMatch(/runParcelLookup\(flightQuery/);
   });
 });
 
@@ -190,7 +193,13 @@ describe("shared dossier docked read-only", () => {
   it("loading phase is an honest loading line", () => {
     const html = renderToStaticMarkup(
       <SharedDossierDock
-        share={{ token: "tok", phase: { kind: "loading" }, dossier: null }}
+        share={{
+          token: "tok",
+          grantId: null,
+          phase: { kind: "loading" },
+          dossier: null,
+          parcelNodeId: null,
+        }}
       />,
     );
     expect(html).toContain('data-testid="share-dock-loading"');
@@ -206,7 +215,13 @@ describe("expired / invalid token notice path", () => {
   it("expired phase docks the honest expired wording", () => {
     const html = renderToStaticMarkup(
       <SharedDossierDock
-        share={{ token: "tok", phase: { kind: "expired" }, dossier: null }}
+        share={{
+          token: "tok",
+          grantId: null,
+          phase: { kind: "expired" },
+          dossier: null,
+          parcelNodeId: null,
+        }}
       />,
     );
     expect(html).toContain('data-testid="share-dock-invalid"');
@@ -217,7 +232,13 @@ describe("expired / invalid token notice path", () => {
   it("invalid phase (bad or missing token) docks the invalid-or-expired wording", () => {
     const html = renderToStaticMarkup(
       <SharedDossierDock
-        share={{ token: null, phase: { kind: "invalid" }, dossier: null }}
+        share={{
+          token: null,
+          grantId: null,
+          phase: { kind: "invalid" },
+          dossier: null,
+          parcelNodeId: null,
+        }}
       />,
     );
     expect(html).toContain("This share link is invalid or has expired.");

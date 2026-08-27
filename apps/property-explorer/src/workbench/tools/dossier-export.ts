@@ -27,6 +27,7 @@ import {
   type ResearchBriefPayload,
 } from "../../browse/brief-view-model";
 import type { PropertyDossier } from "../../lib/propertyDossier";
+import { liveViewHref } from "../../lib/live-view";
 
 export interface DossierExportBriefFact {
   label: string;
@@ -49,6 +50,7 @@ export interface DossierExportRequestBody {
   brief?: { sections: DossierExportBriefSection[] };
   chatSummary?: { summary: string; savedAt: string; disclaimer?: string };
   notes?: string;
+  liveViewUrl?: string;
 }
 
 /**
@@ -132,6 +134,9 @@ export function assembleDossierExportBody(input: {
 
   const notes = input.dossier?.notes ?? null;
   if (notes && notes.trim()) body.notes = notes;
+
+  const liveViewUrl = liveViewHref({ parcelNodeId: input.parcelNodeId });
+  if (liveViewUrl) body.liveViewUrl = liveViewUrl;
 
   return body;
 }

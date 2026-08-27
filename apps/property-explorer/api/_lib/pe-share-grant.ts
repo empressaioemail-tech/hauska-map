@@ -11,10 +11,19 @@ import { randomUUID } from 'node:crypto'
 import { isValidParcelNodeId } from './parcel-node-id.js'
 import { mintShareToken, SHARE_TOKEN_TTL_MS } from './pe-share-token.js'
 import type { ShareGrantStore } from './pe-share-grant-store.js'
+import {
+  SHARE_GRANT_ID_RE,
+  isShareGrantId,
+  isBrowserShareNavigation,
+  shareAppLandingPath,
+} from './pe-share-grant-id.js'
 
-/** UUID (any RFC-4122 version). Not an HMAC (those contain a '.'). */
-export const SHARE_GRANT_ID_RE =
-  /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
+export {
+  SHARE_GRANT_ID_RE,
+  isShareGrantId,
+  isBrowserShareNavigation,
+  shareAppLandingPath,
+}
 
 export interface ShareGrantRow {
   id: string
@@ -24,10 +33,6 @@ export interface ShareGrantRow {
   createdAt: string
   expiresAt: string
   revokedAt: string | null
-}
-
-export function isShareGrantId(value: unknown): value is string {
-  return typeof value === 'string' && SHARE_GRANT_ID_RE.test(value)
 }
 
 export function newShareGrantId(randomUuid: () => string = randomUUID): string {

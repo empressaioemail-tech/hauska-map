@@ -8,8 +8,10 @@
 
 import type { VercelRequest, VercelResponse } from '@vercel/node'
 import {
+  isBrowserShareNavigation,
   isShareGrantId,
   resolveGrantViewAccess,
+  shareAppLandingPath,
 } from './_lib/pe-share-grant.js'
 import { productionShareGrantStore } from './_lib/pe-share-grant-store.js'
 import type { ShareGrantStore } from './_lib/pe-share-grant-store.js'
@@ -20,6 +22,16 @@ import {
   shareInstrumentContentType,
   type ShareInstrument,
 } from './_lib/pe-share-instrument.js'
+import { callMcpTool, mcpProductKey } from './_lib/mcp-server-client.js'
+import {
+  extractInlineDownload as extractSitePlanInline,
+  sitePlanFilename,
+} from './_lib/pe-site-plan-export-core.js'
+import {
+  extractInlineDownload as extractTerrainInline,
+  parseTerrainFormat,
+  terrainFilename,
+} from './_lib/pe-terrain-export-core.js'
 
 function first(v: string | string[] | undefined): string | undefined {
   return Array.isArray(v) ? v[0] : v
@@ -77,6 +89,74 @@ export async function handlePeShareGrant(
       message: access.message,
       grantId,
     })
+    return
+  }
+
+  const what = first(req.query.what)?.trim().toLowerCase()
+  if (what === 'siteplan' || what === 'terrain') {
+    if (!mcpProductKey()) {
+      res.status(503).json({ error: 'proxy not configured', missing: 'MCP_PRODUCT_KEY' })
+      return
+    }
+    try {
+      const tool =
+        what === 'siteplan'
+          ? 'download_parcel_site_plan_export'
+          : 'download_parcel_terrain_export'
+      const format =
+        what === 'terrain'
+          ? (parseTerrainFormat(first(req.query.format)) ?? 'glb')
+          : 'pdf-site-plan'
+      const payload = await callMcpTool(tool, {
+        parcel_node_id: access.row.parcelNodeId,
+        format,
+      })
+      if (payload.isError === true) {
+        res.status(404).json({
+          error: 'artifact_not_available',
+          message: 'Not available on this link — the sharer did not export it.',
+        })
+        return
+      }
+      const inline =
+        what === 'siteplan'
+          ? extractSitePlanInline(payload)
+          : extractTerrainInline(payload)
+      if (!inline) {
+        res.status(502).json({
+          error: 'download_failed',
+          message: 'Download returned no artifact bytes.',
+        })
+        return
+      }
+      const filename =
+        what === 'siteplan'
+          ? sitePlanFilename(access.row.parcelNodeId, 'pdf-site-plan')
+          : terrainFilename(access.row.parcelNodeId, format)
+      const buffer = Buffer.from(inline.base64, 'base64')
+      res.setHeader('Content-Type', inline.contentType || 'application/octet-stream')
+      res.setHeader('Content-Disposition', `inline; filename="${filename}"`)
+      res.status(200).send(buffer)
+    } catch (err) {
+      res.status(502).json({
+        error: 'download_failed',
+        message: err instanceof Error ? err.message : String(err),
+      })
+    }
+    return
+  }
+
+  const dest = req.headers['sec-fetch-dest']
+  const mode = req.headers['sec-fetch-mode']
+  if (
+    isBrowserShareNavigation({
+      queryFormat: first(req.query.format),
+      secFetchDest: typeof dest === 'string' ? dest : undefined,
+      secFetchMode: typeof mode === 'string' ? mode : undefined,
+    })
+  ) {
+    res.setHeader('Location', shareAppLandingPath(grantId))
+    res.status(302).end()
     return
   }
 

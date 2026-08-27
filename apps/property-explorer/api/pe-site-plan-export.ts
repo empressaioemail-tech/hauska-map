@@ -487,6 +487,7 @@ async function handleDossierRefresh(
       ...(content.brief ? { brief: content.brief } : {}),
       ...(content.chatSummary ? { chat_summary: content.chatSummary } : {}),
       ...(content.notes ? { notes: content.notes } : {}),
+      ...(content.liveViewUrl ? { live_view_url: content.liveViewUrl } : {}),
     })
 
     if (payload.isError === true) {

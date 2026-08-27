@@ -387,8 +387,14 @@ export function renderShareInstrumentMarkdown(instrument: ShareInstrument): stri
     instrument.withholdings.length === 0 ? '- None labelled.' : null,
     '',
     instrument.dossier
-      ? `## Sharer dossier\nSaved ${instrument.dossier.savedAt ?? 'undated'}.`
+      ? `## Sharer dossier\nSaved ${instrument.dossier.savedAt ?? 'undated'}.${
+          instrument.dossier.notes?.trim()
+            ? `\nNotes: ${instrument.dossier.notes}`
+            : ''
+        }`
       : '## Sharer dossier\nWithheld: no grantor-scoped dossier on this share.',
+    '',
+    `[Open live view of this property](/share?g=${instrument.grantId})`,
     '',
   ]
   return `${lines.filter((line) => line !== null).join('\n')}\n`
@@ -414,6 +420,10 @@ export function renderShareInstrumentHtml(instrument: ShareInstrument): string {
     instrument.artifacts.owner.state === 'present'
       ? escapeHtml(`Owner: ${instrument.artifacts.owner.display}`)
       : escapeHtml(instrument.artifacts.owner.reason)
+  const liveView = `/share?g=${encodeURIComponent(instrument.grantId)}`
+  const notes = instrument.dossier?.notes?.trim()
+    ? `<section data-testid="share-dossier-notes"><h2>Notes from the sharer</h2><p>${escapeHtml(instrument.dossier.notes)}</p></section>`
+    : ''
   return `<!doctype html>
 <html lang="en">
 <head>
@@ -423,6 +433,7 @@ export function renderShareInstrumentHtml(instrument: ShareInstrument): string {
 <body>
 ${agreementComment(instrument)}
 <main>
+  <p data-testid="share-live-view"><a href="${escapeHtml(liveView)}">Open live view of this property</a></p>
   <p>${escapeHtml(instrument.fidelity.claim)}</p>
   <p data-testid="share-freshness">${escapeHtml(instrument.freshnessLine)}</p>
   <h1>${title}</h1>
@@ -431,6 +442,7 @@ ${agreementComment(instrument)}
       ? ` · ${escapeHtml(instrument.property.countyName)} County`
       : ''
   }</p>
+  ${notes}
   <h2>Verdicts</h2>
   <ul data-testid="share-verdicts">${verdicts || '<li>No verified facts to headline. See withholdings.</li>'}</ul>
   <h2>Citations</h2>

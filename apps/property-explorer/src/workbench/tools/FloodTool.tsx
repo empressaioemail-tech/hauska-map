@@ -538,6 +538,7 @@ export function FloodDrainageSection({ embed = false }: { embed?: boolean } = {}
             download={floodDrainageFilename(activeParcelNodeId)}
             label="Download PDF sheet"
             testId="flood-download-link"
+            parcelNodeId={activeParcelNodeId}
           />
 
           <div

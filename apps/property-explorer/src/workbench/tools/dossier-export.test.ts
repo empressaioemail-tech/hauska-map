@@ -98,6 +98,7 @@ describe("assembleDossierExportBody", () => {
       disclaimer: "AI-generated — verify before relying on it.",
     });
     expect(body.notes).toBe("Walk the lot before offering.");
+    expect(body.liveViewUrl).toBe("/?parcelNodeId=48021%3A27303");
   });
 
   it("honestly omits everything unavailable", () => {
@@ -106,7 +107,10 @@ describe("assembleDossierExportBody", () => {
       dossier: null,
       brief: null,
     });
-    expect(body).toEqual({ parcelNodeId: "48021:27303" });
+    expect(body).toEqual({
+      parcelNodeId: "48021:27303",
+      liveViewUrl: "/?parcelNodeId=48021%3A27303",
+    });
   });
 
   it("falls back to active-parcel facts for the address when the dossier has none", () => {
