@@ -1,6 +1,5 @@
-// P-87 items 15/16 — Use in your AI sheet. Static markup: no Connect while
-// OAuth is not live; no key / Cloud Run / product-key strings; ChatGPT is
-// Unavailable with the honest workspace line; share mint is the working hook.
+// P-87 items 15/16 — Use in your AI sheet. Claude and Cursor Connect live;
+// ChatGPT Unavailable; Copilot Coming soon; no key / Cloud Run / product-key strings.
 
 import { describe, expect, it } from "vitest";
 import { renderToStaticMarkup } from "react-dom/server";
@@ -9,6 +8,7 @@ import { WORKBENCH_TOOLS } from "../registry";
 import { createWorkbenchToolStateStore } from "../tool-state-store";
 import type { WorkbenchHostActions } from "../types";
 import {
+  SMART_SITE_CONNECT_HOST,
   USE_IN_AI_VENDORS,
   USE_IN_YOUR_AI_VALUE_LINE,
   UseInYourAiBody,
@@ -55,13 +55,9 @@ describe("Use in your AI vendor rows", () => {
     ]);
   });
 
-  it("Claude, Cursor, and Copilot are Coming soon; ChatGPT is Unavailable", () => {
-    expect(USE_IN_AI_VENDORS.find((r) => r.id === "claude")?.statusLabel).toBe(
-      "Coming soon",
-    );
-    expect(USE_IN_AI_VENDORS.find((r) => r.id === "cursor")?.statusLabel).toBe(
-      "Coming soon",
-    );
+  it("Claude and Cursor are Connect; Copilot is Coming soon; ChatGPT is Unavailable", () => {
+    expect(USE_IN_AI_VENDORS.find((r) => r.id === "claude")?.status).toBe("connect");
+    expect(USE_IN_AI_VENDORS.find((r) => r.id === "cursor")?.status).toBe("connect");
     expect(USE_IN_AI_VENDORS.find((r) => r.id === "copilot")?.statusLabel).toBe(
       "Coming soon",
     );
@@ -73,17 +69,23 @@ describe("Use in your AI vendor rows", () => {
     );
   });
 
-  it("renders the lede, four rows, and no Connect action", () => {
+  it("renders the lede, four rows, and Connect actions for Claude and Cursor", () => {
     const html = sheet();
     expect(html).toContain(USE_IN_YOUR_AI_VALUE_LINE);
     expect(html).toContain('data-testid="use-in-ai-row-claude"');
     expect(html).toContain('data-testid="use-in-ai-row-chatgpt"');
     expect(html).toContain('data-testid="use-in-ai-row-cursor"');
     expect(html).toContain('data-testid="use-in-ai-row-copilot"');
+    expect(html).toContain('data-testid="use-in-ai-connect-claude"');
+    expect(html).toContain('data-testid="use-in-ai-connect-cursor"');
     expect(html).toContain("Coming soon");
     expect(html).toContain("Unavailable");
     expect(html).toContain("ChatGPT needs a Business or Enterprise workspace");
-    expect(html).not.toMatch(/>\s*Connect\s*</);
+    expect(html).toContain("Connect Claude or Cursor below");
+  });
+
+  it("exposes the Smart Site address hostname without forbidden substrate strings", () => {
+    expect(SMART_SITE_CONNECT_HOST).toBe("mcp.smartsite.cloud");
   });
 
   it("never prints a key, Cloud Run URL, or substrate brand on the sheet", () => {
@@ -104,7 +106,7 @@ describe("Use in your AI vendor rows", () => {
   it("offers the share-link mint when a property is selected and no link exists", () => {
     const html = sheet({ hasParcel: true, shareUrl: null });
     expect(html).toContain('data-testid="use-in-ai-create-share"');
-    expect(html).toContain("Create a link Claude can fetch");
+    expect(html).toContain("Create a share link");
   });
 });
 
