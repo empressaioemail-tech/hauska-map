@@ -155,7 +155,7 @@ describe("REPORTS bubble (Option D picker; TERRAIN Studio-only when selected)", 
     const html = renderTool("reports");
     expect(html).not.toContain('data-testid="reports-locked"');
     expect(html).toContain('data-testid="reports-doc-picker"');
-    expect(html).toContain("Site plan sheet");
+    expect(html).toContain("Site plan");
     expect(html).not.toContain('data-testid="flood-run"');
     expect(html).not.toContain('data-testid="terrain-pro-lock"');
   });
@@ -206,6 +206,22 @@ describe("REPORTS bubble (Option D picker; TERRAIN Studio-only when selected)", 
     expect(terrain).not.toContain('data-testid="terrain-export-section"');
   });
 
+  it("solo subscriber: Records request is STUDIO-ONLY (View-pricing, no inline checkout)", () => {
+    primePropertyEntitlement(PARCEL, SOLO);
+    const html = renderTool("reports", { selectedDoc: "REC" });
+    expect(html).not.toContain('data-testid="reports-locked"');
+    expect(html).toContain('data-testid="records-studio-lock"');
+    expect(html).toContain('data-testid="view-pricing-button"');
+    expect(html).not.toContain('data-testid="records-request-section"');
+  });
+
+  it("free signed-in without unlock → reports locked (Records request withheld at bubble)", () => {
+    primePropertyEntitlement(PARCEL, FREE);
+    const html = renderTool("reports", { selectedDoc: "REC" });
+    expect(html).toContain('data-testid="reports-locked"');
+    expect(html).not.toContain('data-testid="records-request-section"');
+  });
+
   it("devRole (tester account, no Stripe, no subscriptionTier) grants terrain", () => {
     primePropertyEntitlement(PARCEL, DEV);
     const html = renderTool("reports", { selectedDoc: "TERGLB" });
@@ -213,6 +229,16 @@ describe("REPORTS bubble (Option D picker; TERRAIN Studio-only when selected)", 
     expect(html).not.toContain('data-testid="terrain-pro-lock"');
     expect(html).not.toContain('data-testid="view-pricing-button"');
     expect(html).toContain('data-testid="terrain-export-section"');
+  });
+
+  it("devRole clears every generatable report row (not coming-soon)", () => {
+    primePropertyEntitlement(PARCEL, DEV);
+    for (const docId of ["REC", "DOSS", "FLOOD", "SITEPLAN", "TERRAIN", "SPPDF", "TERGLB"]) {
+      const html = renderTool("reports", { selectedDoc: docId });
+      expect(html).not.toContain('data-testid="reports-locked"');
+      expect(html).not.toContain('data-testid="terrain-pro-lock"');
+      expect(html).not.toContain('data-testid="records-studio-lock"');
+    }
   });
 
   it("FAIL CLOSED: a paid row with NO subscriptionTier gates terrain CLOSED", () => {
@@ -228,6 +254,49 @@ describe("REPORTS bubble (Option D picker; TERRAIN Studio-only when selected)", 
     expect(html).not.toContain('data-testid="reports-locked"');
     expect(html).not.toContain('data-testid="terrain-pro-lock"');
     expect(html).toContain('data-testid="reports-doc-picker"');
+  });
+});
+
+describe("RECORDS REQUEST bubble (Studio-only when selected — P-85 item 13)", () => {
+  it("STUDIO → records-request-section visible, not studio-locked", () => {
+    primePropertyEntitlement(PARCEL, STUDIO);
+    const html = renderTool("reports", { selectedDoc: "REC" });
+    expect(html).not.toContain('data-testid="reports-locked"');
+    expect(html).not.toContain('data-testid="records-studio-lock"');
+    expect(html).toContain('data-testid="records-request-section"');
+  });
+
+  it("TEAM → records-request-section visible, not studio-locked", () => {
+    primePropertyEntitlement(PARCEL, TEAM);
+    const html = renderTool("reports", { selectedDoc: "REC" });
+    expect(html).not.toContain('data-testid="reports-locked"');
+    expect(html).not.toContain('data-testid="records-studio-lock"');
+    expect(html).toContain('data-testid="records-request-section"');
+  });
+
+  it("FREE signed-in → reports bubble locked; Records withheld (no section, no studio lock)", () => {
+    primePropertyEntitlement(PARCEL, FREE);
+    const html = renderTool("reports", { selectedDoc: "REC" });
+    expect(html).toContain('data-testid="reports-locked"');
+    expect(html).not.toContain('data-testid="records-request-section"');
+    expect(html).not.toContain('data-testid="records-studio-lock"');
+  });
+
+  it("SOLO → studio lock on Records (LockedToolPanel, no request section)", () => {
+    primePropertyEntitlement(PARCEL, SOLO);
+    const html = renderTool("reports", { selectedDoc: "REC" });
+    expect(html).not.toContain('data-testid="reports-locked"');
+    expect(html).toContain('data-testid="records-studio-lock"');
+    expect(html).toContain('data-testid="view-pricing-button"');
+    expect(html).not.toContain('data-testid="records-request-section"');
+  });
+
+  it("anon → sign-in-first; Records withheld until authenticated", () => {
+    primePropertyEntitlement(PARCEL, ANON);
+    const html = renderTool("reports", { selectedDoc: "REC" });
+    expect(html).toContain('data-testid="reports-locked-sign-in"');
+    expect(html).not.toContain('data-testid="records-request-section"');
+    expect(html).not.toContain('data-testid="records-studio-lock"');
   });
 });
 
@@ -255,6 +324,26 @@ describe("SHARE bubble (free for signed-in users — acquisition channel)", () =
   it("pro → the create-link flow renders", () => {
     primePropertyEntitlement(PARCEL, PRO);
     expect(renderTool("share")).toContain('data-testid="share-create"');
+  });
+});
+
+describe("USE IN YOUR AI bubble (Connect live for Claude/Cursor, share mint secondary)", () => {
+  it("anon → sign-in-first, no Connect", () => {
+    primePropertyEntitlement(PARCEL, ANON);
+    const html = renderTool("use-in-ai");
+    expect(html).toContain('data-testid="use-in-ai-locked-sign-in"');
+    expect(html).not.toContain('data-testid="use-in-ai-connect-claude"');
+  });
+
+  it("free signed-in → sheet + Connect for Claude/Cursor, no paywall", () => {
+    primePropertyEntitlement(PARCEL, FREE);
+    const html = renderTool("use-in-ai");
+    expect(html).toContain('data-testid="use-in-ai-tool"');
+    expect(html).toContain('data-testid="use-in-ai-create-share"');
+    expect(html).toContain('data-testid="use-in-ai-connect-claude"');
+    expect(html).toContain('data-testid="use-in-ai-connect-cursor"');
+    expect(html).toContain("Coming soon");
+    expect(html).not.toContain('data-testid="view-pricing-button"');
   });
 });
 
@@ -300,6 +389,9 @@ describe("CHAT bubble (3 signed-in-free messages → wall)", () => {
     const html = renderTool("chat", { store: storeWithThread() });
     expect(html).toContain('data-testid="chat-wall"');
     expect(html).toContain('data-testid="view-pricing-button"');
+    expect(html).toContain("last free question");
+    expect(html).not.toContain("3 of 3");
+    expect(html).not.toContain("chats used");
     expect(html).not.toContain('data-testid="unlock-property-choice"');
     expect(html).not.toContain('data-testid="unlock-solo-choice"');
     expect(html).not.toContain('data-testid="chat-input"');

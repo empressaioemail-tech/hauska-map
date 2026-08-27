@@ -1,9 +1,11 @@
-// Option D catalog — the picker list. Coming-soon rows are findable here.
-// Status labels are presentation. Entitlement gates stay in ReportsTool:
-// site-plan DXF/IFC remain paid/unlock; terrain formats stay Studio-gated.
+// Purchase-surface catalog (W7). Reports are X-ray + Flood. Site plan and
+// terrain are exports. Coming-soon rows stay in the file so live verbs are
+// not deleted, but they never appear on the picker.
 
 import type { SitePlanExportFormat } from "../../lib/sitePlanExportClient";
 import type { TerrainExportFormat } from "../../lib/terrainExportClient";
+import { PE_PRICING } from "../../lib/pricing";
+import { PE as PE_CHROME } from "../../styles/pe-chrome";
 
 export type ReportDocId =
   | "FEAS"
@@ -12,6 +14,8 @@ export type ReportDocId =
   | "COMP"
   | "FLOOD"
   | "BRIEF"
+  | "SITEPLAN"
+  | "TERRAIN"
   | "SPPDF"
   | "SPDXF"
   | "SPIFC"
@@ -19,8 +23,8 @@ export type ReportDocId =
   | "TERIFC"
   | "TERDXF";
 
-export type ReportDocGroup = "Packages" | "Studies" | "Exports";
-export type ReportDocKind = "Package" | "Study" | "Export";
+export type ReportDocGroup = "Reports" | "Exports" | "Tools";
+export type ReportDocKind = "Report" | "Export" | "Tool";
 export type ReportEngine =
   | "none"
   | "site-plan"
@@ -35,8 +39,9 @@ export interface ReportDocDef {
   group: ReportDocGroup;
   name: string;
   kind: ReportDocKind;
-  /** Frame status. `studio` means Studio-gated, not a gold CTA. */
   catalogStatus: "coming" | "ready" | "studio" | "open";
+  /** False = not on the purchase picker (coming-soon or format alias). */
+  purchaseSurface: boolean;
   promise: string;
   formatLabel: string;
   engine: ReportEngine;
@@ -53,6 +58,8 @@ export const REPORT_DOC_IDS: readonly ReportDocId[] = [
   "COMP",
   "FLOOD",
   "BRIEF",
+  "SITEPLAN",
+  "TERRAIN",
   "SPPDF",
   "SPDXF",
   "SPIFC",
@@ -61,79 +68,117 @@ export const REPORT_DOC_IDS: readonly ReportDocId[] = [
   "TERDXF",
 ] as const;
 
+const FORMAT_ALIASES: Record<string, ReportDocId> = {
+  SPPDF: "SITEPLAN",
+  SPDXF: "SITEPLAN",
+  SPIFC: "SITEPLAN",
+  TERGLB: "TERRAIN",
+  TERIFC: "TERRAIN",
+  TERDXF: "TERRAIN",
+};
+
 export const REPORTS_CATALOG: readonly ReportDocDef[] = [
   {
-    id: "FEAS",
-    group: "Packages",
-    name: "Feasibility Study",
-    kind: "Package",
-    catalogStatus: "coming",
-    promise: "The cited package you hand to someone else.",
-    formatLabel: "PDF, 16 sections + appended sheets",
-    engine: "none",
-    covers: "Site plan and flood sheets",
-  },
-  {
-    id: "REC",
-    group: "Packages",
-    name: "Records request",
-    kind: "Package",
-    catalogStatus: "studio",
-    promise:
-      "The recorded documents the county clerk's index ties to this parcel, read and cited.",
-    formatLabel: "In-app instruments + cited clauses",
-    engine: "records",
-    studioGated: true,
-  },
-  {
     id: "DOSS",
-    group: "Packages",
+    group: "Reports",
     name: "X-ray",
-    kind: "Package",
+    kind: "Report",
     catalogStatus: "ready",
+    purchaseSurface: true,
     promise:
       "Verdict, cited brief facts, notes, and the site-plan sheets appended.",
     formatLabel: "PDF",
     engine: "dossier",
   },
   {
-    id: "COMP",
-    group: "Packages",
-    name: "Comparison report",
-    kind: "Package",
-    catalogStatus: "coming",
-    promise: "Two or more parcels side by side.",
-    formatLabel: "PDF",
-    engine: "none",
-  },
-  {
     id: "FLOOD",
-    group: "Studies",
-    name: "Flood & drainage study",
-    kind: "Study",
+    group: "Reports",
+    name: "Flood and Drainage",
+    kind: "Report",
     catalogStatus: "ready",
+    purchaseSurface: true,
     promise: "Where water goes on this lot, as a 2-sheet PDF.",
-    formatLabel: "PDF, 2 sheets",
+    formatLabel: "PDF",
     engine: "flood",
     covers: "Drawn on the map while this study is open",
   },
   {
+    id: "SITEPLAN",
+    group: "Exports",
+    name: "Site plan",
+    kind: "Export",
+    catalogStatus: "ready",
+    purchaseSurface: true,
+    promise: "The drawn sheet and the layers a drafter can open.",
+    formatLabel: "PDF, DXF, IFC",
+    engine: "site-plan",
+  },
+  {
+    id: "TERRAIN",
+    group: "Exports",
+    name: "Terrain",
+    kind: "Export",
+    catalogStatus: "studio",
+    purchaseSurface: true,
+    promise: "Ground surface for modeling tools.",
+    formatLabel: "DXF, IFC, GLB",
+    engine: "terrain",
+    studioGated: true,
+  },
+  {
+    id: "REC",
+    group: "Tools",
+    name: "Records request",
+    kind: "Tool",
+    catalogStatus: "ready",
+    purchaseSurface: true,
+    promise:
+      "The recorded documents the county clerk's index ties to this parcel.",
+    formatLabel: "Request",
+    engine: "records",
+    studioGated: true,
+  },
+  {
     id: "BRIEF",
-    group: "Studies",
+    group: "Tools",
     name: "Property brief",
-    kind: "Study",
+    kind: "Tool",
     catalogStatus: "open",
-    promise: "Cited research writeup, not a deliverable packet.",
-    formatLabel: "In-app, cited",
+    purchaseSurface: true,
+    promise: "Cited research writeup. Chrome, not a report packet.",
+    formatLabel: "In-app",
     engine: "brief",
+  },
+  {
+    id: "FEAS",
+    group: "Reports",
+    name: "Feasibility Study",
+    kind: "Report",
+    catalogStatus: "coming",
+    purchaseSurface: false,
+    promise: "Not sold. Not a report SKU.",
+    formatLabel: "PDF",
+    engine: "none",
+  },
+  {
+    id: "COMP",
+    group: "Reports",
+    name: "Comparison report",
+    kind: "Report",
+    catalogStatus: "coming",
+    purchaseSurface: false,
+    promise: "Compare stays the compare tool. Not a report SKU.",
+    formatLabel: "PDF",
+    engine: "none",
   },
   {
     id: "SPPDF",
     group: "Exports",
-    name: "Site plan sheet",
+    name: "Site plan",
     kind: "Export",
     catalogStatus: "ready",
-    promise: "The drawn sheet, for print and email.",
+    purchaseSurface: false,
+    promise: "Alias for Site plan.",
     formatLabel: "PDF",
     engine: "site-plan",
     sitePlanFormat: "pdf-site-plan",
@@ -141,32 +186,35 @@ export const REPORTS_CATALOG: readonly ReportDocDef[] = [
   {
     id: "SPDXF",
     group: "Exports",
-    name: "Site plan CAD",
+    name: "Site plan",
     kind: "Export",
     catalogStatus: "ready",
-    promise: "Layers your drafter can open.",
-    formatLabel: "DXF, layered",
+    purchaseSurface: false,
+    promise: "Alias for Site plan.",
+    formatLabel: "DXF",
     engine: "site-plan",
     sitePlanFormat: "dxf-site-plan",
   },
   {
     id: "SPIFC",
     group: "Exports",
-    name: "Site plan model",
+    name: "Site plan",
     kind: "Export",
     catalogStatus: "ready",
-    promise: "Model exchange for BIM tools.",
-    formatLabel: "IFC, layered",
+    purchaseSurface: false,
+    promise: "Alias for Site plan.",
+    formatLabel: "IFC",
     engine: "site-plan",
     sitePlanFormat: "ifc-site-plan",
   },
   {
     id: "TERGLB",
     group: "Exports",
-    name: "Terrain mesh",
+    name: "Terrain",
     kind: "Export",
     catalogStatus: "studio",
-    promise: "Ground surface as a mesh.",
+    purchaseSurface: false,
+    promise: "Alias for Terrain.",
     formatLabel: "GLB",
     engine: "terrain",
     terrainFormat: "glb",
@@ -178,8 +226,9 @@ export const REPORTS_CATALOG: readonly ReportDocDef[] = [
     name: "Terrain",
     kind: "Export",
     catalogStatus: "studio",
-    promise: "Terrain for model exchange.",
-    formatLabel: "IFC4",
+    purchaseSurface: false,
+    promise: "Alias for Terrain.",
+    formatLabel: "IFC",
     engine: "terrain",
     terrainFormat: "ifc",
     studioGated: true,
@@ -187,11 +236,12 @@ export const REPORTS_CATALOG: readonly ReportDocDef[] = [
   {
     id: "TERDXF",
     group: "Exports",
-    name: "Terrain surface",
+    name: "Terrain",
     kind: "Export",
     catalogStatus: "studio",
-    promise: "Contours for site drawings.",
-    formatLabel: "DXF, contours",
+    purchaseSurface: false,
+    promise: "Alias for Terrain.",
+    formatLabel: "DXF",
     engine: "terrain",
     terrainFormat: "dxf-contour",
     studioGated: true,
@@ -204,22 +254,31 @@ export function isReportDocId(value: unknown): value is ReportDocId {
   return typeof value === "string" && ID_SET.has(value);
 }
 
+export function normalizeReportDocId(id: ReportDocId): ReportDocId {
+  return FORMAT_ALIASES[id] ?? id;
+}
+
 export function findReportDoc(id: ReportDocId): ReportDocDef {
-  const found = REPORTS_CATALOG.find((row) => row.id === id);
+  const canonical = normalizeReportDocId(id);
+  const found = REPORTS_CATALOG.find((row) => row.id === canonical);
   if (!found) {
     throw new Error(`reports-catalog: unknown id ${id}`);
   }
   return found;
 }
 
+export function purchaseSurfaceCatalog(): readonly ReportDocDef[] {
+  return REPORTS_CATALOG.filter((row) => row.purchaseSurface);
+}
+
 export function reportCatalogGroups(): Array<{
   group: ReportDocGroup;
   rows: readonly ReportDocDef[];
 }> {
-  const order: ReportDocGroup[] = ["Packages", "Studies", "Exports"];
+  const order: ReportDocGroup[] = ["Reports", "Exports", "Tools"];
   return order.map((group) => ({
     group,
-    rows: REPORTS_CATALOG.filter((row) => row.group === group),
+    rows: purchaseSurfaceCatalog().filter((row) => row.group === group),
   }));
 }
 
@@ -232,40 +291,47 @@ export function reportDocIsGeneratable(
   return true;
 }
 
-export function readyCount(studioGranted: boolean): {
-  ready: number;
-  total: number;
-} {
-  return {
-    ready: REPORTS_CATALOG.filter((doc) =>
-      reportDocIsGeneratable(doc, studioGranted),
-    ).length,
-    total: REPORTS_CATALOG.length,
-  };
-}
+const SUCCESS = PE_CHROME.success;
+const MUTED = PE_CHROME.absence;
+const WARN = PE_CHROME.warning;
+const SLATE = PE_CHROME.muted;
 
-const SUCCESS = "var(--semantic-success, #10B981)";
-const MUTED = "var(--surface-muted, #7C8BA0)";
-const WARN = "var(--semantic-warning, #F59E0B)";
-const SLATE = "var(--text-muted, #94A3B8)";
+export function reportDocLockChip(
+  doc: ReportDocDef,
+  opts: { studioGranted: boolean },
+): { text: string; color: string } | null {
+  if (doc.catalogStatus === "coming") return null;
+  if (doc.studioGated && !opts.studioGranted) {
+    return {
+      text: `${PE_PRICING.studio.title}, ${PE_PRICING.studio.priceLabel}`,
+      color: WARN,
+    };
+  }
+  return null;
+}
 
 export function reportDocStatus(
   doc: ReportDocDef,
   opts: { studioGranted: boolean; generatedLabel?: string | null },
 ): { text: string; color: string } {
+  const lock = reportDocLockChip(doc, opts);
+  if (lock) return lock;
   if (doc.catalogStatus === "coming") {
     return { text: "Coming soon", color: MUTED };
   }
-  if (doc.studioGated && !opts.studioGranted) {
-    return { text: "Studio", color: WARN };
-  }
   if (doc.catalogStatus === "open") {
-    return { text: "Available", color: SLATE };
+    return { text: "Open", color: SLATE };
   }
   if (opts.generatedLabel) {
-    return { text: `Ready · ${opts.generatedLabel}`, color: SUCCESS };
+    return { text: `Download · ${opts.generatedLabel}`, color: SUCCESS };
   }
-  return { text: "Ready", color: SUCCESS };
+  return { text: verbFor(doc), color: SUCCESS };
+}
+
+function verbFor(doc: ReportDocDef): string {
+  if (doc.engine === "brief" || doc.engine === "records") return "Open";
+  if (doc.engine === "site-plan" || doc.engine === "terrain") return "Export";
+  return "Download";
 }
 
 export function reportDocMeta(
@@ -275,13 +341,47 @@ export function reportDocMeta(
   const rows: Array<{ k: string; v: string }> = [
     { k: "Format", v: doc.formatLabel },
   ];
-  if (doc.catalogStatus === "coming") {
-    rows.push({ k: "Status", v: "Coming soon" });
-  } else if (generatedLabel) {
+  if (generatedLabel) {
     rows.push({ k: "Generated", v: generatedLabel });
   }
   if (doc.covers) {
     rows.push({ k: "Includes", v: doc.covers });
   }
   return rows;
+}
+
+const MONTHS = [
+  "January",
+  "February",
+  "March",
+  "April",
+  "May",
+  "June",
+  "July",
+  "August",
+  "September",
+  "October",
+  "November",
+  "December",
+] as const;
+
+export function formatVerifiedDay(at: Date): string {
+  return `${at.getUTCDate()} ${MONTHS[at.getUTCMonth()]} ${at.getUTCFullYear()}`;
+}
+
+/** "905 Pecan St, verified 27 August 2026" */
+export function reportsFreshnessLine(
+  address: string | null,
+  verifiedAt: Date,
+): string {
+  const day = formatVerifiedDay(verifiedAt);
+  return address ? `${address}, verified ${day}` : `verified ${day}`;
+}
+
+/** @deprecated Meter is retired. Kept so a stray import fails closed in tests. */
+export function readyCount(_studioGranted: boolean): {
+  ready: number;
+  total: number;
+} {
+  throw new Error("readyCount is retired — the 10/12 meter is not a purchase surface");
 }

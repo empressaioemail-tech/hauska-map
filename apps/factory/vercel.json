@@ -2,7 +2,14 @@
   "rewrites": [
     { "source": "/api/auth/(.*)", "destination": "/api/auth?upath=$1" },
     { "source": "/api/proxy/(.*)", "destination": "/api/proxy?upath=$1" },
-    { "source": "/site", "destination": "/site.html" },
+    {
+      "source": "/site",
+      "destination": "https://property-explorer-staging.vercel.app/"
+    },
+    {
+      "source": "/site/:path*",
+      "destination": "https://property-explorer-staging.vercel.app/:path*"
+    },
     { "source": "/((?!api/).*)", "destination": "/index.html" }
   ]
 }

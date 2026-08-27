@@ -22,6 +22,8 @@ import {
   drawingsToSketch,
 } from "./share-dossier-sketch";
 import { shareTokenFromLocation } from "./share-landing";
+import { liveViewHref } from "../lib/live-view";
+import { PdfViewer } from "../components/PdfViewer";
 
 // Kept as a ShareView export — the historical home of the token parser.
 export { shareTokenFromLocation };
@@ -125,14 +127,20 @@ export function DownloadButton({
   label,
   href,
   filenameHint,
+  parcelNodeId,
+  grantId,
 }: {
   label: string;
   href: string;
   filenameHint: string;
+  parcelNodeId?: string | null;
+  grantId?: string | null;
 }) {
   const [state, setState] = useState<DownloadState>({ kind: "idle" });
+  const [viewerOpen, setViewerOpen] = useState(false);
+  const [viewerHref, setViewerHref] = useState<string | null>(null);
 
-  const run = async () => {
+  const fetchBlob = async (): Promise<string | null> => {
     setState({ kind: "busy" });
     try {
       const res = await fetch(href);
@@ -145,27 +153,58 @@ export function DownloadButton({
               ? `Not available on this link — ${filenameHint} was not exported for this property.`
               : (body.message ?? `Download failed (${res.status}).`),
         });
-        return;
+        return null;
       }
       const blob = await res.blob();
-      const cd = res.headers.get("content-disposition") ?? "";
-      const nameMatch = /filename="([^"]+)"/.exec(cd);
-      const url = URL.createObjectURL(blob);
-      const a = document.createElement("a");
-      a.href = url;
-      a.download = nameMatch?.[1] ?? filenameHint;
-      document.body.appendChild(a);
-      a.click();
-      a.remove();
-      URL.revokeObjectURL(url);
       setState({ kind: "idle" });
+      return URL.createObjectURL(blob);
     } catch {
       setState({ kind: "notice", text: "Could not reach the sharing service." });
+      return null;
     }
+  };
+
+  const run = async () => {
+    const url = await fetchBlob();
+    if (!url) return;
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = filenameHint;
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
+    URL.revokeObjectURL(url);
+  };
+
+  const view = async () => {
+    const url = await fetchBlob();
+    if (!url) return;
+    if (viewerHref) URL.revokeObjectURL(viewerHref);
+    setViewerHref(url);
+    setViewerOpen(true);
   };
 
   return (
     <div style={{ marginTop: 6 }}>
+      <button
+        type="button"
+        data-testid="share-pdf-view"
+        onClick={() => void view()}
+        disabled={state.kind === "busy"}
+        style={{
+          padding: "7px 12px",
+          fontSize: 12,
+          fontWeight: 600,
+          color: ACCENT,
+          background: "transparent",
+          border: "0.5px solid var(--brand-blue-border, rgba(59,130,246,0.4))",
+          borderRadius: 6,
+          cursor: state.kind === "busy" ? "default" : "pointer",
+          marginRight: 8,
+        }}
+      >
+        {state.kind === "busy" ? "Opening…" : "View PDF"}
+      </button>
       <button
         type="button"
         onClick={() => void run()}
@@ -186,6 +225,19 @@ export function DownloadButton({
       {state.kind === "notice" && (
         <p style={{ margin: "4px 0 0", fontSize: 10.5, color: MUTED }}>{state.text}</p>
       )}
+      {viewerOpen && viewerHref ? (
+        <PdfViewer
+          href={viewerHref}
+          title={label}
+          parcelNodeId={parcelNodeId}
+          grantId={grantId}
+          onClose={() => {
+            setViewerOpen(false);
+            URL.revokeObjectURL(viewerHref);
+            setViewerHref(null);
+          }}
+        />
+      ) : null}
     </div>
   );
 }
@@ -340,11 +392,13 @@ function CenterCard({ children }: { children: React.ReactNode }) {
  */
 export function ShareAnalysisContent({
   token,
+  grantId = null,
   data,
   dossier,
   variant = "page",
 }: {
   token: string;
+  grantId?: string | null;
   data: ShareBriefResponse;
   dossier: ShareDossierData | null;
   variant?: "page" | "dock";
@@ -355,11 +409,27 @@ export function ShareAnalysisContent({
   // which is how a shared link could headline a parcel differently from the
   // card the sender was looking at.
   const verdict = useSheetVerdict(property.parcelNodeId);
-  const downloadBase = `/api/pe-share-view?token=${encodeURIComponent(token)}`;
+  const downloadBase = token
+    ? `/api/pe-share-view?token=${encodeURIComponent(token)}`
+    : grantId
+      ? `/api/pe-share-grant?grantId=${encodeURIComponent(grantId)}`
+      : "";
   const dock = variant === "dock";
+
+  const live = liveViewHref({
+    parcelNodeId: property.parcelNodeId,
+    grantId,
+  });
 
   return (
     <div data-testid="share-analysis-content">
+      {live ? (
+        <p data-testid="share-live-view" style={{ margin: "0 0 8px", fontSize: 12 }}>
+          <a href={live} style={{ color: ACCENT }}>
+            Open live view of this property
+          </a>
+        </p>
+      ) : null}
       {/* Property header */}
       <header style={{ marginBottom: dock ? 10 : 14 }}>
         {!dock && (
@@ -442,11 +512,15 @@ export function ShareAnalysisContent({
           label="Download site plan (PDF)"
           href={`${downloadBase}&what=siteplan`}
           filenameHint="the site plan"
+          parcelNodeId={property.parcelNodeId}
+          grantId={grantId}
         />
         <DownloadButton
           label="Download terrain model (GLB)"
           href={`${downloadBase}&what=terrain&format=glb`}
           filenameHint="the terrain model"
+          parcelNodeId={property.parcelNodeId}
+          grantId={grantId}
         />
       </section>
     </div>

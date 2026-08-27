@@ -4,7 +4,12 @@
  */
 
 import { describe, expect, it, vi } from "vitest";
-import { attachExportToDossier, exportEntryFromResult } from "./reports-dossier";
+import {
+  attachExportToDossier,
+  exportEntryFromResult,
+  fileReportOnProperty,
+  isAutoSaveReportKind,
+} from "./reports-dossier";
 import type { PropertyDossier } from "../../lib/propertyDossier";
 
 const now = () => "2026-07-29T12:00:00Z";
@@ -82,6 +87,84 @@ describe("attachExportToDossier — dedupe kind+format, latest wins", () => {
       { selectedFormat: "pdf-site-plan", downloadUrl: "/x" },
       { update, now },
     );
+    expect(outcome).toEqual({ kind: "not-saved" });
+  });
+});
+
+describe("W3.2 first report auto-saves the property", () => {
+  it("Flood on an unsaved parcel saves then files (violate: attach-only no-op)", async () => {
+    expect(isAutoSaveReportKind("flood-drainage")).toBe(true);
+    expect(isAutoSaveReportKind("xray")).toBe(true);
+    expect(isAutoSaveReportKind("site-plan")).toBe(false);
+
+    const save = vi.fn(async () => ({ kind: "ok" }) as const);
+    const update = vi.fn(async () => ({ kind: "ok" }) as const);
+    const outcome = await fileReportOnProperty(
+      "48021:2",
+      "flood-drainage",
+      { selectedFormat: "pdf-flood-drainage", downloadUrl: "/flood" },
+      { label: "104 Main St", address: "104 Main St" },
+      {
+        list: async () => ({ kind: "ready", items: [] }),
+        save,
+        update,
+        now,
+      },
+    );
+    expect(save).toHaveBeenCalledTimes(1);
+    expect(save).toHaveBeenCalledWith("48021:2", {
+      label: "104 Main St",
+      address: "104 Main St",
+    });
+    expect(update).toHaveBeenCalledTimes(1);
+    expect(outcome).toEqual({ kind: "ok" });
+  });
+
+  it("already-saved Flood attaches only (violate: save again blindly)", async () => {
+    const save = vi.fn(async () => ({ kind: "ok" }) as const);
+    const update = vi.fn(async () => ({ kind: "ok" }) as const);
+    await fileReportOnProperty(
+      "48021:2",
+      "flood-drainage",
+      { selectedFormat: "pdf-flood-drainage", downloadUrl: "/flood" },
+      { label: "104 Main St" },
+      {
+        list: async () => ({
+          kind: "ready",
+          items: [
+            {
+              parcelNodeId: "48021:2",
+              label: "104 Main St",
+              updatedAt: null,
+              snapshot: { notes: "kept" },
+            },
+          ],
+        }),
+        save,
+        update,
+        now,
+      },
+    );
+    expect(save).not.toHaveBeenCalled();
+    expect(update).toHaveBeenCalledTimes(1);
+  });
+
+  it("site-plan on an unsaved parcel does not auto-save (exports are not reports)", async () => {
+    const save = vi.fn(async () => ({ kind: "ok" }) as const);
+    const update = vi.fn(async () => ({ kind: "not-saved" }) as const);
+    const outcome = await fileReportOnProperty(
+      "48021:2",
+      "site-plan",
+      { selectedFormat: "pdf-site-plan", downloadUrl: "/sp" },
+      {},
+      {
+        list: async () => ({ kind: "ready", items: [] }),
+        save,
+        update,
+        now,
+      },
+    );
+    expect(save).not.toHaveBeenCalled();
     expect(outcome).toEqual({ kind: "not-saved" });
   });
 });

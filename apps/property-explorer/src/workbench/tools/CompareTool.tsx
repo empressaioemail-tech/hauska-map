@@ -30,10 +30,14 @@ import { useCallback, useEffect, useState, useSyncExternalStore } from "react";
 import {
   listSavedProperties,
   subscribeSavedPropertiesChanged,
+  updatePropertyDossier,
+  type DossierUpdateOutcome,
   type SavedPropertyRow,
 } from "../../lib/savedPropertiesClient";
 import { savedRowDisplayLabel } from "../../lib/propertyDossier";
+import { Button } from "../../components/Button";
 import { GoogleSignInButton } from "../../components/GoogleSignInButton";
+import { PE } from "../../styles/pe-chrome";
 import { useWorkbench } from "../WorkbenchContext";
 import {
   cellsDiffer,
@@ -44,11 +48,13 @@ import {
   type CompareColumn,
   type CompareStoredState,
 } from "./compare-facts";
+import { openCompareSlotInMyProperties } from "./compare-open";
+import { NotesField } from "./PropertyDossierDetail";
 
-const MUTED = "var(--surface-muted, #94A3B8)";
-const AMBER = "var(--semantic-warning, #F59E0B)"; // caution tone (was raw yellow #fcd34d)
-const TEXT = "var(--text-body, #e5e7eb)";
-const ACCENT = "var(--brand-blue, #3B82F6)"; // PRIMARY interactive hue (was cyan #7dd3fc)
+const MUTED = PE.muted;
+const AMBER = PE.warning;
+const TEXT = PE.text;
+const ACCENT = PE.accent;
 const FLAG = "#f87171";
 
 /**
@@ -106,12 +112,27 @@ type ListPhase =
   | { kind: "sign-in" }
   | { kind: "notice"; text: string };
 
+/** Persist a compare-column note through the one dossier write path. */
+export async function saveCompareNote(
+  parcelNodeId: string,
+  text: string,
+  update: typeof updatePropertyDossier = updatePropertyDossier,
+): Promise<DossierUpdateOutcome> {
+  const id = parcelNodeId.trim();
+  if (!id) return { kind: "error", message: "No property to attach a note to." };
+  const notes = text.trim();
+  return update(id, { notes: notes ? notes : null });
+}
+
 export function CompareView({
   phase,
   stored,
   failures,
   onSelect,
   onView,
+  onOpen,
+  onSaveNote,
+  noteNotices,
 }: {
   phase: ListPhase;
   stored: CompareStoredState | null;
@@ -120,6 +141,12 @@ export function CompareView({
   onSelect: (slot: "a" | "b", parcelNodeId: string | null) => void;
   /** Optional per-column "view" flight (host.openProperty). */
   onView?: (parcelNodeId: string) => void;
+  /** Open this slot in My properties and collapse compare. */
+  onOpen?: (parcelNodeId: string) => void;
+  /** Persist a note on a saved compare slot (dossier write). */
+  onSaveNote?: (parcelNodeId: string, text: string) => void;
+  /** Per-parcel note-save copy (never mixed with facet-fetch failures). */
+  noteNotices?: Record<string, string>;
 }) {
   if (phase.kind === "sign-in") {
     return (
@@ -235,8 +262,12 @@ export function CompareView({
           b={slots.b as string}
           stored={stored}
           failures={failures}
+          items={items}
           labelFor={labelFor}
           onView={onView}
+          onOpen={onOpen}
+          onSaveNote={onSaveNote}
+          noteNotices={noteNotices}
         />
       )}
     </div>
@@ -256,20 +287,37 @@ function verdictColor(tone: "clear" | "caution" | "flag"): string {
   return tone === "flag" ? FLAG : tone === "caution" ? AMBER : TEXT;
 }
 
+function notesFor(
+  parcelNodeId: string,
+  items: SavedPropertyRow[],
+): string {
+  const row = items.find((r) => r.parcelNodeId === parcelNodeId);
+  const notes = row?.snapshot?.notes;
+  return typeof notes === "string" ? notes : "";
+}
+
 function CompareTable({
   a,
   b,
   stored,
   failures,
+  items,
   labelFor,
   onView,
+  onOpen,
+  onSaveNote,
+  noteNotices,
 }: {
   a: string;
   b: string;
   stored: CompareStoredState | null;
   failures: Record<string, string>;
+  items: SavedPropertyRow[];
   labelFor: (parcelNodeId: string) => string;
   onView?: (parcelNodeId: string) => void;
+  onOpen?: (parcelNodeId: string) => void;
+  onSaveNote?: (parcelNodeId: string, text: string) => void;
+  noteNotices?: Record<string, string>;
 }) {
   const colA = deriveColumnCached(a, stored);
   const colB = deriveColumnCached(b, stored);
@@ -286,42 +334,117 @@ function CompareTable({
 
   return (
     <div data-testid="compare-table" style={{ fontSize: 11.5, lineHeight: 1.4 }}>
-      {/* Column headers: label + the optional per-column "view" flight. */}
+      {/* Column headers: label + open-in-My-properties + optional map fly. */}
       <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 8 }}>
-        {cols.map(({ slot, parcelNodeId }) => (
+        {cols.map(({ slot, parcelNodeId }) => {
+          const existing = notesFor(parcelNodeId, items);
+          return (
           <div key={slot} style={{ minWidth: 0 }}>
-            <div
-              data-testid={`compare-header-${slot}`}
-              style={{ fontWeight: 600, color: TEXT, overflowWrap: "anywhere" }}
-            >
-              {labelFor(parcelNodeId)}
-            </div>
+            {onOpen ? (
+              <button
+                type="button"
+                data-testid={`compare-open-${slot}`}
+                onClick={() => onOpen(parcelNodeId)}
+                title="Open this property in My properties"
+                style={{
+                  display: "block",
+                  width: "100%",
+                  padding: 0,
+                  border: "none",
+                  background: "transparent",
+                  textAlign: "left",
+                  cursor: "pointer",
+                  fontWeight: 600,
+                  color: TEXT,
+                  overflowWrap: "anywhere",
+                  fontSize: 11.5,
+                }}
+              >
+                <span data-testid={`compare-header-${slot}`}>{labelFor(parcelNodeId)}</span>
+              </button>
+            ) : (
+              <div
+                data-testid={`compare-header-${slot}`}
+                style={{ fontWeight: 600, color: TEXT, overflowWrap: "anywhere" }}
+              >
+                {labelFor(parcelNodeId)}
+              </div>
+            )}
             <div style={{ fontSize: 10, color: MUTED }}>
               {parcelNodeId}
               {onView && (
                 <>
                   {" · "}
-                  <button
+                  <Button
+                    variant="ghost"
+                    dense
                     type="button"
                     data-testid={`compare-view-${slot}`}
                     onClick={() => onView(parcelNodeId)}
                     title="Fly the map to this property"
                     style={{
-                      background: "transparent",
-                      border: "none",
-                      color: ACCENT,
-                      cursor: "pointer",
                       padding: 0,
                       fontSize: 10,
+                      border: "none",
+                      fontWeight: 600,
                     }}
                   >
                     view
-                  </button>
+                  </Button>
                 </>
               )}
             </div>
+            <div data-testid={`compare-notes-${slot}`} style={{ marginTop: 6 }}>
+              <div
+                style={{
+                  fontSize: 10,
+                  fontWeight: 700,
+                  letterSpacing: 0.4,
+                  textTransform: "uppercase",
+                  color: MUTED,
+                  marginBottom: 4,
+                }}
+              >
+                Notes
+              </div>
+              {existing ? (
+                <p
+                  data-testid={`compare-notes-existing-${slot}`}
+                  style={{ margin: "0 0 6px", fontSize: 11.5, color: TEXT, whiteSpace: "pre-wrap" }}
+                >
+                  {existing}
+                </p>
+              ) : (
+                <p
+                  data-testid={`compare-notes-empty-${slot}`}
+                  style={{ margin: "0 0 6px", fontSize: 11, color: MUTED, fontStyle: "italic" }}
+                >
+                  No notes yet.
+                </p>
+              )}
+              {onSaveNote && (
+                <NotesField
+                  key={parcelNodeId}
+                  initial={existing}
+                  disabled={false}
+                  onSave={(text) => onSaveNote(parcelNodeId, text)}
+                  testId={`compare-notes-field-${slot}`}
+                  inputTestId={`compare-notes-input-${slot}`}
+                  counterTestId={`compare-notes-counter-${slot}`}
+                />
+              )}
+              {noteNotices?.[parcelNodeId] && (
+                <p
+                  data-testid={`compare-notes-notice-${slot}`}
+                  style={{ margin: "4px 0 0", fontSize: 10.5, color: AMBER }}
+                >
+                  {noteNotices[parcelNodeId]}
+                </p>
+              )}
+            </div>
           </div>
-        ))}
+          );
+        })}
       </div>
 
       {/* Verdict row — the composer's line per property, tone-colored. */}
@@ -462,6 +585,7 @@ export function CompareTool() {
   // Transient fetch failures (per parcel) — never persisted, so reopening the
   // tool retries instead of pinning a property to "failed" forever.
   const [failures, setFailures] = useState<Record<string, string>>({});
+  const [noteNotices, setNoteNotices] = useState<Record<string, string>>({});
 
   const refresh = useCallback(async () => {
     const outcome = await listSavedProperties();
@@ -560,6 +684,38 @@ export function CompareTool() {
     [host],
   );
 
+  const handleOpen = useCallback(
+    (parcelNodeId: string) => {
+      openCompareSlotInMyProperties(parcelNodeId, host);
+    },
+    [host],
+  );
+
+  const handleSaveNote = useCallback((parcelNodeId: string, text: string) => {
+    void saveCompareNote(parcelNodeId, text).then((outcome) => {
+      if (outcome.kind === "ok") {
+        setNoteNotices((prev) => {
+          if (!(parcelNodeId in prev)) return prev;
+          const next = { ...prev };
+          delete next[parcelNodeId];
+          return next;
+        });
+        return;
+      }
+      setNoteNotices((prev) => ({
+        ...prev,
+        [parcelNodeId]:
+          outcome.kind === "not-saved"
+            ? "This property is no longer saved — notes not stored."
+            : outcome.kind === "sign-in"
+              ? "Sign in to save notes."
+              : outcome.kind === "unreachable"
+                ? "Could not reach the saved-properties service."
+                : outcome.message,
+      }));
+    });
+  }, []);
+
   return (
     <CompareView
       phase={phase}
@@ -567,6 +723,9 @@ export function CompareTool() {
       failures={failures}
       onSelect={handleSelect}
       onView={host.openProperty ? handleView : undefined}
+      onOpen={host.openTool ? handleOpen : undefined}
+      onSaveNote={handleSaveNote}
+      noteNotices={noteNotices}
     />
   );
 }

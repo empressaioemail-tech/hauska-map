@@ -23,6 +23,7 @@
 // source lines are the live provenance strings the map already computed.
 
 import { useState } from "react";
+import { BubbleTip } from "../components/BubbleTip";
 import { SATELLITE_ATTRIBUTION } from "./satelliteBase";
 
 /** PANEL chrome matched to the lower-right layers bubble (MapToolset). */
@@ -109,31 +110,31 @@ export function SmartSiteBadge({ isMobile }: { isMobile: boolean }) {
 export function MapSourceInfo({
   lines,
   isMobile,
+  variant = "corner",
 }: {
   lines: string[];
   isMobile: boolean;
+  /** `stack` sits in the left map-utility column (no absolute corner pin). */
+  variant?: "corner" | "stack";
 }) {
   const [open, setOpen] = useState(false);
   if (isMobile) return null; // the layers sheet owns the lower-right on mobile
   // NOTE: no early-return on empty `lines` — the REQUIRED tile/basemap
   // attribution below must always be reachable, so the ⓘ bubble always renders.
 
+  const stacked = variant === "stack";
+
   return (
     <div
       data-testid="map-source-info"
       style={{
-        position: "absolute",
-        // sit BESIDE (to the LEFT of) the layers bubble on the SAME row
-        // (operator want, 2026-08-03). The layers bubble is 44px wide at
-        // right:12 / bottom:16; place the ⓘ one bubble-width + 8px gap to its
-        // left (right:64) at the same bottom, so the two bubbles share a row.
-        // The expanded attribution panel still opens upward from here.
-        right: 64,
-        bottom: 16,
-        zIndex: 11,
+        position: stacked ? "relative" : "absolute",
+        ...(stacked
+          ? {}
+          : { right: 64, bottom: 16, zIndex: 11 }),
         display: "flex",
         flexDirection: "column",
-        alignItems: "flex-end",
+        alignItems: stacked ? "flex-start" : "flex-end",
         gap: 8,
         fontFamily: "system-ui, -apple-system, Segoe UI, Roboto, sans-serif",
       }}
@@ -208,17 +209,20 @@ export function MapSourceInfo({
         </div>
       </div>
 
-      {/* The ⓘ bubble — always visible, toggles the panel. Same size/shape/
-          chrome as the layers bubble; the glyph uses --brand-blue (info). */}
+      <BubbleTip
+        side={stacked ? "right" : "left"}
+        label="Notifications"
+        detail="Sources, credits, and layer honesty notes."
+      >
       <button
         type="button"
         data-testid="map-source-info-bubble"
-        aria-label={open ? "Hide data sources" : "Show data sources"}
+        aria-label={open ? "Hide notifications" : "Notifications"}
         aria-expanded={open}
         onClick={() => setOpen((v) => !v)}
         style={{
-          width: 44,
-          height: 44,
+          width: 34,
+          height: 34,
           borderRadius: "50%",
           border: PANEL_BORDER,
           background: open ? "rgba(59,130,246,0.18)" : PANEL_BG,
@@ -227,13 +231,13 @@ export function MapSourceInfo({
           display: "flex",
           alignItems: "center",
           justifyContent: "center",
-          boxShadow: "0 8px 24px rgba(0,0,0,0.5)",
+          boxShadow: "0 4px 14px rgba(0,0,0,0.35)",
         }}
       >
         <svg
           viewBox="0 0 24 24"
-          width={22}
-          height={22}
+          width={16}
+          height={16}
           aria-hidden="true"
           fill="none"
           stroke="currentColor"
@@ -241,11 +245,12 @@ export function MapSourceInfo({
           strokeLinecap="round"
           strokeLinejoin="round"
         >
-          <circle cx="12" cy="12" r="9" />
-          <line x1="12" y1="11" x2="12" y2="16" />
-          <circle cx="12" cy="8" r="0.6" fill="currentColor" stroke="none" />
+          <path d="M6 8a6 6 0 0 1 12 0c0 7 3 9 3 9H3s3-2 3-9" />
+          <path d="M10.3 21a1.94 1.94 0 0 0 3.4 0" />
         </svg>
       </button>
+      </BubbleTip>
     </div>
   );
 }
+

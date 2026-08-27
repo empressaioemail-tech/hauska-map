@@ -32,8 +32,11 @@ export const SHARED_ANALYSIS_TOOL_ID = "shared-analysis";
 /** Everything the share funnel binds into the map app for the dock host. */
 export interface ShareFunnelBinding {
   token: string | null;
+  grantId: string | null;
   phase: SharePhase;
   dossier: ShareDossierData | null;
+  /** Parcel id from the grant row when the brief is not yet ready. */
+  parcelNodeId: string | null;
 }
 
 /** "Shared property analysis · read-only · link expires <date>" — persistent. */
@@ -97,6 +100,7 @@ export function SharedDossierDock({ share }: { share: ShareFunnelBinding }) {
       <ShareReadOnlyBanner expiresAt={phase.data.share.expiresAt} />
       <ShareAnalysisContent
         token={token ?? ""}
+        grantId={share.grantId}
         data={phase.data}
         dossier={dossier}
         variant="dock"

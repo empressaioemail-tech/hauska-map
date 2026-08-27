@@ -1,4 +1,5 @@
-import type { CSSProperties } from "react";
+import { useState, type CSSProperties } from "react";
+import { PdfViewer } from "./PdfViewer";
 
 // 4a — a finished file is a button, never a text link.
 // Glyph left, verb + format, size monospace right when a real byteCount exists.
@@ -73,6 +74,8 @@ export function DownloadFileButton({
   sizeLabel,
   state = "ready",
   testId,
+  parcelNodeId,
+  grantId,
 }: {
   href?: string | null;
   download?: string;
@@ -80,6 +83,8 @@ export function DownloadFileButton({
   sizeLabel?: string | null;
   state?: DownloadFileState;
   testId: string;
+  parcelNodeId?: string | null;
+  grantId?: string | null;
 }) {
   const generating = state === "generating";
   const failed = state === "failed";
@@ -120,12 +125,36 @@ export function DownloadFileButton({
   );
 
   const style = { ...SHELL, border, background, cursor: ready ? "pointer" : "default" };
+  const [viewerOpen, setViewerOpen] = useState(false);
+  const pdfHref = href && /pdf/i.test(`${href} ${download ?? ""} ${label}`);
 
   if (ready && href) {
     return (
-      <a href={href} download={download} data-testid={testId} style={style}>
-        {inner}
-      </a>
+      <div data-testid={`${testId}-wrap`}>
+        {pdfHref ? (
+          <button
+            type="button"
+            data-testid={`${testId}-view`}
+            onClick={() => setViewerOpen(true)}
+            style={{ ...style, marginBottom: 6 }}
+          >
+            <ArrowGlyph color={glyph} />
+            <span style={{ flex: 1, textAlign: "left" }}>View PDF</span>
+          </button>
+        ) : null}
+        <a href={href} download={download} data-testid={testId} style={style}>
+          {inner}
+        </a>
+        {viewerOpen ? (
+          <PdfViewer
+            href={href}
+            title={label}
+            parcelNodeId={parcelNodeId}
+            grantId={grantId}
+            onClose={() => setViewerOpen(false)}
+          />
+        ) : null}
+      </div>
     );
   }
 

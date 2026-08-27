@@ -11,6 +11,7 @@ import {
   PLACE_LANDING_ZOOM,
   type SearchLandingDeps,
 } from "./search-landing";
+import { INDEX_MISS_CHIP } from "./search-kinds";
 import type { GeoExtent, Suggestion } from "./search-kinds";
 
 function mkDeps(lookupResolves: boolean): SearchLandingDeps & {
@@ -83,8 +84,8 @@ describe("address landing", () => {
     expect(deps.flyTo).not.toHaveBeenCalled();
   });
 
-  it("Photon pick is camera-only: no lookup, no envelope label", async () => {
-    const deps = mkDeps(true);
+  it("Photon pick runs the compact identity lookup; miss does not fly to a neighborhood", async () => {
+    const deps = mkDeps(false);
     const out = await executeSearchLanding(
       sugg({
         kind: "address",
@@ -96,10 +97,31 @@ describe("address landing", () => {
       }),
       deps,
     );
-    expect(deps.runParcelLookup).not.toHaveBeenCalled();
-    expect(deps.flyTo).toHaveBeenCalledWith(30.4394, -97.6203, ADDRESS_LANDING_ZOOM);
-    expect(deps.showChip).not.toHaveBeenCalled();
+    expect(deps.runParcelLookup).toHaveBeenCalledWith(
+      "17005 Simsbrook, Pflugerville TX",
+      { quiet: true },
+    );
+    expect(deps.flyTo).not.toHaveBeenCalled();
+    expect(deps.showChip).toHaveBeenCalledWith(INDEX_MISS_CHIP);
     expect(out).toEqual({ kind: "address", opened: false, coverageMiss: true });
+  });
+
+  it("Photon pick that resolves opens the parcel (one click)", async () => {
+    const deps = mkDeps(true);
+    const out = await executeSearchLanding(
+      sugg({
+        kind: "address",
+        label: "1308 Pecan Street",
+        lookupQuery: "1308 Pecan Street, Bastrop, Texas, 78602",
+        source: "photon",
+        lat: 30.11,
+        lng: -97.31,
+      }),
+      deps,
+    );
+    expect(deps.runParcelLookup).toHaveBeenCalled();
+    expect(out).toEqual({ kind: "address", opened: true, coverageMiss: false });
+    expect(deps.flyTo).not.toHaveBeenCalled();
   });
 
   it("OUTSIDE coverage on a situs miss: lands the map + honest chip, NEVER fabricates a parcel", async () => {
@@ -137,6 +159,25 @@ describe("street landing", () => {
     expect(deps.highlightStreet).toHaveBeenCalledWith(EXTENT, "Main Street");
     expect(deps.runParcelLookup).not.toHaveBeenCalled();
     expect(out).toEqual({ kind: "street", fitted: true });
+  });
+
+  it("PUD / huge street extent is not fitted over the whole PUD", async () => {
+    const deps = mkDeps(false);
+    const pudExtent: GeoExtent = [-97.8, 30.7, -97.6, 30.5];
+    const out = await executeSearchLanding(
+      sugg({
+        kind: "street",
+        label: "Santera PUD",
+        extent: pudExtent,
+        lat: 30.6,
+        lng: -97.7,
+      }),
+      deps,
+    );
+    expect(deps.fitExtent).not.toHaveBeenCalled();
+    expect(deps.highlightStreet).not.toHaveBeenCalled();
+    expect(deps.flyTo).toHaveBeenCalled();
+    expect(out).toEqual({ kind: "street", fitted: false });
   });
 
   it("street without extent: flies to its point (no fake extent)", async () => {

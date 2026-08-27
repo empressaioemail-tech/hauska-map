@@ -17,6 +17,7 @@
 
 import { useState } from "react";
 import { Button } from "../components/Button";
+import { PE } from "../styles/pe-chrome";
 import { useCheckoutActions, clampTeamSeats } from "./useCheckoutActions";
 import { UnlockCheckoutModal } from "../checkout/UnlockCheckoutModal";
 import { SubscriptionCheckoutModal } from "../checkout/SubscriptionCheckoutModal";
@@ -27,20 +28,23 @@ import {
   defaultPricingInterval,
   matrixCellText,
   propertyUnlockOffer,
+  teamMonthlyTotalLabel,
+  teamMonthlyTotalUsd,
   teamSeatsControlVisible,
   tierHeadline,
   toCheckoutInterval,
   type MatrixCellKind,
   type PricingInterval,
 } from "../lib/pricing";
+import { shouldShowSoloCompare, unlocksThisWeek } from "../lib/unlock-week";
 
-const CARD_BG = "rgba(17, 21, 28, 0.92)";
-const ACCENT = "var(--brand-blue, #3B82F6)";
-const TEXT = "#e9eef5";
-const BODY = "#c6d0dc";
-const MUTED = "var(--surface-muted, #94A3B8)";
-const ABSENCE = "var(--semantic-absence, #7C8BA0)";
-const AMBER = "var(--semantic-warning, #F59E0B)";
+const CARD_BG = PE.card;
+const ACCENT = PE.accent;
+const TEXT = PE.textStrong;
+const BODY = PE.muted;
+const MUTED = PE.muted;
+const ABSENCE = PE.absence;
+const AMBER = PE.warning;
 const ROW_BORDER = "0.5px solid var(--surface-border-rgba, rgba(154,166,178,0.3))";
 const ROW_BORDER_SOFT =
   "0.5px solid var(--surface-border-rgba, rgba(154,166,178,0.22))";
@@ -67,6 +71,7 @@ export function PricingModal({
   studioOnly,
   statusNote,
   initialInterval,
+  initialTeamSeats,
   situsAddress,
   onClose,
 }: {
@@ -83,8 +88,10 @@ export function PricingModal({
   studioOnly?: boolean;
   /** Honest status footnote (e.g. ICC citation licensing state). */
   statusNote?: string | null;
-  /** Test / first-paint override. Default is monthly (PE_PRICING.interval.default). */
+  /** Test / first-paint override. Default is annual (PE_PRICING.interval.default). */
   initialInterval?: PricingInterval;
+  /** Test override. Default is the 10-seat base. */
+  initialTeamSeats?: number;
   onClose: () => void;
 }) {
   const {
@@ -103,7 +110,9 @@ export function PricingModal({
   const [interval, setInterval] = useState<PricingInterval>(
     initialInterval ?? defaultPricingInterval(),
   );
-  const [teamSeats, setTeamSeats] = useState<number>(PE_PRICING.team.baseSeats);
+  const [teamSeats, setTeamSeats] = useState<number>(
+    initialTeamSeats ?? PE_PRICING.team.baseSeats,
+  );
   const showSeatStepper = teamSeatsControlVisible(interval);
 
   const emphasize = (tier: PeCheckoutTier): boolean =>
@@ -134,6 +143,7 @@ export function PricingModal({
           interval: subscriptionSession.interval,
           parcelNodeId: subscriptionSession.parcelNodeId,
           situs: subscriptionSession.situs,
+          seats: subscriptionSession.seats,
         }).replace(/^\/checkout/, "")}
         session={{
           clientSecret: subscriptionSession.clientSecret,
@@ -320,6 +330,7 @@ export function PricingModal({
               tier={tier}
               interval={interval}
               emphasized={emphasize(tier)}
+              teamSeats={tier === "team" ? checkoutSeats : undefined}
             />
           ))}
 
@@ -414,6 +425,13 @@ export function PricingModal({
               }}
             />
             <span>{PE_PRICING.team.seatNote}</span>
+            <span
+              data-testid="pricing-team-12-total"
+              data-usd={String(teamMonthlyTotalUsd(12))}
+              style={{ color: TEXT }}
+            >
+              12 seats {teamMonthlyTotalLabel(12)}/mo
+            </span>
           </label>
         ) : null}
 
@@ -438,6 +456,14 @@ export function PricingModal({
               {" — "}
               {PE_PRICING.property.blurb}
             </div>
+            {shouldShowSoloCompare(unlocksThisWeek()) ? (
+              <p
+                data-testid="pricing-solo-second-unlock"
+                style={{ margin: 0, fontSize: 11, lineHeight: 1.45, color: BODY }}
+              >
+                {PE_PRICING.soloSecondUnlockFact}
+              </p>
+            ) : null}
             {studioOnly ? (
               <p
                 data-testid="pricing-unlock-na-note"
@@ -508,12 +534,21 @@ function ColumnHead({
   tier,
   interval,
   emphasized,
+  teamSeats,
 }: {
   tier: PeCheckoutTier;
   interval: PricingInterval;
   emphasized: boolean;
+  teamSeats?: number;
 }) {
-  const headline = tierHeadline(tier, interval);
+  const headline =
+    tier === "team" && interval === "monthly" && teamSeats != null
+      ? {
+          amount: teamMonthlyTotalLabel(teamSeats),
+          suffix: PE_PRICING.team.monthlySuffix,
+          compare: `${teamSeats} seats · then ${PE_PRICING.team.extraSeatPriceLabel}${PE_PRICING.team.extraSeatPeriod} after ${PE_PRICING.team.baseSeats}`,
+        }
+      : tierHeadline(tier, interval);
   return (
     <div
       data-testid={`pricing-${tier}-card`}

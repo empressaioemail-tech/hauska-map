@@ -1,34 +1,49 @@
-// Request acknowledgement — design artboard B (Phase 1 scaffold, stub GIS hits).
+// Request acknowledgement — design artboard B (live GIS hits when API wired).
 
 import { Button } from "../../components/Button";
+import { PE } from "../../styles/pe-chrome";
 import {
   ATOM_ACCENT,
   ATOM_ACCENT_BG,
   ATOM_ACCENT_BORDER,
 } from "../../shared/atom-chip/atom-accent";
 import { SCAFFOLD_ACK_GIS_HITS, SCAFFOLD_SEARCH_SCOPE } from "./records-request-scaffold-data";
+import type { RecordsInstantGisHit } from "./records-request-types";
 
-const APP_INK = "var(--app-ink, #0b0e13)";
-const TEXT = "var(--text-body, #E9EEF5)";
-const MUTED = "var(--surface-muted, #64748B)";
-const MUTED_2 = "var(--text-muted, #94A3B8)";
-const SLATE = "var(--honest-absence, #7C8BA0)";
-const BLUE = "var(--brand-blue, #3B82F6)";
+const APP_INK = PE.ink;
+const TEXT = PE.textStrong;
+const MUTED = PE.muted2;
+const MUTED_2 = PE.muted;
+const SLATE = PE.absence;
+const BLUE = PE.accent;
 const CARD_BORDER = "rgba(154,166,178,0.16)";
 
 export function RecordsAcknowledgementPanel({
   countyName,
   email,
+  gisHits,
+  gisMode = "scaffold",
   onBack,
   onWatchRun,
 }: {
   countyName: string | null;
   email?: string | null;
+  /** Live hits from the job's instant GIS query; scaffold mode ignores this. */
+  gisHits?: RecordsInstantGisHit[];
+  gisMode?: "scaffold" | "live";
   onBack?: () => void;
   onWatchRun?: () => void;
 }) {
   const county = countyName ?? "the county";
   const contact = email ?? "your account email";
+  const scaffoldHits = SCAFFOLD_ACK_GIS_HITS.map((hit) => ({
+    id: hit.id,
+    title: hit.title,
+    citation: hit.citation,
+    mapNote: hit.mapNote,
+  }));
+  const displayHits = gisMode === "live" ? (gisHits ?? []) : scaffoldHits;
+  const showGisResearchingOnly = gisMode === "live" && displayHits.length === 0;
 
   return (
     <div
@@ -101,56 +116,68 @@ export function RecordsAcknowledgementPanel({
         >
           Already known from public GIS
         </div>
-        <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
-          {SCAFFOLD_ACK_GIS_HITS.map((hit) => (
-            <div
-              key={hit.title}
-              data-testid={`records-ack-gis-${hit.id}`}
-              style={{
-                border: `1px solid ${ATOM_ACCENT_BORDER}`,
-                background: ATOM_ACCENT_BG,
-                borderRadius: 9,
-                padding: "11px 12px",
-                display: "flex",
-                flexDirection: "column",
-                gap: 6,
-              }}
-            >
-              <div style={{ fontSize: 13, fontWeight: 600, color: TEXT }}>
-                {hit.title}
-              </div>
+        {showGisResearchingOnly ? (
+          <div
+            data-testid="records-ack-gis-researching"
+            style={{ fontSize: 12.5, lineHeight: 1.6, color: MUTED_2 }}
+          >
+            No public GIS easements intersect this parcel. The clerk index
+            search is researching recorded instruments in the background.
+          </div>
+        ) : (
+          <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+            {displayHits.map((hit) => (
               <div
+                key={hit.id}
+                data-testid={`records-ack-gis-${hit.id}`}
                 style={{
+                  border: `1px solid ${ATOM_ACCENT_BORDER}`,
+                  background: ATOM_ACCENT_BG,
+                  borderRadius: 9,
+                  padding: "11px 12px",
                   display: "flex",
-                  alignItems: "center",
-                  gap: 8,
-                  flexWrap: "wrap",
+                  flexDirection: "column",
+                  gap: 6,
                 }}
               >
-                <span
+                <div style={{ fontSize: 13, fontWeight: 600, color: TEXT }}>
+                  {hit.title}
+                </div>
+                <div
                   style={{
-                    fontFamily: "ui-monospace, Menlo, monospace",
-                    fontSize: 10.5,
-                    color: ATOM_ACCENT,
-                    border: `1px solid ${ATOM_ACCENT_BORDER}`,
-                    background: ATOM_ACCENT_BG,
-                    borderRadius: 4,
-                    padding: "2px 6px",
+                    display: "flex",
+                    alignItems: "center",
+                    gap: 8,
+                    flexWrap: "wrap",
                   }}
                 >
-                  {hit.citation}
-                </span>
-                <span style={{ fontSize: 11.5, color: SLATE }}>
-                  {hit.mapNote}
-                </span>
+                  <span
+                    style={{
+                      fontFamily: "ui-monospace, Menlo, monospace",
+                      fontSize: 10.5,
+                      color: ATOM_ACCENT,
+                      border: `1px solid ${ATOM_ACCENT_BORDER}`,
+                      background: ATOM_ACCENT_BG,
+                      borderRadius: 4,
+                      padding: "2px 6px",
+                    }}
+                  >
+                    {hit.citation}
+                  </span>
+                  <span style={{ fontSize: 11.5, color: SLATE }}>
+                    {hit.mapNote}
+                  </span>
+                </div>
               </div>
-            </div>
-          ))}
-        </div>
-        <div style={{ fontSize: 11.5, lineHeight: 1.55, color: SLATE }}>
-          These come from GIS layers, not from recorded instruments. The clerk
-          index search may confirm, correct, or add to them.
-        </div>
+            ))}
+          </div>
+        )}
+        {!showGisResearchingOnly ? (
+          <div style={{ fontSize: 11.5, lineHeight: 1.55, color: SLATE }}>
+            These come from GIS layers, not from recorded instruments. The clerk
+            index search may confirm, correct, or add to them.
+          </div>
+        ) : null}
       </div>
 
       <div
@@ -208,9 +235,11 @@ export function RecordsAcknowledgementPanel({
         <Button type="button" variant="secondary" onClick={onBack}>
           Back to the parcel
         </Button>
-        <Button type="button" variant="ghost" onClick={onWatchRun}>
-          Watch the run →
-        </Button>
+        {onWatchRun ? (
+          <Button type="button" variant="ghost" onClick={onWatchRun}>
+            Watch the run →
+          </Button>
+        ) : null}
       </div>
     </div>
   );

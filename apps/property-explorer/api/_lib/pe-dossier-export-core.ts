@@ -56,6 +56,7 @@ export interface DossierExportRequestContent {
   brief?: { sections: DossierBriefSection[] }
   chatSummary?: DossierChatSummary
   notes?: string
+  liveViewUrl?: string
 }
 
 function asRecord(v: unknown): Record<string, unknown> | null {
@@ -119,8 +120,16 @@ function sanitizeChatSummary(value: unknown): DossierChatSummary | undefined {
 }
 
 /**
- * Parse + cap-trim the dossier refresh body. Absent/malformed pieces are
- * honestly DROPPED (the engine renders absence honestly), never defaulted.
+ * Parse + cap-trim the dossier refresh body.
+ *
+ * Three-way blank (W4.P0):
+ *   1. World-fact values (a flood cell, living area) may be absent inside a
+ *      carried brief — those stay on the request so the engine can name the
+ *      miss on the page.
+ *   2. User content (owner notes, saved AI summary) is omitted silently when
+ *      absent. Never default a "your notes: unavailable" row here.
+ *   3. Pipeline output (verdict, brief facts) is NOT defaulted here. The
+ *      caller MUST run refuseHollowXrayExport before any MCP/engine hop.
  */
 export function parseDossierExportContent(
   body: Record<string, unknown> | null | undefined,
@@ -139,7 +148,58 @@ export function parseDossierExportContent(
   if (chatSummary) out.chatSummary = chatSummary
   const notes = capStr(rec.notes, DOSSIER_NOTES_MAX_CHARS)
   if (notes) out.notes = notes
+  const liveViewUrl = capStr(rec.liveViewUrl, 500)
+  if (liveViewUrl) out.liveViewUrl = liveViewUrl
   return out
+}
+
+export const XRAY_PIPELINE_ABSENT_ERROR = 'pipeline_output_absent' as const
+
+export const XRAY_PIPELINE_ABSENT_MESSAGE =
+  'X-ray cannot be generated: the verdict and cited brief facts were not produced. Open the property brief and try again. A hollow report will not be downloaded.'
+
+/** Same sentence as VERDICT_UNRESOLVED.line in sheet-verdict.ts. A meaning-shaped test binds the two. */
+export const XRAY_VERDICT_PLACEHOLDER =
+  'This property has not resolved a fact sheet yet.'
+
+export type HollowXrayRefuse = {
+  ok: false
+  error: typeof XRAY_PIPELINE_ABSENT_ERROR
+  message: string
+  missing: Array<'verdict' | 'brief_facts'>
+}
+
+/**
+ * Fail-closed gate for X-ray export. Pipeline output (verdict line + at least
+ * one brief fact) must be present or the export is refused — no MCP call, no
+ * PDF bytes.
+ *
+ * An honest miss is a claim about the world and it earns trust. A pipeline
+ * error styled as an honest miss is an error message wearing the trust
+ * device as a costume, and it destroys the credibility of the real misses.
+ *
+ * User-content absence (notes, chat summary) is not a refuse. Those rows are
+ * omitted from the request, never rendered as UNAVAILABLE by this gate.
+ */
+export function refuseHollowXrayExport(
+  content: DossierExportRequestContent,
+): { ok: true } | HollowXrayRefuse {
+  const missing: Array<'verdict' | 'brief_facts'> = []
+  if (!content.verdictLine || content.verdictLine === XRAY_VERDICT_PLACEHOLDER) {
+    missing.push('verdict')
+  }
+  const factCount = (content.brief?.sections ?? []).reduce(
+    (n, section) => n + section.facts.length,
+    0,
+  )
+  if (factCount === 0) missing.push('brief_facts')
+  if (missing.length === 0) return { ok: true }
+  return {
+    ok: false,
+    error: XRAY_PIPELINE_ABSENT_ERROR,
+    message: XRAY_PIPELINE_ABSENT_MESSAGE,
+    missing,
+  }
 }
 
 // ---------------------------------------------------------------------------

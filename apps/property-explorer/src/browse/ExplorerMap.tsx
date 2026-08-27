@@ -44,7 +44,7 @@ import type {
 import "@hauska/map-renderer/styles.css";
 import "maplibre-gl/dist/maplibre-gl.css";
 import "./pe-mobile.css";
-import { DEFAULT_CENTER, PARCEL_TILES } from "../lib/config";
+import { DEFAULT_CENTER, PARCEL_TILES, resolveParcelTiles } from "../lib/config";
 import { cortexClient } from "../lib/cortexClient";
 import { parcelNodes } from "../lib/parcel-node-store.js";
 import { recordPeGtmEvent } from "../lib/gtmClient";
@@ -57,8 +57,8 @@ import {
   resolvePinForSave,
 } from "../lib/saved-pins";
 import { SavedPropertyPins } from "./SavedPropertyPins";
-import { iccCitationStatus } from "../lib/iccCitation";
 import { InspectCard } from "./InspectCard";
+import { getPropertyEntitlementSnapshot, isEntitled } from "../lib/entitlementClient";
 import { Workbench } from "../workbench/Workbench";
 import { WORKBENCH_TOOLS } from "../workbench/registry";
 import type { WorkbenchHostActions } from "../workbench/types";
@@ -67,6 +67,7 @@ import {
   sharedAnalysisToolDef,
   type ShareFunnelBinding,
 } from "../share/SharedDossierDock";
+import { shareFlightQuery } from "../share/share-flight";
 import { MapToolset, type LayerStateBadge } from "./MapToolset";
 import type { MapToolsController } from "./mapToolsController";
 import { asMaplibreMap } from "./satelliteBase";
@@ -94,6 +95,7 @@ import {
   inspectAsSoonAsIdKnown,
   pendingInspectFromLookup,
 } from "../lib/inspect-pending-card";
+import { inspectStealsWorkbenchDock } from "./inspect-dock";
 import { UnplaceableParcelCard } from "./UnplaceableParcelCard";
 import type {
   ParcelFactSheet,
@@ -326,6 +328,7 @@ function ExplorerMapSurface({
 }) {
   const { isMobile, activeSheet, openSheet } = useMobilePanel();
   const mapRef = useRef<FloatingMapHandle>(null);
+  const [parcelTiles, setParcelTiles] = useState(PARCEL_TILES);
   const [parcels, setParcels] = useState<LayerSlot>(IDLE);
   const [fema, setFema] = useState<LayerSlot>(IDLE);
   const [topo, setTopo] = useState<TopoSlot>(TOPO_IDLE);
@@ -425,10 +428,18 @@ function ExplorerMapSurface({
   const [openWorkbenchTool, setOpenWorkbenchToolState] = useState<string | null>(
     share ? SHARED_ANALYSIS_TOOL_ID : null,
   );
+  const [inspectBriefOpen, setInspectBriefOpen] = useState(false);
   const setOpenWorkbenchTool = useCallback(
     (next: string | null) => {
       setOpenWorkbenchToolState(next);
       if (isMobile && next) openSheet("research");
+    },
+    [isMobile, openSheet],
+  );
+  const ensureWorkbenchTool = useCallback(
+    (id: string) => {
+      setOpenWorkbenchToolState(id);
+      if (isMobile) openSheet("research");
     },
     [isMobile, openSheet],
   );
@@ -467,6 +478,17 @@ function ExplorerMapSurface({
   const [paywallHighlightTier, setPaywallHighlightTier] = useState<
     "solo" | "studio" | "team" | undefined
   >(undefined);
+
+  // F-06: prefer tiles.json manifest over the build-time hash pin when present.
+  useEffect(() => {
+    let cancelled = false;
+    resolveParcelTiles().then((resolved) => {
+      if (!cancelled) setParcelTiles(resolved);
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, []);
 
   // Phase 0A cold-open: parcel line-only visible; full consumer catalog known
   // so presets / checkboxes can disclose layers. Pins are chrome (not a map layer).
@@ -779,6 +801,7 @@ function ExplorerMapSurface({
       next: ParcelCardData,
       parcelNodeId: string | null,
       parcelGeometry: unknown = null,
+      dock?: { keepDock?: boolean },
     ) => {
       const handle = mapRef.current;
       // Clear any prior envelope wedge — a new parcel starts with no envelope
@@ -810,7 +833,12 @@ function ExplorerMapSurface({
       inspectedRef.current = { card: next, parcelNodeId };
       setCard(next);
       setCardNodeId(parcelNodeId);
-      if (isMobile) openSheet("property");
+      if (inspectStealsWorkbenchDock(dock?.keepDock)) {
+        if (isMobile) openSheet("property");
+        else {
+          setOpenWorkbenchToolState("brief");
+        }
+      }
       parcelNodes.setInspected(
         {
           id:
@@ -922,6 +950,8 @@ function ExplorerMapSurface({
         lat?: number;
         lng?: number;
         trustedRooftop?: { lat: number; lng: number };
+        /** Fly/inspect without switching the right rail to Brief (W3.1). */
+        keepDock?: boolean;
       },
     ): Promise<boolean> => {
       const q = query.trim();
@@ -981,7 +1011,7 @@ function ExplorerMapSurface({
             // before awaiting the seal — without this gate the Find card
             // overwrites the click and inspectedRef follows the race loser.
             if (!lookupIntentRef.current.isCurrent(started)) return;
-            inspectInPlace(card, id, geom);
+            inspectInPlace(card, id, geom, { keepDock: opts?.keepDock });
           },
           () =>
             setSubjectByParcelNodeId(
@@ -1042,6 +1072,7 @@ function ExplorerMapSurface({
                 coordinates: [sheet.geometry.rings[0]],
               }
             : null,
+          { keepDock: opts?.keepDock },
         );
 
         // 4. I5: the camera follows the parcel's GEOMETRY. The centroid is
@@ -1195,9 +1226,23 @@ function ExplorerMapSurface({
         fitExtent,
         showChip: showSearchChip,
         highlightStreet,
+      }).then((out) => {
+        if (
+          (out.kind === "parcel" && out.opened) ||
+          (out.kind === "address" && out.opened)
+        ) {
+          ensureWorkbenchTool("brief");
+        }
       });
     },
-    [runParcelLookup, flyToPoint, fitExtent, showSearchChip, highlightStreet],
+    [
+      runParcelLookup,
+      flyToPoint,
+      fitExtent,
+      showSearchChip,
+      highlightStreet,
+      ensureWorkbenchTool,
+    ],
   );
 
   // Viewport bias for the geocoder — current LIVE camera center + zoom.
@@ -1232,11 +1277,12 @@ function ExplorerMapSurface({
   // error line — the docked analysis still renders from the token-gated BFF.
   const shareFlightDoneRef = useRef(false);
   useEffect(() => {
-    if (!share || share.phase.kind !== "ready" || shareFlightDoneRef.current) {
+    const flightQuery = share ? shareFlightQuery(share) : null;
+    if (!share || !flightQuery || shareFlightDoneRef.current) {
       return;
     }
     shareFlightDoneRef.current = true;
-    void runParcelLookup(share.phase.data.property.parcelNodeId, {
+    void runParcelLookup(flightQuery, {
       quiet: true,
     });
   }, [share, runParcelLookup]);
@@ -1382,9 +1428,16 @@ function ExplorerMapSurface({
     // --- (1) DRAW the buildable-envelope wedge through the overlays path. ---
     const norm = normalizeEnvelope(result);
     if (norm.kind === "ok" && norm.insetGeometry) {
-      // Real server-computed inset polygon (baked "ok" or live ok) -> amber
-      // inset fill + dashed setback edge. The primary wedge visual.
-      setEnvelopeOverlays([envelopeInsetOverlay(norm.insetGeometry)]);
+      // W7.5: Free states the envelope as a number. Drawing is the X-ray.
+      const snap = forParcelNodeId
+        ? getPropertyEntitlementSnapshot(forParcelNodeId)
+        : null;
+      const mayDraw = snap != null && isEntitled(snap);
+      if (mayDraw) {
+        setEnvelopeOverlays([envelopeInsetOverlay(norm.insetGeometry)]);
+      } else {
+        setEnvelopeOverlays([]);
+      }
     } else if (norm.kind === "empty") {
       // Honest 0%: setbacks consume the lot. No amber fill (that would fabricate
       // buildable area). Outline the whole parcel in the dashed setback style
@@ -1402,7 +1455,11 @@ function ExplorerMapSurface({
         envelopeParcelNodeId:
           forParcelNodeId ?? inspectedRef.current?.parcelNodeId ?? null,
       });
-      const outline = setbackConsumedOverlay(parcelGeom);
+      const snap = forParcelNodeId
+        ? getPropertyEntitlementSnapshot(forParcelNodeId)
+        : null;
+      const mayDraw = snap != null && isEntitled(snap);
+      const outline = mayDraw ? setbackConsumedOverlay(parcelGeom) : null;
       setEnvelopeOverlays(outline ? [outline] : []);
     } else {
       // No client uniform inset — geometry must come from live derive (WDLL).
@@ -1442,6 +1499,8 @@ function ExplorerMapSurface({
     // Road NETWORK is viewport-owned — keep drawing after card close.
     setCard(null);
     setCardNodeId(null);
+    setInspectBriefOpen(false);
+    setOpenWorkbenchToolState((cur) => (cur === "brief" ? null : cur));
     parcelNodes.setInspected(null, "close-inspect");
   }, []);
   closeInspectRef.current = closeInspect;
@@ -1660,20 +1719,19 @@ function ExplorerMapSurface({
     inspectedRef.current?.parcelNodeId != null &&
     inspectedRef.current.parcelNodeId === subjectNodeIdRef.current;
 
-  // WB1: "Research this →" now OPENS the workbench brief bubble/dock. The
-  // fetch itself (same endpoint, same 401/402/503/404 states) moved into the
-  // BriefTool (workbench/tools/brief-research.ts) and its result is
-  // per-property persistent via the chassis store. With no baked node id the
-  // dock renders the honest "select a property first" state.
+  // Research this → opens the right-rail brief dock (inspect lives inside it).
   const handleResearch = useCallback(() => {
     const nodeId = cardNodeId ?? inspectedRef.current?.parcelNodeId ?? null;
     void recordPeGtmEvent({
       eventType: "pe_research_clicked",
       parcelNodeId: nodeId,
     });
-    setOpenWorkbenchTool("brief");
-    if (isMobile) openSheet("research");
-  }, [cardNodeId, isMobile, openSheet]);
+    ensureWorkbenchTool("brief");
+    if (isMobile) {
+      setInspectBriefOpen((open) => !open);
+      openSheet("research");
+    }
+  }, [cardNodeId, isMobile, openSheet, ensureWorkbenchTool]);
 
   // W2: latest inspect-card display facts for the Reports tool's site-plan
   // sheet header (mutable-latest ref so the memoized host stays stable).
@@ -1694,7 +1752,7 @@ function ExplorerMapSurface({
   const workbenchHost = useMemo<WorkbenchHostActions>(
     () => ({
       openTool: (toolId: string) => {
-        setOpenWorkbenchTool(toolId);
+        ensureWorkbenchTool(toolId);
       },
       openPaywall: (
         message: string,
@@ -1720,7 +1778,7 @@ function ExplorerMapSurface({
       },
       getActiveParcelFacts: () => cardFactsRef.current,
       openProperty: (parcelNodeId: string) => {
-        void runParcelLookup(parcelNodeId);
+        void runParcelLookup(parcelNodeId, { keepDock: true });
       },
       // WB6 dossier: capture the live draw/measure/marker geometries. Null
       // when the toolset never installed (map still mounting) — honest absence.
@@ -1745,7 +1803,7 @@ function ExplorerMapSurface({
         floodOverlay.set(study, forParcelNodeId ?? null);
       },
     }),
-    [runParcelLookup, floodOverlay, setOpenWorkbenchTool],
+    [runParcelLookup, floodOverlay, ensureWorkbenchTool],
   );
 
   // ACTIVE PROPERTY for the workbench: the currently-INSPECTED parcel's baked
@@ -1839,10 +1897,11 @@ function ExplorerMapSurface({
         // into the same lower-right corner (a floating imagery strip overlapping
         // the ⓘ / layers bubbles). One attribution place, not two.
         suppressAttributionControl
+        legendChrome="bubble"
         // Mount-time seed ONLY (stable identity). Subject changes re-point the
         // live handle via rebindProperty — the center prop never re-points.
         center={DEFAULT_CENTER}
-        parcelTiles={PARCEL_TILES}
+        parcelTiles={parcelTiles}
         overlays={mapOverlays}
         visibleLayers={rendererVisibleLayers}
         onParcelSelect={handleParcelSelect}
@@ -1869,9 +1928,18 @@ function ExplorerMapSurface({
           onToolsController={handleToolsController}
           isMobile={isMobile}
           layersSheetOpen={isMobile && activeSheet === "layers"}
-          // Aerial ON by default on landing — makes a better first impression
-          // than the dark basemap (operator decision, 2026-08-03).
           defaultSatellite={true}
+          anchor="left"
+          splitBubbles
+          stackExtras={
+            isMobile ? null : (
+              <MapSourceInfo
+                lines={sourceLines}
+                isMobile={false}
+                variant="stack"
+              />
+            )
+          }
         />
       )}
 
@@ -1891,26 +1959,52 @@ function ExplorerMapSurface({
           card). */}
       <SmartSiteBadge isMobile={isMobile} />
 
-      {/* Lower-right: the REQUIRED source/attribution AND the single attribution
-          place for the map, collapsed by default into a circular ⓘ bubble next
-          to the layers bubble (MapToolset). Clicking the ⓘ expands the live
-          source lines PLUS the required basemap/imagery credit (© OSM / © CARTO,
-          Esri) — MapLibre's own AttributionControl is suppressed on this mount
-          path (suppressAttributionControl above) so there is one credit UI, not
-          two overlapping in this corner. */}
-      <MapSourceInfo lines={sourceLines} isMobile={isMobile} />
-
-      {/* PE WORKBENCH (WB1): top-right bubble cluster + the ONE shared dock.
-          One tool open at a time; per-property persistent state via the
-          chassis store; the brief is the first live tool. The bottom-right
-          MapToolset bubble is a SEPARATE cluster (map utilities) — untouched. */}
+      {/* PE WORKBENCH: right-rail bubbles. One tool open. Dock on the right.
+          Inspect facts live inside the brief dock, not as a left overlay. */}
       <Workbench
         tools={workbenchTools}
         openToolId={openWorkbenchTool}
         onOpenToolChange={setOpenWorkbenchTool}
+        inspectSlot={
+          card && !isMobile ? (
+            <InspectCard
+              card={card}
+              parcelNodeId={cardNodeId}
+              isSubject={isSubject}
+              embedded
+              onClose={closeInspect}
+              onEnvelope={handleEnvelope}
+              onMakeSubject={handleMakeSubject}
+              onResearch={handleResearch}
+              onSaveProperty={handleSaveProperty}
+            />
+          ) : null
+        }
         activeParcelNodeId={activeParcelNodeId}
         host={workbenchHost}
-      />
+      >
+        {card && isMobile && (
+          <MobileSheet
+            open={activeSheet === "property"}
+            testId="mobile-property-sheet"
+          >
+            <InspectCard
+              card={card}
+              parcelNodeId={cardNodeId}
+              isSubject={isSubject}
+              researchOpen={inspectBriefOpen}
+              onClose={() => {
+                closeInspect();
+                openSheet("map");
+              }}
+              onEnvelope={handleEnvelope}
+              onMakeSubject={handleMakeSubject}
+              onResearch={handleResearch}
+              onSaveProperty={handleSaveProperty}
+            />
+          </MobileSheet>
+        )}
+      </Workbench>
 
       {/* Type-ahead search (rebuilt Find bar): grouped suggestions with
           viewport bias; kind-aware landing (parcel → inspect card, address →
@@ -1949,39 +2043,7 @@ function ExplorerMapSurface({
         </MobileSheet>
       )}
 
-      {card && !isMobile && (
-        <InspectCard
-          card={card}
-          parcelNodeId={cardNodeId}
-          isSubject={isSubject}
-          onClose={closeInspect}
-          onEnvelope={handleEnvelope}
-          onMakeSubject={handleMakeSubject}
-          onResearch={handleResearch}
-          onSaveProperty={handleSaveProperty}
-        />
-      )}
-
-      {card && isMobile && (
-        <MobileSheet
-          open={activeSheet === "property"}
-          testId="mobile-property-sheet"
-        >
-          <InspectCard
-            card={card}
-            parcelNodeId={cardNodeId}
-            isSubject={isSubject}
-            onClose={() => {
-              closeInspect();
-              openSheet("map");
-            }}
-            onEnvelope={handleEnvelope}
-            onMakeSubject={handleMakeSubject}
-            onResearch={handleResearch}
-            onSaveProperty={handleSaveProperty}
-          />
-        </MobileSheet>
-      )}
+      {/* Inspect card mounts inside <Workbench> so BriefTool has chassis context. */}
 
       {/* THE ONE pricing modal (2026-08-24 ruling) — serves the reactive
           server-402 belt AND the dock locked-panels' "View pricing" button.
@@ -1997,7 +2059,6 @@ function ExplorerMapSurface({
           }
           studioOnly={paywallStudioOnly}
           highlightTier={paywallHighlightTier}
-          statusNote={iccCitationStatus().live ? null : iccCitationStatus().message}
           onClose={() => setPaywallOpen(false)}
         />
       )}

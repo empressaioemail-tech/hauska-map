@@ -12,6 +12,7 @@ import {
   sanitizeDrawings,
   sanitizePin,
   sanitizeStatus,
+  statusRemovesProperty,
   savedRowDisplayLabel,
   upsertChatThread,
   upsertExportEntry,
@@ -165,6 +166,34 @@ describe('WB7 pin + status — additive schema, defensive parse', () => {
     expect(sanitizePin({ lat: 91, lng: -97 })).toBeNull()
     expect(sanitizePin({ lat: 30, lng: 181 })).toBeNull()
     expect(sanitizePin({ lat: 30.1, lng: -97.2 })).toEqual({ lat: 30.1, lng: -97.2 })
+  })
+
+  it('W3.6 pass does not auto-delete (violate: return true for passed)', () => {
+    expect(statusRemovesProperty('passed')).toBe(false)
+    expect(statusRemovesProperty('researching')).toBe(false)
+    expect(statusRemovesProperty('offer')).toBe(false)
+    expect(statusRemovesProperty(null)).toBe(false)
+  })
+
+  it('keeps an xray export kind (violate: drop xray as unknown)', () => {
+    const out = sanitizeDossier({
+      exports: [
+        {
+          kind: 'xray',
+          format: 'pdf-dossier',
+          savedAt: '2026-08-27T00:00:00Z',
+          downloadPath: '/api/pe-site-plan-export?kind=dossier',
+        },
+      ],
+    })
+    expect(out.exports).toEqual([
+      {
+        kind: 'xray',
+        format: 'pdf-dossier',
+        savedAt: '2026-08-27T00:00:00Z',
+        downloadPath: '/api/pe-site-plan-export?kind=dossier',
+      },
+    ])
   })
 
   it('sanitizeStatus accepts only the three-state union', () => {

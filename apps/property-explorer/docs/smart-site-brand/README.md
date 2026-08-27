@@ -1,5 +1,9 @@
 # Smart Site — brand handoff
 
+> **HISTORICAL.** The "full re-accent to gold" section below is dead.
+> Live law is `src/styles/pe-tokens.css` + `src/styles/pe-chrome.ts` +
+> `src/components/Button.tsx`. Gold is mark-only. Blue is the action hue.
+
 Reference package for the property-explorer rebrand (Empressa to Smart Site).
 Built from the real app containers in apps/property-explorer/src (SignUpCard,
 SearchBar, InspectCard, Workbench). Nothing here has been wired into the app —

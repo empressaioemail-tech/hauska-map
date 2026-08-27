@@ -95,6 +95,8 @@ export interface FloatingMapProps {
    * keep MapLibre carrying the legally-required basemap credit.
    */
   suppressAttributionControl?: boolean;
+  /** PE restyles the renderer legend chip as a 34px bubble. CC keeps the chip. */
+  legendChrome?: "chip" | "bubble";
   /** Title shown in the floating window title bar. */
   title?: string;
   /** Container style overrides. */
@@ -206,6 +208,7 @@ export const FloatingMap = forwardRef<FloatingMapHandle, FloatingMapProps>(
       onWindowStateChange,
       floating = true,
       suppressAttributionControl = false,
+      legendChrome = "chip",
       title = "Floating map",
       style,
       className,
@@ -236,7 +239,7 @@ export const FloatingMap = forwardRef<FloatingMapHandle, FloatingMapProps>(
       const slot = slotRef.current;
       if (!slot) return;
 
-      const renderer = createMapRenderer({ suppressAttributionControl });
+      const renderer = createMapRenderer({ suppressAttributionControl, legendChrome });
       rendererRef.current = renderer;
 
       renderer.mount(slot);

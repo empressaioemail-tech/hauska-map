@@ -1,5 +1,13 @@
 # Smart Site — Design System Brief
 
+> **HISTORICAL (authored 2026-08-03). Do not implement this brief.**
+> Gold-as-primary and Oxygen as a live face are dead. Live law is
+> `src/styles/pe-tokens.css`, `src/styles/pe-chrome.ts`, and
+> `src/components/Button.tsx`. Gold is the mark only, never a button.
+> Blue `#3B82F6` is the only loud action. Body type is system UI.
+> Absence is slate `#7C8BA0`. Map search-highlight cyan `#7dd3fc` stays
+> an overlay island. Do not import the SmartCity kit.
+
 For: Claude design (build the design system) · authored by planner · 2026-08-03
 Target: `hauska-map/apps/property-explorer` · Ground: near-black `#0b0e13` chrome · Sister app to Smart City OS (shares the family, NOT the navy skin)
 

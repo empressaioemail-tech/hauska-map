@@ -13,19 +13,40 @@ import {
   DOSSIER_STATUSES,
   savedRowDisplayLabel,
   cleanDisplayString,
+  type DossierChatThread,
   type DossierExportEntry,
   type DossierStatus,
 } from "../../lib/propertyDossier";
 import { pinAccent } from "../../lib/saved-pins";
+import { cleanChatDisplay, nextOpenChatThread } from "../../lib/chat-display";
+import {
+  SHARE_PERSONAS,
+  SHARE_PERSONA_LABELS,
+  defaultShareMessage,
+  isSharePersona,
+  type SharePersona,
+} from "../../lib/share-personas";
+import type { ShareReportSelection } from "../../lib/share-package";
+import { Button } from "../../components/Button";
+import { TextArea } from "../../components/Input";
+import { PE } from "../../styles/pe-chrome";
 
-const MUTED = "var(--surface-muted, #94A3B8)";
-const AMBER = "var(--semantic-warning, #F59E0B)"; // caution notice (was raw yellow #fcd34d)
-const TEXT = "var(--text-body, #e5e7eb)";
-const ACCENT = "var(--brand-blue, #3B82F6)"; // PRIMARY interactive hue (was cyan #7dd3fc)
+const MUTED = PE.muted;
+const AMBER = PE.warning;
+const TEXT = PE.text;
+const ACCENT = PE.accent;
 const SECTION_BORDER = "1px solid rgba(154,166,178,0.2)";
 
 /** Debounce delay for notes autosave (ms). Exported for tests. */
 export const NOTES_SAVE_DEBOUNCE_MS = 800;
+
+export interface PropertyShareMint {
+  persona: SharePersona;
+  message: string;
+  includeNotes: boolean;
+  includeXray: boolean;
+  includeFlood: boolean;
+}
 
 function fmtDate(iso: string | null | undefined): string | null {
   if (!iso) return null;
@@ -57,7 +78,9 @@ function exportLabel(entry: DossierExportEntry): string {
       ? "Site plan"
       : entry.kind === "flood-drainage"
         ? "Flood & drainage"
-        : "Terrain";
+        : entry.kind === "xray"
+          ? "X-ray"
+          : "Terrain";
   return `${kindLabel} · ${entry.format}`;
 }
 
@@ -128,7 +151,9 @@ export function PropertyDossierDetail({
   onShowDrawings,
   onSaveNotes,
   onSetStatus,
-  onExportDossier,
+  onMintShare,
+  onToggleShareReport,
+  shareUrl,
 }: {
   row: SavedPropertyRow;
   busy: boolean;
@@ -143,12 +168,10 @@ export function PropertyDossierDetail({
   onSaveNotes: (text: string) => void;
   /** WB7d — persist the single-select status (null clears to unset). */
   onSetStatus: (status: DossierStatus | null) => void;
-  /**
-   * Export the ONE hand-to-client dossier PDF (engine-assembled: verdict +
-   * cited brief facts + AI chat summary + notes + appended site-plan sheets).
-   * Optional so existing render tests keep passing; absent hides the section.
-   */
-  onExportDossier?: () => void;
+  /** On-property share mint (W3.3). Optional for older render tests. */
+  onMintShare?: (pkg: PropertyShareMint) => void;
+  onToggleShareReport?: (report: "xray" | "flood", included: boolean) => void;
+  shareUrl?: string | null;
 }) {
   const dossier = row.snapshot ?? {};
   const title = savedRowDisplayLabel(row);
@@ -163,22 +186,16 @@ export function PropertyDossierDetail({
   return (
     <div data-testid="dossier-detail">
       {/* BACK — returns to the master list (same dock, one surface). */}
-      <button
+      <Button
+        variant="ghost"
+        dense
         type="button"
         data-testid="dossier-back"
         onClick={onBack}
-        style={{
-          background: "transparent",
-          border: "none",
-          color: ACCENT,
-          cursor: "pointer",
-          padding: 0,
-          fontSize: 11.5,
-          marginBottom: 8,
-        }}
+        style={{ padding: 0, border: "none", marginBottom: 8, fontSize: 11.5 }}
       >
         ← All saved properties
-      </button>
+      </Button>
 
       {/* HEADER — label / address / parcel id / saved-at. */}
       <div data-testid="dossier-header" style={{ marginBottom: 4 }}>
@@ -218,6 +235,16 @@ export function PropertyDossierDetail({
         onSave={onSaveNotes}
       />
 
+      {sectionHeader("Share")}
+      <PropertySharePicker
+        notesPresent={Boolean(dossier.notes && dossier.notes.trim())}
+        reportSelection={dossier.shareReportSelection ?? null}
+        busy={busy}
+        shareUrl={shareUrl ?? null}
+        onMintShare={onMintShare}
+        onToggleShareReport={onToggleShareReport}
+      />
+
       {/* DRAWINGS — capture current map annotations / redraw saved ones. */}
       {sectionHeader("Map drawings")}
       <div data-testid="dossier-drawings">
@@ -227,25 +254,27 @@ export function PropertyDossierDetail({
             : "No drawings saved for this property yet."}
         </p>
         <div style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>
-          <button
+          <Button
+            variant="secondary"
+            dense
             type="button"
             data-testid="dossier-save-drawings"
             onClick={onSaveDrawings}
             disabled={busy}
-            style={actionButtonStyle(busy)}
           >
             Save current drawings
-          </button>
+          </Button>
           {drawingsCount > 0 && (
-            <button
+            <Button
+              variant="secondary"
+              dense
               type="button"
               data-testid="dossier-show-drawings"
               onClick={onShowDrawings}
               disabled={busy}
-              style={actionButtonStyle(busy)}
             >
               Show on map
-            </button>
+            </Button>
           )}
         </div>
       </div>
@@ -259,49 +288,7 @@ export function PropertyDossierDetail({
           {sectionHeader("Chat research")}
 
           {chatThreads.length > 0 && (
-            <div data-testid="dossier-chat-threads" style={{ marginBottom: 6 }}>
-              <div style={{ fontSize: 10, color: MUTED, marginBottom: 4 }}>
-                {chatThreads.length} saved chat
-                {chatThreads.length === 1 ? "" : "s"} on this property
-              </div>
-              {chatThreads.map((t) => (
-                <details
-                  key={t.id}
-                  data-testid="dossier-chat-thread-item"
-                  style={{ marginBottom: 4 }}
-                >
-                  <summary
-                    style={{ fontSize: 11, color: TEXT, cursor: "pointer", fontWeight: 600 }}
-                  >
-                    {t.title ?? "Untitled chat"}
-                    <span style={{ color: MUTED, fontWeight: 400, fontSize: 9.5 }}>
-                      {" "}
-                      · {t.turnCount} turn{t.turnCount === 1 ? "" : "s"}
-                      {fmtDate(t.savedAt) ? ` · ${fmtDate(t.savedAt)}` : ""}
-                    </span>
-                  </summary>
-                  <div
-                    style={{ marginTop: 4, borderLeft: SECTION_BORDER, paddingLeft: 8 }}
-                  >
-                    {t.turns.map((turn, i) => (
-                      <p
-                        key={i}
-                        style={{
-                          margin: "0 0 5px",
-                          fontSize: 10.5,
-                          color: turn.role === "user" ? ACCENT : TEXT,
-                        }}
-                      >
-                        <span style={{ fontWeight: 600 }}>
-                          {turn.role === "user" ? "You: " : "AI: "}
-                        </span>
-                        {turn.content}
-                      </p>
-                    ))}
-                  </div>
-                </details>
-              ))}
-            </div>
+            <DossierChatThreads threads={chatThreads} />
           )}
 
           {chatSummary && (
@@ -317,7 +304,7 @@ export function PropertyDossierDetail({
                   whiteSpace: "pre-wrap",
                 }}
               >
-                {chatSummary.summary}
+                {cleanChatDisplay(chatSummary.summary)}
               </p>
               <p
                 data-testid="dossier-summary-disclaimer"
@@ -352,39 +339,12 @@ export function PropertyDossierDetail({
                     <span style={{ fontWeight: 600 }}>
                       {turn.role === "user" ? "You: " : "AI: "}
                     </span>
-                    {turn.content}
+                        {cleanChatDisplay(turn.content)}
                   </p>
                 ))}
               </div>
             </details>
           )}
-        </>
-      )}
-
-      {/* DOSSIER PDF — the one hand-to-client document. The ENGINE assembles
-          it from what this property already holds (verdict + cited brief
-          facts + the AI chat summary + notes, site-plan sheets appended);
-          anything absent renders honestly absent. Property entitlement
-          gates it server-side (402 → paywall). */}
-      {onExportDossier && (
-        <>
-          {sectionHeader("X-ray")}
-          <div data-testid="dossier-export-pdf">
-            <p style={{ margin: "0 0 6px", fontSize: 10.5, color: MUTED }}>
-              One PDF for this property — verdict, cited brief facts, the AI
-              chat summary, your notes, and the site-plan sheets when
-              available.
-            </p>
-            <button
-              type="button"
-              data-testid="dossier-export-pdf-button"
-              onClick={onExportDossier}
-              disabled={busy}
-              style={actionButtonStyle(busy)}
-            >
-              {busy ? "Working…" : "Export X-ray PDF"}
-            </button>
-          </div>
         </>
       )}
 
@@ -437,18 +397,269 @@ export function PropertyDossierDetail({
   );
 }
 
-function actionButtonStyle(busy: boolean): React.CSSProperties {
-  return {
-    fontSize: 10.5,
-    fontWeight: 600,
-    color: ACCENT,
-    background: "transparent",
-    border: "1px solid var(--brand-blue-border, rgba(59,130,246,0.4))",
-    borderRadius: 5,
-    padding: "3px 9px",
-    cursor: busy ? "default" : "pointer",
-    opacity: busy ? 0.6 : 1,
+export function DossierChatThreads({
+  threads,
+  openThreadId,
+  onToggleThread,
+}: {
+  threads: DossierChatThread[];
+  openThreadId?: string | null;
+  onToggleThread?: (id: string) => void;
+}) {
+  const [internalOpen, setInternalOpen] = useState<string | null>(null);
+  const openId = openThreadId !== undefined ? openThreadId : internalOpen;
+  const toggle = (id: string) => {
+    if (onToggleThread) onToggleThread(id);
+    else setInternalOpen((cur) => nextOpenChatThread(cur, id));
   };
+  const dated = [...threads].sort((a, b) => (a.savedAt < b.savedAt ? 1 : -1));
+
+  return (
+    <div data-testid="dossier-chat-threads" style={{ marginBottom: 6 }}>
+      <div style={{ fontSize: 10, color: MUTED, marginBottom: 4 }}>
+        {dated.length} saved chat{dated.length === 1 ? "" : "s"} on this property
+      </div>
+      {dated.map((t) => {
+        const open = openId === t.id;
+        return (
+          <div
+            key={t.id}
+            data-testid="dossier-chat-thread-item"
+            data-open={open ? "true" : "false"}
+            style={{ marginBottom: 4 }}
+          >
+            <button
+              type="button"
+              data-testid="dossier-chat-thread-toggle"
+              aria-expanded={open}
+              onClick={() => toggle(t.id)}
+              style={{
+                display: "block",
+                width: "100%",
+                textAlign: "left",
+                background: "transparent",
+                border: "none",
+                padding: 0,
+                fontSize: 11,
+                color: TEXT,
+                cursor: "pointer",
+                fontWeight: 600,
+              }}
+            >
+              {t.title ? cleanChatDisplay(t.title) : "Untitled chat"}
+              <span style={{ color: MUTED, fontWeight: 400, fontSize: 9.5 }}>
+                {" "}
+                · {t.turnCount} turn{t.turnCount === 1 ? "" : "s"}
+                {fmtDate(t.savedAt) ? ` · ${fmtDate(t.savedAt)}` : ""}
+              </span>
+            </button>
+            {open && (
+              <div
+                data-testid="dossier-chat-thread-body"
+                style={{ marginTop: 4, borderLeft: SECTION_BORDER, paddingLeft: 8 }}
+              >
+                {t.turns.map((turn, i) => (
+                  <p
+                    key={i}
+                    style={{
+                      margin: "0 0 5px",
+                      fontSize: 10.5,
+                      color: turn.role === "user" ? ACCENT : TEXT,
+                    }}
+                  >
+                    <span style={{ fontWeight: 600 }}>
+                      {turn.role === "user" ? "You: " : "AI: "}
+                    </span>
+                    {cleanChatDisplay(turn.content)}
+                  </p>
+                ))}
+              </div>
+            )}
+          </div>
+        );
+      })}
+    </div>
+  );
+}
+
+export function PropertyRowReports({
+  selection,
+  onToggle,
+  disabled,
+}: {
+  selection: ShareReportSelection | null;
+  onToggle?: (report: "xray" | "flood", included: boolean) => void;
+  disabled?: boolean;
+}) {
+  const xray = selection?.xray === true;
+  const flood = selection?.flood === true;
+  return (
+    <div data-testid="properties-row-reports" style={{ display: "flex", gap: 6 }}>
+      <label
+        data-testid="properties-row-report-xray"
+        style={{ fontSize: 10, color: TEXT, cursor: disabled ? "default" : "pointer" }}
+      >
+        <input
+          type="checkbox"
+          checked={xray}
+          disabled={disabled}
+          onChange={(e) => onToggle?.("xray", e.target.checked)}
+          onClick={(e) => e.stopPropagation()}
+        />{" "}
+        X-ray
+      </label>
+      <label
+        data-testid="properties-row-report-flood"
+        style={{ fontSize: 10, color: TEXT, cursor: disabled ? "default" : "pointer" }}
+      >
+        <input
+          type="checkbox"
+          checked={flood}
+          disabled={disabled}
+          onChange={(e) => onToggle?.("flood", e.target.checked)}
+          onClick={(e) => e.stopPropagation()}
+        />{" "}
+        Flood
+      </label>
+    </div>
+  );
+}
+
+export function PropertySharePicker({
+  notesPresent,
+  reportSelection,
+  busy,
+  shareUrl,
+  onMintShare,
+  onToggleShareReport,
+}: {
+  notesPresent: boolean;
+  reportSelection: ShareReportSelection | null;
+  busy: boolean;
+  shareUrl: string | null;
+  onMintShare?: (pkg: PropertyShareMint) => void;
+  onToggleShareReport?: (report: "xray" | "flood", included: boolean) => void;
+}) {
+  const [persona, setPersona] = useState<SharePersona>("agent");
+  const [message, setMessage] = useState(defaultShareMessage("agent"));
+  const [includeNotes, setIncludeNotes] = useState(notesPresent);
+  const lastDefaultRef = useRef(defaultShareMessage("agent"));
+
+  const pickPersona = (next: SharePersona) => {
+    const nextDefault = defaultShareMessage(next);
+    if (message === lastDefaultRef.current) {
+      setMessage(nextDefault);
+    }
+    lastDefaultRef.current = nextDefault;
+    setPersona(next);
+  };
+
+  const includeXray = reportSelection?.xray === true;
+  const includeFlood = reportSelection?.flood === true;
+
+  return (
+    <div data-testid="dossier-share-picker">
+      <p style={{ margin: "0 0 6px", fontSize: 10.5, color: MUTED }}>
+        Copy a message and a /s/{"{grantId}"} link. This does not send email.
+      </p>
+      <label style={{ display: "block", fontSize: 10.5, color: MUTED, marginBottom: 4 }}>
+        Persona
+        <select
+          data-testid="dossier-share-persona"
+          value={persona}
+          disabled={busy}
+          onChange={(e) => {
+            if (isSharePersona(e.target.value)) pickPersona(e.target.value);
+          }}
+          style={{
+            display: "block",
+            width: "100%",
+            marginTop: 3,
+            fontSize: 11.5,
+            color: TEXT,
+            background: "rgba(154,166,178,0.08)",
+            border: PE.border,
+            borderRadius: PE.radiusCard,
+            padding: "6px 8px",
+          }}
+        >
+          {SHARE_PERSONAS.map((p) => (
+            <option key={p} value={p}>
+              {SHARE_PERSONA_LABELS[p]}
+            </option>
+          ))}
+        </select>
+      </label>
+      <TextArea
+        data-testid="dossier-share-message"
+        value={message}
+        disabled={busy}
+        rows={3}
+        onChange={(e) => setMessage(e.target.value)}
+        style={{ width: "100%", boxSizing: "border-box", marginBottom: 8 }}
+      />
+      <label
+        data-testid="dossier-share-include-notes"
+        style={{
+          display: "flex",
+          alignItems: "center",
+          gap: 8,
+          marginBottom: 6,
+          fontSize: 11.5,
+          color: TEXT,
+          cursor: "pointer",
+        }}
+      >
+        <input
+          type="checkbox"
+          data-testid="dossier-share-include-notes-input"
+          checked={includeNotes}
+          disabled={busy || !notesPresent}
+          onChange={(e) => setIncludeNotes(e.target.checked)}
+        />
+        Include notes
+      </label>
+      <PropertyRowReports
+        selection={reportSelection}
+        onToggle={onToggleShareReport}
+        disabled={busy}
+      />
+      {shareUrl && (
+        <div
+          data-testid="dossier-share-url"
+          style={{
+            fontSize: 10.5,
+            color: ACCENT,
+            wordBreak: "break-all",
+            margin: "8px 0 6px",
+          }}
+        >
+          {shareUrl}
+        </div>
+      )}
+      {onMintShare && (
+        <Button
+          variant="primary"
+          dense
+          type="button"
+          data-testid="dossier-share-create"
+          disabled={busy || !message.trim()}
+          onClick={() =>
+            onMintShare({
+              persona,
+              message: message.trim(),
+              includeNotes: notesPresent ? includeNotes : false,
+              includeXray,
+              includeFlood,
+            })
+          }
+          style={{ marginTop: 8 }}
+        >
+          {busy ? "Creating link…" : "Create share link"}
+        </Button>
+      )}
+    </div>
+  );
 }
 
 /**
@@ -461,10 +672,16 @@ export function NotesField({
   initial,
   disabled,
   onSave,
+  testId = "dossier-notes",
+  inputTestId = "dossier-notes-input",
+  counterTestId = "dossier-notes-counter",
 }: {
   initial: string;
   disabled: boolean;
   onSave: (text: string) => void;
+  testId?: string;
+  inputTestId?: string;
+  counterTestId?: string;
 }) {
   const [draft, setDraft] = useState(initial);
   const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -502,9 +719,9 @@ export function NotesField({
   };
 
   return (
-    <div data-testid="dossier-notes">
-      <textarea
-        data-testid="dossier-notes-input"
+    <div data-testid={testId}>
+      <TextArea
+        data-testid={inputTestId}
         value={draft}
         disabled={disabled}
         maxLength={DOSSIER_NOTES_MAX_CHARS}
@@ -514,20 +731,11 @@ export function NotesField({
         style={{
           width: "100%",
           boxSizing: "border-box",
-          fontSize: 11,
-          lineHeight: 1.45,
-          color: TEXT,
-          background: "rgba(154,166,178,0.08)",
-          border: "1px solid rgba(154,166,178,0.35)",
-          borderRadius: 6,
-          padding: "6px 8px",
-          outline: "none",
           resize: "vertical",
-          fontFamily: "inherit",
         }}
       />
       <div
-        data-testid="dossier-notes-counter"
+        data-testid={counterTestId}
         style={{ fontSize: 9.5, color: MUTED, textAlign: "right" }}
       >
         {draft.length.toLocaleString()} / {DOSSIER_NOTES_MAX_CHARS.toLocaleString()}

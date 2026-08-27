@@ -1,10 +1,13 @@
-// W2 REPORTS BUBBLE — Option D (2026-08-24): one document at a time.
-// Picker holds the catalog (including Coming soon). The selected row gets
-// one description and one action. Live engines stay the existing sections;
-// they mount only when that document is selected. Persistence keys unchanged:
-// reports.sitePlan, reports.terrain, flood.
+// W7 reports and exports picker. Coming soon is not on the purchase surface.
+// Persistence keys unchanged: reports.sitePlan, reports.terrain, flood.
 
 import { useCallback, useRef, useState, type ReactNode } from "react";
+import { liveViewHref } from "../../lib/live-view";
+import {
+  defaultReceivedShareStore,
+  readReceivedShares,
+  type ReceivedShareRow,
+} from "../../share/share-received";
 import {
   SitePlanExportSection,
   type SitePlanExportSectionState,
@@ -14,14 +17,15 @@ import {
   type TerrainExportSectionState,
 } from "../../browse/TerrainExportSection";
 import { Button } from "../../components/Button";
+import { PE } from "../../styles/pe-chrome";
 import { DownloadFileButton } from "../../components/DownloadFileButton";
 import { recordPeGtmEvent } from "../../lib/gtmClient";
-import { subscriptionTierGrantsStudio } from "../../lib/entitlementClient";
+import { studioGrantedForEntitlement } from "../../lib/entitlementClient";
 import { usePropertyEntitlement } from "../../lib/usePropertyEntitlement";
 import { useDockToolState, useWorkbench } from "../WorkbenchContext";
 import { LockedToolPanel } from "./LockedToolPanel";
 import { persistCheckoutOrigin } from "../../lib/checkoutOrigin";
-import { attachExportToDossier } from "./reports-dossier";
+import { attachExportToDossier, fileReportOnProperty } from "./reports-dossier";
 import { FloodDrainageSection } from "./FloodTool";
 import {
   RECORDS_PAYWALL_MESSAGE,
@@ -32,13 +36,16 @@ import {
   dossierExportNotice,
   requestDossierExport,
 } from "./dossier-export";
+import { runBriefResearch } from "./brief-research";
 import {
   findReportDoc,
   isReportDocId,
-  readyCount,
+  normalizeReportDocId,
   reportCatalogGroups,
+  reportDocLockChip,
   reportDocMeta,
   reportDocStatus,
+  reportsFreshnessLine,
   type ReportDocDef,
   type ReportDocId,
 } from "./reports-catalog";
@@ -53,10 +60,10 @@ export const TERRAIN_PAYWALL_MESSAGE =
 export const DOSSIER_PAYWALL_MESSAGE =
   "The property X-ray PDF — verdict, cited brief facts, your notes and AI research summary, with the site-plan sheets appended.";
 
-const MUTED = "var(--surface-muted, #64748B)";
-const TEXT = "var(--text-body, #e5e7eb)";
+const MUTED = PE.muted2;
+const TEXT = PE.text;
 const CARD_BORDER = "var(--surface-border, #243247)";
-const BLUE = "var(--brand-blue, #3B82F6)";
+const BLUE = PE.accent;
 
 export interface DossierDockState {
   notice: string | null;
@@ -65,7 +72,7 @@ export interface DossierDockState {
 }
 
 function lockedDefaultDoc(locked: boolean): ReportDocId | null {
-  return locked ? "SPPDF" : null;
+  return locked ? "SITEPLAN" : null;
 }
 
 function shortAddress(address: string | null | undefined): string | null {
@@ -91,6 +98,8 @@ export function ReportsTool() {
   const [dossier, setDossier] =
     useDockToolState<DossierDockState>("reports.dossier");
   const [pickerOpen, setPickerOpen] = useState(false);
+  const [reportsTab, setReportsTab] = useState<"mine" | "shared">("mine");
+  const receivedShares = readReceivedShares(defaultReceivedShareStore());
   const ent = usePropertyEntitlement(activeParcelNodeId);
 
   const attachedRef = useRef(new Map<string, unknown>());
@@ -113,14 +122,17 @@ export function ReportsTool() {
 
   if (!activeParcelNodeId) return null;
 
-  if (ent.signedOut) {
+  if (ent.signedOut && reportsTab === "mine") {
     return (
-      <LockedToolPanel
-        valueLine={REPORTS_LOCKED_VALUE_LINE}
-        signedOut
-        signInLine="Sign in to run reports and exports on this parcel."
-        testId="reports-locked"
-      />
+      <div data-testid="reports-tool">
+        <ReportsTabs tab={reportsTab} onTab={setReportsTab} />
+        <LockedToolPanel
+          valueLine={REPORTS_LOCKED_VALUE_LINE}
+          signedOut
+          signInLine="Sign in to run reports and exports on this parcel."
+          testId="reports-locked"
+        />
+      </div>
     );
   }
 
@@ -154,22 +166,23 @@ export function ReportsTool() {
     host.openPaywall(message, opts);
   };
 
-  const terrainProLocked =
-    ent.status === "ready" &&
-    !ent.devRole &&
-    !subscriptionTierGrantsStudio(ent.subscriptionTier);
-  const studioGranted = !terrainProLocked && ent.status === "ready"
-    ? ent.devRole || subscriptionTierGrantsStudio(ent.subscriptionTier)
-    : ent.status !== "ready";
-
-  const selectedId = isReportDocId(selectedRaw)
-    ? selectedRaw
-    : lockedDefaultDoc(ent.locked);
-  const selected = selectedId ? findReportDoc(selectedId) : null;
-  const counts = readyCount(
-    ent.locked ? false : studioGranted && !terrainProLocked,
-  );
+  const studioGranted =
+    ent.status === "ready" && studioGrantedForEntitlement(ent);
+  const terrainProLocked = ent.status === "ready" && !studioGranted;
   const locked = ent.locked;
+
+  const selectedIdRaw = isReportDocId(selectedRaw)
+    ? normalizeReportDocId(selectedRaw)
+    : lockedDefaultDoc(locked);
+  const selectedCandidate = selectedIdRaw ? findReportDoc(selectedIdRaw) : null;
+  const selected =
+    selectedCandidate && selectedCandidate.purchaseSurface
+      ? selectedCandidate
+      : locked
+        ? findReportDoc("SITEPLAN")
+        : null;
+  const selectedId = selected?.id ?? null;
+  const freshness = reportsFreshnessLine(address, new Date());
 
   const pick = (id: ReportDocId) => {
     setSelectedRaw(id);
@@ -181,7 +194,7 @@ export function ReportsTool() {
     : null;
   const status = selected
     ? reportDocStatus(selected, {
-        studioGranted: studioGranted && !terrainProLocked,
+        studioGranted,
         generatedLabel,
       })
     : null;
@@ -191,11 +204,13 @@ export function ReportsTool() {
       data-testid="reports-tool"
       data-selected-doc={selectedId ?? ""}
     >
-      {locked ? (
+      <ReportsTabs tab={reportsTab} onTab={setReportsTab} />
+      {reportsTab === "shared" ? (
+        <SharedWithMeList rows={receivedShares} />
+      ) : locked ? (
         <div data-testid="reports-locked" data-pro-only="false">
           <OptionDChrome
-            address={address}
-            readyLine={null}
+            freshness={freshness}
             pickerOpen={pickerOpen}
             selected={selected}
             status={status}
@@ -213,13 +228,12 @@ export function ReportsTool() {
         </div>
       ) : (
         <OptionDChrome
-          address={address}
-          readyLine={`${counts.ready} ready of ${counts.total}`}
+          freshness={freshness}
           pickerOpen={pickerOpen}
           selected={selected}
           status={status}
           generatedLabel={generatedLabel}
-          studioGranted={studioGranted && !terrainProLocked}
+            studioGranted={studioGranted}
           onTogglePicker={() => setPickerOpen((v) => !v)}
           onPick={pick}
           onChange={() => {
@@ -257,6 +271,128 @@ export function ReportsTool() {
   );
 }
 
+function ReportsTabs({
+  tab,
+  onTab,
+}: {
+  tab: "mine" | "shared";
+  onTab: (next: "mine" | "shared") => void;
+}) {
+  return (
+    <div
+      data-testid="reports-tabs"
+      style={{ display: "flex", gap: 8, marginBottom: 12 }}
+    >
+      <button
+        type="button"
+        data-testid="reports-tab-mine"
+        aria-pressed={tab === "mine"}
+        onClick={() => onTab("mine")}
+        style={{
+          flex: 1,
+          padding: "7px 8px",
+          fontSize: 12,
+          fontWeight: 600,
+          borderRadius: 6,
+          border: "1px solid var(--surface-border, #243247)",
+          background: tab === "mine" ? "rgba(59,130,246,0.12)" : "transparent",
+          color: TEXT,
+          cursor: "pointer",
+        }}
+      >
+        My reports
+      </button>
+      <button
+        type="button"
+        data-testid="reports-tab-shared"
+        aria-pressed={tab === "shared"}
+        onClick={() => onTab("shared")}
+        style={{
+          flex: 1,
+          padding: "7px 8px",
+          fontSize: 12,
+          fontWeight: 600,
+          borderRadius: 6,
+          border: "1px solid var(--surface-border, #243247)",
+          background: tab === "shared" ? "rgba(59,130,246,0.12)" : "transparent",
+          color: TEXT,
+          cursor: "pointer",
+        }}
+      >
+        Shared with me
+      </button>
+    </div>
+  );
+}
+
+function SharedWithMeList({ rows }: { rows: ReceivedShareRow[] }) {
+  if (rows.length === 0) {
+    return (
+      <p data-testid="reports-shared-empty" style={{ margin: 0, fontSize: 12, color: MUTED }}>
+        Nothing has been shared with this browser yet. Open a share link to
+        file it here. You can read shared reports; generating new ones stays
+        on My reports after upgrade.
+      </p>
+    );
+  }
+  return (
+    <div data-testid="reports-shared-list">
+      {rows.map((row) => {
+        const live = liveViewHref({
+          parcelNodeId: row.parcelNodeId,
+          grantId: row.grantId,
+        });
+        return (
+          <article
+            key={row.id}
+            data-testid="reports-shared-row"
+            style={{
+              marginBottom: 10,
+              padding: "10px 12px",
+              borderRadius: 8,
+              border: "1px solid var(--surface-border, #243247)",
+            }}
+          >
+            <strong style={{ display: "block", fontSize: 13 }}>
+              {row.address ?? `Parcel ${row.parcelNodeId}`}
+            </strong>
+            <div style={{ fontSize: 11, color: MUTED, marginTop: 2 }}>
+              {row.parcelNodeId}
+              {row.expiresAt ? ` · expires ${row.expiresAt.slice(0, 10)}` : ""}
+            </div>
+            {row.notes ? (
+              <p
+                data-testid="reports-shared-notes"
+                style={{ margin: "6px 0 0", fontSize: 12, whiteSpace: "pre-wrap" }}
+              >
+                {row.notes}
+              </p>
+            ) : null}
+            <div style={{ marginTop: 6, fontSize: 11, color: MUTED }}>
+              {[
+                row.artifacts.xray ? "X-ray" : null,
+                row.artifacts.sitePlan ? "Site plan" : null,
+                row.artifacts.terrain ? "Terrain" : null,
+              ]
+                .filter(Boolean)
+                .join(" · ") || "Shared analysis"}
+            </div>
+            {live ? (
+              <a
+                href={live}
+                data-testid="reports-shared-live-view"
+                style={{ display: "inline-block", marginTop: 6, fontSize: 12, color: BLUE }}
+              >
+                Open live view
+              </a>
+            ) : null}
+          </article>
+        );
+      })}
+    </div>
+  );
+}
+
 function generatedLabelFor(
   doc: ReportDocDef,
   sitePlan: SitePlanExportSectionState | null,
@@ -276,8 +412,7 @@ function generatedLabelFor(
 }
 
 function OptionDChrome({
-  address,
-  readyLine,
+  freshness,
   pickerOpen,
   selected,
   status,
@@ -290,8 +425,7 @@ function OptionDChrome({
   onViewPricing,
   children,
 }: {
-  address: string | null;
-  readyLine: string | null;
+  freshness: string;
   pickerOpen: boolean;
   selected: ReportDocDef | null;
   status: { text: string; color: string } | null;
@@ -304,17 +438,14 @@ function OptionDChrome({
   onViewPricing?: () => void;
   children?: ReactNode;
 }) {
-  const sub = [address, readyLine].filter(Boolean).join(" · ");
   return (
     <div>
-      {sub ? (
-        <div
-          data-testid="reports-ready-count"
-          style={{ fontSize: 11, color: MUTED, marginBottom: 10 }}
-        >
-          {sub}
-        </div>
-      ) : null}
+      <div
+        data-testid="reports-freshness"
+        style={{ fontSize: 11, color: MUTED, marginBottom: 10 }}
+      >
+        {freshness}
+      </div>
 
       <div
         style={{
@@ -325,7 +456,7 @@ function OptionDChrome({
           marginBottom: 6,
         }}
       >
-        Document
+        Reports and exports
       </div>
 
       <button
@@ -381,7 +512,8 @@ function OptionDChrome({
               {g.group}
             </div>
             {g.rows.map((row) => {
-              const rowStatus = reportDocStatus(row, { studioGranted });
+              const lock = reportDocLockChip(row, { studioGranted });
+              const rowStatus = lock ?? reportDocStatus(row, { studioGranted });
               const isSel = selected?.id === row.id;
               return (
                 <button
@@ -532,7 +664,7 @@ function OptionDChrome({
               data-testid="view-pricing-button"
               onClick={onViewPricing}
             >
-              View pricing & unlock
+              Unlock this property, 30 days
             </Button>
           ) : (
             children
@@ -636,22 +768,12 @@ function SelectedEngine({
   }
 
   if (doc.engine === "records") {
-    if (terrainProLocked) {
-      return (
-        <LockedToolPanel
-          valueLine="Recorded documents from the county clerk's index, read and cited."
-          proOnly
-          proOnlyNote={RECORDS_PAYWALL_MESSAGE}
-          testId="records-studio-lock"
-        />
-      );
-    }
     return (
       <RecordsRequestSection
         parcelNodeId={parcelNodeId}
         address={facts.address}
         countyName={facts.countyName}
-        studioLocked={false}
+        studioLocked={terrainProLocked}
         onPaymentRequired={() =>
           onPaymentRequired(RECORDS_PAYWALL_MESSAGE, {
             studioOnly: true,
@@ -663,31 +785,28 @@ function SelectedEngine({
     );
   }
 
-  if (doc.engine === "site-plan" && doc.sitePlanFormat) {
+  if (doc.engine === "site-plan") {
     return (
       <SitePlanExportSection
-        key={`site-plan:${parcelNodeId}:${doc.sitePlanFormat}`}
+        key={`site-plan:${parcelNodeId}`}
         parcelNodeId={parcelNodeId}
         address={facts.address}
         countyName={facts.countyName}
         onPaymentRequired={() => onPaymentRequired(SITE_PLAN_PAYWALL_MESSAGE)}
         initialState={
-          sitePlan
-            ? { ...sitePlan, format: doc.sitePlanFormat }
-            : {
-                format: doc.sitePlanFormat,
-                notice: null,
-                result: null,
-              }
+          sitePlan ?? {
+            format: "pdf-site-plan",
+            notice: null,
+            result: null,
+          }
         }
         onStateChange={onSitePlan}
         embed
-        lockedFormat={doc.sitePlanFormat}
       />
     );
   }
 
-  if (doc.engine === "terrain" && doc.terrainFormat) {
+  if (doc.engine === "terrain") {
     if (terrainProLocked) {
       return (
         <LockedToolPanel
@@ -700,7 +819,7 @@ function SelectedEngine({
     }
     return (
       <TerrainExportSection
-        key={`terrain:${parcelNodeId}:${doc.terrainFormat}`}
+        key={`terrain:${parcelNodeId}`}
         parcelNodeId={parcelNodeId}
         onPaymentRequired={() =>
           onPaymentRequired(TERRAIN_PAYWALL_MESSAGE, {
@@ -709,13 +828,10 @@ function SelectedEngine({
           })
         }
         initialState={
-          terrain
-            ? { ...terrain, format: doc.terrainFormat }
-            : { format: doc.terrainFormat, notice: null, result: null }
+          terrain ?? { format: "glb", notice: null, result: null }
         }
         onStateChange={onTerrain}
         embed
-        lockedFormat={doc.terrainFormat}
       />
     );
   }
@@ -740,10 +856,12 @@ function DossierExportAction({
 
   const run = async () => {
     setBusy(true);
+    const briefOutcome = await runBriefResearch(parcelNodeId);
+    const brief = briefOutcome.kind === "ready" ? briefOutcome.brief : null;
     const body = assembleDossierExportBody({
       parcelNodeId,
       dossier: null,
-      brief: null,
+      brief,
       facts,
     });
     const result = await requestDossierExport(body);
@@ -770,6 +888,15 @@ function DossierExportAction({
       downloadUrl: result.downloadUrl,
       generatedAt: new Date().toISOString(),
     });
+    void fileReportOnProperty(
+      parcelNodeId,
+      "xray",
+      {
+        selectedFormat: "pdf-dossier",
+        downloadUrl: result.downloadUrl,
+      },
+      { label: facts.address, address: facts.address },
+    );
   };
 
   const hasFile = !!state?.downloadUrl;
@@ -781,6 +908,7 @@ function DossierExportAction({
           href={state.downloadUrl}
           label="Download PDF"
           testId="reports-dossier-download"
+          parcelNodeId={parcelNodeId}
         />
       ) : busy ? (
         <DownloadFileButton

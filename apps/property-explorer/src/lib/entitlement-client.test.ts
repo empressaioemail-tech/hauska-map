@@ -15,6 +15,7 @@ import {
   resetPropertyEntitlementsForTests,
   subscribePropertyEntitlements,
   subscriptionTierGrantsStudio,
+  studioGrantedForEntitlement,
   type PropertyEntitlementState,
 } from "./entitlementClient";
 import { PE_PRICING } from "./pricing";
@@ -118,6 +119,7 @@ describe("fetchPropertyEntitlement — the pinned contract", () => {
     expect(state.entitlementSource).toBe("dev");
     expect(isPro(state)).toBe(false);
     expect(isEntitled(state)).toBe(true);
+    expect(studioGrantedForEntitlement(state)).toBe(true);
   });
 
   it("entitlementSource surfaces stripe provenance even when devRole is false", async () => {

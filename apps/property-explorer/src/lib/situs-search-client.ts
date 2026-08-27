@@ -3,7 +3,11 @@
 // Thin client for the /api/pe-situs-search BFF (cortex TxGIO situs index).
 
 import type { SitusSearchWireResponse } from "../../api/_lib/pe-situs-search-core";
-import { placeSearchHitToSuggestion, type Suggestion } from "./search-kinds";
+import {
+  placeSearchHitToSuggestion,
+  situsQueryVariants,
+  type Suggestion,
+} from "./search-kinds";
 
 export const PE_SITUS_SEARCH_URL = "/api/pe-situs-search";
 
@@ -15,20 +19,33 @@ export async function fetchSitusSearchSuggestions(
   const trimmed = query.trim();
   if (!trimmed) return [];
 
-  const qs = new URLSearchParams({
-    q: trimmed,
-    limit: String(opts?.limit ?? 7),
-  });
   const fetchImpl = opts?.fetchImpl ?? fetch;
-  const res = await fetchImpl(
-    `${opts?.baseUrl ?? PE_SITUS_SEARCH_URL}?${qs.toString()}`,
-    { method: "GET", signal },
+  const limit = opts?.limit ?? 7;
+  const variants = situsQueryVariants(trimmed);
+  const batches = await Promise.all(
+    variants.map(async (q) => {
+      const qs = new URLSearchParams({ q, limit: String(limit) });
+      const res = await fetchImpl(
+        `${opts?.baseUrl ?? PE_SITUS_SEARCH_URL}?${qs.toString()}`,
+        { method: "GET", signal },
+      );
+      if (!res.ok) {
+        throw new Error(`situs-search ${res.status}`);
+      }
+      const json = (await res.json()) as SitusSearchWireResponse;
+      return Array.isArray(json?.hits) ? json.hits : [];
+    }),
   );
-  if (!res.ok) {
-    throw new Error(`situs-search ${res.status}`);
+  const seen = new Set<string>();
+  const hits = [];
+  for (const batch of batches) {
+    for (const hit of batch) {
+      const key = `${hit.parcelNodeId ?? ""}|${hit.situsAddress}`;
+      if (seen.has(key)) continue;
+      seen.add(key);
+      hits.push(hit);
+    }
   }
-  const json = (await res.json()) as SitusSearchWireResponse;
-  const hits = Array.isArray(json?.hits) ? json.hits : [];
   return hits
     .map(placeSearchHitToSuggestion)
     .filter((s): s is Suggestion => s != null);

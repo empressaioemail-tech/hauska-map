@@ -50,7 +50,7 @@ export function pinAccent(status: DossierStatus | null): string {
 
 /** Legend line — surfaced as the layer row's tooltip (LayerStateBadge note). */
 export const SAVED_PINS_LEGEND =
-  "Saved-property pins — amber: researching · green: offer · gray: passed · blue: no status";
+  "Saved-property pins — gold: researching · green: offer · gray: passed · blue: no status";
 
 // ---------------------------------------------------------------------------
 // Pins from the saved list.

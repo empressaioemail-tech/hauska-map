@@ -15,9 +15,17 @@ import {
   dossierFilename,
   mapMcpDossierPayload,
   parseDossierExportContent,
+  refuseHollowXrayExport,
+  XRAY_VERDICT_PLACEHOLDER,
+  XRAY_PIPELINE_ABSENT_ERROR,
+  XRAY_PIPELINE_ABSENT_MESSAGE,
   resolveDossierExportAuth,
 } from '../../api/_lib/pe-dossier-export-core.js'
-import { buildShareDossierPayload } from '../../api/_lib/pe-share-dossier.js'
+import {
+  buildShareDossierPayload,
+  includeNotesForGrant,
+} from '../../api/_lib/pe-share-dossier.js'
+import { VERDICT_UNRESOLVED } from './sheet-verdict'
 
 describe('dossier export auth — property entitlement (the R1 line)', () => {
   it('401 without a session', () => {
@@ -168,6 +176,97 @@ describe('dossier body parse — cap-trim + honest omission', () => {
     expect(content.verdictLine).toHaveLength(DOSSIER_VERDICT_MAX_CHARS)
     expect(content.notes).toHaveLength(DOSSIER_NOTES_MAX_CHARS)
     expect(content.brief?.sections).toHaveLength(DOSSIER_BRIEF_MAX_SECTIONS)
+  })
+})
+
+describe('W4.P0 refuseHollowXrayExport — pipeline vs user-content', () => {
+  const ready = {
+    verdictLine: 'Buildable · outside mapped flood hazard.',
+    brief: {
+      sections: [
+        {
+          id: 'zoning',
+          title: 'Zoning',
+          facts: [{ label: 'District', value: 'P-2' }],
+        },
+      ],
+    },
+  }
+
+  it('treats the unresolved fact-sheet placeholder as a missing verdict', () => {
+    expect(XRAY_VERDICT_PLACEHOLDER).toBe(VERDICT_UNRESOLVED.line)
+    const gate = refuseHollowXrayExport({
+      verdictLine: VERDICT_UNRESOLVED.line,
+      brief: ready.brief,
+    })
+    expect(gate.ok).toBe(false)
+    if (!gate.ok) expect(gate.missing).toEqual(['verdict'])
+  })
+
+  it('fails closed when verdict is missing (violate: would have emitted UNAVAILABLE)', () => {
+    const gate = refuseHollowXrayExport({
+      brief: ready.brief,
+    })
+    expect(gate.ok).toBe(false)
+    if (!gate.ok) {
+      expect(gate.error).toBe(XRAY_PIPELINE_ABSENT_ERROR)
+      expect(gate.missing).toEqual(['verdict'])
+      expect(gate.message).toBe(XRAY_PIPELINE_ABSENT_MESSAGE)
+    }
+  })
+
+  it('fails closed when brief facts are missing (violate: would have emitted UNAVAILABLE)', () => {
+    const gate = refuseHollowXrayExport({
+      verdictLine: ready.verdictLine,
+    })
+    expect(gate.ok).toBe(false)
+    if (!gate.ok) {
+      expect(gate.missing).toEqual(['brief_facts'])
+    }
+  })
+
+  it('fails closed when both pipeline outputs are missing', () => {
+    const parsed = parseDossierExportContent({ parcelNodeId: '48021:34161' })
+    const gate = refuseHollowXrayExport(parsed)
+    expect(gate.ok).toBe(false)
+    if (!gate.ok) {
+      expect(gate.missing).toEqual(['verdict', 'brief_facts'])
+    }
+  })
+
+  it('forwards liveViewUrl (W2.4; violate: dropping the live-view field)', () => {
+    const parsed = parseDossierExportContent({
+      ...ready,
+      liveViewUrl: '/?parcelNodeId=48021%3A34161',
+    })
+    expect(parsed.liveViewUrl).toBe('/?parcelNodeId=48021%3A34161')
+  })
+
+  it('omits owner notes and still clears when verdict + brief exist', () => {
+    const parsed = parseDossierExportContent({
+      ...ready,
+      notes: '   ',
+      chatSummary: { summary: 'x' },
+    })
+    expect(parsed.notes).toBeUndefined()
+    expect(parsed.chatSummary).toBeUndefined()
+    expect(refuseHollowXrayExport(parsed).ok).toBe(true)
+  })
+
+  it('still clears when a carried brief fact has no world value (honest miss stays on the page)', () => {
+    const gate = refuseHollowXrayExport({
+      verdictLine: ready.verdictLine,
+      brief: {
+        sections: [
+          {
+            id: 'building',
+            title: 'Building',
+            facts: [{ label: 'Living area', source: 'CAD' }],
+          },
+        ],
+      },
+    })
+    expect(gate.ok).toBe(true)
   })
 })
 
@@ -330,5 +429,48 @@ describe('share-view dossier projection (cortex #362 snapshot)', () => {
     })
     expect(projected?.drawings).toBeNull()
     expect(projected?.notes).toBe('still shared')
+  })
+
+  it('W3.1 exclude notes omits them (violate: still project notes)', () => {
+    const projected = buildShareDossierPayload(
+      { notes: 'Owner notes.', address: '104 Main St' },
+      { includeNotes: false },
+    )
+    expect(projected).toBeNull()
+    const withDrawings = buildShareDossierPayload(
+      {
+        notes: 'Owner notes.',
+        drawings: {
+          type: 'FeatureCollection',
+          features: [
+            {
+              type: 'Feature',
+              geometry: { type: 'Point', coordinates: [1, 2] },
+              properties: {},
+            },
+          ],
+        },
+      },
+      { includeNotes: false },
+    )
+    expect(withDrawings?.notes).toBeNull()
+    expect(withDrawings?.drawings).not.toBeNull()
+  })
+
+  it('W3.1 reads includeNotes from the grant package; absent package does not invent false', () => {
+    const snapshot = {
+      notes: 'keep',
+      sharePackages: [
+        {
+          grantId: '2c1a9d4e-7b11-4f0a-9c3d-0a1b2c3d4e5f',
+          includeNotes: false,
+        },
+      ],
+    }
+    expect(
+      includeNotesForGrant(snapshot, '2c1a9d4e-7b11-4f0a-9c3d-0a1b2c3d4e5f'),
+    ).toBe(false)
+    expect(includeNotesForGrant(snapshot, '00000000-0000-0000-0000-000000000000')).toBeNull()
+    expect(includeNotesForGrant({ notes: 'keep' }, '2c1a9d4e-7b11-4f0a-9c3d-0a1b2c3d4e5f')).toBeNull()
   })
 })

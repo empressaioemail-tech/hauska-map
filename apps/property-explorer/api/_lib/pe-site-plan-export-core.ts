@@ -208,18 +208,23 @@ export function mapMcpSitePlanPayload(
   }
 }
 
+function readEnv(name: string): string | undefined {
+  const env = (globalThis as { process?: { env?: Record<string, string | undefined> } })
+    .process?.env
+  const value = env?.[name]
+  return typeof value === 'string' ? value.trim() : undefined
+}
+
 export function engineApiBaseUrl(): string {
   return (
-    process.env.HAUSKA_ENGINE_API_URL?.trim() ||
-    process.env.ENGINE_API_URL?.trim() ||
+    readEnv('HAUSKA_ENGINE_API_URL') ||
+    readEnv('ENGINE_API_URL') ||
     'https://hauska-engine-api-h7gvu7rgcq-uc.a.run.app'
   ).replace(/\/$/, '')
 }
 
 export function engineApiGateToken(): string | null {
-  const key =
-    process.env.HAUSKA_ENGINE_API_KEY?.trim() ||
-    process.env.ENGINE_API_GATE_TOKEN?.trim()
+  const key = readEnv('HAUSKA_ENGINE_API_KEY') || readEnv('ENGINE_API_GATE_TOKEN')
   return key && key.length > 0 ? key : null
 }
 

@@ -50,12 +50,15 @@ export async function exportBriefAsXrayPdf(input: {
   parcelNodeId: string;
   brief: ResearchBriefPayload;
   facts?: { address: string | null; countyName: string | null } | null;
+  /** Sheet verdict already on the brief panel. Omitted → fail closed. */
+  verdictLine?: string | null;
 }): Promise<DossierExportClientResult> {
   const body = assembleDossierExportBody({
     parcelNodeId: input.parcelNodeId,
     dossier: null,
     brief: input.brief,
     facts: input.facts ?? null,
+    verdictLine: input.verdictLine,
   });
   return requestDossierExport(body);
 }

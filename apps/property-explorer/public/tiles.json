@@ -1,0 +1,8 @@
+{
+  "hash": "b692c6534d26",
+  "url": "https://storage.googleapis.com/hauska-map-tiles/parcels.b692c6534d26.pmtiles",
+  "sourceLayer": "parcels",
+  "promoteId": "parcel_node_id",
+  "target": "staging",
+  "note": "Replace hash/url after Bastrop conformant PMTiles bake (F-06 item 4)"
+}

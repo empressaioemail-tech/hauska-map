@@ -13,7 +13,7 @@
 
 import { describe, expect, it } from "vitest";
 import { renderToStaticMarkup } from "react-dom/server";
-import { Workbench, nextOpenToolId, dockLayoutStyle } from "./Workbench";
+import { Workbench, nextOpenToolId, nextOpenToolIds, dockLayoutStyle, DEFAULT_DOCK_SIDE } from "./Workbench";
 import { WORKBENCH_TOOLS } from "./registry";
 import { createWorkbenchToolStateStore } from "./tool-state-store";
 import type { WorkbenchHostActions, WorkbenchToolDef } from "./types";
@@ -49,42 +49,69 @@ describe("dock single-tenancy — the pure toggle rule", () => {
   });
 });
 
+describe("left-stack multi-open — map utilities only, never workbench tools", () => {
+  it("tapping another LEFT utility ADDS it; tapping an open one removes it", () => {
+    expect(nextOpenToolIds(["tools"], "layers")).toEqual(["tools", "layers"]);
+    expect(nextOpenToolIds(["tools", "layers"], "tools")).toEqual(["layers"]);
+    expect(nextOpenToolIds([], "tools")).toEqual(["tools"]);
+  });
+});
+
 describe("bubble cluster", () => {
-  it("renders all six bubbles and no dock while closed", () => {
+  it("renders seven rail bubbles including brief and no dock while closed", () => {
     const html = render({});
     expect(html).toContain('data-testid="workbench-cluster"');
-    for (const id of ["brief", "chat", "reports", "properties", "share", "compare"]) {
+    for (const id of [
+      "brief",
+      "chat",
+      "reports",
+      "properties",
+      "share",
+      "use-in-ai",
+      "compare",
+    ]) {
       expect(html).toContain(`data-testid="workbench-bubble-${id}"`);
     }
-    // FD2: flood folded INSIDE Reports & exports — no standalone bubble.
     expect(html).not.toContain('data-testid="workbench-bubble-flood"');
     expect(html).not.toContain('data-testid="workbench-dock"');
   });
 
-  it("registry: SIX tools live as of FD2 (flood consolidated into reports)", () => {
+  it("registry: brief is live on the rail with the other six tools", () => {
     expect(WORKBENCH_TOOLS.map((t) => t.id)).toEqual([
       "brief",
       "chat",
       "reports",
       "properties",
       "share",
+      "use-in-ai",
       "compare",
     ]);
+    expect(WORKBENCH_TOOLS.find((t) => t.id === "brief")?.inCluster).not.toBe(
+      false,
+    );
     expect(
-      WORKBENCH_TOOLS.filter((t) => t.status === "live").map((t) => t.id),
-    ).toEqual(["brief", "chat", "reports", "properties", "share", "compare"]);
+      WORKBENCH_TOOLS.filter((t) => t.inCluster !== false).map((t) => t.id),
+    ).toEqual([
+      "brief",
+      "chat",
+      "reports",
+      "properties",
+      "share",
+      "use-in-ai",
+      "compare",
+    ]);
     expect(
       WORKBENCH_TOOLS.find((t) => t.id === "reports")?.label,
     ).toBe("Reports & exports");
   });
 
   it("marks the open tool's bubble active (aria-pressed)", () => {
-    const html = render({ openToolId: "brief", activeParcelNodeId: "p1" });
+    const html = render({ openToolId: "chat", activeParcelNodeId: "p1" });
     expect(html).toMatch(
-      /data-testid="workbench-bubble-brief"[^>]*aria-pressed="true"/,
+      /data-testid="workbench-bubble-chat"[^>]*aria-pressed="true"/,
     );
     expect(html).toMatch(
-      /data-testid="workbench-bubble-chat"[^>]*aria-pressed="false"/,
+      /data-testid="workbench-bubble-reports"[^>]*aria-pressed="false"/,
     );
   });
 });
@@ -271,6 +298,63 @@ describe("expand-to-floating-box (Fix A)", () => {
     // present but not yet toggled.
     expect(html).toContain('data-testid="workbench-dock"');
     expect(html).not.toContain('data-expanded="1"');
+  });
+
+  it("dockSide default is right", () => {
+    expect(DEFAULT_DOCK_SIDE).toBe("right");
+    const html = render({ openToolId: "chat", activeParcelNodeId: "p1" });
+    expect(html).toContain('data-dock-side="right"');
+    expect(html).not.toContain('data-testid="workbench-left-stack"');
+    const dock = html.match(/data-testid="workbench-dock"[^>]*style="([^"]*)"/);
+    expect(dock).not.toBeNull();
+    expect(dock![1]).toContain("right:");
+    expect(dock![1]).not.toContain("left:");
+  });
+
+  it("passing openToolIds brief+chat still renders ONE right dock (would fail if multi-open right rail returned)", () => {
+    const html = renderToStaticMarkup(
+      <Workbench
+        tools={WORKBENCH_TOOLS}
+        openToolId="brief"
+        onOpenToolChange={noop}
+        openToolIds={["brief", "chat"]}
+        onOpenToolIdsChange={noop}
+        dockSide="left"
+        activeParcelNodeId="p1"
+        host={host}
+        store={createWorkbenchToolStateStore({ storage: null })}
+      />,
+    );
+    expect(html.match(/data-testid="workbench-dock"/g)).toHaveLength(1);
+    expect(html).toContain('data-tool="brief"');
+    expect(html).not.toContain('data-tool="chat"');
+    expect(html).not.toContain('data-testid="workbench-left-stack"');
+    expect(html).toContain('data-dock-side="right"');
+    expect(nextOpenToolId("brief", "chat")).toBe("chat");
+    expect(nextOpenToolId("brief", "chat")).not.toEqual(
+      nextOpenToolIds(["brief"], "chat"),
+    );
+  });
+
+  it("inspect facts render inside the right brief dock, not a left overlay", () => {
+    const html = renderToStaticMarkup(
+      <Workbench
+        tools={WORKBENCH_TOOLS}
+        openToolId="brief"
+        onOpenToolChange={noop}
+        inspectSlot={<div data-testid="inspect-card">facts</div>}
+        activeParcelNodeId="p1"
+        host={host}
+        store={createWorkbenchToolStateStore({ storage: null })}
+      />,
+    );
+    expect(html).toContain('data-testid="inspect-card"');
+    expect(html).toContain('data-dock-side="right"');
+    expect(html).not.toContain('data-testid="workbench-left-stack"');
+    const dockAt = html.indexOf('data-testid="workbench-dock"');
+    const inspectAt = html.indexOf('data-testid="inspect-card"');
+    expect(dockAt).toBeGreaterThan(-1);
+    expect(inspectAt).toBeGreaterThan(dockAt);
   });
 
   it("a tool that opts OUT (expandable:false) shows NO expand control", () => {

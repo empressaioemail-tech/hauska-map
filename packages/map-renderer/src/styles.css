@@ -98,3 +98,32 @@
 .hauska-fw.fw--minimized .fw-content {
   display: none;
 }
+
+/* Note-pin hover. MapLibre defaults to a white card; PE canvas text is
+   white, so the unstyled popup is white-on-white (W0.7). Named island. */
+.map-note-hover .maplibregl-popup-content {
+  background: #0d1117;
+  color: #e5e7eb;
+  border: 1px solid rgba(154, 166, 178, 0.35);
+  border-radius: 6px;
+  padding: 6px 8px;
+  font: 12px/1.35 ui-sans-serif, system-ui, sans-serif;
+  max-width: 220px;
+  box-shadow: none;
+}
+
+.map-note-hover.maplibregl-popup-anchor-bottom .maplibregl-popup-tip {
+  border-top-color: #0d1117;
+}
+
+.map-note-hover.maplibregl-popup-anchor-top .maplibregl-popup-tip {
+  border-bottom-color: #0d1117;
+}
+
+.map-note-hover.maplibregl-popup-anchor-left .maplibregl-popup-tip {
+  border-right-color: #0d1117;
+}
+
+.map-note-hover.maplibregl-popup-anchor-right .maplibregl-popup-tip {
+  border-left-color: #0d1117;
+}

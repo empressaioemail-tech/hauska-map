@@ -13,7 +13,10 @@
 //   place   → fly/fit to the place bbox ("dock over it").
 
 import {
+  INDEX_MISS_CHIP,
   identityQueryFromAddressSuggestion,
+  isPudOrSubdivisionLabel,
+  streetExtentTooLarge,
   type GeoExtent,
   type Suggestion,
 } from "./search-kinds";
@@ -75,12 +78,13 @@ export async function executeSearchLanding(
     }
 
     case "address": {
-      // Photon is a camera hint. It is not an identity writer. Posting its
-      // label or its point is the 422 the operator keeps seeing.
+      // Compact identity query — never the Photon label (Drive + ZIP 422).
+      // A miss does not fly to a neighborhood; that was hover-then-404.
       if (suggestion.source === "photon") {
-        if (suggestion.lat != null && suggestion.lng != null) {
-          deps.flyTo(suggestion.lat, suggestion.lng, ADDRESS_LANDING_ZOOM);
-        }
+        const query = identityQueryFromAddressSuggestion(suggestion);
+        const opened = await deps.runParcelLookup(query, { quiet: true });
+        if (opened) return { kind: "address", opened: true, coverageMiss: false };
+        deps.showChip(INDEX_MISS_CHIP);
         return { kind: "address", opened: false, coverageMiss: true };
       }
       const query = identityQueryFromAddressSuggestion(suggestion);
@@ -106,6 +110,16 @@ export async function executeSearchLanding(
     }
 
     case "street": {
+      if (
+        isPudOrSubdivisionLabel(suggestion.label) ||
+        streetExtentTooLarge(suggestion.extent)
+      ) {
+        if (suggestion.lat != null && suggestion.lng != null) {
+          deps.flyTo(suggestion.lat, suggestion.lng, STREET_LANDING_ZOOM);
+          return { kind: "street", fitted: false };
+        }
+        return { kind: "noop" };
+      }
       if (suggestion.extent) {
         deps.fitExtent(suggestion.extent);
         deps.highlightStreet(suggestion.extent, suggestion.label);

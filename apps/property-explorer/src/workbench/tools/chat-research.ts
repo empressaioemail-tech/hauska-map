@@ -43,6 +43,7 @@ import {
   type ChatRef,
   type ChatResponsePayload,
 } from "./chat-citations";
+import type { ChatRecordsRequestContext } from "./records-chat-context";
 
 export const CHAT_ENDPOINT = "api/brokerage/v1/research/chat";
 
@@ -53,7 +54,7 @@ export const CHAT_PAYWALL_MESSAGE =
 
 /** 402 free_messages_exhausted value line (the chat wall). */
 export const CHAT_FREE_EXHAUSTED_MESSAGE =
-  "You've used your free messages on this property. Unlock it for unlimited AI chat plus every report.";
+  "That was your last free question on this property. Unlock this property, 30 days, to keep asking.";
 
 /** WB6 save-chat AI summary — classified as PAID chat (R1). */
 export const CHAT_SUMMARY_LOCK_MESSAGE =
@@ -195,6 +196,8 @@ export interface ChatSubjectContext {
   setbacks: ChatSubjectSetbacks | null;
   envelope: ChatSubjectEnvelope | null;
   parcelFacts: ChatSubjectParcelFacts;
+  /** Latest records-request run for this parcel (complete instruments only). */
+  recordsRequest?: ChatRecordsRequestContext | null;
 }
 
 function emptyParcelFacts(
@@ -609,6 +612,9 @@ export function buildChatRequestBody(input: {
         setbacks: subject.setbacks,
         envelope: subject.envelope,
         parcelFacts: subject.parcelFacts,
+        ...(subject.recordsRequest
+          ? { recordsRequest: subject.recordsRequest }
+          : {}),
       },
     },
   };

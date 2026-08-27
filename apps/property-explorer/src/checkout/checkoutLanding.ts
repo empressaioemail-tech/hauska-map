@@ -10,6 +10,7 @@ export type CheckoutQuery = {
   interval: PeCheckoutInterval;
   parcelNodeId: string | null;
   situs: string | null;
+  seats: number | null;
 };
 
 const TIERS: readonly PeCheckoutTier[] = ["solo", "studio", "team"];
@@ -27,11 +28,14 @@ export function parseCheckoutQuery(search: string): CheckoutQuery {
       : "studio";
   const rawInterval = params.get("interval")?.trim();
   const interval: PeCheckoutInterval = rawInterval === "month" ? "month" : "year";
+  const rawSeats = params.get("seats")?.trim();
+  const parsedSeats = rawSeats ? Number.parseInt(rawSeats, 10) : NaN;
   return {
     tier,
     interval,
     parcelNodeId: params.get("parcelNodeId")?.trim() || null,
     situs: params.get("situs")?.trim() || null,
+    seats: Number.isFinite(parsedSeats) && parsedSeats > 0 ? parsedSeats : null,
   };
 }
 
@@ -40,12 +44,16 @@ export function checkoutPageHref(input: {
   interval: PeCheckoutInterval;
   parcelNodeId?: string | null;
   situs?: string | null;
+  seats?: number | null;
 }): string {
   const params = new URLSearchParams();
   params.set("tier", input.tier);
   params.set("interval", input.interval);
   if (input.parcelNodeId) params.set("parcelNodeId", input.parcelNodeId);
   if (input.situs) params.set("situs", input.situs);
+  if (input.tier === "team" && input.seats != null) {
+    params.set("seats", String(input.seats));
+  }
   return `/checkout?${params.toString()}`;
 }
 
@@ -57,6 +65,9 @@ export function checkoutDeepLinkMapHref(query: CheckoutQuery): string {
   params.set("tier", query.tier);
   params.set("interval", query.interval);
   if (query.situs) params.set("situs", query.situs);
+  if (query.tier === "team" && query.seats != null) {
+    params.set("seats", String(query.seats));
+  }
   return `/?${params.toString()}`;
 }
 

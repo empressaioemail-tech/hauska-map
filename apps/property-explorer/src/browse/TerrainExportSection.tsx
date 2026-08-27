@@ -7,14 +7,15 @@ import {
 } from "../lib/terrainExportClient";
 import { GoogleSignInButton } from "../components/GoogleSignInButton";
 import { Button } from "../components/Button";
+import { PE } from "../styles/pe-chrome";
 import {
   DownloadFileButton,
   downloadFormatLabel,
   formatByteCount,
 } from "../components/DownloadFileButton";
 
-const MUTED = "var(--surface-muted, #94A3B8)";
-const WARN = "var(--semantic-warning, #F59E0B)"; // caution notice (was ochre #c98b3a)
+const MUTED = PE.muted;
+const WARN = PE.warning;
 
 function filenameFor(parcelNodeId: string, format: string): string {
   const stem = parcelNodeId.replace(":", "_");

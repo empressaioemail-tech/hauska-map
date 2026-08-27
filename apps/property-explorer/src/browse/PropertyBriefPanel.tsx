@@ -31,15 +31,13 @@ import {
   useSheetVerdict,
   VERDICT_UNRESOLVED,
 } from "../lib/sheet-verdict";
+import { Button } from "../components/Button";
+import { PE } from "../styles/pe-chrome";
 
-const MUTED = "var(--surface-muted, #94A3B8)";
-const AMBER = "var(--semantic-warning, #F59E0B)"; // caution verdict tone (was raw yellow #fcd34d)
-const TEXT = "var(--text-body, #e5e7eb)";
-// Design system: blue = links/citations (--brand-blue). Every clickable
-// reference (fact [n] anchor, source link, appendix link) uses this ONE hue so
-// the data-inspection loop reads coherently. Interaction-cyan (#7dd3fc) stays
-// reserved for the map search-highlight and non-link UI affordances.
-const LINK = "var(--brand-blue, #3B82F6)";
+const MUTED = PE.muted;
+const AMBER = PE.warning;
+const TEXT = PE.text;
+const LINK = PE.accent;
 
 /** W2 verdict tones: red flag leads red-ish; caution amber; clean earns green. */
 const VERDICT_COLOR: Record<VerdictTone, string> = {
@@ -262,7 +260,14 @@ export function PropertyBriefPanel({
     }
     setExportBusy(true);
     setExportNotice("Building the X-ray PDF…");
-    void exportBriefAsXrayPdf({ parcelNodeId: nodeId, brief, facts }).then(
+    const resolvedVerdict =
+      verdict.line === VERDICT_UNRESOLVED.line ? null : verdict.line;
+    void exportBriefAsXrayPdf({
+      parcelNodeId: nodeId,
+      brief,
+      facts,
+      verdictLine: resolvedVerdict,
+    }).then(
       async (result) => {
         setExportBusy(false);
         if (!result.ok && result.status === 402) {
@@ -332,25 +337,16 @@ export function PropertyBriefPanel({
       >
         <strong style={{ fontSize: 13 }}>{vm.header.title}</strong>
         <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-          <button
+          <Button
+            variant="primary"
+            dense
             type="button"
             data-testid="brief-export-pdf"
             onClick={handleExportPdf}
             disabled={exportBusy}
-            style={{
-              // HERO export CTA — blue (actions are blue; gold is brand-mark only).
-              background: "var(--brand-blue, #3B82F6)",
-              border: "0.5px solid var(--brand-blue, #3B82F6)",
-              color: "#f8fafc",
-              borderRadius: "var(--btn-radius, 9px)",
-              padding: "2px 8px",
-              fontSize: 10.5,
-              fontWeight: 600,
-              cursor: "pointer",
-            }}
           >
             Export X-ray PDF
-          </button>
+          </Button>
           {/* Embedded (dock) mode: the dock header owns the × — no double close. */}
           {!embedded && (
             <button

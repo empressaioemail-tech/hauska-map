@@ -32,30 +32,36 @@ import {
 import {
   savedRowDisplayLabel,
   sanitizeDrawings,
+  statusRemovesProperty,
   type DossierFeatureCollection,
   type DossierStatus,
 } from "../../lib/propertyDossier";
-import { pinAccent, resolvePinForSave } from "../../lib/saved-pins";
-import { GoogleSignInButton } from "../../components/GoogleSignInButton";
-import { parcelNodes } from "../../lib/parcel-node-store.js";
-import { recordPeGtmEvent } from "../../lib/gtmClient";
-import { useWorkbench } from "../WorkbenchContext";
-import { PropertyDossierDetail, STATUS_LABELS } from "./PropertyDossierDetail";
-import { runBriefResearch } from "./brief-research";
 import {
-  assembleDossierExportBody,
-  dossierExportNotice,
-  requestDossierExport,
-} from "./dossier-export";
+  notesExcludeNeedsGrantId,
+  upsertSharePackage,
+} from "../../lib/share-package";
+import { mintShareLink } from "../../lib/shareClient";
+import { pinAccent, resolvePinForSave } from "../../lib/saved-pins";
+import { Button } from "../../components/Button";
+import { GoogleSignInButton } from "../../components/GoogleSignInButton";
+import { PE } from "../../styles/pe-chrome";
+import { parcelNodes } from "../../lib/parcel-node-store.js";
+import { useWorkbench } from "../WorkbenchContext";
+import {
+  PropertyDossierDetail,
+  PropertyRowReports,
+  STATUS_LABELS,
+  type PropertyShareMint,
+} from "./PropertyDossierDetail";
+import {
+  initialPropertiesView,
+  type PropertiesView,
+} from "./properties-pending-open";
 
-/** R1 value line for the dossier-PDF paywall (property unlock clears it). */
-export const DOSSIER_PAYWALL_MESSAGE =
-  "The property X-ray PDF — verdict, cited brief facts, your notes and AI research summary, with the site-plan sheets appended.";
-
-const MUTED = "var(--surface-muted, #94A3B8)";
-const AMBER = "var(--semantic-warning, #F59E0B)"; // sign-in / caution notice (was raw yellow #fcd34d)
-const TEXT = "var(--text-body, #e5e7eb)";
-const ACCENT = "var(--brand-blue, #3B82F6)"; // PRIMARY interactive hue (was cyan #7dd3fc)
+const MUTED = PE.muted;
+const AMBER = PE.warning;
+const TEXT = PE.text;
+const ACCENT = PE.accent;
 
 type ListPhase =
   | { kind: "loading" }
@@ -64,9 +70,7 @@ type ListPhase =
   | { kind: "notice"; text: string };
 
 /** Master list vs. one property's dossier detail — same dock, one surface. */
-export type PropertiesView =
-  | { kind: "list" }
-  | { kind: "detail"; parcelNodeId: string };
+export type { PropertiesView } from "./properties-pending-open";
 
 /** WB7d — list filter value: all, or one of the three statuses. */
 export type StatusFilter = "all" | DossierStatus;
@@ -150,6 +154,7 @@ export function PropertiesList({
   onSaveCurrent,
   onOpen,
   onRemove,
+  onToggleShareReport,
 }: {
   phase: ListPhase;
   activeParcelNodeId: string | null;
@@ -162,6 +167,11 @@ export function PropertiesList({
   /** Open the dossier DETAIL view AND navigate the map (the reopen flight). */
   onOpen: (parcelNodeId: string) => void;
   onRemove: (parcelNodeId: string) => void;
+  onToggleShareReport?: (
+    parcelNodeId: string,
+    report: "xray" | "flood",
+    included: boolean,
+  ) => void;
 }) {
   if (phase.kind === "loading") {
     return (
@@ -200,27 +210,17 @@ export function PropertiesList({
   return (
     <div data-testid="properties-list">
       {activeParcelNodeId && !activeSaved && (
-        <button
+        <Button
+          variant="primary"
+          fullWidth
           type="button"
           data-testid="properties-save-current"
           onClick={onSaveCurrent}
           disabled={busy}
-          style={{
-            width: "100%",
-            marginBottom: 10,
-            padding: "7px 10px",
-            fontSize: 11.5,
-            fontWeight: 600,
-            color: "#0d1117",
-            background: ACCENT,
-            border: "none",
-            borderRadius: "var(--btn-radius, 9px)",
-            cursor: busy ? "default" : "pointer",
-            opacity: busy ? 0.6 : 1,
-          }}
+          style={{ marginBottom: 10 }}
         >
           Save current property
-        </button>
+        </Button>
       )}
 
       {showFilter && (
@@ -337,6 +337,13 @@ export function PropertiesList({
                   {row.parcelNodeId === activeParcelNodeId ? " · active" : ""}
                 </span>
               </button>
+              <PropertyRowReports
+                selection={row.snapshot?.shareReportSelection ?? null}
+                disabled={busy}
+                onToggle={(report, included) =>
+                  onToggleShareReport?.(row.parcelNodeId, report, included)
+                }
+              />
               <button
                 type="button"
                 data-testid="properties-remove"
@@ -367,11 +374,12 @@ export function PropertiesTool() {
   const { activeParcelNodeId, host } = useWorkbench();
   const [phase, setPhase] = useState<ListPhase>({ kind: "loading" });
   const [busy, setBusy] = useState(false);
-  const [view, setView] = useState<PropertiesView>({ kind: "list" });
+  const [view, setView] = useState<PropertiesView>(initialPropertiesView);
   // Transient dossier-action outcome shown in the detail view (honest line).
   const [dossierNotice, setDossierNotice] = useState<string | null>(null);
   // WB7d — transient list filter (renders only on lists with >5 entries).
   const [statusFilter, setStatusFilter] = useState<StatusFilter>("all");
+  const [shareUrl, setShareUrl] = useState<string | null>(null);
 
   const refresh = useCallback(async () => {
     const outcome = await listSavedProperties();
@@ -456,12 +464,12 @@ export function PropertiesTool() {
     [applyMutationOutcome],
   );
 
-  // OPEN a saved property: detail view in the SAME dock + the reopen flight
-  // (host.openProperty — find/fly+inspect, kept from #104) + redraw its saved
-  // drawings as the dossier overlay (cleared automatically on property switch).
+  // OPEN a saved property: detail view in THIS dock + fly the map.
+  // openProperty must not switch the rail to Brief (W3.1).
   const handleOpen = useCallback(
     (parcelNodeId: string) => {
       setDossierNotice(null);
+      setShareUrl(null);
       setView({ kind: "detail", parcelNodeId });
       host.openProperty?.(parcelNodeId);
       const row =
@@ -477,6 +485,7 @@ export function PropertiesTool() {
 
   const handleBack = useCallback(() => {
     setDossierNotice(null);
+    setShareUrl(null);
     setView({ kind: "list" });
   }, []);
 
@@ -525,6 +534,10 @@ export function PropertiesTool() {
   // change notification refreshes the list (and the map pins' accent).
   const handleSetStatus = useCallback(
     async (parcelNodeId: string, status: DossierStatus | null) => {
+      if (statusRemovesProperty(status)) {
+        setDossierNotice("Status does not remove a saved property.");
+        return;
+      }
       const outcome = await updatePropertyDossier(parcelNodeId, { status });
       if (outcome.kind === "not-saved") {
         setDossierNotice("This property is no longer saved — status not stored.");
@@ -553,74 +566,82 @@ export function PropertiesTool() {
     [],
   );
 
-  // DOSSIER PDF EXPORT — assemble from what the property already holds
-  // (live R1 brief → verdict + flattened facts; saved chat summary + notes)
-  // and hand the ENGINE the assembly. Missing pieces are honestly omitted.
-  // 402 → the unified paywall (property entitlement clears it).
-  const handleExportDossier = useCallback(
-    async (row: SavedPropertyRow) => {
-      setBusy(true);
-      setDossierNotice("Building the X-ray PDF…");
-      // Best-effort brief: any non-ready outcome (sign-in / paywall / no
-      // snapshot / unreachable) omits verdict+brief honestly — the export
-      // gate itself is enforced server-side by the BFF.
-      const briefOutcome = await runBriefResearch(row.parcelNodeId);
-      const brief = briefOutcome.kind === "ready" ? briefOutcome.brief : null;
-      const facts =
-        row.parcelNodeId === activeParcelNodeId
-          ? (host.getActiveParcelFacts?.() ?? null)
-          : null;
-      const body = assembleDossierExportBody({
-        parcelNodeId: row.parcelNodeId,
-        dossier: row.snapshot ?? null,
-        brief,
-        facts,
-      });
-      const result = await requestDossierExport(body);
-      setBusy(false);
-      if (!result.ok && result.status === 402) {
-        void recordPeGtmEvent({
-          eventType: "pe_paywall_hit",
-          parcelNodeId: row.parcelNodeId,
-        });
-        setDossierNotice(dossierExportNotice(result));
-        host.openPaywall(DOSSIER_PAYWALL_MESSAGE);
-        return;
-      }
-      setDossierNotice(dossierExportNotice(result));
-      if (!result.ok) return;
-      // Download: inline bytes when the BFF carried them, else the gated
-      // re-download path (same-session cookie ride).
-      try {
-        let blob: Blob;
-        if (result.inlineDownload) {
-          const bin = atob(result.inlineDownload.base64);
-          const bytes = new Uint8Array(bin.length);
-          for (let i = 0; i < bin.length; i++) bytes[i] = bin.charCodeAt(i);
-          blob = new Blob([bytes], {
-            type: result.inlineDownload.contentType || "application/pdf",
-          });
-        } else {
-          const res = await fetch(result.downloadUrl, { credentials: "include" });
-          if (!res.ok) {
-            setDossierNotice(`Dossier download failed (${res.status}).`);
-            return;
-          }
-          blob = await res.blob();
-        }
-        const url = URL.createObjectURL(blob);
-        const a = document.createElement("a");
-        a.href = url;
-        a.download = `${row.parcelNodeId.replace(":", "_")}_smart_site_xray.pdf`;
-        document.body.appendChild(a);
-        a.click();
-        a.remove();
-        URL.revokeObjectURL(url);
-      } catch {
-        setDossierNotice("X-ray downloaded response could not be saved — try again.");
+  const handleToggleShareReport = useCallback(
+    async (parcelNodeId: string, report: "xray" | "flood", included: boolean) => {
+      const outcome = await updatePropertyDossier(parcelNodeId, (current) => ({
+        shareReportSelection: {
+          xray: report === "xray" ? included : current.shareReportSelection?.xray === true,
+          flood: report === "flood" ? included : current.shareReportSelection?.flood === true,
+        },
+      }));
+      if (outcome.kind !== "ok") {
+        setDossierNotice("Report include/exclude could not be saved.");
+        applyMutationOutcome(outcome);
       }
     },
-    [activeParcelNodeId, host],
+    [applyMutationOutcome],
+  );
+
+  const handleMintShare = useCallback(
+    async (parcelNodeId: string, pkg: PropertyShareMint) => {
+      setBusy(true);
+      const outcome = await mintShareLink(parcelNodeId, {
+        includeNotes: pkg.includeNotes,
+      });
+      setBusy(false);
+      if (outcome.kind === "sign-in") {
+        setDossierNotice("Sign in to create a share link for this property.");
+        return;
+      }
+      if (outcome.kind !== "ready") {
+        setDossierNotice(
+          outcome.kind === "not-configured"
+            ? outcome.message
+            : outcome.kind === "message"
+              ? outcome.text
+              : "Could not reach the sharing service.",
+        );
+        return;
+      }
+      const grantId = outcome.link.grantId ?? null;
+      if (notesExcludeNeedsGrantId(pkg.includeNotes, grantId)) {
+        setShareUrl(null);
+        setDossierNotice(
+          "Notes were excluded, but the grant id did not return. The link was not shown.",
+        );
+        return;
+      }
+      if (grantId) {
+        const bound = await updatePropertyDossier(parcelNodeId, (current) => ({
+          sharePackages: upsertSharePackage(current.sharePackages ?? undefined, {
+            grantId,
+            includeNotes: pkg.includeNotes,
+            includeXray: pkg.includeXray,
+            includeFlood: pkg.includeFlood,
+            persona: pkg.persona,
+            message: pkg.message,
+            savedAt: new Date().toISOString(),
+          }),
+          shareReportSelection: {
+            xray: pkg.includeXray,
+            flood: pkg.includeFlood,
+          },
+        }));
+        if (bound.kind !== "ok") {
+          if (pkg.includeNotes === false) {
+            setShareUrl(null);
+            setDossierNotice(
+              "Share package could not be stored. The link was not shown because notes were excluded.",
+            );
+            return;
+          }
+          setDossierNotice("Share link created. Package bind did not store.");
+        }
+      }
+      setShareUrl(outcome.link.url);
+      setDossierNotice(null);
+    },
+    [],
   );
 
   // DETAIL view — needs a ready list carrying the row; otherwise fall back to
@@ -634,21 +655,16 @@ export function PropertiesTool() {
           <p style={{ margin: "0 0 8px", fontSize: 11.5, color: MUTED }}>
             This property is no longer saved.
           </p>
-          <button
+          <Button
+            variant="ghost"
+            dense
             type="button"
             data-testid="dossier-back"
             onClick={handleBack}
-            style={{
-              background: "transparent",
-              border: "none",
-              color: ACCENT,
-              cursor: "pointer",
-              padding: 0,
-              fontSize: 11.5,
-            }}
+            style={{ padding: 0, border: "none", fontSize: 11.5 }}
           >
             ← All saved properties
-          </button>
+          </Button>
         </div>
       );
     }
@@ -662,7 +678,11 @@ export function PropertiesTool() {
         onShowDrawings={() => handleShowDrawings(row)}
         onSaveNotes={(text) => void handleSaveNotes(row.parcelNodeId, text)}
         onSetStatus={(status) => void handleSetStatus(row.parcelNodeId, status)}
-        onExportDossier={() => void handleExportDossier(row)}
+        onMintShare={(pkg) => void handleMintShare(row.parcelNodeId, pkg)}
+        onToggleShareReport={(report, included) =>
+          void handleToggleShareReport(row.parcelNodeId, report, included)
+        }
+        shareUrl={shareUrl}
       />
     );
   }
@@ -677,6 +697,9 @@ export function PropertiesTool() {
       onSaveCurrent={() => void handleSaveCurrent()}
       onOpen={handleOpen}
       onRemove={(id) => void handleRemove(id)}
+      onToggleShareReport={(id, report, included) =>
+        void handleToggleShareReport(id, report, included)
+      }
     />
   );
 }

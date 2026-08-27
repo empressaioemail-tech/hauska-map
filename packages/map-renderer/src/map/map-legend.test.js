@@ -87,6 +87,8 @@ describe("map legend (W3)", () => {
     assert.equal(handle.isOpen(), false);
     assert.doesNotThrow(() => handle.update(["zoning"]));
     assert.doesNotThrow(() => handle.destroy());
+    const bubble = createMapLegend(null, { chrome: "bubble" });
+    assert.equal(bubble.element, null);
   });
 });
 

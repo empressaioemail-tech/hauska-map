@@ -98,6 +98,21 @@ export function isEntitled(s: PropertyEntitlementState): boolean {
   return isPro(s) || s.propertyUnlocked || s.devRole;
 }
 
+/**
+ * Studio-only surfaces (terrain export, site-plan CAD where gated, owner data).
+ * Dev role reads as team on the server; until refresh, client infers team from
+ * devRole. While entitlement is still loading, return true so the dock does not
+ * flash a false Studio lock — server 402 stays authoritative.
+ */
+export function studioGrantedForEntitlement(s: {
+  devRole: boolean;
+  subscriptionTier: PeSubscriptionTier | null;
+  status: "ready" | "error" | "loading";
+}): boolean {
+  if (s.status !== "ready") return true;
+  return s.devRole || subscriptionTierGrantsStudio(s.subscriptionTier);
+}
+
 export function freeMessagesLeft(s: PropertyEntitlementState): number {
   return Math.max(0, s.freeMessagesLimit - s.freeMessagesUsed);
 }

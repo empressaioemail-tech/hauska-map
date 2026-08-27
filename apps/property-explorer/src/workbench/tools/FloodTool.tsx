@@ -48,11 +48,12 @@ import {
 } from "../../lib/floodDrainageClient";
 import { GoogleSignInButton } from "../../components/GoogleSignInButton";
 import { Button } from "../../components/Button";
+import { PE } from "../../styles/pe-chrome";
 import { DownloadFileButton } from "../../components/DownloadFileButton";
 import { recordPeGtmEvent } from "../../lib/gtmClient";
 import { usePropertyEntitlement } from "../../lib/usePropertyEntitlement";
 import { useDockToolState, useWorkbench } from "../WorkbenchContext";
-import { attachExportToDossier } from "./reports-dossier";
+import { fileReportOnProperty } from "./reports-dossier";
 import { buildFloodVizModel, type FloodVizModel } from "./flood-viz";
 import { floodFindingLead } from "./flood-finding";
 import {
@@ -68,9 +69,9 @@ import {
   FLOOD_EXIT_MARKER_STROKE,
 } from "../../browse/flood-map-overlay";
 
-const TEXT = "var(--text-body, #e5e7eb)";
-const MUTED = "var(--surface-muted, #94A3B8)";
-const ACCENT = "var(--brand-blue, #3B82F6)"; // PRIMARY interactive hue for tool CHROME (was cyan #7dd3fc)
+const TEXT = PE.text;
+const MUTED = PE.muted;
+const ACCENT = PE.accent;
 
 // Water palette — one hue family, graded; parcel ring stays the neutral star.
 // NOTE: this flood-analysis map palette (catchment/flow/ponding/exit) is the
@@ -315,14 +316,20 @@ export function FloodDrainageSection({ embed = false }: { embed?: boolean } = {}
         const key = activeParcelNodeId;
         if (attachedRef.current.get(key) !== next.study) {
           attachedRef.current.set(key, next.study);
-          void attachExportToDossier(activeParcelNodeId, "flood-drainage", {
-            selectedFormat: "pdf-flood-drainage",
-            downloadUrl: floodDrainageDownloadPath(activeParcelNodeId),
-          });
+          const address = host.getActivePropertyAddress?.() ?? null;
+          void fileReportOnProperty(
+            activeParcelNodeId,
+            "flood-drainage",
+            {
+              selectedFormat: "pdf-flood-drainage",
+              downloadUrl: floodDrainageDownloadPath(activeParcelNodeId),
+            },
+            { label: address, address },
+          );
         }
       }
     },
-    [activeParcelNodeId, setStored],
+    [activeParcelNodeId, host, setStored],
   );
 
   const run = useCallback(async () => {
@@ -537,6 +544,7 @@ export function FloodDrainageSection({ embed = false }: { embed?: boolean } = {}
             download={floodDrainageFilename(activeParcelNodeId)}
             label="Download PDF sheet"
             testId="flood-download-link"
+            parcelNodeId={activeParcelNodeId}
           />
 
           <div
@@ -573,7 +581,9 @@ export function FloodDrainageSection({ embed = false }: { embed?: boolean } = {}
               </div>
             ) : null}
             {!overlayOnMap && host.setFloodMapOverlay ? (
-              <button
+              <Button
+                variant="secondary"
+                dense
                 type="button"
                 data-testid="flood-overlay-idle"
                 onClick={() => void run()}
@@ -583,17 +593,12 @@ export function FloodDrainageSection({ embed = false }: { embed?: boolean } = {}
                   bottom: 9,
                   height: 26,
                   padding: "0 10px",
-                  borderRadius: 5,
                   background: "rgba(11,14,19,0.85)",
-                  border: "0.5px solid rgba(154,166,178,0.35)",
-                  color: "#c6d0dc",
                   fontSize: 11,
-                  cursor: "pointer",
-                  fontFamily: "inherit",
                 }}
               >
                 Open on the map
-              </button>
+              </Button>
             ) : null}
           </div>
 

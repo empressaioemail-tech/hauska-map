@@ -14,22 +14,30 @@
 //     old links stay valid until their own expiry — tokens are stateless).
 
 import { useState } from "react";
+import { Button } from "../../components/Button";
 import { usePropertyEntitlement } from "../../lib/usePropertyEntitlement";
+import { PE } from "../../styles/pe-chrome";
 import { useDockToolState, useWorkbench } from "../WorkbenchContext";
 import { LockedToolPanel } from "./LockedToolPanel";
 import {
   mintShareLink,
   type MintedShareLink,
 } from "../../lib/shareClient";
+import { updatePropertyDossier } from "../../lib/savedPropertiesClient";
+import {
+  notesExcludeNeedsGrantId,
+  upsertSharePackage,
+} from "../../lib/share-package";
+import { defaultShareMessage } from "../../lib/share-personas";
 
 /** Share value line — free for every signed-in user (acquisition channel). */
 export const SHARE_VALUE_LINE =
-  "Share links carry this property's full analysis — the verdict and cited brief plus the site-plan and terrain downloads when exported — readable by anyone you send them to.";
+  "Share links carry the grant-scoped instrument for this property. The public-record brief is one source. Site plan, terrain, and X-ray appear when the sharer exported them. Owner data is labelled when it cannot be served.";
 
-const MUTED = "var(--surface-muted, #94A3B8)";
-const AMBER = "var(--semantic-warning, #F59E0B)";
-const TEXT = "var(--text-body, #e5e7eb)";
-const ACCENT = "var(--brand-blue, #3B82F6)";
+const MUTED = PE.muted;
+const AMBER = PE.warning;
+const TEXT = PE.text;
+const ACCENT = PE.accent;
 
 /** The chassis-stored (per-property, JSON-serializable) share tool state. */
 export interface ShareToolStoredState {
@@ -57,11 +65,15 @@ function fmtExpiry(iso: string | null): string {
 export function ShareBody({
   stored,
   phase,
+  includeNotes,
+  onIncludeNotesChange,
   onCreate,
   onCopy,
 }: {
   stored: ShareToolStoredState | null;
   phase: Phase;
+  includeNotes: boolean;
+  onIncludeNotesChange: (include: boolean) => void;
   onCreate: () => void;
   onCopy: () => void;
 }) {
@@ -70,9 +82,10 @@ export function ShareBody({
       {stored ? (
         <>
           <p style={{ margin: "0 0 6px", fontSize: 11.5, color: TEXT }}>
-            Anyone with this link can view this property's analysis — the cited
-            brief plus the site-plan and terrain downloads when exported.
-            Read-only, this property only.
+            Anyone with this link can fetch it. The public-record brief is one
+            source on the share, not the share by itself. Site plan, terrain,
+            and X-ray appear when exported. Owner data is labelled when
+            withheld. Read-only, this property only, 30 days.
           </p>
           <div
             data-testid="share-link-url"
@@ -88,43 +101,47 @@ export function ShareBody({
           >
             {stored.link.url}
           </div>
+          <label
+            data-testid="share-include-notes"
+            style={{
+              display: "flex",
+              alignItems: "center",
+              gap: 8,
+              marginBottom: 8,
+              fontSize: 11.5,
+              color: TEXT,
+              cursor: "pointer",
+            }}
+          >
+            <input
+              type="checkbox"
+              data-testid="share-include-notes-input"
+              checked={includeNotes}
+              onChange={(e) => onIncludeNotesChange(e.target.checked)}
+            />
+            Include notes on this share
+          </label>
           <div style={{ display: "flex", gap: 8, marginBottom: 6 }}>
-            <button
+            <Button
+              variant="primary"
+              dense
               type="button"
               data-testid="share-copy"
               onClick={onCopy}
-              style={{
-                flex: 1,
-                padding: "7px 10px",
-                fontSize: 11.5,
-                fontWeight: 600,
-                color: "#0d1117",
-                background: ACCENT,
-                border: "none",
-                borderRadius: "var(--btn-radius, 9px)",
-                cursor: "pointer",
-              }}
+              style={{ flex: 1 }}
             >
               {phase.kind === "copied" ? "Copied" : "Copy link"}
-            </button>
-            <button
+            </Button>
+            <Button
+              variant="secondary"
+              dense
               type="button"
               data-testid="share-regenerate"
               onClick={onCreate}
               disabled={phase.kind === "minting"}
-              style={{
-                padding: "7px 10px",
-                fontSize: 11.5,
-                fontWeight: 600,
-                color: TEXT,
-                background: "transparent",
-                border: "1px solid rgba(154,166,178,0.35)",
-                borderRadius: 6,
-                cursor: phase.kind === "minting" ? "default" : "pointer",
-              }}
             >
               {phase.kind === "minting" ? "…" : "Regenerate"}
-            </button>
+            </Button>
           </div>
           <p data-testid="share-expiry" style={{ margin: 0, fontSize: 10, color: MUTED }}>
             {fmtExpiry(stored.link.expiresAt)} Regenerating mints a fresh link;
@@ -134,31 +151,41 @@ export function ShareBody({
       ) : (
         <>
           <p style={{ margin: "0 0 8px", fontSize: 11.5, color: TEXT }}>
-            Create a read-only link that carries this property's ANALYSIS — the
-            verdict and full cited brief, plus the site-plan PDF and terrain
-            drawings when exported. No sign-in needed to view; the link covers
-            only this property and expires after 30 days.
+            Create a read-only /s/{"{grantId}"} link a model can fetch. The
+            public-record brief is one source. Site plan, terrain, and X-ray
+            appear when the sharer exported them. Owner data is labelled when
+            withheld. No sign-in needed to view. This property only, 30 days.
           </p>
-          <button
+          <label
+            data-testid="share-include-notes"
+            style={{
+              display: "flex",
+              alignItems: "center",
+              gap: 8,
+              marginBottom: 10,
+              fontSize: 11.5,
+              color: TEXT,
+              cursor: "pointer",
+            }}
+          >
+            <input
+              type="checkbox"
+              data-testid="share-include-notes-input"
+              checked={includeNotes}
+              onChange={(e) => onIncludeNotesChange(e.target.checked)}
+            />
+            Include notes on this share
+          </label>
+          <Button
+            variant="primary"
+            fullWidth
             type="button"
             data-testid="share-create"
             onClick={onCreate}
             disabled={phase.kind === "minting"}
-            style={{
-              width: "100%",
-              padding: "8px 12px",
-              fontSize: 12,
-              fontWeight: 600,
-              color: "#0d1117",
-              background: ACCENT,
-              border: "none",
-              borderRadius: "var(--btn-radius, 9px)",
-              cursor: phase.kind === "minting" ? "default" : "pointer",
-              opacity: phase.kind === "minting" ? 0.6 : 1,
-            }}
           >
             {phase.kind === "minting" ? "Creating link…" : "Create share link"}
-          </button>
+          </Button>
         </>
       )}
       {phase.kind === "notice" && (
@@ -181,29 +208,55 @@ export function ShareTool() {
   const { activeParcelNodeId } = useWorkbench();
   const [stored, setStored] = useDockToolState<ShareToolStoredState>("share");
   const [phase, setPhase] = useState<Phase>({ kind: "idle" });
+  const [includeNotes, setIncludeNotes] = useState(true);
   // Share is FREE per canon — only sign-in is required to mint.
   const ent = usePropertyEntitlement(activeParcelNodeId);
 
   const handleCreate = async () => {
     if (!activeParcelNodeId) return;
     setPhase({ kind: "minting" });
-    const outcome = await mintShareLink(activeParcelNodeId);
+    const outcome = await mintShareLink(activeParcelNodeId, { includeNotes });
     switch (outcome.kind) {
-      case "ready":
+      case "ready": {
+        const grantId = outcome.link.grantId ?? null;
+        if (notesExcludeNeedsGrantId(includeNotes, grantId)) {
+          setPhase({
+            kind: "notice",
+            text: "Notes were excluded, but the grant id did not return. The link was not shown.",
+            tone: "amber",
+          });
+          return;
+        }
+        if (grantId) {
+          const bound = await updatePropertyDossier(activeParcelNodeId, (current) => ({
+            sharePackages: upsertSharePackage(current.sharePackages ?? undefined, {
+              grantId,
+              includeNotes,
+              persona: "other",
+              message: defaultShareMessage("other"),
+              savedAt: new Date().toISOString(),
+            }),
+          }));
+          if (includeNotes === false && bound.kind !== "ok") {
+            setPhase({
+              kind: "notice",
+              text:
+                bound.kind === "not-saved"
+                  ? "Save the property to exclude notes from a share."
+                  : "Share package could not be stored. The link was not shown because notes were excluded.",
+              tone: "amber",
+            });
+            return;
+          }
+        }
         setStored({ link: outcome.link, mintedAt: new Date().toISOString() });
         setPhase({ kind: "idle" });
         return;
+      }
       case "sign-in":
         setPhase({
           kind: "notice",
           text: "Sign in to create a share link for this property.",
-          tone: "amber",
-        });
-        return;
-      case "paywall":
-        setPhase({
-          kind: "notice",
-          text: outcome.message,
           tone: "amber",
         });
         return;
@@ -255,6 +308,8 @@ export function ShareTool() {
     <ShareBody
       stored={stored}
       phase={phase}
+      includeNotes={includeNotes}
+      onIncludeNotesChange={setIncludeNotes}
       onCreate={() => void handleCreate()}
       onCopy={() => void handleCopy()}
     />

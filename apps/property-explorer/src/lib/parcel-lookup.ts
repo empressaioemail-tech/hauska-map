@@ -22,8 +22,12 @@ import { isValidParcelNodeId, normalizeParcelNodeId } from "./parcel-node-id";
 import { PE_SITUS_SEARCH_URL } from "./situs-search-client";
 import { situsHitsFromResponse, uniqueSitusPin } from "./situs-pin";
 import {
+  AMBIGUOUS_FIND_REASON,
   compactEnvelopeAddressQuery,
+  isBareHouseStreetQuery,
   isPhotonAddressLabel,
+  looksLikeBarePlaceQuery,
+  situsQueryVariants,
 } from "./search-kinds";
 
 export type LookupKind = "parcel-node-id" | "address";
@@ -157,6 +161,16 @@ export async function resolveLookupToParcelNodeId(
     return { ok: true, parcelNodeId: classified.value, source: "parcel-node-id" };
   }
 
+  if (looksLikeBarePlaceQuery(classified.value)) {
+    return {
+      ok: false,
+      reason: "That looks like a city or county — pick a row from the list.",
+    };
+  }
+  if (isBareHouseStreetQuery(classified.value)) {
+    return { ok: false, reason: AMBIGUOUS_FIND_REASON };
+  }
+
   const fetchImpl = opts?.fetchImpl ?? fetch;
   const pin = await fetchUniqueSitusPin(classified.value, {
     situsSearchUrl: opts?.situsSearchUrl ?? PE_SITUS_SEARCH_URL,
@@ -256,16 +270,46 @@ async function fetchUniqueSitusPin(
   opts: { situsSearchUrl: string; fetchImpl: typeof fetch },
 ) {
   try {
-    const qs = new URLSearchParams({ q: query, limit: "7" });
-    const res = await opts.fetchImpl(`${opts.situsSearchUrl}?${qs.toString()}`, {
-      method: "GET",
-    });
-    if (!res.ok) return null;
-    const json: unknown = await res.json();
-    return uniqueSitusPin(situsHitsFromResponse(json));
+    const variants = situsQueryVariants(query);
+    const batches = await Promise.all(
+      variants.map(async (q) => {
+        const qs = new URLSearchParams({ q, limit: "7" });
+        const res = await opts.fetchImpl(`${opts.situsSearchUrl}?${qs.toString()}`, {
+          method: "GET",
+        });
+        if (!res.ok) return [];
+        return situsHitsFromResponse(await res.json());
+      }),
+    );
+    const seen = new Set<string>();
+    const hits = [];
+    for (const batch of batches) {
+      for (const hit of batch) {
+        const key = `${hit.parcelNodeId ?? ""}|${hit.situsAddress}`;
+        if (seen.has(key)) continue;
+        seen.add(key);
+        hits.push(hit);
+      }
+    }
+    const cityHint = cityHintFromQuery(query);
+    const filtered = cityHint
+      ? hits.filter((h) => h.situsAddress.toLowerCase().includes(cityHint))
+      : hits;
+    return uniqueSitusPin(cityHint ? filtered : hits);
   } catch {
     return null;
   }
+}
+
+function cityHintFromQuery(raw: string): string | null {
+  const tokens = raw.replace(/,/g, " ").split(/\s+/).filter(Boolean);
+  if (tokens.length < 3 || !/^\d/.test(tokens[0] ?? "")) return null;
+  const last = tokens[tokens.length - 1]?.toLowerCase() ?? "";
+  if (!last || /^\d/.test(last)) return null;
+  if (/^(drive|street|avenue|lane|boulevard|court|circle|road|dr|st|ave|ln|blvd|ct|cir|rd|tx|texas)$/i.test(last)) {
+    return null;
+  }
+  return last;
 }
 
 /** Read deep-link query from a URLSearchParams (parcelNodeId | parcel | address). */
