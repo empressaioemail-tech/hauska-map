@@ -146,6 +146,7 @@ export interface FloodDrainageRefreshRequest {
   address?: string
   countyName?: string
   rainfallDepthInches?: number
+  liveViewUrl?: string
 }
 
 /** Validate the refresh POST body (engine bounds mirrored: 0 < depth <= 60). */
@@ -191,6 +192,9 @@ export function parseFloodDrainageRefreshBody(
     }
     request.rainfallDepthInches = depth
   }
+  if (typeof b.liveViewUrl === 'string' && b.liveViewUrl.trim()) {
+    request.liveViewUrl = b.liveViewUrl.trim().slice(0, 500)
+  }
   return { ok: true, request }
 }
 
@@ -205,6 +209,7 @@ export function buildEngineRefreshBody(
     ...(req.rainfallDepthInches !== undefined
       ? { rainfallDepthInches: req.rainfallDepthInches }
       : {}),
+    ...(req.liveViewUrl ? { liveViewUrl: req.liveViewUrl } : {}),
   }
 }
 

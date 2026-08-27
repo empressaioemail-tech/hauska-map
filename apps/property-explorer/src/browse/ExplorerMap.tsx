@@ -67,6 +67,7 @@ import {
   sharedAnalysisToolDef,
   type ShareFunnelBinding,
 } from "../share/SharedDossierDock";
+import { shareFlightQuery } from "../share/share-flight";
 import { MapToolset, type LayerStateBadge } from "./MapToolset";
 import type { MapToolsController } from "./mapToolsController";
 import { asMaplibreMap } from "./satelliteBase";
@@ -1269,11 +1270,12 @@ function ExplorerMapSurface({
   // error line — the docked analysis still renders from the token-gated BFF.
   const shareFlightDoneRef = useRef(false);
   useEffect(() => {
-    if (!share || share.phase.kind !== "ready" || shareFlightDoneRef.current) {
+    const flightQuery = share ? shareFlightQuery(share) : null;
+    if (!share || !flightQuery || shareFlightDoneRef.current) {
       return;
     }
     shareFlightDoneRef.current = true;
-    void runParcelLookup(share.phase.data.property.parcelNodeId, {
+    void runParcelLookup(flightQuery, {
       quiet: true,
     });
   }, [share, runParcelLookup]);

@@ -195,6 +195,7 @@ export async function requestFloodDrainageRefresh(
         parcelNodeId: target.parcelNodeId,
         ...(target.address ? { address: target.address } : {}),
         countyName: target.countyName,
+        liveViewUrl: `/?parcelNodeId=${encodeURIComponent(target.parcelNodeId)}`,
       }),
     })
     return await parseOutcome(res)

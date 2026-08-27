@@ -1,27 +1,24 @@
 // src/share/ShareFunnelApp.tsx — the SHARE LANDING shell (signup funnel).
 //
-// /share#<token> loads THIS instead of the old standalone read-only page: the
-// FULL regular map app boots (ExplorerMap — anonymous browse, tools locked per
-// the existing entitlement matrix), the share token resolves through the SAME
-// token-gated /api/pe-share-view BFF the standalone page used, and:
-//   - ready → ExplorerMap flies/docks to the shared property (it reuses the
-//     workbench reopen chain — runParcelLookup — internally) and the read-only
-//     analysis opens in the workbench dock (SharedDossierDock),
-//   - expired/invalid (or no token at all) → the map app still loads with the
-//     honest notice — never a dead-end page,
-//   - signed out → the persistent non-blocking sign-up prompt (the standard
-//     googleSignInUrl entry point); signed in → no prompt, standard user.
-//
-// The share grant exposes ONLY the shared dossier content (token-gated BFF);
-// everything else on the page is exactly the anonymous app.
+// /share#<token> and /share?g={grantId} (from a browser GET /s/{id} 302)
+// load THIS instead of a standalone page: the FULL regular map app boots,
+// the share resolves through the token-gated or grant-id BFF, and the map
+// flies to the shared property.
 
 import { useEffect, useMemo, useState } from "react";
 import { ExplorerMap } from "../browse/ExplorerMap";
 import { fetchSession } from "../lib/auth";
+import { claimAnonymousStateOnSignIn } from "../lib/claimClient";
 import { recordPeGtmEvent } from "../lib/gtmClient";
 import type { ShareLanding } from "./share-landing";
 import { ShareLandingOverlay } from "./ShareLandingOverlay";
 import type { ShareFunnelBinding } from "./SharedDossierDock";
+import { fetchShareGrant } from "./share-grant-client";
+import { shareNotesFromDossier } from "./share-flight";
+import {
+  defaultReceivedShareStore,
+  recordReceivedShare,
+} from "./share-received";
 import {
   fetchShareBrief,
   fetchShareDossier,
@@ -40,11 +37,17 @@ function stripSignedInParam(): void {
 
 export function ShareFunnelApp({ landing }: { landing: ShareLanding }) {
   const token = landing.token;
-  // No token at all (bare /share) → straight to the honest invalid state.
+  const grantId = landing.grantId;
   const [phase, setPhase] = useState<SharePhase>(() =>
-    token ? { kind: "loading" } : { kind: "invalid" },
+    token || grantId ? { kind: "loading" } : { kind: "invalid" },
   );
   const [dossier, setDossier] = useState<ShareDossierData | null>(null);
+  const [parcelNodeId, setParcelNodeId] = useState<string | null>(null);
+  const [artifacts, setArtifacts] = useState({
+    xray: false,
+    sitePlan: false,
+    terrain: false,
+  });
   const [signedIn, setSignedIn] = useState(false);
 
   useEffect(() => {
@@ -55,24 +58,50 @@ export function ShareFunnelApp({ landing }: { landing: ShareLanding }) {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  // Resolve the share token through the token-gated BFF (same calls as the
-  // old standalone page — fetchShareBrief / feature-detected fetchShareDossier).
   useEffect(() => {
-    if (!token) return;
+    if (!token && !grantId) return;
     let cancelled = false;
-    void fetchShareBrief(token).then((next) => {
+    if (grantId) {
+      void fetchShareGrant(grantId).then((next) => {
+        if (cancelled) return;
+        setPhase(next.phase);
+        setDossier(next.dossier);
+        setParcelNodeId(next.parcelNodeId);
+        setArtifacts(next.artifacts);
+      });
+      return () => {
+        cancelled = true;
+      };
+    }
+    void fetchShareBrief(token!).then((next) => {
       if (!cancelled) setPhase(next);
     });
-    void fetchShareDossier(token).then((next) => {
+    void fetchShareDossier(token!).then((next) => {
       if (!cancelled) setDossier(next);
     });
     return () => {
       cancelled = true;
     };
-  }, [token]);
+  }, [token, grantId]);
 
-  // Session probe: an OIDC round-trip lands with ?signed_in=1 (strip it, as
-  // the normal app shell does); otherwise an existing pe_session cookie counts.
+  useEffect(() => {
+    if (phase.kind !== "ready") return;
+    const id = phase.data.property.parcelNodeId;
+    recordReceivedShare(
+      {
+        id: grantId ?? token ?? id,
+        grantId,
+        parcelNodeId: id,
+        address: phase.data.property.situsAddress,
+        notes: shareNotesFromDossier(dossier),
+        expiresAt: phase.data.share.expiresAt,
+        artifacts,
+        receivedAt: new Date().toISOString(),
+      },
+      defaultReceivedShareStore(),
+    );
+  }, [phase, dossier, grantId, token, artifacts]);
+
   useEffect(() => {
     if (typeof window === "undefined") return;
     const fromCallback =
@@ -80,6 +109,8 @@ export function ShareFunnelApp({ landing }: { landing: ShareLanding }) {
     if (fromCallback) {
       setSignedIn(true);
       stripSignedInParam();
+      // W2.3 — same claim the normal app runs. Share landings used to skip it.
+      void claimAnonymousStateOnSignIn();
       return;
     }
     let cancelled = false;
@@ -92,8 +123,16 @@ export function ShareFunnelApp({ landing }: { landing: ShareLanding }) {
   }, []);
 
   const share = useMemo<ShareFunnelBinding>(
-    () => ({ token, phase, dossier }),
-    [token, phase, dossier],
+    () => ({
+      token,
+      grantId,
+      phase,
+      dossier,
+      parcelNodeId:
+        parcelNodeId ??
+        (phase.kind === "ready" ? phase.data.property.parcelNodeId : null),
+    }),
+    [token, grantId, phase, dossier, parcelNodeId],
   );
 
   return (
@@ -105,9 +144,6 @@ export function ShareFunnelApp({ landing }: { landing: ShareLanding }) {
         overflow: "hidden",
       }}
     >
-      {/* The FULL live map app — share mode only adds the docked shared
-          analysis + the flight to the shared property. No cold-open here:
-          the share sign-up prompt below is this landing's funnel surface. */}
       <ExplorerMap share={share} />
       <ShareLandingOverlay phase={phase} signedIn={signedIn} />
     </div>

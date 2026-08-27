@@ -231,6 +231,14 @@ describe('W4.P0 refuseHollowXrayExport — pipeline vs user-content', () => {
     }
   })
 
+  it('forwards liveViewUrl (W2.4; violate: dropping the live-view field)', () => {
+    const parsed = parseDossierExportContent({
+      ...ready,
+      liveViewUrl: '/?parcelNodeId=48021%3A34161',
+    })
+    expect(parsed.liveViewUrl).toBe('/?parcelNodeId=48021%3A34161')
+  })
+
   it('omits owner notes and still clears when verdict + brief exist', () => {
     const parsed = parseDossierExportContent({
       ...ready,
