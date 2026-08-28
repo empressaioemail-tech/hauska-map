@@ -363,7 +363,13 @@ function StackPanel({
             "max-height 220ms cubic-bezier(.2,.6,.35,1), opacity 140ms cubic-bezier(.2,.6,.35,1)",
         }}
       >
-        <div style={{ padding: "10px 12px 12px" }}>{children}</div>
+        {/* fontSize is NOT decoration here. The splitPanelStyle this
+            replaced carried 11.5 and every layer row inherited it; without it
+            the rows fell back to the browser default 16px, which is why the
+            layer list came out oversized against the rest of the chrome. */}
+        <div style={{ padding: "10px 12px 12px", fontSize: 11.5 }}>
+          {children}
+        </div>
       </div>
     </section>
   );
@@ -1623,6 +1629,9 @@ export function MapToolset({
         // inboard of it. Mirrors the right edge, where the rail is outboard
         // and the docks sit beside it.
         flexDirection: anchor === "left" ? "row-reverse" : "column",
+        // Bottom-aligned: the capsule and the panel column end on the same
+        // line, so the two halves of the left chrome share a baseline instead
+        // of one floating against the other.
         alignItems: "flex-end",
         gap: 8,
         fontFamily: "system-ui, -apple-system, Segoe UI, Roboto, sans-serif",
@@ -1633,15 +1642,19 @@ export function MapToolset({
       {splitBubbles ? (
         <div
           data-testid="map-toolset-left-stack"
-          className="pe-scroll ss-fade-top"
+          className="pe-scroll"
           style={{
             display: splitOpenCount > 0 || legendOpen || stackPanels ? "flex" : "none",
             flexDirection: "column",
-            // BOTTOM-UP, LIKE THE RIGHT SIDE (operator, 2026-08-28). The
-            // column is anchored to the ground by the root and grows upward,
-            // and `justify-content: flex-end` keeps the newest panel sitting
-            // on the rail rather than floating at the top of the box.
-            justifyContent: "flex-end",
+            // NO justify-content:flex-end. That is why it would not scroll.
+            // A flex container that packs to the end pushes its overflow off
+            // the START edge, and overflow at the start edge is unreachable —
+            // the browser will not scroll to it. It is a known flexbox trap
+            // and it is exactly what was clipping the top panel.
+            //
+            // The column does not need it: the ROOT is anchored at bottom:72,
+            // so the stack already sits on the ground and grows upward. Normal
+            // flex-start packing inside it scrolls correctly.
             gap: 8,
             width: 216,
             // ONE scroller, same as the right column.
