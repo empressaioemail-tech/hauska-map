@@ -262,7 +262,7 @@ export function PricingModal({
                 {PE_PRICING.interval.monthlyLabel}
               </Button>
             </div>
-            <button
+            <Button
               type="button"
               aria-label="Close"
               data-testid="pricing-modal-close"
@@ -275,10 +275,11 @@ export function PricingModal({
                 fontSize: 15,
                 lineHeight: 1,
                 padding: 0,
+                height: "auto",
               }}
             >
               ×
-            </button>
+            </Button>
           </div>
         </div>
 

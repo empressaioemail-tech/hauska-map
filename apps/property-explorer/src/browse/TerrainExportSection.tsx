@@ -201,7 +201,7 @@ export function TerrainExportSection({
               borderRadius: 6,
               border: "0.5px solid rgba(154,166,178,0.35)",
               background: "rgba(6,9,13,0.6)",
-              color: "#e6edf3",
+              color: PE.t2,
               fontSize: 12.5,
             }}
           >
@@ -269,7 +269,7 @@ export function TerrainExportSection({
         <div data-testid="terrain-export-result" style={{ marginTop: 8 }}>
           <div
             data-testid="terrain-source-citation"
-            style={{ fontSize: 11.5, color: "#c6d0dc", lineHeight: 1.45 }}
+            style={{ fontSize: 11.5, color: PE.t3, lineHeight: 1.45 }}
           >
             Source: {result.atom.sourceCitation ?? "USGS 3DEP"}
             {result.atom.fetchedAt ? ` · ${result.atom.fetchedAt.slice(0, 10)}` : ""}

@@ -91,7 +91,7 @@ export function RecordsAcknowledgementPanel({
           <div style={{ fontSize: 12.5, lineHeight: 1.6, color: MUTED_2 }}>
             Runs take 20 minutes to a few hours. You can leave this parcel — the
             result lands in its property records and we email you at{" "}
-            <span style={{ color: "#c6d0dc" }}>{contact}</span> when the run
+            <span style={{ color: PE.t3 }}>{contact}</span> when the run
             finishes.
           </div>
         </div>
@@ -207,7 +207,7 @@ export function RecordsAcknowledgementPanel({
             gap: 7,
             fontSize: 12.5,
             lineHeight: 1.5,
-            color: "#c6d0dc",
+            color: PE.t3,
           }}
         >
           {SCAFFOLD_SEARCH_SCOPE.steps.map((step, i) => (

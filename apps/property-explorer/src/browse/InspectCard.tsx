@@ -660,7 +660,7 @@ export function FacetsLoadErrorBanner({ onRetry }: { onRetry: () => void }) {
       <span style={{ color: ERROR, fontWeight: 600 }}>Could not load </span>
       this parcel&apos;s details. This is a loading problem, not a gap in
       what we know about the parcel.
-      <button
+      <Button
         type="button"
         data-testid="facets-retry"
         onClick={onRetry}
@@ -674,11 +674,12 @@ export function FacetsLoadErrorBanner({ onRetry }: { onRetry: () => void }) {
           fontSize: 11.5,
           fontWeight: 600,
           padding: 0,
+          height: "auto",
           textDecoration: "underline",
         }}
       >
         Try again
-      </button>
+      </Button>
     </div>
   );
 }
@@ -716,7 +717,7 @@ function InspectFactsAccordion<T>({
       </dl>
       {collapsed.length > 0 && (
         <div data-testid="inspect-accordion" style={{ marginTop: 8 }}>
-          <button
+          <Button
             type="button"
             data-testid="inspect-accordion-toggle"
             aria-expanded={detailsOpen}
@@ -732,7 +733,7 @@ function InspectFactsAccordion<T>({
             }}
           >
             {detailsOpen ? "Less facts" : "More facts"}
-          </button>
+          </Button>
           <dl
             data-testid="inspect-accordion-body"
             hidden={!detailsOpen}
@@ -1138,7 +1139,7 @@ export function InspectCard({
           )}
         </div>
         {!embedded && (
-          <button
+          <Button
             type="button"
             aria-label="Close"
             onClick={onClose}
@@ -1171,7 +1172,7 @@ export function InspectCard({
             >
               <path d="M18 6 6 18 M6 6l12 12" />
             </svg>
-          </button>
+          </Button>
         )}
       </div>
 
@@ -1322,7 +1323,7 @@ export function InspectCard({
         baked.buildableDisplayKind === "declined-consume" && (
           <div
             data-testid="no-buildable-area"
-            style={{ marginTop: 8, fontSize: 11.5, color: "var(--semantic-warning, #F59E0B)" }}
+            style={{ marginTop: 8, fontSize: 11.5, color: PE.warn }}
           >
             {baked.envelopeEmptyReason ||
               "No buildable area after setbacks — the setbacks consume the lot."}
@@ -1336,7 +1337,7 @@ export function InspectCard({
         </div>
       )}
       {source === "live" && env.status === "empty" && (
-        <div style={{ marginTop: 8, fontSize: 11.5, color: "var(--semantic-warning, #F59E0B)" }}>
+        <div style={{ marginTop: 8, fontSize: 11.5, color: PE.warn }}>
           {env.reason || "No buildable area — setbacks consume the lot."}
         </div>
       )}
@@ -1548,7 +1549,7 @@ export function SourcesDisclosure({
         {has && (
           <>
             {" · "}
-            <button
+            <Button
               type="button"
               data-testid="inspect-sources-toggle"
               aria-expanded={isOpen}
@@ -1564,7 +1565,7 @@ export function SourcesDisclosure({
               }}
             >
               {isOpen ? "Hide sources" : "Sources"}
-            </button>
+            </Button>
           </>
         )}
       </div>
@@ -1691,7 +1692,7 @@ export function SetbackXrayDetail({
   if (!entries.length) return null;
   return (
     <div style={{ marginTop: 6 }}>
-      <button
+      <Button
         type="button"
         data-testid="setback-xray-toggle"
         aria-expanded={isOpen}
@@ -1703,11 +1704,12 @@ export function SetbackXrayDetail({
           cursor: "pointer",
           fontSize: 11.5,
           padding: 0,
+          height: "auto",
           textDecoration: "underline",
         }}
       >
         {isOpen ? "Hide setback rule details" : "Setback rule details"}
-      </button>
+      </Button>
       {isOpen && (
         <div
           data-testid="setback-xray-detail"
@@ -1722,7 +1724,7 @@ export function SetbackXrayDetail({
         >
           {entries.map((e) => (
             <p key={e.key} style={{ margin: "2px 0 0", color: MUTED }}>
-              <strong style={{ color: "#e6edf3" }}>{e.label}:</strong> {e.note}
+              <strong style={{ color: PE.t2 }}>{e.label}:</strong> {e.note}
             </p>
           ))}
         </div>
@@ -1880,7 +1882,7 @@ export function FactRow({
 
   const verdictStyle =
     layerProv?.verdict === "lookup-failed"
-      ? { color: "var(--semantic-warning, #F59E0B)" }
+      ? { color: PE.warn }
       : layerProv?.verdict === "not-applicable"
         ? { color: "var(--semantic-not-applicable, #A78BFA)" }
         : undefined;

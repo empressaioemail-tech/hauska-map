@@ -19,6 +19,7 @@ import {
   defaultReceivedShareStore,
   recordReceivedShare,
 } from "./share-received";
+import { PE } from "../styles/pe-chrome";
 import {
   fetchShareBrief,
   fetchShareDossier,
@@ -140,7 +141,7 @@ export function ShareFunnelApp({ landing }: { landing: ShareLanding }) {
       style={{
         position: "fixed",
         inset: 0,
-        background: "#0b0e13",
+        background: PE.ink,
         overflow: "hidden",
       }}
     >

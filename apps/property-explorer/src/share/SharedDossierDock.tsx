@@ -14,6 +14,7 @@
 // the same honest wording as the standalone page (the map app around the dock
 // keeps working — never a dead-end); BFF notices pass through verbatim.
 
+import { PE } from "../styles/pe-chrome";
 import type { WorkbenchToolDef } from "../workbench/types";
 import { WorkbenchIcon } from "../workbench/Workbench";
 import {
@@ -22,9 +23,9 @@ import {
   type SharePhase,
 } from "./ShareView";
 
-const MUTED = "var(--surface-muted, #94A3B8)";
-const AMBER = "var(--semantic-warning, #F59E0B)"; // caution notice (was raw yellow #fcd34d)
-const ACCENT = "var(--brand-blue, #3B82F6)"; // PRIMARY interactive hue (was cyan #7dd3fc)
+const MUTED = PE.t4;
+const AMBER = PE.warn;
+const ACCENT = PE.blue;
 
 /** The workbench tool id (registry key) for the shared-analysis dock tool. */
 export const SHARED_ANALYSIS_TOOL_ID = "shared-analysis";

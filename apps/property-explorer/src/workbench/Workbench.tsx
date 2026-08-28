@@ -43,6 +43,7 @@ import type { WorkbenchHostActions, WorkbenchToolDef } from "./types";
 import { WorkbenchProvider } from "./WorkbenchContext";
 import type { WorkbenchToolStateStore } from "./tool-state-store";
 import { BubbleTip } from "../components/BubbleTip";
+import { Button } from "../components/Button";
 import { PE, MOTION } from "../styles/pe-chrome";
 import { Dock } from "../components/Dock";
 import {
@@ -629,7 +630,7 @@ export function Workbench({
                       </svg>
                     )}
                     {isOpen && canExpand && (
-                      <button
+                      <Button
                         type="button"
                         aria-label={isExpanded ? "Collapse report" : "Expand report"}
                         aria-pressed={isExpanded}
@@ -676,12 +677,12 @@ export function Workbench({
                             <path d="M15 3h6m0 0v6m0-6-7 7M9 21H3m0 0v-6m0 6 7-7" />
                           )}
                         </svg>
-                      </button>
+                      </Button>
                     )}
                     {/* The close control is SEPARATE from the header hit
                         target and must stopPropagation, or closing a folded
                         dock would expand it on the way out. */}
-                    <button
+                    <Button
                       type="button"
                       aria-label="Close"
                       data-testid="dock-close"
@@ -717,7 +718,7 @@ export function Workbench({
                       >
                         <path d="M18 6 6 18 M6 6l12 12" />
                       </svg>
-                    </button>
+                    </Button>
                   </div>
                 </div>
 

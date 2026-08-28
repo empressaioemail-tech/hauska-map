@@ -225,7 +225,7 @@ export function PropertiesList({
             const selected = statusFilter === f;
             const accent = f === "all" ? ACCENT : pinAccent(f);
             return (
-              <button
+              <Button
                 key={f}
                 type="button"
                 data-testid={`properties-filter-${f}`}
@@ -237,13 +237,13 @@ export function PropertiesList({
                   padding: "2px 8px",
                   borderRadius: 999,
                   cursor: "pointer",
-                  color: selected ? "#0B0E13" : accent,
+                  color: selected ? PE.ink : accent,
                   background: selected ? accent : "transparent",
                   border: `1px solid ${accent}`,
                 }}
               >
                 {f === "all" ? "All" : STATUS_LABELS[f]}
-              </button>
+              </Button>
             );
           })}
         </div>
@@ -297,7 +297,7 @@ export function PropertiesList({
               }}
             >
               {/* OPEN — the row opens the dossier detail AND navigates the map. */}
-              <button
+              <Button
                 type="button"
                 data-testid="properties-reopen"
                 onClick={() => onOpen(row.parcelNodeId)}
@@ -310,6 +310,7 @@ export function PropertiesList({
                   color: TEXT,
                   cursor: "pointer",
                   padding: 0,
+                  height: "auto",
                   fontSize: 12.5,
                   lineHeight: 1.4,
                 }}
@@ -347,7 +348,7 @@ export function PropertiesList({
                   {dossierBits.length > 0 ? ` · ${dossierBits.join(" · ")}` : ""}
                   {row.parcelNodeId === activeParcelNodeId ? " · active" : ""}
                 </span>
-              </button>
+              </Button>
               {/* THE X-RAY / FLOOD CHECKBOXES ARE GONE from the list rows.
                   They were not view toggles: each one wrote
                   shareReportSelection, deciding which reports a SHARE LINK for
@@ -360,7 +361,7 @@ export function PropertiesList({
                   share flow at mint time, and PropertyDossierDetail still
                   renders PropertyRowReports on the per-property screen, where
                   the choice sits next to what it affects. */}
-              <button
+              <Button
                 type="button"
                 data-testid="properties-remove"
                 aria-label={`Remove ${title}`}
@@ -377,7 +378,7 @@ export function PropertiesList({
                 }}
               >
                 ×
-              </button>
+              </Button>
             </div>
           );
         })
@@ -677,7 +678,7 @@ export function PropertiesTool() {
             type="button"
             data-testid="dossier-back"
             onClick={handleBack}
-            style={{ padding: 0, border: "none", fontSize: 11.5 }}
+            style={{ padding: 0, height: "auto", border: "none", fontSize: 11.5 }}
           >
             ← All saved properties
           </Button>

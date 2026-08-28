@@ -32,6 +32,7 @@ import {
 } from "./checkout/checkoutLanding";
 import { useCheckoutActions } from "./browse/useCheckoutActions";
 import { fromCheckoutInterval } from "./lib/pricing";
+import { PE } from "./styles/pe-chrome";
 
 const COLD_OPEN_DISMISSED_KEY = "pe_cold_open_dismissed";
 
@@ -164,7 +165,7 @@ function CheckoutDeepLinkHost() {
           borderRadius: 8,
           background: "rgba(11,14,19,0.92)",
           border: "0.5px solid rgba(245,158,11,0.5)",
-          color: "#FBBF24",
+          color: PE.warn,
           fontFamily: "system-ui, sans-serif",
           fontSize: 12.5,
         }}
@@ -234,7 +235,7 @@ function MapApp() {
       style={{
         position: "fixed",
         inset: 0,
-        background: "#0b0e13",
+        background: PE.ink,
         overflow: "hidden",
       }}
     >
@@ -256,7 +257,7 @@ function MapApp() {
             borderRadius: 999,
             background: "rgba(11,14,19,0.92)",
             border: "0.5px solid rgba(59,130,246,0.4)",
-            color: "#e5e7eb",
+            color: PE.t2,
             fontFamily: "system-ui, sans-serif",
             fontSize: 12.5,
           }}

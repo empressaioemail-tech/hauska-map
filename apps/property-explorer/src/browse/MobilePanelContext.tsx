@@ -21,6 +21,7 @@
 // update that only collapses if the active sheet is still the one that was
 // open when the click happened. A handler that navigated always wins.
 
+import { Button } from "../components/Button";
 import {
   createContext,
   useCallback,
@@ -45,6 +46,7 @@ import {
   MAP_PANEL_DISMISS_EVENT,
   type MapPanelDismissDetail,
 } from "../../../../packages/map-renderer/src/chrome/panelLayering";
+import { PE } from "../styles/pe-chrome";
 
 export interface MobilePanelContextValue {
   isMobile: boolean;
@@ -118,7 +120,7 @@ function MobileBottomNav({
       {NAV_ITEMS.map((item) => {
         const selected = active === item.id;
         return (
-          <button
+          <Button
             key={item.id}
             type="button"
             data-testid={item.testId}
@@ -128,15 +130,16 @@ function MobileBottomNav({
               flex: 1,
               border: "none",
               background: "transparent",
-              color: selected ? "var(--brand-blue, #3B82F6)" : "var(--surface-muted, #94A3B8)",
+              color: selected ? PE.blue : PE.t4,
               fontSize: 11,
               fontWeight: selected ? 700 : 600,
               cursor: "pointer",
               padding: "6px 4px",
+              height: "auto",
             }}
           >
             {item.label}
-          </button>
+          </Button>
         );
       })}
     </nav>

@@ -14,6 +14,7 @@
 // "invalid" state — never a blank page, never a silent fallback.
 
 import { useEffect, useState } from "react";
+import { Button } from "../components/Button";
 import { PropertyBriefPanel } from "../browse/PropertyBriefPanel";
 import type { ResearchBriefPayload } from "../browse/brief-view-model";
 import { useSheetVerdict } from "../lib/sheet-verdict";
@@ -24,14 +25,15 @@ import {
 import { shareTokenFromLocation } from "./share-landing";
 import { liveViewHref } from "../lib/live-view";
 import { PdfViewer } from "../components/PdfViewer";
+import { PE } from "../styles/pe-chrome";
 
 // Kept as a ShareView export — the historical home of the token parser.
 export { shareTokenFromLocation };
 
-const MUTED = "var(--surface-muted, #94A3B8)";
-const AMBER = "var(--semantic-warning, #F59E0B)"; // caution notice (was raw yellow #fcd34d)
-const TEXT = "var(--text-body, #e5e7eb)";
-const ACCENT = "var(--brand-blue, #3B82F6)"; // PRIMARY interactive hue (was cyan #7dd3fc)
+const MUTED = PE.t4;
+const AMBER = PE.warn;
+const TEXT = PE.t3;
+const ACCENT = PE.blue;
 const CARD_BG = "var(--surface-card-translucent, rgba(11,14,19,0.94))";
 
 export interface ShareBriefResponse {
@@ -186,7 +188,7 @@ export function DownloadButton({
 
   return (
     <div style={{ marginTop: 6 }}>
-      <button
+      <Button
         type="button"
         data-testid="share-pdf-view"
         onClick={() => void view()}
@@ -204,8 +206,8 @@ export function DownloadButton({
         }}
       >
         {state.kind === "busy" ? "Opening…" : "View PDF"}
-      </button>
-      <button
+      </Button>
+      <Button
         type="button"
         onClick={() => void run()}
         disabled={state.kind === "busy"}
@@ -221,7 +223,7 @@ export function DownloadButton({
         }}
       >
         {state.kind === "busy" ? "Downloading…" : label}
-      </button>
+      </Button>
       {state.kind === "notice" && (
         <p style={{ margin: "4px 0 0", fontSize: 10.5, color: MUTED }}>{state.text}</p>
       )}
@@ -359,7 +361,7 @@ function CenterCard({ children }: { children: React.ReactNode }) {
     <div
       style={{
         minHeight: "100vh",
-        background: "#0b0e13",
+        background: PE.ink,
         display: "flex",
         alignItems: "center",
         justifyContent: "center",
@@ -595,7 +597,7 @@ export function ShareView() {
       data-testid="share-view"
       style={{
         minHeight: "100vh",
-        background: "#0b0e13",
+        background: PE.ink,
         color: TEXT,
         font: "13px/1.5 system-ui, -apple-system, Segoe UI, Roboto, sans-serif",
         display: "flex",

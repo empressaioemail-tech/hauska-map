@@ -238,7 +238,7 @@ export function ChatCitationChips({
           }
           const isOpen = r.did === openDid;
           return (
-            <button
+            <Button
               key={r.did}
               type="button"
               data-testid="chat-citation-chip"
@@ -255,6 +255,7 @@ export function ChatCitationChips({
                 border: `1px solid ${isOpen ? ATOM_ACCENT : ATOM_ACCENT_BORDER}`,
                 borderRadius: 10,
                 padding: "1px 7px",
+                height: "auto",
                 cursor: "pointer",
                 lineHeight: 1.5,
               }}
@@ -280,7 +281,7 @@ export function ChatCitationChips({
                 {r.label}
               </span>
               <FreshnessBadge chatRef={r} />
-            </button>
+            </Button>
           );
         })}
       </div>
@@ -326,7 +327,7 @@ export function InlineAnswerText({
               return <span key={j}>{`[${seg.n}]`}</span>;
             }
             return (
-              <button
+              <Button
                 key={j}
                 type="button"
                 data-testid="chat-inline-citation"
@@ -346,7 +347,7 @@ export function InlineAnswerText({
                 }}
               >
                 [{seg.n}]
-              </button>
+              </Button>
             );
           })}
         </p>
@@ -406,7 +407,7 @@ function AsOfLine({ model }: { model: AtomCardModel }) {
             fontWeight: 600,
             letterSpacing: 0.3,
             textTransform: "uppercase",
-            color: stale ? AMBER : verdict === "fresh" ? "#4ade80" : MUTED,
+            color: stale ? AMBER : verdict === "fresh" ? PE.ok : MUTED,
             border: `1px solid ${
               stale
                 ? "rgba(245,158,11,0.5)"
@@ -453,7 +454,7 @@ function LineageChipRow({
       </p>
       <div style={{ display: "flex", flexWrap: "wrap", gap: 4, marginTop: 2 }}>
         {chips.map((c) => (
-          <button
+          <Button
             key={c.did}
             type="button"
             data-testid={testId}
@@ -466,11 +467,12 @@ function LineageChipRow({
               border: `1px solid ${ATOM_ACCENT_BORDER}`,
               borderRadius: 8,
               padding: "1px 7px",
+              height: "auto",
               cursor: "pointer",
             }}
           >
             {c.label}
-          </button>
+          </Button>
         ))}
       </div>
     </div>
@@ -523,7 +525,7 @@ export function AtomCardView({
       }}
     >
       {canBack && (
-        <button
+        <Button
           type="button"
           data-testid="atom-card-back"
           onClick={onBack}
@@ -533,12 +535,13 @@ export function AtomCardView({
             background: "transparent",
             border: "none",
             padding: 0,
+            height: "auto",
             marginBottom: 3,
             cursor: "pointer",
           }}
         >
           ← back
-        </button>
+        </Button>
       )}
       <p style={{ margin: 0, fontSize: 11.5, fontWeight: 600, color: TEXT }}>
         {title}
@@ -668,7 +671,7 @@ export function AtomCardView({
         </div>
       )}
 
-      <button
+      <Button
         type="button"
         data-testid="atom-card-more"
         onClick={onToggleFull}
@@ -680,11 +683,12 @@ export function AtomCardView({
           background: "transparent",
           border: "none",
           padding: 0,
+          height: "auto",
           cursor: "pointer",
         }}
       >
         {full ? "less ←" : "more →"}
-      </button>
+      </Button>
     </div>
   );
 }
@@ -857,6 +861,7 @@ const smallBtn: CSSProperties = {
   border: "1px solid var(--brand-blue-border, rgba(59,130,246,0.4))",
   borderRadius: 6,
   padding: "2px 8px",
+  height: "auto",
   cursor: "pointer",
 };
 
@@ -887,7 +892,7 @@ export function ChatSessionBar({
       data-testid="chat-session-bar"
       style={{ position: "relative", display: "flex", alignItems: "center", gap: 6 }}
     >
-      <button
+      <Button
         type="button"
         data-testid="chat-new-chat"
         onClick={onNewChat}
@@ -895,8 +900,8 @@ export function ChatSessionBar({
         style={{ ...smallBtn, opacity: disabled ? 0.55 : 1 }}
       >
         + New chat
-      </button>
-      <button
+      </Button>
+      <Button
         type="button"
         data-testid="chat-thread-picker-toggle"
         aria-expanded={pickerOpen}
@@ -925,7 +930,7 @@ export function ChatSessionBar({
           {multiple ? ` · ${sessions.length} chats` : ""}
         </span>
         <span style={{ color: MUTED, fontSize: 10 }}>{pickerOpen ? "▲" : "▼"}</span>
-      </button>
+      </Button>
 
       {pickerOpen && (
         <div
@@ -940,7 +945,7 @@ export function ChatSessionBar({
             marginTop: 3,
             maxHeight: "40vh",
             overflowY: "auto",
-            background: "#0B0E13",
+            background: PE.ink,
             border: CHIP_BORDER,
             borderRadius: 6,
             boxShadow: "0 6px 18px rgba(0,0,0,0.45)",
@@ -967,7 +972,7 @@ export function ChatSessionBar({
                   background: isActive ? "var(--brand-blue-bg-soft, rgba(59,130,246,0.08))" : "transparent",
                 }}
               >
-                <button
+                <Button
                   type="button"
                   data-testid="chat-thread-open"
                   onClick={() => onSwitch(s.id)}
@@ -980,6 +985,7 @@ export function ChatSessionBar({
                     color: TEXT,
                     cursor: "pointer",
                     padding: 0,
+                    height: "auto",
                   }}
                 >
                   <span
@@ -998,8 +1004,8 @@ export function ChatSessionBar({
                     {meta}
                     {isActive ? " · current" : ""}
                   </span>
-                </button>
-                <button
+                </Button>
+                <Button
                   type="button"
                   data-testid="chat-thread-delete"
                   aria-label={`Delete ${label}`}
@@ -1015,7 +1021,7 @@ export function ChatSessionBar({
                   }}
                 >
                   ×
-                </button>
+                </Button>
               </div>
             );
           })}
@@ -1034,22 +1040,23 @@ export function CopyMessageButton({
   onCopy: () => void;
 }) {
   return (
-    <button
+    <Button
       type="button"
       data-testid="chat-copy-message"
       aria-label="Copy message"
       onClick={onCopy}
       style={{
         fontSize: 10,
-        color: copied ? "#4ade80" : MUTED,
+        color: copied ? PE.ok : MUTED,
         background: "transparent",
         border: "none",
         padding: 0,
+        height: "auto",
         cursor: "pointer",
       }}
     >
       {copied ? "Copied" : "Copy"}
-    </button>
+    </Button>
   );
 }
 
@@ -1096,7 +1103,7 @@ export function AttachmentChips({
             {a.extractedText ? "" : " · not read"}
           </span>
           {onRemove && (
-            <button
+            <Button
               type="button"
               data-testid="chat-attachment-remove"
               aria-label={`Remove ${a.name}`}
@@ -1109,10 +1116,11 @@ export function AttachmentChips({
                 fontSize: 12.5,
                 lineHeight: 1,
                 padding: 0,
+                height: "auto",
               }}
             >
               ×
-            </button>
+            </Button>
           )}
         </span>
       ))}
@@ -1685,7 +1693,7 @@ export function ChatTool() {
               </p>
             )}
             {phase.retry && (
-              <button
+              <Button
                 type="button"
                 data-testid="chat-retry"
                 onClick={() => {
@@ -1711,7 +1719,7 @@ export function ChatTool() {
                 }}
               >
                 Try again
-              </button>
+              </Button>
             )}
           </div>
         )}
@@ -1730,7 +1738,7 @@ export function ChatTool() {
             gap: 6,
           }}
         >
-          <button
+          <Button
             type="button"
             data-testid="chat-save-to-property"
             data-locked={ent.locked ? "true" : "false"}
@@ -1758,7 +1766,7 @@ export function ChatTool() {
               : ent.locked
                 ? "Save to property (unlock)"
                 : "Save to property"}
-          </button>
+          </Button>
           {saveStatus && (
             <span
               data-testid="chat-save-status"
@@ -1854,7 +1862,7 @@ export function ChatTool() {
           style={{ display: "none" }}
           onChange={(e) => void handleAttachFiles(e.target.files)}
         />
-        <button
+        <Button
           type="button"
           data-testid="chat-attach-button"
           aria-label="Attach a file as property context"
@@ -1874,7 +1882,7 @@ export function ChatTool() {
           }}
         >
           {attachBusy ? "…" : "📎"}
-        </button>
+        </Button>
         <TextArea
           ref={chatInputRef}
           rows={1}

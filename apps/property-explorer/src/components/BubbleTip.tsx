@@ -124,7 +124,7 @@ export function BubbleTip({
               fontFamily: PE.ui,
               fontSize: 12.5,
               fontWeight: 500,
-              color: "#fff",
+              color: PE.t1,
             }}
           >
             {label}
