@@ -1,0 +1,374 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<meta name="design_doc_mode" content="canvas">
+<style>
+  :root{
+    --ss-void:#07090D; --ss-ink:#0B0E13; --ss-raised:#12171F;
+    --ss-line-06:rgba(154,166,178,.07); --ss-line-14:rgba(154,166,178,.15); --ss-line-28:rgba(154,166,178,.28);
+    --ss-t1:#F8FAFC; --ss-t2:#E9EEF5; --ss-t3:#C6D0DC; --ss-t4:#94A3B8; --ss-t5:#7C8BA0; --ss-t6:#64748B;
+    --ss-blue:#3B82F6; --ss-blue-bg:rgba(59,130,246,.12); --ss-blue-line:rgba(59,130,246,.32);
+    --ss-gold:#E8963B; --ss-gold-lt:#F5B95C; --ss-atom:#4CC9C0; --ss-slate:#7C8BA0;
+    --ss-warn:#F59E0B; --ss-err:#EF4444; --ss-ok:#10B981; --ss-sky:#7DD3FC;
+    --ss-ease:cubic-bezier(.2,.6,.35,1);
+    --ss-ui:ui-sans-serif,system-ui,-apple-system,'Segoe UI',sans-serif;
+    --ss-mono:ui-monospace,'SF Mono',Menlo,monospace;
+  }
+  body{margin:0;background:#07090D;color:#C6D0DC;font-family:var(--ss-ui);-webkit-font-smoothing:antialiased}
+  a{color:#3B82F6;text-decoration:none}
+  a:hover{color:#7DD3FC}
+  @keyframes ss-pulse{0%{transform:scale(1);opacity:.45}70%{transform:scale(2.6);opacity:0}100%{opacity:0}}
+</style>
+</helmet>
+
+<svg width="0" height="0" style="position:absolute" aria-hidden="true"><defs fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round">
+<symbol id="m-search" viewBox="0 0 24 24"><path d="M11 19a8 8 0 1 0 0-16 8 8 0 0 0 0 16z M21 21l-4.3-4.3"></path></symbol>
+<symbol id="m-pin" viewBox="0 0 24 24"><path d="M20 10c0 6-8 12-8 12s-8-6-8-12a8 8 0 0 1 16 0z M12 12a2 2 0 1 0 0-4 2 2 0 0 0 0 4z"></path></symbol>
+<symbol id="m-parcel" viewBox="0 0 24 24"><path d="M3 5h18v14H3z M3 12h18 M12 5v14"></path></symbol>
+<symbol id="m-recent" viewBox="0 0 24 24"><path d="M12 21a9 9 0 1 0 0-18 9 9 0 0 0 0 18z M12 7v5l3 2"></path></symbol>
+<symbol id="m-x" viewBox="0 0 24 24"><path d="M18 6 6 18 M6 6l12 12"></path></symbol>
+<symbol id="m-info" viewBox="0 0 24 24"><path d="M12 21a9 9 0 1 0 0-18 9 9 0 0 0 0 18z M12 11v5 M12 8h.01"></path></symbol>
+<symbol id="m-link" viewBox="0 0 24 24"><path d="M10 13a5 5 0 0 0 7 0l3-3a5 5 0 0 0-7-7l-2 2 M14 11a5 5 0 0 0-7 0l-3 3a5 5 0 0 0 7 7l2-2"></path></symbol>
+<symbol id="m-layers" viewBox="0 0 24 24"><path d="M12 2 2 7l10 5 10-5-10-5z M2 17l10 5 10-5 M2 12l10 5 10-5"></path></symbol>
+<symbol id="m-plus" viewBox="0 0 24 24"><path d="M12 5v14 M5 12h14"></path></symbol>
+<symbol id="m-minus" viewBox="0 0 24 24"><path d="M5 12h14"></path></symbol>
+<symbol id="m-locate" viewBox="0 0 24 24"><path d="M12 20a8 8 0 1 0 0-16 8 8 0 0 0 0 16z M12 2v3 M12 19v3 M2 12h3 M19 12h3 M12 14a2 2 0 1 0 0-4 2 2 0 0 0 0 4z"></path></symbol>
+<symbol id="m-chev" viewBox="0 0 24 24"><path d="m9 6 6 6-6 6"></path></symbol>
+<symbol id="m-slash" viewBox="0 0 24 24"><path d="M12 21a9 9 0 1 0 0-18 9 9 0 0 0 0 18z M6 6l12 12"></path></symbol>
+</defs></svg>
+
+<div style="max-width:1500px;margin:0 auto;padding:56px 48px 96px">
+
+  <div style="display:flex;align-items:baseline;gap:14px;margin-bottom:14px">
+    <span style="font-size:10.5px;font-weight:600;letter-spacing:.18em;text-transform:uppercase;color:var(--ss-blue)">Smart Site chrome · sheet 04</span>
+    <span style="width:1px;height:11px;background:var(--ss-line-14)"></span>
+    <span style="font-size:10.5px;font-weight:500;letter-spacing:.14em;text-transform:uppercase;color:var(--ss-t6)">Map chrome</span>
+  </div>
+  <h1 style="margin:0 0 12px;font-size:40px;font-weight:300;letter-spacing:-.025em;color:var(--ss-t1);line-height:1.05">Everything that touches the map</h1>
+  <p style="margin:0 0 52px;max-width:680px;font-size:14px;line-height:1.6;color:var(--ss-t4);text-wrap:pretty">Find, inspect, the brand chip, the sources sheet, and the map controls. These sit directly on the canvas, so they carry the heavier shadow and the tighter fill — they have to hold against satellite imagery as well as against near-black.</p>
+
+  <div style="display:flex;align-items:baseline;justify-content:space-between;margin-bottom:14px">
+    <div style="display:flex;align-items:baseline;gap:12px">
+      <span style="font-size:10.5px;font-weight:600;letter-spacing:.16em;text-transform:uppercase;color:var(--ss-t6)">01 — In place</span>
+      <span style="font-size:13px;color:var(--ss-t4)">Click the field. Click a suggestion. Click the ⓘ.</span>
+    </div>
+    <div onClick="{{ reset }}" style="display:inline-flex;align-items:center;height:26px;padding:0 12px;border-radius:6px;border:1px solid var(--ss-line-28);color:var(--ss-t2);font-size:11.5px;font-weight:600;cursor:pointer;user-select:none">Reset</div>
+  </div>
+
+  <div style="position:relative;height:700px;border-radius:12px;overflow:hidden;border:1px solid var(--ss-line-14);background:radial-gradient(130% 100% at 74% 8%,#12182A 0%,#080B11 58%)">
+    <div style="position:absolute;inset:0;opacity:.05;background:repeating-radial-gradient(ellipse at 30% 120%,transparent 0 26px,#fff 26px 27px)"></div>
+
+    <div style="position:absolute;left:44%;top:44%;width:150px;height:112px;transform:translate(-50%,-50%) skewX(-7deg);border:1.5px solid var(--ss-blue);background:rgba(59,130,246,.10);border-radius:2px"></div>
+    <div style="position:absolute;left:44%;top:44%;transform:translate(-50%,-50%);width:9px;height:9px;border-radius:50%;background:var(--ss-blue);box-shadow:0 0 0 3px rgba(59,130,246,.25)"></div>
+    <div style="position:absolute;left:44%;top:44%;transform:translate(-50%,-50%);width:9px;height:9px;border-radius:50%;background:var(--ss-blue);animation:ss-pulse 2.4s var(--ss-ease) infinite"></div>
+
+    <div style="position:absolute;top:20px;left:50%;transform:translateX(-50%);width:436px">
+      <div onClick="{{ focusFind }}" style="display:flex;align-items:center;gap:9px;height:40px;padding:0 12px;border-radius:{{ find.radius }};background:rgba(11,14,19,.92);border:1px solid {{ find.border }};box-shadow:{{ find.shadow }};cursor:text;transition:border-color 140ms var(--ss-ease),box-shadow 180ms var(--ss-ease)">
+        <svg width="15" height="15" style="color:{{ find.iconColor }};flex:none"><use href="#m-search"></use></svg>
+        <span style="flex:1;font-size:13.5px;color:{{ find.textColor }}">{{ find.text }}</span>
+        <sc-if value="{{ find.open }}" hint-placeholder-val="{{ false }}">
+          <div onClick="{{ closeFind }}" style="width:22px;height:22px;display:flex;align-items:center;justify-content:center;border-radius:5px;color:var(--ss-t5);cursor:pointer;flex:none"><svg width="13" height="13"><use href="#m-x"></use></svg></div>
+        </sc-if>
+        <span style="font-family:var(--ss-mono);font-size:10.5px;color:var(--ss-t6);border:1px solid var(--ss-line-14);border-radius:4px;padding:2px 5px;flex:none">⌘K</span>
+      </div>
+      <div style="overflow:hidden;max-height:{{ find.listH }};opacity:{{ find.listO }};transform:{{ find.listTf }};transform-origin:top center;transition:max-height 220ms var(--ss-ease),opacity 140ms var(--ss-ease),transform 180ms var(--ss-ease)">
+        <div style="margin-top:6px;border-radius:10px;background:rgba(11,14,19,.96);border:1px solid var(--ss-line-14);box-shadow:0 18px 44px rgba(0,0,0,.55);overflow:hidden">
+          <sc-for list="{{ findGroups }}" as="g" hint-placeholder-count="2">
+            <div>
+              <div style="padding:10px 13px 4px;font-size:10px;font-weight:600;letter-spacing:.13em;text-transform:uppercase;color:var(--ss-t6)">{{ g.name }}</div>
+              <div style="padding:0 6px 6px">
+                <sc-for list="{{ g.items }}" as="s" hint-placeholder-count="3">
+                  <div onMouseEnter="{{ s.onEnter }}" style="display:flex;align-items:center;gap:10px;height:38px;padding:0 8px;border-radius:6px;cursor:pointer;background:{{ s.bg }};transition:background 100ms var(--ss-ease)">
+                    <svg width="14" height="14" style="color:{{ s.icColor }};flex:none"><use href="{{ s.icon }}"></use></svg>
+                    <div style="flex:1;min-width:0">
+                      <div style="font-size:12.5px;color:{{ s.color }};white-space:nowrap;overflow:hidden;text-overflow:ellipsis">{{ s.label }}</div>
+                    </div>
+                    <span style="font-family:var(--ss-mono);font-size:10.5px;color:var(--ss-t6);flex:none">{{ s.meta }}</span>
+                  </div>
+                </sc-for>
+              </div>
+            </div>
+          </sc-for>
+          <div style="padding:9px 13px;border-top:1px solid var(--ss-line-06);display:flex;align-items:center;gap:12px">
+            <span style="font-size:11px;color:var(--ss-t6)">Address, parcel id, or coordinates</span>
+            <span style="flex:1"></span>
+            <span style="font-family:var(--ss-mono);font-size:10px;color:var(--ss-t6)">↑↓ move · ↵ open</span>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div style="position:absolute;left:20px;top:20px;width:340px;border-radius:10px;overflow:hidden;background:rgba(11,14,19,.94);border:1px solid var(--ss-line-14);box-shadow:0 18px 44px rgba(0,0,0,.5)">
+      <div style="display:flex;align-items:center;gap:8px;height:36px;padding:0 8px 0 12px;border-bottom:1px solid var(--ss-line-06);background:rgba(255,255,255,.015)">
+        <svg width="13" height="13" style="color:var(--ss-blue);flex:none"><use href="#m-parcel"></use></svg>
+        <span style="flex:1;font-size:11px;font-weight:600;letter-spacing:.1em;text-transform:uppercase;color:var(--ss-t3)">Inspect</span>
+        <div style="width:22px;height:22px;display:flex;align-items:center;justify-content:center;color:var(--ss-t5)"><svg width="13" height="13"><use href="#m-x"></use></svg></div>
+      </div>
+      <div style="padding:15px 13px 0">
+        <div style="font-size:19px;font-weight:400;letter-spacing:-.01em;color:var(--ss-t1);line-height:1.2">1408 Chestnut St</div>
+        <div style="display:flex;align-items:center;gap:8px;margin-top:5px;flex-wrap:wrap">
+          <span style="font-family:var(--ss-mono);font-size:11.5px;color:var(--ss-t5)">48021:34137</span>
+          <span style="width:2px;height:2px;border-radius:1px;background:var(--ss-t6)"></span>
+          <span style="font-size:11.5px;color:var(--ss-t5)">Bastrop County, TX</span>
+          <span style="font-size:9.5px;font-weight:600;letter-spacing:.1em;text-transform:uppercase;color:var(--ss-t6);border:1px solid var(--ss-line-14);border-radius:4px;padding:1px 5px">Fixture</span>
+        </div>
+      </div>
+      <div style="padding:14px 13px 0;display:grid;grid-template-columns:1fr 1fr;gap:13px 12px">
+        <sc-for list="{{ inspect }}" as="f" hint-placeholder-count="6">
+          <div>
+            <div style="font-size:10px;font-weight:600;letter-spacing:.13em;text-transform:uppercase;color:var(--ss-t6);margin-bottom:3px">{{ f.k }}</div>
+            <div style="font-size:13px;line-height:1.3;color:{{ f.color }};font-family:{{ f.font }}">{{ f.v }}</div>
+          </div>
+        </sc-for>
+      </div>
+      <div style="padding:14px 13px 13px;display:flex;gap:8px">
+        <div style="flex:1;display:flex;align-items:center;justify-content:center;height:32px;border-radius:6px;background:var(--ss-blue);color:#F8FAFC;font-size:12px;font-weight:600;cursor:pointer">Open property brief</div>
+      </div>
+    </div>
+
+    <div style="position:absolute;right:20px;top:20px;display:flex;flex-direction:column;gap:8px;align-items:flex-end">
+      <div style="display:flex;flex-direction:column;border-radius:8px;overflow:hidden;background:rgba(11,14,19,.92);border:1px solid var(--ss-line-14);box-shadow:0 4px 14px rgba(0,0,0,.4)">
+        <div style="width:30px;height:30px;display:flex;align-items:center;justify-content:center;color:var(--ss-t3);cursor:pointer"><svg width="14" height="14"><use href="#m-plus"></use></svg></div>
+        <div style="height:1px;background:var(--ss-line-06)"></div>
+        <div style="width:30px;height:30px;display:flex;align-items:center;justify-content:center;color:var(--ss-t3);cursor:pointer"><svg width="14" height="14"><use href="#m-minus"></use></svg></div>
+      </div>
+      <div style="width:30px;height:30px;display:flex;align-items:center;justify-content:center;border-radius:8px;background:rgba(11,14,19,.92);border:1px solid var(--ss-line-14);box-shadow:0 4px 14px rgba(0,0,0,.4);color:var(--ss-t3);cursor:pointer"><svg width="14" height="14"><use href="#m-locate"></use></svg></div>
+      <div style="width:30px;height:30px;display:flex;align-items:center;justify-content:center;border-radius:8px;background:rgba(11,14,19,.92);border:1px solid var(--ss-line-14);box-shadow:0 4px 14px rgba(0,0,0,.4);color:var(--ss-t3);cursor:pointer"><svg width="14" height="14"><use href="#m-layers"></use></svg></div>
+    </div>
+
+    <div style="position:absolute;left:20px;bottom:18px;display:flex;align-items:center;gap:9px">
+      <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="rgba(255,255,255,.72)" stroke-width="1.4"><circle cx="12" cy="12" r="8"></circle><path d="M12 1v5 M12 18v5 M1 12h5 M18 12h5" stroke-linecap="round"></path><circle cx="12" cy="12" r="2" fill="var(--ss-gold)" stroke="none"></circle></svg>
+      <span style="font-size:11.5px;font-weight:600;letter-spacing:.16em"><span style="color:#F8FAFC">SMART</span> <span style="color:var(--ss-gold-lt)">SITE</span></span>
+      <span style="width:1px;height:11px;background:var(--ss-line-14)"></span>
+      <span style="font-size:10.5px;color:var(--ss-t6)">Bastrop County, TX</span>
+    </div>
+
+    <div style="position:absolute;right:20px;bottom:18px;display:flex;align-items:flex-end;gap:9px">
+      <div style="width:264px;overflow:hidden;max-height:{{ srcSheet.h }};opacity:{{ srcSheet.o }};transform:{{ srcSheet.tf }};transform-origin:bottom right;transition:max-height 220ms var(--ss-ease),opacity 140ms var(--ss-ease),transform 180ms var(--ss-ease)">
+        <div style="border-radius:10px;background:rgba(11,14,19,.96);border:1px solid var(--ss-line-14);box-shadow:0 18px 44px rgba(0,0,0,.55);overflow:hidden">
+          <div style="display:flex;align-items:center;height:32px;padding:0 8px 0 12px;border-bottom:1px solid var(--ss-line-06)">
+            <span style="flex:1;font-size:10px;font-weight:600;letter-spacing:.13em;text-transform:uppercase;color:var(--ss-t5)">Sources</span>
+            <div onClick="{{ toggleSrc }}" style="width:22px;height:22px;display:flex;align-items:center;justify-content:center;border-radius:5px;color:var(--ss-t5);cursor:pointer"><svg width="12" height="12"><use href="#m-x"></use></svg></div>
+          </div>
+          <div style="padding:6px 6px 8px">
+            <sc-for list="{{ sources }}" as="s" hint-placeholder-count="4">
+              <div style="display:flex;align-items:center;gap:9px;padding:7px 8px;border-radius:6px">
+                <span style="width:3px;height:22px;border-radius:2px;background:{{ s.rail }};flex:none"></span>
+                <div style="flex:1;min-width:0">
+                  <div style="font-size:11.5px;color:var(--ss-t2);white-space:nowrap;overflow:hidden;text-overflow:ellipsis">{{ s.name }}</div>
+                  <div style="font-family:var(--ss-mono);font-size:10px;color:var(--ss-t6);margin-top:1px">{{ s.read }}</div>
+                </div>
+                <span style="font-size:10px;font-weight:600;color:{{ s.stColor }};flex:none">{{ s.status }}</span>
+              </div>
+            </sc-for>
+          </div>
+          <div style="padding:9px 12px;border-top:1px solid var(--ss-line-06);font-size:10.5px;line-height:1.45;color:var(--ss-t6)">Map tiles and basemap attribution are separate and sit in the map's own footer.</div>
+        </div>
+      </div>
+      <div onClick="{{ toggleSrc }}" style="width:30px;height:30px;flex:none;display:flex;align-items:center;justify-content:center;border-radius:50%;background:{{ srcBtn.bg }};border:1px solid {{ srcBtn.bd }};color:{{ srcBtn.fg }};cursor:pointer;box-shadow:0 4px 14px rgba(0,0,0,.4);transition:background 140ms var(--ss-ease),color 140ms var(--ss-ease)"><svg width="15" height="15"><use href="#m-info"></use></svg></div>
+    </div>
+  </div>
+
+  <div style="display:grid;grid-template-columns:1fr 1fr;gap:24px;margin-top:52px">
+
+    <div style="border:1px solid var(--ss-line-14);border-radius:12px;background:var(--ss-ink);overflow:hidden">
+      <div style="display:flex;align-items:baseline;flex-wrap:wrap;gap:4px 12px;padding:20px 24px 0">
+        <span style="font-size:10.5px;font-weight:600;letter-spacing:.16em;text-transform:uppercase;color:var(--ss-t6)">02</span>
+        <span style="font-size:20px;font-weight:300;letter-spacing:-.02em;color:var(--ss-t1)">Find bar states</span>
+        <span style="font-family:var(--ss-mono);font-size:11px;color:var(--ss-t6)">browse/FindBar.tsx</span>
+      </div>
+      <p style="margin:8px 24px 20px;font-size:12.5px;line-height:1.55;color:var(--ss-t4)">436px, centered, 40px tall — the one control allowed to be bigger than 34, because it is the first thing anyone touches.</p>
+      <div style="padding:0 24px 24px;display:flex;flex-direction:column;gap:12px">
+        <sc-for list="{{ findStates }}" as="f" hint-placeholder-count="4">
+          <div>
+            <div style="font-size:10px;font-weight:600;letter-spacing:.13em;text-transform:uppercase;color:var(--ss-t6);margin-bottom:6px">{{ f.name }}</div>
+            <div style="display:flex;align-items:center;gap:9px;height:40px;padding:0 12px;border-radius:10px;background:rgba(11,14,19,.92);border:1px solid {{ f.bd }};box-shadow:{{ f.sh }}">
+              <svg width="15" height="15" style="color:{{ f.icColor }};flex:none"><use href="{{ f.icon }}"></use></svg>
+              <span style="flex:1;font-size:13.5px;color:{{ f.color }}">{{ f.text }}</span>
+              <sc-if value="{{ f.right }}" hint-placeholder-val="{{ false }}">
+                <span style="font-family:var(--ss-mono);font-size:10.5px;color:{{ f.rightColor }};flex:none">{{ f.right }}</span>
+              </sc-if>
+            </div>
+            <sc-if value="{{ f.basis }}" hint-placeholder-val="{{ false }}">
+              <div style="font-size:11.5px;line-height:1.45;color:var(--ss-t5);margin-top:6px">{{ f.basis }}</div>
+            </sc-if>
+          </div>
+        </sc-for>
+      </div>
+    </div>
+
+    <div style="border:1px solid var(--ss-line-14);border-radius:12px;background:var(--ss-ink);overflow:hidden">
+      <div style="display:flex;align-items:baseline;flex-wrap:wrap;gap:4px 12px;padding:20px 24px 0">
+        <span style="font-size:10.5px;font-weight:600;letter-spacing:.16em;text-transform:uppercase;color:var(--ss-t6)">03</span>
+        <span style="font-size:20px;font-weight:300;letter-spacing:-.02em;color:var(--ss-t1)">Selection on the map</span>
+        <span style="font-family:var(--ss-mono);font-size:11px;color:var(--ss-t6)">map/ParcelHighlight.tsx</span>
+      </div>
+      <p style="margin:8px 24px 20px;font-size:12.5px;line-height:1.55;color:var(--ss-t4)">Blue is selection. Sky is a map-only island for hover and secondary geometry, and it never crosses into a panel.</p>
+      <div style="padding:0 24px 24px;display:flex;flex-direction:column;gap:12px">
+        <sc-for list="{{ mapStates }}" as="m" hint-placeholder-count="4">
+          <div style="display:flex;align-items:center;gap:14px;padding-bottom:12px;border-bottom:1px solid var(--ss-line-06)">
+            <div style="width:66px;height:44px;flex:none;border-radius:6px;background:#0A0E15;display:flex;align-items:center;justify-content:center;overflow:hidden">
+              <div style="width:40px;height:28px;transform:skewX(-7deg);border:1.5px {{ m.style }} {{ m.stroke }};background:{{ m.fill }};border-radius:2px"></div>
+            </div>
+            <div style="flex:1">
+              <div style="font-size:12.5px;font-weight:600;color:var(--ss-t2)">{{ m.name }}</div>
+              <div style="font-size:11.5px;line-height:1.45;color:var(--ss-t5);margin-top:2px">{{ m.note }}</div>
+            </div>
+            <span style="font-family:var(--ss-mono);font-size:10.5px;color:var(--ss-t6);flex:none">{{ m.token }}</span>
+          </div>
+        </sc-for>
+      </div>
+    </div>
+
+    <div style="border:1px solid var(--ss-line-14);border-radius:12px;background:var(--ss-ink);overflow:hidden">
+      <div style="display:flex;align-items:baseline;flex-wrap:wrap;gap:4px 12px;padding:20px 24px 0">
+        <span style="font-size:10.5px;font-weight:600;letter-spacing:.16em;text-transform:uppercase;color:var(--ss-t6)">04</span>
+        <span style="font-size:20px;font-weight:300;letter-spacing:-.02em;color:var(--ss-t1)">Brand chip</span>
+        <span style="font-family:var(--ss-mono);font-size:11px;color:var(--ss-t6)">chrome/BrandChip.tsx</span>
+      </div>
+      <p style="margin:8px 24px 20px;font-size:12.5px;line-height:1.55;color:var(--ss-t4)">The only place gold appears in the product. It is the mark, never a button, link, fill, or hover.</p>
+      <div style="padding:0 24px 24px;display:flex;flex-direction:column;gap:14px">
+        <sc-for list="{{ brandStates }}" as="b" hint-placeholder-count="3">
+          <div style="display:flex;align-items:center;gap:14px;padding:12px 14px;border-radius:8px;background:{{ b.ground }};border:1px solid var(--ss-line-06)">
+            <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="{{ b.ring }}" stroke-width="1.4" style="flex:none"><circle cx="12" cy="12" r="8"></circle><path d="M12 1v5 M12 18v5 M1 12h5 M18 12h5" stroke-linecap="round"></path><circle cx="12" cy="12" r="2" fill="var(--ss-gold)" stroke="none"></circle></svg>
+            <span style="font-size:11.5px;font-weight:600;letter-spacing:.16em;flex:none"><span style="color:{{ b.smart }}">SMART</span> <span style="color:var(--ss-gold-lt)">SITE</span></span>
+            <span style="flex:1"></span>
+            <span style="font-size:11px;color:var(--ss-t5);text-align:right">{{ b.note }}</span>
+          </div>
+        </sc-for>
+        <div style="display:flex;align-items:center;gap:9px;padding:12px 14px;border-radius:8px;border:1px solid rgba(239,68,68,.3);background:rgba(239,68,68,.05)">
+          <svg width="14" height="14" style="color:var(--ss-err);flex:none"><use href="#m-slash"></use></svg>
+          <span style="font-size:11.5px;line-height:1.45;color:var(--ss-t4)">Never: gold on a button, a gold hover, or the mark scaled under 14px.</span>
+        </div>
+      </div>
+    </div>
+
+    <div style="border:1px solid var(--ss-line-14);border-radius:12px;background:var(--ss-ink);overflow:hidden">
+      <div style="display:flex;align-items:baseline;flex-wrap:wrap;gap:4px 12px;padding:20px 24px 0">
+        <span style="font-size:10.5px;font-weight:600;letter-spacing:.16em;text-transform:uppercase;color:var(--ss-t6)">05</span>
+        <span style="font-size:20px;font-weight:300;letter-spacing:-.02em;color:var(--ss-t1)">Sources sheet</span>
+        <span style="font-family:var(--ss-mono);font-size:11px;color:var(--ss-t6)">chrome/SourcesSheet.tsx</span>
+      </div>
+      <p style="margin:8px 24px 20px;font-size:12.5px;line-height:1.55;color:var(--ss-t4)">A register of what was read and when. A source that is not connected is a quiet row stating so, never a green dot and never a vendor logo.</p>
+      <div style="padding:0 24px 24px;display:flex;flex-direction:column;gap:12px">
+        <sc-for list="{{ sourceRules }}" as="s" hint-placeholder-count="4">
+          <div style="display:flex;gap:10px;align-items:baseline">
+            <span style="width:5px;height:5px;border-radius:50%;background:{{ s.dot }};flex:none;transform:translateY(-2px)"></span>
+            <div>
+              <span style="font-size:12.5px;font-weight:600;color:var(--ss-t2)">{{ s.t }}</span>
+              <span style="font-size:12px;line-height:1.5;color:var(--ss-t5)"> — {{ s.d }}</span>
+            </div>
+          </div>
+        </sc-for>
+        <div style="margin-top:4px;padding:11px 12px;border-radius:8px;border:1px solid var(--ss-line-14);background:rgba(255,255,255,.02);display:flex;align-items:center;gap:9px">
+          <svg width="13" height="13" style="color:var(--ss-t5);flex:none"><use href="#m-link"></use></svg>
+          <span style="font-size:11.5px;color:var(--ss-t4);flex:1">bastroptx.gov</span>
+          <span style="font-size:10.5px;color:var(--ss-t6)">unverified web source</span>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props="{&quot;$preview&quot;:{&quot;width&quot;:1600,&quot;height&quot;:2000}}">
+class Component extends DCLogic {
+  state = { findOpen: false, hoverSuggest: 'a', srcOpen: false };
+
+  renderVals() {
+    const fo = this.state.findOpen;
+    const so = this.state.srcOpen;
+    const hs = this.state.hoverSuggest;
+    const sug = (id, label, meta, icon, icColor) => ({
+      id, label, meta, icon, icColor,
+      bg: hs === id ? 'rgba(255,255,255,.05)' : 'transparent',
+      color: hs === id ? 'var(--ss-t1)' : 'var(--ss-t3)',
+      onEnter: () => this.setState({ hoverSuggest: id }),
+    });
+
+    return {
+      find: {
+        open: fo,
+        text: fo ? 'chestnut' : '1408 Chestnut St',
+        textColor: fo ? 'var(--ss-t1)' : 'var(--ss-t3)',
+        iconColor: fo ? 'var(--ss-blue)' : 'var(--ss-t5)',
+        border: fo ? 'var(--ss-blue)' : 'var(--ss-line-14)',
+        shadow: fo ? '0 0 0 3px rgba(59,130,246,.14),0 8px 28px rgba(0,0,0,.45)' : '0 8px 28px rgba(0,0,0,.45)',
+        radius: '10px',
+        listH: fo ? '320px' : '0px',
+        listO: fo ? 1 : 0,
+        listTf: fo ? 'scale(1) translateY(0)' : 'scale(.98) translateY(-6px)',
+      },
+      focusFind: () => this.setState({ findOpen: true }),
+      closeFind: e => { e.stopPropagation(); this.setState({ findOpen: false }); },
+      reset: () => this.setState({ findOpen: false, srcOpen: false }),
+      findGroups: [
+        { name: 'Addresses', items: [
+          sug('a', '1408 Chestnut St, Bastrop', '48021:34137', '#m-pin', 'var(--ss-blue)'),
+          sug('b', '1408 Chestnut Ln, Elgin', '48021:51204', '#m-pin', 'var(--ss-t5)'),
+          sug('c', '14 Chestnut Ridge, Cedar Creek', '48021:66031', '#m-pin', 'var(--ss-t5)'),
+        ] },
+        { name: 'Recent', items: [
+          sug('d', '212 Farm to Market 969', 'Bastrop', '#m-recent', 'var(--ss-t5)'),
+          sug('e', '9 Old Sayers Rd', 'Travis', '#m-recent', 'var(--ss-t5)'),
+        ] },
+      ],
+      inspect: [
+        { k: 'Land use', v: 'Single-family', color: 'var(--ss-t2)', font: 'var(--ss-ui)' },
+        { k: 'Zoning', v: 'SF-2', color: 'var(--ss-t2)', font: 'var(--ss-mono)' },
+        { k: 'Lot area', v: '13,504 sf', color: 'var(--ss-t2)', font: 'var(--ss-mono)' },
+        { k: 'Frontage', v: '92 ft', color: 'var(--ss-t2)', font: 'var(--ss-mono)' },
+        { k: 'Flood zone', v: 'Lookup failed', color: 'var(--ss-err)', font: 'var(--ss-ui)' },
+        { k: 'Setbacks', v: 'Not in record', color: 'var(--ss-slate)', font: 'var(--ss-ui)' },
+      ],
+      srcSheet: {
+        h: so ? '250px' : '0px',
+        o: so ? 1 : 0,
+        tf: so ? 'scale(1) translateY(0)' : 'scale(.97) translateY(8px)',
+      },
+      srcBtn: so
+        ? { bg: 'var(--ss-blue)', fg: '#08111F', bd: 'var(--ss-blue)' }
+        : { bg: 'rgba(11,14,19,.92)', fg: 'var(--ss-blue)', bd: 'var(--ss-line-14)' },
+      toggleSrc: () => this.setState(s => ({ srcOpen: !s.srcOpen })),
+      sources: [
+        { name: 'Bastrop County CAD', read: 'read 4 min ago', status: 'Live', stColor: 'var(--ss-ok)', rail: 'var(--ss-ok)' },
+        { name: 'County recorded plats', read: 'read 4 min ago', status: 'Live', stColor: 'var(--ss-ok)', rail: 'var(--ss-ok)' },
+        { name: 'FEMA NFHL', read: 'no answer', status: 'Failed', stColor: 'var(--ss-err)', rail: 'var(--ss-err)' },
+        { name: 'TxDOT right of way', read: 'never read', status: 'Not connected', stColor: 'var(--ss-t6)', rail: 'var(--ss-line-28)' },
+      ],
+      findStates: [
+        { name: 'Rest', text: '1408 Chestnut St', color: 'var(--ss-t3)', icon: '#m-search', icColor: 'var(--ss-t5)', bd: 'var(--ss-line-14)', sh: '0 8px 28px rgba(0,0,0,.45)', right: '⌘K', rightColor: 'var(--ss-t6)', basis: null },
+        { name: 'Focused', text: 'chestnut', color: 'var(--ss-t1)', icon: '#m-search', icColor: 'var(--ss-blue)', bd: 'var(--ss-blue)', sh: '0 0 0 3px rgba(59,130,246,.14),0 8px 28px rgba(0,0,0,.45)', right: null, rightColor: '', basis: null },
+        { name: 'Nothing matched', text: 'chesnutt', color: 'var(--ss-t3)', icon: '#m-search', icColor: 'var(--ss-t5)', bd: 'var(--ss-line-14)', sh: '0 8px 28px rgba(0,0,0,.45)', right: '0 results', rightColor: 'var(--ss-t6)', basis: 'No address, parcel id, or coordinate matched. Nothing was guessed.' },
+        { name: 'Geocoder down', text: '1408 Chestnut St', color: 'var(--ss-t3)', icon: '#m-search', icColor: 'var(--ss-err)', bd: 'rgba(239,68,68,.4)', sh: '0 8px 28px rgba(0,0,0,.45)', right: 'retry', rightColor: 'var(--ss-blue)', basis: 'The geocoder did not answer. Parcel id lookup still works.' },
+      ],
+      mapStates: [
+        { name: 'Selected parcel', note: 'Solid blue edge, 10% fill, a pulse on arrival only.', token: 'blue', stroke: 'var(--ss-blue)', style: 'solid', fill: 'rgba(59,130,246,.10)' },
+        { name: 'Hover', note: 'Sky edge, no fill. Map only — sky never appears in chrome.', token: 'sky', stroke: 'var(--ss-sky)', style: 'solid', fill: 'transparent' },
+        { name: 'Saved', note: 'Atom teal edge marks a parcel with a record you can open.', token: 'atom', stroke: 'var(--ss-atom)', style: 'solid', fill: 'rgba(76,201,192,.07)' },
+        { name: 'Boundary unverified', note: 'Dashed edge. The geometry is drawn but not from a recorded plat.', token: 'slate', stroke: 'var(--ss-slate)', style: 'dashed', fill: 'transparent' },
+      ],
+      brandStates: [
+        { ground: '#07090D', ring: 'rgba(255,255,255,.72)', smart: '#F8FAFC', note: 'On near-black' },
+        { ground: '#1B2430', ring: 'rgba(255,255,255,.8)', smart: '#FFFFFF', note: 'On satellite imagery' },
+        { ground: 'rgba(255,255,255,.06)', ring: 'rgba(255,255,255,.75)', smart: '#F8FAFC', note: 'On a panel' },
+      ],
+      sourceRules: [
+        { t: 'Name and time', d: 'every row states what was read and when, in mono.', dot: 'var(--ss-t5)' },
+        { t: 'Live is quiet', d: 'a working source is one small word, not a badge.', dot: 'var(--ss-ok)' },
+        { t: 'Failure is loud', d: 'red, with what did not answer.', dot: 'var(--ss-err)' },
+        { t: 'Not connected is stated', d: 'grey text saying so, never simulated with a dot.', dot: 'var(--ss-line-28)' },
+      ],
+    };
+  }
+}
+</script>
+</body>
+</html>

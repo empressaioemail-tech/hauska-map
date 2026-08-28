@@ -1,0 +1,389 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<meta name="design_doc_mode" content="canvas">
+<style>
+  :root{
+    --ss-void:#07090D; --ss-ink:#0B0E13; --ss-raised:#12171F;
+    --ss-line-06:rgba(154,166,178,.07); --ss-line-14:rgba(154,166,178,.15); --ss-line-28:rgba(154,166,178,.28);
+    --ss-t1:#F8FAFC; --ss-t2:#E9EEF5; --ss-t3:#C6D0DC; --ss-t4:#94A3B8; --ss-t5:#7C8BA0; --ss-t6:#64748B;
+    --ss-blue:#3B82F6; --ss-blue-bg:rgba(59,130,246,.12); --ss-blue-line:rgba(59,130,246,.32);
+    --ss-gold:#E8963B; --ss-gold-lt:#F5B95C; --ss-atom:#4CC9C0; --ss-slate:#7C8BA0;
+    --ss-warn:#F59E0B; --ss-err:#EF4444; --ss-ok:#10B981;
+    --ss-ease:cubic-bezier(.2,.6,.35,1);
+    --ss-ui:ui-sans-serif,system-ui,-apple-system,'Segoe UI',sans-serif;
+    --ss-mono:ui-monospace,'SF Mono',Menlo,monospace;
+  }
+  body{margin:0;background:#07090D;color:#C6D0DC;font-family:var(--ss-ui);-webkit-font-smoothing:antialiased}
+  a{color:#3B82F6;text-decoration:none}
+  a:hover{color:#7DD3FC}
+  @keyframes ss-spin{to{transform:rotate(360deg)}}
+  @keyframes ss-shimmer{0%{opacity:.35}50%{opacity:.7}100%{opacity:.35}}
+</style>
+</helmet>
+
+<svg width="0" height="0" style="position:absolute" aria-hidden="true"><defs fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round">
+<symbol id="c-brief" viewBox="0 0 24 24"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z M14 2v6h6 M8 13h8 M8 17h5"></path></symbol>
+<symbol id="c-chat" viewBox="0 0 24 24"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"></path></symbol>
+<symbol id="c-reports" viewBox="0 0 24 24"><path d="M12 2 2 7l10 5 10-5-10-5z M2 17l10 5 10-5 M2 12l10 5 10-5"></path></symbol>
+<symbol id="c-properties" viewBox="0 0 24 24"><path d="M19 21l-7-5-7 5V5a2 2 0 0 1 2-2h10a2 2 0 0 1 2 2z"></path></symbol>
+<symbol id="c-share" viewBox="0 0 24 24"><path d="M4 13v7a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-7 M8 7l4-4 4 4 M12 3v13"></path></symbol>
+<symbol id="c-ai" viewBox="0 0 24 24"><path d="M5 5h14v14H5z M9 2v3 M15 2v3 M9 19v3 M15 19v3 M2 9h3 M2 15h3 M19 9h3 M19 15h3"></path></symbol>
+<symbol id="c-compare" viewBox="0 0 24 24"><path d="M3 4h18v16H3z M12 4v16"></path></symbol>
+<symbol id="c-x" viewBox="0 0 24 24"><path d="M18 6 6 18 M6 6l12 12"></path></symbol>
+<symbol id="c-min" viewBox="0 0 24 24"><path d="M5 12h14"></path></symbol>
+<symbol id="c-expand" viewBox="0 0 24 24"><path d="M15 3h6v6 M9 21H3v-6 M21 3l-7 7 M3 21l7-7"></path></symbol>
+<symbol id="c-chev" viewBox="0 0 24 24"><path d="m6 9 6 6 6-6"></path></symbol>
+<symbol id="c-lock" viewBox="0 0 24 24"><path d="M5 11h14v10H5z M8 11V7a4 4 0 0 1 8 0v4"></path></symbol>
+<symbol id="c-slash" viewBox="0 0 24 24"><path d="M12 21a9 9 0 1 0 0-18 9 9 0 0 0 0 18z M6 6l12 12"></path></symbol>
+<symbol id="c-alert" viewBox="0 0 24 24"><path d="M12 3 2 20h20L12 3z M12 10v4 M12 17h.01"></path></symbol>
+<symbol id="c-clock" viewBox="0 0 24 24"><path d="M12 21a9 9 0 1 0 0-18 9 9 0 0 0 0 18z M12 7v5l3 2"></path></symbol>
+<symbol id="c-grip" viewBox="0 0 24 24"><path d="M9 5h.01 M15 5h.01 M9 12h.01 M15 12h.01 M9 19h.01 M15 19h.01" stroke-width="2.4"></path></symbol>
+</defs></svg>
+
+<div style="max-width:1500px;margin:0 auto;padding:56px 48px 96px">
+
+  <div style="display:flex;align-items:baseline;gap:14px;margin-bottom:14px">
+    <span style="font-size:10.5px;font-weight:600;letter-spacing:.18em;text-transform:uppercase;color:var(--ss-blue)">Smart Site chrome · sheet 02</span>
+    <span style="width:1px;height:11px;background:var(--ss-line-14)"></span>
+    <span style="font-size:10.5px;font-weight:500;letter-spacing:.14em;text-transform:uppercase;color:var(--ss-t6)">Chassis</span>
+  </div>
+  <h1 style="margin:0 0 12px;font-size:40px;font-weight:300;letter-spacing:-.025em;color:var(--ss-t1);line-height:1.05">The frame every tool lives in</h1>
+  <p style="margin:0 0 52px;max-width:680px;font-size:14px;line-height:1.6;color:var(--ss-t4);text-wrap:pretty">The rail, the dock shell, and what happens when three tools are open at once. Same seven bubbles in the same place. What changes is that an open tool never squeezes another one — older tools fold to a header band and stay one click away.</p>
+
+  <div style="display:flex;align-items:baseline;justify-content:space-between;margin-bottom:14px">
+    <div style="display:flex;align-items:baseline;gap:12px">
+      <span style="font-size:10.5px;font-weight:600;letter-spacing:.16em;text-transform:uppercase;color:var(--ss-t6)">01 — Stacking</span>
+      <span style="font-size:13px;color:var(--ss-t4)">Open several. The newest expands, the rest fold.</span>
+    </div>
+    <div style="display:flex;gap:8px">
+      <div onClick="{{ demoStack }}" style="display:inline-flex;align-items:center;height:26px;padding:0 12px;border-radius:6px;border:1px solid var(--ss-blue-line);background:var(--ss-blue-bg);color:var(--ss-blue);font-size:11.5px;font-weight:600;cursor:pointer;user-select:none">Open three</div>
+      <div onClick="{{ closeAll }}" style="display:inline-flex;align-items:center;height:26px;padding:0 12px;border-radius:6px;border:1px solid var(--ss-line-28);color:var(--ss-t2);font-size:11.5px;font-weight:600;cursor:pointer;user-select:none">Close all</div>
+    </div>
+  </div>
+
+  <div style="position:relative;height:680px;border-radius:12px;overflow:hidden;border:1px solid var(--ss-line-14);background:radial-gradient(130% 100% at 78% 6%,#12182A 0%,#080B11 58%)">
+    <div style="position:absolute;inset:0;opacity:.05;background:repeating-radial-gradient(ellipse at 26% 118%,transparent 0 26px,#fff 26px 27px)"></div>
+    <div style="position:absolute;left:52%;top:52%;transform:translate(-50%,-50%);font-family:var(--ss-mono);font-size:11px;letter-spacing:.2em;color:rgba(255,255,255,.10)">MAP — NOT DRAWN</div>
+
+    <div style="position:absolute;left:20px;top:20px;width:340px;display:flex;flex-direction:column;gap:8px">
+      <sc-for list="{{ stack }}" as="d" hint-placeholder-count="3">
+        <div style="border-radius:10px;overflow:hidden;background:rgba(11,14,19,.94);border:1px solid var(--ss-line-14);box-shadow:0 18px 44px rgba(0,0,0,.5);opacity:{{ d.o }};max-height:{{ d.mh }};transform:{{ d.tf }};pointer-events:{{ d.pe }};transform-origin:left top;transition:max-height 220ms var(--ss-ease),opacity 140ms var(--ss-ease),transform 180ms var(--ss-ease)">
+          <div onClick="{{ d.onHead }}" style="display:flex;align-items:center;gap:8px;height:36px;padding:0 8px 0 12px;cursor:pointer;border-bottom:1px solid {{ d.headLine }};background:{{ d.headBg }};transition:background 140ms var(--ss-ease)">
+            <svg width="13" height="13" style="color:{{ d.iconColor }};flex:none"><use href="{{ d.icon }}"></use></svg>
+            <span style="flex:1;font-size:11px;font-weight:600;letter-spacing:.1em;text-transform:uppercase;color:{{ d.titleColor }}">{{ d.title }}</span>
+            <sc-if value="{{ d.badge }}" hint-placeholder-val="{{ false }}">
+              <span style="font-family:var(--ss-mono);font-size:10px;color:var(--ss-t6)">{{ d.badge }}</span>
+            </sc-if>
+            <svg width="12" height="12" style="color:var(--ss-t5);flex:none;transform:{{ d.chev }};transition:transform 180ms var(--ss-ease)"><use href="#c-chev"></use></svg>
+            <div onClick="{{ d.onClose }}" style="width:22px;height:22px;display:flex;align-items:center;justify-content:center;border-radius:5px;color:var(--ss-t5);cursor:pointer;flex:none"><svg width="13" height="13"><use href="#c-x"></use></svg></div>
+          </div>
+          <div style="max-height:{{ d.bodyH }};opacity:{{ d.bodyO }};overflow:hidden;transition:max-height 220ms var(--ss-ease),opacity 140ms var(--ss-ease)">
+            <div style="padding:14px 12px">
+              <div style="display:flex;flex-direction:column;gap:11px">
+                <sc-for list="{{ d.rows }}" as="r" hint-placeholder-count="3">
+                  <div>
+                    <div style="font-size:10px;font-weight:600;letter-spacing:.13em;text-transform:uppercase;color:var(--ss-t6);margin-bottom:2px">{{ r.k }}</div>
+                    <div style="font-size:13px;color:{{ r.color }};font-family:{{ r.font }}">{{ r.v }}</div>
+                  </div>
+                </sc-for>
+              </div>
+            </div>
+          </div>
+        </div>
+      </sc-for>
+    </div>
+
+    <div style="position:absolute;right:20px;top:20px;display:flex;flex-direction:column;gap:8px">
+      <sc-for list="{{ bubbles }}" as="b" hint-placeholder-count="7">
+        <div onClick="{{ b.onClick }}" onMouseEnter="{{ b.onEnter }}" onMouseLeave="{{ b.onLeave }}" style="position:relative;width:34px;height:34px;display:flex;align-items:center;justify-content:center;border-radius:50%;cursor:pointer;background:{{ b.bg }};border:1px solid {{ b.border }};color:{{ b.fg }};box-shadow:{{ b.shadow }};transition:background 140ms var(--ss-ease),color 140ms var(--ss-ease),border-color 140ms var(--ss-ease),box-shadow 180ms var(--ss-ease)">
+          <svg width="15" height="15"><use href="{{ b.icon }}"></use></svg>
+          <sc-if value="{{ b.dot }}" hint-placeholder-val="{{ false }}">
+            <span style="position:absolute;top:-1px;right:-1px;width:7px;height:7px;border-radius:50%;background:var(--ss-blue);border:1.5px solid #0B0E13"></span>
+          </sc-if>
+          <div style="position:absolute;top:50%;right:100%;margin-right:11px;opacity:{{ b.tipO }};transform:{{ b.tipTf }};transform-origin:right center;transition:opacity 100ms var(--ss-ease),transform 180ms var(--ss-ease);pointer-events:none">
+            <div style="display:flex;align-items:center;gap:9px;white-space:nowrap;padding:6px 11px;border-radius:8px;background:rgba(18,23,31,.97);border:1px solid var(--ss-line-14);box-shadow:0 10px 30px rgba(0,0,0,.55);font-size:12px;font-weight:500;color:var(--ss-t2)">
+              {{ b.label }}<span style="font-family:var(--ss-mono);font-size:10px;color:var(--ss-t6)">{{ b.key }}</span>
+            </div>
+          </div>
+        </div>
+      </sc-for>
+    </div>
+
+    <div style="position:absolute;left:20px;bottom:18px;display:flex;align-items:center;gap:8px;pointer-events:none">
+      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="rgba(255,255,255,.7)" stroke-width="1.4"><circle cx="12" cy="12" r="8"></circle><path d="M12 1v5 M12 18v5 M1 12h5 M18 12h5" stroke-linecap="round"></path><circle cx="12" cy="12" r="2" fill="var(--ss-gold)" stroke="none"></circle></svg>
+      <span style="font-size:11px;font-weight:600;letter-spacing:.16em"><span style="color:#F8FAFC">SMART</span> <span style="color:var(--ss-gold-lt)">SITE</span></span>
+    </div>
+  </div>
+
+  <div style="display:grid;grid-template-columns:1fr 1fr;gap:24px;margin-top:52px">
+
+    <div style="border:1px solid var(--ss-line-14);border-radius:12px;background:var(--ss-ink);overflow:hidden">
+      <div style="display:flex;align-items:baseline;flex-wrap:wrap;gap:4px 12px;padding:20px 24px 0">
+        <span style="font-size:10.5px;font-weight:600;letter-spacing:.16em;text-transform:uppercase;color:var(--ss-t6)">02</span>
+        <span style="font-size:20px;font-weight:300;letter-spacing:-.02em;color:var(--ss-t1)">Bubble rail</span>
+        <span style="font-family:var(--ss-mono);font-size:11px;color:var(--ss-t6)">browse/BubbleRail.tsx</span>
+      </div>
+      <p style="margin:8px 24px 20px;font-size:12.5px;line-height:1.55;color:var(--ss-t4)">34px circle, 8px gap, right edge. Seven and no eighth. Every state below is a real state the rail can be in.</p>
+      <div style="padding:0 24px 24px;display:flex;flex-direction:column;gap:14px">
+        <sc-for list="{{ railStates }}" as="s" hint-placeholder-count="6">
+          <div style="display:flex;align-items:center;gap:14px;padding-bottom:14px;border-bottom:1px solid var(--ss-line-06)">
+            <div style="width:34px;height:34px;flex:none;display:flex;align-items:center;justify-content:center;border-radius:50%;position:relative;background:{{ s.bg }};border:1px solid {{ s.bd }};color:{{ s.fg }};box-shadow:{{ s.sh }};opacity:{{ s.op }}">
+              <svg width="15" height="15"><use href="{{ s.icon }}"></use></svg>
+              <sc-if value="{{ s.dot }}" hint-placeholder-val="{{ false }}">
+                <span style="position:absolute;top:-1px;right:-1px;width:7px;height:7px;border-radius:50%;background:var(--ss-blue);border:1.5px solid #0B0E13"></span>
+              </sc-if>
+            </div>
+            <div style="flex:1">
+              <div style="font-size:12.5px;font-weight:600;color:var(--ss-t2)">{{ s.name }}</div>
+              <div style="font-size:11.5px;line-height:1.45;color:var(--ss-t5);margin-top:2px">{{ s.note }}</div>
+            </div>
+          </div>
+        </sc-for>
+      </div>
+    </div>
+
+    <div style="border:1px solid var(--ss-line-14);border-radius:12px;background:var(--ss-ink);overflow:hidden">
+      <div style="display:flex;align-items:baseline;flex-wrap:wrap;gap:4px 12px;padding:20px 24px 0">
+        <span style="font-size:10.5px;font-weight:600;letter-spacing:.16em;text-transform:uppercase;color:var(--ss-t6)">03</span>
+        <span style="font-size:20px;font-weight:300;letter-spacing:-.02em;color:var(--ss-t1)">Dock shell</span>
+        <span style="font-family:var(--ss-mono);font-size:11px;color:var(--ss-t6)">browse/DockShell.tsx</span>
+      </div>
+      <p style="margin:8px 24px 20px;font-size:12.5px;line-height:1.55;color:var(--ss-t4)">Anatomy is fixed so every tool feels like the same object: 36px header, scrolling body, optional footer that holds the one primary action.</p>
+      <div style="padding:0 24px 24px;display:flex;gap:16px;align-items:flex-start">
+        <div style="width:264px;flex:none;border-radius:10px;overflow:hidden;background:rgba(11,14,19,.94);border:1px solid var(--ss-line-14);box-shadow:0 18px 44px rgba(0,0,0,.5)">
+          <div style="display:flex;align-items:center;gap:8px;height:36px;padding:0 8px 0 12px;border-bottom:1px solid var(--ss-line-06)">
+            <svg width="13" height="13" style="color:var(--ss-blue);flex:none"><use href="#c-brief"></use></svg>
+            <span style="flex:1;font-size:11px;font-weight:600;letter-spacing:.1em;text-transform:uppercase;color:var(--ss-t4)">Header</span>
+            <div style="width:22px;height:22px;display:flex;align-items:center;justify-content:center;color:var(--ss-t5)"><svg width="13" height="13"><use href="#c-expand"></use></svg></div>
+            <div style="width:22px;height:22px;display:flex;align-items:center;justify-content:center;color:var(--ss-t5)"><svg width="13" height="13"><use href="#c-x"></use></svg></div>
+          </div>
+          <div style="padding:14px 12px;display:flex;flex-direction:column;gap:9px">
+            <div style="height:9px;border-radius:3px;background:var(--ss-line-14);width:72%"></div>
+            <div style="height:9px;border-radius:3px;background:var(--ss-line-06);width:94%"></div>
+            <div style="height:9px;border-radius:3px;background:var(--ss-line-06);width:86%"></div>
+            <div style="height:1px;background:var(--ss-line-06);margin:5px -12px"></div>
+            <div style="height:9px;border-radius:3px;background:var(--ss-line-06);width:64%"></div>
+            <div style="height:9px;border-radius:3px;background:var(--ss-line-06);width:78%"></div>
+          </div>
+          <div style="padding:12px;border-top:1px solid var(--ss-line-06);display:flex;gap:8px">
+            <div style="flex:1;display:flex;align-items:center;justify-content:center;height:32px;border-radius:6px;background:var(--ss-blue);color:#F8FAFC;font-size:12px;font-weight:600">Footer action</div>
+          </div>
+        </div>
+        <div style="flex:1;display:flex;flex-direction:column;gap:12px">
+          <sc-for list="{{ anatomy }}" as="a" hint-placeholder-count="5">
+            <div style="display:flex;gap:10px;align-items:baseline">
+              <span style="font-family:var(--ss-mono);font-size:10.5px;color:var(--ss-blue);min-width:52px;flex:none">{{ a.spec }}</span>
+              <span style="font-size:11.5px;line-height:1.45;color:var(--ss-t4)">{{ a.note }}</span>
+            </div>
+          </sc-for>
+        </div>
+      </div>
+    </div>
+
+    <div style="border:1px solid var(--ss-line-14);border-radius:12px;background:var(--ss-ink);overflow:hidden">
+      <div style="display:flex;align-items:baseline;flex-wrap:wrap;gap:4px 12px;padding:20px 24px 0">
+        <span style="font-size:10.5px;font-weight:600;letter-spacing:.16em;text-transform:uppercase;color:var(--ss-t6)">04</span>
+        <span style="font-size:20px;font-weight:300;letter-spacing:-.02em;color:var(--ss-t1)">Absence &amp; failure</span>
+        <span style="font-family:var(--ss-mono);font-size:11px;color:var(--ss-t6)">components/StateNote.tsx</span>
+      </div>
+      <p style="margin:8px 24px 20px;font-size:12.5px;line-height:1.55;color:var(--ss-t4)">Nothing is ever an empty rectangle. A state names what is missing and what would fill it. Slate is absence, amber is waiting, red is failure.</p>
+      <div style="padding:0 24px 24px;display:flex;flex-direction:column;gap:10px">
+        <sc-for list="{{ states }}" as="s" hint-placeholder-count="4">
+          <div style="border-radius:8px;padding:12px 13px;background:{{ s.bg }};border:{{ s.bd }}">
+            <div style="display:flex;align-items:center;gap:7px">
+              <svg width="13" height="13" style="color:{{ s.fg }};flex:none"><use href="{{ s.icon }}"></use></svg>
+              <span style="font-size:12.5px;font-weight:600;color:{{ s.fg }}">{{ s.title }}</span>
+            </div>
+            <div style="font-size:11.5px;line-height:1.5;color:var(--ss-t5);margin-top:5px">{{ s.basis }}</div>
+            <sc-if value="{{ s.action }}" hint-placeholder-val="{{ false }}">
+              <div style="display:inline-flex;align-items:center;height:26px;padding:0 10px;border-radius:6px;border:1px solid var(--ss-blue-line);background:var(--ss-blue-bg);color:var(--ss-blue);font-size:11.5px;font-weight:600;margin-top:10px;cursor:pointer">{{ s.action }}</div>
+            </sc-if>
+          </div>
+        </sc-for>
+      </div>
+    </div>
+
+    <div style="border:1px solid var(--ss-line-14);border-radius:12px;background:var(--ss-ink);overflow:hidden">
+      <div style="display:flex;align-items:baseline;flex-wrap:wrap;gap:4px 12px;padding:20px 24px 0">
+        <span style="font-size:10.5px;font-weight:600;letter-spacing:.16em;text-transform:uppercase;color:var(--ss-t6)">05</span>
+        <span style="font-size:20px;font-weight:300;letter-spacing:-.02em;color:var(--ss-t1)">Locked &amp; loading</span>
+        <span style="font-family:var(--ss-mono);font-size:11px;color:var(--ss-t6)">browse/LockedPanel.tsx</span>
+      </div>
+      <p style="margin:8px 24px 20px;font-size:12.5px;line-height:1.55;color:var(--ss-t4)">A locked tool shows its real shape behind a blur so you know what you would get. A loading tool shows the shape it is about to fill, never a spinner alone.</p>
+      <div style="padding:0 24px 24px;display:flex;gap:16px">
+        <div style="flex:1;position:relative;border-radius:10px;overflow:hidden;background:rgba(11,14,19,.94);border:1px solid var(--ss-line-14)">
+          <div style="filter:blur(3.5px);opacity:.5;padding:14px 12px;display:flex;flex-direction:column;gap:10px">
+            <div style="height:10px;border-radius:3px;background:var(--ss-line-28);width:66%"></div>
+            <div style="height:9px;border-radius:3px;background:var(--ss-line-14);width:92%"></div>
+            <div style="height:9px;border-radius:3px;background:var(--ss-line-14);width:80%"></div>
+            <div style="height:9px;border-radius:3px;background:var(--ss-line-14);width:88%"></div>
+            <div style="height:9px;border-radius:3px;background:var(--ss-line-14);width:58%"></div>
+          </div>
+          <div style="position:absolute;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:9px;background:rgba(7,9,13,.55);padding:16px;text-align:center">
+            <svg width="16" height="16" style="color:var(--ss-t4)"><use href="#c-lock"></use></svg>
+            <div style="font-size:12.5px;font-weight:600;color:var(--ss-t2)">Unlock this property</div>
+            <div style="font-size:11.5px;line-height:1.45;color:var(--ss-t5);max-width:190px">Full research and every export for this parcel.</div>
+            <div style="display:inline-flex;align-items:center;height:28px;padding:0 12px;border-radius:6px;background:var(--ss-blue);color:#F8FAFC;font-size:11.5px;font-weight:600;cursor:pointer;margin-top:2px">$15 one time</div>
+          </div>
+        </div>
+        <div style="flex:1;border-radius:10px;overflow:hidden;background:rgba(11,14,19,.94);border:1px solid var(--ss-line-14)">
+          <div style="display:flex;align-items:center;gap:8px;height:36px;padding:0 12px;border-bottom:1px solid var(--ss-line-06)">
+            <span style="width:12px;height:12px;border-radius:50%;border:1.6px solid var(--ss-line-28);border-top-color:var(--ss-blue);animation:ss-spin 700ms linear infinite;flex:none"></span>
+            <span style="flex:1;font-size:11px;font-weight:600;letter-spacing:.1em;text-transform:uppercase;color:var(--ss-t4)">Researching</span>
+            <span style="font-family:var(--ss-mono);font-size:10px;color:var(--ss-t6)">4 of 7</span>
+          </div>
+          <div style="padding:14px 12px;display:flex;flex-direction:column;gap:12px">
+            <sc-for list="{{ skeleton }}" as="s" hint-placeholder-count="4">
+              <div>
+                <div style="font-size:10px;font-weight:600;letter-spacing:.13em;text-transform:uppercase;color:var(--ss-t6);margin-bottom:4px">{{ s.k }}</div>
+                <div style="height:10px;border-radius:3px;background:var(--ss-line-14);width:{{ s.w }};animation:ss-shimmer 1.4s ease-in-out infinite;animation-delay:{{ s.d }}"></div>
+              </div>
+            </sc-for>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div style="margin-top:44px;padding:22px 24px;border:1px solid var(--ss-line-14);border-radius:12px;background:var(--ss-ink)">
+    <div style="font-size:10.5px;font-weight:600;letter-spacing:.16em;text-transform:uppercase;color:var(--ss-t6);margin-bottom:14px">06 — Chassis rules</div>
+    <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:22px">
+      <sc-for list="{{ rules }}" as="r" hint-placeholder-count="4">
+        <div>
+          <div style="font-size:13px;font-weight:600;color:var(--ss-t2);margin-bottom:5px">{{ r.t }}</div>
+          <div style="font-size:12px;line-height:1.5;color:var(--ss-t5)">{{ r.d }}</div>
+        </div>
+      </sc-for>
+    </div>
+  </div>
+</div>
+
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props="{&quot;$preview&quot;:{&quot;width&quot;:1600,&quot;height&quot;:2100},&quot;dockWidth&quot;:{&quot;editor&quot;:&quot;int&quot;,&quot;default&quot;:340,&quot;min&quot;:300,&quot;max&quot;:420,&quot;unit&quot;:&quot;px&quot;,&quot;tsType&quot;:&quot;number&quot;,&quot;section&quot;:&quot;Layout&quot;}}">
+class Component extends DCLogic {
+  state = { open: ['brief'], collapsed: [], hover: null };
+
+  DOCKS = {
+    brief: { title: 'Property brief', icon: '#c-brief', badge: null, h: 300, rows: [
+      { k: 'Address', v: '1408 Chestnut St', color: 'var(--ss-t1)', font: 'var(--ss-ui)' },
+      { k: 'Parcel', v: '48021:34137 · fixture', color: 'var(--ss-t2)', font: 'var(--ss-mono)' },
+      { k: 'Zoning', v: 'SF-2', color: 'var(--ss-t2)', font: 'var(--ss-mono)' },
+      { k: 'Lot area', v: '0.31 ac · 13,504 sf', color: 'var(--ss-t2)', font: 'var(--ss-mono)' },
+      { k: 'Flood zone', v: 'Lookup failed', color: 'var(--ss-err)', font: 'var(--ss-ui)' },
+    ] },
+    reports: { title: 'Reports & exports', icon: '#c-reports', badge: '5', h: 210, rows: [
+      { k: 'Ready now', v: 'X-ray · Records request · Flood', color: 'var(--ss-t2)', font: 'var(--ss-ui)' },
+      { k: 'Studio only', v: 'Terrain mesh', color: 'var(--ss-warn)', font: 'var(--ss-ui)' },
+      { k: 'Coming', v: 'Feasibility study', color: 'var(--ss-t5)', font: 'var(--ss-ui)' },
+    ] },
+    properties: { title: 'My properties', icon: '#c-properties', badge: '12', h: 180, rows: [
+      { k: 'Saved', v: '12 parcels across 3 counties', color: 'var(--ss-t2)', font: 'var(--ss-ui)' },
+      { k: 'Last opened', v: '1408 Chestnut St', color: 'var(--ss-t2)', font: 'var(--ss-ui)' },
+    ] },
+  };
+
+  open(id) {
+    this.setState(s => {
+      if (s.open.includes(id)) return { open: s.open.filter(x => x !== id), collapsed: s.collapsed.filter(x => x !== id) };
+      return { open: [...s.open, id], collapsed: [...s.collapsed, ...s.open.filter(x => !s.collapsed.includes(x))] };
+    });
+  }
+
+  renderVals() {
+    const TOOLS = [
+      ['brief', 'Property brief', 'B'], ['chat', 'AI chat', 'C'], ['reports', 'Reports & exports', 'R'],
+      ['properties', 'My properties', 'P'], ['share', 'Share', 'S'], ['ai', 'Use in your AI', 'A'],
+      ['compare', 'Compare', 'K'],
+    ];
+    const bubbles = TOOLS.map(([id, label, key]) => {
+      const active = this.state.open.includes(id);
+      const hot = this.state.hover === id;
+      return {
+        id, label, key, icon: '#c-' + id,
+        dot: id === 'reports' && !active,
+        bg: active ? 'var(--ss-blue)' : hot ? 'rgba(24,30,42,.96)' : 'rgba(11,14,19,.9)',
+        fg: active ? '#08111F' : hot ? 'var(--ss-t1)' : 'var(--ss-t3)',
+        border: active ? 'var(--ss-blue)' : hot ? 'var(--ss-line-28)' : 'var(--ss-line-14)',
+        shadow: active ? '0 6px 20px rgba(59,130,246,.28)' : '0 4px 14px rgba(0,0,0,.4)',
+        tipO: hot ? 1 : 0,
+        tipTf: hot ? 'translateY(-50%) translateX(0) scale(1)' : 'translateY(-50%) translateX(6px) scale(.96)',
+        onEnter: () => this.setState({ hover: id }),
+        onLeave: () => this.setState({ hover: null }),
+        onClick: () => this.open(id),
+      };
+    });
+
+    const stack = Object.keys(this.DOCKS).map(id => {
+      const d = this.DOCKS[id];
+      const on = this.state.open.includes(id);
+      const folded = this.state.collapsed.includes(id);
+      return {
+        id, title: d.title, icon: d.icon, badge: d.badge, rows: d.rows,
+        o: on ? 1 : 0,
+        mh: on ? (folded ? '36px' : d.h + 'px') : '0px',
+        tf: on ? 'scale(1) translateY(0)' : 'scale(.97) translateY(-8px)',
+        pe: on ? 'auto' : 'none',
+        bodyH: folded ? '0px' : d.h + 'px',
+        bodyO: folded ? 0 : 1,
+        chev: folded ? 'rotate(-90deg)' : 'rotate(0deg)',
+        headBg: folded ? 'transparent' : 'rgba(255,255,255,.015)',
+        headLine: folded ? 'transparent' : 'var(--ss-line-06)',
+        iconColor: folded ? 'var(--ss-t5)' : 'var(--ss-blue)',
+        titleColor: folded ? 'var(--ss-t5)' : 'var(--ss-t3)',
+        onHead: () => this.setState(s => ({ collapsed: s.collapsed.includes(id) ? s.collapsed.filter(x => x !== id) : [...s.collapsed, id] })),
+        onClose: e => { e.stopPropagation(); this.open(id); },
+      };
+    });
+
+    return {
+      bubbles, stack,
+      demoStack: () => this.setState({ open: ['brief'], collapsed: [] }, () => {
+        setTimeout(() => this.open('reports'), 240);
+        setTimeout(() => this.open('properties'), 520);
+      }),
+      closeAll: () => this.setState({ open: [], collapsed: [] }),
+      railStates: [
+        { name: 'Rest', note: 'Near-black fill, .15 hairline, t3 glyph.', icon: '#c-brief', bg: 'rgba(11,14,19,.9)', bd: 'var(--ss-line-14)', fg: 'var(--ss-t3)', sh: '0 4px 14px rgba(0,0,0,.4)', op: 1 },
+        { name: 'Hover', note: 'Fill lifts one step, glyph goes to t1. 140ms, no scale.', icon: '#c-chat', bg: 'rgba(24,30,42,.96)', bd: 'var(--ss-line-28)', fg: 'var(--ss-t1)', sh: '0 4px 14px rgba(0,0,0,.4)', op: 1 },
+        { name: 'Open', note: 'Solid blue with a matching glow. Only open tools wear it.', icon: '#c-reports', bg: 'var(--ss-blue)', fg: '#08111F', bd: 'var(--ss-blue)', sh: '0 6px 20px rgba(59,130,246,.28)', op: 1 },
+        { name: 'Has news', note: 'A 7px blue dot on the rim. Never a count, never a red dot.', icon: '#c-properties', bg: 'rgba(11,14,19,.9)', bd: 'var(--ss-line-14)', fg: 'var(--ss-t3)', sh: '0 4px 14px rgba(0,0,0,.4)', op: 1, dot: true },
+        { name: 'Needs sign-in', note: 'Same shape at 55%. Clicking opens the sign-in card, not a dead click.', icon: '#c-share', bg: 'rgba(11,14,19,.9)', bd: 'var(--ss-line-14)', fg: 'var(--ss-t5)', sh: 'none', op: .55 },
+        { name: 'Not built', note: 'Dashed rim, t6 glyph. The tip says coming soon and the click does nothing.', icon: '#c-compare', bg: 'transparent', bd: 'var(--ss-line-14)', fg: 'var(--ss-t6)', sh: 'none', op: .5 },
+      ],
+      anatomy: [
+        { spec: '340px', note: 'Column width. One width for every tool, so the stack has one left edge.' },
+        { spec: '36px', note: 'Header. Icon, uppercase title, optional mono badge, expand, close.' },
+        { spec: '8px', note: 'Gap between docks in the stack.' },
+        { spec: '14/12', note: 'Body padding. Rules divide sections; borders never do.' },
+        { spec: '1', note: 'One primary action per dock, and it lives in the footer.' },
+      ],
+      states: [
+        { title: 'Setbacks not stamped here', basis: 'A recorded plat or an adopted zoning ordinance would fill this.', icon: '#c-slash', fg: 'var(--ss-slate)', bg: 'rgba(124,139,160,.07)', bd: '1px dashed var(--ss-line-28)', action: null },
+        { title: 'Waiting on the county', basis: 'The Bastrop records service accepted the request 40 seconds ago.', icon: '#c-clock', fg: 'var(--ss-warn)', bg: 'rgba(245,158,11,.07)', bd: '1px solid rgba(245,158,11,.25)', action: null },
+        { title: 'Flood lookup failed', basis: 'The FEMA service did not answer. Nothing was cached for this parcel.', icon: '#c-alert', fg: 'var(--ss-err)', bg: 'rgba(239,68,68,.06)', bd: '1px solid rgba(239,68,68,.28)', action: 'Retry lookup' },
+        { title: 'No properties saved yet', basis: 'Parcels you save from the inspect card land here.', icon: '#c-properties', fg: 'var(--ss-t4)', bg: 'transparent', bd: '1px dashed var(--ss-line-14)', action: 'Find a property' },
+      ],
+      skeleton: [
+        { k: 'Owner', w: '62%', d: '0ms' }, { k: 'Land use', w: '84%', d: '120ms' },
+        { k: 'Zoning', w: '38%', d: '240ms' }, { k: 'Lot area', w: '70%', d: '360ms' },
+      ],
+      rules: [
+        { t: 'One column, one width', d: 'Every tool is 340px on the left edge. Nothing docks right; the rail owns that side.' },
+        { t: 'Newest expands', d: 'Opening a tool folds the others to their 36px header. Nothing is closed on your behalf.' },
+        { t: 'Headers stay clickable', d: 'A folded header is the whole hit target. One click brings it back at the same scroll position.' },
+        { t: 'Panels never slide', d: 'They open their own height from the top-left corner. Off-screen entrances are for sheets, not docks.' },
+      ],
+    };
+  }
+}
+</script>
+</body>
+</html>
