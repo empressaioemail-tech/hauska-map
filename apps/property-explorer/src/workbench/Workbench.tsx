@@ -410,10 +410,14 @@ export function Workbench({
               : {
                   position: "absolute",
                   zIndex: 9,
-                  top: 12,
-                  right: 54,
-                  width: "min(340px, calc(100vw - 78px))",
-                  maxHeight: "calc(100vh - 28px)",
+                  // ONE SOURCE OF TRUTH for the column geometry.
+                  // This block used to hardcode top/right/width, which meant
+                  // dockLayoutStyle stopped driving the desktop column the
+                  // moment the stack was introduced: the widening to 380 and
+                  // the move to right:74 both landed in the rule, passed their
+                  // tests, and never reached the screen. A value with two
+                  // owners has no owner.
+                  ...resolveDockLayoutStyle(false, false),
                   display: "flex",
                   flexDirection: "column",
                   gap: 8,

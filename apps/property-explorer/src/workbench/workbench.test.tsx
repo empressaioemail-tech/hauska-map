@@ -284,11 +284,12 @@ describe("expand-to-floating-box (Fix A)", () => {
   it("dockLayoutStyle — COMPACT default hugs the top-right at the v2 340px width", () => {
     const s = dockLayoutStyle(false);
     expect(s.top).toBe(12);
-    // Kit 04: the rail became a capsule at right:18 (46 wide with its
-    // padding), so the dock moved 54 -> 66 to keep the same 8px channel.
-    expect(s.right).toBe(66);
+    // The rail capsule is 48 wide at right:18, occupying 18 through 66, so
+    // 18 + 48 + 8 = 74 is what actually leaves an 8px channel. It was 66,
+    // which put the dock FLUSH against the rail.
+    expect(s.right).toBe(74);
     // Widened 340 -> 380 on operator ruling 2026-08-27.
-    expect(s.width).toBe("min(380px, calc(100vw - 90px))");
+    expect(s.width).toBe("min(380px, calc(100vw - 98px))");
     // The compact dock takes its elevation from the dock element (--ss-sh-dock),
     // not from the layout rule; only the EXPANDED box overrides it here.
     expect(s.boxShadow).toBeUndefined();
@@ -523,3 +524,34 @@ describe("the dock STACK renders — chrome v2, operator ruling 2026-08-27", () 
 
 });
 
+describe("the column geometry has ONE owner", () => {
+  // Regression, 2026-08-28. The column hardcoded its own top/right/width, so
+  // dockLayoutStyle stopped driving the desktop column the moment the stack
+  // was introduced: a widening to 380 and a move to right:74 both landed in
+  // the rule, PASSED THEIR TESTS, and never reached the screen. Testing the
+  // rule alone could not catch that — this compares the RULE against the
+  // RENDER, which is two independently derived values that have to agree.
+  it("the rendered column carries exactly what dockLayoutStyle says", () => {
+    const rule = dockLayoutStyle(false);
+    const html = render({ openToolId: "brief", activeParcelNodeId: "p1" });
+    const col = html.match(
+      /data-testid="workbench-dock-column"[^>]*style="([^"]*)"/,
+    );
+    expect(col).not.toBeNull();
+    const style = col![1];
+    expect(style).toContain(`right:${String(rule.right)}px`);
+    expect(style).toContain(`top:${String(rule.top)}px`);
+    expect(style).toContain(`width:${String(rule.width)}`);
+    expect(style).toContain(`max-height:${String(rule.maxHeight)}`);
+  });
+
+  it("the dock sits clear of the rail capsule, not flush against it", () => {
+    // The capsule is 48 wide (34 bubble + 2x6 padding + 2x1 border) at
+    // right:18, so it occupies 18 through 66. Anything at right<=66 touches
+    // it. The channel is the same 8px that separates two stacked docks.
+    const RAIL_INSET = 18;
+    const RAIL_WIDTH = 48;
+    const CHANNEL = 8;
+    expect(dockLayoutStyle(false).right).toBe(RAIL_INSET + RAIL_WIDTH + CHANNEL);
+  });
+});

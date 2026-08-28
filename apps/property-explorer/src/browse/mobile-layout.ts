@@ -78,17 +78,19 @@ export function dockLayoutStyle(
     };
   }
   // ONE dock width for every tool, so the stack has one left edge no matter
-  // which bubble opened it. Widened 340 -> 380 on operator ruling 2026-08-27
-  // ("right hand containers need to be a little bit wider"); the two-column
-  // fact grid inside the inspect card is the surface that was pinching.
+  // which bubble opened it. Widened 340 -> 380 on operator ruling 2026-08-27.
   //
-  // right:66 clears the capsule rail, which now sits at right:18 and is 46
-  // wide with its padding, leaving the same 8px channel the v2 chrome uses
-  // between any two floating things.
+  // right:74 — CORRECTED 2026-08-28. It was 66, which I described as leaving
+  // "the same 8px channel", and the arithmetic does not say that: the rail
+  // capsule is 48 wide (34 bubble + 2x6 padding + 2x1 border) at right:18, so
+  // it occupies 18 through 66. A dock at right:66 is FLUSH against it, gap
+  // zero, which is what the operator saw. 18 + 48 + 8 = 74 is the number that
+  // actually produces the 8px channel, the same one that separates two
+  // stacked docks from each other.
   return {
     top: 12,
-    right: 66,
-    width: "min(380px, calc(100vw - 90px))",
+    right: 74,
+    width: "min(380px, calc(100vw - 98px))",
     maxHeight: "calc(100vh - 28px)",
   };
 }
