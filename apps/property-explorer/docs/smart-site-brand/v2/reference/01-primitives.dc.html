@@ -1,0 +1,328 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<meta name="design_doc_mode" content="canvas">
+<style>
+  :root{
+    --ss-void:#07090D; --ss-ink:#0B0E13; --ss-raised:#12171F;
+    --ss-line-06:rgba(154,166,178,.07); --ss-line-14:rgba(154,166,178,.15); --ss-line-28:rgba(154,166,178,.28);
+    --ss-t1:#F8FAFC; --ss-t2:#E9EEF5; --ss-t3:#C6D0DC; --ss-t4:#94A3B8; --ss-t5:#7C8BA0; --ss-t6:#64748B;
+    --ss-blue:#3B82F6; --ss-blue-bg:rgba(59,130,246,.12); --ss-blue-line:rgba(59,130,246,.32);
+    --ss-gold:#E8963B; --ss-gold-lt:#F5B95C; --ss-atom:#4CC9C0; --ss-slate:#7C8BA0;
+    --ss-warn:#F59E0B; --ss-err:#EF4444; --ss-ok:#10B981;
+    --ss-ease:cubic-bezier(.2,.6,.35,1);
+    --ss-ui:ui-sans-serif,system-ui,-apple-system,'Segoe UI',sans-serif;
+    --ss-mono:ui-monospace,'SF Mono',Menlo,monospace;
+  }
+  body{margin:0;background:#07090D;color:#C6D0DC;font-family:var(--ss-ui);-webkit-font-smoothing:antialiased}
+  a{color:#3B82F6;text-decoration:none}
+  a:hover{color:#7DD3FC}
+  @keyframes ss-spin{to{transform:rotate(360deg)}}
+</style>
+</helmet>
+
+<svg width="0" height="0" style="position:absolute" aria-hidden="true"><defs fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round">
+<symbol id="p-down" viewBox="0 0 24 24"><path d="M12 3v12 M7 11l5 5 5-5 M4 21h16"></path></symbol>
+<symbol id="p-x" viewBox="0 0 24 24"><path d="M18 6 6 18 M6 6l12 12"></path></symbol>
+<symbol id="p-alert" viewBox="0 0 24 24"><path d="M12 3 2 20h20L12 3z M12 10v4 M12 17h.01"></path></symbol>
+<symbol id="p-slash" viewBox="0 0 24 24"><path d="M12 21a9 9 0 1 0 0-18 9 9 0 0 0 0 18z M6 6l12 12"></path></symbol>
+<symbol id="p-clock" viewBox="0 0 24 24"><path d="M12 21a9 9 0 1 0 0-18 9 9 0 0 0 0 18z M12 7v5l3 2"></path></symbol>
+<symbol id="p-check" viewBox="0 0 24 24"><path d="M20 6 9 17l-5-5"></path></symbol>
+<symbol id="p-info" viewBox="0 0 24 24"><path d="M12 21a9 9 0 1 0 0-18 9 9 0 0 0 0 18z M12 11v5 M12 8h.01"></path></symbol>
+<symbol id="p-link" viewBox="0 0 24 24"><path d="M10 13a5 5 0 0 0 7 0l3-3a5 5 0 0 0-7-7l-2 2 M14 11a5 5 0 0 0-7 0l-3 3a5 5 0 0 0 7 7l2-2"></path></symbol>
+<symbol id="p-file" viewBox="0 0 24 24"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z M14 2v6h6"></path></symbol>
+<symbol id="p-chev" viewBox="0 0 24 24"><path d="m9 6 6 6-6 6"></path></symbol>
+</defs></svg>
+
+<div style="max-width:1500px;margin:0 auto;padding:56px 48px 96px">
+
+  <div style="display:flex;align-items:baseline;gap:14px;margin-bottom:14px">
+    <span style="font-size:10.5px;font-weight:600;letter-spacing:.18em;text-transform:uppercase;color:var(--ss-blue)">Smart Site chrome · sheet 01</span>
+    <span style="width:1px;height:11px;background:var(--ss-line-14)"></span>
+    <span style="font-size:10.5px;font-weight:500;letter-spacing:.14em;text-transform:uppercase;color:var(--ss-t6)">Primitives</span>
+  </div>
+  <h1 style="margin:0 0 12px;font-size:40px;font-weight:300;letter-spacing:-.025em;color:var(--ss-t1);line-height:1.05">The building blocks</h1>
+  <p style="margin:0 0 20px;max-width:660px;font-size:14px;line-height:1.6;color:var(--ss-t4);text-wrap:pretty">Eight components. Every surface in the product is made of these and nothing else. Each specimen below is live — hover it, focus it, press it.</p>
+
+  <div style="display:flex;flex-wrap:wrap;gap:8px;margin-bottom:52px">
+    <span style="display:inline-flex;align-items:center;height:24px;padding:0 10px;border-radius:6px;border:1px solid var(--ss-line-14);font-family:var(--ss-mono);font-size:10.5px;color:var(--ss-t5)">control 32 / dense 26</span>
+    <span style="display:inline-flex;align-items:center;height:24px;padding:0 10px;border-radius:6px;border:1px solid var(--ss-line-14);font-family:var(--ss-mono);font-size:10.5px;color:var(--ss-t5)">radius 6 touch / 10 float</span>
+    <span style="display:inline-flex;align-items:center;height:24px;padding:0 10px;border-radius:6px;border:1px solid var(--ss-line-14);font-family:var(--ss-mono);font-size:10.5px;color:var(--ss-t5)">hairline .07 / .15 / .28</span>
+    <span style="display:inline-flex;align-items:center;height:24px;padding:0 10px;border-radius:6px;border:1px solid var(--ss-line-14);font-family:var(--ss-mono);font-size:10.5px;color:var(--ss-t5)">140ms cubic-bezier(.2,.6,.35,1)</span>
+    <span style="display:inline-flex;align-items:center;height:24px;padding:0 10px;border-radius:6px;border:1px solid var(--ss-blue-line);background:var(--ss-blue-bg);font-family:var(--ss-mono);font-size:10.5px;color:var(--ss-blue)">blue is the only action</span>
+  </div>
+
+  <div style="display:grid;grid-template-columns:1fr 1fr;gap:24px">
+
+    <div style="grid-column:span 2;border:1px solid var(--ss-line-14);border-radius:12px;background:var(--ss-ink);overflow:hidden">
+      <div style="display:flex;align-items:baseline;flex-wrap:wrap;gap:4px 12px;padding:20px 24px 0">
+        <span style="font-size:10.5px;font-weight:600;letter-spacing:.16em;text-transform:uppercase;color:var(--ss-t6)">01</span>
+        <span style="font-size:20px;font-weight:300;letter-spacing:-.02em;color:var(--ss-t1)">Button</span>
+        <span style="font-family:var(--ss-mono);font-size:11px;color:var(--ss-t6)">components/Button.tsx</span>
+      </div>
+      <p style="margin:8px 24px 0;max-width:700px;font-size:12.5px;line-height:1.55;color:var(--ss-t4)">Four variants, two densities. Height is the spec; padding follows from it. Never two filled primaries on one surface.</p>
+
+      <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:0;margin-top:22px;border-top:1px solid var(--ss-line-06)">
+        <sc-for list="{{ btnCols }}" as="c" hint-placeholder-count="4">
+          <div style="padding:20px 24px;border-right:1px solid var(--ss-line-06)">
+            <div style="font-size:10px;font-weight:600;letter-spacing:.13em;text-transform:uppercase;color:var(--ss-t6);margin-bottom:4px">{{ c.name }}</div>
+            <div style="font-size:11.5px;line-height:1.45;color:var(--ss-t5);margin-bottom:16px;min-height:32px">{{ c.use }}</div>
+            <div style="display:flex;flex-direction:column;gap:10px;align-items:flex-start">
+              <button onMouseDown="{{ press }}" onMouseUp="{{ release }}" onMouseLeave="{{ release }}" style="all:unset;box-sizing:border-box;display:inline-flex;align-items:center;justify-content:center;height:32px;padding:0 14px;border-radius:6px;font-family:var(--ss-ui);font-size:12px;font-weight:600;cursor:pointer;background:{{ c.bg }};color:{{ c.fg }};border:1px solid {{ c.bd }};transition:transform 100ms var(--ss-ease),background 140ms var(--ss-ease),border-color 140ms var(--ss-ease)">{{ c.label }}</button>
+              <button style="all:unset;box-sizing:border-box;display:inline-flex;align-items:center;justify-content:center;height:26px;padding:0 10px;border-radius:6px;font-family:var(--ss-ui);font-size:11.5px;font-weight:600;cursor:pointer;background:{{ c.bg }};color:{{ c.fg }};border:1px solid {{ c.bd }}">{{ c.label }}</button>
+              <button style="all:unset;box-sizing:border-box;display:inline-flex;align-items:center;justify-content:center;height:32px;padding:0 14px;border-radius:6px;font-family:var(--ss-ui);font-size:12px;font-weight:600;background:{{ c.bg }};color:{{ c.fg }};border:1px solid {{ c.bd }};opacity:.45;cursor:default">{{ c.label }}</button>
+            </div>
+            <div style="font-family:var(--ss-mono);font-size:10px;line-height:1.6;color:var(--ss-t6);margin-top:14px">32 · 26 · disabled</div>
+          </div>
+        </sc-for>
+      </div>
+
+      <div style="display:flex;align-items:center;gap:28px;padding:18px 24px;border-top:1px solid var(--ss-line-06);flex-wrap:wrap">
+        <div>
+          <div style="font-size:10px;font-weight:600;letter-spacing:.13em;text-transform:uppercase;color:var(--ss-t6);margin-bottom:8px">Keyboard focus</div>
+          <button style="all:unset;box-sizing:border-box;display:inline-flex;align-items:center;justify-content:center;height:32px;padding:0 14px;border-radius:6px;font-family:var(--ss-ui);font-size:12px;font-weight:600;background:var(--ss-blue);color:#F8FAFC;box-shadow:0 0 0 2px var(--ss-ink),0 0 0 4px rgba(59,130,246,.55)">Export PDF</button>
+        </div>
+        <div style="flex:1;min-width:260px">
+          <div style="font-size:10px;font-weight:600;letter-spacing:.13em;text-transform:uppercase;color:var(--ss-t6);margin-bottom:8px">Full width, in a 300px dock</div>
+          <div style="width:300px;display:flex;align-items:center;justify-content:center;height:32px;border-radius:6px;background:var(--ss-blue);color:#F8FAFC;font-size:12px;font-weight:600">Research this parcel</div>
+        </div>
+        <div style="max-width:300px">
+          <div style="font-size:10px;font-weight:600;letter-spacing:.13em;text-transform:uppercase;color:var(--ss-err);margin-bottom:8px">Never</div>
+          <div style="display:flex;gap:8px;align-items:center">
+            <span style="display:inline-flex;align-items:center;height:32px;padding:0 14px;border-radius:6px;background:var(--ss-gold);color:#0B0E13;font-size:12px;font-weight:600;opacity:.5">Gold fill</span>
+            <span style="display:inline-flex;align-items:center;height:40px;padding:0 18px;border-radius:9px;border:1px solid var(--ss-line-28);color:var(--ss-t5);font-size:12.5px;font-weight:600;opacity:.5">40px slab</span>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div style="border:1px solid var(--ss-line-14);border-radius:12px;background:var(--ss-ink);overflow:hidden">
+      <div style="display:flex;align-items:baseline;flex-wrap:wrap;gap:4px 12px;padding:20px 24px 0">
+        <span style="font-size:10.5px;font-weight:600;letter-spacing:.16em;text-transform:uppercase;color:var(--ss-t6)">02</span>
+        <span style="font-size:20px;font-weight:300;letter-spacing:-.02em;color:var(--ss-t1)">Card</span>
+        <span style="font-family:var(--ss-mono);font-size:11px;color:var(--ss-t6)">components/Card.tsx</span>
+      </div>
+      <p style="margin:8px 24px 20px;font-size:12.5px;line-height:1.55;color:var(--ss-t4)">One edge per surface. Resting cards sit on a hairline; raised ones earn a shadow. Never a card inside a card.</p>
+      <div style="display:flex;gap:16px;padding:0 24px 24px;align-items:flex-start">
+        <div style="flex:1;border-radius:10px;background:rgba(11,14,19,.94);border:1px solid var(--ss-line-14);box-shadow:0 4px 18px rgba(0,0,0,.35);padding:14px">
+          <div style="font-size:13px;font-weight:600;color:var(--ss-t2)">Resting</div>
+          <div style="font-size:11.5px;line-height:1.5;color:var(--ss-t5);margin-top:4px">Docks, inspect, panels on the map. Radius 10, hairline .15, soft shadow.</div>
+          <div style="height:1px;background:var(--ss-line-06);margin:12px -14px"></div>
+          <div style="font-size:11.5px;color:var(--ss-t6)">Internal division is a rule, not a border.</div>
+        </div>
+        <div style="flex:1;border-radius:14px;background:rgba(18,23,31,.98);border:1px solid var(--ss-line-28);box-shadow:0 24px 80px rgba(0,0,0,.6);padding:14px">
+          <div style="font-size:13px;font-weight:600;color:var(--ss-t2)">Raised</div>
+          <div style="font-size:11.5px;line-height:1.5;color:var(--ss-t5);margin-top:4px">Modal only. Radius 14, brighter edge, deep shadow. Nothing else floats this high.</div>
+        </div>
+      </div>
+    </div>
+
+    <div style="border:1px solid var(--ss-line-14);border-radius:12px;background:var(--ss-ink);overflow:hidden">
+      <div style="display:flex;align-items:baseline;flex-wrap:wrap;gap:4px 12px;padding:20px 24px 0">
+        <span style="font-size:10.5px;font-weight:600;letter-spacing:.16em;text-transform:uppercase;color:var(--ss-t6)">03</span>
+        <span style="font-size:20px;font-weight:300;letter-spacing:-.02em;color:var(--ss-t1)">Input · TextArea</span>
+        <span style="font-family:var(--ss-mono);font-size:11px;color:var(--ss-t6)">components/Input.tsx</span>
+      </div>
+      <p style="margin:8px 24px 20px;font-size:12.5px;line-height:1.55;color:var(--ss-t4)">34px field, 12.5px text. Focus brightens the edge and adds the blue ring — nothing moves.</p>
+      <div style="display:flex;flex-direction:column;gap:12px;padding:0 24px 24px">
+        <input placeholder="Rest — placeholder is t6" style="all:unset;box-sizing:border-box;height:34px;padding:0 11px;border-radius:6px;border:1px solid var(--ss-line-14);background:rgba(255,255,255,.02);font-family:var(--ss-ui);font-size:12.5px;color:var(--ss-t2)">
+        <div style="height:34px;display:flex;align-items:center;padding:0 11px;border-radius:6px;border:1px solid var(--ss-blue);background:rgba(255,255,255,.02);font-size:12.5px;color:var(--ss-t1);box-shadow:0 0 0 3px rgba(59,130,246,.14)">Focused<span style="width:1px;height:15px;background:var(--ss-blue);margin-left:1px"></span></div>
+        <div style="border-radius:6px;border:1px solid var(--ss-err);background:rgba(239,68,68,.05);padding:9px 11px;font-size:12.5px;color:var(--ss-t2)">Invalid instrument number</div>
+        <div style="display:flex;align-items:center;gap:7px;font-size:11.5px;color:var(--ss-err)"><svg width="13" height="13" style="flex:none"><use href="#p-alert"></use></svg>Must be a county-format instrument, e.g. 2019-0442.</div>
+        <textarea placeholder="Notes on this parcel" style="all:unset;box-sizing:border-box;height:76px;padding:9px 11px;border-radius:6px;border:1px solid var(--ss-line-14);background:rgba(255,255,255,.02);font-family:var(--ss-ui);font-size:12.5px;line-height:1.5;color:var(--ss-t2)"></textarea>
+      </div>
+    </div>
+
+    <div style="border:1px solid var(--ss-line-14);border-radius:12px;background:var(--ss-ink);overflow:hidden">
+      <div style="display:flex;align-items:baseline;flex-wrap:wrap;gap:4px 12px;padding:20px 24px 0">
+        <span style="font-size:10.5px;font-weight:600;letter-spacing:.16em;text-transform:uppercase;color:var(--ss-t6)">04</span>
+        <span style="font-size:20px;font-weight:300;letter-spacing:-.02em;color:var(--ss-t1)">StatusChip · AtomChip</span>
+        <span style="font-family:var(--ss-mono);font-size:11px;color:var(--ss-t6)">components/StatusChip.tsx</span>
+      </div>
+      <p style="margin:8px 24px 20px;font-size:12.5px;line-height:1.55;color:var(--ss-t4)">Status is word plus color, never color alone. Absence is dashed slate. Atom teal marks a record you can open, and nothing else.</p>
+      <div style="padding:0 24px 8px;display:flex;flex-wrap:wrap;gap:8px">
+        <sc-for list="{{ chips }}" as="c" hint-placeholder-count="5">
+          <span style="display:inline-flex;align-items:center;gap:6px;height:22px;padding:0 8px;border-radius:4px;font-size:11px;font-weight:600;color:{{ c.fg }};background:{{ c.bg }};border:{{ c.bd }}">
+            <svg width="12" height="12" style="flex:none"><use href="{{ c.icon }}"></use></svg>{{ c.label }}
+          </span>
+        </sc-for>
+      </div>
+      <div style="padding:14px 24px 24px;display:flex;flex-wrap:wrap;gap:8px;align-items:center">
+        <span style="display:inline-flex;align-items:center;gap:7px;height:24px;padding:0 9px;border-radius:4px;font-size:11px;font-weight:600;color:var(--ss-atom);background:rgba(76,201,192,.12);border:1px solid rgba(76,201,192,.4);cursor:pointer">Plat<span style="font-family:var(--ss-mono);font-weight:400;opacity:.85">2019-0442</span></span>
+        <span style="display:inline-flex;align-items:center;gap:7px;height:24px;padding:0 9px;border-radius:4px;font-size:11px;font-weight:600;color:var(--ss-atom);background:rgba(76,201,192,.12);border:1px dashed rgba(76,201,192,.4);cursor:pointer">Deed<span style="font-family:var(--ss-mono);font-weight:400;opacity:.85">unservable</span></span>
+        <span style="display:inline-flex;align-items:center;gap:6px;height:24px;padding:0 9px;border-radius:999px;font-size:11px;color:var(--ss-t4);border:1px solid var(--ss-line-14);cursor:pointer"><svg width="11" height="11" style="flex:none"><use href="#p-link"></use></svg>bastroptx.gov<span style="font-size:10px;color:var(--ss-t6)">unverified</span></span>
+      </div>
+      <div style="padding:0 24px 22px;font-size:11.5px;line-height:1.5;color:var(--ss-t6);border-top:1px solid var(--ss-line-06);padding-top:14px">A web source is a pill with a link glyph and the word unverified. It never wears atom teal.</div>
+    </div>
+
+    <div style="border:1px solid var(--ss-line-14);border-radius:12px;background:var(--ss-ink);overflow:hidden">
+      <div style="display:flex;align-items:baseline;flex-wrap:wrap;gap:4px 12px;padding:20px 24px 0">
+        <span style="font-size:10.5px;font-weight:600;letter-spacing:.16em;text-transform:uppercase;color:var(--ss-t6)">05</span>
+        <span style="font-size:20px;font-weight:300;letter-spacing:-.02em;color:var(--ss-t1)">DownloadFileButton</span>
+        <span style="font-family:var(--ss-mono);font-size:11px;color:var(--ss-t6)">components/DownloadFileButton.tsx</span>
+      </div>
+      <p style="margin:8px 24px 20px;font-size:12.5px;line-height:1.55;color:var(--ss-t4)">A finished file is a button, never a text link. Glyph, verb, format on the left; real byte size in mono on the right.</p>
+      <div style="display:flex;flex-direction:column;gap:10px;padding:0 24px 24px">
+        <div style="display:flex;align-items:center;gap:10px;height:36px;padding:0 12px;border-radius:6px;border:1px solid var(--ss-line-28);background:rgba(255,255,255,.02);cursor:pointer;transition:background 140ms var(--ss-ease)">
+          <svg width="15" height="15" style="color:var(--ss-blue);flex:none"><use href="#p-down"></use></svg>
+          <span style="font-size:12.5px;font-weight:600;color:var(--ss-t1);flex:1">Download site plan sheet</span>
+          <span style="font-family:var(--ss-mono);font-size:11px;color:var(--ss-t5)">PDF · 1.4 MB</span>
+        </div>
+        <div style="display:flex;align-items:center;gap:10px;height:36px;padding:0 12px;border-radius:6px;border:1px solid var(--ss-line-14);background:rgba(255,255,255,.02)">
+          <span style="width:14px;height:14px;border-radius:50%;border:1.6px solid var(--ss-line-28);border-top-color:var(--ss-blue);animation:ss-spin 700ms linear infinite;flex:none"></span>
+          <span style="font-size:12.5px;font-weight:600;color:var(--ss-t3);flex:1">Generating sheet</span>
+          <span style="font-family:var(--ss-mono);font-size:11px;color:var(--ss-t6)">~20 s</span>
+        </div>
+        <div style="display:flex;align-items:center;gap:10px;height:36px;padding:0 12px;border-radius:6px;border:1px solid rgba(239,68,68,.4);background:rgba(239,68,68,.06)">
+          <svg width="15" height="15" style="color:var(--ss-err);flex:none"><use href="#p-alert"></use></svg>
+          <span style="font-size:12.5px;font-weight:600;color:var(--ss-t2);flex:1">Sheet failed to render</span>
+          <span style="font-size:11.5px;font-weight:600;color:var(--ss-blue);cursor:pointer">Retry</span>
+        </div>
+        <div style="font-size:11.5px;line-height:1.5;color:var(--ss-t6);margin-top:2px">Byte size prints only when it is real. An estimate is a duration, never a size.</div>
+      </div>
+    </div>
+
+    <div style="border:1px solid var(--ss-line-14);border-radius:12px;background:var(--ss-ink);overflow:hidden">
+      <div style="display:flex;align-items:baseline;flex-wrap:wrap;gap:4px 12px;padding:20px 24px 0">
+        <span style="font-size:10.5px;font-weight:600;letter-spacing:.16em;text-transform:uppercase;color:var(--ss-t6)">06</span>
+        <span style="font-size:20px;font-weight:300;letter-spacing:-.02em;color:var(--ss-t1)">BubbleTip</span>
+        <span style="font-family:var(--ss-mono);font-size:11px;color:var(--ss-t6)">components/BubbleTip.tsx</span>
+      </div>
+      <p style="margin:8px 24px 20px;font-size:12.5px;line-height:1.55;color:var(--ss-t4)">Replaces the native title. Flies toward the map, 100ms in, 180ms of travel. Label alone, or label plus one line of detail.</p>
+      <div style="position:relative;height:196px;margin:0 24px 24px;border-radius:10px;background:radial-gradient(120% 100% at 100% 0%,#141B2B 0%,#080B11 62%);border:1px solid var(--ss-line-06);overflow:hidden">
+        <div style="position:absolute;inset:0;opacity:.05;background:repeating-radial-gradient(ellipse at 20% 115%,transparent 0 24px,#fff 24px 25px)"></div>
+        <div style="position:absolute;top:22px;right:16px;display:flex;flex-direction:column;gap:8px">
+          <sc-for list="{{ tips }}" as="t" hint-placeholder-count="3">
+            <div onMouseEnter="{{ t.onEnter }}" onMouseLeave="{{ t.onLeave }}" style="position:relative;width:34px;height:34px;display:flex;align-items:center;justify-content:center;border-radius:50%;cursor:pointer;background:{{ t.bg }};border:1px solid {{ t.bd }};color:{{ t.fg }};box-shadow:0 4px 14px rgba(0,0,0,.4);transition:background 140ms var(--ss-ease),color 140ms var(--ss-ease)">
+              <svg width="15" height="15"><use href="{{ t.icon }}"></use></svg>
+              <div style="position:absolute;top:50%;right:100%;margin-right:11px;width:{{ t.w }};opacity:{{ t.o }};transform:{{ t.tf }};transform-origin:right center;transition:opacity 100ms var(--ss-ease),transform 180ms var(--ss-ease);pointer-events:none">
+                <div style="padding:7px 11px;border-radius:8px;background:rgba(18,23,31,.97);border:1px solid var(--ss-line-14);box-shadow:0 10px 30px rgba(0,0,0,.55);text-align:left">
+                  <div style="font-size:12px;font-weight:600;color:var(--ss-t1);white-space:nowrap">{{ t.label }}</div>
+                  <sc-if value="{{ t.detail }}" hint-placeholder-val="{{ false }}">
+                    <div style="font-size:11px;line-height:1.45;color:var(--ss-t5);margin-top:2px">{{ t.detail }}</div>
+                  </sc-if>
+                </div>
+              </div>
+            </div>
+          </sc-for>
+        </div>
+        <div style="position:absolute;left:16px;bottom:14px;font-family:var(--ss-mono);font-size:10.5px;color:var(--ss-t6)">hover the three bubbles</div>
+      </div>
+    </div>
+
+    <div style="border:1px solid var(--ss-line-14);border-radius:12px;background:var(--ss-ink);overflow:hidden">
+      <div style="display:flex;align-items:baseline;flex-wrap:wrap;gap:4px 12px;padding:20px 24px 0">
+        <span style="font-size:10.5px;font-weight:600;letter-spacing:.16em;text-transform:uppercase;color:var(--ss-t6)">07</span>
+        <span style="font-size:20px;font-weight:300;letter-spacing:-.02em;color:var(--ss-t1)">GoogleSignInButton</span>
+        <span style="font-family:var(--ss-mono);font-size:11px;color:var(--ss-t6)">components/GoogleSignInButton.tsx</span>
+      </div>
+      <p style="margin:8px 24px 20px;font-size:12.5px;line-height:1.55;color:var(--ss-t4)">The official button. Label is always "Sign in with Google". The mark is never recolored and never appears alone.</p>
+      <div style="display:flex;flex-direction:column;gap:12px;padding:0 24px 24px;align-items:flex-start">
+        <div style="display:inline-flex;align-items:center;gap:10px;height:40px;padding:0 16px;border-radius:6px;background:#131A24;border:1px solid var(--ss-line-28);cursor:pointer">
+          <svg width="17" height="17" viewBox="0 0 48 48" stroke="none"><path fill="#4285F4" d="M45 24c0-1.6-.1-2.7-.4-4H24v7.5h12c-.2 2-1.5 5-4.4 7l6.7 5.2C42.2 36 45 30.6 45 24z"></path><path fill="#34A853" d="M24 46c5.9 0 10.9-2 14.5-5.3l-6.9-5.4c-1.9 1.3-4.4 2.2-7.6 2.2-5.8 0-10.7-3.8-12.5-9.1l-7.1 5.5C8 41.2 15.4 46 24 46z"></path><path fill="#FBBC05" d="M11.5 28.4c-.5-1.4-.7-2.9-.7-4.4s.3-3 .7-4.4l-7.1-5.5C2.9 17 2 20.4 2 24s.9 7 2.4 9.9l7.1-5.5z"></path><path fill="#EA4335" d="M24 10.7c3.3 0 6.1 1.1 8.4 3.3l6.2-6.2C34.9 4.3 29.9 2 24 2 15.4 2 8 6.8 4.4 14.1l7.1 5.5c1.8-5.3 6.7-9 12.5-9z"></path></svg>
+          <span style="font-size:13px;font-weight:600;color:var(--ss-t1)">Sign in with Google</span>
+        </div>
+        <div style="display:inline-flex;align-items:center;gap:10px;height:36px;padding:0 14px;border-radius:6px;background:#fff;border:1px solid #DADCE0;cursor:pointer">
+          <svg width="16" height="16" viewBox="0 0 48 48" stroke="none"><path fill="#4285F4" d="M45 24c0-1.6-.1-2.7-.4-4H24v7.5h12c-.2 2-1.5 5-4.4 7l6.7 5.2C42.2 36 45 30.6 45 24z"></path><path fill="#34A853" d="M24 46c5.9 0 10.9-2 14.5-5.3l-6.9-5.4c-1.9 1.3-4.4 2.2-7.6 2.2-5.8 0-10.7-3.8-12.5-9.1l-7.1 5.5C8 41.2 15.4 46 24 46z"></path><path fill="#FBBC05" d="M11.5 28.4c-.5-1.4-.7-2.9-.7-4.4s.3-3 .7-4.4l-7.1-5.5C2.9 17 2 20.4 2 24s.9 7 2.4 9.9l7.1-5.5z"></path><path fill="#EA4335" d="M24 10.7c3.3 0 6.1 1.1 8.4 3.3l6.2-6.2C34.9 4.3 29.9 2 24 2 15.4 2 8 6.8 4.4 14.1l7.1 5.5c1.8-5.3 6.7-9 12.5-9z"></path></svg>
+          <span style="font-size:13px;font-weight:600;color:#1F1F1F">Sign in with Google</span>
+        </div>
+        <div style="font-size:11.5px;line-height:1.5;color:var(--ss-t6)">Dark is the product default. Light is the landing card only.</div>
+      </div>
+    </div>
+
+    <div style="grid-column:span 2;border:1px solid var(--ss-line-14);border-radius:12px;background:var(--ss-ink);overflow:hidden">
+      <div style="display:flex;align-items:baseline;flex-wrap:wrap;gap:4px 12px;padding:20px 24px 0">
+        <span style="font-size:10.5px;font-weight:600;letter-spacing:.16em;text-transform:uppercase;color:var(--ss-t6)">08</span>
+        <span style="font-size:20px;font-weight:300;letter-spacing:-.02em;color:var(--ss-t1)">Modal</span>
+        <span style="font-family:var(--ss-mono);font-size:11px;color:var(--ss-t6)">components/Modal.tsx</span>
+      </div>
+      <p style="margin:8px 24px 20px;max-width:700px;font-size:12.5px;line-height:1.55;color:var(--ss-t4)">A dim over the map plus one raised card. The scrim closes it. It is a shell for pricing and checkout, never a page. It arrives at 3% under and leaves the way it came.</p>
+      <div style="position:relative;height:300px;margin:0 24px 24px;border-radius:10px;overflow:hidden;background:radial-gradient(120% 100% at 80% 0%,#141B2B 0%,#080B11 62%)">
+        <div style="position:absolute;inset:0;opacity:.05;background:repeating-radial-gradient(ellipse at 22% 116%,transparent 0 26px,#fff 26px 27px)"></div>
+        <div onClick="{{ toggleModal }}" style="position:absolute;inset:0;background:rgba(6,9,13,{{ modal.scrim }});transition:background 180ms var(--ss-ease);cursor:pointer"></div>
+        <div style="position:absolute;left:50%;top:50%;width:400px;transform:translate(-50%,-50%) {{ modal.tf }};opacity:{{ modal.o }};pointer-events:{{ modal.pe }};transition:opacity 140ms var(--ss-ease),transform 180ms var(--ss-ease);border-radius:14px;background:rgba(18,23,31,.98);border:1px solid var(--ss-line-28);box-shadow:0 24px 80px rgba(0,0,0,.6)">
+          <div style="display:flex;align-items:center;height:40px;padding:0 10px 0 16px;border-bottom:1px solid var(--ss-line-06)">
+            <span style="flex:1;font-size:11px;font-weight:600;letter-spacing:.1em;text-transform:uppercase;color:var(--ss-t4)">Unlock this property</span>
+            <div onClick="{{ toggleModal }}" style="width:24px;height:24px;display:flex;align-items:center;justify-content:center;border-radius:6px;color:var(--ss-t5);cursor:pointer"><svg width="14" height="14"><use href="#p-x"></use></svg></div>
+          </div>
+          <div style="padding:18px 16px">
+            <div style="font-size:19px;font-weight:300;letter-spacing:-.01em;color:var(--ss-t1)">1408 Chestnut St</div>
+            <div style="font-family:var(--ss-mono);font-size:11.5px;color:var(--ss-t5);margin-top:4px">48021:34137</div>
+            <div style="font-size:12.5px;line-height:1.55;color:var(--ss-t4);margin-top:12px">Full research, every export except terrain, for this parcel only. No subscription.</div>
+            <div style="display:flex;align-items:baseline;gap:8px;margin-top:16px"><span style="font-family:var(--ss-mono);font-size:26px;font-weight:400;color:var(--ss-t1)">$15</span><span style="font-size:12px;color:var(--ss-t5)">one time</span></div>
+          </div>
+          <div style="display:flex;gap:8px;padding:0 16px 16px">
+            <div style="flex:1;display:flex;align-items:center;justify-content:center;height:32px;border-radius:6px;background:var(--ss-blue);color:#F8FAFC;font-size:12px;font-weight:600;cursor:pointer">Continue to checkout</div>
+            <div onClick="{{ toggleModal }}" style="display:flex;align-items:center;justify-content:center;height:32px;padding:0 14px;border-radius:6px;border:1px solid var(--ss-line-28);color:var(--ss-t2);font-size:12px;font-weight:600;cursor:pointer">Not now</div>
+          </div>
+        </div>
+        <div onClick="{{ toggleModal }}" style="position:absolute;left:16px;bottom:14px;display:inline-flex;align-items:center;height:26px;padding:0 11px;border-radius:6px;border:1px solid var(--ss-blue-line);background:var(--ss-blue-bg);color:var(--ss-blue);font-size:11.5px;font-weight:600;cursor:pointer;user-select:none">{{ modal.btn }}</div>
+      </div>
+    </div>
+  </div>
+</div>
+
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props="{&quot;$preview&quot;:{&quot;width&quot;:1600,&quot;height&quot;:2000}}">
+class Component extends DCLogic {
+  state = { hover: null, modal: true };
+
+  renderVals() {
+    const TIPS = [
+      { id: 'brief', icon: '#p-file', label: 'Property brief', detail: 'Inspect card and cited research for this parcel.', w: '208px' },
+      { id: 'share', icon: '#p-link', label: 'Share', detail: null, w: 'auto' },
+      { id: 'soon', icon: '#p-clock', label: 'Feasibility study', detail: 'Coming soon.', w: '158px', coming: true },
+    ];
+    const tips = TIPS.map(t => {
+      const hot = this.state.hover === t.id;
+      return {
+        ...t,
+        bg: hot ? 'rgba(24,30,42,.96)' : 'rgba(11,14,19,.9)',
+        fg: t.coming ? 'var(--ss-t6)' : hot ? 'var(--ss-t1)' : 'var(--ss-t3)',
+        bd: hot ? 'var(--ss-line-28)' : 'var(--ss-line-14)',
+        o: hot ? 1 : 0,
+        tf: hot ? 'translateY(-50%) translateX(0) scale(1)' : 'translateY(-50%) translateX(6px) scale(.96)',
+        onEnter: () => this.setState({ hover: t.id }),
+        onLeave: () => this.setState({ hover: null }),
+      };
+    });
+
+    const open = this.state.modal;
+    return {
+      tips,
+      press: e => { e.currentTarget.style.transform = 'scale(.97)'; },
+      release: e => { e.currentTarget.style.transform = 'none'; },
+      btnCols: [
+        { name: 'Primary', label: 'Export PDF', use: 'The one main action on a surface.', bg: 'var(--ss-blue)', fg: '#F8FAFC', bd: 'var(--ss-blue)' },
+        { name: 'Secondary', label: 'Save property', use: 'Supporting action beside a primary.', bg: 'transparent', fg: 'var(--ss-t2)', bd: 'var(--ss-line-28)' },
+        { name: 'Ghost', label: 'Research this', use: 'Tertiary and navigational.', bg: 'transparent', fg: 'var(--ss-blue)', bd: 'var(--ss-blue-line)' },
+        { name: 'Subtle', label: 'DXF', use: 'Toolbars and dense dock rows.', bg: 'var(--ss-blue-bg)', fg: 'var(--ss-blue)', bd: 'transparent' },
+      ],
+      chips: [
+        { label: 'Cited', icon: '#p-check', fg: 'var(--ss-ok)', bg: 'rgba(16,185,129,.1)', bd: '1px solid rgba(16,185,129,.3)' },
+        { label: 'Provisional', icon: '#p-clock', fg: 'var(--ss-warn)', bg: 'rgba(245,158,11,.1)', bd: '1px solid rgba(245,158,11,.3)' },
+        { label: 'Not on file', icon: '#p-slash', fg: 'var(--ss-slate)', bg: 'transparent', bd: '1px dashed var(--ss-line-28)' },
+        { label: 'Lookup failed', icon: '#p-alert', fg: 'var(--ss-err)', bg: 'rgba(239,68,68,.1)', bd: '1px solid rgba(239,68,68,.3)' },
+        { label: 'Studio', icon: '#p-info', fg: 'var(--ss-blue)', bg: 'var(--ss-blue-bg)', bd: '1px solid var(--ss-blue-line)' },
+      ],
+      modal: {
+        o: open ? 1 : 0,
+        tf: open ? 'scale(1)' : 'scale(.97) translateY(6px)',
+        pe: open ? 'auto' : 'none',
+        scrim: open ? '.72' : '0',
+        btn: open ? 'Close modal' : 'Open modal',
+      },
+      toggleModal: () => this.setState(s => ({ modal: !s.modal })),
+    };
+  }
+}
+</script>
+</body>
+</html>

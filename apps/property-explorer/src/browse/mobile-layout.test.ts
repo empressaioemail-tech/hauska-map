@@ -30,7 +30,8 @@ describe("dockLayoutStyle — desktop preserved", () => {
     const s = dockLayoutStyle(false, false);
     expect(s.top).toBe(12);
     expect(s.right).toBe(54);
-    expect(s.width).toBe("min(400px, calc(100vw - 78px))");
+    // chrome v2: ONE dock width for every tool (340), down from 400.
+    expect(s.width).toBe("min(340px, calc(100vw - 78px))");
   });
 
   it("expanded desktop dock is a large floating box, not full-screen", () => {

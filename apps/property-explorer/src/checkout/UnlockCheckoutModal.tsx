@@ -6,13 +6,13 @@ import { resolveCheckoutMountCredentials } from "../lib/stripeCheckoutMount";
 import { useStripeCheckoutMount } from "../lib/useStripeCheckoutMount";
 import { UNLOCK_PRICE, UNLOCK_SUBMIT } from "./checkoutCopy";
 
-const TEXT = "#F8FAFC";
-const MUTED = "#94A3B8";
-const BLUE = "#3B82F6";
-const FONT =
-  "var(--font-body, ui-sans-serif, system-ui, -apple-system, 'Segoe UI', sans-serif)";
-const DISPLAY =
-  "var(--font-display, ui-sans-serif, system-ui, -apple-system, 'Segoe UI', sans-serif)";
+import { PE } from "../styles/pe-chrome";
+
+const TEXT = PE.t1;
+const MUTED = PE.t5;
+const BLUE = PE.blue;
+const FONT = PE.ui;
+const DISPLAY = PE.ui;
 
 function unlockReturnUrl(parcelNodeId: string | null): string {
   const origin =
@@ -54,7 +54,7 @@ export function UnlockCheckoutModal({
         display: "flex",
         alignItems: "center",
         justifyContent: "center",
-        background: "rgba(6,9,13,0.72)",
+        background: PE.scrim,
         padding: 16,
       }}
     >
@@ -66,10 +66,10 @@ export function UnlockCheckoutModal({
           maxWidth: "100%",
           maxHeight: "calc(100dvh - 24px)",
           overflowY: "auto",
-          borderRadius: 12,
-          background: "rgba(17,21,28,0.96)",
-          border: "0.5px solid rgba(59,130,246,0.28)",
-          boxShadow: "0 24px 80px rgba(0,0,0,0.55)",
+          borderRadius: PE.rModal,
+          background: PE.modalBg,
+          border: `1px solid ${PE.line28}`,
+          boxShadow: PE.shModal,
           color: TEXT,
           fontFamily: FONT,
         }}
@@ -77,7 +77,7 @@ export function UnlockCheckoutModal({
         <div
           style={{
             padding: "20px 22px 16px",
-            borderBottom: "0.5px solid rgba(154,166,178,0.2)",
+            borderBottom: `1px solid ${PE.line06}`,
             display: "flex",
             flexDirection: "column",
             gap: 8,
@@ -105,13 +105,13 @@ export function UnlockCheckoutModal({
           >
             <span
               data-testid="unlock-checkout-situs"
-              style={{ fontFamily: DISPLAY, fontWeight: 700, fontSize: 20 }}
+              style={{ fontFamily: DISPLAY, fontWeight: 300, fontSize: 20, letterSpacing: "-.02em" }}
             >
               {situs}
             </span>
             <span
               data-testid="unlock-checkout-price"
-              style={{ fontFamily: DISPLAY, fontWeight: 700, fontSize: 22 }}
+              style={{ fontFamily: PE.mono, fontWeight: 400, fontSize: 22, letterSpacing: "-.01em" }}
             >
               {UNLOCK_PRICE}
             </span>

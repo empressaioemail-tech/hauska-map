@@ -1,108 +1,307 @@
-/* Smart Site — Property Explorer design tokens
-   Adds to (does not replace) tokens/colors.css. PE keeps its own near-black
-   chrome (--surface-ink) — do NOT apply --color-navy-* surfaces to the map.
-   Brand / semantic / atom are separate namespaces on purpose. */
-:root{
-  /* brand (logo-sourced) */
-  --brand-gold:#E8963B;          /* BRAND MARK ONLY — crosshair center dot. Never an action/button color. */
-  --brand-gold-light:#F5B95C;    /* BRAND MARK ONLY — SITE wordmark, small brand text/icons. */
-  --brand-blue:#3B82F6;          /* PRIMARY / interactive: buttons/CTAs, links, active, selected, focus */
-  --brand-white:#F8FAFC;
-  /* blue at alpha — the interactive tints (was the reserved cyan #7dd3fc) */
-  --brand-blue-bg:rgba(59,130,246,0.12);
-  --brand-blue-bg-soft:rgba(59,130,246,0.08);
-  --brand-blue-border:rgba(59,130,246,0.4);
-  --brand-blue-border-soft:rgba(59,130,246,0.28);
+/* Smart Site — Property Explorer chrome tokens, v2
+   Source of truth: docs/smart-site-brand/v2/tokens/pe-tokens-v2.css (the drop).
+   Dark only; there is no light theme.
 
-  /* surfaces — PE app ink, kept as-is */
-  --surface-ink:#0b0e13;
-  --surface-card:#141928;
-  --surface-card-translucent:rgba(13,17,23,0.94); /* the app-wide translucent card ink */
-  --surface-panel-translucent:rgba(13,17,23,0.9); /* map-chrome / floating panels */
-  --surface-border:#1E293B;
-  --surface-border-soft:#243247;
-  --surface-border-rgba:rgba(154,166,178,0.3);    /* the app-wide hairline border at alpha */
-  --surface-muted:#94A3B8;
-  --surface-muted-2:#64748B;
+   TWO LAYERS in this file, in this order:
+     1. --ss-*  the v2 vocabulary. New code reads ONLY these.
+     2. legacy  --brand-* / --surface-* / --text-* / --semantic-* / --atom-*
+                aliases, each pointing at an --ss-* value. They exist so the
+                surfaces not yet ported keep resolving, and so porting a file
+                is a rename with no visual step. Do not add a new legacy name;
+                do not give a legacy name a value of its own. */
 
-  /* body text — was the untokenized TEXT #e5e7eb copied across 12 files */
-  --text-body:#e5e7eb;
-  --text-strong:#e6edf3;
+:root {
+  /* ---- Ground -------------------------------------------------------- */
+  --ss-void:      #07090D;  /* page behind everything */
+  --ss-ink:       #0B0E13;  /* panel, dock, card fill */
+  --ss-raised:    #12171F;  /* modal, tooltip, popover fill */
 
-  /* semantic — state only, never brand */
-  --semantic-success:#10B981;      /* verified / gate-passed */
-  --semantic-warning:#F59E0B;      /* provisional / caution */
-  --semantic-error:#EF4444;        /* failure only */
-  --semantic-absence:#7C8BA0;      /* "not verified here" — recolored off yellow */
-  --semantic-absence-bg:rgba(124,139,160,0.12);
-  --semantic-absence-border:rgba(124,139,160,0.35);
-  --semantic-not-applicable:#A78BFA; /* layer/verdict N/A — not a warning */
+  /* the translucent panel fills, derived from the two grounds */
+  --ss-ink-94:    rgba(11,14,19,.94);   /* dock / inspect / card on the map */
+  --ss-ink-92:    rgba(11,14,19,.92);   /* find bar, map controls */
+  --ss-ink-90:    rgba(11,14,19,.90);   /* rail bubble at rest */
+  --ss-ink-96:    rgba(11,14,19,.96);   /* sources sheet */
+  --ss-raised-97: rgba(18,23,31,.97);   /* tooltip */
+  --ss-raised-98: rgba(18,23,31,.98);   /* modal */
+  --ss-scrim:     rgba(6,9,13,.74);     /* modal scrim over the map */
 
-  /* atom chip — recolored off purple */
-  --atom-accent:#4CC9C0;
-  --atom-accent-bg:rgba(76,201,192,0.14);
-  --atom-accent-border:rgba(76,201,192,0.5);
-  --atom-accent-contrast:#0b0f14;
+  /* ---- Hairlines — three weights, one hue. Do not add a fourth. ------- */
+  --ss-line-06:   rgba(154,166,178,.07);  /* rules INSIDE a surface */
+  --ss-line-14:   rgba(154,166,178,.15);  /* the edge OF a surface */
+  --ss-line-28:   rgba(154,166,178,.28);  /* focus, outline buttons, emphasis */
 
-  /* leave untouched (documented, not redefined here) */
-  /* interaction-cyan #7dd3fc — map search-highlight */
-  /* pdf print blue #00b4d8 */
+  /* ---- Text ramp — t1 brightest, t6 faintest ------------------------- */
+  --ss-t1:        #F8FAFC;  /* subject lines, values that matter */
+  --ss-t2:        #E9EEF5;  /* strong body, button labels */
+  --ss-t3:        #C6D0DC;  /* default body */
+  --ss-t4:        #94A3B8;  /* secondary body, panel titles */
+  --ss-t5:        #7C8BA0;  /* captions, notes */
+  --ss-t6:        #64748B;  /* field labels, mono metadata, placeholders */
 
-  /* button scale */
-  --btn-radius:9px;
-  --btn-pad-y:10px; --btn-pad-x:18px;
-  --btn-pad-y-dense:7px; --btn-pad-x-dense:12px;
-  --btn-focus-ring:0 0 0 2px var(--surface-ink), 0 0 0 4px var(--brand-blue);
+  /* ---- Action. Blue is the ONLY action color. ------------------------ */
+  --ss-blue:      #3B82F6;
+  --ss-blue-bg:   rgba(59,130,246,.12);
+  --ss-blue-line: rgba(59,130,246,.32);
 
-  /* type + spacing. Oxygen (--font-display) was a DEAD token: no @font-face, no
-     CDN link, no self-hosted file, so headings silently fell back to system-ui.
-     No inlinable Oxygen is available and the CSP forbids an external CDN, so the
-     display face is dropped to the system stack rather than kept as a broken
-     pretense (headings render identically to before — Oxygen never loaded). */
-  --font-display: ui-sans-serif, system-ui, -apple-system, 'Segoe UI', sans-serif;
-  --font-body: ui-sans-serif, system-ui, -apple-system, 'Segoe UI', sans-serif;
-  --font-mono: ui-monospace, 'SF Mono', Menlo, monospace;
-  --space-1:4px; --space-2:8px; --space-3:16px; --space-4:24px; --space-5:32px; --space-6:48px; --space-7:64px; --space-8:80px;
-  --radius-card:8px; --radius-chip:4px;
+  /* ---- Reserved hues. Each has exactly one job. ---------------------- */
+  --ss-gold:      #E8963B;  /* brand mark only — never a button/link/fill/hover */
+  --ss-gold-lt:   #F5B95C;  /* the word SITE in the wordmark */
+  --ss-atom:      #4CC9C0;  /* an openable record. Not chrome, not emphasis. */
+  --ss-slate:     #7C8BA0;  /* absence: a thing that is not on file */
+  --ss-sky:       #7DD3FC;  /* MAP GEOMETRY ONLY. Never inside a panel. */
+
+  /* ---- Semantic. Always paired with a word, never color alone. ------- */
+  --ss-ok:        #10B981;  /* cited, included, live */
+  --ss-warn:      #F59E0B;  /* waiting, tier-gated */
+  --ss-err:       #EF4444;  /* failed */
+
+  /* ---- Motion. One curve. Four durations. ---------------------------- */
+  --ss-ease:      cubic-bezier(.2,.6,.35,1);
+  --ss-d-tint:    100ms;  /* hover, tooltip fade */
+  --ss-d-state:   140ms;  /* button/chip state, opacity */
+  --ss-d-move:    180ms;  /* panel scale, tooltip travel, modal */
+  --ss-d-open:    220ms;  /* panel height open/close, width change */
+
+  /* ---- Type ---------------------------------------------------------- */
+  --ss-ui:        ui-sans-serif, system-ui, -apple-system, "Segoe UI", sans-serif;
+  --ss-mono:      ui-monospace, "SF Mono", Menlo, monospace;
+
+  /* Ramp — five steps with real jumps. Do not add an in-between size. */
+  --ss-fs-label:  10px;    /* uppercase .13em field labels, 600 */
+  --ss-fs-meta:   11.5px;  /* captions, notes, chips */
+  --ss-fs-body:   12.5px;  /* running body, button labels at 600 */
+  --ss-fs-value:  13.5px;  /* the value under a field label */
+  --ss-fs-subject:15px;    /* subject line inside a panel */
+  --ss-fs-title:  20px;    /* panel title, weight 300, -.02em */
+
+  /* ---- Geometry ------------------------------------------------------ */
+  --ss-h-control: 32px;  /* buttons, segments */
+  --ss-h-dense:   26px;  /* toolbar and dock-row buttons */
+  --ss-h-field:   34px;  /* inputs */
+  --ss-h-find:    40px;  /* find bar — the one control allowed above 34 */
+  --ss-h-head:    36px;  /* dock header */
+  --ss-bubble:    34px;  /* rail bubble diameter */
+  --ss-dock-w:    340px; /* every dock, one width */
+  --ss-find-w:    436px;
+  --ss-inset:     20px;  /* every map-chrome element's edge inset */
+
+  --ss-r-touch:   6px;   /* anything you click: buttons, fields, rows */
+  --ss-r-chip:    4px;   /* status chips */
+  --ss-r-tip:     8px;   /* tooltips, state notes, map controls */
+  --ss-r-float:   10px;  /* anything that floats: docks, panels */
+  --ss-r-modal:   14px;  /* the modal, and nothing else */
+
+  /* ---- Elevation ----------------------------------------------------- */
+  --ss-sh-rail:   0 4px 14px rgba(0,0,0,.4);
+  --ss-sh-dock:   0 18px 44px rgba(0,0,0,.5);
+  --ss-sh-modal:  0 24px 80px rgba(0,0,0,.6);
+  --ss-sh-tip:    0 10px 30px rgba(0,0,0,.55);
+  --ss-sh-focus:  0 0 0 3px rgba(59,130,246,.14);
+  --ss-sh-open:   0 6px 20px rgba(59,130,246,.28);  /* open rail bubble */
+
+  /* ================= LEGACY ALIASES — v1 names, v2 values ============= */
+  /* brand */
+  --brand-gold: var(--ss-gold);
+  --brand-gold-light: var(--ss-gold-lt);
+  --brand-blue: var(--ss-blue);
+  --brand-white: var(--ss-t1);
+  --brand-blue-bg: var(--ss-blue-bg);
+  --brand-blue-bg-soft: rgba(59,130,246,.08);
+  --brand-blue-border: var(--ss-blue-line);
+  --brand-blue-border-soft: var(--ss-blue-line);
+  /* surfaces */
+  --surface-ink: var(--ss-ink);
+  --surface-card: var(--ss-raised);
+  --surface-card-translucent: var(--ss-ink-94);
+  --surface-panel-translucent: var(--ss-ink-92);
+  --surface-border: var(--ss-line-14);
+  --surface-border-soft: var(--ss-line-28);
+  --surface-border-rgba: var(--ss-line-14);
+  --surface-muted: var(--ss-t4);
+  --surface-muted-2: var(--ss-t6);
+  /* text */
+  --text-body: var(--ss-t3);
+  --text-strong: var(--ss-t2);
+  /* semantic */
+  --semantic-success: var(--ss-ok);
+  --semantic-warning: var(--ss-warn);
+  --semantic-error: var(--ss-err);
+  --semantic-absence: var(--ss-slate);
+  --semantic-absence-bg: rgba(124,139,160,.07);
+  --semantic-absence-border: var(--ss-line-28);
+  /* atom */
+  --atom-accent: var(--ss-atom);
+  --atom-accent-bg: rgba(76,201,192,.12);
+  --atom-accent-border: rgba(76,201,192,.42);
+  --atom-accent-contrast: #08111F;
+  /* control scale — height is the spec now; padding is derived in Button */
+  --btn-radius: var(--ss-r-touch);
+  --btn-pad-y: 0px; --btn-pad-x: 14px;
+  --btn-pad-y-dense: 0px; --btn-pad-x-dense: 10px;
+  --btn-focus-ring: 0 0 0 2px var(--ss-ink), 0 0 0 4px rgba(59,130,246,.55);
+  /* type + spacing */
+  --font-display: var(--ss-ui);
+  --font-body: var(--ss-ui);
+  --font-mono: var(--ss-mono);
+  --space-1:4px; --space-2:8px; --space-3:16px; --space-4:24px;
+  --space-5:32px; --space-6:48px; --space-7:64px; --space-8:80px;
+  --radius-card: var(--ss-r-float);
+  --radius-chip: var(--ss-r-chip);
 }
 
-/* Unified Button focus ring — keyboard-accessible only (:focus-visible),
-   so mouse clicks stay quiet. Uses --btn-focus-ring (--brand-blue). */
-.pe-btn:focus-visible{
-  outline:none;
-  box-shadow:var(--btn-focus-ring);
+/* Unified focus ring — keyboard-accessible only (:focus-visible), so mouse
+   clicks stay quiet. */
+.pe-btn:focus-visible,
+.ss-focusable:focus-visible {
+  outline: none;
+  box-shadow: var(--btn-focus-ring);
 }
 
-/* Native Windows/Chrome scrollbars default to a light OS chrome. PE is
-   dark-ink; a light track against --surface-ink is the 1998 defect.
-   color-scheme flips the OS thumb; the webkit/scrollbar-* rules restyle
-   it to a thin muted-slate pill on a transparent track. */
-:root, html, body {
-  color-scheme: dark;
+/* Press. One rule for every control that carries .pe-btn. */
+.pe-btn:not(:disabled):active { transform: scale(.97); }
+
+/* Hover. A tint, never a size or a shadow change, and never a new hue —
+   a hover that introduces a colour is how gold ends up on a button. */
+.pe-btn[data-variant="primary"]:not(:disabled):hover  { background: #4A8CF7 }
+.pe-btn[data-variant="secondary"]:not(:disabled):hover{ border-color: var(--ss-line-28);
+                                                        background: rgba(255,255,255,.03) }
+.pe-btn[data-variant="ghost"]:not(:disabled):hover    { background: var(--ss-blue-bg) }
+.pe-btn[data-variant="subtle"]:not(:disabled):hover   { background: rgba(59,130,246,.18) }
+.pe-btn:disabled { pointer-events: none }
+
+/* Fields. Focus adds the blue border and the glow; NOTHING MOVES. */
+[data-pe="input"]::placeholder,
+[data-pe="textarea"]::placeholder { color: var(--ss-t6); opacity: 1 }
+[data-pe="input"]:focus,
+[data-pe="textarea"]:focus {
+  border-color: var(--ss-blue);
+  box-shadow: var(--ss-sh-focus);
 }
-* {
-  scrollbar-width: thin;
-  scrollbar-color: rgba(148, 163, 184, 0.42) transparent;
+[data-pe="input"][data-invalid="1"]:focus,
+[data-pe="textarea"][data-invalid="1"]:focus {
+  border-color: var(--ss-err);
+  box-shadow: 0 0 0 3px rgba(239,68,68,.14);
 }
-*::-webkit-scrollbar {
-  width: 8px;
-  height: 8px;
+
+/* ---- Rail bubble ----------------------------------------------------
+   Hover is a TINT ONLY. Never a scale transform, never a count badge,
+   never a red dot. The open state is set inline by bubbleStyle. */
+.ss-bubble:not([data-open]):not([data-coming]):hover {
+  background: rgba(24,30,42,.96);
+  border-color: var(--ss-line-28);
+  color: var(--ss-t1);
 }
-*::-webkit-scrollbar-track {
-  background: transparent;
+.ss-bubble:not(:disabled):active { transform: none }  /* the rail does not press */
+
+/* The dock header's 13px tool glyph. The rail renders its icon at 15px; an
+   inline style cannot reach the child svg, so the size lives here. */
+.ss-dock-glyph > svg { width: 13px; height: 13px }
+
+/* 22px header controls (expand, close). */
+.ss-headbtn:hover { background: rgba(255,255,255,.05); color: var(--ss-t3) }
+
+/* ---- Map controls ---------------------------------------------------
+   MapLibre's NavigationControl, restyled to the v2 map-control spec: 30px
+   squares, radius 8, ink at 92%, a line-14 edge, the rail shadow, t3 glyphs.
+   Zoom in/out are ONE stacked unit split by a line-06 rule.
+
+   This is CSS in PE's own stylesheet, deliberately: packages/map-renderer is
+   shared with command-center, and a restyle of one product must not repaint
+   another product's map. */
+.maplibregl-ctrl-group {
+  background: var(--ss-ink-92) !important;
+  border: 1px solid var(--ss-line-14) !important;
+  border-radius: var(--ss-r-tip) !important;
+  box-shadow: var(--ss-sh-rail) !important;
+  overflow: hidden;
 }
-*::-webkit-scrollbar-thumb {
-  background-color: rgba(148, 163, 184, 0.38);
-  border-radius: 999px;
-  border: 2px solid transparent;
-  background-clip: padding-box;
+.maplibregl-ctrl-group button {
+  width: 30px !important;
+  height: 30px !important;
+  background: transparent !important;
+  border: 0 !important;
 }
-*::-webkit-scrollbar-thumb:hover {
-  background-color: rgba(148, 163, 184, 0.62);
+.maplibregl-ctrl-group button + button {
+  border-top: 1px solid var(--ss-line-06) !important;
 }
-*::-webkit-scrollbar-corner {
-  background: transparent;
+.maplibregl-ctrl-group button:hover { background: rgba(255,255,255,.05) !important }
+.maplibregl-ctrl-group button:focus-visible {
+  outline: none !important;
+  box-shadow: var(--btn-focus-ring) !important;
 }
-.pe-dock-scroll {
-  scrollbar-gutter: stable;
+/* MapLibre draws its control glyphs as background SVGs whose stroke is baked
+   in, so tint them to t3 rather than trying to recolour the source. */
+.maplibregl-ctrl-group button .maplibregl-ctrl-icon {
+  opacity: .78;
+  filter: invert(84%) sepia(6%) saturate(430%) hue-rotate(174deg) brightness(94%);
+}
+.maplibregl-ctrl-group button:hover .maplibregl-ctrl-icon { opacity: 1 }
+
+/* The dock's own scroll region — a hairline thumb, not a platform scrollbar. */
+.pe-dock-scroll { scrollbar-width: thin; scrollbar-color: var(--ss-line-28) transparent }
+.pe-dock-scroll::-webkit-scrollbar { width: 8px }
+.pe-dock-scroll::-webkit-scrollbar-track { background: transparent }
+.pe-dock-scroll::-webkit-scrollbar-thumb {
+  background: var(--ss-line-14); border-radius: 4px;
+  border: 2px solid transparent; background-clip: content-box;
+}
+.pe-dock-scroll::-webkit-scrollbar-thumb:hover { background: var(--ss-line-28);
+  background-clip: content-box }
+
+/* ---- The four motions, declared once -------------------------------- */
+@keyframes ss-spin    { to { transform: rotate(360deg) } }
+@keyframes ss-shimmer { 0% { opacity: .35 } 50% { opacity: .7 } 100% { opacity: .35 } }
+@keyframes ss-blink   { 0%, 100% { opacity: 1 } 50% { opacity: .25 } }
+@keyframes ss-pulse   { 0% { transform: scale(1); opacity: .45 }
+                        70% { transform: scale(2.6); opacity: 0 }
+                        100% { opacity: 0 } }
+
+/* A panel opens its own height while scaling up 3% from its anchored corner.
+   It never slides in from off-screen; nothing bounces, nothing overshoots.
+   The corner is the class: top-left for the left dock column, bottom-right
+   for the sources sheet, centre for the modal. */
+@keyframes ss-enter {
+  from { opacity: 0; transform: scale(.97) translateY(-8px) }
+  to   { opacity: 1; transform: none }
+}
+@keyframes ss-enter-up {
+  from { opacity: 0; transform: scale(.97) translateY(8px) }
+  to   { opacity: 1; transform: none }
+}
+@keyframes ss-enter-modal {
+  from { opacity: 0; transform: scale(.97) translateY(6px) }
+  to   { opacity: 1; transform: none }
+}
+@keyframes ss-fade { from { opacity: 0 } to { opacity: 1 } }
+
+/* The find bar's suggestion list drops from the bar's own top edge. */
+@keyframes ss-suggest-in {
+  from { opacity: 0; transform: scale(.98) translateY(-6px) }
+  to   { opacity: 1; transform: none }
+}
+@media (prefers-reduced-motion: reduce) {
+  [data-testid="search-suggest-dropdown"] { animation-name: ss-fade !important }
+}
+
+.ss-enter       { animation: ss-enter       var(--ss-d-move) var(--ss-ease) both;
+                  transform-origin: left top }
+.ss-enter-up    { animation: ss-enter-up    var(--ss-d-move) var(--ss-ease) both;
+                  transform-origin: right bottom }
+.ss-enter-modal { animation: ss-enter-modal var(--ss-d-move) var(--ss-ease) both }
+
+/* Reduced motion: keep the opacity fade, drop the scale and the height
+   animation. Transitions narrow to opacity rather than dying, so a state
+   change stays legible. Surfaces that animate height or transform carry
+   data-ss-motion so this rule can reach them. */
+@media (prefers-reduced-motion: reduce) {
+  .ss-enter,
+  .ss-enter-up,
+  .ss-enter-modal { animation: ss-fade var(--ss-d-state) var(--ss-ease) both }
+  .pe-btn:not(:disabled):active { transform: none }
+  [data-ss-motion] {
+    transition-property: opacity !important;
+    transition-duration: var(--ss-d-state) !important;
+    animation: none !important;
+    transform: none !important;
+  }
 }

@@ -45,6 +45,7 @@ import { Button } from "../../components/Button";
 import { GoogleSignInButton } from "../../components/GoogleSignInButton";
 import { TextArea } from "../../components/Input";
 import { PE } from "../../styles/pe-chrome";
+import { TypingDots } from "../../components/Loading";
 import { invalidatePropertyEntitlement } from "../../lib/entitlementClient";
 import { recordPeGtmEvent } from "../../lib/gtmClient";
 import { usePropertyEntitlement } from "../../lib/usePropertyEntitlement";
@@ -125,7 +126,6 @@ const MUTED = PE.muted;
 const ACCENT = PE.accent;
 const AMBER = PE.warning;
 const CHIP_BORDER = PE.border;
-const USER_BG = PE.accentBg;
 const DETAIL_BG = "rgba(154,166,178,0.10)";
 
 // ---------------------------------------------------------------------------
@@ -872,12 +872,12 @@ function AssistantTurn({
 // ---------------------------------------------------------------------------
 
 const starterChipStyle: CSSProperties = {
-  fontSize: 11,
+  fontSize: 11.5,
   color: TEXT,
   background: "transparent",
   border: CHIP_BORDER,
-  borderRadius: 12,
-  padding: "3px 9px",
+  borderRadius: 6,
+  padding: "4px 9px",
   cursor: "pointer",
   textAlign: "left",
 };
@@ -1617,20 +1617,35 @@ export function ChatTool() {
 
         {turns.map((turn, i) =>
           turn.role === "user" ? (
-            <div key={i} style={{ margin: "0 0 8px" }}>
+            <div
+              key={i}
+              style={{
+                margin: "0 0 10px",
+                display: "flex",
+                flexDirection: "column",
+                alignItems: "flex-end",
+              }}
+            >
+              {/* The user's turn is a RIGHT-ALIGNED bubble whose one square
+                  corner points back at the person who typed it. The answer
+                  beneath it is plain text, not a bubble — so the two voices
+                  are told apart by shape, not by an avatar. */}
               <p
                 data-testid="chat-turn-user"
                 style={{
                   margin: 0,
-                  padding: "5px 8px",
-                  borderRadius: 6,
-                  background: USER_BG,
-                  color: TEXT,
+                  maxWidth: "85%",
+                  padding: "7px 10px",
+                  borderRadius: "10px 10px 4px 10px",
+                  background: PE.blueBg,
+                  color: PE.t2,
+                  fontSize: 12.5,
+                  lineHeight: 1.5,
                 }}
               >
                 {turn.content}
               </p>
-              <div style={{ marginTop: 2, textAlign: "right" }}>
+              <div style={{ marginTop: 3, textAlign: "right" }}>
                 <CopyMessageButton
                   copied={copiedIndex === i}
                   onCopy={() => void handleCopyMessage(i, turn.content)}
@@ -1659,8 +1674,16 @@ export function ChatTool() {
         {phase.kind === "sending" && (
           <p
             data-testid="chat-loading"
-            style={{ margin: 0, fontSize: 11.5, color: MUTED, fontStyle: "italic" }}
+            style={{
+              margin: 0,
+              display: "flex",
+              alignItems: "center",
+              gap: 9,
+              fontSize: 11.5,
+              color: PE.t5,
+            }}
           >
+            <TypingDots label="Researching" />
             Researching…
           </p>
         )}

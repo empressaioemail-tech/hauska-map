@@ -1,9 +1,21 @@
 import { useState, type CSSProperties } from "react";
 import { PdfViewer } from "./PdfViewer";
+import { PE, MOTION } from "../styles/pe-chrome";
+import { Spinner } from "./Loading";
 
-// 4a — a finished file is a button, never a text link.
-// Glyph left, verb + format, size monospace right when a real byteCount exists.
-// Never two filled primaries in one card: this control is always outlined.
+// A FINISHED FILE IS ALWAYS A BUTTON, NEVER A TEXT LINK.
+//
+// 36 tall, radius 6, a line-28 edge. Blue download glyph, a 12.5/600 verb in
+// t1, and the REAL byte size in mono on the right.
+//
+//   generating  the spinner replaces the glyph, the label drops to t3, and the
+//               right side carries a DURATION ESTIMATE — never a fake size.
+//               No estimate available means nothing is printed there; an
+//               invented number is worse than an absence.
+//   failed      error border and fill, alert glyph, and a blue Retry.
+//
+// This control is always outlined: it must never be the second filled primary
+// on a surface that already has one.
 
 export type DownloadFileState = "ready" | "generating" | "failed";
 
@@ -32,37 +44,59 @@ export function formatByteCount(bytes: number | null | undefined): string | null
 const SHELL: CSSProperties = {
   display: "flex",
   alignItems: "center",
-  gap: 11,
+  gap: 10,
   width: "100%",
-  minHeight: 44,
+  height: 36,
   boxSizing: "border-box",
-  padding: "0 15px",
-  borderRadius: 6,
-  border: "1px solid rgba(59,130,246,0.55)",
-  background: "rgba(59,130,246,0.10)",
-  color: "var(--text-body, #E9EEF5)",
+  padding: "0 12px",
+  borderRadius: PE.rTouch,
+  border: `1px solid ${PE.line28}`,
+  background: "transparent",
+  color: PE.t1,
   textDecoration: "none",
-  fontFamily: "inherit",
-  fontSize: 13.5,
+  fontFamily: PE.ui,
+  fontSize: 12.5,
   fontWeight: 600,
   cursor: "pointer",
+  transition: `background ${MOTION.state}, border-color ${MOTION.state}`,
 };
 
 function ArrowGlyph({ color }: { color: string }) {
   return (
     <svg
-      width="16"
-      height="16"
+      width="15"
+      height="15"
       viewBox="0 0 24 24"
       fill="none"
       stroke={color}
-      strokeWidth="2"
+      strokeWidth="1.7"
       strokeLinecap="round"
+      strokeLinejoin="round"
       aria-hidden="true"
+      style={{ flex: "none" }}
     >
       <path d="M12 4v11" />
       <path d="M7 11l5 5 5-5" />
       <path d="M4 20h16" />
+    </svg>
+  );
+}
+
+function AlertGlyph({ color }: { color: string }) {
+  return (
+    <svg
+      width="15"
+      height="15"
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke={color}
+      strokeWidth="1.7"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      aria-hidden="true"
+      style={{ flex: "none" }}
+    >
+      <path d="M12 3 2 20h20L12 3z M12 10v4 M12 17h.01" />
     </svg>
   );
 }
@@ -72,6 +106,8 @@ export function DownloadFileButton({
   download,
   label,
   sizeLabel,
+  etaLabel,
+  onRetry,
   state = "ready",
   testId,
   parcelNodeId,
@@ -81,6 +117,11 @@ export function DownloadFileButton({
   download?: string;
   label: string;
   sizeLabel?: string | null;
+  /** While generating: a real duration estimate, e.g. "about 40s". Omitted
+   *  means nothing is drawn there — never a placeholder size. */
+  etaLabel?: string | null;
+  /** Failed state only. Renders the blue Retry. */
+  onRetry?: () => void;
   state?: DownloadFileState;
   testId: string;
   parcelNodeId?: string | null;
@@ -89,37 +130,73 @@ export function DownloadFileButton({
   const generating = state === "generating";
   const failed = state === "failed";
   const ready = state === "ready" && !!href;
+
   const border = failed
-    ? "1px solid rgba(245,158,11,0.45)"
-    : generating
-      ? "1px solid rgba(154,166,178,0.3)"
-      : "1px solid rgba(59,130,246,0.55)";
-  const background = failed
-    ? "rgba(245,158,11,0.07)"
-    : generating
-      ? "rgba(20,25,33,0.9)"
-      : "rgba(59,130,246,0.10)";
-  const glyph = failed
-    ? "var(--semantic-warning, #F59E0B)"
-    : "var(--brand-blue, #3B82F6)";
+    ? `1px solid rgba(239,68,68,.28)`
+    : `1px solid ${PE.line28}`;
+  const background = failed ? "rgba(239,68,68,.06)" : "transparent";
+  const glyphColor = failed ? PE.err : PE.blue;
+
+  // The right-hand slot: a real size when the file is real, a real duration
+  // estimate while it is being built, and NOTHING when neither is known.
+  const rightSlot = failed ? null : generating ? etaLabel : sizeLabel;
 
   const inner = (
     <>
-      <ArrowGlyph color={glyph} />
-      <span style={{ flex: 1, textAlign: "left" }}>
+      {generating ? <Spinner /> : failed ? (
+        <AlertGlyph color={glyphColor} />
+      ) : (
+        <ArrowGlyph color={glyphColor} />
+      )}
+      <span
+        style={{
+          flex: 1,
+          textAlign: "left",
+          color: generating ? PE.t3 : failed ? PE.t2 : PE.t1,
+          overflow: "hidden",
+          textOverflow: "ellipsis",
+          whiteSpace: "nowrap",
+        }}
+      >
         {generating ? "Generating sheet" : failed ? "Export failed" : label}
       </span>
-      {sizeLabel ? (
+      {rightSlot ? (
         <span
           style={{
-            fontFamily: "ui-monospace, Menlo, monospace",
-            fontSize: 11.5,
-            fontWeight: 500,
-            color: "var(--surface-muted, #7C8BA0)",
+            flex: "none",
+            fontFamily: PE.mono,
+            fontSize: 11,
+            fontWeight: 400,
+            color: PE.t5,
           }}
         >
-          {sizeLabel}
+          {rightSlot}
         </span>
+      ) : null}
+      {failed && onRetry ? (
+        <button
+          type="button"
+          className="pe-btn"
+          data-testid={`${testId}-retry`}
+          onClick={(e) => {
+            e.preventDefault();
+            e.stopPropagation();
+            onRetry();
+          }}
+          style={{
+            flex: "none",
+            background: "transparent",
+            border: "none",
+            padding: 0,
+            color: PE.blue,
+            fontFamily: PE.ui,
+            fontSize: 11.5,
+            fontWeight: 600,
+            cursor: "pointer",
+          }}
+        >
+          Retry
+        </button>
       ) : null}
     </>
   );
@@ -134,15 +211,22 @@ export function DownloadFileButton({
         {pdfHref ? (
           <button
             type="button"
+            className="pe-btn"
             data-testid={`${testId}-view`}
             onClick={() => setViewerOpen(true)}
             style={{ ...style, marginBottom: 6 }}
           >
-            <ArrowGlyph color={glyph} />
-            <span style={{ flex: 1, textAlign: "left" }}>View PDF</span>
+            <ArrowGlyph color={glyphColor} />
+            <span style={{ flex: 1, textAlign: "left", color: PE.t1 }}>View PDF</span>
           </button>
         ) : null}
-        <a href={href} download={download} data-testid={testId} style={style}>
+        <a
+          href={href}
+          download={download}
+          data-testid={testId}
+          className="pe-btn"
+          style={style}
+        >
           {inner}
         </a>
         {viewerOpen ? (

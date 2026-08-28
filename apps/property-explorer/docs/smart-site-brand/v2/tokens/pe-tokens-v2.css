@@ -1,0 +1,80 @@
+/* Smart Site — Property Explorer chrome tokens, v2
+   Replaces pe-tokens.css. Dark only; there is no light theme.
+   Every value below appears in the reference sheets. Nothing else is legal chrome. */
+
+:root {
+  /* ---- Ground -------------------------------------------------------- */
+  --ss-void:      #07090D;  /* page behind everything */
+  --ss-ink:       #0B0E13;  /* panel, dock, card fill */
+  --ss-raised:    #12171F;  /* modal, tooltip, popover fill */
+
+  /* ---- Hairlines — three weights, one hue. Do not add a fourth. ------- */
+  --ss-line-06:   rgba(154,166,178,.07);  /* rules INSIDE a surface */
+  --ss-line-14:   rgba(154,166,178,.15);  /* the edge OF a surface */
+  --ss-line-28:   rgba(154,166,178,.28);  /* focus, outline buttons, emphasis */
+
+  /* ---- Text ramp — t1 brightest, t6 faintest ------------------------- */
+  --ss-t1:        #F8FAFC;  /* subject lines, values that matter */
+  --ss-t2:        #E9EEF5;  /* strong body, button labels */
+  --ss-t3:        #C6D0DC;  /* default body */
+  --ss-t4:        #94A3B8;  /* secondary body, panel titles */
+  --ss-t5:        #7C8BA0;  /* captions, notes */
+  --ss-t6:        #64748B;  /* field labels, mono metadata, placeholders */
+
+  /* ---- Action. Blue is the ONLY action color. ------------------------ */
+  --ss-blue:      #3B82F6;
+  --ss-blue-bg:   rgba(59,130,246,.12);
+  --ss-blue-line: rgba(59,130,246,.32);
+
+  /* ---- Reserved hues. Each has exactly one job. ---------------------- */
+  --ss-gold:      #E8963B;  /* brand mark only — never a button/link/fill/hover */
+  --ss-gold-lt:   #F5B95C;  /* the word SITE in the wordmark */
+  --ss-atom:      #4CC9C0;  /* an openable record. Not chrome, not emphasis. */
+  --ss-slate:     #7C8BA0;  /* absence: a thing that is not on file */
+  --ss-sky:       #7DD3FC;  /* MAP GEOMETRY ONLY. Never inside a panel. */
+
+  /* ---- Semantic. Always paired with a word, never color alone. ------- */
+  --ss-ok:        #10B981;  /* cited, included, live */
+  --ss-warn:      #F59E0B;  /* waiting, tier-gated */
+  --ss-err:       #EF4444;  /* failed */
+
+  /* ---- Motion. One curve. Four durations. ---------------------------- */
+  --ss-ease:      cubic-bezier(.2,.6,.35,1);
+  --ss-d-tint:    100ms;  /* hover, tooltip fade */
+  --ss-d-state:   140ms;  /* button/chip state, opacity */
+  --ss-d-move:    180ms;  /* panel scale, tooltip travel, modal */
+  --ss-d-open:    220ms;  /* panel height open/close, width change */
+
+  /* ---- Type ---------------------------------------------------------- */
+  --ss-ui:        ui-sans-serif, system-ui, -apple-system, 'Segoe UI', sans-serif;
+  --ss-mono:      ui-monospace, 'SF Mono', Menlo, monospace;
+
+  /* Ramp — five steps with real jumps. Do not add an in-between size. */
+  --ss-fs-label:  10px;    /* uppercase .13em field labels, 600 */
+  --ss-fs-meta:   11.5px;  /* captions, notes, chips */
+  --ss-fs-body:   12.5px;  /* running body, button labels at 600 */
+  --ss-fs-value:  13.5px;  /* the value under a field label */
+  --ss-fs-subject:15px;    /* subject line inside a panel */
+  --ss-fs-title:  20px;    /* panel title, weight 300, -.02em */
+
+  /* ---- Geometry ------------------------------------------------------ */
+  --ss-h-control: 32px;  /* buttons, segments */
+  --ss-h-dense:   26px;  /* toolbar and dock-row buttons */
+  --ss-h-field:   34px;  /* inputs */
+  --ss-h-find:    40px;  /* find bar — the one control allowed above 34 */
+  --ss-h-head:    36px;  /* dock header */
+  --ss-bubble:    34px;  /* rail bubble diameter */
+  --ss-dock-w:    340px; /* every dock, one width */
+  --ss-find-w:    436px;
+
+  --ss-r-touch:   6px;   /* anything you click: buttons, fields, rows */
+  --ss-r-chip:    4px;   /* status chips */
+  --ss-r-float:   10px;  /* anything that floats: docks, panels, tooltips 8 */
+  --ss-r-modal:   14px;  /* the modal, and nothing else */
+
+  /* ---- Elevation ----------------------------------------------------- */
+  --ss-sh-rail:   0 4px 14px rgba(0,0,0,.4);
+  --ss-sh-dock:   0 18px 44px rgba(0,0,0,.5);
+  --ss-sh-modal:  0 24px 80px rgba(0,0,0,.6);
+  --ss-sh-focus:  0 0 0 3px rgba(59,130,246,.14);
+}

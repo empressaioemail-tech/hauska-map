@@ -29,7 +29,7 @@ export function SubscriptionCheckoutModal({
         display: "flex",
         alignItems: "center",
         justifyContent: "center",
-        background: "rgba(6,9,13,0.72)",
+        background: "var(--ss-scrim, rgba(6,9,13,.74))",
         padding: 16,
       }}
     >

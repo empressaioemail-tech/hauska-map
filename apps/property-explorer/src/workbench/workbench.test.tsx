@@ -271,11 +271,15 @@ describe("brief in the dock — per-property persistent via the chassis store", 
 });
 
 describe("expand-to-floating-box (Fix A)", () => {
-  it("dockLayoutStyle — COMPACT default hugs the top-right at the ~400px width", () => {
+  it("dockLayoutStyle — COMPACT default hugs the top-right at the v2 340px width", () => {
     const s = dockLayoutStyle(false);
     expect(s.top).toBe(12);
     expect(s.right).toBe(54);
-    expect(s.width).toBe("min(400px, calc(100vw - 78px))");
+    // chrome v2: ONE dock width for every tool, so the stack has one left
+    // edge no matter which bubble opened it. Was 400 in v1.
+    expect(s.width).toBe("min(340px, calc(100vw - 78px))");
+    // The compact dock takes its elevation from the dock element (--ss-sh-dock),
+    // not from the layout rule; only the EXPANDED box overrides it here.
     expect(s.boxShadow).toBeUndefined();
   });
 

@@ -1,0 +1,427 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<meta name="design_doc_mode" content="canvas">
+<style>
+  :root{
+    --ss-void:#07090D; --ss-ink:#0B0E13; --ss-raised:#12171F;
+    --ss-line-06:rgba(154,166,178,.07); --ss-line-14:rgba(154,166,178,.15); --ss-line-28:rgba(154,166,178,.28);
+    --ss-t1:#F8FAFC; --ss-t2:#E9EEF5; --ss-t3:#C6D0DC; --ss-t4:#94A3B8; --ss-t5:#7C8BA0; --ss-t6:#64748B;
+    --ss-blue:#3B82F6; --ss-blue-bg:rgba(59,130,246,.12); --ss-blue-line:rgba(59,130,246,.32);
+    --ss-gold:#E8963B; --ss-gold-lt:#F5B95C; --ss-atom:#4CC9C0; --ss-slate:#7C8BA0;
+    --ss-warn:#F59E0B; --ss-err:#EF4444; --ss-ok:#10B981;
+    --ss-ease:cubic-bezier(.2,.6,.35,1);
+    --ss-ui:ui-sans-serif,system-ui,-apple-system,'Segoe UI',sans-serif;
+    --ss-mono:ui-monospace,'SF Mono',Menlo,monospace;
+  }
+  body{margin:0;background:#07090D;color:#C6D0DC;font-family:var(--ss-ui);-webkit-font-smoothing:antialiased}
+  a{color:#3B82F6;text-decoration:none}
+  a:hover{color:#7DD3FC}
+  @keyframes ss-spin{to{transform:rotate(360deg)}}
+  @keyframes ss-blink{0%,100%{opacity:1}50%{opacity:.25}}
+</style>
+</helmet>
+
+<svg width="0" height="0" style="position:absolute" aria-hidden="true"><defs fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round">
+<symbol id="t-brief" viewBox="0 0 24 24"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z M14 2v6h6 M8 13h8 M8 17h5"></path></symbol>
+<symbol id="t-chat" viewBox="0 0 24 24"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"></path></symbol>
+<symbol id="t-reports" viewBox="0 0 24 24"><path d="M12 2 2 7l10 5 10-5-10-5z M2 17l10 5 10-5 M2 12l10 5 10-5"></path></symbol>
+<symbol id="t-properties" viewBox="0 0 24 24"><path d="M19 21l-7-5-7 5V5a2 2 0 0 1 2-2h10a2 2 0 0 1 2 2z"></path></symbol>
+<symbol id="t-share" viewBox="0 0 24 24"><path d="M4 13v7a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-7 M8 7l4-4 4 4 M12 3v13"></path></symbol>
+<symbol id="t-ai" viewBox="0 0 24 24"><path d="M5 5h14v14H5z M9 2v3 M15 2v3 M9 19v3 M15 19v3 M2 9h3 M2 15h3 M19 9h3 M19 15h3"></path></symbol>
+<symbol id="t-compare" viewBox="0 0 24 24"><path d="M3 4h18v16H3z M12 4v16"></path></symbol>
+<symbol id="t-x" viewBox="0 0 24 24"><path d="M18 6 6 18 M6 6l12 12"></path></symbol>
+<symbol id="t-expand" viewBox="0 0 24 24"><path d="M15 3h6v6 M9 21H3v-6 M21 3l-7 7 M3 21l7-7"></path></symbol>
+<symbol id="t-down" viewBox="0 0 24 24"><path d="M12 3v12 M7 11l5 5 5-5 M4 21h16"></path></symbol>
+<symbol id="t-send" viewBox="0 0 24 24"><path d="M22 2 11 13 M22 2l-7 20-4-9-9-4z"></path></symbol>
+<symbol id="t-copy" viewBox="0 0 24 24"><path d="M9 9h11v11H9z M5 15H4V4h11v1"></path></symbol>
+<symbol id="t-check" viewBox="0 0 24 24"><path d="M20 6 9 17l-5-5"></path></symbol>
+<symbol id="t-clock" viewBox="0 0 24 24"><path d="M12 21a9 9 0 1 0 0-18 9 9 0 0 0 0 18z M12 7v5l3 2"></path></symbol>
+<symbol id="t-slash" viewBox="0 0 24 24"><path d="M12 21a9 9 0 1 0 0-18 9 9 0 0 0 0 18z M6 6l12 12"></path></symbol>
+<symbol id="t-alert" viewBox="0 0 24 24"><path d="M12 3 2 20h20L12 3z M12 10v4 M12 17h.01"></path></symbol>
+<symbol id="t-lock" viewBox="0 0 24 24"><path d="M5 11h14v10H5z M8 11V7a4 4 0 0 1 8 0v4"></path></symbol>
+<symbol id="t-link" viewBox="0 0 24 24"><path d="M10 13a5 5 0 0 0 7 0l3-3a5 5 0 0 0-7-7l-2 2 M14 11a5 5 0 0 0-7 0l-3 3a5 5 0 0 0 7 7l2-2"></path></symbol>
+<symbol id="t-mail" viewBox="0 0 24 24"><path d="M3 5h18v14H3z M3 6l9 7 9-7"></path></symbol>
+<symbol id="t-trash" viewBox="0 0 24 24"><path d="M4 7h16 M9 7V5h6v2 M6 7l1 14h10l1-14"></path></symbol>
+<symbol id="t-plus" viewBox="0 0 24 24"><path d="M12 5v14 M5 12h14"></path></symbol>
+</defs></svg>
+
+<div style="max-width:1500px;margin:0 auto;padding:56px 48px 96px">
+
+  <div style="display:flex;align-items:baseline;gap:14px;margin-bottom:14px">
+    <span style="font-size:10.5px;font-weight:600;letter-spacing:.18em;text-transform:uppercase;color:var(--ss-blue)">Smart Site chrome · sheet 03</span>
+    <span style="width:1px;height:11px;background:var(--ss-line-14)"></span>
+    <span style="font-size:10.5px;font-weight:500;letter-spacing:.14em;text-transform:uppercase;color:var(--ss-t6)">The seven tools</span>
+  </div>
+  <h1 style="margin:0 0 12px;font-size:40px;font-weight:300;letter-spacing:-.025em;color:var(--ss-t1);line-height:1.05">One bubble, one dock, seven times</h1>
+  <p style="margin:0 0 52px;max-width:680px;font-size:14px;line-height:1.6;color:var(--ss-t4);text-wrap:pretty">Each tool at its real 340px width, in the chassis from sheet 02. Same header, same body rhythm, same single footer action. The information order inside each one is unchanged from what ships today.</p>
+
+  <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(376px,1fr));gap:24px;align-items:start">
+
+    <div style="border:1px solid var(--ss-line-14);border-radius:12px;background:var(--ss-ink);padding:22px">
+      <div style="display:flex;align-items:baseline;flex-wrap:wrap;gap:4px 10px;margin-bottom:4px">
+        <span style="font-size:10.5px;font-weight:600;letter-spacing:.16em;text-transform:uppercase;color:var(--ss-t6)">01</span>
+        <span style="font-size:19px;font-weight:300;letter-spacing:-.02em;color:var(--ss-t1)">Property brief</span>
+      </div>
+      <p style="margin:0 0 18px;font-size:12px;line-height:1.5;color:var(--ss-t5)">Label above value, every fact carrying its own honesty register.</p>
+      <div style="width:340px;border-radius:10px;overflow:hidden;background:rgba(11,14,19,.94);border:1px solid var(--ss-line-14);box-shadow:0 18px 44px rgba(0,0,0,.5)">
+        <div style="display:flex;align-items:center;gap:8px;height:36px;padding:0 8px 0 12px;border-bottom:1px solid var(--ss-line-06);background:rgba(255,255,255,.015)">
+          <svg width="13" height="13" style="color:var(--ss-blue);flex:none"><use href="#t-brief"></use></svg>
+          <span style="flex:1;font-size:11px;font-weight:600;letter-spacing:.1em;text-transform:uppercase;color:var(--ss-t3)">Property brief</span>
+          <div style="width:22px;height:22px;display:flex;align-items:center;justify-content:center;color:var(--ss-t5)"><svg width="13" height="13"><use href="#t-expand"></use></svg></div>
+          <div style="width:22px;height:22px;display:flex;align-items:center;justify-content:center;color:var(--ss-t5)"><svg width="13" height="13"><use href="#t-x"></use></svg></div>
+        </div>
+        <div style="padding:15px 13px 0">
+          <div style="font-size:19px;font-weight:400;letter-spacing:-.01em;color:var(--ss-t1);line-height:1.2">1408 Chestnut St</div>
+          <div style="display:flex;align-items:center;gap:8px;margin-top:5px;flex-wrap:wrap">
+            <span style="font-family:var(--ss-mono);font-size:11.5px;color:var(--ss-t5)">48021:34137</span>
+            <span style="width:2px;height:2px;border-radius:1px;background:var(--ss-t6)"></span>
+            <span style="font-size:11.5px;color:var(--ss-t5)">Bastrop County, TX</span>
+            <span style="font-size:9.5px;font-weight:600;letter-spacing:.1em;text-transform:uppercase;color:var(--ss-t6);border:1px solid var(--ss-line-14);border-radius:4px;padding:1px 5px">Fixture</span>
+          </div>
+        </div>
+        <div style="padding:14px 13px 0;display:flex;flex-direction:column;gap:13px">
+          <sc-for list="{{ briefFacts }}" as="f" hint-placeholder-count="5">
+            <div>
+              <div style="font-size:10px;font-weight:600;letter-spacing:.13em;text-transform:uppercase;color:var(--ss-t6);margin-bottom:3px">{{ f.label }}</div>
+              <div style="font-size:13.5px;line-height:1.35;color:{{ f.color }};font-family:{{ f.font }}">{{ f.value }}</div>
+              <sc-if value="{{ f.note }}" hint-placeholder-val="{{ false }}">
+                <div style="font-size:11.5px;line-height:1.4;color:var(--ss-t6);margin-top:3px">{{ f.note }}</div>
+              </sc-if>
+              <sc-if value="{{ f.chip }}" hint-placeholder-val="{{ false }}">
+                <span style="display:inline-flex;align-items:center;gap:6px;height:22px;padding:0 8px;border-radius:4px;font-size:11px;font-weight:600;color:var(--ss-atom);background:rgba(76,201,192,.12);border:1px solid rgba(76,201,192,.4);margin-top:6px;cursor:pointer">Plat<span style="font-family:var(--ss-mono);font-weight:400;opacity:.85">{{ f.chip }}</span></span>
+              </sc-if>
+            </div>
+          </sc-for>
+        </div>
+        <div style="margin:14px 13px 0;padding:10px 12px;border-radius:8px;background:rgba(124,139,160,.07);border:1px dashed var(--ss-line-28)">
+          <div style="font-size:11.5px;font-weight:600;color:var(--ss-slate)">Setbacks not stamped here</div>
+          <div style="font-size:11.5px;line-height:1.45;color:var(--ss-t6);margin-top:2px">A recorded plat or an adopted ordinance would fill this.</div>
+        </div>
+        <div style="display:flex;gap:8px;padding:14px 13px;margin-top:2px;border-top:1px solid var(--ss-line-06)">
+          <div style="flex:1;display:flex;align-items:center;justify-content:center;height:32px;border-radius:6px;background:var(--ss-blue);color:#F8FAFC;font-size:12px;font-weight:600;cursor:pointer">Research this parcel</div>
+          <div style="display:flex;align-items:center;justify-content:center;height:32px;padding:0 14px;border-radius:6px;border:1px solid var(--ss-line-28);color:var(--ss-t2);font-size:12px;font-weight:600;cursor:pointer">Save</div>
+        </div>
+      </div>
+    </div>
+
+    <div style="border:1px solid var(--ss-line-14);border-radius:12px;background:var(--ss-ink);padding:22px">
+      <div style="display:flex;align-items:baseline;flex-wrap:wrap;gap:4px 10px;margin-bottom:4px">
+        <span style="font-size:10.5px;font-weight:600;letter-spacing:.16em;text-transform:uppercase;color:var(--ss-t6)">02</span>
+        <span style="font-size:19px;font-weight:300;letter-spacing:-.02em;color:var(--ss-t1)">AI chat</span>
+      </div>
+      <p style="margin:0 0 18px;font-size:12px;line-height:1.5;color:var(--ss-t5)">No avatar, no mascot. An answer that cites carries its chips inline.</p>
+      <div style="width:340px;border-radius:10px;overflow:hidden;background:rgba(11,14,19,.94);border:1px solid var(--ss-line-14);box-shadow:0 18px 44px rgba(0,0,0,.5)">
+        <div style="display:flex;align-items:center;gap:8px;height:36px;padding:0 8px 0 12px;border-bottom:1px solid var(--ss-line-06);background:rgba(255,255,255,.015)">
+          <svg width="13" height="13" style="color:var(--ss-blue);flex:none"><use href="#t-chat"></use></svg>
+          <span style="flex:1;font-size:11px;font-weight:600;letter-spacing:.1em;text-transform:uppercase;color:var(--ss-t3)">AI chat</span>
+          <div style="width:22px;height:22px;display:flex;align-items:center;justify-content:center;color:var(--ss-t5)"><svg width="13" height="13"><use href="#t-x"></use></svg></div>
+        </div>
+        <div style="padding:10px 13px;border-bottom:1px solid var(--ss-line-06);display:flex;align-items:center;gap:7px">
+          <span style="font-size:10px;font-weight:600;letter-spacing:.13em;text-transform:uppercase;color:var(--ss-t6)">Scope</span>
+          <span style="font-size:11.5px;color:var(--ss-t4)">1408 Chestnut St</span>
+          <span style="font-family:var(--ss-mono);font-size:10.5px;color:var(--ss-t6)">48021:34137</span>
+        </div>
+        <div style="padding:14px 13px;display:flex;flex-direction:column;gap:14px;max-height:330px;overflow:hidden">
+          <div style="align-self:flex-end;max-width:82%;padding:9px 12px;border-radius:10px 10px 4px 10px;background:var(--ss-blue-bg);border:1px solid var(--ss-blue-line);font-size:12.5px;line-height:1.5;color:var(--ss-t2)">What can I build here by right?</div>
+          <div style="max-width:92%">
+            <div style="font-size:12.5px;line-height:1.55;color:var(--ss-t3)">SF-2 permits one single-family dwelling. Minimum lot is 5,750 sf and this parcel is 13,504 sf, so it clears by a wide margin. Height caps at 35 ft.</div>
+            <div style="display:flex;flex-wrap:wrap;gap:6px;margin-top:9px">
+              <span style="display:inline-flex;align-items:center;gap:6px;height:22px;padding:0 8px;border-radius:4px;font-size:11px;font-weight:600;color:var(--ss-atom);background:rgba(76,201,192,.12);border:1px solid rgba(76,201,192,.4);cursor:pointer">Ordinance<span style="font-family:var(--ss-mono);font-weight:400;opacity:.85">§4-2</span></span>
+              <span style="display:inline-flex;align-items:center;gap:6px;height:22px;padding:0 8px;border-radius:4px;font-size:11px;font-weight:600;color:var(--ss-atom);background:rgba(76,201,192,.12);border:1px solid rgba(76,201,192,.4);cursor:pointer">Plat<span style="font-family:var(--ss-mono);font-weight:400;opacity:.85">2019-0442</span></span>
+            </div>
+          </div>
+          <div style="padding:10px 12px;border-radius:8px;background:rgba(124,139,160,.07);border:1px dashed var(--ss-line-28)">
+            <div style="font-size:11.5px;font-weight:600;color:var(--ss-slate)">Setbacks are not in the record</div>
+            <div style="font-size:11.5px;line-height:1.45;color:var(--ss-t6);margin-top:2px">I will not estimate them. A recorded plat would settle it.</div>
+          </div>
+          <div style="display:flex;align-items:center;gap:5px">
+            <span style="width:5px;height:5px;border-radius:50%;background:var(--ss-t5);animation:ss-blink 1.2s ease-in-out infinite"></span>
+            <span style="width:5px;height:5px;border-radius:50%;background:var(--ss-t5);animation:ss-blink 1.2s ease-in-out .2s infinite"></span>
+            <span style="width:5px;height:5px;border-radius:50%;background:var(--ss-t5);animation:ss-blink 1.2s ease-in-out .4s infinite"></span>
+          </div>
+        </div>
+        <div style="padding:12px 13px;border-top:1px solid var(--ss-line-06);display:flex;gap:8px;align-items:center">
+          <div style="flex:1;display:flex;align-items:center;height:34px;padding:0 11px;border-radius:6px;border:1px solid var(--ss-line-14);background:rgba(255,255,255,.02);font-size:12.5px;color:var(--ss-t6)">Ask about this parcel</div>
+          <div style="width:34px;height:34px;display:flex;align-items:center;justify-content:center;border-radius:6px;background:var(--ss-blue);color:#F8FAFC;cursor:pointer;flex:none"><svg width="15" height="15"><use href="#t-send"></use></svg></div>
+        </div>
+      </div>
+    </div>
+
+    <div style="border:1px solid var(--ss-line-14);border-radius:12px;background:var(--ss-ink);padding:22px">
+      <div style="display:flex;align-items:baseline;flex-wrap:wrap;gap:4px 10px;margin-bottom:4px">
+        <span style="font-size:10.5px;font-weight:600;letter-spacing:.16em;text-transform:uppercase;color:var(--ss-t6)">03</span>
+        <span style="font-size:19px;font-weight:300;letter-spacing:-.02em;color:var(--ss-t1)">Reports &amp; exports</span>
+      </div>
+      <p style="margin:0 0 18px;font-size:12px;line-height:1.5;color:var(--ss-t5)">Ready, tier-gated, and coming — grouped, never interleaved.</p>
+      <div style="width:340px;border-radius:10px;overflow:hidden;background:rgba(11,14,19,.94);border:1px solid var(--ss-line-14);box-shadow:0 18px 44px rgba(0,0,0,.5)">
+        <div style="display:flex;align-items:center;gap:8px;height:36px;padding:0 8px 0 12px;border-bottom:1px solid var(--ss-line-06);background:rgba(255,255,255,.015)">
+          <svg width="13" height="13" style="color:var(--ss-blue);flex:none"><use href="#t-reports"></use></svg>
+          <span style="flex:1;font-size:11px;font-weight:600;letter-spacing:.1em;text-transform:uppercase;color:var(--ss-t3)">Reports &amp; exports</span>
+          <span style="font-family:var(--ss-mono);font-size:10px;color:var(--ss-t6)">5</span>
+          <div style="width:22px;height:22px;display:flex;align-items:center;justify-content:center;color:var(--ss-t5)"><svg width="13" height="13"><use href="#t-x"></use></svg></div>
+        </div>
+        <sc-for list="{{ reportGroups }}" as="g" hint-placeholder-count="3">
+          <div>
+            <div style="padding:12px 13px 6px;font-size:10px;font-weight:600;letter-spacing:.13em;text-transform:uppercase;color:var(--ss-t6)">{{ g.name }}</div>
+            <div style="padding:0 7px 4px">
+              <sc-for list="{{ g.items }}" as="r" hint-placeholder-count="3">
+                <div style="display:flex;align-items:center;gap:10px;height:36px;padding:0 8px;border-radius:6px;cursor:{{ r.cursor }};opacity:{{ r.op }}">
+                  <svg width="14" height="14" style="color:{{ r.icColor }};flex:none"><use href="{{ r.icon }}"></use></svg>
+                  <span style="flex:1;font-size:12.5px;color:{{ r.color }}">{{ r.name }}</span>
+                  <span style="font-family:var(--ss-mono);font-size:10.5px;color:{{ r.tagColor }}">{{ r.tag }}</span>
+                </div>
+              </sc-for>
+            </div>
+          </div>
+        </sc-for>
+        <div style="padding:12px 13px;border-top:1px solid var(--ss-line-06)">
+          <div style="display:flex;align-items:center;gap:10px;height:36px;padding:0 12px;border-radius:6px;border:1px solid var(--ss-line-28);background:rgba(255,255,255,.02);cursor:pointer">
+            <svg width="15" height="15" style="color:var(--ss-blue);flex:none"><use href="#t-down"></use></svg>
+            <span style="font-size:12.5px;font-weight:600;color:var(--ss-t1);flex:1">Site plan sheet</span>
+            <span style="font-family:var(--ss-mono);font-size:11px;color:var(--ss-t5)">PDF · 1.4 MB</span>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div style="border:1px solid var(--ss-line-14);border-radius:12px;background:var(--ss-ink);padding:22px">
+      <div style="display:flex;align-items:baseline;flex-wrap:wrap;gap:4px 10px;margin-bottom:4px">
+        <span style="font-size:10.5px;font-weight:600;letter-spacing:.16em;text-transform:uppercase;color:var(--ss-t6)">04</span>
+        <span style="font-size:19px;font-weight:300;letter-spacing:-.02em;color:var(--ss-t1)">My properties</span>
+      </div>
+      <p style="margin:0 0 18px;font-size:12px;line-height:1.5;color:var(--ss-t5)">A list of records, each with its county and how far research got.</p>
+      <div style="width:340px;border-radius:10px;overflow:hidden;background:rgba(11,14,19,.94);border:1px solid var(--ss-line-14);box-shadow:0 18px 44px rgba(0,0,0,.5)">
+        <div style="display:flex;align-items:center;gap:8px;height:36px;padding:0 8px 0 12px;border-bottom:1px solid var(--ss-line-06);background:rgba(255,255,255,.015)">
+          <svg width="13" height="13" style="color:var(--ss-blue);flex:none"><use href="#t-properties"></use></svg>
+          <span style="flex:1;font-size:11px;font-weight:600;letter-spacing:.1em;text-transform:uppercase;color:var(--ss-t3)">My properties</span>
+          <span style="font-family:var(--ss-mono);font-size:10px;color:var(--ss-t6)">12</span>
+          <div style="width:22px;height:22px;display:flex;align-items:center;justify-content:center;color:var(--ss-t5)"><svg width="13" height="13"><use href="#t-x"></use></svg></div>
+        </div>
+        <div style="padding:10px 13px;border-bottom:1px solid var(--ss-line-06)">
+          <div style="display:flex;align-items:center;height:30px;padding:0 10px;border-radius:6px;border:1px solid var(--ss-line-14);background:rgba(255,255,255,.02);font-size:12px;color:var(--ss-t6)">Filter saved parcels</div>
+        </div>
+        <div style="padding:5px 7px">
+          <sc-for list="{{ saved }}" as="p" hint-placeholder-count="4">
+            <div style="display:flex;align-items:center;gap:10px;padding:9px 8px;border-radius:6px;cursor:pointer;background:{{ p.bg }}">
+              <span style="width:3px;height:26px;border-radius:2px;background:{{ p.rail }};flex:none"></span>
+              <div style="flex:1;min-width:0">
+                <div style="font-size:12.5px;color:{{ p.color }};white-space:nowrap;overflow:hidden;text-overflow:ellipsis">{{ p.addr }}</div>
+                <div style="display:flex;align-items:center;gap:6px;margin-top:2px">
+                  <span style="font-family:var(--ss-mono);font-size:10.5px;color:var(--ss-t6)">{{ p.pid }}</span>
+                  <span style="font-size:10.5px;color:var(--ss-t6)">{{ p.county }}</span>
+                </div>
+              </div>
+              <span style="font-size:10.5px;font-weight:600;color:{{ p.stColor }};flex:none">{{ p.status }}</span>
+            </div>
+          </sc-for>
+        </div>
+        <div style="padding:12px 13px;border-top:1px solid var(--ss-line-06);display:flex;gap:8px">
+          <div style="flex:1;display:flex;align-items:center;justify-content:center;gap:7px;height:32px;border-radius:6px;border:1px solid var(--ss-line-28);color:var(--ss-t2);font-size:12px;font-weight:600;cursor:pointer"><svg width="14" height="14" style="color:var(--ss-blue)"><use href="#t-plus"></use></svg>Save current parcel</div>
+        </div>
+      </div>
+    </div>
+
+    <div style="border:1px solid var(--ss-line-14);border-radius:12px;background:var(--ss-ink);padding:22px">
+      <div style="display:flex;align-items:baseline;flex-wrap:wrap;gap:4px 10px;margin-bottom:4px">
+        <span style="font-size:10.5px;font-weight:600;letter-spacing:.16em;text-transform:uppercase;color:var(--ss-t6)">05</span>
+        <span style="font-size:19px;font-weight:300;letter-spacing:-.02em;color:var(--ss-t1)">Share</span>
+      </div>
+      <p style="margin:0 0 18px;font-size:12px;line-height:1.5;color:var(--ss-t5)">What the recipient will see is stated before the link is made.</p>
+      <div style="width:340px;border-radius:10px;overflow:hidden;background:rgba(11,14,19,.94);border:1px solid var(--ss-line-14);box-shadow:0 18px 44px rgba(0,0,0,.5)">
+        <div style="display:flex;align-items:center;gap:8px;height:36px;padding:0 8px 0 12px;border-bottom:1px solid var(--ss-line-06);background:rgba(255,255,255,.015)">
+          <svg width="13" height="13" style="color:var(--ss-blue);flex:none"><use href="#t-share"></use></svg>
+          <span style="flex:1;font-size:11px;font-weight:600;letter-spacing:.1em;text-transform:uppercase;color:var(--ss-t3)">Share</span>
+          <div style="width:22px;height:22px;display:flex;align-items:center;justify-content:center;color:var(--ss-t5)"><svg width="13" height="13"><use href="#t-x"></use></svg></div>
+        </div>
+        <div style="padding:15px 13px 0">
+          <div style="font-size:15px;color:var(--ss-t1)">1408 Chestnut St</div>
+          <div style="font-size:11.5px;line-height:1.45;color:var(--ss-t5);margin-top:4px">Anyone with the link sees the brief and every cited record. They cannot run new research.</div>
+        </div>
+        <div style="padding:14px 13px 0">
+          <div style="font-size:10px;font-weight:600;letter-spacing:.13em;text-transform:uppercase;color:var(--ss-t6);margin-bottom:6px">Link</div>
+          <div style="display:flex;gap:8px">
+            <div style="flex:1;min-width:0;display:flex;align-items:center;height:34px;padding:0 11px;border-radius:6px;border:1px solid var(--ss-line-14);background:rgba(255,255,255,.02);font-family:var(--ss-mono);font-size:11.5px;color:var(--ss-t4);white-space:nowrap;overflow:hidden;text-overflow:ellipsis">smartsite.io/p/48021-34137</div>
+            <div onClick="{{ copyLink }}" style="width:34px;height:34px;display:flex;align-items:center;justify-content:center;border-radius:6px;background:{{ copy.bg }};color:{{ copy.fg }};border:1px solid {{ copy.bd }};cursor:pointer;flex:none;transition:background 140ms var(--ss-ease),color 140ms var(--ss-ease)"><svg width="15" height="15"><use href="{{ copy.icon }}"></use></svg></div>
+          </div>
+        </div>
+        <div style="padding:14px 13px 0">
+          <div style="font-size:10px;font-weight:600;letter-spacing:.13em;text-transform:uppercase;color:var(--ss-t6);margin-bottom:6px">Expires</div>
+          <div style="display:flex;gap:6px">
+            <sc-for list="{{ expiry }}" as="e" hint-placeholder-count="3">
+              <div onClick="{{ e.onClick }}" style="flex:1;display:flex;align-items:center;justify-content:center;height:28px;border-radius:6px;font-size:11.5px;font-weight:600;cursor:pointer;background:{{ e.bg }};color:{{ e.fg }};border:1px solid {{ e.bd }};transition:background 140ms var(--ss-ease),color 140ms var(--ss-ease)">{{ e.label }}</div>
+            </sc-for>
+          </div>
+        </div>
+        <div style="padding:14px 13px;margin-top:2px;display:flex;gap:8px">
+          <div style="flex:1;display:flex;align-items:center;justify-content:center;gap:7px;height:32px;border-radius:6px;background:var(--ss-blue);color:#F8FAFC;font-size:12px;font-weight:600;cursor:pointer"><svg width="14" height="14"><use href="#t-mail"></use></svg>Send by email</div>
+        </div>
+      </div>
+    </div>
+
+    <div style="border:1px solid var(--ss-line-14);border-radius:12px;background:var(--ss-ink);padding:22px">
+      <div style="display:flex;align-items:baseline;flex-wrap:wrap;gap:4px 10px;margin-bottom:4px">
+        <span style="font-size:10.5px;font-weight:600;letter-spacing:.16em;text-transform:uppercase;color:var(--ss-t6)">06</span>
+        <span style="font-size:19px;font-weight:300;letter-spacing:-.02em;color:var(--ss-t1)">Use in your AI</span>
+      </div>
+      <p style="margin:0 0 18px;font-size:12px;line-height:1.5;color:var(--ss-t5)">The one place mono runs as a block. Copy is the whole point of the panel.</p>
+      <div style="width:340px;border-radius:10px;overflow:hidden;background:rgba(11,14,19,.94);border:1px solid var(--ss-line-14);box-shadow:0 18px 44px rgba(0,0,0,.5)">
+        <div style="display:flex;align-items:center;gap:8px;height:36px;padding:0 8px 0 12px;border-bottom:1px solid var(--ss-line-06);background:rgba(255,255,255,.015)">
+          <svg width="13" height="13" style="color:var(--ss-blue);flex:none"><use href="#t-ai"></use></svg>
+          <span style="flex:1;font-size:11px;font-weight:600;letter-spacing:.1em;text-transform:uppercase;color:var(--ss-t3)">Use in your AI</span>
+          <div style="width:22px;height:22px;display:flex;align-items:center;justify-content:center;color:var(--ss-t5)"><svg width="13" height="13"><use href="#t-x"></use></svg></div>
+        </div>
+        <div style="padding:13px 13px 0;display:flex;gap:6px">
+          <sc-for list="{{ aiTabs }}" as="t" hint-placeholder-count="3">
+            <div onClick="{{ t.onClick }}" style="flex:1;display:flex;align-items:center;justify-content:center;height:28px;border-radius:6px;font-size:11.5px;font-weight:600;cursor:pointer;background:{{ t.bg }};color:{{ t.fg }};border:1px solid {{ t.bd }};transition:background 140ms var(--ss-ease),color 140ms var(--ss-ease)">{{ t.label }}</div>
+          </sc-for>
+        </div>
+        <div style="padding:12px 13px 0">
+          <div style="border-radius:8px;border:1px solid var(--ss-line-14);background:rgba(255,255,255,.02);padding:11px 12px;font-family:var(--ss-mono);font-size:11px;line-height:1.65;color:var(--ss-t3);white-space:pre-wrap;max-height:186px;overflow:hidden">{{ aiBody }}</div>
+        </div>
+        <div style="padding:12px 13px;display:flex;align-items:center;gap:8px">
+          <div onClick="{{ copyPayload }}" style="flex:1;display:flex;align-items:center;justify-content:center;gap:7px;height:32px;border-radius:6px;background:var(--ss-blue);color:#F8FAFC;font-size:12px;font-weight:600;cursor:pointer"><svg width="14" height="14"><use href="{{ payload.icon }}"></use></svg>{{ payload.label }}</div>
+          <span style="font-family:var(--ss-mono);font-size:10.5px;color:var(--ss-t6);flex:none">{{ payload.size }}</span>
+        </div>
+      </div>
+    </div>
+
+    <div style="border:1px solid var(--ss-line-14);border-radius:12px;background:var(--ss-ink);padding:22px">
+      <div style="display:flex;align-items:baseline;flex-wrap:wrap;gap:4px 10px;margin-bottom:4px">
+        <span style="font-size:10.5px;font-weight:600;letter-spacing:.16em;text-transform:uppercase;color:var(--ss-t6)">07</span>
+        <span style="font-size:19px;font-weight:300;letter-spacing:-.02em;color:var(--ss-t1)">Compare</span>
+        <span style="font-size:9.5px;font-weight:600;letter-spacing:.1em;text-transform:uppercase;color:var(--ss-warn);border:1px solid rgba(245,158,11,.35);border-radius:4px;padding:1px 5px">Not built</span>
+      </div>
+      <p style="margin:0 0 18px;font-size:12px;line-height:1.5;color:var(--ss-t5)">On the roster, not wired. It says so rather than showing a dead surface.</p>
+      <div style="width:340px;border-radius:10px;overflow:hidden;background:rgba(11,14,19,.94);border:1px solid var(--ss-line-14);box-shadow:0 18px 44px rgba(0,0,0,.5)">
+        <div style="display:flex;align-items:center;gap:8px;height:36px;padding:0 8px 0 12px;border-bottom:1px solid var(--ss-line-06)">
+          <svg width="13" height="13" style="color:var(--ss-t5);flex:none"><use href="#t-compare"></use></svg>
+          <span style="flex:1;font-size:11px;font-weight:600;letter-spacing:.1em;text-transform:uppercase;color:var(--ss-t5)">Compare</span>
+          <div style="width:22px;height:22px;display:flex;align-items:center;justify-content:center;color:var(--ss-t5)"><svg width="13" height="13"><use href="#t-x"></use></svg></div>
+        </div>
+        <div style="padding:26px 18px 24px;text-align:center">
+          <svg width="18" height="18" style="color:var(--ss-t6)"><use href="#t-clock"></use></svg>
+          <div style="font-size:13px;font-weight:600;color:var(--ss-t3);margin-top:9px">Side-by-side is not built yet</div>
+          <div style="font-size:11.5px;line-height:1.5;color:var(--ss-t6);margin-top:5px">It will hold up to four saved parcels against the same fields. Saving parcels now means they are ready when it ships.</div>
+          <div style="display:inline-flex;align-items:center;height:28px;padding:0 12px;border-radius:6px;border:1px solid var(--ss-blue-line);background:var(--ss-blue-bg);color:var(--ss-blue);font-size:11.5px;font-weight:600;cursor:pointer;margin-top:14px">Open my properties</div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div style="margin-top:44px;padding:22px 24px;border:1px solid var(--ss-line-14);border-radius:12px;background:var(--ss-ink)">
+    <div style="font-size:10.5px;font-weight:600;letter-spacing:.16em;text-transform:uppercase;color:var(--ss-t6);margin-bottom:14px">Rules that held across all seven</div>
+    <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:22px">
+      <sc-for list="{{ rules }}" as="r" hint-placeholder-count="4">
+        <div>
+          <div style="font-size:13px;font-weight:600;color:var(--ss-t2);margin-bottom:5px">{{ r.t }}</div>
+          <div style="font-size:12px;line-height:1.5;color:var(--ss-t5)">{{ r.d }}</div>
+        </div>
+      </sc-for>
+    </div>
+  </div>
+</div>
+
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props="{&quot;$preview&quot;:{&quot;width&quot;:1600,&quot;height&quot;:2000}}">
+class Component extends DCLogic {
+  state = { copied: false, payloadCopied: false, expiry: '7 days', aiTab: 'Markdown' };
+
+  PAYLOADS = {
+    Markdown: `## 1408 Chestnut St
+Parcel 48021:34137 — Bastrop County, TX
+
+- Land use: Single-family residential
+- Zoning: SF-2 (adopted 2021-06-14)
+- Lot area: 0.31 ac / 13,504 sf
+- Flood zone: lookup failed, not cached
+- Setbacks: not in the record
+
+Sources: Plat 2019-0442, Ordinance §4-2`,
+    JSON: `{
+  "address": "1408 Chestnut St",
+  "parcel": "48021:34137",
+  "county": "Bastrop, TX",
+  "zoning": { "code": "SF-2",
+    "adopted": "2021-06-14" },
+  "lot_sf": 13504,
+  "flood_zone": null,
+  "setbacks": null
+}`,
+    Prompt: `You are reviewing a parcel.
+
+Parcel 48021:34137 at 1408 Chestnut
+St, Bastrop County TX is zoned SF-2
+on 13,504 sf. Setbacks are not in
+the record and flood zone could not
+be read — do not estimate either.
+
+Cite Plat 2019-0442 where relevant.`,
+  };
+
+  renderVals() {
+    const tab = this.state.aiTab;
+    const body = this.PAYLOADS[tab];
+    const pick = (on) => ({
+      bg: on ? 'var(--ss-blue-bg)' : 'transparent',
+      fg: on ? 'var(--ss-blue)' : 'var(--ss-t4)',
+      bd: on ? 'var(--ss-blue-line)' : 'var(--ss-line-14)',
+    });
+
+    return {
+      briefFacts: [
+        { label: 'Owner', value: 'Identified session required', color: 'var(--ss-slate)', font: 'var(--ss-ui)', note: 'Ownership is read from the cortex record, not the CAD roll.', chip: null },
+        { label: 'Land use', value: 'Single-family residential', color: 'var(--ss-t2)', font: 'var(--ss-ui)', note: null, chip: null },
+        { label: 'Zoning', value: 'SF-2', color: 'var(--ss-t2)', font: 'var(--ss-mono)', note: 'Bastrop County, adopted 2021-06-14.', chip: '2019-0442' },
+        { label: 'Lot area', value: '0.31 ac · 13,504 sf', color: 'var(--ss-t2)', font: 'var(--ss-mono)', note: null, chip: null },
+        { label: 'Flood zone', value: 'Lookup failed', color: 'var(--ss-err)', font: 'var(--ss-ui)', note: 'The FEMA service did not answer. Retry.', chip: null },
+      ],
+      reportGroups: [
+        { name: 'Ready now', items: [
+          { name: 'X-ray', tag: 'PDF', icon: '#t-check', icColor: 'var(--ss-ok)', color: 'var(--ss-t1)', tagColor: 'var(--ss-t5)', op: 1, cursor: 'pointer' },
+          { name: 'Records request', tag: 'PDF', icon: '#t-check', icColor: 'var(--ss-ok)', color: 'var(--ss-t1)', tagColor: 'var(--ss-t5)', op: 1, cursor: 'pointer' },
+          { name: 'Flood & drainage study', tag: 'PDF', icon: '#t-check', icColor: 'var(--ss-ok)', color: 'var(--ss-t1)', tagColor: 'var(--ss-t5)', op: 1, cursor: 'pointer' },
+        ] },
+        { name: 'Studio tier', items: [
+          { name: 'Terrain mesh', tag: 'OBJ', icon: '#t-lock', icColor: 'var(--ss-warn)', color: 'var(--ss-t4)', tagColor: 'var(--ss-warn)', op: 1, cursor: 'pointer' },
+        ] },
+        { name: 'Not built yet', items: [
+          { name: 'Feasibility study', tag: 'COMING', icon: '#t-clock', icColor: 'var(--ss-t6)', color: 'var(--ss-t5)', tagColor: 'var(--ss-t6)', op: .6, cursor: 'default' },
+        ] },
+      ],
+      saved: [
+        { addr: '1408 Chestnut St', pid: '48021:34137', county: 'Bastrop', status: 'Open', stColor: 'var(--ss-blue)', bg: 'rgba(59,130,246,.10)', rail: 'var(--ss-blue)', color: 'var(--ss-t1)' },
+        { addr: '212 Farm to Market 969', pid: '48021:20880', county: 'Bastrop', status: 'Researched', stColor: 'var(--ss-ok)', bg: 'transparent', rail: 'transparent', color: 'var(--ss-t3)' },
+        { addr: '9 Old Sayers Rd', pid: '48453:11902', county: 'Travis', status: 'Partial', stColor: 'var(--ss-warn)', bg: 'transparent', rail: 'transparent', color: 'var(--ss-t3)' },
+        { addr: '4400 Hunters Bend', pid: '48491:74210', county: 'Williamson', status: 'Saved', stColor: 'var(--ss-t6)', bg: 'transparent', rail: 'transparent', color: 'var(--ss-t3)' },
+      ],
+      copy: this.state.copied
+        ? { icon: '#t-check', bg: 'rgba(16,185,129,.14)', fg: 'var(--ss-ok)', bd: 'rgba(16,185,129,.4)' }
+        : { icon: '#t-copy', bg: 'transparent', fg: 'var(--ss-t2)', bd: 'var(--ss-line-28)' },
+      copyLink: () => { this.setState({ copied: true }); setTimeout(() => this.setState({ copied: false }), 1400); },
+      expiry: ['24 hours', '7 days', 'Never'].map(label => ({ label, ...pick(this.state.expiry === label), onClick: () => this.setState({ expiry: label }) })),
+      aiTabs: ['Markdown', 'JSON', 'Prompt'].map(label => ({ label, ...pick(tab === label), onClick: () => this.setState({ aiTab: label }) })),
+      aiBody: body,
+      payload: this.state.payloadCopied
+        ? { icon: '#t-check', label: 'Copied', size: new Blob([body]).size + ' B' }
+        : { icon: '#t-copy', label: 'Copy ' + tab, size: new Blob([body]).size + ' B' },
+      copyPayload: () => { this.setState({ payloadCopied: true }); setTimeout(() => this.setState({ payloadCopied: false }), 1400); },
+      rules: [
+        { t: 'One footer action', d: 'Every dock ends in a single primary. Save and filter are secondary beside it, never a second fill.' },
+        { t: 'Absence is a sentence', d: 'No tool prints a zero, a dash, or an empty box. It names what is missing and what would fill it.' },
+        { t: 'Mono means a code', d: 'Parcel ids, sizes, section numbers, byte counts. Prose is never mono, and the payload block is the one exception by nature.' },
+        { t: 'Not-built says so', d: 'Compare shows a real explanation and a way forward instead of a disabled surface.' },
+      ],
+    };
+  }
+}
+</script>
+</body>
+</html>

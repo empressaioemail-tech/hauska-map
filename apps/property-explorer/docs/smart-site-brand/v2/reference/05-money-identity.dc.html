@@ -1,0 +1,351 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<meta name="design_doc_mode" content="canvas">
+<style>
+  :root{
+    --ss-void:#07090D; --ss-ink:#0B0E13; --ss-raised:#12171F;
+    --ss-line-06:rgba(154,166,178,.07); --ss-line-14:rgba(154,166,178,.15); --ss-line-28:rgba(154,166,178,.28);
+    --ss-t1:#F8FAFC; --ss-t2:#E9EEF5; --ss-t3:#C6D0DC; --ss-t4:#94A3B8; --ss-t5:#7C8BA0; --ss-t6:#64748B;
+    --ss-blue:#3B82F6; --ss-blue-bg:rgba(59,130,246,.12); --ss-blue-line:rgba(59,130,246,.32);
+    --ss-gold:#E8963B; --ss-gold-lt:#F5B95C; --ss-atom:#4CC9C0; --ss-slate:#7C8BA0;
+    --ss-warn:#F59E0B; --ss-err:#EF4444; --ss-ok:#10B981;
+    --ss-ease:cubic-bezier(.2,.6,.35,1);
+    --ss-ui:ui-sans-serif,system-ui,-apple-system,'Segoe UI',sans-serif;
+    --ss-mono:ui-monospace,'SF Mono',Menlo,monospace;
+  }
+  body{margin:0;background:#07090D;color:#C6D0DC;font-family:var(--ss-ui);-webkit-font-smoothing:antialiased}
+  a{color:#3B82F6;text-decoration:none}
+  a:hover{color:#7DD3FC}
+  @keyframes ss-spin{to{transform:rotate(360deg)}}
+</style>
+</helmet>
+
+<svg width="0" height="0" style="position:absolute" aria-hidden="true"><defs fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round">
+<symbol id="y-check" viewBox="0 0 24 24"><path d="M20 6 9 17l-5-5"></path></symbol>
+<symbol id="y-slash" viewBox="0 0 24 24"><path d="M12 21a9 9 0 1 0 0-18 9 9 0 0 0 0 18z M6 6l12 12"></path></symbol>
+<symbol id="y-x" viewBox="0 0 24 24"><path d="M18 6 6 18 M6 6l12 12"></path></symbol>
+<symbol id="y-lock" viewBox="0 0 24 24"><path d="M5 11h14v10H5z M8 11V7a4 4 0 0 1 8 0v4"></path></symbol>
+<symbol id="y-card" viewBox="0 0 24 24"><path d="M2 6h20v12H2z M2 10h20"></path></symbol>
+<symbol id="y-search" viewBox="0 0 24 24"><path d="M11 19a8 8 0 1 0 0-16 8 8 0 0 0 0 16z M21 21l-4.3-4.3"></path></symbol>
+<symbol id="y-alert" viewBox="0 0 24 24"><path d="M12 3 2 20h20L12 3z M12 10v4 M12 17h.01"></path></symbol>
+<symbol id="y-mail" viewBox="0 0 24 24"><path d="M3 5h18v14H3z M3 6l9 7 9-7"></path></symbol>
+<symbol id="y-back" viewBox="0 0 24 24"><path d="M19 12H5 M11 18l-6-6 6-6"></path></symbol>
+</defs></svg>
+
+<div style="max-width:1500px;margin:0 auto;padding:56px 48px 96px">
+
+  <div style="display:flex;align-items:baseline;gap:14px;margin-bottom:14px">
+    <span style="font-size:10.5px;font-weight:600;letter-spacing:.18em;text-transform:uppercase;color:var(--ss-blue)">Smart Site chrome · sheet 05</span>
+    <span style="width:1px;height:11px;background:var(--ss-line-14)"></span>
+    <span style="font-size:10.5px;font-weight:500;letter-spacing:.14em;text-transform:uppercase;color:var(--ss-t6)">Money &amp; identity</span>
+  </div>
+  <h1 style="margin:0 0 12px;font-size:40px;font-weight:300;letter-spacing:-.025em;color:var(--ss-t1);line-height:1.05">The four surfaces that ask for something</h1>
+  <p style="margin:0 0 52px;max-width:680px;font-size:14px;line-height:1.6;color:var(--ss-t4);text-wrap:pretty">Cold open, sign-in, pricing, and checkout. All four are the same modal shell from sheet 01 over the same dimmed map. Prices are mono, every tier states its ceiling as plainly as its contents, and nothing is ever pre-selected on the customer's behalf.</p>
+
+  <div style="display:flex;align-items:baseline;justify-content:space-between;margin-bottom:14px">
+    <div style="display:flex;align-items:baseline;gap:12px">
+      <span style="font-size:10.5px;font-weight:600;letter-spacing:.16em;text-transform:uppercase;color:var(--ss-t6)">01 — The flow</span>
+      <span style="font-size:13px;color:var(--ss-t4)">Step through it. Each screen is the real surface at real size.</span>
+    </div>
+    <div style="display:flex;gap:6px">
+      <sc-for list="{{ steps }}" as="s" hint-placeholder-count="4">
+        <div onClick="{{ s.onClick }}" style="display:inline-flex;align-items:center;height:26px;padding:0 12px;border-radius:6px;font-size:11.5px;font-weight:600;cursor:pointer;user-select:none;background:{{ s.bg }};color:{{ s.fg }};border:1px solid {{ s.bd }};transition:background 140ms var(--ss-ease),color 140ms var(--ss-ease)">{{ s.label }}</div>
+      </sc-for>
+    </div>
+  </div>
+
+  <div style="position:relative;height:660px;border-radius:12px;overflow:hidden;border:1px solid var(--ss-line-14);background:radial-gradient(130% 100% at 74% 8%,#12182A 0%,#080B11 58%)">
+    <div style="position:absolute;inset:0;opacity:.05;background:repeating-radial-gradient(ellipse at 30% 120%,transparent 0 26px,#fff 26px 27px)"></div>
+    <div style="position:absolute;left:44%;top:46%;width:150px;height:112px;transform:translate(-50%,-50%) skewX(-7deg);border:1.5px solid var(--ss-blue);background:rgba(59,130,246,.10);border-radius:2px"></div>
+    <div style="position:absolute;inset:0;background:rgba(6,9,13,.74)"></div>
+
+    <div style="position:absolute;left:50%;top:50%;transform:translate(-50%,-50%);width:{{ card.w }};transition:width 220ms var(--ss-ease)">
+      <div style="border-radius:14px;background:rgba(18,23,31,.98);border:1px solid var(--ss-line-28);box-shadow:0 24px 80px rgba(0,0,0,.6);overflow:hidden">
+
+        <sc-if value="{{ isCold }}" hint-placeholder-val="{{ true }}">
+          <div style="padding:34px 32px 30px;text-align:center">
+            <svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="rgba(255,255,255,.75)" stroke-width="1.3" style="margin-bottom:16px"><circle cx="12" cy="12" r="8"></circle><path d="M12 1v5 M12 18v5 M1 12h5 M18 12h5" stroke-linecap="round"></path><circle cx="12" cy="12" r="2" fill="var(--ss-gold)" stroke="none"></circle></svg>
+            <div style="font-size:13px;font-weight:600;letter-spacing:.16em;margin-bottom:20px"><span style="color:#F8FAFC">SMART</span> <span style="color:var(--ss-gold-lt)">SITE</span></div>
+            <div style="font-size:26px;font-weight:300;letter-spacing:-.02em;color:var(--ss-t1);line-height:1.2">Start with an address</div>
+            <div style="font-size:13px;line-height:1.55;color:var(--ss-t4);margin-top:9px;max-width:340px;margin-left:auto;margin-right:auto">Everything Smart Site knows about a parcel, with the record behind every claim and a plain statement where there is none.</div>
+            <div style="display:flex;align-items:center;gap:10px;height:44px;padding:0 14px;border-radius:10px;border:1px solid var(--ss-blue);background:rgba(255,255,255,.03);box-shadow:0 0 0 3px rgba(59,130,246,.14);margin-top:22px">
+              <svg width="16" height="16" style="color:var(--ss-blue);flex:none"><use href="#y-search"></use></svg>
+              <span style="flex:1;text-align:left;font-size:14px;color:var(--ss-t6)">1408 Chestnut St, Bastrop TX</span>
+              <span style="font-family:var(--ss-mono);font-size:10.5px;color:var(--ss-t6);border:1px solid var(--ss-line-14);border-radius:4px;padding:2px 5px;flex:none">↵</span>
+            </div>
+            <div style="display:flex;justify-content:center;gap:7px;margin-top:14px;flex-wrap:wrap">
+              <sc-for list="{{ tryThese }}" as="t" hint-placeholder-count="3">
+                <span style="display:inline-flex;align-items:center;height:26px;padding:0 10px;border-radius:6px;border:1px solid var(--ss-line-14);font-size:11.5px;color:var(--ss-t4);cursor:pointer">{{ t }}</span>
+              </sc-for>
+            </div>
+            <div style="font-size:11.5px;color:var(--ss-t6);margin-top:22px">Three parcels free. No account until you save one.</div>
+          </div>
+        </sc-if>
+
+        <sc-if value="{{ isAuth }}" hint-placeholder-val="{{ false }}">
+          <div>
+            <div style="display:flex;align-items:center;height:40px;padding:0 10px 0 16px;border-bottom:1px solid var(--ss-line-06)">
+              <span style="flex:1;font-size:11px;font-weight:600;letter-spacing:.1em;text-transform:uppercase;color:var(--ss-t4)">Save this property</span>
+              <div style="width:24px;height:24px;display:flex;align-items:center;justify-content:center;border-radius:6px;color:var(--ss-t5);cursor:pointer"><svg width="14" height="14"><use href="#y-x"></use></svg></div>
+            </div>
+            <div style="padding:22px 20px 8px">
+              <div style="font-size:19px;font-weight:300;letter-spacing:-.01em;color:var(--ss-t1)">An account keeps your work</div>
+              <div style="font-size:12.5px;line-height:1.55;color:var(--ss-t4);margin-top:7px">Saved parcels, research you have already paid for, and shared links live with your account. Nothing you have looked at so far is lost.</div>
+            </div>
+            <div style="padding:16px 20px 0;display:flex;flex-direction:column;gap:10px">
+              <div style="display:flex;align-items:center;justify-content:center;gap:10px;height:40px;border-radius:6px;background:#131A24;border:1px solid var(--ss-line-28);cursor:pointer">
+                <svg width="17" height="17" viewBox="0 0 48 48" stroke="none"><path fill="#4285F4" d="M45 24c0-1.6-.1-2.7-.4-4H24v7.5h12c-.2 2-1.5 5-4.4 7l6.7 5.2C42.2 36 45 30.6 45 24z"></path><path fill="#34A853" d="M24 46c5.9 0 10.9-2 14.5-5.3l-6.9-5.4c-1.9 1.3-4.4 2.2-7.6 2.2-5.8 0-10.7-3.8-12.5-9.1l-7.1 5.5C8 41.2 15.4 46 24 46z"></path><path fill="#FBBC05" d="M11.5 28.4c-.5-1.4-.7-2.9-.7-4.4s.3-3 .7-4.4l-7.1-5.5C2.9 17 2 20.4 2 24s.9 7 2.4 9.9l7.1-5.5z"></path><path fill="#EA4335" d="M24 10.7c3.3 0 6.1 1.1 8.4 3.3l6.2-6.2C34.9 4.3 29.9 2 24 2 15.4 2 8 6.8 4.4 14.1l7.1 5.5c1.8-5.3 6.7-9 12.5-9z"></path></svg>
+                <span style="font-size:13px;font-weight:600;color:var(--ss-t1)">Sign in with Google</span>
+              </div>
+              <div style="display:flex;align-items:center;gap:12px;margin:2px 0"><span style="flex:1;height:1px;background:var(--ss-line-06)"></span><span style="font-size:10.5px;color:var(--ss-t6)">or</span><span style="flex:1;height:1px;background:var(--ss-line-06)"></span></div>
+              <div style="display:flex;align-items:center;gap:9px;height:36px;padding:0 11px;border-radius:6px;border:1px solid var(--ss-line-14);background:rgba(255,255,255,.02)">
+                <svg width="14" height="14" style="color:var(--ss-t5);flex:none"><use href="#y-mail"></use></svg>
+                <span style="font-size:12.5px;color:var(--ss-t6)">you@company.com</span>
+              </div>
+              <div style="display:flex;align-items:center;justify-content:center;height:34px;border-radius:6px;border:1px solid var(--ss-line-28);color:var(--ss-t2);font-size:12px;font-weight:600;cursor:pointer">Email me a sign-in link</div>
+            </div>
+            <div style="padding:16px 20px 20px;font-size:11px;line-height:1.5;color:var(--ss-t6)">We do not sell parcel activity and we do not email about properties you look at.</div>
+          </div>
+        </sc-if>
+
+        <sc-if value="{{ isPricing }}" hint-placeholder-val="{{ false }}">
+          <div>
+            <div style="display:flex;align-items:center;height:40px;padding:0 10px 0 16px;border-bottom:1px solid var(--ss-line-06)">
+              <span style="flex:1;font-size:11px;font-weight:600;letter-spacing:.1em;text-transform:uppercase;color:var(--ss-t4)">Pricing</span>
+              <div style="width:24px;height:24px;display:flex;align-items:center;justify-content:center;border-radius:6px;color:var(--ss-t5);cursor:pointer"><svg width="14" height="14"><use href="#y-x"></use></svg></div>
+            </div>
+            <div style="padding:20px 20px 4px">
+              <div style="font-size:20px;font-weight:300;letter-spacing:-.02em;color:var(--ss-t1)">One parcel, or all of them</div>
+              <div style="font-size:12.5px;line-height:1.5;color:var(--ss-t4);margin-top:6px">Every tier includes the record behind every claim. Nothing is pre-selected.</div>
+            </div>
+            <div style="padding:18px 20px 0;display:grid;grid-template-columns:repeat(3,1fr);gap:12px">
+              <sc-for list="{{ tiers }}" as="t" hint-placeholder-count="3">
+                <div onClick="{{ t.onClick }}" style="border-radius:10px;padding:16px 14px 14px;cursor:pointer;background:{{ t.bg }};border:1px solid {{ t.bd }};transition:background 140ms var(--ss-ease),border-color 140ms var(--ss-ease)">
+                  <div style="display:flex;align-items:center;gap:7px;min-height:18px">
+                    <span style="font-size:11px;font-weight:600;letter-spacing:.11em;text-transform:uppercase;color:{{ t.nameColor }}">{{ t.name }}</span>
+                    <sc-if value="{{ t.tag }}" hint-placeholder-val="{{ false }}">
+                      <span style="font-size:9.5px;font-weight:600;letter-spacing:.09em;text-transform:uppercase;color:var(--ss-blue);border:1px solid var(--ss-blue-line);border-radius:4px;padding:1px 5px">{{ t.tag }}</span>
+                    </sc-if>
+                  </div>
+                  <div style="display:flex;align-items:baseline;gap:5px;margin-top:12px">
+                    <span style="font-family:var(--ss-mono);font-size:24px;font-weight:400;color:var(--ss-t1)">{{ t.price }}</span>
+                    <span style="font-size:11px;color:var(--ss-t5)">{{ t.per }}</span>
+                  </div>
+                  <div style="font-size:11.5px;line-height:1.45;color:var(--ss-t5);margin-top:6px;min-height:32px">{{ t.who }}</div>
+                  <div style="height:1px;background:var(--ss-line-06);margin:12px -14px"></div>
+                  <div style="display:flex;flex-direction:column;gap:7px">
+                    <sc-for list="{{ t.rows }}" as="r" hint-placeholder-count="4">
+                      <div style="display:flex;gap:7px;align-items:flex-start">
+                        <svg width="12" height="12" style="color:{{ r.color }};flex:none;margin-top:2px"><use href="{{ r.icon }}"></use></svg>
+                        <span style="font-size:11.5px;line-height:1.4;color:{{ r.text }}">{{ r.label }}</span>
+                      </div>
+                    </sc-for>
+                  </div>
+                </div>
+              </sc-for>
+            </div>
+            <div style="padding:18px 20px 20px;display:flex;align-items:center;gap:12px">
+              <div style="flex:1;font-size:11.5px;line-height:1.45;color:var(--ss-t6)">{{ tierNote }}</div>
+              <div style="display:flex;align-items:center;justify-content:center;height:32px;padding:0 16px;border-radius:6px;background:var(--ss-blue);color:#F8FAFC;font-size:12px;font-weight:600;cursor:pointer;flex:none">{{ tierCta }}</div>
+            </div>
+          </div>
+        </sc-if>
+
+        <sc-if value="{{ isCheckout }}" hint-placeholder-val="{{ false }}">
+          <div>
+            <div style="display:flex;align-items:center;gap:8px;height:40px;padding:0 10px 0 12px;border-bottom:1px solid var(--ss-line-06)">
+              <div style="width:24px;height:24px;display:flex;align-items:center;justify-content:center;border-radius:6px;color:var(--ss-t5);cursor:pointer"><svg width="14" height="14"><use href="#y-back"></use></svg></div>
+              <span style="flex:1;font-size:11px;font-weight:600;letter-spacing:.1em;text-transform:uppercase;color:var(--ss-t4)">Checkout</span>
+              <div style="width:24px;height:24px;display:flex;align-items:center;justify-content:center;border-radius:6px;color:var(--ss-t5);cursor:pointer"><svg width="14" height="14"><use href="#y-x"></use></svg></div>
+            </div>
+            <div style="padding:18px 20px 0">
+              <div style="display:flex;align-items:baseline;justify-content:space-between;gap:12px">
+                <div>
+                  <div style="font-size:15px;color:var(--ss-t1)">Single property</div>
+                  <div style="font-size:11.5px;color:var(--ss-t5);margin-top:2px">1408 Chestnut St · <span style="font-family:var(--ss-mono)">48021:34137</span></div>
+                </div>
+                <span style="font-family:var(--ss-mono);font-size:15px;color:var(--ss-t1);flex:none">$15.00</span>
+              </div>
+              <div style="height:1px;background:var(--ss-line-06);margin:14px 0"></div>
+              <div style="display:flex;flex-direction:column;gap:8px">
+                <sc-for list="{{ lineItems }}" as="l" hint-placeholder-count="3">
+                  <div style="display:flex;align-items:baseline;justify-content:space-between">
+                    <span style="font-size:12px;color:{{ l.color }}">{{ l.k }}</span>
+                    <span style="font-family:var(--ss-mono);font-size:12px;color:{{ l.color }}">{{ l.v }}</span>
+                  </div>
+                </sc-for>
+              </div>
+              <div style="height:1px;background:var(--ss-line-14);margin:14px 0"></div>
+              <div style="display:flex;align-items:baseline;justify-content:space-between">
+                <span style="font-size:13px;font-weight:600;color:var(--ss-t1)">Total today</span>
+                <span style="font-family:var(--ss-mono);font-size:20px;color:var(--ss-t1)">$16.24</span>
+              </div>
+            </div>
+            <div style="padding:18px 20px 0;display:flex;flex-direction:column;gap:9px">
+              <div style="font-size:10px;font-weight:600;letter-spacing:.13em;text-transform:uppercase;color:var(--ss-t6)">Payment</div>
+              <div style="display:flex;align-items:center;gap:9px;height:36px;padding:0 11px;border-radius:6px;border:1px solid var(--ss-line-14);background:rgba(255,255,255,.02)">
+                <svg width="15" height="15" style="color:var(--ss-t5);flex:none"><use href="#y-card"></use></svg>
+                <span style="flex:1;font-family:var(--ss-mono);font-size:12.5px;color:var(--ss-t6)">4242 4242 4242 4242</span>
+              </div>
+              <div style="display:flex;gap:9px">
+                <div style="flex:1;display:flex;align-items:center;height:36px;padding:0 11px;border-radius:6px;border:1px solid var(--ss-line-14);background:rgba(255,255,255,.02);font-family:var(--ss-mono);font-size:12.5px;color:var(--ss-t6)">MM / YY</div>
+                <div style="flex:1;display:flex;align-items:center;height:36px;padding:0 11px;border-radius:6px;border:1px solid var(--ss-line-14);background:rgba(255,255,255,.02);font-family:var(--ss-mono);font-size:12.5px;color:var(--ss-t6)">CVC</div>
+              </div>
+            </div>
+            <div style="padding:18px 20px 20px">
+              <div style="display:flex;align-items:center;justify-content:center;gap:8px;height:36px;border-radius:6px;background:var(--ss-blue);color:#F8FAFC;font-size:12.5px;font-weight:600;cursor:pointer">Pay $16.24</div>
+              <div style="display:flex;align-items:center;justify-content:center;gap:7px;margin-top:12px">
+                <svg width="12" height="12" style="color:var(--ss-t6);flex:none"><use href="#y-lock"></use></svg>
+                <span style="font-size:11px;color:var(--ss-t6)">Card handled by Stripe. Smart Site never sees the number.</span>
+              </div>
+            </div>
+          </div>
+        </sc-if>
+      </div>
+    </div>
+  </div>
+
+  <div style="display:grid;grid-template-columns:1fr 1fr;gap:24px;margin-top:52px">
+
+    <div style="border:1px solid var(--ss-line-14);border-radius:12px;background:var(--ss-ink);overflow:hidden">
+      <div style="display:flex;align-items:baseline;flex-wrap:wrap;gap:4px 12px;padding:20px 24px 0">
+        <span style="font-size:10.5px;font-weight:600;letter-spacing:.16em;text-transform:uppercase;color:var(--ss-t6)">02</span>
+        <span style="font-size:20px;font-weight:300;letter-spacing:-.02em;color:var(--ss-t1)">Price row</span>
+        <span style="font-family:var(--ss-mono);font-size:11px;color:var(--ss-t6)">commerce/CheckRow.tsx</span>
+      </div>
+      <p style="margin:8px 24px 20px;font-size:12.5px;line-height:1.55;color:var(--ss-t4)">A tier states what it does not include as clearly as what it does. An excluded row is slate with a slash, never a greyed check.</p>
+      <div style="padding:0 24px 24px;display:flex;flex-direction:column;gap:10px">
+        <sc-for list="{{ rowKinds }}" as="r" hint-placeholder-count="4">
+          <div style="display:flex;align-items:center;gap:12px;padding-bottom:10px;border-bottom:1px solid var(--ss-line-06)">
+            <div style="display:flex;gap:7px;align-items:center;width:210px;flex:none">
+              <svg width="13" height="13" style="color:{{ r.color }};flex:none"><use href="{{ r.icon }}"></use></svg>
+              <span style="font-size:12px;color:{{ r.text }}">{{ r.label }}</span>
+            </div>
+            <span style="font-size:11.5px;line-height:1.45;color:var(--ss-t5)">{{ r.note }}</span>
+          </div>
+        </sc-for>
+      </div>
+    </div>
+
+    <div style="border:1px solid var(--ss-line-14);border-radius:12px;background:var(--ss-ink);overflow:hidden">
+      <div style="display:flex;align-items:baseline;flex-wrap:wrap;gap:4px 12px;padding:20px 24px 0">
+        <span style="font-size:10.5px;font-weight:600;letter-spacing:.16em;text-transform:uppercase;color:var(--ss-t6)">03</span>
+        <span style="font-size:20px;font-weight:300;letter-spacing:-.02em;color:var(--ss-t1)">After the money</span>
+        <span style="font-family:var(--ss-mono);font-size:11px;color:var(--ss-t6)">commerce/PayResult.tsx</span>
+      </div>
+      <p style="margin:8px 24px 20px;font-size:12.5px;line-height:1.55;color:var(--ss-t4)">Three outcomes. Success returns you to the parcel, not to a receipt page. A decline names what the bank said.</p>
+      <div style="padding:0 24px 24px;display:flex;flex-direction:column;gap:10px">
+        <sc-for list="{{ outcomes }}" as="o" hint-placeholder-count="3">
+          <div style="border-radius:8px;padding:13px 14px;background:{{ o.bg }};border:1px solid {{ o.bd }}">
+            <div style="display:flex;align-items:center;gap:8px">
+              <sc-if value="{{ o.spinner }}" hint-placeholder-val="{{ false }}">
+                <span style="width:13px;height:13px;border-radius:50%;border:1.6px solid var(--ss-line-28);border-top-color:var(--ss-blue);animation:ss-spin 700ms linear infinite;flex:none"></span>
+              </sc-if>
+              <sc-if value="{{ o.icon }}" hint-placeholder-val="{{ false }}">
+                <svg width="14" height="14" style="color:{{ o.fg }};flex:none"><use href="{{ o.icon }}"></use></svg>
+              </sc-if>
+              <span style="font-size:12.5px;font-weight:600;color:{{ o.fg }}">{{ o.title }}</span>
+            </div>
+            <div style="font-size:11.5px;line-height:1.5;color:var(--ss-t5);margin-top:5px">{{ o.body }}</div>
+            <sc-if value="{{ o.action }}" hint-placeholder-val="{{ false }}">
+              <div style="display:inline-flex;align-items:center;height:26px;padding:0 10px;border-radius:6px;border:1px solid var(--ss-blue-line);background:var(--ss-blue-bg);color:var(--ss-blue);font-size:11.5px;font-weight:600;margin-top:10px;cursor:pointer">{{ o.action }}</div>
+            </sc-if>
+          </div>
+        </sc-for>
+      </div>
+    </div>
+  </div>
+
+  <div style="margin-top:44px;padding:22px 24px;border:1px solid var(--ss-line-14);border-radius:12px;background:var(--ss-ink)">
+    <div style="font-size:10.5px;font-weight:600;letter-spacing:.16em;text-transform:uppercase;color:var(--ss-t6);margin-bottom:14px">04 — Commerce rules</div>
+    <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:22px">
+      <sc-for list="{{ rules }}" as="r" hint-placeholder-count="4">
+        <div>
+          <div style="font-size:13px;font-weight:600;color:var(--ss-t2);margin-bottom:5px">{{ r.t }}</div>
+          <div style="font-size:12px;line-height:1.5;color:var(--ss-t5)">{{ r.d }}</div>
+        </div>
+      </sc-for>
+    </div>
+  </div>
+</div>
+
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props="{&quot;$preview&quot;:{&quot;width&quot;:1600,&quot;height&quot;:1700}}">
+class Component extends DCLogic {
+  state = { step: 'cold', tier: null };
+
+  renderVals() {
+    const step = this.state.step;
+    const STEPS = [['cold', 'Cold open'], ['auth', 'Sign in'], ['pricing', 'Pricing'], ['checkout', 'Checkout']];
+    const yes = label => ({ label, icon: '#y-check', color: 'var(--ss-ok)', text: 'var(--ss-t3)' });
+    const no = label => ({ label, icon: '#y-slash', color: 'var(--ss-slate)', text: 'var(--ss-t6)' });
+
+    const TIERS = [
+      { id: 'single', name: 'Single', price: '$15', per: 'one time', tag: null, who: 'One parcel, everything known about it.', rows: [yes('Full research'), yes('Every cited record'), yes('PDF exports'), no('Terrain mesh'), no('Saved history')] },
+      { id: 'pro', name: 'Pro', price: '$49', per: 'per month', tag: 'Common', who: 'Unlimited parcels, saved and shareable.', rows: [yes('Unlimited parcels'), yes('Saved properties'), yes('Share links'), yes('PDF exports'), no('Terrain mesh')] },
+      { id: 'studio', name: 'Studio', price: '$199', per: 'per month', tag: null, who: 'Everything, plus geometry you can model against.', rows: [yes('Everything in Pro'), yes('Terrain mesh · OBJ'), yes('DXF site geometry'), yes('API access'), yes('Priority records')] },
+    ];
+
+    const picked = this.state.tier;
+    const tiers = TIERS.map(t => {
+      const on = picked === t.id;
+      return {
+        ...t,
+        bg: on ? 'rgba(59,130,246,.10)' : 'rgba(255,255,255,.02)',
+        bd: on ? 'var(--ss-blue)' : 'var(--ss-line-14)',
+        nameColor: on ? 'var(--ss-blue)' : 'var(--ss-t3)',
+        onClick: () => this.setState({ tier: t.id }),
+      };
+    });
+    const pickedTier = TIERS.find(t => t.id === picked);
+
+    return {
+      steps: STEPS.map(([id, label]) => ({
+        label, id,
+        bg: step === id ? 'var(--ss-blue-bg)' : 'transparent',
+        fg: step === id ? 'var(--ss-blue)' : 'var(--ss-t4)',
+        bd: step === id ? 'var(--ss-blue-line)' : 'var(--ss-line-28)',
+        onClick: () => this.setState({ step: id }),
+      })),
+      isCold: step === 'cold', isAuth: step === 'auth', isPricing: step === 'pricing', isCheckout: step === 'checkout',
+      card: { w: step === 'pricing' ? '660px' : step === 'cold' ? '460px' : '400px' },
+      tryThese: ['Bastrop, TX', '48021:34137', '30.1105, -97.3153'],
+      tiers,
+      tierNote: pickedTier ? pickedTier.who : 'Pick a tier to continue. Nothing is selected for you.',
+      tierCta: pickedTier ? 'Continue with ' + pickedTier.name : 'Continue',
+      lineItems: [
+        { k: 'Research credit', v: 'included', color: 'var(--ss-t5)' },
+        { k: 'Exports', v: 'included', color: 'var(--ss-t5)' },
+        { k: 'Sales tax · TX', v: '$1.24', color: 'var(--ss-t3)' },
+      ],
+      rowKinds: [
+        { label: 'Included', icon: '#y-check', color: 'var(--ss-ok)', text: 'var(--ss-t3)', note: 'Green check, t3 label. The default row.' },
+        { label: 'Not included', icon: '#y-slash', color: 'var(--ss-slate)', text: 'var(--ss-t6)', note: 'Slate slash, t6 label. Never a greyed-out check.' },
+        { label: 'Higher tier only', icon: '#y-lock', color: 'var(--ss-warn)', text: 'var(--ss-t4)', note: 'Amber lock. It names the tier that has it.' },
+        { label: 'Not built yet', icon: '#y-alert', color: 'var(--ss-t6)', text: 'var(--ss-t6)', note: 'Never sold before it ships, and never listed as included.' },
+      ],
+      outcomes: [
+        { title: 'Charging your card', body: 'This takes a few seconds. Do not close the window.', fg: 'var(--ss-t2)', bg: 'rgba(255,255,255,.02)', bd: 'var(--ss-line-14)', spinner: true, icon: null, action: null },
+        { title: 'Paid — 1408 Chestnut St is unlocked', body: 'Research is running now. The brief fills in as each source answers.', fg: 'var(--ss-ok)', bg: 'rgba(16,185,129,.07)', bd: 'rgba(16,185,129,.3)', spinner: false, icon: '#y-check', action: 'Back to the parcel' },
+        { title: 'Your bank declined the card', body: 'The bank gave insufficient funds as the reason. Nothing was charged and the parcel is unchanged.', fg: 'var(--ss-err)', bg: 'rgba(239,68,68,.06)', bd: 'rgba(239,68,68,.3)', spinner: false, icon: '#y-alert', action: 'Try another card' },
+      ],
+      rules: [
+        { t: 'Prices are mono', d: 'Every figure a person would read aloud as a number sets in mono, at one size per surface.' },
+        { t: 'Nothing pre-selected', d: 'No tier is highlighted as recommended until the customer picks it. Common is a fact, not a nudge.' },
+        { t: 'Exclusions are stated', d: 'A tier lists what it will not do beside what it will, in the same list, at the same size.' },
+        { t: 'Success returns you', d: 'Paying puts you back on the parcel with research running, not on a receipt page.' },
+      ],
+    };
+  }
+}
+</script>
+</body>
+</html>

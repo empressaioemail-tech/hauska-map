@@ -55,14 +55,14 @@ const MUTED = PE.muted;
 const AMBER = PE.warning;
 const TEXT = PE.text;
 const ACCENT = PE.accent;
-const FLAG = "#f87171";
+const FLAG = PE.err;
 
 /**
  * Dark-theme the Property A/B dropdowns: the native <option> menu paints white
  * unless the options carry an explicit background/color, so the open list gets
  * the dock's solid dark card bg + light text to match the rest of the app.
  */
-const OPTION_BG = "#0d1117";
+const OPTION_BG = PE.ink;
 const OPTION_STYLE: React.CSSProperties = { background: OPTION_BG, color: TEXT };
 
 /**
@@ -211,7 +211,7 @@ export function CompareView({
       {phase.kind === "ready" && (
         <div style={{ display: "flex", gap: 8, marginBottom: 10 }}>
           {(["a", "b"] as const).map((slot) => (
-            <label key={slot} style={{ flex: 1, fontSize: 10.5, color: MUTED }}>
+            <label key={slot} style={{ flex: 1, fontSize: 11.5, color: MUTED }}>
               {slot === "a" ? "Property A" : "Property B"}
               <select
                 data-testid={`compare-select-${slot}`}
@@ -370,7 +370,7 @@ function CompareTable({
                 {labelFor(parcelNodeId)}
               </div>
             )}
-            <div style={{ fontSize: 10, color: MUTED }}>
+            <div style={{ fontSize: 11.5, color: MUTED }}>
               {parcelNodeId}
               {onView && (
                 <>
@@ -436,7 +436,7 @@ function CompareTable({
               {noteNotices?.[parcelNodeId] && (
                 <p
                   data-testid={`compare-notes-notice-${slot}`}
-                  style={{ margin: "4px 0 0", fontSize: 10.5, color: AMBER }}
+                  style={{ margin: "5px 0 0", fontSize: 11.5, color: AMBER }}
                 >
                   {noteNotices[parcelNodeId]}
                 </p>
@@ -527,7 +527,7 @@ function CompareTable({
                           {cell.source && (
                             <span
                               data-testid="compare-cell-source"
-                              style={{ display: "block", fontSize: 9.5, color: MUTED }}
+                              style={{ display: "block", fontSize: 10, color: MUTED }}
                             >
                               {cell.source}
                             </span>

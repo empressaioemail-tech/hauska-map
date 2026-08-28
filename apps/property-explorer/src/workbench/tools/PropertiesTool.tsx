@@ -286,12 +286,21 @@ export function PropertiesList({
             <div
               key={row.parcelNodeId}
               data-testid="properties-row"
+              data-active={
+                row.parcelNodeId === activeParcelNodeId ? "1" : undefined
+              }
               style={{
                 display: "flex",
                 alignItems: "center",
-                gap: 8,
-                padding: "6px 0",
-                borderBottom: "1px solid rgba(154,166,178,0.15)",
+                gap: 9,
+                padding: "8px 8px 8px 0",
+                borderBottom: `1px solid ${PE.line06}`,
+                borderLeft: `3px solid ${
+                  row.parcelNodeId === activeParcelNodeId
+                    ? PE.blue
+                    : "transparent"
+                }`,
+                paddingLeft: 9,
               }}
             >
               {/* OPEN — the row opens the dossier detail AND navigates the map. */}
@@ -308,20 +317,21 @@ export function PropertiesList({
                   color: TEXT,
                   cursor: "pointer",
                   padding: 0,
-                  fontSize: 11.5,
+                  fontSize: 12.5,
                   lineHeight: 1.4,
                 }}
               >
-                <span style={{ fontWeight: 600 }}>{title}</span>
+                <span style={{ fontWeight: 600, color: PE.t1 }}>{title}</span>
                 {status && (
                   <span
                     data-testid="properties-status-chip"
                     style={{
-                      marginLeft: 6,
-                      fontSize: 9,
-                      fontWeight: 700,
-                      padding: "1px 6px",
-                      borderRadius: 999,
+                      marginLeft: 7,
+                      display: "inline-block",
+                      fontSize: 11,
+                      fontWeight: 600,
+                      padding: "1px 7px",
+                      borderRadius: PE.rChip,
                       color: pinAccent(status),
                       border: `1px solid ${pinAccent(status)}`,
                       verticalAlign: "middle",
@@ -330,7 +340,15 @@ export function PropertiesList({
                     {STATUS_LABELS[status]}
                   </span>
                 )}
-                <span style={{ display: "block", fontSize: 10, color: MUTED }}>
+                <span
+                  style={{
+                    display: "block",
+                    marginTop: 3,
+                    fontFamily: PE.mono,
+                    fontSize: 11,
+                    color: PE.t6,
+                  }}
+                >
                   {title === row.parcelNodeId ? "parcel" : row.parcelNodeId}
                   {date ? ` · saved ${date}` : ""}
                   {dossierBits.length > 0 ? ` · ${dossierBits.join(" · ")}` : ""}

@@ -7,11 +7,11 @@ import {
   type CheckoutPurchase,
 } from "../lib/checkoutOrigin";
 import { PE_PRICING } from "../lib/pricing";
+import { PE } from "../styles/pe-chrome";
+import { Button } from "../components/Button";
 
-const FONT =
-  "var(--font-body, ui-sans-serif, system-ui, -apple-system, 'Segoe UI', sans-serif)";
-const DISPLAY =
-  "var(--font-display, ui-sans-serif, system-ui, -apple-system, 'Segoe UI', sans-serif)";
+const FONT = PE.ui;
+const DISPLAY = PE.ui;
 
 export function successCardTitle(
   status: "confirmed" | "timeout",
@@ -63,10 +63,12 @@ export function CheckoutSuccessCard({
     originLabel !== undefined ? originLabel : readCheckoutOrigin()?.label ?? null;
   const title = successCardTitle(status, resolvedPurchase);
   const body = successCardBody(status, resolvedPurchase, resolvedOrigin);
+  // Paid is green, confirming-failed is red. The card NEVER says paid on a
+  // timeout — the register is the whole message here.
   const border =
     status === "timeout"
-      ? "0.5px solid rgba(239,68,68,0.45)"
-      : "0.5px solid rgba(16,185,129,0.35)";
+      ? "1px solid rgba(239,68,68,.28)"
+      : "1px solid rgba(16,185,129,.30)";
 
   return (
     <div
@@ -81,16 +83,16 @@ export function CheckoutSuccessCard({
         zIndex: 40,
         width: 470,
         maxWidth: "calc(100vw - 32px)",
-        borderRadius: 12,
-        background: "rgba(17,21,28,0.96)",
+        borderRadius: PE.rModal,
+        background: PE.modalBg,
         border,
-        boxShadow: "0 24px 80px rgba(0,0,0,0.55)",
-        padding: "24px 22px",
+        boxShadow: PE.shModal,
+        padding: "20px 20px 18px",
         display: "flex",
         flexDirection: "column",
-        gap: 15,
+        gap: 13,
         fontFamily: FONT,
-        color: "#e5e7eb",
+        color: PE.t3,
       }}
     >
       <div style={{ display: "flex", alignItems: "center", gap: 11 }}>
@@ -102,16 +104,16 @@ export function CheckoutSuccessCard({
             borderRadius: "50%",
             background:
               status === "timeout"
-                ? "rgba(239,68,68,0.15)"
-                : "rgba(16,185,129,0.15)",
+                ? "rgba(239,68,68,.10)"
+                : "rgba(16,185,129,.10)",
             border:
               status === "timeout"
-                ? "1px solid rgba(239,68,68,0.5)"
-                : "1px solid rgba(16,185,129,0.5)",
+                ? "1px solid rgba(239,68,68,.30)"
+                : "1px solid rgba(16,185,129,.30)",
             display: "flex",
             alignItems: "center",
             justifyContent: "center",
-            color: status === "timeout" ? "#EF4444" : "#10B981",
+            color: status === "timeout" ? PE.err : PE.ok,
             fontSize: 13,
           }}
         >
@@ -119,60 +121,47 @@ export function CheckoutSuccessCard({
         </div>
         <span
           data-testid="checkout-success-title"
-          style={{ fontFamily: DISPLAY, fontWeight: 700, fontSize: 19 }}
+          style={{
+            fontFamily: DISPLAY,
+            fontWeight: 400,
+            fontSize: 19,
+            letterSpacing: "-.01em",
+            color: status === "timeout" ? PE.err : PE.ok,
+          }}
         >
           {title}
         </span>
       </div>
       <div
         data-testid="checkout-success-receipt"
-        style={{ fontSize: 13, color: "#c6d0dc", lineHeight: 1.55 }}
+        style={{ fontSize: 12.5, color: PE.t3, lineHeight: 1.55 }}
       >
         {body}
       </div>
       {resolvedOrigin && status === "confirmed" ? (
-        <div data-testid="checkout-success-job" style={{ fontSize: 12.5, color: "#94A3B8" }}>
+        <div data-testid="checkout-success-job" style={{ fontSize: 11.5, color: PE.t5 }}>
           Queued: {resolvedOrigin}
         </div>
       ) : null}
       <div style={{ display: "flex", gap: 10 }}>
-        <button
+        <Button
+          variant="primary"
+          fullWidth
           type="button"
           data-testid="checkout-success-open-reports"
           onClick={onOpenReports}
-          style={{
-            flex: 1,
-            height: 42,
-            borderRadius: 6,
-            background: "#3B82F6",
-            border: "none",
-            fontSize: 13.5,
-            fontWeight: 700,
-            color: "#F8FAFC",
-            cursor: "pointer",
-            fontFamily: FONT,
-          }}
+          style={{ flex: 1 }}
         >
           Open reports
-        </button>
-        <button
+        </Button>
+        <Button
+          variant="secondary"
           type="button"
           data-testid="checkout-success-billing"
           onClick={onBilling}
-          style={{
-            height: 42,
-            padding: "0 16px",
-            borderRadius: 6,
-            border: "1px solid rgba(59,130,246,0.4)",
-            background: "rgba(59,130,246,0.08)",
-            fontSize: 13.5,
-            color: "#e5e7eb",
-            cursor: "pointer",
-            fontFamily: FONT,
-          }}
         >
           Billing
-        </button>
+        </Button>
       </div>
       {onDismiss ? (
         <button
@@ -183,7 +172,7 @@ export function CheckoutSuccessCard({
             alignSelf: "flex-start",
             background: "none",
             border: "none",
-            color: "#94A3B8",
+            color: PE.t5,
             fontSize: 11.5,
             cursor: "pointer",
             padding: 0,
