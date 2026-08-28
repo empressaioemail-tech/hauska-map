@@ -24,11 +24,12 @@ const stack = (open: string[], folded: string[] = []): DockStack => ({
 });
 
 describe("tapDock — the rail bubble", () => {
-  it("opens a tool EXPANDED and leaves every other dock untouched", () => {
+  it("opens a tool EXPANDED at the TOP, leaving every other dock untouched", () => {
     let s = tapDock(EMPTY_STACK, "brief");
     expect(s).toEqual(stack(["brief"]));
     s = tapDock(s, "chat");
-    expect(s.open).toEqual(["brief", "chat"]);
+    // Newest FIRST: you must see what you just clicked, not scroll for it.
+    expect(s.open).toEqual(["chat", "brief"]);
     expect(s.folded).toEqual([]);
     expect(isExpandedIn(s, "brief")).toBe(true);
     expect(isExpandedIn(s, "chat")).toBe(true);
@@ -95,7 +96,7 @@ describe("closeOneDock — the close control", () => {
 describe("syncStack — the app shell still owns one openToolId", () => {
   it("the shell opening a tool adds it WITHOUT folding anything", () => {
     const after = syncStack(stack(["brief", "chat"]), "reports");
-    expect(after.open).toEqual(["brief", "chat", "reports"]);
+    expect(after.open).toEqual(["reports", "brief", "chat"]);
     expect(after.folded).toEqual([]);
   });
 
@@ -115,14 +116,14 @@ describe("syncStack — the app shell still owns one openToolId", () => {
 });
 
 describe("newestOpen — what the shell tracks", () => {
-  it("is the most recently opened tool", () => {
-    expect(newestOpen(stack(["brief", "chat"]))).toBe("chat");
+  it("is the most recently opened tool, which is index 0", () => {
+    expect(newestOpen(stack(["chat", "brief"]))).toBe("chat");
   });
   it("is null on an empty column", () => {
     expect(newestOpen(EMPTY_STACK)).toBeNull();
   });
   it("does not care whether that tool is folded", () => {
-    expect(newestOpen(stack(["brief", "chat"], ["chat"]))).toBe("chat");
+    expect(newestOpen(stack(["chat", "brief"], ["chat"]))).toBe("chat");
   });
 });
 
@@ -143,7 +144,8 @@ describe("THE GOVERNING RULE: open means open", () => {
     for (const id of ["brief", "chat", "reports", "properties"]) {
       s = tapDock(s, id);
     }
-    expect(s.open).toEqual(["brief", "chat", "reports", "properties"]);
+    // Newest first, so the list reads in the order they appeared on screen.
+    expect(s.open).toEqual(["properties", "reports", "chat", "brief"]);
     expect(s.folded).toEqual([]);
     for (const id of s.open) expect(isExpandedIn(s, id)).toBe(true);
   });

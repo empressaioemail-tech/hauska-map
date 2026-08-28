@@ -19,7 +19,14 @@
 // set in Workbench.tsx: the chassis owns layout, the rule owns the decision.
 
 export interface DockStack {
-  /** Every open tool id, OLDEST FIRST. Arrival order, not rail order. */
+  /**
+   * Every open tool id, NEWEST FIRST — which is also render order, so the tool
+   * you just opened appears at the TOP of the column where you are looking.
+   *
+   * It was oldest-first, appending to the bottom. In a column tall enough to
+   * scroll, that put the thing you just clicked below the fold: you clicked a
+   * bubble and nothing appeared to happen (operator, 2026-08-28).
+   */
   open: readonly string[];
   /** Which of the open tools are folded to their header. A user choice. */
   folded: readonly string[];
@@ -27,9 +34,10 @@ export interface DockStack {
 
 export const EMPTY_STACK: DockStack = { open: [], folded: [] };
 
-/** The newest still-open tool — what the app shell tracks as `openToolId`. */
+/** The newest still-open tool — what the app shell tracks as `openToolId`.
+ *  Index 0, because the list is newest-first. */
 export function newestOpen(stack: DockStack): string | null {
-  return stack.open.length > 0 ? stack.open[stack.open.length - 1] : null;
+  return stack.open.length > 0 ? stack.open[0] : null;
 }
 
 /** Expanded = open and not folded. Derived, never stored. */
@@ -48,7 +56,8 @@ export function isExpandedIn(stack: DockStack, id: string): boolean {
  */
 export function tapDock(stack: DockStack, tapped: string): DockStack {
   if (stack.open.includes(tapped)) return closeOneDock(stack, tapped);
-  return { open: [...stack.open, tapped], folded: stack.folded };
+  // NEWEST FIRST — at the TOP of the column, where the user is looking.
+  return { open: [tapped, ...stack.open], folded: stack.folded };
 }
 
 /**
@@ -94,7 +103,7 @@ export function syncStack(
 ): DockStack {
   if (openToolId === null) return EMPTY_STACK;
   if (!stack.open.includes(openToolId)) {
-    return { open: [...stack.open, openToolId], folded: stack.folded };
+    return { open: [openToolId, ...stack.open], folded: stack.folded };
   }
   return expandDock(stack, openToolId);
 }
