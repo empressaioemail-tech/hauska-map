@@ -23,9 +23,20 @@ export const SMART_SITE_CONNECT_HOST = "mcp.smartsite.cloud";
 /** Full connector URL copied into Claude / Cursor. */
 export const SMART_SITE_CONNECT_URL = `https://${SMART_SITE_CONNECT_HOST}/mcp`;
 
-/** Claude moved Connectors from Settings to Customize (2026-08). */
+/**
+ * Deep link to Claude's Connectors pane.
+ *
+ * `/settings/customize/connectors` did NOT work — it lands on the General
+ * settings pane (operator, 2026-08-28). Claude's settings is a MODAL with hash
+ * routing, not a set of paths: the General pane shows as
+ * `claude.ai/new#settings/general`, observed directly. The Connectors slug is
+ * INFERRED from that pattern and has not been confirmed by opening it.
+ *
+ * If this still lands on the wrong pane, the fix is to read the URL Claude
+ * shows when Connectors is open and paste it here — not to guess a third form.
+ */
 export const CLAUDE_CUSTOMIZE_CONNECTORS_URL =
-  "https://claude.ai/settings/customize/connectors";
+  "https://claude.ai/new#settings/connectors";
 
 export type UseInAiVendorId = "claude" | "chatgpt" | "cursor" | "copilot";
 
