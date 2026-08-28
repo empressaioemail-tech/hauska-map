@@ -104,13 +104,23 @@ export function workbenchClusterStyle(isMobile: boolean): CSSProperties {
   // their own: the capsule owns the edge, so the rail reads as a single object
   // instead of a column of seven.
   //
-  // Vertically CENTRED, per the kit. It no longer has to dodge the MapLibre
-  // zoom control at top-right because it no longer starts at the top.
+  // TOP-ANCHORED, DIRECTLY UNDER THE MAPLIBRE ZOOM CONTROL, and sharing a
+  // centre line with it (operator, 2026-08-27 — back where it sat before the
+  // kit-04 pass moved it to the middle).
+  //
+  // The geometry: the capsule is 48 wide (34 bubble + 2x6 padding + 2x1
+  // border) at right:18, so its centre sits at right:42. The zoom control is
+  // pulled to the SAME centre in pe-tokens.css rather than the capsule being
+  // pushed out to meet it — centring a 48px capsule under a 32px control at
+  // the default right:10 would have left the capsule at right:1, flush to the
+  // viewport edge. The control moves 16px; the rail keeps a sane inset.
+  //
+  // top:110 clears that control (top:10 + three 30px buttons + borders = 102)
+  // with the same 8px channel every other pair of floating things uses.
   return {
     position: "absolute",
-    top: "50%",
+    top: 110,
     right: 18,
-    transform: "translateY(-50%)",
     zIndex: MAP_PANEL_Z.toolset,
     display: "flex",
     flexDirection: "column",

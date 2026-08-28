@@ -218,6 +218,14 @@
    This is CSS in PE's own stylesheet, deliberately: packages/map-renderer is
    shared with command-center, and a restyle of one product must not repaint
    another product's map. */
+/* The zoom control shares a CENTRE LINE with the tool rail directly below it
+   (operator, 2026-08-27). The rail capsule is 48 wide at right:18, so its
+   centre is right:42; the control is 32 wide, so it needs right:26 to match.
+   The control moves rather than the rail because centring a 48px capsule
+   under a control at the default right:10 would have pinned the capsule at
+   right:1, flush to the viewport edge. */
+.maplibregl-ctrl-top-right .maplibregl-ctrl { margin-right: 26px !important }
+
 .maplibregl-ctrl-group {
   background: var(--ss-ink-92) !important;
   border: 1px solid var(--ss-line-14) !important;
