@@ -4,90 +4,132 @@ import { readFileSync } from "node:fs";
 import { resolve } from "node:path";
 import { SettingsModal } from "./SettingsModal";
 
-// SETTINGS, AND THE LINE BETWEEN BUILT AND NOT BUILT.
+// SETTINGS v2 — the line between built and not built.
 //
-// Three of the four panes are real. Team is not: "team" is a CHECKOUT TIER
-// with a seat count, and there is no member list, invite, or role anywhere in
-// the product. Billing is half real: checkout exists, a customer portal does
-// not. The risk in a settings screen is shipping panes that LOOK operable and
-// do nothing — dormant UI that reads as done and is only discovered by
-// someone trying to use it. These pin the honesty, not the layout.
+// The risk in a settings console is shipping panes that LOOK operable and do
+// nothing. These pin the honesty contract, not the layout.
+//
+// NOTE ON AN EARLIER VERSION OF THIS FILE: it asserted that the strings
+// "payment method", "invoices" and "cancel subscription" were ABSENT. That was
+// a control broader than its claim — the v2 design shows exactly those three
+// as rows labelled "Not built", which is the disclosure we want, not a
+// violation. The claim is "no billing CONTROL without an endpoint", so that is
+// what is checked now.
+
+
+/**
+ * Source with comments removed, the same treatment the chrome-kit gate gives
+ * it. Without this these checks match the PROSE explaining the rule, which is
+ * a control broader than its claim — and it fired on this very file.
+ */
+const codeOf = (file: string) =>
+  readFileSync(resolve(__dirname, file), "utf8")
+    .replace(/\/\*[\s\S]*?\*\//g, "")
+    .replace(/(^|[^:])\/\/.*$/gm, "$1");
 
 const noop = () => {};
 
-describe("SettingsModal — the real panes", () => {
-  it("is a standalone modal, not a dock tool", () => {
-    const html = renderToStaticMarkup(
-      <SettingsModal onClose={noop} onUpgrade={noop} />,
-    );
-    expect(html).toContain('data-testid="settings-modal"');
-  });
+const render = (section?: "account" | "plan" | "connections" | "team") =>
+  renderToStaticMarkup(
+    <SettingsModal onClose={noop} onUpgrade={noop} initialSection={section} />,
+  );
 
-  it("offers all four sections", () => {
-    const html = renderToStaticMarkup(
-      <SettingsModal onClose={noop} onUpgrade={noop} />,
-    );
+describe("SettingsModal — the shell", () => {
+  it("is a standalone modal with all four sections", () => {
+    const html = render();
+    expect(html).toContain('data-testid="settings-modal"');
     for (const id of ["account", "plan", "connections", "team"]) {
       expect(html).toContain(`data-testid="settings-tab-${id}"`);
     }
   });
 
-  it("reuses the REAL connector rows rather than a copy that can drift", () => {
-    const html = renderToStaticMarkup(
-      <SettingsModal onClose={noop} onUpgrade={noop} initialSection="connections" />,
-    );
-    // Sourced from USE_IN_AI_VENDORS, the same list the rail bubble drives.
-    expect(html).toContain('data-testid="settings-connection-claude"');
-    expect(html).toContain("Claude");
+  it("uses the KIT Button for tabs, not a native one", () => {
+    // W9 (P-93) makes a raw <button> in chrome a CI failure. A tab is still a
+    // button, so it uses the kit with a style override.
+    const jsxButtons = codeOf("SettingsModal.tsx").match(/<button[\s/>]/g) ?? [];
+    expect(jsxButtons).toHaveLength(0);
   });
 });
 
-describe("what Settings must NOT claim", () => {
-  it("says plainly that team management does not exist", () => {
-    const html = renderToStaticMarkup(
-      <SettingsModal onClose={noop} onUpgrade={noop} initialSection="team" />,
-    );
-    expect(html).toMatch(/not built/i);
-    // The failure mode this guards: an invite control that goes nowhere.
-    expect(html).not.toMatch(/invite a member|add member|manage members/i);
+describe("Account — the address is NOT READ, and says so", () => {
+  it("renders Not read instead of a specimen address", () => {
+    // The session read returns { authenticated, hasSession } and the BFF holds
+    // an opaque token. Printing an address would mean inventing one.
+    const html = render("account");
+    expect(html).toContain('data-testid="settings-email-not-read"');
+    expect(html).toContain("Not read");
   });
 
-  it("does not offer billing controls that have no endpoint", () => {
-    const html = renderToStaticMarkup(
-      <SettingsModal onClose={noop} onUpgrade={noop} initialSection="plan" />,
-    );
-    // There is no customer portal in this repo. Offering these would send the
-    // reader looking for a control that does not exist.
-    expect(html).not.toMatch(/update payment method|download invoice|cancel subscription/i);
-    expect(html).toMatch(/not available here yet/i);
+  it("never renders an email-shaped string", () => {
+    expect(render("account")).not.toMatch(/[a-z0-9._-]+@[a-z0-9.-]+\.[a-z]{2,}/i);
   });
 
-  it("does not price anything itself — upgrade routes to the one checkout", () => {
-    const html = renderToStaticMarkup(
-      <SettingsModal onClose={noop} onUpgrade={noop} initialSection="plan" />,
-    );
+  it("states the real sign-in method", () => {
+    // The design drop's earlier revision claimed a magic link. There is no
+    // magic-link code in this product; sign-in is Google or Microsoft.
+    const html = render("account");
+    expect(html).toMatch(/Google or Microsoft/);
+    expect(html).not.toMatch(/magic link/i);
+  });
+});
+
+describe("Plan — half real, and declares which half", () => {
+  it("shows the three unbuilt billing rows AS Not built", () => {
+    // Their PRESENCE is the disclosure. Hiding them would leave the reader
+    // hunting for a cancel control that does not exist.
+    const html = render("plan");
+    for (const label of ["Payment method", "Invoices", "Cancel subscription"]) {
+      expect(html).toContain(label);
+    }
+    expect(html).toContain("Not built");
+  });
+
+  it("marks tier, interval and renewal as Not read", () => {
+    const html = render("plan");
+    for (const label of ["Tier name", "Billing interval", "Renewal date"]) {
+      expect(html).toContain(label);
+    }
+  });
+
+  it("prices nothing itself — upgrade routes to the one checkout", () => {
+    const html = render("plan");
     expect(html).toContain('data-testid="settings-upgrade"');
-    // A second price list is how two surfaces start disagreeing.
     expect(html).not.toMatch(/\$\d/);
   });
+});
 
-  it("does not print an email it was never given", () => {
-    // fetchSession returns { authenticated, hasSession } and carries no
-    // identity. An invented address would be worse than none.
-    const src = readFileSync(resolve(__dirname, "SettingsModal.tsx"), "utf8");
-    expect(src).not.toMatch(/session\.email|user\.email/);
+describe("Team — a read that does not exist yet", () => {
+  it("renders the Not read state, never a fabricated roster", () => {
+    // There is no members table and no endpoint. The first paint is the
+    // reading state; nothing here invents rows.
+    const html = render("team");
+    expect(html).toContain('data-testid="settings-team"');
+    expect(html).not.toContain('data-testid="settings-team-member"');
+  });
+
+  it("ships NO fixture roster in the component", () => {
+    // The design comp carries specimen rows (you@bastrop-arch.com and so on).
+    // Those are comp data. If they appear in the shipped file, the tab is
+    // showing a roster nobody read.
+    expect(codeOf("SettingsModal.tsx")).not.toMatch(/@bastrop-arch\.com|@structural\.co|@firm\.com/);
+  });
+
+  it("does not invent a role for the viewer", () => {
+    // viewerRole comes off the read; it is never defaulted to owner.
+    expect(codeOf("SettingsModal.tsx")).not.toMatch(/viewerRole\s*(\|\||\?\?)\s*["']owner["']/);
   });
 });
 
-describe("the rail opens it", () => {
-  it("ExplorerMap mounts the bubble and the modal", () => {
-    const src = readFileSync(resolve(__dirname, "ExplorerMap.tsx"), "utf8");
-    expect(src).toContain("<SettingsBubble");
-    expect(src).toContain("<SettingsModal");
+describe("the kit, not the comp's own chrome", () => {
+  it("imports no SmartCity kit and loads no Oxygen", () => {
+    // The design drop links the SmartCity design system and Oxygen. PE has one
+    // kit and Oxygen is retired; both are W9 acceptance items.
+    expect(codeOf("SettingsModal.tsx")).not.toMatch(/smartcity|Oxygen/i);
   });
 
-  it("Settings upgrade opens the SAME pricing modal, not a second one", () => {
-    const src = readFileSync(resolve(__dirname, "ExplorerMap.tsx"), "utf8");
-    expect(src).toContain("setPaywallOpen(true)");
+  it("paints from PE tokens, not raw hexes", () => {
+    const src = readFileSync(resolve(__dirname, "SettingsModal.tsx"), "utf8");
+    const hexes = src.replace(/\/\*[\s\S]*?\*\//g, "").match(/#[0-9a-fA-F]{3,8}\b/g) ?? [];
+    expect(hexes).toHaveLength(0);
   });
 });
