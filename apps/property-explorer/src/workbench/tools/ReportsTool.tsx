@@ -19,7 +19,6 @@ import {
 import { Button } from "../../components/Button";
 import { PE } from "../../styles/pe-chrome";
 import { DownloadFileButton } from "../../components/DownloadFileButton";
-import { StateNote } from "../../components/StateNote";
 import { recordPeGtmEvent } from "../../lib/gtmClient";
 import { studioGrantedForEntitlement } from "../../lib/entitlementClient";
 import { usePropertyEntitlement } from "../../lib/usePropertyEntitlement";
@@ -41,7 +40,6 @@ import {
   RECORDS_PAYWALL_MESSAGE,
   RecordsRequestSection,
 } from "./RecordsRequestSection";
-import { RecordsRunsInbox } from "./RecordsRunsInbox";
 import {
   isUnseen,
   loadSeen,
@@ -140,35 +138,6 @@ export function ReportsTool() {
     [],
   );
 
-  if (!activeParcelNodeId) {
-    return (
-      <div data-testid="reports-tool">
-        <ReportsTabs tab={reportsTab} onTab={setReportsTab} />
-        {reportsTab === "shared" ? (
-          <SharedWithMeList rows={receivedShares} />
-        ) : (
-          <>
-            {/* Reports used to swap SILENTLY to the filed-report library with
-                no parcel selected — the generator simply was not there, with
-                nothing saying why or how to get it back. ("I lost my report
-                generator", operator 2026-08-28.) The library stays, because
-                reading filed reports without a parcel is the whole point of
-                the card that added it; what was missing is the sentence every
-                other property-scoped tool in this dock already says. */}
-            <StateNote
-              data-testid="reports-no-property"
-              register="waiting"
-              title="Select a property to generate a report"
-              basis="Click a parcel on the map, or search an address or parcel id. Reports you have already filed are listed below and stay readable without one."
-              style={{ marginBottom: 12 }}
-            />
-            <ReportsLibrary />
-          </>
-        )}
-      </div>
-    );
-  }
-
   if (ent.signedOut && reportsTab === "mine") {
     return (
       <div data-testid="reports-tool">
@@ -236,14 +205,6 @@ export function ReportsTool() {
     setPickerOpen(false);
   };
 
-  const openRecordsForParcel = useCallback(
-    (_parcelNodeId: string) => {
-      setSelectedRaw("REC");
-      setPickerOpen(false);
-    },
-    [setSelectedRaw],
-  );
-
   const generatedLabel = selected
     ? generatedLabelFor(selected, sitePlan, terrain, dossier)
     : null;
@@ -264,21 +225,6 @@ export function ReportsTool() {
         <SharedWithMeList rows={receivedShares} />
       ) : (
         <>
-          <RecordsRunsInbox
-            activeParcelNodeId={activeParcelNodeId}
-            host={host}
-            onOpenRecordsForParcel={openRecordsForParcel}
-          />
-          {/* THE LIBRARY IS ACCOUNT-WIDE AND BELONGS IN BOTH STATES.
-              It used to render only when NO parcel was selected, so selecting
-              a property made your filed reports vanish — the same list, the
-              same account, gone because you clicked a parcel. Operator
-              2026-08-28: the pre-selection presentation is the one to keep,
-              in both. `ReportsLibrary` reads listSavedProperties, not the
-              active parcel, so this is the identical list, not a variant. */}
-          <div style={{ marginBottom: 12 }}>
-            <ReportsLibrary />
-          </div>
           {locked ? (
         <div data-testid="reports-locked" data-pro-only="false">
           <OptionDChrome
@@ -313,7 +259,7 @@ export function ReportsTool() {
             setPickerOpen(true);
           }}
         >
-          {selected && !locked ? (
+          {activeParcelNodeId && selected && !locked ? (
             <SelectedEngine
               doc={selected}
               parcelNodeId={activeParcelNodeId}
@@ -339,6 +285,31 @@ export function ReportsTool() {
           ) : null}
         </OptionDChrome>
           )}
+          {/* NO PARCEL: the generator MODULE still renders above — it is the
+              top of this dock in both states now. Only the engine needs a
+              parcel. The dock header carries the amber "select a property"
+              pill, so this line is the HOW, not a second copy of the WHAT.
+              It sits OUTSIDE OptionDChrome because that component only
+              renders children once a doc is selected. */}
+          {!activeParcelNodeId ? (
+            <p
+              data-testid="reports-no-property"
+              style={{
+                margin: "10px 0 0",
+                fontSize: 12.5,
+                lineHeight: 1.55,
+                color: MUTED,
+              }}
+            >
+              Click a parcel on the map, or search an address or parcel id.
+            </p>
+          ) : null}
+          {/* MY REPORTS, ALWAYS UNDER THE GENERATOR, one list in both states.
+              Account-wide (listSavedProperties), so selecting a parcel never
+              hides it. Operator 2026-08-28. */}
+          <div style={{ marginTop: 14 }}>
+            <ReportsLibrary />
+          </div>
         </>
       )}
     </div>

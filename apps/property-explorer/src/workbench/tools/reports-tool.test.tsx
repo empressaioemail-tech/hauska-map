@@ -218,7 +218,12 @@ describe("reports tool — Option D picker, not the stacked wall", () => {
     expect(html).not.toContain("Select a property first");
     expect(html).not.toContain('data-testid="site-plan-export-section"');
     expect(html).not.toContain('data-testid="flood-drainage-section"');
-    expect(html).not.toContain('data-testid="reports-doc-picker"');
+    // SUPERSEDED 2026-08-28. This used to assert the generator was ABSENT
+    // with no parcel. The operator asked for the opposite: the generator
+    // module is the top of this dock in both states, replacing the amber
+    // notice. What must still be absent is a RUNNING engine, since those
+    // need a parcel — pinned on the two engine sections above.
+    expect(html).toContain('data-testid="reports-doc-picker"');
   });
 });
 
@@ -296,5 +301,30 @@ describe("the filed-report library is account-wide, so it renders in BOTH states
     expect(render({ activeParcelNodeId: "48021:123" })).not.toContain(
       'data-testid="reports-no-property"',
     );
+  });
+
+  it("puts the GENERATOR above the library, in both states", () => {
+    // Operator 2026-08-28: the generator module replaces the amber notice at
+    // the top, and My reports always lives under it. Order is the ask, so
+    // order is what is pinned — not merely that both are present.
+    for (const parcel of [null, "48021:123"]) {
+      const html = render({ activeParcelNodeId: parcel });
+      const gen = html.indexOf("reports-doc-picker");
+      const lib = html.indexOf("reports-library");
+      expect(gen).toBeGreaterThan(-1);
+      expect(lib).toBeGreaterThan(-1);
+      expect(gen).toBeLessThan(lib);
+    }
+  });
+
+  it("no longer stacks a SECOND storage area above the generator", () => {
+    // The records-runs inbox was a second list of filed work sitting above
+    // the generator. Records requests stay reachable by picking Records in
+    // the generator itself, so removing the duplicate list costs nothing.
+    for (const parcel of [null, "48021:123"]) {
+      expect(render({ activeParcelNodeId: parcel })).not.toContain(
+        'data-testid="records-runs-inbox"',
+      );
+    }
   });
 });
