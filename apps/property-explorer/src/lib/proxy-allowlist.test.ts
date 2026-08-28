@@ -26,6 +26,8 @@ function isDeepPathAllowed(method: string, upstreamPath: string): boolean {
   const DEEP_GET_EXACT = new Set([
     'api/property-explorer/v1/entitlement',
     'api/property-explorer/v1/saved-properties',
+    'api/property-explorer/v1/records-request',
+    'api/property-explorer/v1/records-request/inbox',
   ])
   const DEEP_GET_PREFIX = [
     'api/property-explorer/v1/research/layer-manifest',
@@ -35,6 +37,7 @@ function isDeepPathAllowed(method: string, upstreamPath: string): boolean {
     'api/property-explorer/v1/research/hydrology',
     'api/property-explorer/v1/research/subsurface',
     'api/property-explorer/v1/entitlement/dev-unlock',
+    'api/property-explorer/v1/records-request',
   ])
   const SAVED_PROPERTY_ITEM_RE = /^api\/property-explorer\/v1\/saved-properties\/[^/]+$/
   const RECORDS_REQUEST_PURCHASE_RE =
@@ -155,6 +158,11 @@ describe('proxy allowlists', () => {
     expect(
       isDeepPathAllowed('DELETE', 'api/property-explorer/v1/saved-properties'),
     ).toBe(false)
+  })
+
+  it('allows records-request GET and inbox on deep proxy', () => {
+    expect(isDeepPathAllowed('GET', 'api/property-explorer/v1/records-request')).toBe(true)
+    expect(isDeepPathAllowed('GET', 'api/property-explorer/v1/records-request/inbox')).toBe(true)
   })
 
   it('allows records-request fee approve/decline POST on deep proxy', () => {

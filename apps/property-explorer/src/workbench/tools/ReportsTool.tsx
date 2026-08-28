@@ -40,6 +40,7 @@ import {
   RECORDS_PAYWALL_MESSAGE,
   RecordsRequestSection,
 } from "./RecordsRequestSection";
+import { RecordsRunsInbox } from "./RecordsRunsInbox";
 import {
   assembleDossierExportBody,
   dossierExportNotice,
@@ -209,6 +210,14 @@ export function ReportsTool() {
     setPickerOpen(false);
   };
 
+  const openRecordsForParcel = useCallback(
+    (_parcelNodeId: string) => {
+      setSelectedRaw("REC");
+      setPickerOpen(false);
+    },
+    [setSelectedRaw],
+  );
+
   const generatedLabel = selected
     ? generatedLabelFor(selected, sitePlan, terrain, dossier)
     : null;
@@ -227,7 +236,14 @@ export function ReportsTool() {
       <ReportsTabs tab={reportsTab} onTab={setReportsTab} />
       {reportsTab === "shared" ? (
         <SharedWithMeList rows={receivedShares} />
-      ) : locked ? (
+      ) : (
+        <>
+          <RecordsRunsInbox
+            activeParcelNodeId={activeParcelNodeId}
+            host={host}
+            onOpenRecordsForParcel={openRecordsForParcel}
+          />
+          {locked ? (
         <div data-testid="reports-locked" data-pro-only="false">
           <OptionDChrome
             freshness={freshness}
@@ -286,6 +302,8 @@ export function ReportsTool() {
             />
           ) : null}
         </OptionDChrome>
+          )}
+        </>
       )}
     </div>
   );
