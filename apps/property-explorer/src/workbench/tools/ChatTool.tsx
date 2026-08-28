@@ -935,7 +935,7 @@ export function ChatSessionBar({
             marginTop: 3,
             maxHeight: "40vh",
             overflowY: "auto",
-            background: "#0d1117",
+            background: "#0B0E13",
             border: CHIP_BORDER,
             borderRadius: 6,
             boxShadow: "0 6px 18px rgba(0,0,0,0.45)",

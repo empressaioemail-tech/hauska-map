@@ -117,7 +117,7 @@ export function workbenchClusterStyle(isMobile: boolean): CSSProperties {
     gap: 6,
     padding: "8px 6px",
     borderRadius: 24,
-    background: "rgba(10,14,26,.92)",
+    background: "rgba(11,14,19,.92)",
     border: "1px solid rgba(255,255,255,.09)",
     boxShadow: "0 10px 34px rgba(0,0,0,.5)",
     backdropFilter: "blur(14px)",
@@ -140,7 +140,7 @@ export function mobileToolPickerStyle(): CSSProperties {
     WebkitOverflowScrolling: "touch",
     padding: "8px 12px",
     borderTop: "1px solid rgba(154,166,178,0.2)",
-    background: "rgba(13,17,23,0.98)",
+    background: "rgba(11,14,19,0.98)",
   };
 }
 

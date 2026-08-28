@@ -23,7 +23,7 @@ import {
   EMPTY_TOOLS_SNAPSHOT,
 } from "./mapToolsController";
 
-const PANEL_BG = "rgba(13,17,23,0.9)";
+const PANEL_BG = "rgba(11,14,19,0.9)";
 const PANEL_BORDER = "0.5px solid rgba(154,166,178,0.28)";
 const TEXT = "#e6edf3";
 const MUTED = "#8b97a5";
@@ -448,7 +448,7 @@ export function MapTools({ mapRef }: { mapRef: RefObject<FloatingMapHandle | nul
             maxWidth: 260,
             padding: "3px 9px",
             borderRadius: 5,
-            background: "rgba(13,17,23,0.82)",
+            background: "rgba(11,14,19,0.82)",
             border: "0.5px solid rgba(154,166,178,0.35)",
             color: MUTED,
             fontSize: 9.5,

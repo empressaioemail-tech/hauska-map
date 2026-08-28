@@ -641,7 +641,7 @@ function OptionDChrome({
           gap: 10,
           padding: "11px 12px",
           borderRadius: 8,
-          background: "rgba(13,17,23,0.9)",
+          background: "rgba(11,14,19,0.9)",
           border: "1px solid rgba(154,166,178,0.4)",
           color: selected ? TEXT : "var(--text-muted, #94A3B8)",
           fontSize: 13.5,

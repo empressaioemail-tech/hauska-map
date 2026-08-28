@@ -37,7 +37,7 @@ const chipStyle = (sev: ChipSeverity): React.CSSProperties => ({
       : sev === "warn"
         ? "var(--semantic-warning, #F59E0B)"
         : "var(--surface-muted, #94A3B8)",
-  background: "rgba(13,17,23,0.82)",
+  background: "rgba(11,14,19,0.82)",
   border: `0.5px solid ${
     sev === "error"
       ? "rgba(248,113,113,0.55)"

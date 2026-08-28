@@ -72,7 +72,7 @@ export function PdfViewer({
         zIndex: 400,
         display: "flex",
         flexDirection: "column",
-        background: "var(--surface-card, #0d1117)",
+        background: "var(--surface-card, #0B0E13)",
         border: "1px solid var(--surface-border, #243247)",
         borderRadius: 8,
         overflow: "hidden",

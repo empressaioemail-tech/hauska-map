@@ -244,7 +244,7 @@ export function PropertiesList({
                   padding: "2px 8px",
                   borderRadius: 999,
                   cursor: "pointer",
-                  color: selected ? "#0d1117" : accent,
+                  color: selected ? "#0B0E13" : accent,
                   background: selected ? accent : "transparent",
                   border: `1px solid ${accent}`,
                 }}

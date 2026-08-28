@@ -94,7 +94,8 @@ describe("W3.3 on-property share personas with default message", () => {
     }
     expect(html).toContain("does not send email");
     expect(html).not.toMatch(/gmail/i);
-    expect(html).toContain("#0d1117");
+    // Neutral-ground sweep 2026-08-27: the ground matches the brand chip now.
+    expect(html).toContain("#0B0E13");
     expect(html).toContain("#e5e7eb");
     expect(html).toContain("color-scheme:dark");
     expect(html).not.toContain("<select");

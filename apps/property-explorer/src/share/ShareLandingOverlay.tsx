@@ -14,7 +14,7 @@ import { GoogleSignInButton } from "../components/GoogleSignInButton";
 import { recordPeGtmEvent } from "../lib/gtmClient";
 import type { SharePhase } from "./ShareView";
 
-const CARD_BG = "var(--surface-card-translucent, rgba(13,17,23,0.94))";
+const CARD_BG = "var(--surface-card-translucent, rgba(11,14,19,0.94))";
 const TEXT = "var(--text-body, #e5e7eb)";
 const MUTED = "var(--surface-muted, #94A3B8)";
 const AMBER = "var(--semantic-warning, #F59E0B)"; // caution notice (was raw yellow #fcd34d)

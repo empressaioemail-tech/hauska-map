@@ -121,7 +121,7 @@ export function LayersControl({
         width: 176,
         padding: "9px 11px",
         borderRadius: 9,
-        background: "rgba(13,17,23,0.9)",
+        background: "rgba(11,14,19,0.9)",
         border: "0.5px solid rgba(154,166,178,0.28)",
         color: "#e6edf3",
         fontFamily: "system-ui, -apple-system, Segoe UI, Roboto, sans-serif",
