@@ -43,6 +43,7 @@ import {
 import { searchBarWrapStyle, searchDropdownStyle } from "./mobile-layout";
 import { useMobilePanel } from "./MobilePanelContext";
 import { Button } from "../components/Button";
+import { PE, MOTION } from "../styles/pe-chrome";
 
 export interface SearchBarProps {
   busy?: boolean;
@@ -110,17 +111,23 @@ export function subjectDisplayFromIdentity(identity: {
   return identity.parcelNodeId;
 }
 
-const FONT = "system-ui, -apple-system, Segoe UI, Roboto, sans-serif";
+const FONT = PE.ui;
 
-const form: CSSProperties = {
+/** The find bar: 40 tall — the ONE control allowed above 34. */
+const form = (focused: boolean): CSSProperties => ({
   display: "flex",
-  gap: 6,
-  padding: 6,
-  borderRadius: 8,
-  background: "var(--surface-card-translucent, rgba(13,17,23,0.94))",
-  border: "1px solid var(--surface-border-rgba, rgba(154,166,178,0.3))",
-  boxShadow: "0 4px 18px rgba(0,0,0,0.35)",
-};
+  alignItems: "center",
+  gap: 8,
+  height: PE.hFind,
+  padding: "0 6px 0 12px",
+  borderRadius: PE.rFloat,
+  background: PE.panelLight,
+  border: `1px solid ${focused ? PE.blue : PE.line14}`,
+  boxShadow: focused
+    ? `0 8px 28px rgba(0,0,0,.45), ${PE.shFocus}`
+    : "0 8px 28px rgba(0,0,0,.45)",
+  transition: `border-color ${MOTION.state}, box-shadow ${MOTION.state}`,
+});
 
 const input: CSSProperties = {
   flex: 1,
@@ -128,33 +135,35 @@ const input: CSSProperties = {
   border: "none",
   outline: "none",
   background: "transparent",
-  color: "var(--text-body, #e5e7eb)",
-  font: `13px/1.3 ${FONT}`,
-  padding: "6px 8px",
+  color: PE.t2,
+  font: `13.5px/1.3 ${FONT}`,
+  padding: 0,
 };
 
 const errStyle: CSSProperties = {
-  font: `11px/1.3 ${FONT}`,
-  color: "var(--semantic-warning, #F59E0B)",
+  font: `11.5px/1.35 ${FONT}`,
+  color: PE.warn,
   padding: "0 4px",
 };
 
 const groupHeader: CSSProperties = {
-  font: `600 9.5px/1 ${FONT}`,
-  letterSpacing: "0.08em",
+  font: `600 10px/1 ${FONT}`,
+  letterSpacing: ".13em",
   textTransform: "uppercase",
-  color: "var(--surface-muted, #94A3B8)",
-  padding: "8px 12px 4px",
+  color: PE.t6,
+  padding: "10px 12px 5px",
 };
 
+/** 38px suggestion rows. */
 const rowBase: CSSProperties = {
   display: "flex",
   alignItems: "center",
-  gap: 8,
-  padding: "7px 12px",
+  gap: 9,
+  height: 38,
+  padding: "0 12px",
   cursor: "pointer",
   font: `12.5px/1.3 ${FONT}`,
-  color: "var(--text-body, #e5e7eb)",
+  color: PE.t3,
   border: "none",
   background: "transparent",
   width: "100%",
@@ -163,13 +172,16 @@ const rowBase: CSSProperties = {
 
 const rowActive: CSSProperties = {
   ...rowBase,
-  background: "var(--brand-blue-bg, rgba(59,130,246,0.12))",
-  color: "var(--text-body, #e5e7eb)",
+  background: PE.blueBg,
+  color: PE.t1,
 };
 
+/** Metadata rides the right edge in mono — it is a code, not prose. */
 const sublabelStyle: CSSProperties = {
-  font: `11px/1.2 ${FONT}`,
-  color: "var(--surface-muted, #94A3B8)",
+  fontFamily: PE.mono,
+  fontSize: 11,
+  lineHeight: 1.2,
+  color: PE.t6,
   marginLeft: "auto",
   whiteSpace: "nowrap",
   overflow: "hidden",
@@ -178,16 +190,19 @@ const sublabelStyle: CSSProperties = {
 };
 
 const infoRow: CSSProperties = {
-  font: `12px/1.4 ${FONT}`,
-  color: "var(--surface-muted, #94A3B8)",
-  padding: "10px 12px",
+  font: `12.5px/1.45 ${FONT}`,
+  color: PE.t4,
+  padding: "12px",
 };
 
 const footer: CSSProperties = {
-  font: `10px/1.2 ${FONT}`,
-  color: "var(--surface-muted-2, #64748B)",
-  padding: "5px 12px 7px",
-  borderTop: "1px solid rgba(154,166,178,0.15)",
+  display: "flex",
+  alignItems: "center",
+  gap: 10,
+  font: `10.5px/1.2 ${FONT}`,
+  color: PE.t6,
+  padding: "7px 12px 8px",
+  borderTop: `1px solid ${PE.line06}`,
 };
 
 const SHIMMER_KEYFRAMES = `
@@ -386,7 +401,15 @@ export function SuggestDropdown({
       onMouseDown={(e) => e.preventDefault()}
     >
       {body}
-      <div style={footer}>search © OSM</div>
+      <div style={footer}>
+        <span style={{ flex: 1 }}>
+          Parcel id, address, street, or place
+        </span>
+        <span style={{ fontFamily: PE.mono, color: PE.t6 }}>
+          ↑↓ move · ↵ open
+        </span>
+        <span>search © OSM</span>
+      </div>
     </div>
   );
 }
@@ -402,6 +425,7 @@ export function SearchBar({
   fetchSuggestionsImpl,
 }: SearchBarProps) {
   const { isMobile, setSearchFocused } = useMobilePanel();
+  const [focused, setFocused] = useState(false);
   const [value, setValue] = useState(initialValue);
   const inputRef = useRef<HTMLInputElement>(null);
   const focusedRef = useRef(false);
@@ -486,7 +510,23 @@ export function SearchBar({
 
   return (
     <div data-testid="parcel-lookup-bar" style={searchBarWrapStyle(isMobile)}>
-      <div style={form}>
+      <div style={form(focused)}>
+        {/* The search glyph turns blue on focus — the one place the action
+            colour signals "this field is live". */}
+        <svg
+          viewBox="0 0 24 24"
+          width={15}
+          height={15}
+          aria-hidden
+          fill="none"
+          stroke={focused ? PE.blue : PE.t5}
+          strokeWidth={1.7}
+          strokeLinecap="round"
+          strokeLinejoin="round"
+          style={{ flex: "none", transition: `stroke ${MOTION.state}` }}
+        >
+          <path d="M11 19a8 8 0 1 0 0-16 8 8 0 0 0 0 16z M21 21l-4.3-4.3" />
+        </svg>
         <input
           ref={inputRef}
           data-testid="parcel-lookup-input"
@@ -507,11 +547,13 @@ export function SearchBar({
             focusedRef.current = true;
             controller.focus();
             setSearchFocused(true);
+            setFocused(true);
           }}
           onBlur={() => {
             focusedRef.current = false;
             controller.close();
             setSearchFocused(false);
+            setFocused(false);
           }}
           onKeyDown={handleKeyDown}
           style={input}

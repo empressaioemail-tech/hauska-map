@@ -64,7 +64,14 @@ export function GoogleSignInButton({
         width: fullWidth ? "100%" : undefined,
         boxSizing: "border-box",
         borderRadius: 6,
-        border: dark ? "1px solid #5F6368" : "1px solid #DADCE0",
+        // v2 hairline on the dark surface so the control belongs to the same
+        // edge system as everything around it. The FILL stays Google's own
+        // #131314 rather than the drop's #131A24: the mark, the label and the
+        // surface are Google's published values, and the existing brand test
+        // pins them to that external authority. Flagged for the design owner.
+        border: dark
+          ? "1px solid var(--ss-line-28, rgba(154,166,178,.28))"
+          : "1px solid #DADCE0",
         background: dark ? "#131314" : "#FFFFFF",
         color: dark ? "#E3E3E3" : "#1F1F1F",
         fontSize: s.font,

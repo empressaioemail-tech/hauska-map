@@ -1958,7 +1958,9 @@ function ExplorerMapSurface({
           The transient scroll notifications were removed (redundant chrome —
           per-layer honest state lives in the toolset's layer rows / inspect
           card). */}
-      <SmartSiteBadge isMobile={isMobile} />
+      {/* The brand chip carries the inspected parcel's county after a
+          hairline divider when one is known — never a guessed county. */}
+      <SmartSiteBadge isMobile={isMobile} county={card?.county ?? null} />
 
       {/* PE WORKBENCH: right-rail bubbles. One tool open. Dock on the right.
           Inspect facts live inside the brief dock, not as a left overlay. */}

@@ -48,6 +48,7 @@ import { Fragment, useCallback, useEffect, useState } from "react";
 import type { CSSProperties, ReactNode } from "react";
 import type { ParcelCardData } from "./liveGis";
 import { inspectCardShellStyle } from "./mobile-layout";
+import { PE } from "../styles/pe-chrome";
 import { useMobilePanel } from "./MobilePanelContext";
 import {
   type EnvelopeProvenanceRefs,
@@ -85,18 +86,28 @@ import {
   ATOM_ACCENT_BORDER,
 } from "../shared/atom-chip";
 
-const CARD_BG = "var(--surface-card-translucent, rgba(13,17,23,0.94))";
-const MUTED = "var(--surface-muted, #94A3B8)";
-const TEXT = "var(--text-strong, #e6edf3)";
+const CARD_BG = PE.panel;
+const MUTED = PE.t4;
+const TEXT = PE.t2;
+/** Field label above value: 10/600/.13em uppercase in t6. This one rule is
+ *  why the v2 card scans — the label stops competing with the value. */
+const FACT_LABEL: CSSProperties = {
+  fontSize: 10,
+  fontWeight: 600,
+  letterSpacing: ".13em",
+  textTransform: "uppercase",
+  color: PE.t6,
+  marginBottom: 3,
+};
 // I4 palette. Three absences, three registers — the whole point is that they
 // do not look alike.
 //   quiet   — we cover this area and this parcel simply carries no value.
 //   hatched — this area is not stamped. Names what would fill it.
 //   alarm   — the lookup FAILED. This is the only one that is an error.
-const ABSENT = "var(--semantic-absence, #7C8BA0)";
-const ABSENT_BG = "var(--semantic-absence-bg, rgba(124,139,160,0.12))";
-const ABSENT_BORDER = "var(--semantic-absence-border, rgba(124,139,160,0.35))";
-const ERROR = "var(--semantic-error, #EF4444)";
+const ABSENT = PE.slate;
+const ABSENT_BG = PE.absenceBg;
+const ABSENT_BORDER = PE.line28;
+const ERROR = PE.err;
 
 interface EnvelopeState {
   status: "idle" | "loading" | "ok" | "empty" | "error";
@@ -690,10 +701,10 @@ function InspectFactsAccordion<T>({
       <dl
         data-testid="inspect-high-level"
         style={{
-          margin: "9px 0 0",
+          margin: "14px 0 0",
           display: "grid",
-          gridTemplateColumns: "auto 1fr",
-          gap: "3px 10px",
+          gridTemplateColumns: "1fr 1fr",
+          gap: "13px 12px",
         }}
       >
         {highLevel.map((r, i) => (
@@ -711,9 +722,9 @@ function InspectFactsAccordion<T>({
               background: "transparent",
               border: "none",
               padding: 0,
-              color: MUTED,
+              color: PE.blue,
               cursor: "pointer",
-              fontSize: 11,
+              fontSize: 11.5,
               fontWeight: 600,
             }}
           >
@@ -723,10 +734,10 @@ function InspectFactsAccordion<T>({
             data-testid="inspect-accordion-body"
             hidden={!detailsOpen}
             style={{
-              margin: "6px 0 0",
+              margin: "11px 0 0",
               display: detailsOpen ? "grid" : "none",
-              gridTemplateColumns: "auto 1fr",
-              gap: "3px 10px",
+              gridTemplateColumns: "1fr 1fr",
+              gap: "13px 12px",
             }}
           >
             {collapsed.map((r, i) => (
@@ -1082,9 +1093,9 @@ export function InspectCard({
       style={{
         ...inspectCardShellStyle(isMobile, embedded),
         background: CARD_BG,
-        color: "#e6edf3",
-        fontFamily: "system-ui, -apple-system, Segoe UI, Roboto, sans-serif",
-        fontSize: 12,
+        color: PE.t3,
+        fontFamily: PE.ui,
+        fontSize: 12.5,
         lineHeight: 1.5,
       }}
     >
@@ -1097,7 +1108,16 @@ export function InspectCard({
         }}
       >
         <div>
-          <div style={{ fontWeight: 700, fontSize: 13 }} data-testid="inspect-title">
+          <div
+            style={{
+              fontWeight: 400,
+              fontSize: 19,
+              letterSpacing: "-.01em",
+              lineHeight: 1.2,
+              color: PE.t1,
+            }}
+            data-testid="inspect-title"
+          >
             {heading.title}
           </div>
           {/* A missing situs address is a DATA gap, not a broken card. The
@@ -1106,7 +1126,7 @@ export function InspectCard({
           {!heading.isAddress && (
             <div
               data-testid="inspect-no-address"
-              style={{ marginTop: 1, fontSize: 10, color: MUTED }}
+              style={{ marginTop: 4, fontSize: 11.5, color: PE.t5 }}
             >
               No street address on the county record
             </div>
@@ -1117,17 +1137,35 @@ export function InspectCard({
             type="button"
             aria-label="Close"
             onClick={onClose}
+            className="ss-headbtn pe-btn"
             style={{
+              display: "inline-flex",
+              alignItems: "center",
+              justifyContent: "center",
+              width: 22,
+              height: 22,
+              flex: "none",
+              borderRadius: 5,
               background: "transparent",
               border: "none",
-              color: MUTED,
+              color: PE.t5,
               cursor: "pointer",
-              fontSize: 15,
               lineHeight: 1,
               padding: 0,
             }}
           >
-            ×
+            <svg
+              viewBox="0 0 24 24"
+              width={13}
+              height={13}
+              aria-hidden
+              fill="none"
+              stroke="currentColor"
+              strokeWidth={1.7}
+              strokeLinecap="round"
+            >
+              <path d="M18 6 6 18 M6 6l12 12" />
+            </svg>
           </button>
         )}
       </div>
@@ -1851,10 +1889,10 @@ export function FactRow({
   }
 
   return (
-    <>
-      <dt style={{ color: MUTED }}>{label}</dt>
+    <div data-pe="fact">
+      <dt style={FACT_LABEL}>{label}</dt>
       <dd
-        style={style}
+        style={{ margin: 0, fontSize: 13.5, lineHeight: 1.3, ...style }}
         data-testid={testid}
         data-state={fact.state}
         data-absent={fact.state.startsWith("absent") ? "true" : undefined}
@@ -1886,7 +1924,7 @@ export function FactRow({
           />
         )}
       </dd>
-    </>
+    </div>
   );
 }
 
@@ -1952,9 +1990,12 @@ export function Row({
 }) {
   if (!value) return null;
   return (
-    <>
-      <dt style={{ color: MUTED }}>{label}</dt>
-      <dd style={{ margin: 0 }} data-testid={testid}>
+    <div data-pe="fact">
+      <dt style={FACT_LABEL}>{label}</dt>
+      <dd
+        style={{ margin: 0, fontSize: 13.5, lineHeight: 1.3, color: PE.t1 }}
+        data-testid={testid}
+      >
         {value}
         {onChipToggle && (
           <RowChips
@@ -1964,7 +2005,7 @@ export function Row({
           />
         )}
       </dd>
-    </>
+    </div>
   );
 }
 

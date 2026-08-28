@@ -232,9 +232,13 @@ describe("SS-W2 item 4 / I4 — three absences, three registers", () => {
   });
 
   it("only `unresolved` wears the error hue — an honest absence never does", () => {
-    expect(unresolved).toContain("--semantic-error");
+    // chrome v2 renamed --semantic-error -> --ss-err; same hex. The rule the
+    // test actually holds (only a FAILED lookup is red) is unchanged.
+    expect(unresolved).toMatch(/--ss-err|--semantic-error/);
     expect(covered).not.toContain("--semantic-error");
+    expect(covered).not.toContain("--ss-err");
     expect(uncovered).not.toContain("--semantic-error");
+    expect(uncovered).not.toContain("--ss-err");
   });
 
   it("the retired treatment is gone: no absence is grey italic 'not verified here'", () => {
@@ -256,6 +260,7 @@ describe("SS-W2 item 4 / I4 — three absences, three registers", () => {
     expect(pending).not.toContain("verified");
     expect(pending).not.toContain("dashed");
     expect(pending).not.toContain("--semantic-error");
+    expect(pending).not.toContain("--ss-err");
   });
 
   it("a null fact renders nothing — the `unknown` facet stays hidden", () => {

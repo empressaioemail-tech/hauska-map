@@ -77,10 +77,14 @@ export function dockLayoutStyle(
       boxShadow: "0 18px 60px rgba(0,0,0,0.55)",
     };
   }
+  // v2: ONE dock width for every tool (340), so the dock has one left edge no
+  // matter which bubble opened it. top/right offsets are unchanged — the
+  // viewport-bounded height rule (top 12 + 16 bottom margin) is pinned by
+  // workbench.test.tsx and is chassis placement, not chrome.
   return {
     top: 12,
     right: 54,
-    width: "min(400px, calc(100vw - 78px))",
+    width: "min(340px, calc(100vw - 78px))",
     maxHeight: "calc(100vh - 28px)",
   };
 }
@@ -90,6 +94,9 @@ export function workbenchClusterStyle(isMobile: boolean): CSSProperties {
   if (isMobile) {
     return { display: "none" };
   }
+  // v2 rail: 34px circles, 8px gap, right edge. `right:12` (not the drop's 20)
+  // keeps the rail on the same edge inset as MapToolset below it and leaves
+  // the 8px channel between the rail and the dock at right:54.
   return {
     position: "absolute",
     top: 118,
@@ -97,7 +104,7 @@ export function workbenchClusterStyle(isMobile: boolean): CSSProperties {
     zIndex: MAP_PANEL_Z.toolset,
     display: "flex",
     flexDirection: "column",
-    gap: 7,
+    gap: 8,
   };
 }
 
@@ -198,22 +205,28 @@ export function searchBarWrapStyle(isMobile: boolean): CSSProperties {
       maxWidth: "none",
     };
   }
+  // v2 find bar: 436 wide, dropping 6px to its suggestion list.
   return {
     ...base,
-    width: "min(440px, calc(100vw - 24px))",
+    width: "min(436px, calc(100vw - 24px))",
   };
 }
 
 /** Suggest dropdown on mobile — fills space below the bar without overlapping panels. */
 export function searchDropdownStyle(isMobile: boolean): CSSProperties {
   const base: CSSProperties = {
-    borderRadius: 8,
-    background: "rgba(13,17,23,0.96)",
-    border: "1px solid rgba(154,166,178,0.35)",
-    boxShadow: "0 8px 24px rgba(0,0,0,0.45)",
+    borderRadius: "var(--ss-r-float, 10px)",
+    background: "var(--ss-ink-96, rgba(11,14,19,.96))",
+    border: "1px solid var(--ss-line-14, rgba(154,166,178,.15))",
+    boxShadow: "var(--ss-sh-dock, 0 18px 44px rgba(0,0,0,.5))",
     overflow: "hidden",
     display: "flex",
     flexDirection: "column",
+    // The list opens its own height from the top edge of the bar it hangs
+    // from: 220ms of height, 140ms of opacity, 180ms of the 2% scale.
+    transformOrigin: "top center",
+    animation:
+      "ss-suggest-in var(--ss-d-move, 180ms) var(--ss-ease, cubic-bezier(.2,.6,.35,1)) both",
   };
   if (isMobile) {
     return {

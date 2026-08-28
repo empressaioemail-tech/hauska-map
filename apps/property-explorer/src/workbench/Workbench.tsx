@@ -1,7 +1,19 @@
 // apps/property-explorer/src/workbench/Workbench.tsx
 //
-// PE WORKBENCH CHASSIS (WB1) — the top-right BUBBLE CLUSTER + the ONE shared
+// PE WORKBENCH CHASSIS (WB1) — the top-right BUBBLE RAIL + the ONE shared
 // dock every tool opens into.
+//
+// CHROME v2 (2026-08-27). The rail and the dock were restyled to the Smart Site
+// chrome v2 drop: 34px bubbles with real states, a 36px dock header carrying a
+// blue glyph and an uppercase title, one 340 dock width, radius 10, the v2
+// hairline set, and the one panel motion (own height + 3% scale from the
+// anchored corner, never a slide from off-screen).
+//
+// WHAT DID NOT CHANGE, by operator ruling 2026-08-27: the drop's SPEC section 2
+// asked for multi-dock stacking with fold-to-header in a LEFT column. That was
+// declined. ONE tool open at a time and the right-hand dock stay the law, and
+// the guard tests in workbench.test.tsx that stop multi-open returning stay
+// armed. This file is a restyle; nextOpenToolId is still the only rule.
 //
 // THE DESIGN LAW (non-negotiable): the clean map-first PE stays the star; the
 // cluster is the ONLY always-on element; every capability opens into this ONE
@@ -31,14 +43,9 @@ import type { WorkbenchHostActions, WorkbenchToolDef } from "./types";
 import { WorkbenchProvider } from "./WorkbenchContext";
 import type { WorkbenchToolStateStore } from "./tool-state-store";
 import { BubbleTip } from "../components/BubbleTip";
-import { PE } from "../styles/pe-chrome";
+import { PE, MOTION } from "../styles/pe-chrome";
+import { StateNote } from "../components/StateNote";
 
-const CARD_BG = PE.card;
-const BORDER = PE.border;
-const TEXT = PE.text;
-const MUTED = PE.muted;
-const ACCENT = PE.accent;
-const AMBER = PE.warning;
 
 /**
  * Dock single-tenancy, as a pure rule: tapping the active bubble closes the
@@ -79,17 +86,17 @@ export function dockLayoutStyle(isExpanded: boolean): CSSProperties {
   return resolveDockLayoutStyle(isExpanded, false);
 }
 
-/** 15px stroke glyph in the MapToolset icon language. */
+/** 15px stroke glyph at 1.7 — the v2 rail weight. */
 export function WorkbenchIcon({ path }: { path: string }) {
   return (
     <svg
       viewBox="0 0 24 24"
-      width={16}
-      height={16}
+      width={15}
+      height={15}
       aria-hidden="true"
       fill="none"
       stroke="currentColor"
-      strokeWidth={2}
+      strokeWidth={1.7}
       strokeLinecap="round"
       strokeLinejoin="round"
     >
@@ -98,20 +105,35 @@ export function WorkbenchIcon({ path }: { path: string }) {
   );
 }
 
+/**
+ * The rail bubble, in every state it can actually be in. 34px circle, 15px
+ * glyph at 1.7 stroke.
+ *
+ *   rest        ink 90%, t3 glyph, line-14 edge, rail shadow
+ *   open        blue fill, near-black glyph, blue edge, the blue lift
+ *   coming      transparent fill, t6 glyph, half opacity
+ *
+ * NEVER a count badge, NEVER a red dot, NEVER a scale transform on hover.
+ * Hover is a tint only and lives on `.ss-bubble` in pe-tokens.css so it works
+ * without a JS hover handler.
+ */
 function bubbleStyle(active: boolean, coming: boolean): CSSProperties {
   return {
     display: "inline-flex",
     alignItems: "center",
     justifyContent: "center",
-    width: 34,
-    height: 34,
+    position: "relative",
+    padding: 0,
+    width: PE.bubble,
+    height: PE.bubble,
     borderRadius: "50%",
     cursor: "pointer",
-    color: active ? "#0b0f14" : coming ? MUTED : TEXT,
-    background: active ? ACCENT : CARD_BG,
-    border: active ? `1px solid ${ACCENT}` : BORDER,
-    boxShadow: "0 4px 14px rgba(0,0,0,0.35)",
-    transition: "background 120ms ease, color 120ms ease",
+    color: active ? "#08111F" : coming ? PE.t6 : PE.t3,
+    background: active ? PE.blue : coming ? "transparent" : PE.bubbleRest,
+    border: `1px solid ${active ? PE.blue : PE.line14}`,
+    boxShadow: active ? PE.shOpen : PE.shRail,
+    opacity: coming ? 0.5 : 1,
+    transition: `background ${MOTION.state}, color ${MOTION.state}, border-color ${MOTION.state}, box-shadow ${MOTION.move}`,
   };
 }
 
@@ -224,6 +246,9 @@ export function Workbench({
             >
               <button
                 type="button"
+                className="ss-bubble pe-btn"
+                data-open={active ? "1" : undefined}
+                data-coming={tool.status === "coming" ? "1" : undefined}
                 data-testid={`workbench-bubble-${tool.id}`}
                 aria-label={tool.label}
                 aria-pressed={active}
@@ -249,6 +274,9 @@ export function Workbench({
               <button
                 key={tool.id}
                 type="button"
+                className="ss-bubble pe-btn"
+                data-open={active ? "1" : undefined}
+                data-coming={tool.status === "coming" ? "1" : undefined}
                 data-testid={`workbench-mobile-bubble-${tool.id}`}
                 aria-label={tool.label}
                 aria-pressed={active}
@@ -279,22 +307,32 @@ export function Workbench({
           style={{
             position: isMobile ? "fixed" : "absolute",
             zIndex: isMobile ? 15 : 9,
+            boxShadow: PE.shDock,
             ...resolveDockLayoutStyle(isExpanded, isMobile),
             display: "flex",
             flexDirection: "column",
             overflow: "hidden",
-            borderRadius: isMobile ? undefined : 8,
-            color: TEXT,
-            background: CARD_BG,
-            border: isMobile ? "none" : BORDER,
-            borderTop: isMobile ? BORDER : undefined,
-            font: "12px/1.45 system-ui, -apple-system, Segoe UI, Roboto, sans-serif",
-            animation: "pe-dock-in 240ms ease",
+            borderRadius: isMobile ? undefined : PE.rFloat,
+            color: PE.t3,
+            background: PE.panel,
+            border: isMobile ? "none" : `1px solid ${PE.line14}`,
+            borderTop: isMobile ? `1px solid ${PE.line14}` : undefined,
+            font: `12.5px/1.5 ${PE.ui}`,
+            // The one panel motion: it opens its own height while scaling up
+            // 3% from the corner it is anchored to. It never slides in from
+            // off-screen, nothing bounces, nothing overshoots. The dock hangs
+            // off the right rail, so the corner is top-right.
+            transformOrigin: isMobile ? "bottom center" : "right top",
+            animation: `pe-dock-in ${PE.dMove} ${PE.ease} both`,
           }}
+          data-ss-motion=""
         >
           <style>{`@keyframes pe-dock-in {
-  from { opacity: 0; transform: translateY(-10px); }
-  to   { opacity: 1; transform: translateY(0); }
+  from { opacity: 0; transform: scale(.97) translateY(-8px); }
+  to   { opacity: 1; transform: none; }
+}
+@media (prefers-reduced-motion: reduce) {
+  [data-testid="workbench-dock"] { animation-name: ss-fade !important; }
 }`}</style>
           {/* PINNED HEADER — never scrolls out of view. */}
           <div
@@ -302,16 +340,41 @@ export function Workbench({
             style={{
               flex: "0 0 auto",
               display: "flex",
-              justifyContent: "space-between",
               alignItems: "center",
               gap: 8,
-              padding: "10px 14px 6px",
-              marginBottom: 8,
-              borderBottom: "1px solid rgba(154,166,178,0.2)",
+              height: PE.hHead,
+              padding: "0 8px 0 12px",
+              borderBottom: `1px solid ${PE.line06}`,
+              background: "rgba(255,255,255,.015)",
             }}
           >
-            <strong style={{ fontSize: 12.5 }}>{openTool.label}</strong>
-            <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+            {/* 13px blue glyph, then the uppercase title. The glyph is the
+                tool's own rail icon, so the dock and the bubble that opened it
+                read as one object. */}
+            <span
+              aria-hidden
+              className="ss-dock-glyph"
+              style={{ display: "inline-flex", flex: "none", color: PE.blue }}
+            >
+              {openTool.icon}
+            </span>
+            <span
+              style={{
+                flex: 1,
+                minWidth: 0,
+                fontSize: 11,
+                fontWeight: 600,
+                letterSpacing: ".1em",
+                textTransform: "uppercase",
+                color: PE.t3,
+                overflow: "hidden",
+                textOverflow: "ellipsis",
+                whiteSpace: "nowrap",
+              }}
+            >
+              {openTool.label}
+            </span>
+            <div style={{ display: "flex", alignItems: "center", gap: 4 }}>
               {canExpand && (
                 <button
                   type="button"
@@ -323,12 +386,18 @@ export function Workbench({
                       : "Expand to a large readable view (map stays visible)"
                   }
                   data-testid="dock-expand"
+                  className="ss-headbtn pe-btn"
                   onClick={() => setExpanded((v) => !v)}
                   style={{
                     display: "inline-flex",
+                    alignItems: "center",
+                    justifyContent: "center",
+                    width: 22,
+                    height: 22,
+                    borderRadius: 5,
                     background: "transparent",
                     border: "none",
-                    color: MUTED,
+                    color: PE.t5,
                     cursor: "pointer",
                     padding: 0,
                     lineHeight: 1,
@@ -336,12 +405,12 @@ export function Workbench({
                 >
                   <svg
                     viewBox="0 0 24 24"
-                    width={15}
-                    height={15}
+                    width={13}
+                    height={13}
                     aria-hidden="true"
                     fill="none"
                     stroke="currentColor"
-                    strokeWidth={2}
+                    strokeWidth={1.7}
                     strokeLinecap="round"
                     strokeLinejoin="round"
                   >
@@ -357,18 +426,35 @@ export function Workbench({
                 type="button"
                 aria-label="Close"
                 data-testid="dock-close"
+                className="ss-headbtn pe-btn"
                 onClick={closeDock}
                 style={{
+                  display: "inline-flex",
+                  alignItems: "center",
+                  justifyContent: "center",
+                  width: 22,
+                  height: 22,
+                  borderRadius: 5,
                   background: "transparent",
                   border: "none",
-                  color: MUTED,
+                  color: PE.t5,
                   cursor: "pointer",
-                  fontSize: 15,
                   lineHeight: 1,
                   padding: 0,
                 }}
               >
-                ×
+                <svg
+                  viewBox="0 0 24 24"
+                  width={13}
+                  height={13}
+                  aria-hidden="true"
+                  fill="none"
+                  stroke="currentColor"
+                  strokeWidth={1.7}
+                  strokeLinecap="round"
+                >
+                  <path d="M18 6 6 18 M6 6l12 12" />
+                </svg>
               </button>
             </div>
           </div>
@@ -381,7 +467,7 @@ export function Workbench({
               minHeight: 0,
               overflowY: "auto",
               WebkitOverflowScrolling: "touch",
-              padding: "0 14px 14px",
+              padding: "14px 13px",
             }}
           >
             <DockBody
@@ -413,28 +499,39 @@ function DockBody({
   prefix?: ReactNode;
 }): ReactNode {
   // Registered-but-not-live: an HONEST coming state — never dead-looking UI.
+  // Both branches below name WHAT IS MISSING AND WHAT WOULD FILL IT, which is
+  // the whole contract of the honest-empty register.
   if (tool.status === "coming" || !tool.render) {
     return (
-      <p
+      <StateNote
         data-testid="dock-coming"
-        style={{ margin: 0, color: MUTED, fontSize: 11.5 }}
-      >
-        {tool.label} is registered on the workbench but not wired up yet —
-        nothing here is live. It arrives in a later build wave.
-      </p>
+        register="nothing-yet"
+        title={`${tool.label} is not wired up yet`}
+        basis={
+          <>
+            It is registered on the workbench so the rail stays honest about
+            what is coming, but nothing here is live. It arrives in a later
+            build wave.
+          </>
+        }
+      />
     );
   }
   // Property-scoped tool with no active property: honest, actionable state.
   if (tool.propertyScoped && !activeParcelNodeId) {
     return (
-      <p
+      <StateNote
         data-testid="dock-no-property"
-        style={{ margin: 0, color: AMBER, fontSize: 11.5 }}
-      >
-        Select a property first — click a parcel on the map (or use search) and
-        {" "}
-        {tool.label.toLowerCase()} will scope to it.
-      </p>
+        register="waiting"
+        title="Select a property first"
+        basis={
+          <>
+            Click a parcel on the map, or search an address or parcel id, and
+            {" "}
+            {tool.label.toLowerCase()} will scope to it.
+          </>
+        }
+      />
     );
   }
   return (
