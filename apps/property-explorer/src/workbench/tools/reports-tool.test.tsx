@@ -8,6 +8,8 @@
 //     document is selected; another property stays clean;
 //   - no active property → My reports library, not select-first.
 
+import { readFileSync } from "node:fs";
+import { resolve } from "node:path";
 import { describe, expect, it } from "vitest";
 import { renderToStaticMarkup } from "react-dom/server";
 import { Workbench } from "../Workbench";
@@ -352,5 +354,34 @@ describe("picking a report BEFORE picking a property", () => {
     const html = render({ activeParcelNodeId: null });
     expect(html).not.toContain('data-testid="site-plan-export-section"');
     expect(html).not.toContain('data-testid="flood-drainage-section"');
+  });
+});
+
+describe("the two wirings that had no test until they broke", () => {
+  // Source-level pins. This repo has no click harness, and neither of these is
+  // observable in static markup: one is a subscription, the other is an effect
+  // in another file. Both were verified by violation and BOTH PLANTS PASSED
+  // before these existed, which is the whole reason they do.
+  const codeOf = (rel: string) =>
+    readFileSync(resolve(__dirname, rel), "utf8")
+      .replace(/\/\*[\s\S]*?\*\//g, "")
+      .replace(/(^|[^:])\/\/.*$/gm, "$1");
+
+  it("ReportsLibrary SUBSCRIBES to saved-property changes", () => {
+    // It read the list once on mount and never again, so a report generated
+    // while the dock was open did not appear. The signal already existed and
+    // already fired; this library was simply not a subscriber.
+    const src = codeOf("ReportsTool.tsx");
+    expect(src).toMatch(/subscribeSavedPropertiesChanged\(\s*read\s*\)/);
+  });
+
+  it("opening Reports marks records runs seen, so the dot can go dark", () => {
+    // The dot's rule was "a run has finished", which stays true forever. With
+    // nothing calling markRecordsSeenNow it could never be cleared.
+    const src = codeOf("../../browse/ExplorerMap.tsx");
+    // Assert the CALL, not the identifier: the first version of this matched
+    // the import, so removing the call still passed.
+    expect(src).toMatch(/void\s+markRecordsSeenNow\(\)/);
+    expect(src).toMatch(/openWorkbenchTool !== "reports"/);
   });
 });

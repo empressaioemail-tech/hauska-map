@@ -61,7 +61,7 @@ import { InspectCard } from "./InspectCard";
 import { getPropertyEntitlementSnapshot, isEntitled } from "../lib/entitlementClient";
 import { Workbench } from "../workbench/Workbench";
 import { WORKBENCH_TOOLS } from "../workbench/registry";
-import { useRecordsUnread } from "../lib/useRecordsUnread";
+import { markRecordsSeenNow, useRecordsUnread } from "../lib/useRecordsUnread";
 import type { WorkbenchHostActions } from "../workbench/types";
 import {
   SHARED_ANALYSIS_TOOL_ID,
@@ -1304,6 +1304,16 @@ function ExplorerMapSurface({
   // zero renders no dot at all: an absent dot is the honest answer to "we do
   // not know", and a dot lit by a failed fetch would be worse than none.
   const recordsUnread = useRecordsUnread();
+
+  // OPENING REPORTS IS WHAT CLEARS THE DOT. Before this nothing could: the
+  // rule was "a run has finished", which stays true forever, so the dot was
+  // permanently lit and meant nothing. Keyed on the open tool rather than on
+  // a click handler so it covers the programmatic opens too, and it is
+  // idempotent.
+  useEffect(() => {
+    if (openWorkbenchTool !== "reports") return;
+    void markRecordsSeenNow();
+  }, [openWorkbenchTool]);
   // Lifted out of MapSourceInfo so its bubble and its panel can sit in the
   // capsule and the column respectively.
   const [sourcesOpen, setSourcesOpen] = useState(false);
