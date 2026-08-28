@@ -35,7 +35,11 @@ import { GeolocateControl } from "maplibre-gl";
 import type { Map as MaplibreMap } from "maplibre-gl";
 import type { FloatingMapHandle } from "../FloatingMap";
 import { LAYER_REGISTRY } from "../layer-registry.js";
-import { legendSectionsFor, legendPanelHtml } from "../map/map-legend.js";
+import {
+  legendSectionsFor,
+  legendPanelHtml,
+  ensureLegendStyles,
+} from "../map/map-legend.js";
 import {
   INTERACTION_CYAN,
   MAP_LAYER_PRESETS,
@@ -204,7 +208,15 @@ function LegendBubble({
   );
 }
 
-/** The legend key, on the same StackPanel template as everything else. */
+/**
+ * The legend key, on the same StackPanel template as everything else.
+ *
+ * It installs the legend STYLESHEET as well as rendering the markup. Reusing
+ * `legendPanelHtml` without `ensureLegendStyles` is what flattened the legend
+ * into a run of text: the swatch, the row gaps and the badge are all class
+ * rules that live in map-legend.js, and moving the markup here left them
+ * behind. Both halves travel together or neither does.
+ */
 function LegendPanel({
   sections,
   open,
@@ -216,6 +228,9 @@ function LegendPanel({
   onToggle: () => void;
   onClose: () => void;
 }) {
+  useEffect(() => {
+    ensureLegendStyles(typeof document === "undefined" ? null : document);
+  }, []);
   return (
     <StackPanel
       testId="map-toolset-legend-panel"
