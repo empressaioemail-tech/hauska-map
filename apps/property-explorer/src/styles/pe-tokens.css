@@ -229,9 +229,9 @@
    sits entirely inside the opaque three-quarters and is untouched. */
 .ss-fade-top {
   -webkit-mask-image: linear-gradient(to top,
-    #000 0, #000 94%, transparent 100%);
+    #000 0, #000 97%, transparent 100%);
   mask-image: linear-gradient(to top,
-    #000 0, #000 94%, transparent 100%);
+    #000 0, #000 97%, transparent 100%);
 }
 @media (prefers-reduced-motion: reduce) {
   /* The mask is not motion, and it stays — a reader who has asked for less
