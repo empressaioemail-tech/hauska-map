@@ -4,7 +4,8 @@ Companion to the drop in this folder. `README.md` and `SPEC.md` are the design
 as delivered; this file is the record of what landed on Property Explorer,
 written at implementation time so nobody has to re-derive it by reading diffs.
 
-Implemented 2026-08-27 on `seat/property-chrome-v2` from `f79b1ef`.
+Implemented 2026-08-27 on `seat/property-chrome-v2`. Wave 1 from `f79b1ef`
+(hauska-map #260, `65be567`); wave 2 from `65be567` (#261, `bd3ffac`).
 
 The reference sheets in `reference/` open in a browser with no build step and
 no network, and remain the tiebreaker wherever `SPEC.md` is ambiguous.
@@ -52,12 +53,17 @@ observing it pass.
 Each of these is a real refusal with a named reason, not an oversight. Anyone
 picking this up should read the reason before reversing it.
 
-**Multi-dock stacking with fold-to-header, in a left column** (`SPEC.md` §2).
-Operator ruling 2026-08-27: one tool open at a time and the right-hand dock
-stay. `workbench.test.tsx` carries guard tests written specifically to stop
-multi-open returning, and they stay armed. `nextOpenToolId` is still the only
-rule. Everything else in §2 — the rail states, the 36px header, the one dock
-width, the panel motion — did land.
+**~~Multi-dock stacking with fold-to-header~~ — SHIPPED IN WAVE 2.** The
+2026-08-27 ruling declined it; the operator reversed that later the same day
+after using the single-dock v2 chrome. Stacking is now live: opening a tool
+folds the others to their 36px header, nothing is closed on the user's behalf,
+and the rules are pure functions in `workbench/dock-stack.ts`. The two guards
+that enforced the old rule were replaced, not deleted quietly — 16 rule tests
+plus 6 render tests, three of them verified by violation.
+
+The column stays on the RIGHT, where the rail, MapToolset and the mobile
+layout already live. The drop draws it on the left; moving sides was not part
+of what was asked for and is still unsettled.
 
 **Basemap attribution moving to a map footer** (`SPEC.md` §4). It stays in the
 sources panel. The renderer suppresses MapLibre's `AttributionControl` on the
@@ -94,6 +100,30 @@ the dock at `right: 54`. The dock's `top: 12` is pinned by the
 viewport-bounded height rule in `workbench.test.tsx`. The brand chip and the
 find bar do use the v2 inset.
 
+## Wave 2 — the two defects behind "missing animation" and "partial treatment"
+
+Both were mine, and neither was caused by the missing stacking.
+
+**Six primitives shipped with zero call sites** — `ss-pulse`,
+`LabelledSkeleton` (and with it `ss-shimmer`), `LoadingCount`, `Rule`,
+`FieldError`, `UnverifiedSource`. A dormant mechanism reports as success and is
+worse than an absence. `LabelledSkeleton` and `UnverifiedSource` were wired to
+real call sites; the other four were REMOVED, each with a comment naming what
+must exist before it comes back. `LoadingCount` in particular needs a real
+n-of-m, and no surface here has one — a count invented to fill the slot is a
+fabricated number.
+
+**The dock shell was v2 while the bodies were v1.** Measured before touching
+anything: 2 of 18 dock surfaces were ported. Renaming the legacy `PE.*` keys
+would have changed nothing visible, because they already resolve to v2 values;
+the visible gap was the type ramp and the radii.
+`scripts/ramp-codemod.mjs` moved 21 files onto the ramp, and the chrome-kit
+gate now REFUSES off-ramp `fontSize` / `borderRadius` / `fontWeight`, so the
+sweep cannot drift back. The legal set is README's ramp plus the four sizes
+`SPEC.md` names by component (11, 19, 24, 26). It is deliberately not scraped
+from `reference/`, whose sheets carry their own documentation chrome alongside
+the specimens.
+
 ## Open for the product owner
 
 - **Compare is live.** `README.md` draws it as not-built with a way forward.
@@ -101,6 +131,9 @@ find bar do use the v2 inset.
   rather than replaced with the not-built panel. If the intent was to pull it,
   that is a product call.
 - **No recommended tier.** Unchanged: nothing is pre-selected.
+- **`Modal.tsx` has no call site** and did not gain one. That dormancy predates
+  chrome v2 — it was unused at `f79b1ef` — so it was reported rather than
+  deleted, since removing another author's component is their call.
 - **The v1 `docs/smart-site-brand/` tokens** (`tokens/pe-tokens.css` and
   friends beside this folder) are now superseded by `v2/tokens/`. They were
   left in place rather than deleted; retiring them is a separate cleanup.
