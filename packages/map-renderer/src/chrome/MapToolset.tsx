@@ -1699,30 +1699,6 @@ export function MapToolset({
               onClose={() => setLegendOpen(false)}
             />
           ) : null}
-          {splitOpenCount > 1 && (
-            <button
-              type="button"
-              data-testid="map-toolset-collapse-all"
-              onClick={() => {
-                setExpanded(false);
-                setOpenKinds(new Set());
-                dispatchPanelDismiss("hide-all");
-                onRequestClose?.();
-              }}
-              style={{
-                alignSelf: "flex-start",
-                padding: "3px 8px",
-                borderRadius: 5,
-                border: "0.5px solid rgba(154,166,178,0.25)",
-                background: PANEL_BG,
-                color: MUTED,
-                cursor: "pointer",
-                fontSize: 10.5,
-              }}
-            >
-              Collapse all
-            </button>
-          )}
           {/* GATED ON ITS OWN BUBBLE. splitPanelStyle carried
               `display: openKinds.has(kind) ? "flex" : "none"`, and swapping it
               for StackPanel dropped that gate — so Draw and Layers rendered
