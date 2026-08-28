@@ -2,8 +2,10 @@ import type { CSSProperties, HTMLAttributes } from "react";
 import { PE } from "../styles/pe-chrome";
 
 // ONE EDGE PER SURFACE. No card inside a card inside a chip. Inside a card,
-// division is a 1px rule (see `Rule` below) or whitespace — never another
-// border, and never a nested rounded box.
+// division is a 1px --ss-line-06 rule bled to the card edge with a negative
+// margin, or whitespace — never another border, and never a nested rounded
+// box. That rule is two lines at the call site and had no consumer as a
+// component, so it is not one.
 //
 //   resting  ink at 94%, line-14 edge, radius 10, dock shadow. Docks, inspect,
 //            anything sitting on the map.
@@ -34,30 +36,4 @@ export function Card({
         ...style,
       };
   return <div {...rest} data-pe="card" data-raised={raised ? "1" : undefined} style={chrome} />;
-}
-
-/**
- * The only legal division inside a card: a 1px line-06 rule bled to the card
- * edge with a negative margin. `inset` is the card's own horizontal padding,
- * so the rule reaches both edges.
- */
-export function Rule({
-  inset = 13,
-  style,
-  ...rest
-}: HTMLAttributes<HTMLDivElement> & { inset?: number }) {
-  return (
-    <div
-      {...rest}
-      data-pe="rule"
-      aria-hidden
-      style={{
-        height: 1,
-        background: PE.line06,
-        marginLeft: -inset,
-        marginRight: -inset,
-        ...style,
-      }}
-    />
-  );
 }

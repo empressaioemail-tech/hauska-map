@@ -18,6 +18,7 @@
 import { useEffect, useState } from "react";
 import { PropertyBriefPanel } from "../../browse/PropertyBriefPanel";
 import { PE } from "../../styles/pe-chrome";
+import { LabelledSkeleton, Spinner } from "../../components/Loading";
 import type { ResearchBriefPayload } from "../../browse/brief-view-model";
 import { recordPeGtmEvent } from "../../lib/gtmClient";
 import { usePropertyEntitlement } from "../../lib/usePropertyEntitlement";
@@ -31,6 +32,18 @@ import {
 
 const MUTED = PE.muted;
 const AMBER = PE.warning;
+
+/** The sections deriveBriefViewModel is built to render (brief-view-model.ts
+ *  switches on exactly these four ids). Used as the loading skeleton labels,
+ *  so the wait shows the SHAPE of the answer rather than a blank panel. A
+ *  server that returns fewer still resolves honestly — the skeleton states
+ *  what was asked for, not what is guaranteed back. */
+const BRIEF_SECTION_LABELS = [
+  "Zoning",
+  "Setbacks and envelope",
+  "Flood",
+  "Land use",
+] as const;
 
 /** The chassis-stored (per-property, JSON-serializable) brief tool state. */
 export interface BriefToolStoredState {
@@ -145,12 +158,30 @@ export function BriefTool() {
       </p>
     );
   }
+  // TWO loading states, told apart, because they are two different waits and
+  // collapsing them was hiding one of them. Checking an entitlement is a gate
+  // and has no fields to promise; running the research does, so it shows the
+  // sections the brief is built from with shimmering bars where the values
+  // will land. Never a bare spinner, never a skeleton with no labels.
+  const checkingAccess = ent.status === "loading";
   return (
-    <p
-      data-testid="brief-tool-loading"
-      style={{ margin: 0, fontSize: 11.5, color: MUTED }}
-    >
-      Checking access…
-    </p>
+    <div data-testid="brief-tool-loading">
+      <div
+        style={{
+          display: "flex",
+          alignItems: "center",
+          gap: 9,
+          marginBottom: checkingAccess ? 0 : 14,
+          fontSize: 11.5,
+          color: PE.t5,
+        }}
+      >
+        <Spinner />
+        {checkingAccess ? "Checking access…" : "Researching this parcel…"}
+      </div>
+      {checkingAccess ? null : (
+        <LabelledSkeleton labels={BRIEF_SECTION_LABELS} />
+      )}
+    </div>
   );
 }

@@ -207,7 +207,7 @@ export function MapSourceInfo({
               justifyContent: "center",
               width: 22,
               height: 22,
-              borderRadius: 5,
+              borderRadius: 6,
               background: "transparent",
               border: "none",
               color: PE.t5,

@@ -328,7 +328,7 @@ export function PropertiesList({
                     style={{
                       marginLeft: 7,
                       display: "inline-block",
-                      fontSize: 11,
+                      fontSize: 11.5,
                       fontWeight: 600,
                       padding: "1px 7px",
                       borderRadius: PE.rChip,
@@ -345,7 +345,7 @@ export function PropertiesList({
                     display: "block",
                     marginTop: 3,
                     fontFamily: PE.mono,
-                    fontSize: 11,
+                    fontSize: 11.5,
                     color: PE.t6,
                   }}
                 >
@@ -373,7 +373,7 @@ export function PropertiesList({
                   border: "none",
                   color: MUTED,
                   cursor: busy ? "default" : "pointer",
-                  fontSize: 13,
+                  fontSize: 13.5,
                   lineHeight: 1,
                   padding: "2px 4px",
                 }}

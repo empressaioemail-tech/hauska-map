@@ -652,12 +652,12 @@ export function FacetsLoadErrorBanner({ onRetry }: { onRetry: () => void }) {
         borderRadius: 6,
         background: "rgba(239,68,68,0.10)",
         border: `0.5px solid ${ERROR}`,
-        fontSize: 10.5,
+        fontSize: 11.5,
         lineHeight: 1.45,
         color: TEXT,
       }}
     >
-      <span style={{ color: ERROR, fontWeight: 700 }}>Could not load </span>
+      <span style={{ color: ERROR, fontWeight: 600 }}>Could not load </span>
       this parcel&apos;s details. This is a loading problem, not a gap in
       what we know about the parcel.
       <button
@@ -671,7 +671,7 @@ export function FacetsLoadErrorBanner({ onRetry }: { onRetry: () => void }) {
           border: "none",
           color: ERROR,
           cursor: "pointer",
-          fontSize: 10.5,
+          fontSize: 11.5,
           fontWeight: 600,
           padding: 0,
           textDecoration: "underline",
@@ -1111,7 +1111,7 @@ export function InspectCard({
           <div
             style={{
               fontWeight: 400,
-              fontSize: 19,
+              fontSize: 20,
               letterSpacing: "-.01em",
               lineHeight: 1.2,
               color: PE.t1,
@@ -1145,7 +1145,7 @@ export function InspectCard({
               width: 22,
               height: 22,
               flex: "none",
-              borderRadius: 5,
+              borderRadius: 6,
               background: "transparent",
               border: "none",
               color: PE.t5,
@@ -1275,7 +1275,7 @@ export function InspectCard({
 
       {/* Honest coverage / disclosure states. */}
       {source === "loading" && (
-        <div style={{ marginTop: 8, fontSize: 10.5, color: MUTED }}>
+        <div style={{ marginTop: 8, fontSize: 11.5, color: MUTED }}>
           Reading this parcel…
         </div>
       )}
@@ -1317,7 +1317,7 @@ export function InspectCard({
         baked.buildableDisplayKind === "declined-consume" && (
           <div
             data-testid="no-buildable-area"
-            style={{ marginTop: 8, fontSize: 10.5, color: "var(--semantic-warning, #F59E0B)" }}
+            style={{ marginTop: 8, fontSize: 11.5, color: "var(--semantic-warning, #F59E0B)" }}
           >
             {baked.envelopeEmptyReason ||
               "No buildable area after setbacks — the setbacks consume the lot."}
@@ -1326,12 +1326,12 @@ export function InspectCard({
 
       {/* LIVE fallback coverage states (un-baked nodes only). */}
       {source === "live" && env.status === "loading" && (
-        <div style={{ marginTop: 8, fontSize: 10.5, color: MUTED }}>
+        <div style={{ marginTop: 8, fontSize: 11.5, color: MUTED }}>
           Reading zoning &amp; setbacks…
         </div>
       )}
       {source === "live" && env.status === "empty" && (
-        <div style={{ marginTop: 8, fontSize: 10.5, color: "var(--semantic-warning, #F59E0B)" }}>
+        <div style={{ marginTop: 8, fontSize: 11.5, color: "var(--semantic-warning, #F59E0B)" }}>
           {env.reason || "No buildable area — setbacks consume the lot."}
         </div>
       )}
@@ -1696,7 +1696,7 @@ export function SetbackXrayDetail({
           border: "none",
           color: MUTED,
           cursor: "pointer",
-          fontSize: 10.5,
+          fontSize: 11.5,
           padding: 0,
           textDecoration: "underline",
         }}

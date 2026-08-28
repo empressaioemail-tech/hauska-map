@@ -252,9 +252,13 @@
 @keyframes ss-spin    { to { transform: rotate(360deg) } }
 @keyframes ss-shimmer { 0% { opacity: .35 } 50% { opacity: .7 } 100% { opacity: .35 } }
 @keyframes ss-blink   { 0%, 100% { opacity: 1 } 50% { opacity: .25 } }
-@keyframes ss-pulse   { 0% { transform: scale(1); opacity: .45 }
-                        70% { transform: scale(2.6); opacity: 0 }
-                        100% { opacity: 0 } }
+/* ss-pulse (the once-on-arrival selection pulse, SPEC section 4) is NOT
+   declared here. It belongs on the map's selected-parcel geometry, which is a
+   MapLibre overlay and cannot run a CSS keyframe, and the parcel highlight is
+   deliberately mirrored from the shared renderer's tile feature-state. A
+   keyframe sitting here with nothing able to trigger it is a dormant
+   mechanism, which reports as success and is worse than an absence. It comes
+   back with the cross-product geometry card that can actually fire it. */
 
 /* A panel opens its own height while scaling up 3% from its anchored corner.
    It never slides in from off-screen; nothing bounces, nothing overshoots.

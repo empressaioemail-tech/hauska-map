@@ -114,7 +114,7 @@ export function CheckoutSuccessCard({
             alignItems: "center",
             justifyContent: "center",
             color: status === "timeout" ? PE.err : PE.ok,
-            fontSize: 13,
+            fontSize: 13.5,
           }}
         >
           {status === "timeout" ? "!" : "✓"}
@@ -124,7 +124,7 @@ export function CheckoutSuccessCard({
           style={{
             fontFamily: DISPLAY,
             fontWeight: 400,
-            fontSize: 19,
+            fontSize: 20,
             letterSpacing: "-.01em",
             color: status === "timeout" ? PE.err : PE.ok,
           }}

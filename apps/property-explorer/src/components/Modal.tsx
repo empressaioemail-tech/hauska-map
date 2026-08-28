@@ -99,7 +99,7 @@ export function Modal({
                 display: "inline-flex",
                 alignItems: "center",
                 justifyContent: "center",
-                borderRadius: 5,
+                borderRadius: 6,
                 background: "transparent",
                 border: "none",
                 color: PE.t5,

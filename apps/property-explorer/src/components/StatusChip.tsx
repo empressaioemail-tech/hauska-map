@@ -113,9 +113,11 @@ export function StatusChip({
 export function UnverifiedSource({
   domain,
   href,
+  testId = "unverified-source",
 }: {
   domain: string;
   href?: string;
+  testId?: string;
 }) {
   const inner = (
     <>
@@ -133,7 +135,16 @@ export function UnverifiedSource({
       >
         <path d="M10 13a5 5 0 0 0 7 0l3-3a5 5 0 0 0-7-7l-1 1 M14 11a5 5 0 0 0-7 0l-3 3a5 5 0 0 0 7 7l1-1" />
       </svg>
-      <span>{domain}</span>
+      <span
+        style={{
+          overflow: "hidden",
+          textOverflow: "ellipsis",
+          whiteSpace: "nowrap",
+          minWidth: 0,
+        }}
+      >
+        {domain}
+      </span>
       <span style={{ color: PE.t6, fontWeight: 400 }}>unverified</span>
     </>
   );
@@ -152,11 +163,12 @@ export function UnverifiedSource({
     fontWeight: 600,
     lineHeight: 1,
     textDecoration: "none",
-    whiteSpace: "nowrap",
+    maxWidth: "100%",
   };
   return href ? (
     <a
       data-pe="unverified-source"
+      data-testid={testId}
       href={href}
       target="_blank"
       rel="noreferrer noopener"
@@ -165,7 +177,7 @@ export function UnverifiedSource({
       {inner}
     </a>
   ) : (
-    <span data-pe="unverified-source" style={chrome}>
+    <span data-pe="unverified-source" data-testid={testId} style={chrome}>
       {inner}
     </span>
   );

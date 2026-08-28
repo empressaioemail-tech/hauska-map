@@ -204,7 +204,7 @@ export function CompareView({
   return (
     <div data-testid="compare-tool">
       {phase.kind === "loading" && (
-        <p style={{ margin: "0 0 8px", fontSize: 11, color: MUTED }}>
+        <p style={{ margin: "0 0 8px", fontSize: 11.5, color: MUTED }}>
           Refreshing saved properties…
         </p>
       )}
@@ -398,7 +398,7 @@ function CompareTable({
               <div
                 style={{
                   fontSize: 10,
-                  fontWeight: 700,
+                  fontWeight: 600,
                   letterSpacing: 0.4,
                   textTransform: "uppercase",
                   color: MUTED,
@@ -417,7 +417,7 @@ function CompareTable({
               ) : (
                 <p
                   data-testid={`compare-notes-empty-${slot}`}
-                  style={{ margin: "0 0 6px", fontSize: 11, color: MUTED, fontStyle: "italic" }}
+                  style={{ margin: "0 0 6px", fontSize: 11.5, color: MUTED, fontStyle: "italic" }}
                 >
                   No notes yet.
                 </p>
@@ -490,7 +490,7 @@ function CompareTable({
                   style={{
                     ...cellStyle,
                     width: 86,
-                    fontSize: 10.5,
+                    fontSize: 11.5,
                     // SUBTLE difference emphasis: the row label carries the
                     // accent (color + weight) — legibility without noise.
                     color: differs ? ACCENT : MUTED,

@@ -104,8 +104,8 @@ export function CheckoutPage({
         <span
           style={{
             fontFamily: DISPLAY,
-            fontWeight: 700,
-            fontSize: 14,
+            fontWeight: 600,
+            fontSize: 13.5,
             letterSpacing: "0.04em",
           }}
         >
@@ -116,7 +116,7 @@ export function CheckoutPage({
           data-testid="checkout-back"
           onClick={onClose}
           style={{
-            fontSize: 12,
+            fontSize: 12.5,
             color: ABSENCE,
             background: "transparent",
             border: "none",
@@ -133,7 +133,7 @@ export function CheckoutPage({
             data-testid="checkout-change-seats"
             onClick={onClose}
             style={{
-              fontSize: 12,
+              fontSize: 12.5,
               color: ABSENCE,
               background: "transparent",
               border: "none",
@@ -167,7 +167,7 @@ export function CheckoutPage({
             <div
               style={{
                 fontFamily: DISPLAY,
-                fontWeight: 700,
+                fontWeight: 600,
                 fontSize: 11,
                 letterSpacing: "0.2em",
                 textTransform: "uppercase",
@@ -248,7 +248,7 @@ export function CheckoutPage({
             >
               {situs ? (
                 <div style={{ fontSize: 12.5 }}>
-                  Started from <span style={{ fontWeight: 700 }}>{situs}</span>
+                  Started from <span style={{ fontWeight: 600 }}>{situs}</span>
                 </div>
               ) : null}
               {origin ? (
@@ -349,7 +349,7 @@ export function CheckoutPage({
               borderRadius: PE.rTouch,
               background: BLUE,
               border: `1px solid ${BLUE}`,
-              fontSize: 13,
+              fontSize: 13.5,
               fontWeight: 600,
               color: "#F8FAFC",
               opacity: mount.canSubmit ? 1 : 0.45,

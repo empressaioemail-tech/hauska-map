@@ -272,7 +272,7 @@ export function PricingModal({
                 border: "none",
                 color: MUTED,
                 cursor: "pointer",
-                fontSize: 17,
+                fontSize: 15,
                 lineHeight: 1,
                 padding: 0,
               }}
@@ -312,7 +312,7 @@ export function PricingModal({
               borderBottom: ROW_BORDER,
               display: "flex",
               alignItems: "flex-end",
-              fontSize: 12,
+              fontSize: 12.5,
               color: ABSENCE,
               lineHeight: 1.45,
             }}
@@ -406,7 +406,7 @@ export function PricingModal({
           <div style={{ display: "flex", flexDirection: "column", gap: 4, minWidth: 0 }}>
             <div style={{ fontSize: 12.5, lineHeight: 1.45 }}>
               {PE_PRICING.property.footerLead}{" "}
-              <span style={{ fontWeight: 700 }}>{propertyUnlockOffer()}</span>
+              <span style={{ fontWeight: 600 }}>{propertyUnlockOffer()}</span>
               {" — "}
               {PE_PRICING.property.blurb}
             </div>
@@ -429,7 +429,7 @@ export function PricingModal({
             {!parcelNodeId ? (
               <p
                 data-testid="pricing-unlock-needs-property"
-                style={{ margin: 0, fontSize: 10.5, color: MUTED }}
+                style={{ margin: 0, fontSize: 11.5, color: MUTED }}
               >
                 {PE_PRICING.property.needsPropertyNote}
               </p>
@@ -543,7 +543,7 @@ function ColumnHead({
           <span
             data-testid="pricing-studio-badge"
             style={{
-              fontSize: 9.5,
+              fontSize: 10,
               letterSpacing: "0.12em",
               textTransform: "uppercase",
               color: ACCENT,
@@ -555,7 +555,7 @@ function ColumnHead({
       </div>
       <div style={{ fontFamily: PE.mono, fontWeight: 400, fontSize: 24, letterSpacing: "-.01em", color: TEXT }}>
         {headline.amount}
-        <span style={{ fontSize: 12, fontWeight: 400, color: MUTED }}>
+        <span style={{ fontSize: 12.5, fontWeight: 400, color: MUTED }}>
           {headline.suffix}
         </span>
       </div>
@@ -602,7 +602,7 @@ function ColumnHead({
               color: TEXT,
               padding: "3px 6px",
               fontFamily: "inherit",
-              fontSize: 12,
+              fontSize: 12.5,
             }}
           />
           <span>{PE_PRICING.team.seatNote}</span>

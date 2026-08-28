@@ -66,7 +66,7 @@ export function RecordsRunStatusStrip({
             data-testid="records-run-status-progress"
             style={{
               height: 4,
-              borderRadius: 2,
+              borderRadius: 4,
               background: "rgba(154,166,178,0.14)",
               overflow: "hidden",
             }}
@@ -84,7 +84,7 @@ export function RecordsRunStatusStrip({
           <div
             style={{
               fontFamily: "ui-monospace, Menlo, monospace",
-              fontSize: 11,
+              fontSize: 11.5,
               color: SLATE,
             }}
           >

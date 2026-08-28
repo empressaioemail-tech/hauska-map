@@ -215,14 +215,14 @@ function Legend({ hasPonding = true }: { hasPonding?: boolean }) {
           display: "inline-block",
           width: 13,
           height: 13,
-          borderRadius: 3,
+          borderRadius: 4,
           flex: "0 0 auto",
           ...swatch,
         }}
       />
       <span
         style={{
-          fontSize: 11,
+          fontSize: 11.5,
           color: "var(--surface-muted, #94A3B8)",
           whiteSpace: "nowrap",
         }}
@@ -472,7 +472,7 @@ export function FloodDrainageSection({ embed = false }: { embed?: boolean } = {}
       {staleStyledStored && !busy && (
         <div
           data-testid="flood-stale-style"
-          style={{ margin: "0 0 8px", fontSize: 10.5, color: MUTED, lineHeight: 1.45 }}
+          style={{ margin: "0 0 8px", fontSize: 11.5, color: MUTED, lineHeight: 1.45 }}
         >
           A drainage study was run on this parcel in an earlier build — re-run it
           to redraw with the current severity bands and flow paths.
@@ -495,7 +495,7 @@ export function FloodDrainageSection({ embed = false }: { embed?: boolean } = {}
       {busy && (
         <div
           data-testid="flood-progress"
-          style={{ marginTop: 8, fontSize: 10.5, color: MUTED, lineHeight: 1.45 }}
+          style={{ marginTop: 8, fontSize: 11.5, color: MUTED, lineHeight: 1.45 }}
         >
           {FLOOD_RUNNING_LINE}
         </div>
@@ -504,7 +504,7 @@ export function FloodDrainageSection({ embed = false }: { embed?: boolean } = {}
       {notice && !busy && (
         <div
           data-testid="flood-notice"
-          style={{ marginTop: 8, fontSize: 10.5, color: MUTED, lineHeight: 1.45 }}
+          style={{ marginTop: 8, fontSize: 11.5, color: MUTED, lineHeight: 1.45 }}
         >
           {notice}
           {notice.includes("Sign in") && (
@@ -533,7 +533,7 @@ export function FloodDrainageSection({ embed = false }: { embed?: boolean } = {}
           {finding ? (
             <p
               data-testid="flood-finding-lead"
-              style={{ margin: "0 0 12px", fontSize: 13, lineHeight: 1.5, color: TEXT }}
+              style={{ margin: "0 0 12px", fontSize: 13.5, lineHeight: 1.5, color: TEXT }}
             >
               {finding}
             </p>
@@ -568,12 +568,12 @@ export function FloodDrainageSection({ embed = false }: { embed?: boolean } = {}
                   bottom: 9,
                   height: 26,
                   padding: "0 10px",
-                  borderRadius: 5,
+                  borderRadius: 6,
                   background: "rgba(11,14,19,0.85)",
                   border: "0.5px solid rgba(154,166,178,0.35)",
                   display: "flex",
                   alignItems: "center",
-                  fontSize: 11,
+                  fontSize: 11.5,
                   color: ACCENT,
                 }}
               >
@@ -594,7 +594,7 @@ export function FloodDrainageSection({ embed = false }: { embed?: boolean } = {}
                   height: 26,
                   padding: "0 10px",
                   background: "rgba(11,14,19,0.85)",
-                  fontSize: 11,
+                  fontSize: 11.5,
                 }}
               >
                 Open on the map
@@ -609,7 +609,7 @@ export function FloodDrainageSection({ embed = false }: { embed?: boolean } = {}
               gap: 12,
               flexWrap: "wrap",
               marginTop: 8,
-              fontSize: 10.5,
+              fontSize: 11.5,
               color: MUTED,
             }}
           >
@@ -632,7 +632,7 @@ export function FloodDrainageSection({ embed = false }: { embed?: boolean } = {}
           {!hasPonding && (
             <div
               data-testid="flood-no-ponding"
-              style={{ marginTop: 6, fontSize: 10.5, color: MUTED, lineHeight: 1.45 }}
+              style={{ marginTop: 6, fontSize: 11.5, color: MUTED, lineHeight: 1.45 }}
             >
               {FLOOD_NO_PONDING_LINE}
             </div>
@@ -645,7 +645,7 @@ export function FloodDrainageSection({ embed = false }: { embed?: boolean } = {}
             <summary
               style={{
                 cursor: "pointer",
-                fontSize: 12,
+                fontSize: 12.5,
                 color: "#c6d0dc",
                 listStyle: "none",
               }}

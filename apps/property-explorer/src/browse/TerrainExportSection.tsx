@@ -180,7 +180,7 @@ export function TerrainExportSection({
 
       {lockedFormat ? null : (
         <>
-          <label style={{ display: "block", fontSize: 10.5, color: MUTED, marginBottom: 4 }}>
+          <label style={{ display: "block", fontSize: 11.5, color: MUTED, marginBottom: 4 }}>
             Format
           </label>
           <select
@@ -202,7 +202,7 @@ export function TerrainExportSection({
               border: "0.5px solid rgba(154,166,178,0.35)",
               background: "rgba(6,9,13,0.6)",
               color: "#e6edf3",
-              fontSize: 12,
+              fontSize: 12.5,
             }}
           >
             {TERRAIN_FORMAT_OPTIONS.map((opt) => (
@@ -236,7 +236,7 @@ export function TerrainExportSection({
       {notice && (
         <div
           data-testid="terrain-export-notice"
-          style={{ marginTop: 8, fontSize: 10.5, color: MUTED, lineHeight: 1.45 }}
+          style={{ marginTop: 8, fontSize: 11.5, color: MUTED, lineHeight: 1.45 }}
         >
           {notice}
           {notice.includes("Sign in") && (
@@ -269,14 +269,14 @@ export function TerrainExportSection({
         <div data-testid="terrain-export-result" style={{ marginTop: 8 }}>
           <div
             data-testid="terrain-source-citation"
-            style={{ fontSize: 10.5, color: "#c6d0dc", lineHeight: 1.45 }}
+            style={{ fontSize: 11.5, color: "#c6d0dc", lineHeight: 1.45 }}
           >
             Source: {result.atom.sourceCitation ?? "USGS 3DEP"}
             {result.atom.fetchedAt ? ` · ${result.atom.fetchedAt.slice(0, 10)}` : ""}
           </div>
           <div
             data-testid="terrain-confidence"
-            style={{ fontSize: 10.5, color: MUTED, marginTop: 4, lineHeight: 1.45 }}
+            style={{ fontSize: 11.5, color: MUTED, marginTop: 4, lineHeight: 1.45 }}
           >
             Confidence{" "}
             {typeof result.atom.confidence?.value === "number"
@@ -289,11 +289,11 @@ export function TerrainExportSection({
           </div>
 
           {!selectedDownload && result.selectedFormat !== format ? (
-            <div style={{ marginTop: 8, fontSize: 10.5, color: WARN }}>
+            <div style={{ marginTop: 8, fontSize: 11.5, color: WARN }}>
               Click Re-run again for {format}.
             </div>
           ) : !selectedDownload ? (
-            <div style={{ marginTop: 8, fontSize: 10.5, color: WARN }}>
+            <div style={{ marginTop: 8, fontSize: 11.5, color: WARN }}>
               Selected format unavailable in this export.
             </div>
           ) : null}
