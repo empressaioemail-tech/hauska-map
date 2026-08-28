@@ -89,12 +89,25 @@ describe("Use in your AI vendor rows", () => {
     expect(SMART_SITE_CONNECT_HOST).toBe("mcp.smartsite.cloud");
   });
 
-  it("uses Claude Customize Connectors URL, not retired Settings-only path", () => {
+  it("uses Claude's hash-routed settings deep link, not a path that 404s to General", () => {
+    // The two path forms BOTH land on the General pane. Claude's settings is a
+    // modal with hash routing — `claude.ai/new#settings/general` is what the
+    // product itself shows, observed directly. This pins the hash form.
+    //
+    // HONEST LIMIT: the `connectors` slug is inferred from that pattern and is
+    // not confirmed against Claude's routing, which this test cannot reach. It
+    // pins what we chose, not what an external authority verified.
     expect(CLAUDE_CUSTOMIZE_CONNECTORS_URL).toBe(
+      "https://claude.ai/new#settings/connectors",
+    );
+    expect(CLAUDE_CUSTOMIZE_CONNECTORS_URL).toContain("#settings/");
+    // The two forms known to land on the wrong pane.
+    expect(CLAUDE_CUSTOMIZE_CONNECTORS_URL).not.toBe(
       "https://claude.ai/settings/customize/connectors",
     );
-    expect(CLAUDE_CUSTOMIZE_CONNECTORS_URL).toContain("customize/connectors");
-    expect(CLAUDE_CUSTOMIZE_CONNECTORS_URL).not.toBe("https://claude.ai/settings/connectors");
+    expect(CLAUDE_CUSTOMIZE_CONNECTORS_URL).not.toBe(
+      "https://claude.ai/settings/connectors",
+    );
   });
 
   it("never prints a key, Cloud Run URL, or substrate brand on the sheet", () => {
