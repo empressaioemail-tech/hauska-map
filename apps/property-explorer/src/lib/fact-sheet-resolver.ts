@@ -82,11 +82,7 @@ import {
 import { isLayerAbsenceWire, zoningDistrictFromPayload } from "./layer-absence";
 import type { VerdictLayerSnapshot } from "./sheet-to-card-model";
 import { fetchBuildableEnvelope, parsePlaceKey } from "./buildable-envelope.js";
-import {
-  augmentFacetsWithLiveEnvelope,
-  facetsNeedLiveEnvelopeDerive,
-  fetchLiveEnvelopeDerive,
-} from "./live-envelope-augment.js";
+import { facetsNeedLiveEnvelopeDerive } from "./live-envelope-augment.js";
 import { fetchGeocodeSuggestions } from "./geocodeClient";
 import { CORTEX_PROXY_BASE, PE_FACETS_PROXY_BASE } from "./config";
 import { isValidParcelNodeId, normalizeParcelNodeId } from "./parcel-node-id";
@@ -100,7 +96,7 @@ import {
 } from "./parcel-geometry";
 
 /** Bumped whenever the resolver's derivation changes. Part of factSheetId. */
-export const RESOLVER_VERSION = "pe-fact-sheet-2";
+export const RESOLVER_VERSION = "pe-fact-sheet-3";
 
 /** Half-width of the geometry bbox probe, in metres. One suburban block. */
 const GEOMETRY_PROBE_METRES = 150;
@@ -202,6 +198,42 @@ function str(v: unknown): string | null {
 
 function num(v: unknown): number | null {
   return typeof v === "number" && Number.isFinite(v) ? v : null;
+}
+
+function geojsonIsLiveDerive(geojson: unknown): boolean {
+  const features = rec(geojson)?.features;
+  if (!Array.isArray(features)) return false;
+  return features.some((feature) => {
+    const props = rec(rec(feature)?.properties);
+    return str(props?.source) === "live-derive";
+  });
+}
+
+/**
+ * P-91 O1 / ruling B. Live `deriveBuildableEnvelope` is not a buildable-envelope
+ * atom. Until that atom exists, the sheet must refuse the same way MCP refuses
+ * (`atom_path_pending`), and must not print a lot-percentage from the side door.
+ *
+ * A future envelope atom DID is the reversal hatch. Complete fixtures that
+ * already carry geometry without a live-derive disclosure stay representable
+ * so flood / setback contract tests stay honest.
+ */
+export function sheetEnvelopeIsAtomPathPending(
+  facets: BakedFacetPayload,
+): boolean {
+  const env = facets.envelope;
+  if (!env) return false;
+  if (str(env.provenanceRefs?.envelope?.atomDid)) return false;
+  const disclosure = (str(env.disclosure) ?? "").toLowerCase();
+  if (disclosure.includes("live derive")) return true;
+  if (env.status === "ok" && env.geojson == null && facetsNeedLiveEnvelopeDerive(facets)) {
+    return true;
+  }
+  if (geojsonIsLiveDerive(env.geojson)) return true;
+  if (env.status === "no-buildable-area" && disclosure.includes("live derive")) {
+    return true;
+  }
+  return false;
 }
 
 function provenance(
@@ -1139,38 +1171,6 @@ function setbacksFact(facets: BakedFacetPayload): Fact<Setbacks> {
 }
 
 /**
- * When atom-chain adapt left envelope geojson absent, re-derive geometry from
- * the live POST before the sheet seals — never the client inset fallback.
- */
-async function patchFacetsEnvelopeFromLive(
-  facets: BakedFacetPayload,
-  parcelNodeId: string,
-  situsAddress: string | null,
-  cortexBase: string,
-  fetchImpl: typeof fetch,
-  seed: GeometrySeedHint | null,
-  prefetchedLive: BuildableEnvelopeResult | null,
-): Promise<void> {
-  if (!facetsNeedLiveEnvelopeDerive(facets)) return;
-  const patched = await augmentFacetsWithLiveEnvelope(
-    facets,
-    situsAddress,
-    cortexBase,
-    fetchImpl,
-    parcelNodeId,
-    {
-      navigationAddress: seed?.navigationAddress ?? null,
-      lat: seed?.centroid?.lat ?? null,
-      lng: seed?.centroid?.lng ?? null,
-      prefetchedLive,
-    },
-  );
-  if (patched.envelope !== facets.envelope) {
-    facets.envelope = patched.envelope;
-  }
-}
-
-/**
  * ONE field, three EXCLUSIVE outcomes. This is what makes it structurally
  * impossible for one document to say "buildable envelope not derived here" and
  * also print 6,325 sq ft.
@@ -1209,6 +1209,16 @@ function envelopeValue(
         str(env?.declineReason) ??
         "no buildable envelope was derived for this parcel",
       missing,
+    };
+  }
+
+  // P-91 O1 / ruling B: live derive (or withheld atom-chain geometry that
+  // used to side-door through it) is not a buildable-envelope atom.
+  if (sheetEnvelopeIsAtomPathPending(facets)) {
+    return {
+      kind: "not-derived",
+      reason: "atom_path_pending",
+      missing: ["envelope-derivation"],
     };
   }
 
@@ -1673,30 +1683,11 @@ export class PeFactSheetResolver implements FactSheetResolver {
       owner: identity.owner,
     };
 
-    const seed = this.seeds.get(parcelNodeId) ?? null;
-    const situsForDerive =
-      identity.situsAddress.state === "present"
-        ? identity.situsAddress.value
-        : null;
-    const needsLiveDerive = facetsNeedLiveEnvelopeDerive(facets);
-    const liveDerive = needsLiveDerive
-      ? await fetchLiveEnvelopeDerive({
-          facets,
-          parcelNodeId,
-          situsAddress: situsForDerive,
-          navigationAddress: seed?.navigationAddress ?? null,
-          cortexBase: this.cortexBase,
-          fetchImpl: this.fetchImpl,
-          lat: seed?.centroid?.lat ?? null,
-          lng: seed?.centroid?.lng ?? null,
-        })
-      : null;
-
     const geometry = await this.resolveGeometry(
       parcelNodeId,
       facets,
       identity,
-      { liveDerive, liveDeriveAttempted: needsLiveDerive },
+      { liveDerive: null, liveDeriveAttempted: false },
     );
     if (!geometry) {
       // AMENDMENT 1: we hold the record and cannot place it. A DESIGNED state,
@@ -1720,17 +1711,6 @@ export class PeFactSheetResolver implements FactSheetResolver {
     const landUse = landUseFromInspectWire(landUseFact, facets);
     const zoning = zoningFact(facets, fips);
     const setbacks = setbacksFact(facets);
-    if (needsLiveDerive) {
-      await patchFacetsEnvelopeFromLive(
-        facets,
-        parcelNodeId,
-        situsForDerive,
-        this.cortexBase,
-        this.fetchImpl,
-        seed,
-        liveDerive,
-      );
-    }
     const envelope = envelopeValue(facets, setbacks, lotAreaSqFt);
     const flood = floodFact(floodHazardFact);
     const specialDistrict = specialDistrictFromInspectWire(specialDistrictFact);
