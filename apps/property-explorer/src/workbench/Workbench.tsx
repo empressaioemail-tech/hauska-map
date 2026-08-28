@@ -300,9 +300,11 @@ export function Workbench({
   // (`expandable`, default true) show the control.
   const [expanded, setExpanded] = useState(false);
   useEffect(() => {
-    // Reset on tool switch / close — never carry an expanded box into the
-    // next tool or a closed dock.
-    setExpanded(false);
+    // Width belongs to the COLUMN, so it must NOT reset every time another
+    // tool opens — that would snap the column narrow under the user mid-read.
+    // It resets only when the column empties, which is the one moment the
+    // setting has nothing left to apply to.
+    if (openToolId === null) setExpanded(false);
   }, [openToolId]);
   const canExpand = openTool ? openTool.expandable !== false : false;
   const isExpanded = expanded && canExpand;
@@ -439,6 +441,9 @@ export function Workbench({
               : {
                   position: "absolute",
                   zIndex: 9,
+                  // WIDTH IS THE COLUMN'S, not one dock's. Expanding widens
+                  // the whole column so every open dock grows together and
+                  // none can land on top of another.
                   // ONE SOURCE OF TRUTH for the column geometry.
                   // This block used to hardcode top/right/width, which meant
                   // dockLayoutStyle stopped driving the desktop column the
@@ -446,7 +451,7 @@ export function Workbench({
                   // the move to right:74 both landed in the rule, passed their
                   // tests, and never reached the screen. A value with two
                   // owners has no owner.
-                  ...resolveDockLayoutStyle(false, false),
+                  ...resolveDockLayoutStyle(isExpanded, false),
                   display: "flex",
                   flexDirection: "column",
                   gap: 8,
@@ -461,7 +466,9 @@ export function Workbench({
             // EVERY open dock is expanded unless the user folded THAT dock.
             // No dock folds because another one opened.
             const isOpen = isExpandedIn(synced, id);
-            const boxed = id === newest && isExpanded;
+            // No dock leaves the column any more. `boxed` used to lift one
+            // out into a fixed floating box at its own width, which is what
+            // made them overlap.
             // Any dock can be folded, including the only one — folding is the
             // user putting something aside, not a side effect of a count.
             const foldable = !isMobile;
@@ -472,20 +479,14 @@ export function Workbench({
                 data-tool={tool.id}
                 data-dock-side={DEFAULT_DOCK_SIDE}
                 data-folded={!isOpen ? "1" : undefined}
-                data-expanded={boxed ? "1" : undefined}
+                data-expanded={isExpanded ? "1" : undefined}
                 data-mobile-dock={isMobile ? "1" : undefined}
                 data-ss-motion=""
                 style={{
                   pointerEvents: "auto",
                   flex: "0 0 auto",
+                  width: "100%",
                   boxShadow: PE.shDock,
-                  ...(boxed
-                    ? {
-                        position: "fixed",
-                        zIndex: 12,
-                        ...resolveDockLayoutStyle(true, isMobile),
-                      }
-                    : null),
                   display: "flex",
                   flexDirection: "column",
                   overflow: "hidden",
@@ -525,8 +526,8 @@ export function Workbench({
                     // carries you through a long dock, its header stays put
                     // until the next one pushes it out. That is what makes a
                     // tall stack navigable rather than an undifferentiated
-                    // ribbon. Not sticky when boxed — the box is alone.
-                    position: boxed ? undefined : "sticky",
+                    // ribbon.
+                    position: "sticky",
                     top: 0,
                     zIndex: 2,
                     display: "flex",
@@ -598,7 +599,7 @@ export function Workbench({
                         <path d="m6 9 6 6 6-6" />
                       </svg>
                     )}
-                    {id === newest && isOpen && canExpand && (
+                    {isOpen && canExpand && (
                       <button
                         type="button"
                         aria-label={isExpanded ? "Collapse report" : "Expand report"}
@@ -707,21 +708,20 @@ export function Workbench({
                 <div
                   data-ss-motion=""
                   style={{
-                    flex: boxed ? "1 1 auto" : "0 0 auto",
+                    flex: "0 0 auto",
                     minHeight: 0,
-                    maxHeight: isOpen ? (boxed ? "none" : 100000) : 0,
+                    maxHeight: isOpen ? 100000 : 0,
                     opacity: isOpen ? 1 : 0,
                     overflow: "hidden",
                     transition: `max-height ${MOTION.open}, opacity ${MOTION.state}`,
                   }}
                 >
                   <div
-                    className={boxed ? "pe-dock-scroll" : undefined}
+                    className={undefined}
                     data-testid="dock-scroll"
                     style={{
-                      height: boxed ? "100%" : undefined,
-                      maxHeight: boxed ? undefined : "none",
-                      overflowY: boxed ? "auto" : "visible",
+                      maxHeight: "none",
+                      overflowY: "visible",
                       WebkitOverflowScrolling: "touch",
                       padding: "14px 13px",
                     }}
