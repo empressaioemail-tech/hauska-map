@@ -577,6 +577,32 @@ export function Workbench({
                   >
                     {tool.label}
                   </span>
+                  {/* AMBER SELECT-A-PROPERTY PILL. A property-scoped dock with
+                      no parcel selected says so in its HEADER, next to the
+                      title, rather than spending the top of its body on a
+                      notice. Operator 2026-08-28. Amber is the app's
+                      waiting/attention register; it is not gold, which is the
+                      brand mark and the unread dot only. */}
+                  {tool.propertyScoped && !activeParcelNodeId ? (
+                    <span
+                      data-testid={`dock-select-property-${tool.id}`}
+                      style={{
+                        flex: "0 0 auto",
+                        marginLeft: 6,
+                        padding: "1px 6px",
+                        borderRadius: 999,
+                        fontSize: 10,
+                        letterSpacing: ".04em",
+                        textTransform: "none",
+                        color: PE.warning,
+                        border: `1px solid ${PE.warning}55`,
+                        background: "transparent",
+                        whiteSpace: "nowrap",
+                      }}
+                    >
+                      Select a property
+                    </span>
+                  ) : null}
                   <div style={{ display: "flex", alignItems: "center", gap: 4 }}>
                     {foldable && (
                       <svg
