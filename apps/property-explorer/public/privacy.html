@@ -1,0 +1,147 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Privacy | Smart Site</title>
+    <meta
+      name="description"
+      content="How Smart Site handles accounts, billing, and public-record property intelligence. An Empressa product operated by Legacy Group ATX LLC."
+    />
+    <meta name="theme-color" content="#0b0e13" />
+    <link rel="icon" href="/icons/icon-192.svg" type="image/svg+xml" />
+    <style>
+      * { box-sizing: border-box; }
+      body {
+        margin: 0;
+        min-height: 100vh;
+        background: #07090d;
+        color: #c6d0dc;
+        font-family: ui-sans-serif, system-ui, -apple-system, "Segoe UI", sans-serif;
+        font-size: 16px;
+        line-height: 1.55;
+      }
+      a { color: #3b82f6; }
+      header, main, footer {
+        width: min(720px, calc(100% - 40px));
+        margin-left: auto;
+        margin-right: auto;
+      }
+      header {
+        padding: 28px 0 8px;
+        display: flex;
+        justify-content: space-between;
+        gap: 16px;
+        align-items: baseline;
+      }
+      .mark {
+        font-size: 12px;
+        font-weight: 700;
+        letter-spacing: 0.16em;
+        color: #3b82f6;
+        text-decoration: none;
+      }
+      nav { display: flex; gap: 16px; font-size: 13px; }
+      nav a { color: #94a3b8; text-decoration: none; }
+      nav a[aria-current="page"] { color: #f8fafc; }
+      h1 {
+        margin: 24px 0 8px;
+        font-size: 28px;
+        font-weight: 600;
+        color: #f8fafc;
+        letter-spacing: -0.02em;
+      }
+      .lead { color: #e9eef5; }
+      h2 {
+        margin: 28px 0 8px;
+        font-size: 18px;
+        font-weight: 600;
+        color: #e9eef5;
+      }
+      p, li { color: #c6d0dc; }
+      ul { padding-left: 1.2em; }
+      footer {
+        padding: 32px 0 48px;
+        color: #7c8ba0;
+        font-size: 13px;
+      }
+    </style>
+  </head>
+  <body>
+    <header>
+      <a class="mark" href="/">SMART SITE</a>
+      <nav>
+        <a href="/privacy" aria-current="page">Privacy</a>
+        <a href="/terms">Terms</a>
+        <a href="/">App</a>
+      </nav>
+    </header>
+    <main>
+      <h1>Privacy</h1>
+      <p class="lead">
+        This page describes how Smart Site at smartsite.cloud handles information.
+        Smart Site is an Empressa product operated by Legacy Group ATX LLC.
+        It is a product description of how the service handles information,
+        not legal advice.
+      </p>
+      <h2>What the product is</h2>
+      <p>
+        Smart Site is public-record property intelligence. Parcel facts, flood,
+        land use, and related analysis come from public sources. We do not take
+        privileged or relationship-gated county data. A path that only works
+        because of a private relationship is not part of this product.
+      </p>
+      <h2>Accounts and sign-in</h2>
+      <p>
+        You sign in with Google or Microsoft through WorkOS AuthKit. WorkOS
+        returns the identity those providers share for that sign-in, typically
+        name and email, so we can open or resume your Smart Site account. The
+        same sign-in is used on the workbench and on the agent connector.
+      </p>
+      <h2>Billing</h2>
+      <p>
+        Paid plans are billed through Stripe. Stripe processes the payment
+        method. We keep the subscription tier Stripe reports for your account
+        (Free, Solo, Studio, or Team) so the workbench and the connector apply
+        the same ceiling.
+      </p>
+      <h2>Agent connector</h2>
+      <p>
+        If you connect an AI client, that client talks to the Smart Site MCP
+        server at mcp.smartsite.cloud. Access uses OAuth against the same Smart
+        Site account. The connector is not the Hauska catalog at mcp.hauska.dev.
+      </p>
+      <h2>What we store</h2>
+      <p>
+        We store account identity from the sign-in, saved properties, shares you
+        create, briefs and reports you run, and billing status from Stripe.
+        A signed-in session uses a cookie on smartsite.cloud so the workbench
+        can stay signed in.
+      </p>
+      <h2>Shares you create</h2>
+      <p>
+        A share you mint is a grant you chose to publish. Pasting a share URL
+        into a chat logs that URL. Do not treat a pasted link as confined to
+        that chat. Grants expire. See the product terms for use of the service.
+      </p>
+      <h2>What we do not do</h2>
+      <ul>
+        <li>We do not sell a public-record dump as the product.</li>
+        <li>We do not claim privileged county access.</li>
+        <li>We do not invent setbacks, flood zones, or zoning that is not on file.</li>
+      </ul>
+      <h2>Contact</h2>
+      <p>
+        Questions about this page or your account: email
+        <a href="mailto:support@empressa.io">support@empressa.io</a>.
+        Product site: <a href="https://smartsite.cloud">smartsite.cloud</a>.
+        Agent connector: <a href="https://mcp.smartsite.cloud">mcp.smartsite.cloud</a>.
+      </p>
+      <p>Effective 28 August 2026. We will update this page when the practices above change.</p>
+    </main>
+    <footer>
+      Empressa / Legacy Group ATX LLC.
+      <a href="/terms">Terms</a>.
+    </footer>
+  </body>
+</html>
