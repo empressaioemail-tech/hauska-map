@@ -166,71 +166,108 @@ function chromeBubbleStyle(active: boolean): CSSProperties {
  * so the two rails speak one language.
  */
 /**
- * The LEGEND, rendered by the host so it can live in the capsule with the
- * other three tools (operator ruling 2026-08-27: legend and notifications join
- * draw and layers in one tool area).
+ * The LEGEND bubble, rendered by the host so it can live in the capsule with
+ * the other three tools.
  *
  * The renderer is put in `legendChrome: "none"` and its MODEL is reused —
  * `legendSectionsFor` / `legendPanelHtml` are the same exported pure functions
  * its own DOM legend calls, so this is a second RENDERER of one model, never a
- * second copy of the rules. If the palette changes there, it changes here.
+ * second copy of the rules.
  *
- * The panel is absolutely positioned: a 300px key cannot sit in the flow of a
- * 46px rail without bursting it.
+ * Bubble only. The PANEL renders in the left column (see LegendPanel), because
+ * a 216px key has no business in the flow of a 46px rail.
  */
 function LegendBubble({
-  visible,
+  open,
+  onToggle,
   side,
 }: {
-  visible: ReadonlySet<LayerKey>;
+  open: boolean;
+  onToggle: () => void;
   side: "left" | "right";
 }) {
-  const [open, setOpen] = useState(false);
-  const sections = legendSectionsFor([...visible]);
-  // No sections means nothing on screen needs a key. Render no bubble at all
-  // rather than one that opens onto an empty panel.
-  if (sections.length === 0) return null;
   return (
-    <div style={{ position: "relative", display: "inline-flex" }}>
-      <MapFlyTip side={side} label="Legend">
+    <MapFlyTip side={side} label="Legend">
+      <button
+        type="button"
+        data-testid="map-toolset-legend-bubble"
+        aria-label={open ? "Hide legend" : "Legend"}
+        aria-expanded={open}
+        onClick={onToggle}
+        style={chromeBubbleStyle(open)}
+      >
+        <svg viewBox="0 0 24 24" width={16} height={16} aria-hidden="true" fill="none" stroke="currentColor" strokeWidth={1.7} strokeLinecap="round" strokeLinejoin="round">
+          <path d="M4 6h10 M4 12h16 M4 18h7" />
+        </svg>
+      </button>
+    </MapFlyTip>
+  );
+}
+
+/** The legend key, as a panel in the left column. */
+function LegendPanel({
+  sections,
+  onClose,
+}: {
+  sections: ReturnType<typeof legendSectionsFor>;
+  onClose: () => void;
+}) {
+  return (
+    <div
+      data-testid="map-toolset-legend-panel"
+      className="pe-scroll"
+      style={{
+        display: "flex",
+        flexDirection: "column",
+        width: "100%",
+        flex: "0 0 auto",
+        maxHeight: "46vh",
+        overflowY: "auto",
+        borderRadius: 9,
+        background: PANEL_BG,
+        border: PANEL_BORDER,
+        boxShadow: "0 10px 32px rgba(0,0,0,0.45)",
+        color: TEXT,
+      }}
+    >
+      <div
+        style={{
+          display: "flex",
+          alignItems: "center",
+          height: 32,
+          padding: "0 8px 0 12px",
+          borderBottom: "1px solid rgba(154,166,178,.10)",
+          flex: "0 0 auto",
+        }}
+      >
+        <span style={{ ...sectionHeaderStyle(), flex: 1 }}>Legend</span>
         <button
           type="button"
-          data-testid="map-toolset-legend-bubble"
-          aria-label={open ? "Hide legend" : "Legend"}
-          aria-expanded={open}
-          onClick={() => setOpen((v) => !v)}
-          style={chromeBubbleStyle(open)}
+          aria-label="Hide legend"
+          onClick={onClose}
+          style={{
+            display: "inline-flex",
+            alignItems: "center",
+            justifyContent: "center",
+            width: 22,
+            height: 22,
+            borderRadius: 6,
+            background: "transparent",
+            border: "none",
+            color: MUTED,
+            cursor: "pointer",
+            padding: 0,
+          }}
         >
-          <svg viewBox="0 0 24 24" width={16} height={16} aria-hidden="true" fill="none" stroke="currentColor" strokeWidth={1.7} strokeLinecap="round" strokeLinejoin="round">
-            <path d="M4 6h10 M4 12h16 M4 18h7" />
+          <svg viewBox="0 0 24 24" width={12} height={12} aria-hidden fill="none" stroke="currentColor" strokeWidth={1.7} strokeLinecap="round">
+            <path d="M18 6 6 18 M6 6l12 12" />
           </svg>
         </button>
-      </MapFlyTip>
-      {open ? (
-        <div
-          data-testid="map-toolset-legend-panel"
-          className="pe-scroll"
-          style={{
-            position: "absolute",
-            bottom: 0,
-            ...(side === "right"
-              ? { left: "100%", marginLeft: 13 }
-              : { right: "100%", marginRight: 13 }),
-            width: 264,
-            maxHeight: "46vh",
-            overflowY: "auto",
-            padding: "10px 12px",
-            borderRadius: 10,
-            background: "rgba(11,14,19,.96)",
-            border: "1px solid rgba(154,166,178,.15)",
-            boxShadow: "0 18px 44px rgba(0,0,0,.55)",
-            font: "400 11.5px/1.35 system-ui,-apple-system,'Segoe UI',sans-serif",
-            color: "#C6D0DC",
-            zIndex: 40,
-          }}
-          dangerouslySetInnerHTML={{ __html: legendPanelHtml(sections) }}
-        />
-      ) : null}
+      </div>
+      <div
+        style={{ padding: "10px 12px", font: "400 11.5px/1.35 system-ui,-apple-system,'Segoe UI',sans-serif" }}
+        dangerouslySetInnerHTML={{ __html: legendPanelHtml(sections) }}
+      />
     </div>
   );
 }
@@ -755,6 +792,7 @@ export function MapToolset({
   onRequestClose,
   anchor = "right",
   splitBubbles = false,
+  stackPanels,
   stackExtras,
   initialOpenKinds,
 }: {
@@ -784,6 +822,13 @@ export function MapToolset({
   onRequestClose?: () => void;
   /** Desktop corner. PE uses left so the inspect card / brand stay the left stack. */
   anchor?: "left" | "right";
+  /**
+   * Panels that belong in the LEFT COLUMN rather than beside a bubble — the
+   * host's sources register, for instance. The capsule holds bubbles; this
+   * column holds panels. Keeping those two facts separate is what stopped the
+   * sources and legend panels floating loose over the map.
+   */
+  stackPanels?: ReactNode;
   /** Separate draw + layers bubbles instead of one unified bubble. */
   splitBubbles?: boolean;
   /** Extra bubbles stacked above draw/layers (legend, notifications). */
@@ -1426,6 +1471,10 @@ export function MapToolset({
   const [collapsedKinds, setCollapsedKinds] = useState<Set<"tools" | "layers">>(
     () => new Set(),
   );
+  // The legend's open state lives HERE, not inside its bubble, so the bubble
+  // can sit in the capsule while the panel sits in the column.
+  const [legendOpen, setLegendOpen] = useState(false);
+  const legendSections = legendSectionsFor([...visible]);
   const splitOpenCount = openKinds.size;
   // COLLAPSE, PER PANEL — the same act the right column calls folding, and
   // the same rule: only the panel you click changes, and nothing collapses
@@ -1487,7 +1536,7 @@ export function MapToolset({
           data-testid="map-toolset-left-stack"
           className="pe-scroll ss-fade-top"
           style={{
-            display: splitOpenCount > 0 ? "flex" : "none",
+            display: splitOpenCount > 0 || legendOpen || stackPanels ? "flex" : "none",
             flexDirection: "column",
             // BOTTOM-UP, LIKE THE RIGHT SIDE (operator, 2026-08-28). The
             // column is anchored to the ground by the root and grows upward,
@@ -1505,6 +1554,13 @@ export function MapToolset({
             overscrollBehavior: "contain",
           }}
         >
+          {stackPanels}
+          {legendOpen && legendSections.length > 0 ? (
+            <LegendPanel
+              sections={legendSections}
+              onClose={() => setLegendOpen(false)}
+            />
+          ) : null}
           {splitOpenCount > 1 && (
             <button
               type="button"
@@ -1801,7 +1857,13 @@ export function MapToolset({
             notifications join draw and layers. Every panel they open is
             absolutely positioned, so a 264px key or source register never
             sits in the flow of a 46px rail. */}
-        <LegendBubble visible={visible} side={tipSide} />
+        {legendSections.length > 0 ? (
+          <LegendBubble
+            open={legendOpen}
+            onToggle={() => setLegendOpen((v) => !v)}
+            side={tipSide}
+          />
+        ) : null}
         {stackExtras}
         {splitBubbles ? (
           <>

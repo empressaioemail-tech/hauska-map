@@ -73,7 +73,7 @@ import { MapToolset, type LayerStateBadge } from "./MapToolset";
 import type { MapToolsController } from "./mapToolsController";
 import { asMaplibreMap } from "./satelliteBase";
 import { createFloodMapOverlayController } from "./flood-map-overlay";
-import { SmartSiteBadge, MapSourceInfo } from "./MapCornerChrome";
+import { SmartSiteBadge, SourcesBubble, SourcesPanel } from "./MapCornerChrome";
 import { SearchBar, subjectDisplayFromIdentity } from "./SearchBar";
 import { createLookupIntent } from "../lib/lookup-intent";
 import { PricingModal } from "./PricingModal";
@@ -1298,6 +1298,9 @@ function ExplorerMapSurface({
   // zero renders no dot at all: an absent dot is the honest answer to "we do
   // not know", and a dot lit by a failed fetch would be worse than none.
   const recordsUnread = useRecordsUnread();
+  // Lifted out of MapSourceInfo so its bubble and its panel can sit in the
+  // capsule and the column respectively.
+  const [sourcesOpen, setSourcesOpen] = useState(false);
   const workbenchTools = useMemo(() => {
     const base = share
       ? [sharedAnalysisToolDef(share), ...WORKBENCH_TOOLS]
@@ -1946,12 +1949,22 @@ function ExplorerMapSurface({
           defaultSatellite={true}
           anchor="left"
           splitBubbles
+          // The BUBBLE goes in the capsule with the other tools; the PANEL
+          // goes in the column with the other panels. Two slots, because they
+          // belong to two different containers.
           stackExtras={
             isMobile ? null : (
-              <MapSourceInfo
+              <SourcesBubble
+                open={sourcesOpen}
+                onToggle={() => setSourcesOpen((v) => !v)}
+              />
+            )
+          }
+          stackPanels={
+            isMobile || !sourcesOpen ? null : (
+              <SourcesPanel
                 lines={sourceLines}
-                isMobile={false}
-                variant="stack"
+                onClose={() => setSourcesOpen(false)}
               />
             )
           }

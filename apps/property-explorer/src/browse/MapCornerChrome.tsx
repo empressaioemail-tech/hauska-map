@@ -33,7 +33,6 @@
 // already computed, and no status word is printed for a line whose status we
 // were not given.
 
-import { useState } from "react";
 import { BubbleTip } from "../components/BubbleTip";
 import { SATELLITE_ATTRIBUTION } from "./satelliteBase";
 import { PE, MOTION } from "../styles/pe-chrome";
@@ -162,230 +161,217 @@ export function SmartSiteBadge({
  * Renders the ⓘ always, because the required basemap credit must stay
  * reachable even when there is no live provenance to show.
  */
-export function MapSourceInfo({
+// SPLIT IN TWO, 2026-08-28. The bubble belongs in the left CAPSULE with the
+// other three tools; the panel belongs in the left COLUMN with the other two
+// panels. While one component owned both, the panel could only float beside
+// its own bubble — which is why sources and the legend hung loose over the map
+// instead of joining the stack. The open state lifts to the caller so the two
+// halves can live in two different containers.
+
+/** The circular tool bubble. Lives in the left capsule. */
+export function SourcesBubble({
+  open,
+  onToggle,
+  side = "right",
+}: {
+  open: boolean;
+  onToggle: () => void;
+  side?: "left" | "right";
+}) {
+  return (
+    <BubbleTip side={side} label="Sources">
+      <button
+        type="button"
+        data-testid="map-source-info-bubble"
+        aria-label={open ? "Hide sources" : "Sources"}
+        aria-expanded={open}
+        className="ss-bubble pe-btn"
+        data-open={open ? "1" : undefined}
+        onClick={onToggle}
+        style={{
+          width: 34,
+          height: 34,
+          padding: 0,
+          borderRadius: "50%",
+          border: "none",
+          background: open ? "rgba(255,255,255,.14)" : "transparent",
+          color: open ? PE.blue : "rgba(255,255,255,.58)",
+          cursor: "pointer",
+          display: "flex",
+          alignItems: "center",
+          justifyContent: "center",
+          boxShadow: "none",
+          transition: `background ${MOTION.state}, color ${MOTION.state}`,
+        }}
+      >
+        <svg
+          viewBox="0 0 24 24"
+          width={16}
+          height={16}
+          aria-hidden="true"
+          fill="none"
+          stroke="currentColor"
+          strokeWidth={1.7}
+          strokeLinecap="round"
+          strokeLinejoin="round"
+        >
+          <path d="M12 21a9 9 0 1 0 0-18 9 9 0 0 0 0 18z M12 11v5 M12 8h.01" />
+        </svg>
+      </button>
+    </BubbleTip>
+  );
+}
+
+/**
+ * The source register. Lives in the left column as a panel among panels, so it
+ * shares that column's width, its scroll and its collapse behaviour.
+ *
+ * ATTRIBUTION STAYS HERE. The renderer suppresses MapLibre's own control on
+ * this mount path and OSM, CARTO and Esri all require the credit to remain
+ * reachable, so it sits below a hairline as the standing basemap credit rather
+ * than as per-parcel provenance.
+ */
+export function SourcesPanel({
   lines,
-  isMobile,
-  variant = "corner",
+  onClose,
 }: {
   lines: string[];
-  isMobile: boolean;
-  /** `stack` sits in the left map-utility column (no absolute corner pin). */
-  variant?: "corner" | "stack";
+  onClose: () => void;
 }) {
-  const [open, setOpen] = useState(false);
-  if (isMobile) return null; // the layers sheet owns the lower-right on mobile
-
-  const stacked = variant === "stack";
-
   return (
     <div
-      data-testid="map-source-info"
+      data-testid="map-source-info-panel"
+      data-ss-motion=""
+      className="pe-scroll ss-enter-up"
       style={{
-        position: stacked ? "relative" : "absolute",
-        ...(stacked ? {} : { right: 64, bottom: 16, zIndex: 11 }),
-        display: stacked ? "inline-flex" : "flex",
+        display: "flex",
         flexDirection: "column",
-        alignItems: stacked ? "center" : "flex-end",
-        gap: 9,
+        width: "100%",
+        flex: "0 0 auto",
+        maxHeight: "46vh",
+        overflowY: "auto",
+        borderRadius: 9,
+        background: PE.sheet,
+        border: `1px solid ${PE.line14}`,
+        boxShadow: "0 10px 32px rgba(0,0,0,.45)",
         fontFamily: PE.ui,
       }}
     >
-      {/* The register. Opens its own height while scaling up 3% from the
-          bottom-right — the corner it hangs off. */}
       <div
-        data-testid="map-source-info-panel"
-        data-ss-motion=""
-        className="pe-scroll"
         style={{
-          display: open ? "flex" : "none",
-          // In the capsule the panel must NOT take part in the rail's flow —
-          // 264px inside a 46px capsule would burst it. It floats beside the
-          // bubble instead, anchored to the same bottom edge.
-          ...(stacked
-            ? {
-                position: "absolute",
-                bottom: 0,
-                left: "100%",
-                marginLeft: 13,
-                zIndex: 40,
-              }
-            : null),
-          width: 264,
-          maxHeight: "46vh",
-          overflowY: "auto",
-          flexDirection: "column",
-          borderRadius: PE.rFloat,
-          overflow: "hidden",
-          background: PE.sheet,
-          border: `1px solid ${PE.line14}`,
-          boxShadow: PE.shDock,
-          transformOrigin: "bottom right",
-          animation: open ? `ss-enter-up ${MOTION.move} both` : undefined,
+          display: "flex",
+          alignItems: "center",
+          height: 32,
+          padding: "0 8px 0 12px",
+          borderBottom: `1px solid ${PE.line06}`,
+          flex: "0 0 auto",
         }}
       >
-        <div
+        <span
           style={{
-            display: "flex",
-            alignItems: "center",
-            height: 32,
-            padding: "0 8px 0 12px",
-            borderBottom: `1px solid ${PE.line06}`,
+            flex: 1,
+            fontSize: 10,
+            fontWeight: 600,
+            letterSpacing: ".13em",
+            textTransform: "uppercase",
+            color: PE.t5,
           }}
         >
-          <span
-            style={{
-              flex: 1,
-              fontSize: 10,
-              fontWeight: 600,
-              letterSpacing: ".13em",
-              textTransform: "uppercase",
-              color: PE.t5,
-            }}
-          >
-            Sources
-          </span>
-          <button
-            type="button"
-            aria-label="Hide sources"
-            className="ss-headbtn pe-btn"
-            onClick={() => setOpen(false)}
-            style={{
-              display: "inline-flex",
-              alignItems: "center",
-              justifyContent: "center",
-              width: 22,
-              height: 22,
-              borderRadius: 6,
-              background: "transparent",
-              border: "none",
-              color: PE.t5,
-              cursor: "pointer",
-              padding: 0,
-            }}
-          >
-            <svg
-              viewBox="0 0 24 24"
-              width={12}
-              height={12}
-              aria-hidden
-              fill="none"
-              stroke="currentColor"
-              strokeWidth={1.7}
-              strokeLinecap="round"
-            >
-              <path d="M18 6 6 18 M6 6l12 12" />
-            </svg>
-          </button>
-        </div>
-
-        <div style={{ padding: "6px 6px 8px" }}>
-          {lines.map((line, i) => (
-            <div
-              key={i}
-              style={{
-                display: "flex",
-                alignItems: "center",
-                gap: 9,
-                padding: "7px 8px",
-                borderRadius: PE.rTouch,
-              }}
-            >
-              {/* A NEUTRAL rail. The caller hands us provenance sentences, not
-                  a per-source status, so no status word and no colour is
-                  asserted here — an invented "Live" is worse than a silence. */}
-              <span
-                aria-hidden
-                style={{
-                  width: 3,
-                  height: 22,
-                  borderRadius: 2,
-                  background: PE.line28,
-                  flex: "none",
-                }}
-              />
-              <div
-                style={{
-                  flex: 1,
-                  minWidth: 0,
-                  fontSize: 11.5,
-                  lineHeight: 1.35,
-                  color: PE.t3,
-                }}
-              >
-                {line}
-              </div>
-            </div>
-          ))}
-
-          {/* REQUIRED tile/basemap attribution — the single attribution place.
-              Separated from the live provenance by a hairline so it reads as
-              the standing basemap credit, not per-parcel provenance. */}
-          <div
-            data-testid="map-source-info-attribution"
-            style={{
-              marginTop: lines.length > 0 ? 6 : 0,
-              paddingTop: lines.length > 0 ? 7 : 2,
-              marginLeft: 8,
-              marginRight: 8,
-              borderTop:
-                lines.length > 0 ? `1px solid ${PE.line06}` : "none",
-              display: "flex",
-              flexDirection: "column",
-              gap: 3,
-            }}
-          >
-            {REQUIRED_ATTRIBUTION_LINES.map((line, i) => (
-              <div
-                key={i}
-                style={{ fontSize: 10, lineHeight: 1.4, color: PE.t6 }}
-              >
-                {line}
-              </div>
-            ))}
-          </div>
-        </div>
-      </div>
-
-      <BubbleTip side={stacked ? "right" : "left"} label="Sources">
+          Sources
+        </span>
         <button
           type="button"
-          data-testid="map-source-info-bubble"
-          aria-label={open ? "Hide sources" : "Sources"}
-          aria-expanded={open}
-          className="ss-bubble pe-btn"
-          data-open={open ? "1" : undefined}
-          onClick={() => setOpen((v) => !v)}
+          aria-label="Hide sources"
+          className="ss-headbtn pe-btn"
+          onClick={onClose}
           style={{
-            width: 30,
-            height: 30,
-            padding: 0,
-            borderRadius: "50%",
-            border: `1px solid ${open ? PE.blue : PE.line14}`,
-            background: open ? PE.blue : PE.panelLight,
-            color: open ? "#08111F" : PE.t3,
-            cursor: "pointer",
-            display: "flex",
+            display: "inline-flex",
             alignItems: "center",
             justifyContent: "center",
-            boxShadow: open ? PE.shOpen : PE.shRail,
-            transition: `background ${MOTION.state}, color ${MOTION.state}, border-color ${MOTION.state}`,
+            width: 22,
+            height: 22,
+            borderRadius: 6,
+            background: "transparent",
+            border: "none",
+            color: PE.t5,
+            cursor: "pointer",
+            padding: 0,
           }}
         >
           <svg
             viewBox="0 0 24 24"
-            width={14}
-            height={14}
-            aria-hidden="true"
+            width={12}
+            height={12}
+            aria-hidden
             fill="none"
             stroke="currentColor"
             strokeWidth={1.7}
             strokeLinecap="round"
-            strokeLinejoin="round"
           >
-            <path d="M12 21a9 9 0 1 0 0-18 9 9 0 0 0 0 18z M12 11v5 M12 8h.01" />
+            <path d="M18 6 6 18 M6 6l12 12" />
           </svg>
         </button>
-      </BubbleTip>
+      </div>
+
+      <div style={{ padding: "6px 6px 8px" }}>
+        {lines.map((line, i) => (
+          <div
+            key={i}
+            style={{
+              display: "flex",
+              alignItems: "center",
+              gap: 9,
+              padding: "7px 8px",
+              borderRadius: PE.rTouch,
+            }}
+          >
+            {/* A NEUTRAL rail. The caller hands us provenance sentences, not a
+                per-source status, so no status word and no colour is asserted
+                here — an invented "Live" is worse than a silence. */}
+            <span
+              aria-hidden
+              style={{
+                width: 3,
+                height: 22,
+                borderRadius: 2,
+                background: PE.line28,
+                flex: "none",
+              }}
+            />
+            <div
+              style={{
+                flex: 1,
+                minWidth: 0,
+                fontSize: 11.5,
+                lineHeight: 1.35,
+                color: PE.t3,
+              }}
+            >
+              {line}
+            </div>
+          </div>
+        ))}
+
+        <div
+          data-testid="map-source-info-attribution"
+          style={{
+            marginTop: lines.length > 0 ? 6 : 0,
+            paddingTop: lines.length > 0 ? 7 : 2,
+            marginLeft: 8,
+            marginRight: 8,
+            borderTop: lines.length > 0 ? `1px solid ${PE.line06}` : "none",
+            display: "flex",
+            flexDirection: "column",
+            gap: 3,
+          }}
+        >
+          {REQUIRED_ATTRIBUTION_LINES.map((line, i) => (
+            <div key={i} style={{ fontSize: 10, lineHeight: 1.4, color: PE.t6 }}>
+              {line}
+            </div>
+          ))}
+        </div>
+      </div>
     </div>
   );
 }
