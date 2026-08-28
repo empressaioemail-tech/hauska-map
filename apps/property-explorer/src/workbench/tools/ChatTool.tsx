@@ -45,6 +45,11 @@ import { Button } from "../../components/Button";
 import { GoogleSignInButton } from "../../components/GoogleSignInButton";
 import { TextArea } from "../../components/Input";
 import { PE } from "../../styles/pe-chrome";
+import {
+  attachDossierToChatSubject,
+  chatDossierContextFrom,
+  getChatPropertyDossier,
+} from "./dossier-chat-context";
 import { UnverifiedSource } from "../../components/StatusChip";
 import { TypingDots } from "../../components/Loading";
 import { invalidatePropertyEntitlement } from "../../lib/entitlementClient";
@@ -1241,14 +1246,23 @@ export function ChatTool() {
       const facets = await getChatPropertyFacets(activeParcelNodeId);
       const recordsFetch = await getChatPropertyRecords(activeParcelNodeId);
       const recordsContext = chatRecordsContextFromFetch(recordsFetch);
-      const subject = attachRecordsToChatSubject(
-        buildChatSubjectFromFacets(
-          activeParcelNodeId,
-          facets,
-          briefStored?.brief ?? null,
-          host.getActivePropertyAddress?.() ?? null,
+      // The user's OWN work on this property — notes, status, and which
+      // reports they generated. Filing records only; report contents are not
+      // read here (see dossier-chat-context.ts).
+      const userWork = chatDossierContextFrom(
+        await getChatPropertyDossier(activeParcelNodeId),
+      );
+      const subject = attachDossierToChatSubject(
+        attachRecordsToChatSubject(
+          buildChatSubjectFromFacets(
+            activeParcelNodeId,
+            facets,
+            briefStored?.brief ?? null,
+            host.getActivePropertyAddress?.() ?? null,
+          ),
+          recordsContext,
         ),
-        recordsContext,
+        userWork,
       );
       const outcome = await runChatTurn({
         message: messageForModel,
