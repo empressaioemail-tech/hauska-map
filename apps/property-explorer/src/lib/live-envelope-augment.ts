@@ -4,6 +4,14 @@
 
  * Facets carry setback scalars only; geometry is never trusted from depth-warm atoms.
 
+ *
+
+ * P-91 O1 / ruling B: the fact-sheet headline must NOT consume this path.
+
+ * Live derive is not a buildable-envelope atom. Sheet envelope stays
+
+ * not-derived / atom_path_pending until that atom exists.
+
  */
 
 

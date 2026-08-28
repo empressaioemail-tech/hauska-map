@@ -290,6 +290,21 @@ describe("composeVerdict — the ONE headline", () => {
     expect(composeVerdictTone(s)).toBe("caution");
   });
 
+  it("P-91 O1: atom_path_pending not-derived never prints a lot-percentage", () => {
+    const s = sheet({
+      envelope: {
+        kind: "not-derived",
+        reason: "atom_path_pending",
+        missing: ["envelope-derivation"],
+      },
+    });
+    expect(composeVerdict(s)).toContain(
+      "Buildable envelope not derived here (missing envelope-derivation)",
+    );
+    expect(composeVerdict(s)).not.toMatch(/\d+% of the lot/);
+    expect(composeVerdict(s)).not.toContain("Buildable (approximate)");
+  });
+
   it("is pure — same sheet, same sentence", () => {
     const s = sheet();
     expect(composeVerdict(s)).toBe(composeVerdict(s));

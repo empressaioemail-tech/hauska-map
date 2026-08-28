@@ -17,6 +17,7 @@ import {
   PeFactSheetResolver,
   computeFactSheetId,
   pickParcelRings,
+  sheetEnvelopeIsAtomPathPending,
 } from "./fact-sheet-resolver";
 
 const FACETS_BASE = "/api/spine/property-atoms";
@@ -514,7 +515,7 @@ describe("PeFactSheetResolver.resolve", () => {
     expect(sheet.verdict).toContain("Inside the FEMA flood hazard area (Zone AE)");
     expect(sheet.verdict).toContain("zoned R-1");
     expect(sheet.sealedAt).toBe("2026-08-18T12:00:00.000Z");
-    expect(sheet.resolverVersion).toBe("pe-fact-sheet-2");
+    expect(sheet.resolverVersion).toBe("pe-fact-sheet-3");
   });
 
   it("treats a missing parcel as not-found and does not poison the cache", async () => {
@@ -537,28 +538,30 @@ describe("PeFactSheetResolver.resolve", () => {
     });
   });
 
-  it("re-derives envelope geometry via live POST when geojson absent after adapt", async () => {
-    const parcelNodeId = "48021:47595";
+  it("P-91 O1: live-derive facets that used to print 42% now refuse atom_path_pending", async () => {
+    const parcelNodeId = "48021:33223";
     const wire = facetsWire({
       parcelNodeId,
       baseFacts: {
-        apn: "R47595",
-        situsAddress: "101 Main St, Bastrop TX",
+        apn: "R33223",
+        situsAddress: "927 MAIN ST, BASTROP, TX",
         landUse: { code: "A1", description: "Single-family residential", source: "cad-roll", vintage: "2026" },
         acreage: { value: 0.2345, sqft: 10214, method: "cad-roll" },
       },
       envelope: {
         status: "ok",
         approximate: true,
-        district: "R-1",
+        district: "C-1",
         setbacks: { front_ft: 20, side_ft: 5, rear_ft: 20 },
+        buildableAreaPct: 42,
+        buildableAreaSqFt: 4290,
         disclosure:
-          "Atom-chain setback scalars from live per-parcel record (layer-23); geometry absent on depth-warm proof atom — re-derive from live setbacks.",
+          "Atom-chain setback scalars; buildable envelope geometry from live derive (labelEdges+derive), not depth-warm ledger.",
       },
     });
     const subjectFeature = {
       type: "Feature",
-      properties: { parcel_node_id: parcelNodeId, apn: "R47595" },
+      properties: { parcel_node_id: parcelNodeId, apn: "R33223" },
       geometry: { type: "Polygon", coordinates: [square(SUBJECT_CENTRE.lng, SUBJECT_CENTRE.lat)] },
     };
     const stub = installFetchStub({
@@ -566,19 +569,23 @@ describe("PeFactSheetResolver.resolve", () => {
       gisFeatures: [subjectFeature],
       buildableEnvelope: {
         parcelNodeId,
-        buildableAreaSqFt: 4100,
+        buildableAreaSqFt: 4290,
       },
     });
     const sheet = await sheetOf(makeResolver(stub), parcelNodeId);
-    expect(sheet.envelope.kind).toBe("derived");
-    if (sheet.envelope.kind !== "derived") throw new Error("unreachable");
-    expect(sheet.envelope.area.value).toBe(4100);
-    expect(sheet.envelope.rings).toHaveLength(1);
-    const deriveCalls = stub.calls.filter((u) => u.includes("buildable-envelope"));
-    expect(deriveCalls).toHaveLength(1);
+    expect(sheet.envelope.kind).toBe("not-derived");
+    if (sheet.envelope.kind !== "not-derived") throw new Error("unreachable");
+    expect(sheet.envelope.reason).toBe("atom_path_pending");
+    expect("area" in sheet.envelope).toBe(false);
+    expect(sheet.verdict).not.toMatch(/\d+% of the lot/);
+    expect(sheet.verdict).not.toContain("Buildable (approximate)");
+    expect(sheet.verdict).toContain("not derived");
+    expect(sheet.flood.state).toBe("present");
+    expect(sheet.verdict).toContain("Inside the FEMA flood hazard area");
+    expect(sheet.setbacks.state).toBe("present");
   });
 
-  it("always POSTs live derive even when facets carry depth-warm geojson (48021:34137)", async () => {
+  it("P-91 O1: gold 48021:34137 depth-warm geojson stays refused (no lot-percentage)", async () => {
     const parcelNodeId = "48021:34137";
     const wire = facetsWire({
       parcelNodeId,
@@ -594,6 +601,7 @@ describe("PeFactSheetResolver.resolve", () => {
         district: "SF-1",
         setbacks: { front_ft: 25, side_ft: 5, rear_ft: 10 },
         buildableAreaSqFt: 6325,
+        buildableAreaPct: 58,
         disclosure:
           "Atom-chain setback scalars; buildable envelope geometry from live derive (labelEdges+derive), not depth-warm ledger.",
         geojson: {
@@ -632,15 +640,17 @@ describe("PeFactSheetResolver.resolve", () => {
       },
     });
     const sheet = await sheetOf(makeResolver(stub), parcelNodeId);
-    expect(sheet.envelope.kind).toBe("derived");
-    if (sheet.envelope.kind !== "derived") throw new Error("unreachable");
-    expect(sheet.envelope.area.value).toBe(6325);
-    expect(sheet.envelope.rings).toHaveLength(1);
-    const deriveCalls = stub.calls.filter((u) => u.includes("buildable-envelope"));
-    expect(deriveCalls).toHaveLength(1);
+    expect(sheet.envelope.kind).toBe("not-derived");
+    if (sheet.envelope.kind !== "not-derived") throw new Error("unreachable");
+    expect(sheet.envelope.reason).toBe("atom_path_pending");
+    expect(sheet.verdict).not.toMatch(/\d+% of the lot/);
+    expect(sheet.verdict).not.toContain("Buildable (approximate)");
+    expect(sheet.flood.state).toBe("present");
+    expect(sheet.verdict).toContain("Inside the FEMA flood hazard area");
+    expect(sheet.setbacks.state).toBe("present");
   });
 
-  it("seals consumed when live derive returns no-buildable-area (not stale table ok)", async () => {
+  it("P-91 O1: withheld-geometry live-setback facets refuse; live consumed is not a silent 0", async () => {
     const parcelNodeId = "48453:280239";
     const wire = facetsWire({
       parcelNodeId,
@@ -658,7 +668,8 @@ describe("PeFactSheetResolver.resolve", () => {
         district: "SF-3",
         buildableAreaSqFt: 9999,
         setbacks: { front_ft: 25, side_ft: 5, rear_ft: 10 },
-        disclosure: "Stale table-backed ok must not survive live consumed derive.",
+        disclosure:
+          "Atom-chain setback scalars from live per-parcel record (layer-23); geometry absent on depth-warm proof atom — re-derive from live setbacks.",
       },
     });
     const subjectFeature = {
@@ -676,9 +687,71 @@ describe("PeFactSheetResolver.resolve", () => {
       },
     });
     const sheet = await sheetOf(makeResolver(stub), parcelNodeId);
-    expect(sheet.envelope.kind).toBe("consumed");
-    if (sheet.envelope.kind !== "consumed") throw new Error("unreachable");
-    expect(stub.calls.filter((u) => u.includes("buildable-envelope"))).toHaveLength(1);
+    expect(sheet.envelope.kind).toBe("not-derived");
+    if (sheet.envelope.kind !== "not-derived") throw new Error("unreachable");
+    expect(sheet.envelope.reason).toBe("atom_path_pending");
+    expect(sheet.verdict).not.toMatch(/\d+% of the lot/);
+    expect(sheet.verdict).not.toContain("No buildable area after setbacks");
+  });
+});
+
+describe("sheetEnvelopeIsAtomPathPending — P-91 O1 violate-then-pass", () => {
+  it("refuses live-derive disclosure and withheld geometry; keeps a complete fixture representable", () => {
+    expect(
+      sheetEnvelopeIsAtomPathPending({
+        envelope: {
+          status: "ok",
+          setbacks: { front_ft: 20, side_ft: 5, rear_ft: 20 },
+          buildableAreaPct: 42,
+          disclosure:
+            "Atom-chain setback scalars; buildable envelope geometry from live derive (labelEdges+derive), not depth-warm ledger.",
+        },
+      }),
+    ).toBe(true);
+    expect(
+      sheetEnvelopeIsAtomPathPending({
+        envelope: {
+          status: "ok",
+          setbacks: { front_ft: 20, side_ft: 5, rear_ft: 20 },
+          disclosure: "geometry absent on depth-warm proof atom — re-derive from live setbacks.",
+        },
+      }),
+    ).toBe(true);
+    expect(
+      sheetEnvelopeIsAtomPathPending({
+        envelope: {
+          status: "ok",
+          setbacks: { front_ft: 25, side_ft: 5, rear_ft: 10 },
+          buildableAreaPct: 58,
+          geojson: {
+            type: "FeatureCollection",
+            features: [
+              {
+                type: "Feature",
+                properties: { source: "live-derive" },
+                geometry: { type: "Polygon", coordinates: [] },
+              },
+            ],
+          },
+        },
+      }),
+    ).toBe(true);
+    const complete = (facetsWire().facets as { envelope: object }).envelope;
+    expect(
+      sheetEnvelopeIsAtomPathPending({
+        envelope: complete as never,
+      }),
+    ).toBe(false);
+    expect(
+      sheetEnvelopeIsAtomPathPending({
+        envelope: {
+          status: "ok",
+          setbacks: { front_ft: 20, side_ft: 5, rear_ft: 20 },
+          disclosure: "live derive (labelEdges+derive)",
+          provenanceRefs: { envelope: { atomDid: "did:atom:buildable-envelope-1" } },
+        },
+      }),
+    ).toBe(false);
   });
 });
 
@@ -974,7 +1047,9 @@ describe("AMENDMENT 3 - no sentinel stands in for absence", () => {
     const sheet = await sheetOf(makeResolver(stub), NODE_ID);
     expect(sheet.envelope.kind).toBe("not-derived");
     if (sheet.envelope.kind !== "not-derived") throw new Error("unreachable");
-    expect(sheet.envelope.missing).toContain("envelope-area");
+    expect(sheet.envelope.reason).toBe("atom_path_pending");
+    expect(sheet.envelope.missing).toContain("envelope-derivation");
+    expect(sheet.verdict).not.toMatch(/\d+% of the lot/);
   });
 
   it("never presents an UNSERVED flood share as a measured one", async () => {
