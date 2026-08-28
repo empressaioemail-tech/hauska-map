@@ -88,7 +88,7 @@ export const PE = {
   hFind: 40,
   hHead: 36,
   bubble: 34,
-  dockW: 340,
+  dockW: 380,
   findW: 436,
   inset: 20,
 
@@ -170,18 +170,3 @@ export const MOTION = {
   move: `${PE.dMove} ${PE.ease}`,
   open: `${PE.dOpen} ${PE.ease}`,
 } as const;
-
-/** A panel's arrival, as the class name plus the motion marker that lets the
- *  reduced-motion rule in pe-tokens.css reach it. Spread onto the element. */
-export const enterProps = (
-  corner: "top-left" | "bottom-right" | "modal" = "top-left",
-) =>
-  ({
-    className:
-      corner === "bottom-right"
-        ? "ss-enter-up"
-        : corner === "modal"
-          ? "ss-enter-modal"
-          : "ss-enter",
-    "data-ss-motion": "",
-  }) as const;
