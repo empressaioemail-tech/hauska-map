@@ -510,3 +510,46 @@ describe("the column geometry has ONE owner", () => {
     expect(dockLayoutStyle(false).right).toBe(RAIL_INSET + RAIL_WIDTH + CHANNEL);
   });
 });
+
+describe("folding the dock the shell is pointing at", () => {
+  // THE BUG THIS PINS. syncStack unfolds whatever openToolId names, and it ran
+  // on EVERY render. openToolId keeps naming the newest open dock long after
+  // the shell asked for it, so folding the newest dock un-folded itself on the
+  // next paint. With only ONE dock open that dock is always the newest, so
+  // folding appeared to do nothing at all — which is exactly what the operator
+  // hit. The shell's id is an EVENT, not a standing order.
+  const renderStack = (openIds: string[], folded: string[]) =>
+    renderToStaticMarkup(
+      <Workbench
+        tools={WORKBENCH_TOOLS}
+        openToolId={openIds[openIds.length - 1] ?? null}
+        onOpenToolChange={noop}
+        initialOpenIds={openIds}
+        initialFoldedIds={folded}
+        activeParcelNodeId="p1"
+        host={host}
+        store={createWorkbenchToolStateStore({ storage: null })}
+      />,
+    );
+
+  it("the ONLY open dock stays folded, even though openToolId names it", () => {
+    const html = renderStack(["brief"], ["brief"]);
+    expect(html.match(/data-folded="1"/g)).toHaveLength(1);
+    expect(html).toMatch(/aria-expanded="false"/);
+  });
+
+  it("the NEWEST of several stays folded too", () => {
+    const html = renderStack(["brief", "chat"], ["chat"]);
+    expect(html.match(/data-folded="1"/g)).toHaveLength(1);
+    // brief is untouched and still readable.
+    expect(html).toMatch(/aria-expanded="true"/);
+  });
+
+  it("folding every open dock leaves them all folded", () => {
+    const html = renderStack(["brief", "chat", "reports"], ["brief", "chat", "reports"]);
+    expect(html.match(/data-folded="1"/g)).toHaveLength(3);
+    expect(html).not.toMatch(/aria-expanded="true"/);
+    // Each one keeps its header, so all three are one click from coming back.
+    expect(html.match(/data-testid="dock-header"/g)).toHaveLength(3);
+  });
+});
