@@ -60,6 +60,7 @@ export function UnlockCheckoutModal({
     >
       <div
         data-testid="unlock-checkout-modal"
+        className="pe-scroll"
         onClick={(e) => e.stopPropagation()}
         style={{
           width: 470,
@@ -133,6 +134,7 @@ export function UnlockCheckoutModal({
               ref={mount.mountRef}
               data-testid="stripe-payment-element"
               aria-label="Stripe payment mount"
+              className="pe-scroll"
               style={{
                 minHeight: 88,
                 maxHeight: "min(360px, 50dvh)",

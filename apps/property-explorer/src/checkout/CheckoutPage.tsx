@@ -78,6 +78,7 @@ export function CheckoutPage({
   return (
     <div
       data-testid="checkout-page"
+      className="pe-scroll"
       style={{
         width: "min(920px, calc(100vw - 24px))",
         maxHeight: "calc(100dvh - 24px)",
@@ -284,6 +285,7 @@ export function CheckoutPage({
               ref={mount.mountRef}
               data-testid="stripe-payment-element"
               aria-label="Stripe payment mount"
+              className="pe-scroll"
               style={{
                 minHeight: 220,
                 maxHeight: "min(420px, 50dvh)",

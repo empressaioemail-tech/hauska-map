@@ -135,6 +135,12 @@ export interface WorkbenchHostActions {
 
 /** One bubble in the top-right cluster. */
 export interface WorkbenchToolDef {
+  /**
+   * Something finished and is waiting. Renders the rail's GOLD unread dot.
+   * Must be fed by a real count — see lib/useRecordsUnread.ts. Never set it
+   * from a guess: a dot that lights on an unknown is worse than no dot.
+   */
+  unread?: boolean;
   id: WorkbenchToolId;
   /** Human label — bubble tooltip, aria-label, and dock header title. */
   label: string;

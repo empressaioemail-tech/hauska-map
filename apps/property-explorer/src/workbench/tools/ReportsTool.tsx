@@ -658,6 +658,8 @@ function OptionDChrome({
       <div
         data-testid="reports-doc-menu"
         hidden={!pickerOpen}
+        className="ss-stagger"
+        data-ss-motion=""
         style={{
           marginTop: 8,
           borderRadius: PE.rFloat,

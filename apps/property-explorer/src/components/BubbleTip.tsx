@@ -6,25 +6,29 @@ export type BubbleTipSide = "left" | "right";
 const SHOW_MS = 60;
 
 /**
- * Replaces the native `title` tooltip, which is slow and unstyleable.
+ * The rail tooltip. Replaces the native `title`, which is slow and
+ * unstyleable.
  *
- * Anchored to the bubble's vertical centre, 11px clear of it, flying INWARD
- * toward the map — a rail on the right edge throws its tips leftward. Opacity
- * arrives in 100ms, the 6px of travel and the 4% of scale take 180ms, and it
- * is `pointer-events: none` at every moment so it can never eat a click meant
- * for the bubble under it.
+ * LABEL ONLY — operator ruling 2026-08-27. The second detail line is gone;
+ * anything worth saying rides in the label itself ("Reports · new",
+ * "Compare · coming soon"). A tooltip that explains a bubble at length is a
+ * tooltip doing the job the panel should do, and it made the rail feel heavy
+ * on hover.
+ *
+ * Kit 04 glass: 10% white over a 14px blur with an 18% edge, and a small
+ * arrow pointing back at the bubble. It flies INWARD toward the map — a rail
+ * on the right throws its tips leftward — 8px of travel in 180ms with the
+ * opacity arriving in 100ms, and it is `pointer-events: none` at every moment
+ * so it can never eat a click meant for the bubble under it.
  */
 export function BubbleTip({
   label,
-  detail,
   shortcut,
   side,
   children,
 }: {
   label: string;
-  /** One line of what the tool does. Optional. */
-  detail?: string;
-  /** A keyboard shortcut, drawn in mono at t6. Optional. */
+  /** A keyboard shortcut, drawn in mono. Only pass one that is actually wired. */
   shortcut?: string;
   side: BubbleTipSide;
   children: ReactNode;
@@ -44,15 +48,22 @@ export function BubbleTip({
 
   const fly: CSSProperties =
     side === "left"
+      ? { right: "100%", marginRight: 13, top: "50%" }
+      : { left: "100%", marginLeft: 13, top: "50%" };
+
+  // The arrow is a rotated square borrowing two edges of the bubble, so it
+  // reads as one shape with the tip rather than a pasted-on triangle.
+  const arrow: CSSProperties =
+    side === "left"
       ? {
-          right: "calc(100% + 11px)",
-          top: "50%",
-          transformOrigin: "right center",
+          right: -5,
+          borderRight: "1px solid rgba(255,255,255,.18)",
+          borderTop: "1px solid rgba(255,255,255,.18)",
         }
       : {
-          left: "calc(100% + 11px)",
-          top: "50%",
-          transformOrigin: "left center",
+          left: -5,
+          borderLeft: "1px solid rgba(255,255,255,.18)",
+          borderBottom: "1px solid rgba(255,255,255,.18)",
         };
 
   return (
@@ -76,17 +87,7 @@ export function BubbleTip({
             zIndex: 40,
             ...fly,
             transform: "translateY(-50%)",
-            display: "flex",
-            alignItems: "center",
-            gap: 9,
-            maxWidth: 230,
-            padding: detail ? "7px 11px" : "6px 11px",
-            borderRadius: PE.rTip,
-            background: PE.tipBg,
-            border: `1px solid ${PE.line14}`,
-            boxShadow: PE.shTip,
             pointerEvents: "none",
-            whiteSpace: detail ? "normal" : "nowrap",
             animation:
               side === "left"
                 ? `pe-tip-left ${PE.dMove} ${PE.ease} both`
@@ -95,55 +96,62 @@ export function BubbleTip({
         >
           <style>{`
             @keyframes pe-tip-right {
-              from { opacity: 0; transform: translateY(-50%) translateX(-6px) scale(.96); }
-              to   { opacity: 1; transform: translateY(-50%) translateX(0) scale(1); }
+              from { opacity: 0; transform: translateY(-50%) translateX(-8px); }
+              to   { opacity: 1; transform: translateY(-50%) translateX(0); }
             }
             @keyframes pe-tip-left {
-              from { opacity: 0; transform: translateY(-50%) translateX(6px) scale(.96); }
-              to   { opacity: 1; transform: translateY(-50%) translateX(0) scale(1); }
+              from { opacity: 0; transform: translateY(-50%) translateX(8px); }
+              to   { opacity: 1; transform: translateY(-50%) translateX(0); }
             }
             @media (prefers-reduced-motion: reduce) {
               [data-pe="bubble-tip"] { animation: none !important;
-                                       transform: translateY(-50%) !important;
-                                       transition: opacity ${PE.dState} }
+                                       transform: translateY(-50%) !important }
             }
           `}</style>
-          <div style={{ minWidth: 0 }}>
-            <div
-              style={{
-                fontSize: 12,
-                fontWeight: 500,
-                color: PE.t2,
-                lineHeight: 1.25,
-              }}
-            >
-              {label}
-            </div>
-            {detail ? (
-              <div
+          <div
+            style={{
+              position: "relative",
+              display: "flex",
+              alignItems: "center",
+              gap: 9,
+              padding: "7px 12px",
+              borderRadius: PE.rTip,
+              background: "rgba(255,255,255,.10)",
+              border: "1px solid rgba(255,255,255,.18)",
+              backdropFilter: "blur(14px)",
+              WebkitBackdropFilter: "blur(14px)",
+              whiteSpace: "nowrap",
+              fontFamily: PE.ui,
+              fontSize: 12.5,
+              fontWeight: 500,
+              color: "#fff",
+            }}
+          >
+            {label}
+            {shortcut ? (
+              <span
                 style={{
-                  marginTop: 3,
-                  fontSize: 11,
-                  lineHeight: 1.4,
-                  color: PE.t5,
+                  fontFamily: PE.mono,
+                  fontSize: 10,
+                  color: "rgba(255,255,255,.6)",
                 }}
               >
-                {detail}
-              </div>
+                {shortcut}
+              </span>
             ) : null}
-          </div>
-          {shortcut ? (
             <span
+              aria-hidden
               style={{
-                flex: "none",
-                fontFamily: PE.mono,
-                fontSize: 10,
-                color: PE.t6,
+                position: "absolute",
+                top: "50%",
+                width: 9,
+                height: 9,
+                background: "rgba(255,255,255,.10)",
+                transform: "translateY(-50%) rotate(45deg)",
+                ...arrow,
               }}
-            >
-              {shortcut}
-            </span>
-          ) : null}
+            />
+          </div>
         </div>
       ) : null}
     </div>

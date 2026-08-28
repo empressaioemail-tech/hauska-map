@@ -64,13 +64,23 @@ export function SmartSiteBadge({
         left: PE.inset,
         bottom: isMobile ? 68 : 18,
         zIndex: 8,
-        display: "flex",
+        display: "inline-flex",
         alignItems: "center",
-        gap: 9,
+        gap: 10,
+        height: 34,
+        padding: "0 13px",
+        // Kit 04 gives the chip a plate back, as GLASS. The v2 text-shadow
+        // solved legibility over satellite but left the mark floating; the
+        // pill sits it on the same glass language as the rails and the
+        // tooltips, and holds against imagery without a hard fill.
+        borderRadius: 17,
+        background: "rgba(11,14,19,.78)",
+        border: "1px solid rgba(255,255,255,.09)",
+        boxShadow: "0 10px 34px rgba(0,0,0,.5)",
+        backdropFilter: "blur(14px)",
+        WebkitBackdropFilter: "blur(14px)",
         pointerEvents: "none",
         userSelect: "none",
-        // Legibility over satellite imagery, in place of the v1 plate.
-        filter: "drop-shadow(0 1px 3px rgba(0,0,0,.85))",
       }}
     >
       <svg
@@ -95,7 +105,7 @@ export function SmartSiteBadge({
           letterSpacing: ".16em",
           color: "#F8FAFC",
           whiteSpace: "nowrap",
-          textShadow: "0 1px 4px rgba(0,0,0,.9)",
+          flex: "none",
         }}
       >
         SMART <span style={{ color: PE.goldLt }}>SITE</span>
@@ -104,15 +114,20 @@ export function SmartSiteBadge({
         <>
           <span
             aria-hidden
-            style={{ width: 1, height: 11, background: PE.line28 }}
+            style={{
+              width: 1,
+              height: 12,
+              background: "rgba(255,255,255,.16)",
+              flex: "none",
+            }}
           />
           <span
             style={{
               fontFamily: PE.ui,
-              fontSize: 10.5,
-              color: PE.t4,
+              fontSize: 11.5,
+              fontWeight: 600,
+              color: PE.t2,
               whiteSpace: "nowrap",
-              textShadow: "0 1px 4px rgba(0,0,0,.9)",
             }}
           >
             {county}
@@ -298,11 +313,7 @@ export function MapSourceInfo({
         </div>
       </div>
 
-      <BubbleTip
-        side={stacked ? "right" : "left"}
-        label="Sources"
-        detail="Where every fact on this map came from, plus map credits."
-      >
+      <BubbleTip side={stacked ? "right" : "left"} label="Sources">
         <button
           type="button"
           data-testid="map-source-info-bubble"

@@ -61,6 +61,7 @@ import { InspectCard } from "./InspectCard";
 import { getPropertyEntitlementSnapshot, isEntitled } from "../lib/entitlementClient";
 import { Workbench } from "../workbench/Workbench";
 import { WORKBENCH_TOOLS } from "../workbench/registry";
+import { useRecordsUnread } from "../lib/useRecordsUnread";
 import type { WorkbenchHostActions } from "../workbench/types";
 import {
   SHARED_ANALYSIS_TOOL_ID,
@@ -1291,10 +1292,21 @@ function ExplorerMapSurface({
   // The workbench cluster: share landings get the read-only shared-analysis
   // tool PREPENDED (top bubble); everything else is the standard registry —
   // outside the share grant the app behaves exactly as anonymous.
-  const workbenchTools = useMemo(
-    () => (share ? [sharedAnalysisToolDef(share), ...WORKBENCH_TOOLS] : WORKBENCH_TOOLS),
-    [share],
-  );
+  // The rail's gold unread dot. Fed by the ONE count in this app that can
+  // honestly supply it — records-request jobs that finished cleanly and are
+  // waiting for the user. Zero when signed out, unwired, or unreachable, and
+  // zero renders no dot at all: an absent dot is the honest answer to "we do
+  // not know", and a dot lit by a failed fetch would be worse than none.
+  const recordsUnread = useRecordsUnread();
+  const workbenchTools = useMemo(() => {
+    const base = share
+      ? [sharedAnalysisToolDef(share), ...WORKBENCH_TOOLS]
+      : WORKBENCH_TOOLS;
+    if (recordsUnread <= 0) return base;
+    return base.map((tool) =>
+      tool.id === "reports" ? { ...tool, unread: true } : tool,
+    );
+  }, [share, recordsUnread]);
 
   // Live-GIS overlay parcel click -> inspect-in-place. Fold the clicked parcel
   // into the ported node store as `inspected` and draw the InspectCard.

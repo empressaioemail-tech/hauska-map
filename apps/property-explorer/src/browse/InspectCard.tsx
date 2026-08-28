@@ -1090,6 +1090,8 @@ export function InspectCard({
     <div
       data-testid="inspect-card"
       data-source={source}
+      className="ss-rise"
+      data-ss-motion=""
       style={{
         ...inspectCardShellStyle(isMobile, embedded),
         background: CARD_BG,

@@ -29,9 +29,12 @@ describe("dockLayoutStyle — desktop preserved", () => {
   it("compact desktop dock hugs top-right", () => {
     const s = dockLayoutStyle(false, false);
     expect(s.top).toBe(12);
-    expect(s.right).toBe(54);
+    // Kit 04: the rail became a capsule at right:18 (46 wide with its
+    // padding), so the dock moved 54 -> 66 to keep the same 8px channel.
+    expect(s.right).toBe(66);
     // chrome v2: ONE dock width for every tool (340), down from 400.
-    expect(s.width).toBe("min(340px, calc(100vw - 78px))");
+    // Widened 340 -> 380 on operator ruling 2026-08-27.
+    expect(s.width).toBe("min(380px, calc(100vw - 90px))");
   });
 
   it("expanded desktop dock is a large floating box, not full-screen", () => {

@@ -65,6 +65,8 @@ export function StateNote({
       data-pe="state-note"
       data-register={register}
       data-testid={testId}
+      className="ss-rise"
+      data-ss-motion=""
       style={{
         borderRadius: PE.rTip,
         padding: "12px 13px",

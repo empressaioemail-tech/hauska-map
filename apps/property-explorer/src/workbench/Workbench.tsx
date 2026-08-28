@@ -115,16 +115,21 @@ export function WorkbenchIcon({ path }: { path: string }) {
 }
 
 /**
- * The rail bubble, in every state it can actually be in. 34px circle, 15px
- * glyph at 1.7 stroke.
+ * A rail bubble INSIDE the capsule.
  *
- *   rest        ink 90%, t3 glyph, line-14 edge, rail shadow
- *   open        blue fill, near-black glyph, blue edge, the blue lift
- *   coming      transparent fill, t6 glyph, half opacity
+ * The capsule (workbenchClusterStyle) owns the edge, the fill and the shadow.
+ * A bubble therefore has none of its own — it is a transparent 34px circle
+ * that tints on hover and on open. That is the whole difference between the
+ * kit-04 rail and the column of seven separately-bordered buttons it replaces.
  *
- * NEVER a count badge, NEVER a red dot, NEVER a scale transform on hover.
- * Hover is a tint only and lives on `.ss-bubble` in pe-tokens.css so it works
- * without a JS hover handler.
+ *   rest   transparent, glyph at 58% white
+ *   hover  9% white, glyph to pure white
+ *   open   14% white, BLUE GLYPH — no blue fill anywhere (operator ruling
+ *          2026-08-27: the blue slab is an eyesore). The open state is read
+ *          from the glyph and the lift, not from a coloured ground.
+ *   coming glyph at 30%, half opacity
+ *
+ * Never a count badge, never a red dot, never a scale transform on hover.
  */
 function bubbleStyle(active: boolean, coming: boolean): CSSProperties {
   return {
@@ -137,12 +142,16 @@ function bubbleStyle(active: boolean, coming: boolean): CSSProperties {
     height: PE.bubble,
     borderRadius: "50%",
     cursor: "pointer",
-    color: active ? "#08111F" : coming ? PE.t6 : PE.t3,
-    background: active ? PE.blue : coming ? "transparent" : PE.bubbleRest,
-    border: `1px solid ${active ? PE.blue : PE.line14}`,
-    boxShadow: active ? PE.shOpen : PE.shRail,
+    color: active
+      ? PE.blue
+      : coming
+        ? "rgba(255,255,255,.30)"
+        : "rgba(255,255,255,.58)",
+    background: active ? "rgba(255,255,255,.14)" : "transparent",
+    border: "none",
+    boxShadow: "none",
     opacity: coming ? 0.5 : 1,
-    transition: `background ${MOTION.state}, color ${MOTION.state}, border-color ${MOTION.state}, box-shadow ${MOTION.move}`,
+    transition: `background ${MOTION.state}, color ${MOTION.state}, opacity ${MOTION.state}`,
   };
 }
 
@@ -294,11 +303,12 @@ export function Workbench({
             <BubbleTip
               key={tool.id}
               side="left"
-              label={tool.label}
-              detail={
+              label={
                 tool.status === "coming"
-                  ? "Coming soon"
-                  : tool.tip
+                  ? `${tool.label} · coming soon`
+                  : tool.unread
+                    ? `${tool.label} · new`
+                    : tool.label
               }
             >
               <button
@@ -307,12 +317,36 @@ export function Workbench({
                 data-open={active ? "1" : undefined}
                 data-coming={tool.status === "coming" ? "1" : undefined}
                 data-testid={`workbench-bubble-${tool.id}`}
-                aria-label={tool.label}
+                aria-label={tool.unread ? `${tool.label} — new` : tool.label}
                 aria-pressed={active}
                 onClick={() => tapBubble(tool.id)}
                 style={bubbleStyle(active, tool.status === "coming")}
               >
                 {tool.icon}
+                {/* THE GOLD UNREAD DOT. Operator ruling 2026-08-27, taken
+                    against my recommendation and recorded as such: gold, not
+                    the blue the original v2 SPEC named. It is the one place
+                    gold appears that is not the brand mark, and the
+                    chrome-kit gate carries a narrow carve-out naming this
+                    file. Never a count badge — the dot says something landed,
+                    the tooltip label says what. */}
+                {tool.unread ? (
+                  <span
+                    data-testid={`workbench-unread-${tool.id}`}
+                    aria-hidden
+                    style={{
+                      position: "absolute",
+                      top: 5,
+                      right: 5,
+                      width: 7,
+                      height: 7,
+                      borderRadius: "50%",
+                      background: PE.gold,
+                      boxShadow:
+                        "0 0 0 2px rgba(11,14,19,.95), 0 0 8px 1px rgba(232,150,59,.85)",
+                    }}
+                  />
+                ) : null}
               </button>
             </BubbleTip>
           );
@@ -364,6 +398,7 @@ export function Workbench({
       {stackedIds.length > 0 && (!isMobile || mobileResearchOpen) && (
         <div
           data-testid="workbench-dock-column"
+          className="pe-scroll"
           data-count={stackedIds.length}
           style={
             isMobile
@@ -635,13 +670,22 @@ export function Workbench({
                       padding: "14px 13px",
                     }}
                   >
-                    <DockBody
-                      tool={tool}
-                      activeParcelNodeId={activeParcelNodeId}
-                      closeDock={closeDock}
-                      host={host}
-                      prefix={tool.id === "brief" ? inspectSlot : null}
-                    />
+                    {/* keyed on the tool AND the property: switching either
+                        is a content change the eye should see arrive, not a
+                        silent swap inside a panel that never moved. */}
+                    <div
+                      key={`${tool.id}:${activeParcelNodeId ?? "none"}`}
+                      className="ss-rise"
+                      data-ss-motion=""
+                    >
+                      <DockBody
+                        tool={tool}
+                        activeParcelNodeId={activeParcelNodeId}
+                        closeDock={closeDock}
+                        host={host}
+                        prefix={tool.id === "brief" ? inspectSlot : null}
+                      />
+                    </div>
                   </div>
                 </div>
               </section>
