@@ -36,6 +36,7 @@ type WireJob = {
   errorCode?: string | null;
   errorMessage?: string | null;
   scopeSearched?: Record<string, unknown> | null;
+  artifacts?: WireArtifact[];
 };
 
 type WireIndexHit = {
@@ -44,6 +45,13 @@ type WireIndexHit = {
   recordingDate?: string | null;
   parties?: string | null;
   detailUrl?: string | null;
+  documentUrl?: string | null;
+};
+
+type WireArtifact = {
+  artifactId?: string;
+  recordingRef?: string | null;
+  documentUrl?: string | null;
 };
 
 type WireRecordingBlock = {
@@ -232,6 +240,37 @@ function recordingRefFromClassified(raw: WireClassifiedInstrument): string | nul
   return null;
 }
 
+/**
+ * Turn a cortex documentUrl into a PE-hosted deep-proxy href.
+ * Bare `/api/property-explorer/...` 404s on Vercel. An http(s) URL is refused
+ * so a raw GCS object never lands in the viewer.
+ */
+export function peDocumentHref(url: string | null | undefined): string | null {
+  const raw = url?.trim() ?? "";
+  if (!raw) return null;
+  if (/^https?:\/\//i.test(raw)) return null;
+  const path = raw.startsWith("/") ? raw.slice(1) : raw;
+  if (
+    !path.startsWith(
+      "api/property-explorer/v1/records-request/artifacts/",
+    )
+  ) {
+    return null;
+  }
+  return `${CORTEX_DEEP_PROXY_BASE}/${path}`;
+}
+
+function documentUrlByRecordingRef(artifacts: WireArtifact[] | undefined): Map<string, string> {
+  const map = new Map<string, string>();
+  if (!Array.isArray(artifacts)) return map;
+  for (const art of artifacts) {
+    const ref = art.recordingRef?.trim();
+    const href = peDocumentHref(art.documentUrl);
+    if (ref && href && !map.has(ref)) map.set(ref, href);
+  }
+  return map;
+}
+
 function partiesLineFromWire(parties: string | string[] | null | undefined): string {
   if (Array.isArray(parties)) {
     const joined = parties.map((p) => p.trim()).filter(Boolean).join("; ");
@@ -267,10 +306,12 @@ function acquisitionNoteFromClassified(
 /** Classified ADR-020 rows when the classify path has landed on scope. */
 export function instrumentsFromClassifiedScope(
   scope: Record<string, unknown> | null | undefined,
+  artifacts?: WireArtifact[],
 ): RecordsInstrumentRow[] {
   if (!scope || typeof scope !== "object") return [];
   const rawList = classifiedInstrumentsArray(scope);
   if (!rawList) return [];
+  const urls = documentUrlByRecordingRef(artifacts);
 
   const rows: RecordsInstrumentRow[] = [];
   for (let i = 0; i < rawList.length; i++) {
@@ -299,6 +340,7 @@ export function instrumentsFromClassifiedScope(
       partiesLine: partiesLineFromWire(hit.parties),
       readDepth,
       acquisitionNote: acquisitionNoteFromClassified(hit, readDepth),
+      documentUrl: urls.get(ref) ?? null,
     });
   }
   return rows;
@@ -306,10 +348,12 @@ export function instrumentsFromClassifiedScope(
 
 export function instrumentsFromIndexHits(
   scope: Record<string, unknown> | null | undefined,
+  artifacts?: WireArtifact[],
 ): RecordsInstrumentRow[] {
   if (!scope || typeof scope !== "object") return [];
   const rawHits = scope.indexHits;
   if (!Array.isArray(rawHits)) return [];
+  const urls = documentUrlByRecordingRef(artifacts);
 
   const rows: RecordsInstrumentRow[] = [];
   for (let i = 0; i < rawHits.length; i++) {
@@ -319,6 +363,7 @@ export function instrumentsFromIndexHits(
     if (!isPlausibleIndexHit(hit)) continue;
 
     const ref = hit.recordingRef!.trim();
+    const documentUrl = peDocumentHref(hit.documentUrl) ?? urls.get(ref) ?? null;
     rows.push({
       id: `index-hit-${i}-${ref}`,
       type: documentTypeToInstrumentType(hit.documentType),
@@ -326,8 +371,11 @@ export function instrumentsFromIndexHits(
       instrumentNumber: ref,
       recordedAt: hit.recordingDate?.trim() || "—",
       partiesLine: hit.parties?.trim() || "Parties not extracted yet",
-      readDepth: "not-acquired",
-      acquisitionNote: "Clerk index hit — image not acquired yet",
+      readDepth: documentUrl ? "header-only" : "not-acquired",
+      acquisitionNote: documentUrl
+        ? "Captured instrument page"
+        : "Clerk index hit — image not acquired yet",
+      documentUrl,
     });
   }
   return rows;
@@ -358,10 +406,11 @@ export function documentTypeToInstrumentType(
  */
 export function instrumentsFromScope(
   scope: Record<string, unknown> | null | undefined,
+  artifacts?: WireArtifact[],
 ): RecordsInstrumentRow[] {
-  const classified = instrumentsFromClassifiedScope(scope);
+  const classified = instrumentsFromClassifiedScope(scope, artifacts);
   if (classified.length > 0) return classified;
-  return instrumentsFromIndexHits(scope);
+  return instrumentsFromIndexHits(scope, artifacts);
 }
 
 export function filtersFromInstruments(
@@ -485,7 +534,7 @@ function runFromLatestJob(
       ? job.scopeSearched
       : null;
   const instrumentCount = instrumentCountFromScope(scope);
-  const instruments = instrumentsFromScope(scope);
+  const instruments = instrumentsFromScope(scope, job.artifacts);
   const statusStr = typeof status === "string" ? status : undefined;
   const verdicts = verdictsFromScopeAndJob({
     scope,
