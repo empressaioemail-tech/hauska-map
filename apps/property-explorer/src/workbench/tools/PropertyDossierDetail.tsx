@@ -37,8 +37,8 @@ const AMBER = PE.warning;
 const TEXT = PE.text;
 const ACCENT = PE.accent;
 const SECTION_BORDER = "1px solid rgba(154,166,178,0.2)";
-const PERSONA_BG = "#0B0E13";
-const PERSONA_FG = "#e5e7eb";
+const PERSONA_BG = PE.ink;
+const PERSONA_FG = PE.t2;
 
 /** Debounce delay for notes autosave (ms). Exported for tests. */
 export const NOTES_SAVE_DEBOUNCE_MS = 800;
@@ -114,7 +114,7 @@ export function DossierStatusSelector({
         const selected = status === s;
         const accent = pinAccent(s);
         return (
-          <button
+          <Button
             key={s}
             type="button"
             data-testid={`dossier-status-${s}`}
@@ -125,16 +125,17 @@ export function DossierStatusSelector({
               fontSize: 11.5,
               fontWeight: 600,
               padding: "3px 10px",
+              height: "auto",
               borderRadius: 999,
               cursor: busy ? "default" : "pointer",
-              color: selected ? "#0B0E13" : accent,
+              color: selected ? PE.ink : accent,
               background: selected ? accent : "transparent",
               border: `1px solid ${accent}`,
               opacity: busy ? 0.6 : 1,
             }}
           >
             {STATUS_LABELS[s]}
-          </button>
+          </Button>
         );
       })}
     </div>
@@ -384,7 +385,7 @@ export function PropertyDossierDetail({
                   {entry.downloadPath ? (
                     <span style={{ display: "flex", gap: 10, flexShrink: 0 }}>
                       {isPdfExportFormat(entry.format) ? (
-                        <button
+                        <Button
                           type="button"
                           data-testid="dossier-export-view"
                           onClick={() =>
@@ -404,7 +405,7 @@ export function PropertyDossierDetail({
                           }}
                         >
                           View
-                        </button>
+                        </Button>
                       ) : null}
                       <a
                         href={entry.downloadPath}
@@ -468,7 +469,7 @@ export function DossierChatThreads({
             data-open={open ? "true" : "false"}
             style={{ marginBottom: 4 }}
           >
-            <button
+            <Button
               type="button"
               data-testid="dossier-chat-thread-toggle"
               aria-expanded={open}
@@ -492,7 +493,7 @@ export function DossierChatThreads({
                 · {t.turnCount} turn{t.turnCount === 1 ? "" : "s"}
                 {fmtDate(t.savedAt) ? ` · ${fmtDate(t.savedAt)}` : ""}
               </span>
-            </button>
+            </Button>
             {open && (
               <div
                 data-testid="dossier-chat-thread-body"
@@ -611,7 +612,7 @@ export function PropertySharePicker({
           data-value={persona}
           style={{ position: "relative", marginTop: 3, colorScheme: "dark" }}
         >
-          <button
+          <Button
             type="button"
             disabled={busy}
             aria-haspopup="listbox"
@@ -632,7 +633,7 @@ export function PropertySharePicker({
             }}
           >
             {SHARE_PERSONA_LABELS[persona]}
-          </button>
+          </Button>
           <ul
             role="listbox"
             data-testid="dossier-share-persona-menu"
@@ -655,7 +656,7 @@ export function PropertySharePicker({
           >
             {SHARE_PERSONAS.map((p) => (
               <li key={p}>
-                <button
+                <Button
                   type="button"
                   role="option"
                   aria-selected={p === persona}
@@ -680,7 +681,7 @@ export function PropertySharePicker({
                   }}
                 >
                   {SHARE_PERSONA_LABELS[p]}
-                </button>
+                </Button>
               </li>
             ))}
           </ul>

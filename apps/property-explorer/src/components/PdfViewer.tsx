@@ -130,7 +130,7 @@ export function PdfViewer({
           <span style={{ flex: 1, ...TYPE.head, color: PE.t3, fontFamily: PE.ui }}>
             {title}
           </span>
-          <button
+          <Button
             type="button"
             data-testid="pdf-viewer-close"
             aria-label="Close"
@@ -162,7 +162,7 @@ export function PdfViewer({
             >
               <path d="M18 6 6 18 M6 6l12 12" />
             </svg>
-          </button>
+          </Button>
         </div>
 
         <div

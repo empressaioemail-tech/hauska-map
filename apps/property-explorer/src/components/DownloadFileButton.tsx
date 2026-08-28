@@ -1,4 +1,5 @@
 import { useState, type CSSProperties } from "react";
+import { Button } from "./Button";
 import { PdfViewer } from "./PdfViewer";
 import { PE, MOTION } from "../styles/pe-chrome";
 import { Spinner } from "./Loading";
@@ -174,7 +175,7 @@ export function DownloadFileButton({
         </span>
       ) : null}
       {failed && onRetry ? (
-        <button
+        <Button
           type="button"
           className="pe-btn"
           data-testid={`${testId}-retry`}
@@ -188,6 +189,7 @@ export function DownloadFileButton({
             background: "transparent",
             border: "none",
             padding: 0,
+            height: "auto",
             color: PE.blue,
             fontFamily: PE.ui,
             fontSize: 11.5,
@@ -196,7 +198,7 @@ export function DownloadFileButton({
           }}
         >
           Retry
-        </button>
+        </Button>
       ) : null}
     </>
   );
@@ -209,7 +211,7 @@ export function DownloadFileButton({
     return (
       <div data-testid={`${testId}-wrap`}>
         {pdfHref ? (
-          <button
+          <Button
             type="button"
             className="pe-btn"
             data-testid={`${testId}-view`}
@@ -218,7 +220,7 @@ export function DownloadFileButton({
           >
             <ArrowGlyph color={glyphColor} />
             <span style={{ flex: 1, textAlign: "left", color: PE.t1 }}>View PDF</span>
-          </button>
+          </Button>
         ) : null}
         <a
           href={href}

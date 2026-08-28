@@ -285,7 +285,7 @@ function HighlightedLabel({ label, query }: { label: string; query: string }) {
   ranges.forEach((r, i) => {
     if (r.start > cursor) parts.push(label.slice(cursor, r.start));
     parts.push(
-      <span key={i} style={{ fontWeight: 700, color: "var(--text-body, #e5e7eb)" }}>
+      <span key={i} style={{ fontWeight: 700, color: PE.t3 }}>
         {label.slice(r.start, r.end)}
       </span>,
     );
@@ -330,7 +330,7 @@ export function SuggestDropdown({
     );
   } else if (snap.unavailable) {
     body = (
-      <div data-testid="search-unavailable" style={{ ...infoRow, color: "var(--semantic-warning, #F59E0B)" }}>
+      <div data-testid="search-unavailable" style={{ ...infoRow, color: PE.warn }}>
         Search unavailable — could not reach the geocoder. Parcel ids (48021:34177)
         still open directly.
       </div>
@@ -363,7 +363,7 @@ export function SuggestDropdown({
         );
       }
       nodes.push(
-        <button
+        <Button
           key={`r-${i}`}
           type="button"
           data-testid={`search-row-${i}`}
@@ -374,20 +374,20 @@ export function SuggestDropdown({
           <KindIcon kind={snap.showingRecents ? "recent" : s.kind} />
           <HighlightedLabel label={s.label} query={snap.query} />
           {s.sublabel && <span style={sublabelStyle}>{s.sublabel}</span>}
-        </button>,
+        </Button>,
       );
     });
     if (snap.showingRecents) {
       nodes.push(
-        <button
+        <Button
           key="clear-recents"
           type="button"
           data-testid="search-clear-recents"
-          style={{ ...rowBase, color: "var(--surface-muted, #94A3B8)", font: `11px/1.2 ${FONT}` }}
+          style={{ ...rowBase, color: PE.t4, font: `11px/1.2 ${FONT}` }}
           onClick={() => onClearRecents()}
         >
           Clear recent searches
-        </button>,
+        </Button>,
       );
     }
     body = <div>{nodes}</div>;

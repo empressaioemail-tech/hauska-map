@@ -78,7 +78,7 @@ const ACCENT = PE.accent;
 // hydro CONTEXT palette flagged out-of-scope for the rebrand sweep — left as-is
 // pending a cross-package taxonomy design decision. Only the tool's UI chrome
 // (TEXT/MUTED/ACCENT above) is tokenized here.
-const PARCEL_STROKE = "#e6edf3";
+const PARCEL_STROKE = PE.t2;
 const CATCHMENT_STROKE = "rgba(125,211,252,0.55)";
 const ZONE_FILL = "56,132,255"; // rgb triplet; alpha graded per zone
 const PONDING_FILL = "rgba(56,132,255,0.5)";
@@ -223,7 +223,7 @@ function Legend({ hasPonding = true }: { hasPonding?: boolean }) {
       <span
         style={{
           fontSize: 11.5,
-          color: "var(--surface-muted, #94A3B8)",
+          color: MUTED,
           whiteSpace: "nowrap",
         }}
       >
@@ -646,7 +646,7 @@ export function FloodDrainageSection({ embed = false }: { embed?: boolean } = {}
               style={{
                 cursor: "pointer",
                 fontSize: 12.5,
-                color: "#c6d0dc",
+                color: PE.t3,
                 listStyle: "none",
               }}
             >

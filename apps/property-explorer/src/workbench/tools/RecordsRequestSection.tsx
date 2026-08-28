@@ -646,7 +646,7 @@ function RecordsResultsPanel({
         {filters.map((f) => {
           const active = f.type === activeFilter;
           return (
-            <button
+            <Button
               key={f.type}
               type="button"
               data-testid={`records-filter-${f.type}`}
@@ -657,7 +657,7 @@ function RecordsResultsPanel({
               {f.type !== "all" ? (
                 <span style={{ color: SLATE, marginLeft: 4 }}>{f.count}</span>
               ) : null}
-            </button>
+            </Button>
           );
         })}
         <span style={{ marginLeft: "auto", fontSize: 11.5, color: MUTED }}>
@@ -771,7 +771,7 @@ function RecordsInstrumentListRow({
         </div>
       </div>
       {row.documentUrl ? (
-        <button
+        <Button
           type="button"
           data-testid={`records-instrument-image-${row.id}`}
           onClick={() => onOpenImage(row.documentUrl!, row.label)}
@@ -786,7 +786,7 @@ function RecordsInstrumentListRow({
           }}
         >
           Image
-        </button>
+        </Button>
       ) : (
         <span
           data-testid={`records-instrument-no-image-${row.id}`}
@@ -855,7 +855,7 @@ function filterChipStyle(active: boolean): CSSProperties {
       ? "1px solid rgba(59,130,246,0.5)"
       : "1px solid rgba(154,166,178,0.24)",
     background: active ? "rgba(59,130,246,0.16)" : "transparent",
-    color: active ? TEXT : "#c6d0dc",
+    color: active ? TEXT : PE.t3,
     fontSize: 12.5,
     fontWeight: active ? 600 : 400,
     cursor: "pointer",

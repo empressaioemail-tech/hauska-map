@@ -1,6 +1,7 @@
 // Cross-parcel records-request inbox — My reports tab (P-85 UX).
 
 import { useCallback, useEffect, useState } from "react";
+import { Button } from "../../components/Button";
 import { PE } from "../../styles/pe-chrome";
 import {
   fetchRecordsInbox,
@@ -11,7 +12,7 @@ import type { WorkbenchHostActions } from "../types";
 const TEXT = PE.textStrong;
 const MUTED = PE.muted2;
 const BLUE = PE.accent;
-const CARD_BORDER = "var(--surface-border, #243247)";
+const CARD_BORDER = PE.line14;
 const POLL_MS = 10000;
 
 const COUNTY_LABEL: Record<string, string> = {
@@ -138,7 +139,7 @@ export function RecordsRunsInbox({
         overflow: "hidden",
       }}
     >
-      <button
+      <Button
         type="button"
         data-testid="records-runs-inbox-toggle"
         onClick={() => setCollapsed((v) => !v)}
@@ -165,7 +166,7 @@ export function RecordsRunsInbox({
         <span style={{ fontSize: 11.5, color: MUTED }}>
           {collapsed ? "Show" : "Hide"}
         </span>
-      </button>
+      </Button>
 
       {!collapsed ? (
         <div style={{ padding: "0 12px 12px", display: "flex", flexDirection: "column", gap: 8 }}>
@@ -185,7 +186,7 @@ export function RecordsRunsInbox({
             const status = inboxStatusLabel(row);
             const when = relativeUpdated(row.updatedAt);
             return (
-              <button
+              <Button
                 key={row.jobId}
                 type="button"
                 data-testid={`records-inbox-row-${row.jobId}`}
@@ -220,7 +221,7 @@ export function RecordsRunsInbox({
                   {status}
                   {when ? ` · ${when}` : ""}
                 </span>
-              </button>
+              </Button>
             );
           })}
           <p style={{ margin: 0, fontSize: 11.5, lineHeight: 1.45, color: MUTED }}>

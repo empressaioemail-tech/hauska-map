@@ -10,11 +10,12 @@
 // chat accordion card.
 
 import { useEffect, useState } from "react";
+import { PE } from "../../styles/pe-chrome";
 import { ATOM_ACCENT_BORDER } from "./atom-accent";
 import { fetchAtomByDid, type AtomFetchOutcome } from "./atom-fetch";
 
-const MUTED = "var(--surface-muted, #94A3B8)";
-const TEXT = "var(--text-body, #e5e7eb)";
+const MUTED = PE.t4;
+const TEXT = PE.t3;
 const DETAIL_BG = "rgba(154,166,178,0.10)";
 
 function rec(v: unknown): Record<string, unknown> | null {

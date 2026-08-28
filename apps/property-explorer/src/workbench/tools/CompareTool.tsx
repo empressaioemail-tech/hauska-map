@@ -341,7 +341,7 @@ function CompareTable({
           return (
           <div key={slot} style={{ minWidth: 0 }}>
             {onOpen ? (
-              <button
+              <Button
                 type="button"
                 data-testid={`compare-open-${slot}`}
                 onClick={() => onOpen(parcelNodeId)}
@@ -350,6 +350,7 @@ function CompareTable({
                   display: "block",
                   width: "100%",
                   padding: 0,
+                  height: "auto",
                   border: "none",
                   background: "transparent",
                   textAlign: "left",
@@ -361,7 +362,7 @@ function CompareTable({
                 }}
               >
                 <span data-testid={`compare-header-${slot}`}>{labelFor(parcelNodeId)}</span>
-              </button>
+              </Button>
             ) : (
               <div
                 data-testid={`compare-header-${slot}`}

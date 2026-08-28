@@ -95,8 +95,9 @@ describe("W3.3 on-property share personas with default message", () => {
     expect(html).toContain("does not send email");
     expect(html).not.toMatch(/gmail/i);
     // Neutral-ground sweep 2026-08-27: the ground matches the brand chip now.
+    // P-93 chrome-debt: PERSONA_BG/FG read PE.ink / PE.t2 (token fallbacks).
     expect(html).toContain("#0B0E13");
-    expect(html).toContain("#e5e7eb");
+    expect(html).toContain("#E9EEF5");
     expect(html).toContain("color-scheme:dark");
     expect(html).not.toContain("<select");
   });

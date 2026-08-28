@@ -83,7 +83,7 @@ export const DOSSIER_PAYWALL_MESSAGE =
 
 const MUTED = PE.muted2;
 const TEXT = PE.text;
-const CARD_BORDER = "var(--surface-border, #243247)";
+const CARD_BORDER = PE.line14;
 const BLUE = PE.accent;
 /** Unread marker. Amber is the operator-chosen colour for "new to you". */
 const AMBER = PE.warning;
@@ -472,7 +472,7 @@ function ReportsLibrary() {
             </span>
           </span>
           {isPdfExportFormat(row.format) ? (
-            <button
+            <Button
               type="button"
               data-testid="reports-library-view"
               onClick={() => {
@@ -483,6 +483,7 @@ function ReportsLibrary() {
                 background: "transparent",
                 border: 0,
                 padding: 0,
+                height: "auto",
                 color: BLUE,
                 fontSize: 11.5,
                 fontWeight: 600,
@@ -490,7 +491,7 @@ function ReportsLibrary() {
               }}
             >
               View
-            </button>
+            </Button>
           ) : null}
           <a
             href={row.downloadPath}
@@ -525,7 +526,7 @@ function ReportsTabs({
       data-testid="reports-tabs"
       style={{ display: "flex", gap: 8, marginBottom: 12 }}
     >
-      <button
+      <Button
         type="button"
         data-testid="reports-tab-mine"
         aria-pressed={tab === "mine"}
@@ -536,15 +537,15 @@ function ReportsTabs({
           fontSize: 12.5,
           fontWeight: 600,
           borderRadius: 6,
-          border: "1px solid var(--surface-border, #243247)",
+          border: `1px solid ${CARD_BORDER}`,
           background: tab === "mine" ? "rgba(59,130,246,0.12)" : "transparent",
           color: TEXT,
           cursor: "pointer",
         }}
       >
         My reports
-      </button>
-      <button
+      </Button>
+      <Button
         type="button"
         data-testid="reports-tab-shared"
         aria-pressed={tab === "shared"}
@@ -555,14 +556,14 @@ function ReportsTabs({
           fontSize: 12.5,
           fontWeight: 600,
           borderRadius: 6,
-          border: "1px solid var(--surface-border, #243247)",
+          border: `1px solid ${CARD_BORDER}`,
           background: tab === "shared" ? "rgba(59,130,246,0.12)" : "transparent",
           color: TEXT,
           cursor: "pointer",
         }}
       >
         Shared with me
-      </button>
+      </Button>
     </div>
   );
 }
@@ -592,7 +593,7 @@ function SharedWithMeList({ rows }: { rows: ReceivedShareRow[] }) {
               marginBottom: 10,
               padding: "10px 12px",
               borderRadius: 8,
-              border: "1px solid var(--surface-border, #243247)",
+              border: `1px solid ${CARD_BORDER}`,
             }}
           >
             <strong style={{ display: "block", fontSize: 13.5 }}>
@@ -701,7 +702,7 @@ function OptionDChrome({
         Reports and exports
       </div>
 
-      <button
+      <Button
         type="button"
         data-testid="reports-doc-picker"
         aria-expanded={pickerOpen}
@@ -716,7 +717,7 @@ function OptionDChrome({
           borderRadius: 8,
           background: "rgba(11,14,19,0.9)",
           border: "1px solid rgba(154,166,178,0.4)",
-          color: selected ? TEXT : "var(--text-muted, #94A3B8)",
+          color: selected ? TEXT : MUTED,
           fontSize: 13.5,
           cursor: "pointer",
           fontFamily: "inherit",
@@ -726,7 +727,7 @@ function OptionDChrome({
         <span style={{ color: MUTED, fontSize: 11.5 }} aria-hidden>
           ▾
         </span>
-      </button>
+      </Button>
 
       <div
         data-testid="reports-doc-menu"
@@ -760,7 +761,7 @@ function OptionDChrome({
               const rowStatus = lock ?? reportDocStatus(row, { studioGranted });
               const isSel = selected?.id === row.id;
               return (
-                <button
+                <Button
                   key={row.id}
                   type="button"
                   data-testid={`reports-doc-option-${row.id}`}
@@ -811,7 +812,7 @@ function OptionDChrome({
                   >
                     {rowStatus.text}
                   </span>
-                </button>
+                </Button>
               );
             })}
           </div>
@@ -878,7 +879,7 @@ function OptionDChrome({
                 marginTop: 5,
                 fontSize: 12.5,
                 lineHeight: 1.5,
-                color: "var(--text-muted, #94A3B8)",
+                color: MUTED,
               }}
             >
               {selected.promise}
@@ -890,14 +891,14 @@ function OptionDChrome({
               gridTemplateColumns: "auto 1fr",
               gap: "6px 12px",
               fontSize: 11.5,
-              borderTop: "1px solid var(--surface-border, #1E293B)",
+              borderTop: `1px solid ${CARD_BORDER}`,
               paddingTop: 10,
             }}
           >
             {reportDocMeta(selected, generatedLabel).map((m) => (
               <span key={m.k} style={{ display: "contents" }}>
                 <span style={{ color: MUTED }}>{m.k}</span>
-                <span style={{ color: "#cbd5e1" }}>{m.v}</span>
+                <span style={{ color: PE.t3 }}>{m.v}</span>
               </span>
             ))}
           </div>
@@ -934,7 +935,7 @@ function OptionDChrome({
         style={{
           marginTop: 12,
           paddingTop: 10,
-          borderTop: "1px solid var(--surface-border, #1E293B)",
+          borderTop: `1px solid ${CARD_BORDER}`,
           fontSize: 11.5,
           color: MUTED,
         }}

@@ -21,9 +21,10 @@
 import type { CSSProperties } from "react";
 import { isPresent, type UnplaceableParcel } from "@empressaio/parcel-fact-sheet";
 import { Button } from "../components/Button";
+import { PE } from "../styles/pe-chrome";
 
-const MUTED = "var(--surface-muted, #94A3B8)";
-const CARD_BG = "var(--surface-card-translucent, rgba(11,14,19,0.94))";
+const MUTED = PE.t4;
+const CARD_BG = PE.panel;
 
 const shell: CSSProperties = {
   position: "absolute",
@@ -38,7 +39,7 @@ const shell: CSSProperties = {
   border: "1px solid rgba(154,166,178,0.35)",
   boxShadow: "0 8px 28px rgba(0,0,0,0.4)",
   font: "13px/1.45 system-ui, -apple-system, Segoe UI, Roboto, sans-serif",
-  color: "var(--text-body, #e5e7eb)",
+  color: PE.t3,
 };
 
 export function UnplaceableParcelCard({

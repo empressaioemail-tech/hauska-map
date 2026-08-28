@@ -1,4 +1,5 @@
 import type { CSSProperties, HTMLAttributes, MouseEvent, ReactNode } from "react";
+import { Button } from "./Button";
 import { PE, MOTION } from "../styles/pe-chrome";
 import { Card } from "./Card";
 
@@ -88,7 +89,7 @@ export function Modal({
             >
               {title}
             </span>
-            <button
+            <Button
               type="button"
               aria-label="Close"
               onClick={onClose}
@@ -119,7 +120,7 @@ export function Modal({
               >
                 <path d="M18 6 6 18 M6 6l12 12" />
               </svg>
-            </button>
+            </Button>
           </div>
         ) : null}
         {children}

@@ -34,6 +34,7 @@
 // were not given.
 
 import { BubbleTip } from "../components/BubbleTip";
+import { Button } from "../components/Button";
 import { SATELLITE_ATTRIBUTION } from "./satelliteBase";
 import { PE, MOTION } from "../styles/pe-chrome";
 
@@ -107,12 +108,12 @@ export function SmartSiteBadge({
         aria-hidden="true"
         fill="none"
       >
-        <circle cx="38" cy="38" r="30" stroke="#F8FAFC" strokeWidth={5} />
+        <circle cx="38" cy="38" r="30" stroke={PE.t1} strokeWidth={5} />
         <circle cx="38" cy="38" r="7" fill={PE.gold} />
-        <line x1="38" y1="0" x2="38" y2="16" stroke="#F8FAFC" strokeWidth={5} />
-        <line x1="38" y1="60" x2="38" y2="76" stroke="#F8FAFC" strokeWidth={5} />
-        <line x1="0" y1="38" x2="16" y2="38" stroke="#F8FAFC" strokeWidth={5} />
-        <line x1="60" y1="38" x2="76" y2="38" stroke="#F8FAFC" strokeWidth={5} />
+        <line x1="38" y1="0" x2="38" y2="16" stroke={PE.t1} strokeWidth={5} />
+        <line x1="38" y1="60" x2="38" y2="76" stroke={PE.t1} strokeWidth={5} />
+        <line x1="0" y1="38" x2="16" y2="38" stroke={PE.t1} strokeWidth={5} />
+        <line x1="60" y1="38" x2="76" y2="38" stroke={PE.t1} strokeWidth={5} />
       </svg>
       <span
         style={{
@@ -120,7 +121,7 @@ export function SmartSiteBadge({
           fontWeight: 600,
           fontSize: 11.5,
           letterSpacing: ".16em",
-          color: "#F8FAFC",
+          color: PE.t1,
           whiteSpace: "nowrap",
           flex: "none",
         }}
@@ -343,7 +344,7 @@ export function SourcesPanel({
         >
           Sources
         </span>
-        <button
+        <Button
           type="button"
           aria-label="Hide sources"
           className="ss-headbtn pe-btn"
@@ -374,7 +375,7 @@ export function SourcesPanel({
           >
             <path d="M18 6 6 18 M6 6l12 12" />
           </svg>
-        </button>
+        </Button>
       </div>
 
       <div style={{ padding: "6px 6px 8px" }}>
