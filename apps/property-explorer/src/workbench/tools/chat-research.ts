@@ -158,8 +158,6 @@ export function resolveBrokerageStarterPromptId(
 // inspect card's situs address (host seam). All fields honest-nullable.
 // ---------------------------------------------------------------------------
 
-import type { ChatDossierContext } from "./dossier-chat-context";
-
 export interface ChatSubjectSetbacks {
   front_ft: number | null;
   side_ft: number | null;
@@ -200,12 +198,6 @@ export interface ChatSubjectContext {
   parcelFacts: ChatSubjectParcelFacts;
   /** Latest records-request run for this parcel (complete instruments only). */
   recordsRequest?: ChatRecordsRequestContext | null;
-  /**
-   * What the USER has done on this property — their notes, their status, and
-   * which reports they generated. Filing records only: the reports' CONTENTS
-   * are not here. See dossier-chat-context.ts.
-   */
-  userWork?: ChatDossierContext | null;
 }
 
 function emptyParcelFacts(
