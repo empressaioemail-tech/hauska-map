@@ -223,6 +223,63 @@ export function SourcesBubble({
 }
 
 /**
+ * SETTINGS — the fifth capsule bubble. Opens the standalone Settings popup
+ * (account, plan, connections, team), a peer of the pricing and checkout
+ * modals rather than a dock tool: none of it is property-scoped, so putting
+ * it in the workbench would have tied account settings to whether a parcel
+ * happened to be selected.
+ */
+export function SettingsBubble({
+  onOpen,
+  side = "right",
+}: {
+  onOpen: () => void;
+  side?: "left" | "right";
+}) {
+  return (
+    <BubbleTip side={side} label="Settings">
+      <button
+        type="button"
+        data-testid="map-settings-bubble"
+        aria-label="Settings"
+        className="ss-bubble pe-btn"
+        onClick={onOpen}
+        style={{
+          width: 34,
+          height: 34,
+          padding: 0,
+          borderRadius: "50%",
+          border: "none",
+          background: "transparent",
+          color: "rgba(255,255,255,.58)",
+          cursor: "pointer",
+          display: "flex",
+          alignItems: "center",
+          justifyContent: "center",
+          boxShadow: "none",
+          transition: `background ${MOTION.state}, color ${MOTION.state}`,
+        }}
+      >
+        <svg
+          viewBox="0 0 24 24"
+          width={16}
+          height={16}
+          aria-hidden="true"
+          fill="none"
+          stroke="currentColor"
+          strokeWidth={1.7}
+          strokeLinecap="round"
+          strokeLinejoin="round"
+        >
+          <circle cx="12" cy="12" r="3" />
+          <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 1 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.6 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 1 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.6a1.65 1.65 0 0 0 1-1.51V3a2 2 0 1 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9v0a1.65 1.65 0 0 0 1.51 1H21a2 2 0 1 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z" />
+        </svg>
+      </button>
+    </BubbleTip>
+  );
+}
+
+/**
  * The source register. Lives in the left column as a panel among panels, so it
  * shares that column's width, its scroll and its collapse behaviour.
  *

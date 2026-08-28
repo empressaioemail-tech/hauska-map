@@ -73,10 +73,16 @@ import { MapToolset, type LayerStateBadge } from "./MapToolset";
 import type { MapToolsController } from "./mapToolsController";
 import { asMaplibreMap } from "./satelliteBase";
 import { createFloodMapOverlayController } from "./flood-map-overlay";
-import { SmartSiteBadge, SourcesBubble, SourcesPanel } from "./MapCornerChrome";
+import {
+  SmartSiteBadge,
+  SourcesBubble,
+  SourcesPanel,
+  SettingsBubble,
+} from "./MapCornerChrome";
 import { SearchBar, subjectDisplayFromIdentity } from "./SearchBar";
 import { createLookupIntent } from "../lib/lookup-intent";
 import { PricingModal } from "./PricingModal";
+import { SettingsModal } from "./SettingsModal";
 import {
   MobilePanelProvider,
   MobileSheet,
@@ -1301,6 +1307,9 @@ function ExplorerMapSurface({
   // Lifted out of MapSourceInfo so its bubble and its panel can sit in the
   // capsule and the column respectively.
   const [sourcesOpen, setSourcesOpen] = useState(false);
+  // Settings is a STANDALONE popup (peer of pricing/checkout), not a dock
+  // tool: none of it is property-scoped.
+  const [settingsOpen, setSettingsOpen] = useState(false);
   const workbenchTools = useMemo(() => {
     const base = share
       ? [sharedAnalysisToolDef(share), ...WORKBENCH_TOOLS]
@@ -1954,10 +1963,13 @@ function ExplorerMapSurface({
           // belong to two different containers.
           stackExtras={
             isMobile ? null : (
-              <SourcesBubble
-                open={sourcesOpen}
-                onToggle={() => setSourcesOpen((v) => !v)}
-              />
+              <>
+                <SourcesBubble
+                  open={sourcesOpen}
+                  onToggle={() => setSourcesOpen((v) => !v)}
+                />
+                <SettingsBubble onOpen={() => setSettingsOpen(true)} />
+              </>
             )
           }
           stackPanels={
@@ -2079,6 +2091,17 @@ function ExplorerMapSurface({
           server-402 belt AND the dock locked-panels' "View pricing" button.
           Context line comes from the bubble that gated; every price comes
           from the pricing config module. */}
+      {settingsOpen && (
+        <SettingsModal
+          onClose={() => setSettingsOpen(false)}
+          onUpgrade={() => {
+            // ONE pricing surface. Settings never prices anything itself.
+            setSettingsOpen(false);
+            setPaywallOpen(true);
+          }}
+        />
+      )}
+
       {paywallOpen && (
         <PricingModal
           parcelNodeId={activeParcelNodeId}
