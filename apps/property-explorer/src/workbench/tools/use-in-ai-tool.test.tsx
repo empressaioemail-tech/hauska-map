@@ -8,8 +8,9 @@ import { WORKBENCH_TOOLS } from "../registry";
 import { createWorkbenchToolStateStore } from "../tool-state-store";
 import type { WorkbenchHostActions } from "../types";
 import {
-  CLAUDE_CUSTOMIZE_CONNECTORS_URL,
+  CLAUDE_HOME_URL,
   SMART_SITE_CONNECT_HOST,
+  SMART_SITE_CONNECT_URL,
   USE_IN_AI_VENDORS,
   USE_IN_YOUR_AI_VALUE_LINE,
   UseInYourAiBody,
@@ -89,25 +90,28 @@ describe("Use in your AI vendor rows", () => {
     expect(SMART_SITE_CONNECT_HOST).toBe("mcp.smartsite.cloud");
   });
 
-  it("uses Claude's hash-routed settings deep link, not a path that 404s to General", () => {
-    // The two path forms BOTH land on the General pane. Claude's settings is a
-    // modal with hash routing — `claude.ai/new#settings/general` is what the
-    // product itself shows, observed directly. This pins the hash form.
+  it("shows the SAME address it copies — the one that actually connects", () => {
+    // THE TRAP THIS REPLACES. The dialog displayed the bare host
+    // "mcp.smartsite.cloud" while the copy button wrote the full
+    // "https://mcp.smartsite.cloud/mcp". Click Copy and it worked; TYPE what
+    // you saw and you got a connector that could not resolve. A visible
+    // string that differs from the working string is a trap, not a shortcut.
+    expect(SMART_SITE_CONNECT_URL).toBe("https://mcp.smartsite.cloud/mcp");
+    expect(SMART_SITE_CONNECT_URL.endsWith("/mcp")).toBe(true);
+  });
+
+  it("does NOT claim a Claude deep link nobody has verified", () => {
+    // Two slugs were guessed and both landed on the wrong pane
+    // (/settings/customize/connectors, then #settings/connectors — operator
+    // confirmed 2026-08-28). The old test pinned the second guess, which
+    // turned an unverified value into a specification and made the miss look
+    // like correct behaviour.
     //
-    // HONEST LIMIT: the `connectors` slug is inferred from that pattern and is
-    // not confirmed against Claude's routing, which this test cannot reach. It
-    // pins what we chose, not what an external authority verified.
-    expect(CLAUDE_CUSTOMIZE_CONNECTORS_URL).toBe(
-      "https://claude.ai/new#settings/connectors",
-    );
-    expect(CLAUDE_CUSTOMIZE_CONNECTORS_URL).toContain("#settings/");
-    // The two forms known to land on the wrong pane.
-    expect(CLAUDE_CUSTOMIZE_CONNECTORS_URL).not.toBe(
-      "https://claude.ai/settings/customize/connectors",
-    );
-    expect(CLAUDE_CUSTOMIZE_CONNECTORS_URL).not.toBe(
-      "https://claude.ai/settings/connectors",
-    );
+    // Until someone opens Connectors in Claude and READS the address bar,
+    // this button opens Claude and says so.
+    expect(CLAUDE_HOME_URL).toBe("https://claude.ai/new");
+    expect(CLAUDE_HOME_URL).not.toContain("#settings/");
+    expect(CLAUDE_HOME_URL).not.toContain("connectors");
   });
 
   it("never prints a key, Cloud Run URL, or substrate brand on the sheet", () => {
