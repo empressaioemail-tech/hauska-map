@@ -1,3 +1,8 @@
+/* HISTORICAL — pre-v2 (superseded 2026-08-28, P-93 W9).
+   The ONLY CSS kit is apps/property-explorer/src/styles/pe-tokens.css; the
+   only TS primitive module is src/styles/pe-chrome.ts. This file is kept for
+   provenance and is NOT imported by the app. Do not reload it, and do not
+   reload Oxygen from typography.css. Current drop: ../v2/tokens/. */
 /* Smart Site — Property Explorer design tokens
    Adds to (does not replace) tokens/colors.css. PE keeps its own near-black
    chrome (--surface-ink) — do NOT apply --color-navy-* surfaces to the map.
