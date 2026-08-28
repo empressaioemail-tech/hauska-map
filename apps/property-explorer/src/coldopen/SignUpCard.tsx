@@ -238,7 +238,7 @@ function primaryBtnStyle(busy: boolean) {
     justifyContent: "center",
     gap: 9,
     height: 44,
-    fontSize: 14,
+    fontSize: 13.5,
     fontWeight: 600,
     fontFamily: PE.ui,
     color: "#FFFFFF",

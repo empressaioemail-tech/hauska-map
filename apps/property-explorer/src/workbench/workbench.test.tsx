@@ -164,13 +164,21 @@ describe("the ONE shared dock", () => {
 });
 
 describe("dock height model — scrolls instead of clipping below the viewport", () => {
-  it("the dock is viewport-bounded: maxHeight = 100vh minus top offset minus 16px", () => {
+  it("the COLUMN is viewport-bounded: maxHeight = 100vh minus top offset minus 16px", () => {
     const html = render({ openToolId: "brief", activeParcelNodeId: "p1" });
+    // Chrome v2 stacking moved the viewport bound from the single dock onto
+    // the column that holds the stack — the rule is unchanged (top:12 + 16px
+    // bottom margin), it just has to bound N docks instead of one now.
+    const col = html.match(
+      /data-testid="workbench-dock-column"[^>]*style="([^"]*)"/,
+    );
+    expect(col).not.toBeNull();
+    expect(col![1]).toContain("max-height:calc(100vh - 28px)");
+    expect(col![1]).toContain("flex-direction:column");
+    // Each dock is still a flex column so its pinned header and its foldable
+    // body share the budget.
     const dock = html.match(/data-testid="workbench-dock"[^>]*style="([^"]*)"/);
     expect(dock).not.toBeNull();
-    // top:12px + 16px bottom margin → calc(100vh - 28px).
-    expect(dock![1]).toContain("max-height:calc(100vh - 28px)");
-    // Flex column so the pinned header + scroll region share the budget.
     expect(dock![1]).toContain("flex-direction:column");
     expect(dock![1]).toContain("overflow:hidden");
   });
@@ -183,7 +191,9 @@ describe("dock height model — scrolls instead of clipping below the viewport",
     expect(scroll).not.toBeNull();
     expect(scroll![1]).toContain("overflow-y:auto");
     expect(scroll![1]).toContain("-webkit-overflow-scrolling:touch");
-    expect(scroll![1]).toContain("min-height:0");
+    // min-height:0 moved one level out, onto the fold wrapper that owns the
+    // collapsing height; the scroll region now fills it at height:100%.
+    expect(scroll![1]).toContain("height:100%");
     // The tool's content renders INSIDE the scroll region: the dock body
     // (here the honest no-brief fetch-entry state) comes after dock-scroll.
     expect(html.indexOf('data-testid="dock-scroll"')).toBeLessThan(
@@ -309,9 +319,16 @@ describe("expand-to-floating-box (Fix A)", () => {
     const html = render({ openToolId: "chat", activeParcelNodeId: "p1" });
     expect(html).toContain('data-dock-side="right"');
     expect(html).not.toContain('data-testid="workbench-left-stack"');
+    // The right anchor moved onto the column with the stack; no dock in it
+    // may anchor itself left. Both halves still checked.
+    const col = html.match(
+      /data-testid="workbench-dock-column"[^>]*style="([^"]*)"/,
+    );
+    expect(col).not.toBeNull();
+    expect(col![1]).toContain("right:");
+    expect(col![1]).not.toContain("left:");
     const dock = html.match(/data-testid="workbench-dock"[^>]*style="([^"]*)"/);
     expect(dock).not.toBeNull();
-    expect(dock![1]).toContain("right:");
     expect(dock![1]).not.toContain("left:");
   });
 
@@ -387,3 +404,121 @@ describe("expand-to-floating-box (Fix A)", () => {
     expect(html).toContain('data-testid="dock-close"');
   });
 });
+
+
+describe("the dock STACK renders — chrome v2, operator ruling 2026-08-27", () => {
+
+  const renderStack = (openIds: string[], expanded: string) =>
+
+    renderToStaticMarkup(
+
+      <Workbench
+
+        tools={WORKBENCH_TOOLS}
+
+        openToolId={expanded}
+
+        onOpenToolChange={noop}
+
+        initialOpenIds={openIds}
+
+        activeParcelNodeId="p1"
+
+        host={host}
+
+        store={createWorkbenchToolStateStore({ storage: null })}
+
+      />,
+
+    );
+
+
+
+  it("renders ONE dock per open tool, in one column", () => {
+
+    const html = renderStack(["brief", "chat", "reports"], "reports");
+
+    expect(html.match(/data-testid="workbench-dock"/g)).toHaveLength(3);
+
+    expect(html).toContain('data-testid="workbench-dock-column"');
+
+    expect(html).toContain('data-count="3"');
+
+    expect(html).toContain('data-tool="brief"');
+
+    expect(html).toContain('data-tool="chat"');
+
+    expect(html).toContain('data-tool="reports"');
+
+  });
+
+
+
+  it("exactly one dock is expanded; every other is FOLDED, not closed", () => {
+
+    const html = renderStack(["brief", "chat", "reports"], "chat");
+
+    // Three open, two folded — so exactly one carries no data-folded flag.
+
+    expect(html.match(/data-folded="1"/g)).toHaveLength(2);
+
+    const chat = html.slice(html.indexOf('data-tool="chat"'));
+
+    expect(chat.startsWith('data-tool="chat" data-dock-side="right" data-folded')).toBe(false);
+
+  });
+
+
+
+  it("a folded dock collapses its BODY to zero height, keeping its header", () => {
+
+    const html = renderStack(["brief", "chat"], "chat");
+
+    // Two headers (both docks keep one) and two scroll regions, but the
+
+    // folded body is max-height:0 — the header is what survives a fold.
+
+    expect(html.match(/data-testid="dock-header"/g)).toHaveLength(2);
+
+    expect(html).toMatch(/max-height:0/);
+
+  });
+
+
+
+  it("a folded header is a keyboard-reachable button; the expanded one is not", () => {
+
+    const html = renderStack(["brief", "chat"], "chat");
+
+    expect(html).toMatch(/data-testid="dock-header"[^>]*role="button"/);
+
+    expect(html.match(/data-testid="dock-header"[^>]*role="button"/g)).toHaveLength(1);
+
+    expect(html).toMatch(/aria-expanded="false"/);
+
+  });
+
+
+
+  it("every dock keeps its OWN close control — closing one is not closing all", () => {
+
+    const html = renderStack(["brief", "chat", "reports"], "reports");
+
+    expect(html.match(/data-testid="dock-close"/g)).toHaveLength(3);
+
+  });
+
+
+
+  it("a single open tool shows no fold affordance (no chevron on a stack of one)", () => {
+
+    const html = renderStack(["brief"], "brief");
+
+    expect(html.match(/data-testid="workbench-dock"/g)).toHaveLength(1);
+
+    expect(html).not.toContain('data-folded="1"');
+
+  });
+
+});
+

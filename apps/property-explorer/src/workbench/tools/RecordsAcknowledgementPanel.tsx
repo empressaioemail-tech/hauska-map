@@ -49,7 +49,7 @@ export function RecordsAcknowledgementPanel({
     <div
       data-testid="records-acknowledgement"
       style={{
-        borderRadius: 12,
+        borderRadius: 10,
         border: `1px solid ${CARD_BORDER}`,
         background: APP_INK,
         padding: 20,
@@ -70,7 +70,7 @@ export function RecordsAcknowledgementPanel({
             alignItems: "center",
             justifyContent: "center",
             flex: "none",
-            fontSize: 14,
+            fontSize: 13.5,
             color: BLUE,
           }}
           aria-hidden
@@ -81,8 +81,8 @@ export function RecordsAcknowledgementPanel({
           <div
             style={{
               fontFamily: "Oxygen, system-ui, sans-serif",
-              fontWeight: 700,
-              fontSize: 16,
+              fontWeight: 600,
+              fontSize: 15,
               color: TEXT,
             }}
           >
@@ -108,7 +108,7 @@ export function RecordsAcknowledgementPanel({
       >
         <div
           style={{
-            fontSize: 11,
+            fontSize: 11.5,
             letterSpacing: "0.14em",
             textTransform: "uppercase",
             color: MUTED,
@@ -133,14 +133,14 @@ export function RecordsAcknowledgementPanel({
                 style={{
                   border: `1px solid ${ATOM_ACCENT_BORDER}`,
                   background: ATOM_ACCENT_BG,
-                  borderRadius: 9,
+                  borderRadius: 10,
                   padding: "11px 12px",
                   display: "flex",
                   flexDirection: "column",
                   gap: 6,
                 }}
               >
-                <div style={{ fontSize: 13, fontWeight: 600, color: TEXT }}>
+                <div style={{ fontSize: 13.5, fontWeight: 600, color: TEXT }}>
                   {hit.title}
                 </div>
                 <div
@@ -154,7 +154,7 @@ export function RecordsAcknowledgementPanel({
                   <span
                     style={{
                       fontFamily: "ui-monospace, Menlo, monospace",
-                      fontSize: 10.5,
+                      fontSize: 11.5,
                       color: ATOM_ACCENT,
                       border: `1px solid ${ATOM_ACCENT_BORDER}`,
                       background: ATOM_ACCENT_BG,
@@ -191,7 +191,7 @@ export function RecordsAcknowledgementPanel({
       >
         <div
           style={{
-            fontSize: 11,
+            fontSize: 11.5,
             letterSpacing: "0.14em",
             textTransform: "uppercase",
             color: MUTED,
@@ -216,7 +216,7 @@ export function RecordsAcknowledgementPanel({
                 style={{
                   color: ATOM_ACCENT,
                   fontFamily: "ui-monospace, Menlo, monospace",
-                  fontSize: 11,
+                  fontSize: 11.5,
                   paddingTop: 2,
                 }}
               >

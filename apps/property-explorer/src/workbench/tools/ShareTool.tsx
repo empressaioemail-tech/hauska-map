@@ -90,7 +90,7 @@ export function ShareBody({
             data-testid="share-link-url"
             style={{
               fontFamily: PE.mono,
-              fontSize: 11,
+              fontSize: 11.5,
               lineHeight: 1.5,
               color: PE.t2,
               wordBreak: "break-all",
@@ -214,7 +214,7 @@ export function ShareBody({
           data-testid="share-notice"
           style={{
             margin: "8px 0 0",
-            fontSize: 11,
+            fontSize: 11.5,
             color: phase.tone === "amber" ? AMBER : MUTED,
           }}
         >

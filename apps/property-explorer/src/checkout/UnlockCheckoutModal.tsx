@@ -86,7 +86,7 @@ export function UnlockCheckoutModal({
           <div
             style={{
               fontFamily: DISPLAY,
-              fontWeight: 700,
+              fontWeight: 600,
               fontSize: 11,
               letterSpacing: "0.2em",
               textTransform: "uppercase",
@@ -145,7 +145,7 @@ export function UnlockCheckoutModal({
           ) : (
             <div
               data-testid="checkout-mount-error"
-              style={{ fontSize: 13, color: "#FBBF24", lineHeight: 1.45 }}
+              style={{ fontSize: 13.5, color: "#FBBF24", lineHeight: 1.45 }}
             >
               {mount.error}
             </div>
@@ -153,14 +153,14 @@ export function UnlockCheckoutModal({
           {creds.ok && mount.error ? (
             <div
               data-testid="checkout-mount-error"
-              style={{ fontSize: 13, color: "#FBBF24", lineHeight: 1.45 }}
+              style={{ fontSize: 13.5, color: "#FBBF24", lineHeight: 1.45 }}
             >
               {mount.error}
             </div>
           ) : null}
           <p
             data-testid="unlock-wallet-note"
-            style={{ margin: 0, fontSize: 12, color: MUTED, lineHeight: 1.45 }}
+            style={{ margin: 0, fontSize: 12.5, color: MUTED, lineHeight: 1.45 }}
           >
             {PE_PRICING.walletHonestDecline}
           </p>
@@ -176,8 +176,8 @@ export function UnlockCheckoutModal({
               borderRadius: 6,
               background: BLUE,
               border: "none",
-              fontSize: 14,
-              fontWeight: 700,
+              fontSize: 13.5,
+              fontWeight: 600,
               color: TEXT,
               opacity: mount.canSubmit ? 1 : 0.55,
               cursor: mount.canSubmit ? "pointer" : "not-allowed",

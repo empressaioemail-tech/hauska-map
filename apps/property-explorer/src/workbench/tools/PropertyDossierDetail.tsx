@@ -63,7 +63,7 @@ function sectionHeader(label: string) {
     <div
       style={{
         fontSize: 10,
-        fontWeight: 700,
+        fontWeight: 600,
         letterSpacing: 0.4,
         textTransform: "uppercase",
         color: MUTED,
@@ -122,7 +122,7 @@ export function DossierStatusSelector({
             disabled={busy}
             onClick={() => onSetStatus(selected ? null : s)}
             style={{
-              fontSize: 10.5,
+              fontSize: 11.5,
               fontWeight: 600,
               padding: "3px 10px",
               borderRadius: 999,
@@ -206,9 +206,9 @@ export function PropertyDossierDetail({
 
       {/* HEADER — label / address / parcel id / saved-at. */}
       <div data-testid="dossier-header" style={{ marginBottom: 4 }}>
-        <div style={{ fontSize: 12.5, fontWeight: 700, color: TEXT }}>{title}</div>
+        <div style={{ fontSize: 12.5, fontWeight: 600, color: TEXT }}>{title}</div>
         {address && address !== title && (
-          <div style={{ fontSize: 11, color: TEXT }}>{address}</div>
+          <div style={{ fontSize: 11.5, color: TEXT }}>{address}</div>
         )}
         <div style={{ fontSize: 10, color: MUTED, marginTop: 2 }}>
           {row.parcelNodeId}
@@ -219,7 +219,7 @@ export function PropertyDossierDetail({
       {notice && (
         <p
           data-testid="dossier-notice"
-          style={{ margin: "6px 0 0", fontSize: 10.5, color: AMBER }}
+          style={{ margin: "6px 0 0", fontSize: 11.5, color: AMBER }}
         >
           {notice}
         </p>
@@ -255,7 +255,7 @@ export function PropertyDossierDetail({
       {/* DRAWINGS — capture current map annotations / redraw saved ones. */}
       {sectionHeader("Map drawings")}
       <div data-testid="dossier-drawings">
-        <p style={{ margin: "0 0 6px", fontSize: 10.5, color: MUTED }}>
+        <p style={{ margin: "0 0 6px", fontSize: 11.5, color: MUTED }}>
           {drawingsCount > 0
             ? `${drawingsCount} saved shape${drawingsCount === 1 ? "" : "s"} (draw / marker / measure).`
             : "No drawings saved for this property yet."}
@@ -306,7 +306,7 @@ export function PropertyDossierDetail({
               <p
                 style={{
                   margin: "3px 0 0",
-                  fontSize: 11,
+                  fontSize: 11.5,
                   color: TEXT,
                   whiteSpace: "pre-wrap",
                 }}
@@ -315,7 +315,7 @@ export function PropertyDossierDetail({
               </p>
               <p
                 data-testid="dossier-summary-disclaimer"
-                style={{ margin: "3px 0 0", fontSize: 9.5, color: MUTED }}
+                style={{ margin: "3px 0 0", fontSize: 10, color: MUTED }}
               >
                 {chatSummary.disclaimer ??
                   "AI-generated summary of a research chat — verify against the cited sources before relying on it."}
@@ -327,7 +327,7 @@ export function PropertyDossierDetail({
               chatThreads), so the same thread never renders twice. */}
           {thread.length > 0 && chatThreads.length === 0 && (
             <details data-testid="dossier-chat-thread">
-              <summary style={{ fontSize: 10.5, color: MUTED, cursor: "pointer" }}>
+              <summary style={{ fontSize: 11.5, color: MUTED, cursor: "pointer" }}>
                 Saved thread · {chatSummary?.turnCount ?? thread.length} turns
                 {chatSummary && chatSummary.turnCount > thread.length
                   ? ` (last ${thread.length} kept)`
@@ -339,7 +339,7 @@ export function PropertyDossierDetail({
                     key={i}
                     style={{
                       margin: "0 0 5px",
-                      fontSize: 10.5,
+                      fontSize: 11.5,
                       color: turn.role === "user" ? ACCENT : TEXT,
                     }}
                   >
@@ -372,13 +372,13 @@ export function PropertyDossierDetail({
                     alignItems: "baseline",
                     gap: 8,
                     padding: "3px 0",
-                    fontSize: 11,
+                    fontSize: 11.5,
                   }}
                 >
                   <span style={{ flex: 1, color: TEXT }}>
                     {exportLabel(entry)}
                     {date && (
-                      <span style={{ color: MUTED, fontSize: 9.5 }}> · {date}</span>
+                      <span style={{ color: MUTED, fontSize: 10 }}> · {date}</span>
                     )}
                   </span>
                   {entry.downloadPath ? (
@@ -398,7 +398,7 @@ export function PropertyDossierDetail({
                             border: 0,
                             padding: 0,
                             color: ACCENT,
-                            fontSize: 10.5,
+                            fontSize: 11.5,
                             fontWeight: 600,
                             cursor: "pointer",
                           }}
@@ -409,13 +409,13 @@ export function PropertyDossierDetail({
                       <a
                         href={entry.downloadPath}
                         data-testid="dossier-export-download"
-                        style={{ color: ACCENT, fontSize: 10.5, fontWeight: 600 }}
+                        style={{ color: ACCENT, fontSize: 11.5, fontWeight: 600 }}
                       >
                         Download
                       </a>
                     </span>
                   ) : (
-                    <span style={{ color: MUTED, fontSize: 9.5 }}>
+                    <span style={{ color: MUTED, fontSize: 10 }}>
                       re-run in Reports to download
                     </span>
                   )}
@@ -480,14 +480,14 @@ export function DossierChatThreads({
                 background: "transparent",
                 border: "none",
                 padding: 0,
-                fontSize: 11,
+                fontSize: 11.5,
                 color: TEXT,
                 cursor: "pointer",
                 fontWeight: 600,
               }}
             >
               {t.title ? cleanChatDisplay(t.title) : "Untitled chat"}
-              <span style={{ color: MUTED, fontWeight: 400, fontSize: 9.5 }}>
+              <span style={{ color: MUTED, fontWeight: 400, fontSize: 10 }}>
                 {" "}
                 · {t.turnCount} turn{t.turnCount === 1 ? "" : "s"}
                 {fmtDate(t.savedAt) ? ` · ${fmtDate(t.savedAt)}` : ""}
@@ -503,7 +503,7 @@ export function DossierChatThreads({
                     key={i}
                     style={{
                       margin: "0 0 5px",
-                      fontSize: 10.5,
+                      fontSize: 11.5,
                       color: turn.role === "user" ? ACCENT : TEXT,
                     }}
                   >
@@ -601,10 +601,10 @@ export function PropertySharePicker({
 
   return (
     <div data-testid="dossier-share-picker">
-      <p style={{ margin: "0 0 6px", fontSize: 10.5, color: MUTED }}>
+      <p style={{ margin: "0 0 6px", fontSize: 11.5, color: MUTED }}>
         Copy a message and a /s/{"{grantId}"} link. This does not send email.
       </p>
-      <label style={{ display: "block", fontSize: 10.5, color: MUTED, marginBottom: 4 }}>
+      <label style={{ display: "block", fontSize: 11.5, color: MUTED, marginBottom: 4 }}>
         Who I am sharing with
         <div
           data-testid="dossier-share-persona"
@@ -724,7 +724,7 @@ export function PropertySharePicker({
         <div
           data-testid="dossier-share-url"
           style={{
-            fontSize: 10.5,
+            fontSize: 11.5,
             color: ACCENT,
             wordBreak: "break-all",
             margin: "8px 0 6px",
@@ -856,7 +856,7 @@ export function NotesField({
       />
       <div
         data-testid={counterTestId}
-        style={{ fontSize: 9.5, color: MUTED, textAlign: "right" }}
+        style={{ fontSize: 10, color: MUTED, textAlign: "right" }}
       >
         {draft.length.toLocaleString()} / {DOSSIER_NOTES_MAX_CHARS.toLocaleString()}
       </div>

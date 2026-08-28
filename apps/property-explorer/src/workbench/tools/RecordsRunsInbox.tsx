@@ -158,7 +158,7 @@ export function RecordsRunsInbox({
           Your records requests
           {rows.length > 0 ? ` (${rows.length})` : ""}
         </span>
-        <span style={{ fontSize: 11, color: MUTED }}>
+        <span style={{ fontSize: 11.5, color: MUTED }}>
           {collapsed ? "Show" : "Hide"}
         </span>
       </button>
@@ -166,10 +166,10 @@ export function RecordsRunsInbox({
       {!collapsed ? (
         <div style={{ padding: "0 12px 12px", display: "flex", flexDirection: "column", gap: 8 }}>
           {notice ? (
-            <p style={{ margin: 0, fontSize: 12, color: MUTED }}>{notice}</p>
+            <p style={{ margin: 0, fontSize: 12.5, color: MUTED }}>{notice}</p>
           ) : null}
           {rows.length === 0 && !notice ? (
-            <p style={{ margin: 0, fontSize: 12, color: MUTED }}>
+            <p style={{ margin: 0, fontSize: 12.5, color: MUTED }}>
               No clerk index searches yet. Start one from Records request below.
             </p>
           ) : null}
@@ -209,7 +209,7 @@ export function RecordsRunsInbox({
                 </span>
                 <span
                   style={{
-                    fontSize: 12,
+                    fontSize: 12.5,
                     color: isActiveInboxRow(row) ? BLUE : MUTED,
                   }}
                 >
@@ -219,7 +219,7 @@ export function RecordsRunsInbox({
               </button>
             );
           })}
-          <p style={{ margin: 0, fontSize: 11, lineHeight: 1.45, color: MUTED }}>
+          <p style={{ margin: 0, fontSize: 11.5, lineHeight: 1.45, color: MUTED }}>
             Runs continue in the background. We email your account when a search
             finishes — open any row to see status on that parcel.
           </p>

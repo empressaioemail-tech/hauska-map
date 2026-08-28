@@ -132,7 +132,7 @@ function VendorConnectPanel({
         data-testid={`use-in-ai-connect-host-${vendor}`}
         style={{
           fontFamily: PE.mono,
-          fontSize: 11,
+          fontSize: 11.5,
           lineHeight: 1.65,
           color: PE.t2,
           wordBreak: "break-all",
@@ -261,7 +261,7 @@ export function UseInYourAiBody({
               data-testid="use-in-ai-share-url"
               style={{
                 fontFamily: PE.mono,
-                fontSize: 11,
+                fontSize: 11.5,
                 lineHeight: 1.65,
                 color: PE.t2,
                 wordBreak: "break-all",
@@ -301,7 +301,7 @@ export function UseInYourAiBody({
             data-testid="use-in-ai-share-notice"
             style={{
               margin: "8px 0 0",
-              fontSize: 11,
+              fontSize: 11.5,
               color: sharePhase.tone === "amber" ? PE.warning : PE.muted,
             }}
           >
@@ -339,7 +339,7 @@ export function UseInYourAiBody({
                   type="button"
                   data-testid={`use-in-ai-connect-${row.id}`}
                   onClick={() => handleConnectClick(row.id)}
-                  style={{ padding: "4px 10px", fontSize: 11, minHeight: 0 }}
+                  style={{ padding: "4px 10px", fontSize: 11.5, minHeight: 0 }}
                 >
                   Connect
                 </Button>

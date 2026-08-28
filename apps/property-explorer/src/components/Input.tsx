@@ -11,9 +11,13 @@ import { PE, MOTION } from "../styles/pe-chrome";
 // barely off the surface, text 12.5 in t2, placeholder t6.
 //
 // Focus adds the blue border and the focus glow and NOTHING MOVES — no size
-// change, no shadow that shifts layout. Invalid gets the error border, a faint
-// error fill, and an error line below that NAMES THE EXPECTED FORMAT. "Invalid"
-// on its own is not an error message.
+// change, no shadow that shifts layout. `invalid` gets the error border and a
+// faint error fill.
+//
+// SPEC section 1 also asks for an error line below the field NAMING THE
+// EXPECTED FORMAT. No field in this app currently reports a format error, so
+// that component is absent rather than shipped-and-never-rendered. When one
+// does, the line is required and "Invalid" alone will not satisfy it.
 
 const base: CSSProperties = {
   boxSizing: "border-box",
@@ -77,42 +81,6 @@ export const TextArea = forwardRef<
     />
   );
 });
-
-/** The error line that sits under an invalid field. It states the expected
- *  format; it never just says the value was rejected. */
-export function FieldError({ children }: { children: ReactNode }) {
-  return (
-    <div
-      data-pe="field-error"
-      role="alert"
-      style={{
-        display: "flex",
-        alignItems: "flex-start",
-        gap: 6,
-        marginTop: 6,
-        fontSize: 11.5,
-        lineHeight: 1.35,
-        color: PE.err,
-      }}
-    >
-      <svg
-        viewBox="0 0 24 24"
-        width={13}
-        height={13}
-        aria-hidden
-        fill="none"
-        stroke="currentColor"
-        strokeWidth={1.7}
-        strokeLinecap="round"
-        strokeLinejoin="round"
-        style={{ flex: "none", marginTop: 1 }}
-      >
-        <path d="M12 3 2 20h20L12 3z M12 10v4 M12 17h.01" />
-      </svg>
-      <span>{children}</span>
-    </div>
-  );
-}
 
 /** Label above value — the reason the cards scan. 10/600/.13em uppercase in
  *  t6 over a 13.5/400 value. */

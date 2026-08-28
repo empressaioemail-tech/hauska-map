@@ -5,9 +5,13 @@ import { PE } from "../styles/pe-chrome";
 //
 // A loading dock shows the REAL field labels it is about to fill, with a
 // shimmering bar where each value will land, staggered so the eye reads it as
-// one surface filling in rather than six things flashing. The header carries
-// the spinner and a mono progress count, so "slow" and "stuck" are
-// distinguishable without opening a console.
+// one surface filling in rather than six things flashing.
+//
+// SPEC section 2 also asks for a mono `4 of 7` progress count beside the
+// spinner. There is no surface in this app that HAS a real n-of-m to report,
+// and a count invented to fill the slot is the fabricated-zero defect wearing
+// a different hat. The component is therefore absent rather than dormant. Add
+// it back the day something can supply a real count.
 
 /** 12px ring, 1.6px stroke, line-28 with a blue top arc, 700ms linear. */
 export function Spinner({ size = 12, style }: { size?: number; style?: CSSProperties }) {
@@ -28,30 +32,6 @@ export function Spinner({ size = 12, style }: { size?: number; style?: CSSProper
         ...style,
       }}
     />
-  );
-}
-
-/** The header pair: spinner plus `4 of 7` in mono. `total` omitted renders the
- *  spinner alone — a count you do not have is not printed as a guess. */
-export function LoadingCount({
-  done,
-  total,
-}: {
-  done?: number;
-  total?: number;
-}) {
-  return (
-    <span
-      data-pe="loading-count"
-      style={{ display: "inline-flex", alignItems: "center", gap: 7 }}
-    >
-      <Spinner />
-      {typeof done === "number" && typeof total === "number" ? (
-        <span
-          style={{ fontFamily: PE.mono, fontSize: 10, color: PE.t6 }}
-        >{`${done} of ${total}`}</span>
-      ) : null}
-    </span>
   );
 }
 
