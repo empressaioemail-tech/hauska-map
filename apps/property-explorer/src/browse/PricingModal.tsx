@@ -38,21 +38,21 @@ import {
 } from "../lib/pricing";
 import { shouldShowSoloCompare, unlocksThisWeek } from "../lib/unlock-week";
 
-const CARD_BG = PE.card;
-const ACCENT = PE.accent;
-const TEXT = PE.textStrong;
-const BODY = PE.muted;
-const MUTED = PE.muted;
-const ABSENCE = PE.absence;
-const AMBER = PE.warning;
-const ROW_BORDER = "0.5px solid var(--surface-border-rgba, rgba(154,166,178,0.3))";
-const ROW_BORDER_SOFT =
-  "0.5px solid var(--surface-border-rgba, rgba(154,166,178,0.22))";
-const COL_BORDER = "0.5px solid var(--surface-border-rgba, rgba(154,166,178,0.3))";
-const EMPHASIS_BORDER = "1px solid var(--brand-blue-border, rgba(59,130,246,0.55))";
-const EMPHASIS_BG = "var(--brand-blue-bg-soft, rgba(59,130,246,0.08))";
-const FONT =
-  "var(--font-body, ui-sans-serif, system-ui, -apple-system, 'Segoe UI', sans-serif)";
+const CARD_BG = PE.modalBg;
+const ACCENT = PE.blue;
+const TEXT = PE.t1;
+const BODY = PE.t3;
+const MUTED = PE.t5;
+const ABSENCE = PE.slate;
+const AMBER = PE.warn;
+// Three hairline weights, one hue. ROW_BORDER is the edge OF a band,
+// ROW_BORDER_SOFT the rule INSIDE it.
+const ROW_BORDER = `1px solid ${PE.line14}`;
+const ROW_BORDER_SOFT = `1px solid ${PE.line06}`;
+const COL_BORDER = `1px solid ${PE.line06}`;
+const EMPHASIS_BORDER = `1px solid ${PE.blueLine}`;
+const EMPHASIS_BG = PE.blueBg;
+const FONT = PE.ui;
 const DISPLAY =
   "var(--font-display, ui-sans-serif, system-ui, -apple-system, 'Segoe UI', sans-serif)";
 
@@ -169,7 +169,7 @@ export function PricingModal({
         display: "flex",
         alignItems: "center",
         justifyContent: "center",
-        background: "rgba(6,9,13,0.72)",
+        background: PE.scrim,
         padding: 16,
       }}
     >
@@ -182,13 +182,12 @@ export function PricingModal({
           width: "min(940px, calc(100vw - 24px))",
           maxHeight: "calc(100dvh - 24px)",
           overflow: "hidden",
-          borderRadius: 14,
+          borderRadius: PE.rModal,
           background: CARD_BG,
-          border: "0.5px solid var(--brand-blue-border-soft, rgba(59,130,246,0.28))",
-          boxShadow: "0 24px 80px rgba(0,0,0,0.55)",
+          border: `1px solid ${PE.line28}`,
+          boxShadow: PE.shModal,
           color: TEXT,
           fontFamily: FONT,
-          backdropFilter: "blur(2px)",
         }}
       >
         <div
@@ -205,9 +204,9 @@ export function PricingModal({
             <div
               style={{
                 fontFamily: DISPLAY,
-                fontSize: 11,
-                fontWeight: 700,
-                letterSpacing: "0.2em",
+                fontSize: 10,
+                fontWeight: 600,
+                letterSpacing: ".18em",
                 textTransform: "uppercase",
                 color: ACCENT,
               }}
@@ -220,8 +219,8 @@ export function PricingModal({
                 fontFamily: DISPLAY,
                 fontSize: 26,
                 lineHeight: 1.15,
-                fontWeight: 700,
-                letterSpacing: "-0.01em",
+                fontWeight: 300,
+                letterSpacing: "-.02em",
               }}
             >
               {PE_PRICING.header.title}
@@ -529,7 +528,17 @@ function ColumnHead({
       }}
     >
       <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-        <span style={{ fontSize: 14, fontWeight: 700 }}>{PE_PRICING[tier].title}</span>
+        <span
+          style={{
+            fontSize: 11,
+            fontWeight: 600,
+            letterSpacing: ".1em",
+            textTransform: "uppercase",
+            color: TEXT,
+          }}
+        >
+          {PE_PRICING[tier].title}
+        </span>
         {tier === "studio" ? (
           <span
             data-testid="pricing-studio-badge"
@@ -544,7 +553,7 @@ function ColumnHead({
           </span>
         ) : null}
       </div>
-      <div style={{ fontFamily: DISPLAY, fontWeight: 700, fontSize: 18 }}>
+      <div style={{ fontFamily: PE.mono, fontWeight: 400, fontSize: 24, letterSpacing: "-.01em", color: TEXT }}>
         {headline.amount}
         <span style={{ fontSize: 12, fontWeight: 400, color: MUTED }}>
           {headline.suffix}
@@ -610,6 +619,49 @@ function ColumnHead({
   );
 }
 
+/**
+ * The CheckRow glyph for one matrix cell.
+ *
+ *   included        check   ok       — you get this
+ *   notIncluded     slash   slate    — this tier does not have it
+ *   oneSeat         lock    warn     — a higher tier, or more seats, unlocks it
+ *   teamSeats       lock    warn     — same, seat-scaled
+ *   comingSoon      alert   t6       — NOT BUILT YET. Never sold as present.
+ *
+ * Never a greyed check. An exclusion gets its own glyph, at the same size as
+ * an inclusion, so the row reads as a decision rather than as a faded yes.
+ */
+const CELL_GLYPH: Record<MatrixCellKind, { d: string; color: string }> = {
+  included: { d: "M20 6 9 17l-5-5", color: PE.ok },
+  notIncluded: {
+    d: "M12 21a9 9 0 1 0 0-18 9 9 0 0 0 0 18z M6 6l12 12",
+    color: PE.slate,
+  },
+  oneSeat: { d: "M5 11h14v10H5z M8 11V7a4 4 0 0 1 8 0v4", color: PE.warn },
+  teamSeats: { d: "M5 11h14v10H5z M8 11V7a4 4 0 0 1 8 0v4", color: PE.warn },
+  comingSoon: { d: "M12 3 2 20h20L12 3z M12 10v4 M12 17h.01", color: PE.t6 },
+};
+
+function CellGlyph({ kind }: { kind: MatrixCellKind }) {
+  const g = CELL_GLYPH[kind];
+  return (
+    <svg
+      viewBox="0 0 24 24"
+      width={12}
+      height={12}
+      aria-hidden
+      fill="none"
+      stroke={g.color}
+      strokeWidth={1.7}
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      style={{ flex: "none", marginTop: 2 }}
+    >
+      <path d={g.d} />
+    </svg>
+  );
+}
+
 function GroupBlock({
   testId,
   title,
@@ -635,12 +687,12 @@ function GroupBlock({
         style={{
           padding: "6px 20px 4px",
           gridColumn: "1 / -1",
-          fontSize: 9.5,
-          fontWeight: 700,
-          letterSpacing: "0.16em",
+          fontSize: 10,
+          fontWeight: 600,
+          letterSpacing: ".13em",
           textTransform: "uppercase",
-          color: ACCENT,
-          background: "rgba(11,14,19,0.35)",
+          color: PE.t6,
+          background: "rgba(255,255,255,.015)",
         }}
       >
         {title}
@@ -673,9 +725,9 @@ function FeatureRow({
     <>
       <div
         style={{
-          padding: "5px 16px 5px 20px",
+          padding: "6px 16px 6px 20px",
           borderBottom: ROW_BORDER_SOFT,
-          fontSize: 12,
+          fontSize: 12.5,
           color: BODY,
         }}
       >
@@ -688,31 +740,22 @@ function FeatureRow({
         return (
           <div
             key={`${label}-${tier}`}
+            data-cell-kind={kind}
             style={{
-              padding: "5px 12px",
+              display: "flex",
+              alignItems: "flex-start",
+              gap: 7,
+              padding: "6px 12px",
               borderBottom: ROW_BORDER_SOFT,
               borderLeft: emphasize(tier) ? EMPHASIS_BORDER : COL_BORDER,
               background: emphasize(tier) ? EMPHASIS_BG : "transparent",
-              fontSize: 12,
+              fontSize: 12.5,
+              lineHeight: 1.35,
               color: muted ? ABSENCE : TEXT,
             }}
           >
-            {kind === "comingSoon" ? (
-              <span
-                style={{
-                  fontSize: 10,
-                  color: ABSENCE,
-                  background: "var(--semantic-absence-bg, rgba(124,139,160,0.12))",
-                  border: "1px solid var(--semantic-absence-border, rgba(124,139,160,0.35))",
-                  borderRadius: 4,
-                  padding: "2px 6px",
-                }}
-              >
-                {text}
-              </span>
-            ) : (
-              text
-            )}
+            <CellGlyph kind={kind} />
+            <span>{text}</span>
           </div>
         );
       })}

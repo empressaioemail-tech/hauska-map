@@ -16,8 +16,7 @@ import { GoogleSignInButton } from "../components/GoogleSignInButton";
 import { recordPeGtmEvent } from "../lib/gtmClient";
 import { PE } from "../styles/pe-chrome";
 
-const CARD_BG = PE.card;
-const ACCENT = PE.accent;
+const CARD_BG = PE.modalBg;
 
 export function SignUpCard({ onDismiss }: { onDismiss: () => void }) {
   const [busy, setBusy] = useState<"google" | "microsoft" | null>(null);
@@ -70,37 +69,52 @@ export function SignUpCard({ onDismiss }: { onDismiss: () => void }) {
         data-testid="signup-card"
         style={{
           pointerEvents: "auto",
-          width: "min(420px, calc(100vw - 32px))",
-          padding: "28px 28px 24px",
-          borderRadius: 16,
+          width: "min(460px, calc(100vw - 32px))",
+          padding: "26px 26px 22px",
+          borderRadius: PE.rModal,
           background: CARD_BG,
-          border: "0.5px solid var(--brand-blue-border-soft, rgba(59,130,246,0.28))",
-          boxShadow: "0 24px 80px rgba(0,0,0,0.55)",
-          color: "#e9eef5",
-          fontFamily:
-            "system-ui, -apple-system, Segoe UI, Roboto, Helvetica, Arial, sans-serif",
-          backdropFilter: "blur(2px)",
+          border: `1px solid ${PE.line28}`,
+          boxShadow: PE.shModal,
+          color: PE.t2,
+          fontFamily: PE.ui,
         }}
       >
         <div
           style={{
-            fontSize: 12,
-            fontWeight: 700,
-            letterSpacing: "0.16em",
-            color: ACCENT,
-            marginBottom: 14,
+            display: "flex",
+            alignItems: "center",
+            gap: 9,
+            marginBottom: 16,
           }}
         >
-          SMART SITE
+          <svg viewBox="0 0 76 76" width={26} height={26} aria-hidden fill="none">
+            <circle cx="38" cy="38" r="30" stroke={PE.t1} strokeWidth={5} />
+            <circle cx="38" cy="38" r="7" fill={PE.gold} />
+            <line x1="38" y1="0" x2="38" y2="16" stroke={PE.t1} strokeWidth={5} />
+            <line x1="38" y1="60" x2="38" y2="76" stroke={PE.t1} strokeWidth={5} />
+            <line x1="0" y1="38" x2="16" y2="38" stroke={PE.t1} strokeWidth={5} />
+            <line x1="60" y1="38" x2="76" y2="38" stroke={PE.t1} strokeWidth={5} />
+          </svg>
+          <span
+            style={{
+              fontSize: 12.5,
+              fontWeight: 600,
+              letterSpacing: ".16em",
+              color: PE.t1,
+            }}
+          >
+            SMART <span style={{ color: PE.goldLt }}>SITE</span>
+          </span>
         </div>
 
         <h1
           style={{
-            margin: "0 0 14px",
-            fontSize: 24,
-            lineHeight: 1.22,
-            fontWeight: 700,
-            letterSpacing: "-0.01em",
+            margin: "0 0 16px",
+            fontSize: 26,
+            lineHeight: 1.2,
+            fontWeight: 300,
+            letterSpacing: "-.02em",
+            color: PE.t1,
           }}
         >
           See what you can build on Texas parcels — where data is verified.
@@ -109,37 +123,34 @@ export function SignUpCard({ onDismiss }: { onDismiss: () => void }) {
         <ul
           style={{
             listStyle: "none",
-            margin: "0 0 22px",
+            margin: "0 0 20px",
             padding: 0,
             display: "grid",
-            gap: 10,
+            gap: 0,
           }}
         >
           {[
             "Browse the map and inspect card free — zoning, setbacks, flood, and buildable envelope when verified.",
             "Save properties and share analysis links at no cost — share is free for every account.",
             "Deep research, reports, and unlimited AI start at $15 per property for 30 days or Solo from $49/mo.",
-          ].map((t) => (
+          ].map((t, i) => (
             <li
               key={t}
               style={{
-                display: "flex",
-                gap: 10,
-                fontSize: 14,
-                lineHeight: 1.4,
-                color: "#c6d0dc",
+                fontSize: 12.5,
+                lineHeight: 1.55,
+                color: PE.t3,
+                padding: i === 0 ? "0 0 10px" : "10px 0",
+                borderTop: i === 0 ? "none" : `1px solid ${PE.line06}`,
               }}
             >
-              <span aria-hidden style={{ color: ACCENT, marginTop: 1 }}>
-                ●
-              </span>
-              <span>{t}</span>
+              {t}
             </li>
           ))}
         </ul>
 
         {loadError && (
-          <p data-testid="auth-load-error" style={{ color: "var(--semantic-error, #EF4444)", fontSize: 13, marginBottom: 12 }}>
+          <p data-testid="auth-load-error" style={{ color: PE.err, fontSize: 12.5, marginBottom: 12 }}>
             {loadError}
           </p>
         )}
@@ -148,13 +159,14 @@ export function SignUpCard({ onDismiss }: { onDismiss: () => void }) {
           <p
             data-testid="sign-in-not-configured"
             style={{
-              fontSize: 13,
-              color: "#aeb8c4",
+              fontSize: 12.5,
+              lineHeight: 1.45,
+              color: PE.t4,
               marginBottom: 14,
-              padding: "10px 12px",
-              borderRadius: 8,
-              border: "0.5px solid var(--surface-border-rgba, rgba(154,166,178,0.3))",
-              background: "rgba(0,0,0,0.2)",
+              padding: "12px 13px",
+              borderRadius: PE.rTip,
+              border: `1px dashed ${PE.line28}`,
+              background: "rgba(124,139,160,.07)",
             }}
           >
             Sign-in is not configured on this deploy yet. You can browse the map anonymously.
@@ -202,9 +214,9 @@ export function SignUpCard({ onDismiss }: { onDismiss: () => void }) {
         <p
           style={{
             margin: "14px 0 0",
-            fontSize: 10.5,
+            fontSize: 11.5,
             lineHeight: 1.45,
-            color: "var(--surface-muted, #94A3B8)",
+            color: PE.t5,
           }}
         >
           Coverage varies by county and city. Comal countywide land-use remains an
@@ -215,22 +227,26 @@ export function SignUpCard({ onDismiss }: { onDismiss: () => void }) {
   );
 }
 
+/** Microsoft's own dark brand button (#2F2F2F on white text, unmodified
+ *  four-square glyph). It is deliberately NOT the white slab: the Google
+ *  button above it is the one filled primary on this surface. */
 function primaryBtnStyle(busy: boolean) {
   return {
     width: "100%",
     display: "flex",
     alignItems: "center",
     justifyContent: "center",
-    gap: 10,
-    padding: "12px 16px",
-    fontSize: 15,
+    gap: 9,
+    height: 44,
+    fontSize: 14,
     fontWeight: 600,
-    color: "#11151c",
-    background: "#ffffff",
-    border: "none",
-    borderRadius: 10,
+    fontFamily: PE.ui,
+    color: "#FFFFFF",
+    background: "#2F2F2F",
+    border: "1px solid var(--ss-line-28, rgba(154,166,178,.28))",
+    borderRadius: 6,
     cursor: busy ? "default" : "pointer",
-    opacity: busy ? 0.7 : 1,
+    opacity: busy ? 0.45 : 1,
   } as const;
 }
 
