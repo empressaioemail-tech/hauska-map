@@ -24,19 +24,23 @@ export const SMART_SITE_CONNECT_HOST = "mcp.smartsite.cloud";
 export const SMART_SITE_CONNECT_URL = `https://${SMART_SITE_CONNECT_HOST}/mcp`;
 
 /**
- * Deep link to Claude's Connectors pane.
+ * Claude's settings is a hash-routed MODAL, and no slug we have tried opens
+ * the Connectors pane directly.
  *
- * `/settings/customize/connectors` did NOT work — it lands on the General
- * settings pane (operator, 2026-08-28). Claude's settings is a MODAL with hash
- * routing, not a set of paths: the General pane shows as
- * `claude.ai/new#settings/general`, observed directly. The Connectors slug is
- * INFERRED from that pattern and has not been confirmed by opening it.
+ * `/settings/customize/connectors` landed on General. `#settings/connectors`
+ * was INFERRED from the observed `#settings/general` and the operator
+ * confirmed on 2026-08-28 that it also lands on the ordinary Claude screen.
+ * Two guesses, two misses.
  *
- * If this still lands on the wrong pane, the fix is to read the URL Claude
- * shows when Connectors is open and paste it here — not to guess a third form.
+ * So this no longer pretends to deep-link. It opens Claude, and the button
+ * says that, because a control whose label promises a destination it does not
+ * reach is worse than one that promises less. The steps beside it carry the
+ * rest.
+ *
+ * To make this a real deep link, someone must open Connectors in Claude and
+ * read the address bar, then put THAT string here. Do not guess a third form.
  */
-export const CLAUDE_CUSTOMIZE_CONNECTORS_URL =
-  "https://claude.ai/new#settings/connectors";
+export const CLAUDE_HOME_URL = "https://claude.ai/new";
 
 export type UseInAiVendorId = "claude" | "chatgpt" | "cursor" | "copilot";
 
@@ -97,7 +101,11 @@ type ConnectPhase =
 
 function connectBeatCopy(vendor: UseInAiVendorId): string {
   if (vendor === "claude") {
-    return "In Claude, open Customize → Connectors, tap +, choose Add custom connector, paste Smart Site, then approve here when prompted.";
+    // Numbered, because this is a five-step hop between two apps and the
+    // operator reported getting lost on step one. Sign-in is OAuth: the
+    // server answers POST /mcp with 401 and publishes both discovery
+    // documents, so Claude runs the approval itself. There is no key to paste.
+    return "1. Copy the address below. 2. In Claude, open Settings, then Connectors. 3. Add custom connector. 4. Paste the address. 5. Approve Smart Site when Claude asks. No key needed.";
   }
   return "Add Smart Site in Cursor, paste the address below, then finish sign-in when prompted.";
 }
@@ -154,7 +162,7 @@ function VendorConnectPanel({
           marginBottom: 10,
         }}
       >
-        {SMART_SITE_CONNECT_HOST}
+        {SMART_SITE_CONNECT_URL}
       </div>
       <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
         <Button
@@ -173,10 +181,10 @@ function VendorConnectPanel({
             type="button"
             data-testid="use-in-ai-open-claude"
             onClick={() => {
-              window.open(CLAUDE_CUSTOMIZE_CONNECTORS_URL, "_blank", "noopener,noreferrer");
+              window.open(CLAUDE_HOME_URL, "_blank", "noopener,noreferrer");
             }}
           >
-            Open Customize → Connectors
+            Open Claude
           </Button>
         ) : null}
         <Button
