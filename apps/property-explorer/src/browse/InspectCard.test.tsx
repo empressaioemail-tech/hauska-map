@@ -1325,3 +1325,26 @@ describe("InspectCard — cited brief lives in the left card", () => {
     expect(html).not.toContain("Research this →");
   });
 });
+
+describe("the fact list is ONE column", () => {
+  // Two columns squeezed prose-length values — SPECIAL DISTRICT runs to a
+  // paragraph, WHO SERVES to several lines — into roughly 180px inside a
+  // 380px dock, and left a dead cell whenever a row had no partner (FLOOD sat
+  // beside nothing). Operator 2026-08-28: one column.
+  //
+  // Pinned on BOTH lists, because they are separate grids and fixing one and
+  // not the other is exactly how this half-reverts.
+  // Uses the module-level render at the top of this file.
+
+  it("the high-level list is single column", () => {
+    const at = html.indexOf('data-testid="inspect-high-level"');
+    expect(at).toBeGreaterThan(-1);
+    expect(html.slice(at, at + 400)).not.toContain("1fr 1fr");
+  });
+
+  it("the expanded fact list is single column", () => {
+    const at = html.indexOf('data-testid="inspect-accordion-body"');
+    expect(at).toBeGreaterThan(-1);
+    expect(html.slice(at, at + 400)).not.toContain("1fr 1fr");
+  });
+});

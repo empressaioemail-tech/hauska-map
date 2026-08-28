@@ -1,3 +1,5 @@
+import { readFileSync } from "node:fs";
+import { resolve } from "node:path";
 // Wave 3 My properties — WDLL 22–27 render + seam tests.
 // Each case names the violation that would make it fail.
 
@@ -119,7 +121,7 @@ describe("W3.3 on-property share personas with default message", () => {
 });
 
 describe("W3.4 add/exclude reports replaces Export X-ray on the property row", () => {
-  it("list row offers X-ray and Flood include/exclude and no Export X-ray", () => {
+  it("list row carries NO share checkboxes and no Export X-ray", () => {
     const html = renderToStaticMarkup(
       <PropertiesList
         phase={{ kind: "ready", items: [row] }}
@@ -131,9 +133,14 @@ describe("W3.4 add/exclude reports replaces Export X-ray on the property row", (
       />,
     );
     expect(html).toContain('data-testid="properties-row"');
-    expect(html).toContain('data-testid="properties-row-reports"');
-    expect(html).toContain('data-testid="properties-row-report-xray"');
-    expect(html).toContain('data-testid="properties-row-report-flood"');
+    // SUPERSEDED 2026-08-28. This pinned the X-ray / Flood checkboxes ON the
+    // list row. They were share configuration shown in a browse list with no
+    // share control near them, and the operator had them removed. The row
+    // must now NOT carry them; the choice lives in the share flow and on the
+    // per-property detail screen.
+    expect(html).not.toContain('data-testid="properties-row-reports"');
+    expect(html).not.toContain('data-testid="properties-row-report-xray"');
+    expect(html).not.toContain('data-testid="properties-row-report-flood"');
     expect(html).not.toContain("Export X-ray");
     expect(html).not.toContain('data-testid="dossier-export-pdf-button"');
   });
@@ -198,5 +205,27 @@ describe("filed PDF on the property has View, not download-only", () => {
     expect(html).toContain("View");
     expect(html).toContain('data-testid="dossier-export-download"');
     expect(html).toContain("Download");
+  });
+});
+
+describe("no share checkboxes on the browse list", () => {
+  // They were never view toggles. Each wrote shareReportSelection, deciding
+  // what a SHARE LINK for that property would carry — share configuration
+  // rendered on every row of a browse list, with no share control anywhere
+  // near it, so nothing connected the control to its effect. Operator
+  // 2026-08-28: remove them.
+  //
+  // Pinned as an ABSENCE so they cannot drift back. The setting still exists:
+  // it is chosen at mint time, and the per-property detail screen still shows
+  // it next to what it affects.
+  it("renders no X-ray or Flood checkbox in the list rows", () => {
+    const src = readFileSync(
+      resolve(__dirname, "PropertiesTool.tsx"),
+      "utf8",
+    ).replace(/\/\*[\s\S]*?\*\//g, "").replace(/(^|[^:])\/\/.*$/gm, "$1");
+    // Scope: the LIST no longer renders the control. onToggleShareReport
+    // still appears in this file because the per-property DETAIL view keeps
+    // it, so banning the identifier outright would be broader than the claim.
+    expect(src).not.toContain("<PropertyRowReports");
   });
 });

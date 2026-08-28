@@ -49,7 +49,6 @@ import { parcelNodes } from "../../lib/parcel-node-store.js";
 import { useWorkbench } from "../WorkbenchContext";
 import {
   PropertyDossierDetail,
-  PropertyRowReports,
   STATUS_LABELS,
   type PropertyShareMint,
 } from "./PropertyDossierDetail";
@@ -154,7 +153,6 @@ export function PropertiesList({
   onSaveCurrent,
   onOpen,
   onRemove,
-  onToggleShareReport,
 }: {
   phase: ListPhase;
   activeParcelNodeId: string | null;
@@ -167,11 +165,6 @@ export function PropertiesList({
   /** Open the dossier DETAIL view AND navigate the map (the reopen flight). */
   onOpen: (parcelNodeId: string) => void;
   onRemove: (parcelNodeId: string) => void;
-  onToggleShareReport?: (
-    parcelNodeId: string,
-    report: "xray" | "flood",
-    included: boolean,
-  ) => void;
 }) {
   if (phase.kind === "loading") {
     return (
@@ -355,13 +348,18 @@ export function PropertiesList({
                   {row.parcelNodeId === activeParcelNodeId ? " · active" : ""}
                 </span>
               </button>
-              <PropertyRowReports
-                selection={row.snapshot?.shareReportSelection ?? null}
-                disabled={busy}
-                onToggle={(report, included) =>
-                  onToggleShareReport?.(row.parcelNodeId, report, included)
-                }
-              />
+              {/* THE X-RAY / FLOOD CHECKBOXES ARE GONE from the list rows.
+                  They were not view toggles: each one wrote
+                  shareReportSelection, deciding which reports a SHARE LINK for
+                  that property would carry. That is share configuration shown
+                  on every row of a browse list, with no share control anywhere
+                  near it, so nothing connected the checkbox to its effect.
+                  Operator 2026-08-28.
+
+                  The setting itself is not lost: it is still chosen in the
+                  share flow at mint time, and PropertyDossierDetail still
+                  renders PropertyRowReports on the per-property screen, where
+                  the choice sits next to what it affects. */}
               <button
                 type="button"
                 data-testid="properties-remove"
@@ -715,9 +713,6 @@ export function PropertiesTool() {
       onSaveCurrent={() => void handleSaveCurrent()}
       onOpen={handleOpen}
       onRemove={(id) => void handleRemove(id)}
-      onToggleShareReport={(id, report, included) =>
-        void handleToggleShareReport(id, report, included)
-      }
     />
   );
 }

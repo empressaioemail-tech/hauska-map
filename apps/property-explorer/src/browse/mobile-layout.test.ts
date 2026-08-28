@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import {
+  searchBarWrapStyle,
   PE_MOBILE_BREAKPOINT_PX,
   dockLayoutStyle,
   resolveMobileSheetConflict,
@@ -68,5 +69,38 @@ describe("workbench cluster hidden on mobile", () => {
 
   it("mobile cluster is hidden (bottom nav + picker own tools)", () => {
     expect(workbenchClusterStyle(true).display).toBe("none");
+  });
+});
+
+describe("the find bar rescales around the expanded dock", () => {
+  // THE BUG. The bar was centred on the whole viewport at a fixed 436px. The
+  // workbench column expands to 860px on the right, so on a 1180px window it
+  // covers x=246..1106 while the centred bar sits at 372..808 — completely
+  // underneath it. Operator 2026-08-28.
+  //
+  // The fix spans the bar's wrap across the space LEFT OF the column, using a
+  // reserve the Workbench publishes as --ss-dock-reserve. These pin that the
+  // wrap actually reads it, because a centred fixed box passes any test that
+  // only checks the bar renders.
+
+  it("desktop wrap reserves the dock width instead of centring on the viewport", () => {
+    const style = searchBarWrapStyle(false);
+    expect(String(style.right)).toContain("--ss-dock-reserve");
+    // A translate cannot centre inside a shrinking box, so it must be gone.
+    expect(style.transform).toBe("none");
+  });
+
+  it("desktop wrap is anchored on BOTH edges, not by a width", () => {
+    const style = searchBarWrapStyle(false);
+    expect(style.left).toBe(12);
+    expect(style.right).toBeDefined();
+    // A fixed width would re-introduce the overlap regardless of the reserve.
+    expect(style.width).toBeUndefined();
+  });
+
+  it("mobile is unchanged — it has no side column to avoid", () => {
+    const style = searchBarWrapStyle(true);
+    expect(style.width).toBe("calc(100vw - 16px)");
+    expect(String(style.right ?? "")).not.toContain("--ss-dock-reserve");
   });
 });
