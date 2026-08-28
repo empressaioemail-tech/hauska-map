@@ -1151,13 +1151,19 @@ export function MapToolset({
         {/* --- TOOLS --- */}
         {toolsReady && (
           <div>
-            <SectionHeader
-              label="Tools"
-              open={toolsOpen}
-              testId="map-toolset-tools-toggle"
-              onToggle={() => setToolsOpen((v) => !v)}
-            />
-            {toolsOpen && (
+            {/* The UNIFIED panel needs this toggle; the split column does not
+                — its StackPanel header is already "Draw & measure", and a
+                second TOOLS bar under it is the doubling that made the left
+                column read as two headers per panel. */}
+            {!splitBubbles ? (
+              <SectionHeader
+                label="Tools"
+                open={toolsOpen}
+                testId="map-toolset-tools-toggle"
+                onToggle={() => setToolsOpen((v) => !v)}
+              />
+            ) : null}
+            {(toolsOpen || splitBubbles) && (
               <ToolsetToolsSection
                 active={active}
                 measureMode={snap.measureMode}
@@ -1607,8 +1613,17 @@ export function MapToolset({
         ...(anchor === "left" ? { left: 12 } : { right: 12 }),
         zIndex: MAP_PANEL_Z.toolset,
         display: "flex",
-        flexDirection: "column",
-        alignItems: anchor === "left" ? "flex-start" : "flex-end",
+        // SIDE BY SIDE ON THE LEFT, mirroring the right edge exactly: there
+        // the rail sits outboard at right:18 and the docks sit inboard beside
+        // it. Here the capsule is outboard and the panel column sits beside
+        // it. It was stacked ABOVE the capsule, which is what "next to the
+        // dock, not above it" was about — twice.
+        // row-REVERSE: the capsule is the last child in the DOM, and reversing
+        // puts it leftmost so it hugs the map edge with the panels opening
+        // inboard of it. Mirrors the right edge, where the rail is outboard
+        // and the docks sit beside it.
+        flexDirection: anchor === "left" ? "row-reverse" : "column",
+        alignItems: "flex-end",
         gap: 8,
         fontFamily: "system-ui, -apple-system, Segoe UI, Roboto, sans-serif",
       }}
@@ -1631,13 +1646,13 @@ export function MapToolset({
             width: 216,
             // ONE scroller, same as the right column.
             //
-            // The height is bounded so the stack CANNOT run off the top of
-            // the screen, which is what it was doing: the root is anchored at
-            // bottom:72 and the capsule below it is ~130 tall, so the column
-            // gets whatever is left above that, minus a 20px breath at the
-            // top. Four open panels now scroll inside it instead of growing
-            // past the viewport.
-            maxHeight: "calc(100vh - 240px)",
+            // Bounded so the stack CANNOT run off the top of the screen,
+            // which is what it was doing. Now that it sits BESIDE the capsule
+            // rather than above it, the budget is measured from the ground:
+            // the root sits at bottom:72, and 100px of headroom keeps it clear
+            // of the find bar. Four open panels scroll inside this instead of
+            // growing past the viewport.
+            maxHeight: "calc(100vh - 172px)",
             overflowY: "auto",
             overscrollBehavior: "contain",
           }}
@@ -1807,6 +1822,8 @@ export function MapToolset({
           "Sources" panel (© OSM / © CARTO + SATELLITE_ATTRIBUTION), which is the
           single attribution place. See MapCornerChrome.tsx / ExplorerMap.tsx. */}
 
+      {/* THE CAPSULE, outboard. In the left row it is the first child so it
+          hugs the map edge and the panels open inboard of it. */}
       {/* THE CAPSULE. Kit 04: ONE floating glass container holding the
           bubbles, not N separately-bordered buttons — same language as the
           workbench rail on the opposite edge.
