@@ -46,10 +46,12 @@ import { BubbleTip } from "../components/BubbleTip";
 import { PE, MOTION } from "../styles/pe-chrome";
 import {
   closeOneDock,
-  expandDock,
+  isExpandedIn,
+  newestOpen,
   pruneStack,
   syncStack,
   tapDock,
+  toggleFold,
   EMPTY_STACK,
   type DockStack,
 } from "./dock-stack";
@@ -184,6 +186,8 @@ export interface WorkbenchProps {
    * never passes it; the stack builds from taps.
    */
   initialOpenIds?: string[];
+  /** Seeds which of them are folded. TEST SEAM, same reason as above. */
+  initialFoldedIds?: string[];
   /** Surfaces that need the chassis context (inspect-card brief). */
   children?: ReactNode;
 }
@@ -204,6 +208,7 @@ export function Workbench({
   host,
   store,
   initialOpenIds,
+  initialFoldedIds,
   children,
 }: WorkbenchProps) {
   const { isMobile, activeSheet, openSheet } = useMobilePanel();
@@ -219,10 +224,7 @@ export function Workbench({
   // rewriting ExplorerMap's state or its ensureWorkbenchTool callers.
   const [stack, setStack] = useState<DockStack>(() =>
     initialOpenIds && initialOpenIds.length > 0
-      ? {
-          open: initialOpenIds,
-          expanded: openToolId ?? initialOpenIds[initialOpenIds.length - 1],
-        }
+      ? { open: initialOpenIds, folded: initialFoldedIds ?? [] }
       : EMPTY_STACK,
   );
   const known = useMemo(() => new Set(tools.map((t) => t.id)), [tools]);
@@ -238,27 +240,26 @@ export function Workbench({
 
   // Mobile keeps ONE sheet: stacking is a desktop-column behaviour and a
   // stack of folded headers on a phone is worse than a single sheet.
-  const stackedIds = isMobile
-    ? synced.expanded
-      ? [synced.expanded]
-      : []
-    : synced.open;
+  // Mobile keeps ONE sheet: a stack of docks on a phone is worse than one.
+  const newest = newestOpen(synced);
+  const stackedIds = isMobile ? (newest ? [newest] : []) : synced.open;
   const openIds = synced.open;
-  const openTool = synced.expanded
-    ? (tools.find((t) => t.id === synced.expanded) ?? null)
-    : null;
+  const openTool = newest ? (tools.find((t) => t.id === newest) ?? null) : null;
 
   const applyStack = (next: DockStack) => {
     setStack(next);
-    if (next.expanded !== openToolId) onOpenToolChange(next.expanded);
+    // The shell tracks ONE id. It is the newest open tool, which is what
+    // "which tool is the user working in" means once several can be open.
+    const nextNewest = newestOpen(next);
+    if (nextNewest !== openToolId) onOpenToolChange(nextNewest);
   };
   const tapBubble = (id: string) => applyStack(tapDock(synced, id));
-  const expandOne = (id: string) => applyStack(expandDock(synced, id));
+  const foldOne = (id: string) => applyStack(toggleFold(synced, id));
   const closeOne = (id: string) => applyStack(closeOneDock(synced, id));
-  // The dock-level close a TOOL calls through WorkbenchContext closes the tool
-  // that is expanded, not the whole column.
+  // The dock-level close a TOOL calls through WorkbenchContext closes the
+  // newest dock, not the whole column.
   const closeDock = () => {
-    if (synced.expanded) applyStack(closeOneDock(synced, synced.expanded));
+    if (newest) applyStack(closeOneDock(synced, newest));
     else onOpenToolChange(null);
   };
 
@@ -429,9 +430,13 @@ export function Workbench({
           {stackedIds.map((id) => {
             const tool = tools.find((t) => t.id === id);
             if (!tool) return null;
-            const isOpen = id === synced.expanded;
-            const boxed = isOpen && isExpanded;
-            const foldable = !isMobile && stackedIds.length > 1;
+            // EVERY open dock is expanded unless the user folded THAT dock.
+            // No dock folds because another one opened.
+            const isOpen = isExpandedIn(synced, id);
+            const boxed = id === newest && isExpanded;
+            // Any dock can be folded, including the only one — folding is the
+            // user putting something aside, not a side effect of a count.
+            const foldable = !isMobile;
             return (
               <section
                 key={id}
@@ -472,16 +477,16 @@ export function Workbench({
                 {/* HEADER — pinned, and the whole hit target when folded. */}
                 <div
                   data-testid="dock-header"
-                  role={foldable && !isOpen ? "button" : undefined}
-                  tabIndex={foldable && !isOpen ? 0 : undefined}
+                  role={foldable ? "button" : undefined}
+                  tabIndex={foldable ? 0 : undefined}
                   aria-expanded={foldable ? isOpen : undefined}
-                  onClick={foldable && !isOpen ? () => expandOne(id) : undefined}
+                  onClick={foldable ? () => foldOne(id) : undefined}
                   onKeyDown={
-                    foldable && !isOpen
+                    foldable
                       ? (e) => {
                           if (e.key === "Enter" || e.key === " ") {
                             e.preventDefault();
-                            expandOne(id);
+                            foldOne(id);
                           }
                         }
                       : undefined
@@ -501,7 +506,7 @@ export function Workbench({
                     gap: 8,
                     height: PE.hHead,
                     padding: "0 8px 0 12px",
-                    cursor: foldable && !isOpen ? "pointer" : undefined,
+                    cursor: foldable ? "pointer" : undefined,
                     // A folded header drops its fill and its bottom rule and
                     // dims its glyph and title one step. That is the whole
                     // difference; it never becomes a different component.
@@ -565,7 +570,7 @@ export function Workbench({
                         <path d="m6 9 6 6 6-6" />
                       </svg>
                     )}
-                    {isOpen && canExpand && (
+                    {id === newest && isOpen && canExpand && (
                       <button
                         type="button"
                         aria-label={isExpanded ? "Collapse report" : "Expand report"}

@@ -210,6 +210,29 @@
 /* 22px header controls (expand, close). */
 .ss-headbtn:hover { background: rgba(255,255,255,.05); color: var(--ss-t3) }
 
+/* ---- The vanishing point --------------------------------------------
+   A bottom-anchored stack that grows upward has to end somewhere, and a hard
+   cut at the top of a scroll box reads as a clipped panel rather than as more
+   content above. This dissolves the top quarter instead: fully opaque up to
+   3/4 of the box, then a fade to nothing.
+
+   `mask-image` and not a gradient overlay, because the map is behind it —
+   an overlay would need the map's colour to blend against, and there isn't
+   one. `-webkit-` first for Safari, which still needs the prefix.
+
+   The fade only applies while there is something to scroll; a short stack
+   sits entirely inside the opaque three-quarters and is untouched. */
+.ss-fade-top {
+  -webkit-mask-image: linear-gradient(to top,
+    #000 0, #000 75%, rgba(0,0,0,.35) 90%, transparent 100%);
+  mask-image: linear-gradient(to top,
+    #000 0, #000 75%, rgba(0,0,0,.35) 90%, transparent 100%);
+}
+@media (prefers-reduced-motion: reduce) {
+  /* The mask is not motion, and it stays — a reader who has asked for less
+     movement still needs to see where the stack ends. */
+}
+
 /* ---- Map controls ---------------------------------------------------
    MapLibre's NavigationControl, restyled to the v2 map-control spec: 30px
    squares, radius 8, ink at 92%, a line-14 edge, the rail shadow, t3 glyphs.

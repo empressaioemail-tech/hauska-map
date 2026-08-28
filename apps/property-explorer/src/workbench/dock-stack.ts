@@ -2,70 +2,81 @@
 //
 // THE DOCK STACK, as pure rules.
 //
-// Chrome v2 SPEC section 2: opening a tool expands it and FOLDS every other
-// open tool to its 36px header. Nothing is closed on the user's behalf — the
-// close control is separate, and a folded header is the whole hit target that
-// brings its tool back at the scroll position it had.
+// OPEN MEANS OPEN. Opening a tool does NOT fold the others. Several docks can
+// be expanded at once and the column scrolls through all of them as one
+// surface; folding is something the USER does to a dock, per dock, by
+// clicking its header. Nothing is ever folded or closed on their behalf.
+//
+// This is the second cut. The first read SPEC section 2's "the newest expands,
+// the rest fold" as an accordion and auto-folded on every open, which is not
+// what was asked for — "I need to be able to open multiple containers and then
+// just scroll through them" (operator, twice). The auto-fold is gone. What
+// survives from the spec is that a folded dock keeps its 36px header and comes
+// back in one click.
 //
 // This file is the rule and nothing else, so the behaviour is provable in a
-// node test with no click harness. It follows the precedent `nextOpenToolId`
+// node test with no click harness, following the precedent `nextOpenToolId`
 // set in Workbench.tsx: the chassis owns layout, the rule owns the decision.
-//
-// HISTORY, because reversing it later should be a decision and not a surprise:
-// this repo shipped "ONE tool open at a time, never two docks" as design law,
-// with guard tests written to stop multi-open returning. The operator retired
-// that ruling on 2026-08-27 after using the single-dock v2 chrome. The guards
-// were replaced, deliberately and by name, with the stacking assertions below.
 
 export interface DockStack {
-  /** Every open tool id, OLDEST FIRST. Order is arrival order, not rail order. */
+  /** Every open tool id, OLDEST FIRST. Arrival order, not rail order. */
   open: readonly string[];
-  /** The one expanded tool. Null exactly when `open` is empty. */
-  expanded: string | null;
+  /** Which of the open tools are folded to their header. A user choice. */
+  folded: readonly string[];
 }
 
-export const EMPTY_STACK: DockStack = { open: [], expanded: null };
+export const EMPTY_STACK: DockStack = { open: [], folded: [] };
 
-/** The newest still-open tool, which is what inherits focus when one closes. */
-function newest(open: readonly string[]): string | null {
-  return open.length > 0 ? open[open.length - 1] : null;
+/** The newest still-open tool — what the app shell tracks as `openToolId`. */
+export function newestOpen(stack: DockStack): string | null {
+  return stack.open.length > 0 ? stack.open[stack.open.length - 1] : null;
+}
+
+/** Expanded = open and not folded. Derived, never stored. */
+export function isExpandedIn(stack: DockStack, id: string): boolean {
+  return stack.open.includes(id) && !stack.folded.includes(id);
 }
 
 /**
  * Tapping a rail bubble.
  *
- *   the expanded tool   -> closes it (a second tap on the active bubble is how
- *                          you put a tool away; that has always been true)
- *   an open but folded  -> expands it, folding whatever was expanded
- *   a closed tool       -> opens it on top of the stack and expands it
+ *   already open -> closes it (a second tap on the active bubble puts a tool
+ *                   away; that has always been true and is the only way a
+ *                   bubble removes anything)
+ *   not open     -> opens it, EXPANDED, on top of the stack, and leaves every
+ *                   other open dock exactly as the user left it
  */
 export function tapDock(stack: DockStack, tapped: string): DockStack {
-  if (stack.expanded === tapped) return closeOneDock(stack, tapped);
-  if (stack.open.includes(tapped)) return { open: stack.open, expanded: tapped };
-  return { open: [...stack.open, tapped], expanded: tapped };
+  if (stack.open.includes(tapped)) return closeOneDock(stack, tapped);
+  return { open: [...stack.open, tapped], folded: stack.folded };
 }
 
 /**
- * Clicking a folded dock's header. Expands it and folds the rest. Never
- * closes anything — the header and the close control are different targets,
- * which is why the close control must stopPropagation.
+ * Clicking a dock header. Folds an expanded dock, unfolds a folded one, and
+ * touches nothing else. This is the ONLY thing that folds a dock.
  */
-export function expandDock(stack: DockStack, id: string): DockStack {
+export function toggleFold(stack: DockStack, id: string): DockStack {
   if (!stack.open.includes(id)) return stack;
-  return { open: stack.open, expanded: id };
+  return {
+    open: stack.open,
+    folded: stack.folded.includes(id)
+      ? stack.folded.filter((x) => x !== id)
+      : [...stack.folded, id],
+  };
 }
 
-/**
- * The close control on one dock. Removes exactly that tool; the newest
- * remaining tool takes the expanded slot so the column is never left with
- * every dock folded and nothing readable.
- */
+/** Force a dock expanded (the shell opening a tool must not land it folded). */
+export function expandDock(stack: DockStack, id: string): DockStack {
+  if (!stack.open.includes(id) || !stack.folded.includes(id)) return stack;
+  return { open: stack.open, folded: stack.folded.filter((x) => x !== id) };
+}
+
+/** The close control on one dock. Removes exactly that tool. */
 export function closeOneDock(stack: DockStack, id: string): DockStack {
   if (!stack.open.includes(id)) return stack;
-  const open = stack.open.filter((x) => x !== id);
   return {
-    open,
-    expanded: stack.expanded === id ? newest(open) : stack.expanded,
+    open: stack.open.filter((x) => x !== id),
+    folded: stack.folded.filter((x) => x !== id),
   };
 }
 
@@ -73,35 +84,27 @@ export function closeOneDock(stack: DockStack, id: string): DockStack {
  * Reconcile with the app shell, which owns a SINGLE `openToolId` and is the
  * caller of record for `ensureWorkbenchTool("brief")` and friends.
  *
- * The shell setting a tool means "make this one expanded", not "close the
- * others" — that is the whole behaviour change. The shell setting NULL still
- * means the dock is closed, which under stacking means the column empties;
- * that preserves what `closeDock()` and the inspect-card teardown already do.
+ * The shell naming a tool means "this one should be open and readable", never
+ * "close the others". The shell setting NULL still empties the column, which
+ * preserves what `closeDock()` and the inspect-card teardown already do.
  */
 export function syncStack(
   stack: DockStack,
   openToolId: string | null,
 ): DockStack {
   if (openToolId === null) return EMPTY_STACK;
-  if (stack.expanded === openToolId) return stack;
-  if (stack.open.includes(openToolId)) {
-    return { open: stack.open, expanded: openToolId };
+  if (!stack.open.includes(openToolId)) {
+    return { open: [...stack.open, openToolId], folded: stack.folded };
   }
-  return { open: [...stack.open, openToolId], expanded: openToolId };
+  return expandDock(stack, openToolId);
 }
 
-/** Drop any tool that is no longer registered (a registry change mid-session). */
+/** Drop any tool no longer in the registry (a registry change mid-session). */
 export function pruneStack(
   stack: DockStack,
   known: ReadonlySet<string>,
 ): DockStack {
   const open = stack.open.filter((id) => known.has(id));
   if (open.length === stack.open.length) return stack;
-  return {
-    open,
-    expanded:
-      stack.expanded && known.has(stack.expanded)
-        ? stack.expanded
-        : newest(open),
-  };
+  return { open, folded: stack.folded.filter((id) => known.has(id)) };
 }
