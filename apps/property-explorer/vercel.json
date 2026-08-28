@@ -24,6 +24,10 @@
     }
   ],
   "rewrites": [
+    { "source": "/privacy", "destination": "/privacy.html" },
+    { "source": "/privacy/", "destination": "/privacy.html" },
+    { "source": "/terms", "destination": "/terms.html" },
+    { "source": "/terms/", "destination": "/terms.html" },
     { "source": "/api/auth/(.*)", "destination": "/api/auth?upath=$1" },
     { "source": "/api/spine-deep/(.*)", "destination": "/api/spine-deep?upath=$1" },
     { "source": "/api/spine/(.*)", "destination": "/api/spine?upath=$1" },
