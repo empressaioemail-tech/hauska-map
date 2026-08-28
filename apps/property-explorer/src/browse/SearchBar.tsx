@@ -115,6 +115,10 @@ const FONT = PE.ui;
 
 /** The find bar: 40 tall — the ONE control allowed above 34. */
 const form = (focused: boolean): CSSProperties => ({
+  // The wrap now spans the space LEFT OF the expanded dock rather than being
+  // a fixed centred box, so the bar takes its natural width up to 436 and
+  // shrinks with the space instead of sliding under the column.
+  width: "min(436px, 100%)",
   display: "flex",
   alignItems: "center",
   gap: 8,

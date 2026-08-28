@@ -245,9 +245,24 @@ export function searchBarWrapStyle(isMobile: boolean): CSSProperties {
     };
   }
   // v2 find bar: 436 wide, dropping 6px to its suggestion list.
+  //
+  // IT RESCALES AROUND THE DOCK. The bar used to be centred on the whole
+  // viewport at a fixed 436px. Expand the workbench column and it grows to
+  // 860px on the right, which on a 1180px window covers x=246..1106 — the
+  // centred bar sits at 372..808, entirely underneath it. The operator hit
+  // exactly that.
+  //
+  // The reserve is published by the Workbench as --ss-dock-reserve (0 when
+  // nothing is expanded), so this reads live from CSS with no prop drilling
+  // and no second source of truth for the column width. Centring is done by
+  // the auto margins on the child rather than a translate, because a
+  // translate cannot centre inside a shrinking box.
   return {
     ...base,
-    width: "min(436px, calc(100vw - 24px))",
+    left: 12,
+    right: "calc(var(--ss-dock-reserve, 0px) + 12px)",
+    transform: "none",
+    alignItems: "center",
   };
 }
 

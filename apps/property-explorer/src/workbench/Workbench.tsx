@@ -311,6 +311,29 @@ export function Workbench({
   const canExpand = openTool ? openTool.expandable !== false : false;
   const isExpanded = expanded && canExpand;
 
+  // PUBLISH THE RESERVE so overlays that share the map can step out of the
+  // way. The search bar was centred on the whole viewport and disappeared
+  // under this column the moment it expanded. One value, set where the width
+  // is actually decided, so there is no second source of truth for it.
+  useEffect(() => {
+    if (typeof document === "undefined") return;
+    const root = document.documentElement;
+    // NOTHING OPEN RESERVES NOTHING. syncStack(stack, null) empties the
+    // column, so a null openToolId means there is no column to avoid — and
+    // reserving for an absent dock would shove the search bar left all the
+    // time, which is a worse bug than the one being fixed.
+    const reserve =
+      isMobile || openToolId === null
+        ? "0px"
+        : isExpanded
+          ? "min(860px, calc(100vw - 98px))"
+          : `${PE.dockW}px`;
+    root.style.setProperty("--ss-dock-reserve", reserve);
+    return () => {
+      root.style.removeProperty("--ss-dock-reserve");
+    };
+  }, [isExpanded, isMobile, openToolId]);
+
   return (
     <WorkbenchProvider
       activeParcelNodeId={activeParcelNodeId}

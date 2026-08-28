@@ -704,8 +704,11 @@ function InspectFactsAccordion<T>({
         style={{
           margin: "14px 0 0",
           display: "grid",
-          gridTemplateColumns: "1fr 1fr",
-          gap: "13px 12px",
+          // ONE COLUMN. Two columns crammed prose-length values (SPECIAL
+          // DISTRICT, WHO SERVES) into ~180px inside a 380px dock, and left a
+          // dead cell whenever a row had no partner. Operator 2026-08-28.
+          gridTemplateColumns: "1fr",
+          gap: 13,
         }}
       >
         {highLevel.map((r, i) => (
@@ -737,8 +740,8 @@ function InspectFactsAccordion<T>({
             style={{
               margin: "11px 0 0",
               display: detailsOpen ? "grid" : "none",
-              gridTemplateColumns: "1fr 1fr",
-              gap: "13px 12px",
+              gridTemplateColumns: "1fr",
+              gap: 13,
             }}
           >
             {collapsed.map((r, i) => (
