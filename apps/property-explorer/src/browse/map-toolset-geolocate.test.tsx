@@ -209,7 +209,13 @@ describe("left map-utility stack", () => {
     );
     expect(html).toContain('data-testid="map-toolset-draw-panel"');
     expect(html).toContain('data-testid="map-toolset-layers-panel"');
-    expect(html).toContain('data-testid="map-toolset-collapse-all"');
+    // REMOVED at operator direction 2026-08-28. Each panel carries its own
+    // chevron and close, so a separate bulk control was redundant chrome in a
+    // column that is already dense. Pinned as an ABSENCE so it cannot return
+    // unnoticed: this is the whole reason the assertion was inverted rather
+    // than deleted.
+    expect(html).not.toContain('data-testid="map-toolset-collapse-all"');
+    expect(html).not.toContain("Collapse all");
     expect(html).toContain('data-testid="map-toolset-layers"');
   });
 
