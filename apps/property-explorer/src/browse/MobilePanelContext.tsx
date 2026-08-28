@@ -200,6 +200,7 @@ export function MobileSheet({
   return (
     <div
       data-testid={testId}
+      className="pe-scroll"
       onClick={onClick}
       style={{
         position: "fixed",

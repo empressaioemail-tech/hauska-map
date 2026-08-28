@@ -15,11 +15,13 @@
  * fixed it once; this keeps it fixed, because a codemod that runs once and is
  * not enforced drifts straight back.
  *
- * THE GOLD RULE. Gold (#E8963B / #F5B95C / --ss-gold /
- * --brand-gold) is the brand mark and nothing else: never a button, a link, a
- * fill, or a hover. Before this, that rule lived only in prose, which meant
- * nothing failed when it was broken. Gold is now allowed in exactly two files —
- * the brand chip and the cold-open lockup — and refused everywhere else.
+ * THE GOLD RULE. Gold (#E8963B / #F5B95C / --ss-gold / --brand-gold) is the
+ * brand mark, and as of 2026-08-27 also the rail's unread dot by operator
+ * ruling. It is never a button, a link, a fill, or a hover. Before this the
+ * rule lived only in prose, which meant nothing failed when it was broken.
+ * Gold is allowed in the files listed in GOLD_ALLOWED below — see the note
+ * there for why the second job exists and why the carve-out is file-narrow —
+ * and refused everywhere else.
  *
  * Self-tests both directions before the live scan. A check that only
  * ever sees a pass has not been observed working.
@@ -101,11 +103,25 @@ export function hasRawCyanColor(src) {
   return /#7dd3fc/i.test(stripComments(src));
 }
 
-/** Files that are ALLOWED to paint gold: the two places the brand mark is
- *  drawn. Everything else that names gold as a colour is a defect. */
+/**
+ * Files ALLOWED to paint gold. Everything else naming gold as a colour is a
+ * defect and this gate fails on it.
+ *
+ * Gold has TWO jobs as of 2026-08-27, not one:
+ *   1. the brand mark   — MapCornerChrome (chip), SignUpCard (cold-open lockup)
+ *   2. the rail unread dot — Workbench, by operator ruling
+ *
+ * The second was taken against a recommendation and the recommendation is
+ * recorded rather than buried: the original v2 SPEC specified a BLUE dot, and
+ * giving gold a second meaning ("new") weakens the one-hue-one-job rule the
+ * kit itself states two sections later. The operator chose gold with that in
+ * front of them. The carve-out is therefore FILE-NARROW — Workbench.tsx and
+ * nowhere else — so the exception cannot quietly spread to a third surface.
+ */
 export const GOLD_ALLOWED = [
   "src/browse/MapCornerChrome.tsx",
   "src/coldopen/SignUpCard.tsx",
+  "src/workbench/Workbench.tsx",
   "src/styles/pe-tokens.css",
   "src/styles/pe-chrome.ts",
 ];

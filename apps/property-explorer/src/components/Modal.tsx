@@ -59,7 +59,7 @@ export function Modal({
       <Card
         raised
         onClick={stop}
-        className="ss-enter-modal"
+        className="ss-enter-modal pe-scroll"
         data-ss-motion=""
         {...rest}
         style={panel}

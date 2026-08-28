@@ -160,14 +160,21 @@
 /* Press. One rule for every control that carries .pe-btn. */
 .pe-btn:not(:disabled):active { transform: scale(.97); }
 
-/* Hover. A tint, never a size or a shadow change, and never a new hue —
-   a hover that introduces a colour is how gold ends up on a button. */
-.pe-btn[data-variant="primary"]:not(:disabled):hover  { background: #4A8CF7 }
-.pe-btn[data-variant="secondary"]:not(:disabled):hover{ border-color: var(--ss-line-28);
-                                                        background: rgba(255,255,255,.03) }
-.pe-btn[data-variant="ghost"]:not(:disabled):hover    { background: var(--ss-blue-bg) }
-.pe-btn[data-variant="subtle"]:not(:disabled):hover   { background: rgba(59,130,246,.18) }
+/* Hover. A TINT, never a size, a shadow, or a new hue. Every hover below is
+   the same white lift at a different strength — no button ever gains a colour
+   it did not already have, which is the rule that keeps blue out of the
+   ground and gold off controls entirely. */
+.pe-btn[data-variant="primary"]:not(:disabled):hover   { background: rgba(255,255,255,.07);
+                                                         border-color: rgba(154,166,178,.38) }
+.pe-btn[data-variant="secondary"]:not(:disabled):hover { background: rgba(255,255,255,.03);
+                                                         border-color: var(--ss-line-28);
+                                                         color: var(--ss-t2) }
+.pe-btn[data-variant="ghost"]:not(:disabled):hover     { background: rgba(255,255,255,.05) }
+.pe-btn[data-variant="subtle"]:not(:disabled):hover    { background: rgba(255,255,255,.09) }
 .pe-btn:disabled { pointer-events: none }
+/* The glyph is the emphasis the blue fill used to be. Keep it 14px wherever
+   an icon is handed in, so a call site cannot resize the indicator. */
+.ss-btn-glyph > svg { width: 14px; height: 14px }
 
 /* Fields. Focus adds the blue border and the glow; NOTHING MOVES. */
 [data-pe="input"]::placeholder,
@@ -237,16 +244,35 @@
 }
 .maplibregl-ctrl-group button:hover .maplibregl-ctrl-icon { opacity: 1 }
 
-/* The dock's own scroll region — a hairline thumb, not a platform scrollbar. */
-.pe-dock-scroll { scrollbar-width: thin; scrollbar-color: var(--ss-line-28) transparent }
-.pe-dock-scroll::-webkit-scrollbar { width: 8px }
-.pe-dock-scroll::-webkit-scrollbar-track { background: transparent }
-.pe-dock-scroll::-webkit-scrollbar-thumb {
+/* ---- Scrollbars -----------------------------------------------------
+   EVERY scroll container in the app, not just the dock's.
+   The white platform scrollbar was showing because only .pe-dock-scroll was
+   styled while SEVEN containers scroll: the dock column, the dock body, the
+   chat log and its attachment strip, the modal, the checkout page, and the
+   unlock modal. A hairline thumb on a transparent track, everywhere.
+
+   Both engines are covered: `scrollbar-width/color` for Firefox, the
+   ::-webkit- pair for Chromium and Safari. */
+.pe-dock-scroll,
+.pe-scroll {
+  scrollbar-width: thin;
+  scrollbar-color: var(--ss-line-28) transparent;
+}
+.pe-dock-scroll::-webkit-scrollbar,
+.pe-scroll::-webkit-scrollbar { width: 8px; height: 8px }
+.pe-dock-scroll::-webkit-scrollbar-track,
+.pe-scroll::-webkit-scrollbar-track { background: transparent }
+.pe-dock-scroll::-webkit-scrollbar-thumb,
+.pe-scroll::-webkit-scrollbar-thumb {
   background: var(--ss-line-14); border-radius: 4px;
   border: 2px solid transparent; background-clip: content-box;
 }
-.pe-dock-scroll::-webkit-scrollbar-thumb:hover { background: var(--ss-line-28);
-  background-clip: content-box }
+.pe-dock-scroll::-webkit-scrollbar-thumb:hover,
+.pe-scroll::-webkit-scrollbar-thumb:hover {
+  background: var(--ss-line-28); background-clip: content-box;
+}
+.pe-dock-scroll::-webkit-scrollbar-corner,
+.pe-scroll::-webkit-scrollbar-corner { background: transparent }
 
 /* ---- The four motions, declared once -------------------------------- */
 @keyframes ss-spin    { to { transform: rotate(360deg) } }
@@ -277,6 +303,43 @@
   to   { opacity: 1; transform: none }
 }
 @keyframes ss-fade { from { opacity: 0 } to { opacity: 1 } }
+
+/* ---- The arrival everything else uses ------------------------------
+   Panels get the 3% scale from a corner. CONTENT gets this instead: a 4px
+   rise and a fade, which is enough to say "this is new" without the surface
+   under it appearing to move. Before this, motion stopped at the panel edge —
+   a dock would animate open and its contents would simply be there, which is
+   what "the animation doesn't hit everywhere it should" was describing. */
+@keyframes ss-rise {
+  from { opacity: 0; transform: translateY(4px) }
+  to   { opacity: 1; transform: none }
+}
+.ss-rise { animation: ss-rise var(--ss-d-move) var(--ss-ease) both }
+
+/* A list that fills in rather than appearing all at once. 40ms apart: enough
+   to read as a sequence, short enough that the last row is in under a
+   quarter second even at ten rows. Capped at 10 so a long list never has a
+   row arriving late enough to feel broken. */
+.ss-stagger > * { animation: ss-rise var(--ss-d-move) var(--ss-ease) both }
+.ss-stagger > *:nth-child(1) { animation-delay: 0ms }
+.ss-stagger > *:nth-child(2) { animation-delay: 40ms }
+.ss-stagger > *:nth-child(3) { animation-delay: 80ms }
+.ss-stagger > *:nth-child(4) { animation-delay: 120ms }
+.ss-stagger > *:nth-child(5) { animation-delay: 160ms }
+.ss-stagger > *:nth-child(6) { animation-delay: 200ms }
+.ss-stagger > *:nth-child(7) { animation-delay: 240ms }
+.ss-stagger > *:nth-child(8) { animation-delay: 280ms }
+.ss-stagger > *:nth-child(9) { animation-delay: 320ms }
+.ss-stagger > *:nth-child(n+10) { animation-delay: 360ms }
+
+@media (prefers-reduced-motion: reduce) {
+  .ss-rise,
+  .ss-stagger > * {
+    animation: ss-fade var(--ss-d-state) var(--ss-ease) both !important;
+    animation-delay: 0ms !important;
+    transform: none !important;
+  }
+}
 
 /* The find bar's suggestion list drops from the bar's own top edge. */
 @keyframes ss-suggest-in {

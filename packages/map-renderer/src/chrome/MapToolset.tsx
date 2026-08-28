@@ -129,30 +129,47 @@ export function nextOpenLeftKinds(
     : [...current, tapped];
 }
 
+/**
+ * A bubble INSIDE the capsule (see the rail container below).
+ *
+ * The capsule owns the edge, the fill and the shadow, so a bubble carries
+ * none of its own — it is a transparent 34px circle that tints on hover and
+ * on open. Matches the workbench rail on the opposite edge exactly, which is
+ * the point: two rails, one language.
+ *
+ * NO BLUE FILL (operator ruling 2026-08-27). The open state is a brighter
+ * glass lift plus a blue GLYPH; the blue slab is gone.
+ */
 function chromeBubbleStyle(active: boolean): CSSProperties {
   return {
     width: 34,
     height: 34,
     borderRadius: "50%",
-    border: PANEL_BORDER,
-    background: active ? "rgba(59,130,246,0.18)" : PANEL_BG,
-    color: active ? "#3B82F6" : TEXT,
+    border: "none",
+    background: active ? "rgba(255,255,255,.14)" : "transparent",
+    color: active ? "#3B82F6" : "rgba(255,255,255,.58)",
     cursor: "pointer",
     display: "flex",
     alignItems: "center",
     justifyContent: "center",
-    boxShadow: "0 4px 14px rgba(0,0,0,0.35)",
+    padding: 0,
+    boxShadow: "none",
+    transition:
+      "background 140ms cubic-bezier(.2,.6,.35,1), color 140ms cubic-bezier(.2,.6,.35,1)",
   };
 }
 
+/**
+ * The left rail tooltip. LABEL ONLY (operator ruling 2026-08-27) and kit-04
+ * glass with an arrow, matching the workbench BubbleTip on the opposite edge
+ * so the two rails speak one language.
+ */
 function MapFlyTip({
   label,
-  detail,
   side,
   children,
 }: {
   label: string;
-  detail: string;
   side: "left" | "right";
   children: ReactNode;
 }) {
@@ -160,12 +177,24 @@ function MapFlyTip({
   const timer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const show = () => {
     if (timer.current) clearTimeout(timer.current);
-    timer.current = setTimeout(() => setOpen(true), 80);
+    timer.current = setTimeout(() => setOpen(true), 60);
   };
   const hide = () => {
     if (timer.current) clearTimeout(timer.current);
     setOpen(false);
   };
+  const arrow: CSSProperties =
+    side === "left"
+      ? {
+          right: -5,
+          borderRight: "1px solid rgba(255,255,255,.18)",
+          borderTop: "1px solid rgba(255,255,255,.18)",
+        }
+      : {
+          left: -5,
+          borderLeft: "1px solid rgba(255,255,255,.18)",
+          borderBottom: "1px solid rgba(255,255,255,.18)",
+        };
   return (
     <div
       style={{ position: "relative", display: "inline-flex" }}
@@ -184,23 +213,43 @@ function MapFlyTip({
             zIndex: 40,
             top: "50%",
             ...(side === "left"
-              ? { right: "calc(100% + 10px)" }
-              : { left: "calc(100% + 10px)" }),
+              ? { right: "100%", marginRight: 13 }
+              : { left: "100%", marginLeft: 13 }),
             transform: "translateY(-50%)",
-            minWidth: 132,
-            maxWidth: 210,
-            padding: "7px 10px",
-            borderRadius: 8,
-            background: PANEL_BG,
-            border: PANEL_BORDER,
-            boxShadow: "0 10px 28px rgba(0,0,0,0.5)",
             pointerEvents: "none",
-            color: TEXT,
+            animation:
+              "map-tip-in 180ms cubic-bezier(.2,.6,.35,1) both",
           }}
         >
-          <div style={{ fontSize: 11.5, fontWeight: 700, lineHeight: 1.25 }}>{label}</div>
-          <div style={{ marginTop: 3, fontSize: 10.5, lineHeight: 1.35, color: MUTED }}>
-            {detail}
+          <style>{`@keyframes map-tip-in{from{opacity:0}to{opacity:1}}`}</style>
+          <div
+            style={{
+              position: "relative",
+              padding: "7px 12px",
+              borderRadius: 8,
+              background: "rgba(255,255,255,.10)",
+              border: "1px solid rgba(255,255,255,.18)",
+              backdropFilter: "blur(14px)",
+              WebkitBackdropFilter: "blur(14px)",
+              whiteSpace: "nowrap",
+              fontSize: 12.5,
+              fontWeight: 500,
+              color: "#fff",
+            }}
+          >
+            {label}
+            <span
+              aria-hidden
+              style={{
+                position: "absolute",
+                top: "50%",
+                width: 9,
+                height: 9,
+                background: "rgba(255,255,255,.10)",
+                transform: "translateY(-50%) rotate(45deg)",
+                ...arrow,
+              }}
+            />
           </div>
         </div>
       ) : null}
@@ -1532,21 +1581,40 @@ export function MapToolset({
           "Sources" panel (© OSM / © CARTO + SATELLITE_ATTRIBUTION), which is the
           single attribution place. See MapCornerChrome.tsx / ExplorerMap.tsx. */}
 
+      {/* `stackExtras` (the app's Sources ⓘ and its 264px panel) sits OUTSIDE
+          the capsule: it carries a panel far wider than a 46px rail, so
+          nesting it would have burst the container. */}
+      {stackExtras}
+
+      {/* THE CAPSULE. Kit 04: ONE floating glass container holding the
+          bubbles, not N separately-bordered buttons — same language as the
+          workbench rail on the opposite edge.
+          It stacks BOTTOM-UP (operator ruling 2026-08-27) by virtue of the
+          root being bottom-anchored: `bottom` is pinned, so every bubble
+          added grows the capsule UPWARD and nothing already on screen moves.
+          That is the behaviour, and it needs no column-reverse — reversing
+          would only flip which tool sits nearest the ground. */}
       <div
+        data-testid="map-toolset-capsule"
         style={{
           display: "flex",
           flexDirection: "column",
-          alignItems: anchor === "left" ? "flex-start" : "flex-end",
-          gap: 8,
+          alignItems: "center",
+          gap: 6,
+          padding: "8px 6px",
+          borderRadius: 24,
+          background: "rgba(10,14,26,.92)",
+          border: "1px solid rgba(255,255,255,.09)",
+          boxShadow: "0 10px 34px rgba(0,0,0,.5)",
+          backdropFilter: "blur(14px)",
+          WebkitBackdropFilter: "blur(14px)",
         }}
       >
-        {stackExtras}
         {splitBubbles ? (
           <>
             <MapFlyTip
               side={tipSide}
               label="Draw"
-              detail="Measure, draw, drop a marker, or pin a note."
             >
               <button
                 type="button"
@@ -1564,7 +1632,6 @@ export function MapToolset({
             <MapFlyTip
               side={tipSide}
               label="Layers"
-              detail="Turn map layers on or off."
             >
               <button
                 type="button"
@@ -1584,7 +1651,6 @@ export function MapToolset({
           <MapFlyTip
             side={tipSide}
             label="Map tools"
-            detail="Drawing tools and the layer list."
           >
             <button
               type="button"

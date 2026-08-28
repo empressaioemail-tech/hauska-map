@@ -77,14 +77,18 @@ export function dockLayoutStyle(
       boxShadow: "0 18px 60px rgba(0,0,0,0.55)",
     };
   }
-  // v2: ONE dock width for every tool (340), so the dock has one left edge no
-  // matter which bubble opened it. top/right offsets are unchanged — the
-  // viewport-bounded height rule (top 12 + 16 bottom margin) is pinned by
-  // workbench.test.tsx and is chassis placement, not chrome.
+  // ONE dock width for every tool, so the stack has one left edge no matter
+  // which bubble opened it. Widened 340 -> 380 on operator ruling 2026-08-27
+  // ("right hand containers need to be a little bit wider"); the two-column
+  // fact grid inside the inspect card is the surface that was pinching.
+  //
+  // right:66 clears the capsule rail, which now sits at right:18 and is 46
+  // wide with its padding, leaving the same 8px channel the v2 chrome uses
+  // between any two floating things.
   return {
     top: 12,
-    right: 54,
-    width: "min(340px, calc(100vw - 78px))",
+    right: 66,
+    width: "min(380px, calc(100vw - 90px))",
     maxHeight: "calc(100vh - 28px)",
   };
 }
@@ -94,17 +98,30 @@ export function workbenchClusterStyle(isMobile: boolean): CSSProperties {
   if (isMobile) {
     return { display: "none" };
   }
-  // v2 rail: 34px circles, 8px gap, right edge. `right:12` (not the drop's 20)
-  // keeps the rail on the same edge inset as MapToolset below it and leaves
-  // the 8px channel between the rail and the dock at right:54.
+  // KIT 04 CAPSULE. The rail is no longer seven separate bubbles each carrying
+  // its own border and shadow — it is ONE floating glass container holding
+  // seven transparent circles. That is why the bubbles below have no edge of
+  // their own: the capsule owns the edge, so the rail reads as a single object
+  // instead of a column of seven.
+  //
+  // Vertically CENTRED, per the kit. It no longer has to dodge the MapLibre
+  // zoom control at top-right because it no longer starts at the top.
   return {
     position: "absolute",
-    top: 118,
-    right: 12,
+    top: "50%",
+    right: 18,
+    transform: "translateY(-50%)",
     zIndex: MAP_PANEL_Z.toolset,
     display: "flex",
     flexDirection: "column",
-    gap: 8,
+    gap: 6,
+    padding: "8px 6px",
+    borderRadius: 24,
+    background: "rgba(10,14,26,.92)",
+    border: "1px solid rgba(255,255,255,.09)",
+    boxShadow: "0 10px 34px rgba(0,0,0,.5)",
+    backdropFilter: "blur(14px)",
+    WebkitBackdropFilter: "blur(14px)",
   };
 }
 

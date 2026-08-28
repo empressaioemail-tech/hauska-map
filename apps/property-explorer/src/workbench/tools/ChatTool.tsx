@@ -925,6 +925,7 @@ export function ChatSessionBar({
       {pickerOpen && (
         <div
           data-testid="chat-thread-picker"
+          className="pe-scroll"
           style={{
             position: "absolute",
             top: "100%",
@@ -1541,6 +1542,7 @@ export function ChatTool() {
       <div
         ref={threadRef}
         data-testid="chat-thread"
+        className="pe-scroll"
         style={{ maxHeight: "52vh", overflowY: "auto", paddingRight: 2 }}
       >
         {turns.length === 0 && (
@@ -1577,6 +1579,8 @@ export function ChatTool() {
           turn.role === "user" ? (
             <div
               key={i}
+              className="ss-rise"
+              data-ss-motion=""
               style={{
                 margin: "0 0 10px",
                 display: "flex",
