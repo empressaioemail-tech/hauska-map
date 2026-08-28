@@ -72,35 +72,22 @@ describe("workbench cluster hidden on mobile", () => {
   });
 });
 
-describe("the find bar rescales around the expanded dock", () => {
-  // THE BUG. The bar was centred on the whole viewport at a fixed 436px. The
-  // workbench column expands to 860px on the right, so on a 1180px window it
-  // covers x=246..1106 while the centred bar sits at 372..808 — completely
-  // underneath it. Operator 2026-08-28.
+describe("the find bar is fixed and does not move", () => {
+  // A version that shrank the bar around the expanded workbench column
+  // shipped on 2026-08-28 and was pulled the same day — the operator did not
+  // want it relocating as docks open and close. This pins the bar as a fixed
+  // centred box so that behaviour does not come back by accident.
   //
-  // The fix spans the bar's wrap across the space LEFT OF the column, using a
-  // reserve the Workbench publishes as --ss-dock-reserve. These pin that the
-  // wrap actually reads it, because a centred fixed box passes any test that
-  // only checks the bar renders.
+  // The overlap it addressed is real and remains open: an expanded column can
+  // sit over the bar. That is a known, accepted state, not an oversight.
 
-  it("desktop wrap reserves the dock width instead of centring on the viewport", () => {
+  it("desktop is a fixed centred box, not anchored to the dock", () => {
     const style = searchBarWrapStyle(false);
-    expect(String(style.right)).toContain("--ss-dock-reserve");
-    // A translate cannot centre inside a shrinking box, so it must be gone.
-    expect(style.transform).toBe("none");
-  });
-
-  it("desktop wrap is anchored on BOTH edges, not by a width", () => {
-    const style = searchBarWrapStyle(false);
-    expect(style.left).toBe(12);
-    expect(style.right).toBeDefined();
-    // A fixed width would re-introduce the overlap regardless of the reserve.
-    expect(style.width).toBeUndefined();
-  });
-
-  it("mobile is unchanged — it has no side column to avoid", () => {
-    const style = searchBarWrapStyle(true);
-    expect(style.width).toBe("calc(100vw - 16px)");
+    expect(style.width).toBe("min(436px, calc(100vw - 24px))");
     expect(String(style.right ?? "")).not.toContain("--ss-dock-reserve");
+  });
+
+  it("mobile fills the viewport, unchanged", () => {
+    expect(searchBarWrapStyle(true).width).toBe("calc(100vw - 16px)");
   });
 });
