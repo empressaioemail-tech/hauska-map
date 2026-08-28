@@ -1,3 +1,8 @@
+/* HISTORICAL — pre-v2 (superseded 2026-08-28, P-93 W9).
+   The ONLY CSS kit is apps/property-explorer/src/styles/pe-tokens.css; the
+   only TS primitive module is src/styles/pe-chrome.ts. This file is kept for
+   provenance and is NOT imported by the app. Do not reload it, and do not
+   reload Oxygen from typography.css. Current drop: ../v2/tokens/. */
 :root{
 --color-navy-900:#1A3A5C;--color-navy-700:#2E5A8A;--color-navy-950:#0A0E1A;
 --color-gold:#E8963B;--color-gold-light:#F5B95C;

@@ -44,6 +44,7 @@ import { WorkbenchProvider } from "./WorkbenchContext";
 import type { WorkbenchToolStateStore } from "./tool-state-store";
 import { BubbleTip } from "../components/BubbleTip";
 import { PE, MOTION } from "../styles/pe-chrome";
+import { Dock } from "../components/Dock";
 import {
   closeOneDock,
   isExpandedIn,
@@ -473,35 +474,13 @@ export function Workbench({
             // user putting something aside, not a side effect of a count.
             const foldable = !isMobile;
             return (
-              <section
+              <Dock
                 key={id}
-                data-testid="workbench-dock"
-                data-tool={tool.id}
-                data-dock-side={DEFAULT_DOCK_SIDE}
-                data-folded={!isOpen ? "1" : undefined}
-                data-expanded={isExpanded ? "1" : undefined}
-                data-mobile-dock={isMobile ? "1" : undefined}
-                data-ss-motion=""
-                style={{
-                  pointerEvents: "auto",
-                  flex: "0 0 auto",
-                  width: "100%",
-                  boxShadow: PE.shDock,
-                  display: "flex",
-                  flexDirection: "column",
-                  overflow: "hidden",
-                  borderRadius: isMobile ? undefined : PE.rFloat,
-                  color: PE.t3,
-                  background: PE.panel,
-                  border: isMobile ? "none" : `1px solid ${PE.line14}`,
-                  borderTop: isMobile ? `1px solid ${PE.line14}` : undefined,
-                  font: `12.5px/1.5 ${PE.ui}`,
-                  // The one panel motion: a dock opens its own height while
-                  // scaling up 3% from the corner it hangs off. It never
-                  // slides in from off-screen and never overshoots.
-                  transformOrigin: isMobile ? "bottom center" : "right top",
-                  animation: `pe-dock-in ${PE.dMove} ${PE.ease} both`,
-                }}
+                toolId={tool.id}
+                dockSide={DEFAULT_DOCK_SIDE}
+                isOpen={isOpen}
+                isExpanded={isExpanded}
+                isMobile={isMobile}
               >
                 {/* HEADER — pinned, and the whole hit target when folded. */}
                 <div
@@ -771,7 +750,7 @@ export function Workbench({
                     </div>
                   </div>
                 </div>
-              </section>
+              </Dock>
             );
           })}
         </div>

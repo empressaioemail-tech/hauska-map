@@ -28,9 +28,9 @@
  *
  * Snapshot: run from apps/property-explorer. Commit is whatever HEAD is.
  */
-import { readFileSync } from "node:fs";
-import { dirname, join } from "node:path";
-import { fileURLToPath } from "node:url";
+import { readFileSync, readdirSync } from "node:fs";
+import { dirname, join, relative } from "node:path";
+import { fileURLToPath, pathToFileURL } from "node:url";
 
 const ROOT = join(dirname(fileURLToPath(import.meta.url)), "..");
 
@@ -78,6 +78,7 @@ const KIT = [
   "src/components/Input.tsx",
   "src/components/StatusChip.tsx",
   "src/components/Modal.tsx",
+  "src/components/Dock.tsx",
   // chrome v2
   "src/components/StateNote.tsx",
   "src/components/Loading.tsx",
@@ -97,6 +98,63 @@ export function hasButtonImport(src) {
 
 export function hasPeImport(src) {
   return /from\s+["'][^"']*\/styles\/pe-chrome["']/.test(src);
+}
+
+/* ---------------------------------------------------------------------------
+ * W9 (P-93): THE WRITE-PATH RULES — raw hex and native buttons.
+ *
+ * WHY THE OLD GATE COULD NOT CATCH THESE. It scanned a HAND-MAINTAINED
+ * `REQUIRED` list. A brand-new chrome file was never opened, so a new file
+ * full of raw hex passed by not being looked at. A hand-declared file list
+ * drifts one way only: things get added to the tree, not to the list. These
+ * rules walk the tree instead.
+ *
+ * WHY A BASELINE AND NOT A BAN. The write path already carries 121 raw hexes
+ * across 30 files and native buttons in 26. Converting them is explicitly out
+ * of this card's scope ("does not restyle the product"). A blanket ban would
+ * fail on commit one and be switched off by the next person. So the rule is a
+ * RATCHET: every existing violation is recorded in a baseline with a count,
+ * and the gate fails when a file exceeds its count or when a file with no
+ * entry has any violation at all. New code cannot add either. Old code is
+ * grandfathered, counted, and visible — a declared degradation rather than a
+ * silent one, and the file is the bill.
+ *
+ * ISLANDS are exempt outright, not baselined: they are allowed to keep their
+ * own palettes forever (map overlay cyan, print gold, Stripe checkout).
+ * ------------------------------------------------------------------------- */
+
+/** Named islands. These keep their own look by ruling, not by oversight. */
+export const ISLAND_PREFIXES = [
+  "src/checkout/",           // Stripe night/Inter — do not restyle
+  "src/browse/brief-print",  // print gold
+  "src/browse/road-overlay", // map overlay cyan
+  "src/browse/flood-map-overlay",
+];
+
+export function isIsland(rel) {
+  const norm = rel.split("\\").join("/");
+  return ISLAND_PREFIXES.some((p) => norm.startsWith(p));
+}
+
+/**
+ * Raw hex colours written into source. Hex inside a COMMENT is not a paint,
+ * so comments are stripped first — the same treatment the gold rule uses.
+ */
+export function rawHexes(src) {
+  return (stripComments(src).match(/#[0-9a-fA-F]{3,8}\b/g) ?? []).map((h) =>
+    h.toLowerCase(),
+  );
+}
+
+/**
+ * Native chrome buttons. The kit Button is the only button in chrome.
+ *
+ * `<button` inside a STRING is markup this file emits for some other
+ * document (print HTML, an email), not a React control, so only real JSX
+ * opens count. Comments are stripped for the same reason as above.
+ */
+export function rawButtons(src) {
+  return stripComments(src).match(/<button[\s/>]/g) ?? [];
 }
 
 export function hasRawCyanColor(src) {
@@ -173,6 +231,33 @@ export function hasGoldColor(src) {
 
 function selfTest() {
   const cases = [
+    // ---- W9 (P-93) write-path rules ----
+    // These exist because the FIRST cut of rawHexes shipped a literal 0x08
+    // backspace where  was meant. It matched nothing, so it passed every
+    // input and would have armed a gate that could never fire. Reading the
+    // file showed ""; only probing with a known-positive caught it. Both
+    // directions, every time, for exactly that reason.
+    {
+      name: "raw hex is found (NOT VACUOUS — this is the backspace-regex guard)",
+      ok: rawHexes('color: "#aabbcc"').length === 1,
+    },
+    {
+      name: "two raw hexes are both found",
+      ok: rawHexes("a #112233 b #445566").length === 2,
+    },
+    { name: "token colour is not a raw hex", ok: rawHexes("var(--ss-t1)").length === 0 },
+    { name: "hex inside a comment is not a paint", ok: rawHexes("/* #ffffff */").length === 0 },
+    { name: "native button open is found", ok: rawButtons("<button>").length === 1 },
+    { name: "native button with attrs is found", ok: rawButtons("<button onClick={x}>").length === 1 },
+    {
+      name: "SELF-CLOSING native button is found (missed by the first regex)",
+      ok: rawButtons("<button/>").length === 1,
+    },
+    { name: "kit Button is not a native button", ok: rawButtons("<Button/>").length === 0 },
+    { name: "a longer word starting with button is not a match", ok: rawButtons("<buttonish>").length === 0 },
+    { name: "Stripe checkout is an island", ok: isIsland("src/checkout/CheckoutPage.tsx") },
+    { name: "print gold is an island", ok: isIsland("src/browse/brief-print-html.ts") },
+    { name: "ordinary chrome is NOT an island", ok: !isIsland("src/browse/InspectCard.tsx") },
     {
       name: "Button import present",
       ok: hasButtonImport(
@@ -260,6 +345,66 @@ function selfTest() {
   console.log(`SELF-TEST ${cases.length}/${cases.length} ok`);
 }
 
+/**
+ * Every chrome source file, found by WALKING the tree.
+ *
+ * The REQUIRED list above is hand-maintained and only ever gets things added
+ * to the tree, not to the list — so a brand-new chrome file was never opened
+ * by this gate and passed by not being looked at. That is how falsifiers 1
+ * and 2 of this card were true. This walks instead.
+ */
+export function chromeFiles() {
+  const out = [];
+  const walk = (dir) => {
+    for (const e of readdirSync(dir, { withFileTypes: true })) {
+      const p = join(dir, e.name);
+      if (e.isDirectory()) {
+        if (e.name === "node_modules" || e.name === "dist") continue;
+        walk(p);
+        continue;
+      }
+      if (!e.name.endsWith(".tsx")) continue;
+      if (e.name.endsWith(".test.tsx")) continue;
+      out.push(p);
+    }
+  };
+  walk(join(ROOT, "src"));
+  return out.sort();
+}
+
+/** Raw-hex and native-button counts for one file. Islands report zero. */
+export function violationsFor(abs) {
+  const rel = relative(ROOT, abs).split("\\").join("/");
+  if (isIsland(rel)) return { hex: 0, buttons: 0 };
+  const src = readFileSync(abs, "utf8");
+  return { hex: rawHexes(src).length, buttons: rawButtons(src).length };
+}
+
+/**
+ * The ratchet. Fails when a file exceeds its recorded debt, or when a file
+ * with no entry has any at all. Counts may go down freely; the baseline is
+ * regenerated by scripts/chrome-kit-baseline.mjs after real conversion.
+ */
+export function ratchetFailures(baseline) {
+  const failures = [];
+  for (const abs of chromeFiles()) {
+    const rel = relative(ROOT, abs).split("\\").join("/");
+    const v = violationsFor(abs);
+    const allowed = baseline[rel] ?? { hex: 0, buttons: 0 };
+    if (v.hex > allowed.hex) {
+      failures.push(
+        `${rel} adds a raw hex (${v.hex} > ${allowed.hex} allowed). Use a token from pe-tokens.css / PE in pe-chrome.ts. Islands: map overlay, print gold, Stripe.`,
+      );
+    }
+    if (v.buttons > allowed.buttons) {
+      failures.push(
+        `${rel} adds a native <button> (${v.buttons} > ${allowed.buttons} allowed). Use the kit Button from components/Button.tsx.`,
+      );
+    }
+  }
+  return failures;
+}
+
 function readRel(rel) {
   return readFileSync(join(ROOT, rel), "utf8");
 }
@@ -307,6 +452,21 @@ function main() {
     }
   }
 
+  // W9 (P-93) RATCHET. Walks the tree, so a NEW chrome file is scanned rather
+  // than passing by not being on the hand-maintained REQUIRED list above.
+  let baseline = {};
+  try {
+    baseline = JSON.parse(readRel("scripts/chrome-kit-baseline.json"));
+  } catch {
+    // FAIL CLOSED. A missing or unreadable baseline must not silently disable
+    // the ratchet — that is exactly the dormant-control defect this card is
+    // about. No baseline means no debt is allowed anywhere.
+    failures.push(
+      "scripts/chrome-kit-baseline.json missing or unparseable — regenerate with scripts/chrome-kit-baseline.mjs",
+    );
+  }
+  failures.push(...ratchetFailures(baseline));
+
   if (failures.length) {
     console.error("CHROME-KIT GATE FAIL");
     for (const f of failures) console.error(`  ${f}`);
@@ -318,4 +478,8 @@ function main() {
   );
 }
 
-main();
+// Run only when executed directly. Importing this module (the baseline
+// generator does) must not run the gate as a side effect.
+if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) {
+  main();
+}
