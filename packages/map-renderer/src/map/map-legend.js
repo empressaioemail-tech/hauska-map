@@ -156,6 +156,17 @@ const CSS = `
 .${LEGEND_ROOT_CLASS}--bubble .${LEGEND_ROOT_CLASS}__panel{margin-top:0;}
 `;
 
+/**
+ * Inject the legend stylesheet. EXPORTED because the legend markup is now
+ * rendered in two places — this module's own DOM legend, and Property
+ * Explorer's left column, which reuses `legendPanelHtml`. Whoever renders the
+ * markup must also install these styles: the row/swatch/badge layout IS the
+ * legend, and without it the markup collapses into one run of text.
+ */
+export function ensureLegendStyles(doc) {
+  return ensureStyles(doc);
+}
+
 function ensureStyles(doc) {
   if (!doc || typeof doc.getElementById !== "function") return;
   if (doc.getElementById(STYLE_ELEMENT_ID)) return;
