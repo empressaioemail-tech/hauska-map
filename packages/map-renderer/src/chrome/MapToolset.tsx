@@ -1674,13 +1674,18 @@ export function MapToolset({
             width: 216,
             // ONE scroller, same as the right column.
             //
-            // Bounded so the stack CANNOT run off the top of the screen,
-            // which is what it was doing. Now that it sits BESIDE the capsule
-            // rather than above it, the budget is measured from the ground:
-            // the root sits at bottom:72, and 100px of headroom keeps it clear
-            // of the find bar. Four open panels scroll inside this instead of
-            // growing past the viewport.
-            maxHeight: "calc(100vh - 172px)",
+            // REACHES LOWER THAN THE CAPSULE (operator ruling 2026-08-28).
+            // The capsule stays at the root's bottom:72; the panel column
+            // drops 12px past it with a negative bottom margin, so its floor
+            // lands at 60 from the viewport bottom. The brand chip occupies
+            // 18..52, which leaves the same 8px channel used between every
+            // other pair of floating things — and hands the column 12px of
+            // usable height it did not have.
+            marginBottom: -12,
+            // Bounded so the stack cannot run off the top. Floor at 60, and
+            // 100px of headroom to clear the find bar (top:20, 40 tall):
+            // 100vh - 60 - 100.
+            maxHeight: "calc(100vh - 160px)",
             overflowY: "auto",
             overscrollBehavior: "contain",
           }}
