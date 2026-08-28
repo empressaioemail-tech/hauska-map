@@ -1,3 +1,8 @@
+/* HISTORICAL — pre-v2 (superseded 2026-08-28, P-93 W9).
+   The ONLY CSS kit is apps/property-explorer/src/styles/pe-tokens.css; the
+   only TS primitive module is src/styles/pe-chrome.ts. This file is kept for
+   provenance and is NOT imported by the app. Do not reload it, and do not
+   reload Oxygen from typography.css. Current drop: ../v2/tokens/. */
 :root{
 --font-display:'Oxygen',sans-serif;--font-sans:'Inter',-apple-system,'Segoe UI',sans-serif;--font-serif:Georgia,serif;--font-mono:Menlo,'Courier New',monospace;
 --text-hero:700 clamp(40px,6vw,72px)/1.05 var(--font-display);
