@@ -46,7 +46,9 @@ export async function resolvePdfFrameSrc(
     return { src: trimmed, revoke: false };
   }
   const bytes = await fetchPdfBytes(trimmed, opts);
-  const blob = new Blob([bytes], { type: "application/pdf" });
+  const copy = new ArrayBuffer(bytes.byteLength);
+  new Uint8Array(copy).set(bytes);
+  const blob = new Blob([copy], { type: "application/pdf" });
   const create = opts?.createObjectURL ?? ((b: Blob) => URL.createObjectURL(b));
   return { src: create(blob), revoke: true };
 }
