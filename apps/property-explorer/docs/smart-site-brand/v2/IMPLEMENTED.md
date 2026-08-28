@@ -30,15 +30,20 @@ Radii 4 / 6 / 10 / 14 / 50%.
 **Motion.** One curve, four durations, declared once in the token file. A panel
 opens its own height while scaling up 3% from its anchored corner — dock from
 top-right, sources sheet from bottom-right, suggestion list from the find bar's
-top edge, modal from centre. `ss-spin`, `ss-shimmer`, `ss-blink` and `ss-pulse`
-are defined once. `prefers-reduced-motion` keeps the opacity fade and drops the
-scale and the height animation, reaching surfaces through the `data-ss-motion`
-marker.
+top edge, modal from centre, and a folded dock body collapsing its own height.
+`ss-spin`, `ss-shimmer` and `ss-blink` are defined once. `ss-pulse` is NOT
+defined: see the parcel-geometry refusal below. `prefers-reduced-motion` keeps
+the opacity fade and drops the scale and the height animation, reaching
+surfaces through the `data-ss-motion` marker.
 
-**Primitives.** Button, Card + Rule, Input / TextArea / Field / FieldError,
-StatusChip + UnverifiedSource, BubbleTip, DownloadFileButton, Modal, and two
-new ones: `StateNote` (the four honest-empty registers) and `Loading`
-(spinner, mono progress count, label-carrying skeleton, typing dots).
+**Primitives.** Button, Card, Input / TextArea / Field, StatusChip +
+UnverifiedSource, BubbleTip, DownloadFileButton, Modal, and two new ones:
+`StateNote` (the four honest-empty registers) and `Loading` (spinner,
+label-carrying skeleton, typing dots).
+
+Every one of those has at least one call site. That is checked, not assumed —
+wave 1 shipped six that did not, which is the whole subject of the wave 2
+section below.
 
 **Chassis, map chrome, the seven tools, money and identity.** Per `SPEC.md`
 sections 1 through 5, except where noted below.
