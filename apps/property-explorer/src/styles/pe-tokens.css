@@ -84,7 +84,7 @@
   --ss-h-find:    40px;  /* find bar — the one control allowed above 34 */
   --ss-h-head:    36px;  /* dock header */
   --ss-bubble:    34px;  /* rail bubble diameter */
-  --ss-dock-w:    340px; /* every dock, one width */
+  --ss-dock-w:    380px; /* every dock, one width (340 until 2026-08-27) */
   --ss-find-w:    436px;
   --ss-inset:     20px;  /* every map-chrome element's edge inset */
 

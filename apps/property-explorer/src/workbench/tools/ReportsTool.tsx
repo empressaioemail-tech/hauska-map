@@ -19,6 +19,7 @@ import {
 import { Button } from "../../components/Button";
 import { PE } from "../../styles/pe-chrome";
 import { DownloadFileButton } from "../../components/DownloadFileButton";
+import { StateNote } from "../../components/StateNote";
 import { recordPeGtmEvent } from "../../lib/gtmClient";
 import { studioGrantedForEntitlement } from "../../lib/entitlementClient";
 import { usePropertyEntitlement } from "../../lib/usePropertyEntitlement";
@@ -137,7 +138,23 @@ export function ReportsTool() {
         {reportsTab === "shared" ? (
           <SharedWithMeList rows={receivedShares} />
         ) : (
-          <ReportsLibrary />
+          <>
+            {/* Reports used to swap SILENTLY to the filed-report library with
+                no parcel selected — the generator simply was not there, with
+                nothing saying why or how to get it back. ("I lost my report
+                generator", operator 2026-08-28.) The library stays, because
+                reading filed reports without a parcel is the whole point of
+                the card that added it; what was missing is the sentence every
+                other property-scoped tool in this dock already says. */}
+            <StateNote
+              data-testid="reports-no-property"
+              register="waiting"
+              title="Select a property to generate a report"
+              basis="Click a parcel on the map, or search an address or parcel id. Reports you have already filed are listed below and stay readable without one."
+              style={{ marginBottom: 12 }}
+            />
+            <ReportsLibrary />
+          </>
         )}
       </div>
     );

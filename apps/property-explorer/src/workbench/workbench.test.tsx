@@ -183,17 +183,27 @@ describe("dock height model — scrolls instead of clipping below the viewport",
     expect(dock![1]).toContain("overflow:hidden");
   });
 
-  it("ONE dock-owned scroll region wraps every tool's content (momentum scroll)", () => {
+  it("ONE scroller for the whole column — the stack is a continuous wheel", () => {
+    // Operator, 2026-08-28: opening several docks should scroll as one
+    // surface. It did not, because the column scrolled AND each dock body
+    // carried its own overflow-y:auto. Two nested scrollers means the inner
+    // one swallows the wheel and the outer never continues. The column is now
+    // the only scroller in the compact path, and this pins that: a dock body
+    // that starts scrolling itself again re-breaks the gesture.
     const html = render({ openToolId: "brief", activeParcelNodeId: "p1" });
+    const col = html.match(
+      /data-testid="workbench-dock-column"[^>]*style="([^"]*)"/,
+    );
+    expect(col).not.toBeNull();
+    expect(col![1]).toContain("overflow-y:auto");
+    expect(html).toMatch(/data-testid="workbench-dock-column"[^>]*class="pe-scroll"/);
+
     expect(html.match(/data-testid="dock-scroll"/g)).toHaveLength(1);
-    expect(html).toContain('class="pe-dock-scroll"');
     const scroll = html.match(/data-testid="dock-scroll"[^>]*style="([^"]*)"/);
     expect(scroll).not.toBeNull();
-    expect(scroll![1]).toContain("overflow-y:auto");
-    expect(scroll![1]).toContain("-webkit-overflow-scrolling:touch");
-    // min-height:0 moved one level out, onto the fold wrapper that owns the
-    // collapsing height; the scroll region now fills it at height:100%.
-    expect(scroll![1]).toContain("height:100%");
+    // The BODY must not scroll itself in the column.
+    expect(scroll![1]).toContain("overflow-y:visible");
+    expect(scroll![1]).not.toContain("overflow-y:auto");
     // The tool's content renders INSIDE the scroll region: the dock body
     // (here the honest no-brief fetch-entry state) comes after dock-scroll.
     expect(html.indexOf('data-testid="dock-scroll"')).toBeLessThan(

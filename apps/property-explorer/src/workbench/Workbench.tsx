@@ -488,6 +488,14 @@ export function Workbench({
                   }
                   style={{
                     flex: "0 0 auto",
+                    // Sticky inside the ONE column scroller: as the wheel
+                    // carries you through a long dock, its header stays put
+                    // until the next one pushes it out. That is what makes a
+                    // tall stack navigable rather than an undifferentiated
+                    // ribbon. Not sticky when boxed — the box is alone.
+                    position: boxed ? undefined : "sticky",
+                    top: 0,
+                    zIndex: 2,
                     display: "flex",
                     alignItems: "center",
                     gap: 8,
@@ -498,7 +506,11 @@ export function Workbench({
                     // dims its glyph and title one step. That is the whole
                     // difference; it never becomes a different component.
                     borderBottom: `1px solid ${isOpen ? PE.line06 : "transparent"}`,
-                    background: isOpen ? "rgba(255,255,255,.015)" : "transparent",
+                    // A sticky header sits OVER scrolling content, so it needs
+                    // a real ground rather than a 1.5% wash.
+                    background: isOpen
+                      ? "linear-gradient(rgba(255,255,255,.015), rgba(255,255,255,.015)), var(--ss-ink-94)"
+                      : "var(--ss-ink-94)",
                     transition: `background ${MOTION.state}, border-color ${MOTION.state}`,
                   }}
                 >
@@ -649,27 +661,34 @@ export function Workbench({
                 {/* THE FOLD. The body animates its own height to zero and
                     back; the dock height follows it. 220ms of height and
                     140ms of opacity, on the one curve. */}
+                {/* ONE SCROLLER IN THE COLUMN, not one per dock.
+                    This body used to carry its own `overflow-y: auto` inside a
+                    column that also scrolled. Two nested scrollers means the
+                    inner one swallows the wheel and the outer never continues,
+                    which is exactly why the stack did not read as one
+                    continuous surface. The body now takes its natural height
+                    and the COLUMN does all the scrolling, so a wheel gesture
+                    carries from the first dock to the last without catching.
+                    Except when BOXED: the expand-to-floating-box leaves the
+                    column, so it is on its own and scrolls itself. */}
                 <div
                   data-ss-motion=""
                   style={{
-                    flex: "1 1 auto",
+                    flex: boxed ? "1 1 auto" : "0 0 auto",
                     minHeight: 0,
-                    maxHeight: isOpen
-                      ? boxed
-                        ? "none"
-                        : "calc(100vh - 128px)"
-                      : 0,
+                    maxHeight: isOpen ? (boxed ? "none" : 100000) : 0,
                     opacity: isOpen ? 1 : 0,
                     overflow: "hidden",
                     transition: `max-height ${MOTION.open}, opacity ${MOTION.state}`,
                   }}
                 >
                   <div
-                    className="pe-dock-scroll"
+                    className={boxed ? "pe-dock-scroll" : undefined}
                     data-testid="dock-scroll"
                     style={{
-                      height: "100%",
-                      overflowY: "auto",
+                      height: boxed ? "100%" : undefined,
+                      maxHeight: boxed ? undefined : "none",
+                      overflowY: boxed ? "auto" : "visible",
                       WebkitOverflowScrolling: "touch",
                       padding: "14px 13px",
                     }}
