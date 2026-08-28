@@ -67,7 +67,11 @@ export const WORKBENCH_TOOLS: WorkbenchToolDef[] = [
     label: "Reports & exports",
     icon: <WorkbenchIcon path={ICONS.reports} />,
     status: "live",
+    // NOT property-scoped: the filed-report library is account-wide and stays
+    // readable with no parcel. But the generator needs one, so the header
+    // pill is opted into explicitly.
     propertyScoped: false,
+    promptsForProperty: true,
     tip: "Site plan, flood study, records, and X-ray PDF.",
     render: () => <ReportsTool />,
   },

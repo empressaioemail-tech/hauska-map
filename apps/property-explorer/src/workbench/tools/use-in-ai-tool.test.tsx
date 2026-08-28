@@ -8,7 +8,7 @@ import { WORKBENCH_TOOLS } from "../registry";
 import { createWorkbenchToolStateStore } from "../tool-state-store";
 import type { WorkbenchHostActions } from "../types";
 import {
-  CLAUDE_HOME_URL,
+  CLAUDE_CUSTOMIZE_CONNECTORS_URL,
   SMART_SITE_CONNECT_HOST,
   SMART_SITE_CONNECT_URL,
   USE_IN_AI_VENDORS,
@@ -100,18 +100,24 @@ describe("Use in your AI vendor rows", () => {
     expect(SMART_SITE_CONNECT_URL.endsWith("/mcp")).toBe(true);
   });
 
-  it("does NOT claim a Claude deep link nobody has verified", () => {
-    // Two slugs were guessed and both landed on the wrong pane
-    // (/settings/customize/connectors, then #settings/connectors — operator
-    // confirmed 2026-08-28). The old test pinned the second guess, which
-    // turned an unverified value into a specification and made the miss look
-    // like correct behaviour.
-    //
-    // Until someone opens Connectors in Claude and READS the address bar,
-    // this button opens Claude and says so.
-    expect(CLAUDE_HOME_URL).toBe("https://claude.ai/new");
-    expect(CLAUDE_HOME_URL).not.toContain("#settings/");
-    expect(CLAUDE_HOME_URL).not.toContain("connectors");
+  it("uses the deep link that was READ off the address bar, not inferred", () => {
+    // Slug history, kept because it is the whole lesson:
+    //   /settings/customize/connectors  (path)  -> landed on General
+    //   #settings/connectors            (guess) -> landed on the home screen
+    //   #settings/customize-connectors  (READ)  -> correct
+    // Two inferences, two misses. The third value was obtained by opening
+    // Connectors and reading the bar (operator, 2026-08-28). If it ever stops
+    // working, read the bar again — do not infer a fourth form from this one.
+    expect(CLAUDE_CUSTOMIZE_CONNECTORS_URL).toBe(
+      "https://claude.ai/new#settings/customize-connectors",
+    );
+    // The two forms known to be wrong must not come back.
+    expect(CLAUDE_CUSTOMIZE_CONNECTORS_URL).not.toBe(
+      "https://claude.ai/new#settings/connectors",
+    );
+    expect(CLAUDE_CUSTOMIZE_CONNECTORS_URL).not.toContain(
+      "/settings/customize/connectors",
+    );
   });
 
   it("never prints a key, Cloud Run URL, or substrate brand on the sheet", () => {

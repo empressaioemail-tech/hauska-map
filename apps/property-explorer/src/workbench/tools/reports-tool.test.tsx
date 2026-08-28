@@ -328,3 +328,29 @@ describe("the filed-report library is account-wide, so it renders in BOTH states
     }
   });
 });
+
+describe("picking a report BEFORE picking a property", () => {
+  // useDockToolState refuses writes with no active parcel ("no phantom-
+  // property writes") because that state is keyed BY property. Correct — but
+  // it meant choosing a report first silently did nothing: the picker closed
+  // on an empty module and the choice was gone. Operator 2026-08-28: let me
+  // pick the report, then prompt me for the property via the header pill.
+
+  it("shows the doc picker with no property selected", () => {
+    const html = render({ activeParcelNodeId: null });
+    expect(html).toContain('data-testid="reports-doc-picker"');
+  });
+
+  it("still tells you what is missing, in the header, not the body", () => {
+    // The pill is chassis-rendered for any property-scoped tool.
+    const html = render({ activeParcelNodeId: null });
+    expect(html).toContain('data-testid="dock-select-property-reports"');
+  });
+
+  it("does NOT run an engine without a parcel", () => {
+    // Holding a choice must never be mistaken for being able to act on it.
+    const html = render({ activeParcelNodeId: null });
+    expect(html).not.toContain('data-testid="site-plan-export-section"');
+    expect(html).not.toContain('data-testid="flood-drainage-section"');
+  });
+});
