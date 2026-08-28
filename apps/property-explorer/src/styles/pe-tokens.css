@@ -200,6 +200,43 @@
 /* 22px header controls (expand, close). */
 .ss-headbtn:hover { background: rgba(255,255,255,.05); color: var(--ss-t3) }
 
+/* ---- Map controls ---------------------------------------------------
+   MapLibre's NavigationControl, restyled to the v2 map-control spec: 30px
+   squares, radius 8, ink at 92%, a line-14 edge, the rail shadow, t3 glyphs.
+   Zoom in/out are ONE stacked unit split by a line-06 rule.
+
+   This is CSS in PE's own stylesheet, deliberately: packages/map-renderer is
+   shared with command-center, and a restyle of one product must not repaint
+   another product's map. */
+.maplibregl-ctrl-group {
+  background: var(--ss-ink-92) !important;
+  border: 1px solid var(--ss-line-14) !important;
+  border-radius: var(--ss-r-tip) !important;
+  box-shadow: var(--ss-sh-rail) !important;
+  overflow: hidden;
+}
+.maplibregl-ctrl-group button {
+  width: 30px !important;
+  height: 30px !important;
+  background: transparent !important;
+  border: 0 !important;
+}
+.maplibregl-ctrl-group button + button {
+  border-top: 1px solid var(--ss-line-06) !important;
+}
+.maplibregl-ctrl-group button:hover { background: rgba(255,255,255,.05) !important }
+.maplibregl-ctrl-group button:focus-visible {
+  outline: none !important;
+  box-shadow: var(--btn-focus-ring) !important;
+}
+/* MapLibre draws its control glyphs as background SVGs whose stroke is baked
+   in, so tint them to t3 rather than trying to recolour the source. */
+.maplibregl-ctrl-group button .maplibregl-ctrl-icon {
+  opacity: .78;
+  filter: invert(84%) sepia(6%) saturate(430%) hue-rotate(174deg) brightness(94%);
+}
+.maplibregl-ctrl-group button:hover .maplibregl-ctrl-icon { opacity: 1 }
+
 /* The dock's own scroll region — a hairline thumb, not a platform scrollbar. */
 .pe-dock-scroll { scrollbar-width: thin; scrollbar-color: var(--ss-line-28) transparent }
 .pe-dock-scroll::-webkit-scrollbar { width: 8px }

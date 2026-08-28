@@ -660,9 +660,9 @@ function OptionDChrome({
         hidden={!pickerOpen}
         style={{
           marginTop: 8,
-          borderRadius: 8,
-          background: "rgba(13,17,23,0.96)",
-          border: "1px solid rgba(154,166,178,0.3)",
+          borderRadius: PE.rFloat,
+          background: PE.sheet,
+          border: `1px solid ${PE.line14}`,
           overflow: "hidden",
         }}
       >
@@ -670,12 +670,12 @@ function OptionDChrome({
           <div key={g.group}>
             <div
               style={{
-                padding: "9px 12px 6px",
-                fontSize: 9.5,
-                fontWeight: 700,
-                letterSpacing: "0.16em",
+                padding: "10px 12px 5px",
+                fontSize: 10,
+                fontWeight: 600,
+                letterSpacing: ".13em",
                 textTransform: "uppercase",
-                color: BLUE,
+                color: PE.t6,
               }}
             >
               {g.group}
@@ -696,11 +696,12 @@ function OptionDChrome({
                     alignItems: "center",
                     justifyContent: "space-between",
                     gap: 10,
-                    padding: "9px 12px",
+                    minHeight: 36,
+                    padding: "7px 12px",
                     cursor: "pointer",
                     border: "none",
-                    borderTop: "1px solid rgba(30,41,59,0.55)",
-                    background: isSel ? "rgba(59,130,246,0.10)" : "transparent",
+                    borderTop: `1px solid ${PE.line06}`,
+                    background: isSel ? PE.blueBg : "transparent",
                     color: TEXT,
                     fontFamily: "inherit",
                     textAlign: "left",
@@ -714,12 +715,12 @@ function OptionDChrome({
                       minWidth: 0,
                     }}
                   >
-                    <span style={{ fontSize: 12.5 }}>{row.name}</span>
+                    <span style={{ fontSize: 12.5, color: PE.t2 }}>{row.name}</span>
                     <span
                       style={{
-                        fontFamily: "ui-monospace, Menlo, monospace",
+                        fontFamily: PE.mono,
                         fontSize: 10,
-                        color: MUTED,
+                        color: PE.t6,
                       }}
                     >
                       {row.formatLabel}
@@ -727,7 +728,8 @@ function OptionDChrome({
                   </span>
                   <span
                     style={{
-                      fontSize: 10.5,
+                      fontSize: 11,
+                      fontWeight: 600,
                       whiteSpace: "nowrap",
                       color: rowStatus.color,
                     }}
@@ -746,9 +748,9 @@ function OptionDChrome({
           data-testid="reports-pick-hint"
           style={{
             padding: "14px 2px 4px",
-            fontSize: 12,
+            fontSize: 12.5,
             lineHeight: 1.55,
-            color: "var(--text-muted, #7C8BA0)",
+            color: PE.t5,
           }}
         >
           Pick a document to see what it is, what it contains, and whether it

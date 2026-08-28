@@ -37,7 +37,6 @@ export const SHARE_VALUE_LINE =
 const MUTED = PE.muted;
 const AMBER = PE.warning;
 const TEXT = PE.text;
-const ACCENT = PE.accent;
 
 /** The chassis-stored (per-property, JSON-serializable) share tool state. */
 export interface ShareToolStoredState {
@@ -90,13 +89,16 @@ export function ShareBody({
           <div
             data-testid="share-link-url"
             style={{
-              fontSize: 10.5,
-              color: ACCENT,
+              fontFamily: PE.mono,
+              fontSize: 11,
+              lineHeight: 1.5,
+              color: PE.t2,
               wordBreak: "break-all",
-              border: "1px solid var(--brand-blue-border-soft, rgba(59,130,246,0.28))",
-              borderRadius: 6,
-              padding: "6px 8px",
-              marginBottom: 8,
+              background: "rgba(255,255,255,.02)",
+              border: `1px solid ${PE.line14}`,
+              borderRadius: PE.rTouch,
+              padding: "8px 11px",
+              marginBottom: 9,
             }}
           >
             {stored.link.url}
@@ -130,7 +132,26 @@ export function ShareBody({
               onClick={onCopy}
               style={{ flex: 1 }}
             >
-              {phase.kind === "copied" ? "Copied" : "Copy link"}
+              {phase.kind === "copied" ? (
+                <>
+                  <svg
+                    viewBox="0 0 24 24"
+                    width={13}
+                    height={13}
+                    aria-hidden
+                    fill="none"
+                    stroke={PE.ok}
+                    strokeWidth={2}
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                  >
+                    <path d="M20 6 9 17l-5-5" />
+                  </svg>
+                  Copied
+                </>
+              ) : (
+                "Copy link"
+              )}
             </Button>
             <Button
               variant="secondary"
@@ -283,7 +304,7 @@ export function ShareTool() {
       setPhase({ kind: "copied" });
       window.setTimeout(() => {
         setPhase((p) => (p.kind === "copied" ? { kind: "idle" } : p));
-      }, 1800);
+      }, 1400);
     } catch {
       setPhase({
         kind: "notice",
