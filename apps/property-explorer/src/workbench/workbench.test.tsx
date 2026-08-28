@@ -311,7 +311,11 @@ describe("expand-to-floating-box (Fix A)", () => {
 
   it("dockLayoutStyle — EXPANDED widens the COLUMN, it does not float one dock", () => {
     const s = dockLayoutStyle(true);
-    expect(s.width).toBe("min(860px, calc(100vw - 98px))");
+    // SUPERSEDED 2026-08-28: the column stops before the find bar now, which
+    // shares this top band. 534 = 12 bar inset + 436 bar + 12 channel + 74
+    // right gutter. The max() floor keeps expanded from coming out narrower
+    // than compact on a small window.
+    expect(s.width).toBe("max(380px, min(860px, calc(100vw - 534px)))");
     // WIDE IS THE COLUMN'S, not one dock's. It keeps the compact anchor
     // (top:12, right:74) and the same height budget; only width changes, so
     // every open dock grows together and none can overlap another. It used to
@@ -320,9 +324,10 @@ describe("expand-to-floating-box (Fix A)", () => {
     expect(s.maxHeight).toBe("calc(100vh - 28px)");
     expect(s.right).toBe(74);
     expect(s.top).toBe(12);
-    // Not full-screen: both are capped below the viewport, and the width
-    // leaves the rail and its channel visible (98 = right:74 + 24 gutter).
-    expect(String(s.width)).toContain("calc(100vw - 98px)");
+    // Not full-screen: capped below the viewport, and the width now also
+    // leaves the FIND BAR clear (534 = 12 bar inset + 436 bar + 12 channel +
+    // 74 right gutter), which is strictly more reserved than the old 98.
+    expect(String(s.width)).toContain("calc(100vw - 534px)");
     expect(String(s.maxHeight)).not.toBe("100vh");
   });
 
