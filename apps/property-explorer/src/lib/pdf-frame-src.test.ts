@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from "vitest";
-import { bytesArePdf, resolvePdfFrameSrc } from "./pdf-frame-src";
+import { bytesArePdf, fetchPdfBytes, resolvePdfFrameSrc } from "./pdf-frame-src";
 
 const PDF_BYTES = new Uint8Array([0x25, 0x50, 0x44, 0x46, 0x2d, 0x31, 0x2e, 0x34]);
 
@@ -48,6 +48,14 @@ describe("resolvePdfFrameSrc", () => {
     const blob = createObjectURL.mock.calls[0]?.[0] as Blob;
     expect(blob.type).toBe("application/pdf");
     expect(out).toEqual({ src: "blob:https://smartsite.cloud/view", revoke: true });
+  });
+
+  it("fetchPdfBytes returns the attachment bytes (viewer does not use embed)", async () => {
+    const bytes = await fetchPdfBytes(
+      "/api/pe-site-plan-export?report=flood-drainage&action=download",
+      { fetchImpl: async () => pdfAttachmentResponse() },
+    );
+    expect(bytesArePdf(bytes)).toBe(true);
   });
 
   it("VIOLATION: JSON or empty body is not shown as a PDF", async () => {

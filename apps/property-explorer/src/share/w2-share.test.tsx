@@ -303,6 +303,9 @@ describe("W2.4 live-view href is fail-closed", () => {
       html.indexOf("pdf-viewer-frame"),
     );
     expect(html).toContain('data-testid="pdf-viewer-download"');
+    expect(html).toContain("Opening report");
+    expect(html).not.toContain("<embed");
+    expect(html).not.toContain("<iframe");
   });
 });
 
