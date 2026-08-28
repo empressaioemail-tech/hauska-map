@@ -418,120 +418,65 @@ describe("expand-to-floating-box (Fix A)", () => {
 });
 
 
-describe("the dock STACK renders — chrome v2, operator ruling 2026-08-27", () => {
-
-  const renderStack = (openIds: string[], expanded: string) =>
-
+describe("the dock STACK renders — open means open", () => {
+  const renderStack = (openIds: string[], folded: string[] = []) =>
     renderToStaticMarkup(
-
       <Workbench
-
         tools={WORKBENCH_TOOLS}
-
-        openToolId={expanded}
-
+        openToolId={openIds[openIds.length - 1] ?? null}
         onOpenToolChange={noop}
-
         initialOpenIds={openIds}
-
+        initialFoldedIds={folded}
         activeParcelNodeId="p1"
-
         host={host}
-
         store={createWorkbenchToolStateStore({ storage: null })}
-
       />,
-
     );
 
-
-
   it("renders ONE dock per open tool, in one column", () => {
-
-    const html = renderStack(["brief", "chat", "reports"], "reports");
-
+    const html = renderStack(["brief", "chat", "reports"]);
     expect(html.match(/data-testid="workbench-dock"/g)).toHaveLength(3);
-
     expect(html).toContain('data-testid="workbench-dock-column"');
-
     expect(html).toContain('data-count="3"');
-
-    expect(html).toContain('data-tool="brief"');
-
-    expect(html).toContain('data-tool="chat"');
-
-    expect(html).toContain('data-tool="reports"');
-
   });
 
-
-
-  it("exactly one dock is expanded; every other is FOLDED, not closed", () => {
-
-    const html = renderStack(["brief", "chat", "reports"], "chat");
-
-    // Three open, two folded — so exactly one carries no data-folded flag.
-
-    expect(html.match(/data-folded="1"/g)).toHaveLength(2);
-
-    const chat = html.slice(html.indexOf('data-tool="chat"'));
-
-    expect(chat.startsWith('data-tool="chat" data-dock-side="right" data-folded')).toBe(false);
-
+  it("EVERY open dock is expanded — opening one does not fold another", () => {
+    // The behaviour the operator asked for twice: open several containers and
+    // scroll through them. An accordion here is the defect, and the first cut
+    // of this chassis shipped one.
+    const html = renderStack(["brief", "chat", "reports"]);
+    expect(html).not.toContain('data-folded="1"');
   });
 
-
+  it("only the dock the user folded is folded", () => {
+    const html = renderStack(["brief", "chat", "reports"], ["chat"]);
+    expect(html.match(/data-folded="1"/g)).toHaveLength(1);
+  });
 
   it("a folded dock collapses its BODY to zero height, keeping its header", () => {
-
-    const html = renderStack(["brief", "chat"], "chat");
-
-    // Two headers (both docks keep one) and two scroll regions, but the
-
-    // folded body is max-height:0 — the header is what survives a fold.
-
+    const html = renderStack(["brief", "chat"], ["brief"]);
     expect(html.match(/data-testid="dock-header"/g)).toHaveLength(2);
-
     expect(html).toMatch(/max-height:0/);
-
   });
 
-
-
-  it("a folded header is a keyboard-reachable button; the expanded one is not", () => {
-
-    const html = renderStack(["brief", "chat"], "chat");
-
-    expect(html).toMatch(/data-testid="dock-header"[^>]*role="button"/);
-
-    expect(html.match(/data-testid="dock-header"[^>]*role="button"/g)).toHaveLength(1);
-
+  it("every header is a keyboard-reachable fold toggle, folded or not", () => {
+    const html = renderStack(["brief", "chat"], ["brief"]);
+    expect(html.match(/data-testid="dock-header"[^>]*role="button"/g)).toHaveLength(2);
+    expect(html).toMatch(/aria-expanded="true"/);
     expect(html).toMatch(/aria-expanded="false"/);
-
   });
-
-
 
   it("every dock keeps its OWN close control — closing one is not closing all", () => {
-
-    const html = renderStack(["brief", "chat", "reports"], "reports");
-
+    const html = renderStack(["brief", "chat", "reports"]);
     expect(html.match(/data-testid="dock-close"/g)).toHaveLength(3);
-
   });
 
-
-
-  it("a single open tool shows no fold affordance (no chevron on a stack of one)", () => {
-
-    const html = renderStack(["brief"], "brief");
-
+  it("a single open tool is expanded and still foldable", () => {
+    const html = renderStack(["brief"]);
     expect(html.match(/data-testid="workbench-dock"/g)).toHaveLength(1);
-
     expect(html).not.toContain('data-folded="1"');
-
+    expect(html).toMatch(/data-testid="dock-header"[^>]*role="button"/);
   });
-
 });
 
 describe("the column geometry has ONE owner", () => {

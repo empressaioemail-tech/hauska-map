@@ -3,136 +3,172 @@ import {
   closeOneDock,
   expandDock,
   EMPTY_STACK,
+  isExpandedIn,
+  newestOpen,
   pruneStack,
   syncStack,
   tapDock,
+  toggleFold,
   type DockStack,
 } from "./dock-stack";
 
-// These replace the two guards that enforced "ONE tool open at a time". The
-// operator retired that ruling on 2026-08-27 after using the single-dock v2
-// chrome; the guards were not deleted quietly, they were swapped for the
-// assertions the new behaviour needs. Chief among them: NOTHING IS CLOSED ON
-// THE USER'S BEHALF, which is the property the old single-dock rule violated
-// by design and the only reason stacking is worth having.
+// SECOND CUT. The first version auto-folded every other dock when one opened,
+// and these tests happily pinned that — they were a faithful description of
+// the wrong behaviour. The operator asked twice for MULTIPLE OPEN CONTAINERS
+// you scroll through. The governing assertion is now the last describe block:
+// nothing folds or closes except by an explicit act on that dock.
 
-const stack = (open: string[], expanded: string | null): DockStack => ({
+const stack = (open: string[], folded: string[] = []): DockStack => ({
   open,
-  expanded,
+  folded,
 });
 
 describe("tapDock — the rail bubble", () => {
-  it("opens a closed tool on top of the stack and expands it", () => {
-    expect(tapDock(EMPTY_STACK, "brief")).toEqual(stack(["brief"], "brief"));
-    expect(tapDock(stack(["brief"], "brief"), "chat")).toEqual(
-      stack(["brief", "chat"], "chat"),
-    );
+  it("opens a tool EXPANDED and leaves every other dock untouched", () => {
+    let s = tapDock(EMPTY_STACK, "brief");
+    expect(s).toEqual(stack(["brief"]));
+    s = tapDock(s, "chat");
+    expect(s.open).toEqual(["brief", "chat"]);
+    expect(s.folded).toEqual([]);
+    expect(isExpandedIn(s, "brief")).toBe(true);
+    expect(isExpandedIn(s, "chat")).toBe(true);
   });
 
-  it("FOLDS rather than closes: opening a second tool keeps the first open", () => {
-    const after = tapDock(stack(["brief"], "brief"), "chat");
-    expect(after.open).toContain("brief");
-    expect(after.expanded).toBe("chat");
+  it("does NOT fold a dock the user folded, when a new one opens", () => {
+    const before = stack(["brief", "chat"], ["brief"]);
+    const after = tapDock(before, "reports");
+    expect(after.folded).toEqual(["brief"]);
+    expect(isExpandedIn(after, "chat")).toBe(true);
+    expect(isExpandedIn(after, "reports")).toBe(true);
   });
 
-  it("expands an already-open folded tool without reordering the stack", () => {
-    const after = tapDock(stack(["brief", "chat", "reports"], "reports"), "brief");
-    expect(after.open).toEqual(["brief", "chat", "reports"]);
-    expect(after.expanded).toBe("brief");
-  });
-
-  it("a second tap on the EXPANDED tool closes that one tool", () => {
-    const after = tapDock(stack(["brief", "chat"], "chat"), "chat");
+  it("a second tap on an open bubble closes that tool", () => {
+    const after = tapDock(stack(["brief", "chat"]), "chat");
     expect(after.open).toEqual(["brief"]);
-    expect(after.expanded).toBe("brief");
   });
 
   it("closing the last tool empties the column", () => {
-    expect(tapDock(stack(["brief"], "brief"), "brief")).toEqual(EMPTY_STACK);
+    expect(tapDock(stack(["brief"]), "brief")).toEqual(EMPTY_STACK);
   });
 });
 
-describe("expandDock — clicking a folded header", () => {
-  it("expands it and folds whatever was expanded, closing nothing", () => {
-    const after = expandDock(stack(["brief", "chat"], "chat"), "brief");
-    expect(after.open).toEqual(["brief", "chat"]);
-    expect(after.expanded).toBe("brief");
+describe("toggleFold — the ONLY thing that folds a dock", () => {
+  it("folds an expanded dock and unfolds a folded one", () => {
+    const open = stack(["brief", "chat"]);
+    const folded = toggleFold(open, "brief");
+    expect(folded.folded).toEqual(["brief"]);
+    expect(isExpandedIn(folded, "brief")).toBe(false);
+    expect(isExpandedIn(folded, "chat")).toBe(true);
+    expect(toggleFold(folded, "brief")).toEqual(open);
+  });
+
+  it("folding one dock never touches another", () => {
+    const after = toggleFold(stack(["brief", "chat", "reports"]), "chat");
+    expect(isExpandedIn(after, "brief")).toBe(true);
+    expect(isExpandedIn(after, "reports")).toBe(true);
+    expect(after.open).toEqual(["brief", "chat", "reports"]);
+  });
+
+  it("works on a stack of one — folding is a user act, not a count effect", () => {
+    expect(toggleFold(stack(["brief"]), "brief").folded).toEqual(["brief"]);
   });
 
   it("is inert for a tool that is not open", () => {
-    const before = stack(["brief"], "brief");
-    expect(expandDock(before, "chat")).toBe(before);
+    const before = stack(["brief"]);
+    expect(toggleFold(before, "chat")).toBe(before);
   });
 });
 
 describe("closeOneDock — the close control", () => {
-  it("removes exactly one tool and hands expansion to the newest remaining", () => {
-    const after = closeOneDock(stack(["brief", "chat", "reports"], "chat"), "chat");
+  it("removes exactly one tool, from open and folded alike", () => {
+    const after = closeOneDock(stack(["brief", "chat"], ["chat"]), "chat");
+    expect(after).toEqual(stack(["brief"]));
+  });
+
+  it("closing one leaves the others exactly as they were", () => {
+    const after = closeOneDock(stack(["brief", "chat", "reports"], ["brief"]), "chat");
     expect(after.open).toEqual(["brief", "reports"]);
-    expect(after.expanded).toBe("reports");
-  });
-
-  it("closing a FOLDED tool leaves the expanded one alone", () => {
-    const after = closeOneDock(stack(["brief", "chat"], "chat"), "brief");
-    expect(after.open).toEqual(["chat"]);
-    expect(after.expanded).toBe("chat");
-  });
-
-  it("never leaves a non-empty column with everything folded", () => {
-    const after = closeOneDock(stack(["brief", "chat"], "chat"), "chat");
-    expect(after.open.length).toBeGreaterThan(0);
-    expect(after.expanded).not.toBeNull();
+    expect(after.folded).toEqual(["brief"]);
   });
 });
 
 describe("syncStack — the app shell still owns one openToolId", () => {
-  it("the shell opening a tool expands it WITHOUT closing the others", () => {
-    const after = syncStack(stack(["brief"], "brief"), "chat");
-    expect(after.open).toEqual(["brief", "chat"]);
-    expect(after.expanded).toBe("chat");
+  it("the shell opening a tool adds it WITHOUT folding anything", () => {
+    const after = syncStack(stack(["brief", "chat"]), "reports");
+    expect(after.open).toEqual(["brief", "chat", "reports"]);
+    expect(after.folded).toEqual([]);
   });
 
-  it("the shell re-asserting the expanded tool is a no-op (no render loop)", () => {
-    const before = stack(["brief", "chat"], "chat");
+  it("the shell naming a FOLDED tool unfolds it — it asked for it to be read", () => {
+    const after = syncStack(stack(["brief", "chat"], ["brief"]), "brief");
+    expect(isExpandedIn(after, "brief")).toBe(true);
+  });
+
+  it("re-asserting an already-expanded tool is a no-op (no render loop)", () => {
+    const before = stack(["brief", "chat"]);
     expect(syncStack(before, "chat")).toBe(before);
   });
 
   it("the shell setting null still empties the column", () => {
-    expect(syncStack(stack(["brief", "chat"], "chat"), null)).toEqual(EMPTY_STACK);
+    expect(syncStack(stack(["brief", "chat"]), null)).toEqual(EMPTY_STACK);
+  });
+});
+
+describe("newestOpen — what the shell tracks", () => {
+  it("is the most recently opened tool", () => {
+    expect(newestOpen(stack(["brief", "chat"]))).toBe("chat");
+  });
+  it("is null on an empty column", () => {
+    expect(newestOpen(EMPTY_STACK)).toBeNull();
+  });
+  it("does not care whether that tool is folded", () => {
+    expect(newestOpen(stack(["brief", "chat"], ["chat"]))).toBe("chat");
   });
 });
 
 describe("pruneStack — a tool leaving the registry mid-session", () => {
-  it("drops the unknown tool and re-expands from what is left", () => {
-    const after = pruneStack(
-      stack(["brief", "gone"], "gone"),
-      new Set(["brief", "chat"]),
-    );
-    expect(after.open).toEqual(["brief"]);
-    expect(after.expanded).toBe("brief");
+  it("drops the unknown tool from both lists", () => {
+    const after = pruneStack(stack(["brief", "gone"], ["gone"]), new Set(["brief"]));
+    expect(after).toEqual(stack(["brief"]));
   });
-
-  it("is identity when everything is still registered (no render loop)", () => {
-    const before = stack(["brief", "chat"], "chat");
+  it("is identity when everything is registered (no render loop)", () => {
+    const before = stack(["brief", "chat"]);
     expect(pruneStack(before, new Set(["brief", "chat"]))).toBe(before);
   });
 });
 
-describe("the invariant the old single-dock rule could not hold", () => {
-  it("no operation except an explicit close ever reduces what is open", () => {
+describe("THE GOVERNING RULE: open means open", () => {
+  it("opening four tools leaves all four EXPANDED", () => {
     let s: DockStack = EMPTY_STACK;
     for (const id of ["brief", "chat", "reports", "properties"]) {
-      const before = s.open.length;
       s = tapDock(s, id);
-      expect(s.open.length).toBe(before + 1);
     }
-    // Four open, one expanded, three folded — and every one of them still
-    // reachable in a single click.
     expect(s.open).toEqual(["brief", "chat", "reports", "properties"]);
-    expect(s.expanded).toBe("properties");
-    for (const id of s.open) {
-      expect(expandDock(s, id).expanded).toBe(id);
-      expect(expandDock(s, id).open).toEqual(s.open);
-    }
+    expect(s.folded).toEqual([]);
+    for (const id of s.open) expect(isExpandedIn(s, id)).toBe(true);
+  });
+
+  it("nothing folds or closes except an explicit act on THAT dock", () => {
+    // The regression this whole file exists to prevent: an accordion that
+    // quietly puts away what the user was reading.
+    let s: DockStack = tapDock(tapDock(tapDock(EMPTY_STACK, "a"), "b"), "c");
+    const expandedBefore = s.open.filter((id) => isExpandedIn(s, id));
+    expect(expandedBefore).toHaveLength(3);
+
+    s = tapDock(s, "d");
+    expect(s.open.filter((id) => isExpandedIn(s, id))).toHaveLength(4);
+
+    s = syncStack(s, "e");
+    expect(s.open.filter((id) => isExpandedIn(s, id))).toHaveLength(5);
+
+    // Only now, and only because the user asked for exactly this one:
+    s = toggleFold(s, "b");
+    expect(s.open.filter((id) => isExpandedIn(s, id))).toHaveLength(4);
+    expect(s.open).toHaveLength(5);
+  });
+
+  it("expandDock never folds anything on its way", () => {
+    const after = expandDock(stack(["a", "b", "c"], ["a", "b"]), "a");
+    expect(after.folded).toEqual(["b"]);
   });
 });

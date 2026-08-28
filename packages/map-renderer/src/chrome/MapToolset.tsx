@@ -1423,21 +1423,43 @@ export function MapToolset({
     setExpanded(true);
   };
 
+  const [collapsedKinds, setCollapsedKinds] = useState<Set<"tools" | "layers">>(
+    () => new Set(),
+  );
   const splitOpenCount = openKinds.size;
+  // COLLAPSE, PER PANEL — the same act the right column calls folding, and
+  // the same rule: only the panel you click changes, and nothing collapses
+  // because something else opened.
+  const isCollapsed = (kind: "tools" | "layers") => collapsedKinds.has(kind);
+  const toggleCollapsed = (kind: "tools" | "layers") =>
+    setCollapsedKinds((cur) => {
+      const next = new Set(cur);
+      if (next.has(kind)) next.delete(kind);
+      else next.add(kind);
+      return next;
+    });
+
   const splitPanelStyle = (kind: "tools" | "layers"): CSSProperties => ({
     display: openKinds.has(kind) ? "flex" : "none",
     width: 216,
+    flex: "0 0 auto",
     flexDirection: "column",
-    gap: 9,
-    padding: "8px 12px 10px",
+    gap: isCollapsed(kind) ? 0 : 9,
+    padding: isCollapsed(kind) ? "8px 12px" : "8px 12px 10px",
     borderRadius: 9,
     background: PANEL_BG,
     border: PANEL_BORDER,
     color: TEXT,
     fontSize: 11.5,
     boxShadow: "0 10px 32px rgba(0,0,0,0.45)",
-    maxHeight: leftUtilityMaxHeight(splitOpenCount),
-    overflowY: "auto",
+    // Collapsed keeps ONLY its header, exactly like a folded dock. The panel
+    // body no longer scrolls itself either: the left COLUMN is the one
+    // scroller, so a wheel gesture carries across panels instead of catching
+    // inside one.
+    maxHeight: isCollapsed(kind) ? 34 : leftUtilityMaxHeight(splitOpenCount),
+    overflow: "hidden",
+    transition:
+      "max-height 220ms cubic-bezier(.2,.6,.35,1), padding 140ms cubic-bezier(.2,.6,.35,1)",
   });
 
   return (
@@ -1463,11 +1485,24 @@ export function MapToolset({
       {splitBubbles ? (
         <div
           data-testid="map-toolset-left-stack"
+          className="pe-scroll ss-fade-top"
           style={{
             display: splitOpenCount > 0 ? "flex" : "none",
             flexDirection: "column",
+            // BOTTOM-UP, LIKE THE RIGHT SIDE (operator, 2026-08-28). The
+            // column is anchored to the ground by the root and grows upward,
+            // and `justify-content: flex-end` keeps the newest panel sitting
+            // on the rail rather than floating at the top of the box.
+            justifyContent: "flex-end",
             gap: 8,
             width: 216,
+            // ONE scroller, same as the right column — and it fades out
+            // rather than being cut off. The vanishing point is 3/4 up the
+            // viewport, so the stack dissolves into the map instead of
+            // ending on a hard edge.
+            maxHeight: "75vh",
+            overflowY: "auto",
+            overscrollBehavior: "contain",
           }}
         >
           {splitOpenCount > 1 && (
@@ -1507,7 +1542,49 @@ export function MapToolset({
                 borderBottom: "0.5px solid rgba(154,166,178,0.18)",
               }}
             >
-              <span style={{ ...sectionHeaderStyle(), flex: 1 }}>Draw & measure</span>
+              <button
+                type="button"
+                data-testid="map-toolset-collapse-tools"
+                aria-expanded={!isCollapsed("tools")}
+                aria-label={
+                  isCollapsed("tools") ? "Expand Draw & measure" : "Collapse Draw & measure"
+                }
+                onClick={() => toggleCollapsed("tools")}
+                style={{
+                  ...sectionHeaderStyle(),
+                  flex: 1,
+                  display: "flex",
+                  alignItems: "center",
+                  gap: 6,
+                  background: "transparent",
+                  border: "none",
+                  padding: 0,
+                  cursor: "pointer",
+                  textAlign: "left",
+                }}
+              >
+                <svg
+                  viewBox="0 0 24 24"
+                  width={11}
+                  height={11}
+                  aria-hidden="true"
+                  fill="none"
+                  stroke="currentColor"
+                  strokeWidth={2}
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  style={{
+                    flex: "none",
+                    transform: isCollapsed("tools")
+                      ? "rotate(-90deg)"
+                      : "rotate(0deg)",
+                    transition: "transform 180ms cubic-bezier(.2,.6,.35,1)",
+                  }}
+                >
+                  <path d="m6 9 6 6 6-6" />
+                </svg>
+                Draw & measure
+              </button>
               <button
                 type="button"
                 data-testid="map-toolset-hide-all"
@@ -1550,7 +1627,49 @@ export function MapToolset({
                 borderBottom: "0.5px solid rgba(154,166,178,0.18)",
               }}
             >
-              <span style={{ ...sectionHeaderStyle(), flex: 1 }}>Layers</span>
+              <button
+                type="button"
+                data-testid="map-toolset-collapse-layers"
+                aria-expanded={!isCollapsed("layers")}
+                aria-label={
+                  isCollapsed("layers") ? "Expand Layers" : "Collapse Layers"
+                }
+                onClick={() => toggleCollapsed("layers")}
+                style={{
+                  ...sectionHeaderStyle(),
+                  flex: 1,
+                  display: "flex",
+                  alignItems: "center",
+                  gap: 6,
+                  background: "transparent",
+                  border: "none",
+                  padding: 0,
+                  cursor: "pointer",
+                  textAlign: "left",
+                }}
+              >
+                <svg
+                  viewBox="0 0 24 24"
+                  width={11}
+                  height={11}
+                  aria-hidden="true"
+                  fill="none"
+                  stroke="currentColor"
+                  strokeWidth={2}
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  style={{
+                    flex: "none",
+                    transform: isCollapsed("layers")
+                      ? "rotate(-90deg)"
+                      : "rotate(0deg)",
+                    transition: "transform 180ms cubic-bezier(.2,.6,.35,1)",
+                  }}
+                >
+                  <path d="m6 9 6 6 6-6" />
+                </svg>
+                Layers
+              </button>
             </div>
             {layersInner}
           </div>
