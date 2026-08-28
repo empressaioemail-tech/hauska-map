@@ -24,23 +24,19 @@ export const SMART_SITE_CONNECT_HOST = "mcp.smartsite.cloud";
 export const SMART_SITE_CONNECT_URL = `https://${SMART_SITE_CONNECT_HOST}/mcp`;
 
 /**
- * Claude's settings is a hash-routed MODAL, and no slug we have tried opens
- * the Connectors pane directly.
+ * Deep link to Claude's Connectors pane.
  *
- * `/settings/customize/connectors` landed on General. `#settings/connectors`
- * was INFERRED from the observed `#settings/general` and the operator
- * confirmed on 2026-08-28 that it also lands on the ordinary Claude screen.
- * Two guesses, two misses.
+ * The slug is `customize-connectors`, not `connectors`. Two earlier guesses
+ * (`/settings/customize/connectors` as a PATH, then `#settings/connectors`)
+ * both landed on the wrong pane. This one was READ OFF THE ADDRESS BAR with
+ * Connectors open (operator, 2026-08-28), which is the only way this value
+ * was ever going to be right.
  *
- * So this no longer pretends to deep-link. It opens Claude, and the button
- * says that, because a control whose label promises a destination it does not
- * reach is worse than one that promises less. The steps beside it carry the
- * rest.
- *
- * To make this a real deep link, someone must open Connectors in Claude and
- * read the address bar, then put THAT string here. Do not guess a third form.
+ * If it ever stops working, read the bar again. Do not infer a fourth form
+ * from the shape of this one — that is exactly how the first two were wrong.
  */
-export const CLAUDE_HOME_URL = "https://claude.ai/new";
+export const CLAUDE_CUSTOMIZE_CONNECTORS_URL =
+  "https://claude.ai/new#settings/customize-connectors";
 
 export type UseInAiVendorId = "claude" | "chatgpt" | "cursor" | "copilot";
 
@@ -181,10 +177,10 @@ function VendorConnectPanel({
             type="button"
             data-testid="use-in-ai-open-claude"
             onClick={() => {
-              window.open(CLAUDE_HOME_URL, "_blank", "noopener,noreferrer");
+              window.open(CLAUDE_CUSTOMIZE_CONNECTORS_URL, "_blank", "noopener,noreferrer");
             }}
           >
-            Open Claude
+            Open Customize → Connectors
           </Button>
         ) : null}
         <Button

@@ -158,6 +158,18 @@ export interface WorkbenchToolDef {
    */
   propertyScoped: boolean;
   /**
+   * Show the header "Select a property" pill even though the tool is NOT
+   * propertyScoped.
+   *
+   * Reports is the case this exists for: its filed-report library is
+   * account-wide and genuinely useful with no parcel, so propertyScoped is
+   * false and must stay false — but the GENERATOR inside it cannot run
+   * without one. Overloading propertyScoped to get the pill would have made
+   * the chassis hide the library behind a select-first state, which is the
+   * behaviour we just removed.
+   */
+  promptsForProperty?: boolean;
+  /**
    * Whether the dock offers the EXPAND-TO-FLOATING-BOX control for this tool
    * (the large, readable, map-still-visible view — the flood study map + legend
    * especially). Defaults to true (the chassis reads `expandable !== false`);

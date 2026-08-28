@@ -48,6 +48,11 @@ import {
   saveSeen,
 } from "./reports-seen";
 import {
+  effectiveSelectedDoc,
+  routePick,
+  shouldPromotePending,
+} from "./reports-doc-selection";
+import {
   assembleDossierExportBody,
   dossierExportNotice,
   requestDossierExport,
@@ -116,6 +121,14 @@ export function ReportsTool() {
   const [dossier, setDossier] =
     useDockToolState<DossierDockState>("reports.dossier");
   const [pickerOpen, setPickerOpen] = useState(false);
+  // PRE-PARCEL PICK. useDockToolState refuses a write with no active parcel
+  // ("no phantom-property writes" in WorkbenchContext) — correctly, since that
+  // state is keyed BY property. But it meant picking a report before choosing
+  // a parcel silently did nothing: the operator clicked a doc and the picker
+  // just closed on an empty module. So a pre-parcel choice is held HERE, in
+  // component state, and handed to the per-property store the moment a parcel
+  // arrives. Pick the report, then click the parcel, and it is already set.
+  const [pendingDoc, setPendingDoc] = useState<string | null>(null);
   const [reportsTab, setReportsTab] = useState<"mine" | "shared">("mine");
   const receivedShares = readReceivedShares(defaultReceivedShareStore());
   const ent = usePropertyEntitlement(activeParcelNodeId);
@@ -187,8 +200,9 @@ export function ReportsTool() {
   const terrainProLocked = ent.status === "ready" && !studioGranted;
   const locked = ent.locked;
 
-  const selectedIdRaw = isReportDocId(selectedRaw)
-    ? normalizeReportDocId(selectedRaw)
+  const effectiveRaw = effectiveSelectedDoc(activeParcelNodeId, selectedRaw, pendingDoc);
+  const selectedIdRaw = isReportDocId(effectiveRaw)
+    ? normalizeReportDocId(effectiveRaw)
     : lockedDefaultDoc(locked);
   const selectedCandidate = selectedIdRaw ? findReportDoc(selectedIdRaw) : null;
   const selected =
@@ -201,9 +215,21 @@ export function ReportsTool() {
   const freshness = reportsFreshnessLine(address, new Date());
 
   const pick = (id: ReportDocId) => {
-    setSelectedRaw(id);
+    if (routePick(activeParcelNodeId) === "store") {
+      setSelectedRaw(id);
+    } else {
+      // Held, not dropped. The header pill says what is still missing.
+      setPendingDoc(id);
+    }
     setPickerOpen(false);
   };
+
+  // Carry the held pick into per-property state as soon as there IS one.
+  useEffect(() => {
+    if (!shouldPromotePending(activeParcelNodeId, pendingDoc)) return;
+    setSelectedRaw(pendingDoc);
+    setPendingDoc(null);
+  }, [activeParcelNodeId, pendingDoc, setSelectedRaw]);
 
   const generatedLabel = selected
     ? generatedLabelFor(selected, sitePlan, terrain, dossier)

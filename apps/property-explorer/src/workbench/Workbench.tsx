@@ -583,7 +583,8 @@ export function Workbench({
                       notice. Operator 2026-08-28. Amber is the app's
                       waiting/attention register; it is not gold, which is the
                       brand mark and the unread dot only. */}
-                  {tool.propertyScoped && !activeParcelNodeId ? (
+                  {(tool.propertyScoped || tool.promptsForProperty) &&
+                  !activeParcelNodeId ? (
                     <span
                       data-testid={`dock-select-property-${tool.id}`}
                       style={{
