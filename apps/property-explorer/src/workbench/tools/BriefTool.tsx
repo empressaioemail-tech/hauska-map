@@ -12,11 +12,14 @@
 //     the pricing modal (host.openPaywall) + records pe_paywall_hit, 503/404
 //     honest notices, network-unreachable notice. Non-ready outcomes are NOT
 //     persisted — reopening the brief retries (e.g. after signing in).
-//   - The brief renders through PropertyBriefPanel in embedded mode (same
-//     content, Export PDF intact; the dock header owns close).
+//   - The brief renders as BriefSourcesStrip: sources, freshness and run
+//     provenance only. The inspect card directly above it in this dock is the
+//     surface that states parcel facts, so restating them here duplicated it
+//     and, where the baked snapshot had less coverage than the card,
+//     contradicted it. Merged 2026-08-28 on operator direction.
 
 import { useEffect, useState } from "react";
-import { PropertyBriefPanel } from "../../browse/PropertyBriefPanel";
+import { BriefSourcesStrip } from "./BriefSourcesStrip";
 import { PE } from "../../styles/pe-chrome";
 import { LabelledSkeleton, Spinner } from "../../components/Loading";
 import type { ResearchBriefPayload } from "../../browse/brief-view-model";
@@ -56,7 +59,7 @@ type Phase =
   | { kind: "notice"; text: string; tone: "muted" | "amber" };
 
 export function BriefTool() {
-  const { activeParcelNodeId, closeDock, host } = useWorkbench();
+  const { activeParcelNodeId, host } = useWorkbench();
   const [stored, setStored] = useDockToolState<BriefToolStoredState>("brief");
   // Transient fetch phase (per mount / per property) — never persisted, so a
   // failed or gated fetch retries on the next open.
@@ -114,15 +117,19 @@ export function BriefTool() {
   }, [activeParcelNodeId, hasBrief, proactivelyGated, ent.status]);
 
   if (stored?.brief) {
-    return (
-      <PropertyBriefPanel
-        embedded
-        brief={stored.brief}
-        parcelNodeId={activeParcelNodeId ?? undefined}
-        onClose={closeDock}
-        onPaywall={() => host.openPaywall(BRIEF_PAYWALL_MESSAGE)}
-      />
-    );
+    // ONE SECTION, NOT TWO. This used to render PropertyBriefPanel's whole
+    // "Property Intel Brief" beneath the inspect card, restating the card's
+    // own facts and contradicting them where the baked snapshot had less
+    // coverage than the card. Operator 2026-08-28: merge them. What is left
+    // is what the card cannot say — sources, freshness, and which run made
+    // the snapshot. The Export X-ray PDF hero came out with the panel; export
+    // lives in Reports, which is where the other exports already are.
+    //
+    // THE FETCH AND THE GATE ABOVE ARE UNCHANGED ON PURPOSE. The brief is a
+    // paid bubble and the 402 is what opens the pricing modal, so dropping
+    // the panel must not drop the paywall. PropertyBriefPanel is untouched
+    // and still renders in full for ShareView.
+    return <BriefSourcesStrip brief={stored.brief} />;
   }
   // R1: the proactive LOCKED / sign-in-first states — value line + the
   // unified unlock flow in the dock, never a broken/empty state.

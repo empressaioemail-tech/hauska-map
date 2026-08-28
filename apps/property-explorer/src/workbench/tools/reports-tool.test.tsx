@@ -267,3 +267,34 @@ describe("reports tool — per-property persistence via the chassis store", () =
     expect(html).not.toContain("Site plan ready");
   });
 });
+
+describe("the filed-report library is account-wide, so it renders in BOTH states", () => {
+  // THE REGRESSION. `ReportsLibrary` used to render only on the
+  // no-parcel branch, so selecting a property made the whole filed-report
+  // list disappear — same account, same reports, hidden because you clicked
+  // a parcel. Operator 2026-08-28 asked for the pre-selection presentation
+  // in both states. Pinned on both branches so removing either fails.
+
+  it("renders with NO property selected", () => {
+    const html = render({ activeParcelNodeId: null });
+    // The library fetches in an effect, so static markup catches its loading
+    // state. That IS the library mounting; the loaded list is proven by the
+    // pure reports-seen tests.
+    expect(html).toContain('data-testid="reports-library-loading"');
+  });
+
+  it("renders WITH a property selected", () => {
+    const html = render({ activeParcelNodeId: "48021:123" });
+    expect(html).toContain('data-testid="reports-library-loading"');
+  });
+
+  it("keeps the no-property guidance only where it belongs", () => {
+    // Guard against 'fixing' this by showing the picker prompt everywhere.
+    expect(render({ activeParcelNodeId: null })).toContain(
+      'data-testid="reports-no-property"',
+    );
+    expect(render({ activeParcelNodeId: "48021:123" })).not.toContain(
+      'data-testid="reports-no-property"',
+    );
+  });
+});
