@@ -520,6 +520,96 @@ async function parseJson(res: Response): Promise<Record<string, unknown>> {
   return (await res.json().catch(() => ({}))) as Record<string, unknown>;
 }
 
+export type RecordsInboxRow = {
+  jobId: string;
+  parcelNodeId: string | null;
+  phase: RecordsRunPhase;
+  jobStatus: string;
+  errorCode: string | null;
+  indexHitsCount: number;
+  finishReason: string | null;
+  updatedAt: string | null;
+};
+
+function inboxRowFromWire(raw: WireJob & Record<string, unknown>): RecordsInboxRow | null {
+  const jobId = typeof raw.jobId === "string" ? raw.jobId : null;
+  if (!jobId) return null;
+  const jobStatus =
+    typeof raw.jobStatus === "string"
+      ? raw.jobStatus
+      : typeof raw.status === "string"
+        ? raw.status
+        : "unknown";
+  const parcelNodeId =
+    typeof raw.parcelNodeId === "string" ? raw.parcelNodeId : null;
+  return {
+    jobId,
+    parcelNodeId,
+    phase: phaseFromJobStatus(jobStatus),
+    jobStatus,
+    errorCode: typeof raw.errorCode === "string" ? raw.errorCode : null,
+    indexHitsCount:
+      typeof raw.indexHitsCount === "number" && raw.indexHitsCount >= 0
+        ? raw.indexHitsCount
+        : 0,
+    finishReason:
+      typeof raw.finishReason === "string" ? raw.finishReason : null,
+    updatedAt:
+      typeof raw.updatedAt === "string"
+        ? raw.updatedAt
+        : typeof raw.completedAt === "string"
+          ? raw.completedAt
+          : typeof raw.createdAt === "string"
+            ? raw.createdAt
+            : null,
+  };
+}
+
+/** Cross-parcel inbox — all recent records-request jobs for the signed-in user. */
+export async function fetchRecordsInbox(): Promise<{
+  wired: boolean;
+  rows: RecordsInboxRow[];
+  notice: string | null;
+}> {
+  try {
+    const res = await fetch(`${CORTEX_DEEP_PROXY_BASE}/${RECORDS_PATH}/inbox`, {
+      credentials: "include",
+    });
+    if (res.status === 404) {
+      return { wired: false, rows: [], notice: RECORDS_NOT_WIRED_NOTICE };
+    }
+    if (res.status === 401) {
+      return {
+        wired: true,
+        rows: [],
+        notice: "Sign in to view your records requests.",
+      };
+    }
+    if (!res.ok) {
+      const body = await parseJson(res);
+      const message =
+        typeof body.message === "string"
+          ? body.message
+          : typeof body.error === "string"
+            ? body.error
+            : `Records inbox read failed (${res.status}).`;
+      return { wired: true, rows: [], notice: message };
+    }
+    const body = (await res.json()) as { jobs?: unknown[] };
+    const jobs = Array.isArray(body.jobs) ? body.jobs : [];
+    const rows = jobs
+      .map((job) =>
+        job && typeof job === "object"
+          ? inboxRowFromWire(job as WireJob & Record<string, unknown>)
+          : null,
+      )
+      .filter((row): row is RecordsInboxRow => row != null);
+    return { wired: true, rows, notice: null };
+  } catch {
+    return { wired: false, rows: [], notice: RECORDS_NOT_WIRED_NOTICE };
+  }
+}
+
 /** Fetch the latest run for a parcel. */
 export async function fetchRecordsRun(
   parcelNodeId: string,

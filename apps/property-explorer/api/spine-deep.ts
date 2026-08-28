@@ -15,6 +15,8 @@ const DEEP_GET_EXACT = new Set([
   'api/property-explorer/v1/saved-properties',
   // P-85 Records Request — latest jobs for a parcel (parcelNodeId query).
   'api/property-explorer/v1/records-request',
+  // P-85 Records Request — cross-parcel inbox for My reports.
+  'api/property-explorer/v1/records-request/inbox',
 ])
 
 const DEEP_GET_PREFIX = [
