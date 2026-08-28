@@ -185,7 +185,7 @@ export function SignUpCard({ onDismiss }: { onDismiss: () => void }) {
         )}
 
         {authStatus?.configured.microsoft && (
-          <button
+          <Button
             type="button"
             data-testid="continue-microsoft"
             onClick={startMicrosoft}
@@ -197,7 +197,7 @@ export function SignUpCard({ onDismiss }: { onDismiss: () => void }) {
           >
             <MicrosoftGlyph />
             {busy === "microsoft" ? "Redirecting…" : "Continue with Microsoft"}
-          </button>
+          </Button>
         )}
 
         <Button

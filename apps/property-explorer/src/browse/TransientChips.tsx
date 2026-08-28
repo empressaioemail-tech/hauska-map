@@ -22,6 +22,7 @@ import {
 } from "./transient-chips";
 import { transientChipsStyle } from "./mobile-layout";
 import { useMobilePanel } from "./MobilePanelContext";
+import { PE } from "../styles/pe-chrome";
 
 const chipStyle = (sev: ChipSeverity): React.CSSProperties => ({
   fontSize: 10.5,
@@ -33,10 +34,10 @@ const chipStyle = (sev: ChipSeverity): React.CSSProperties => ({
   whiteSpace: "nowrap",
   color:
     sev === "error"
-      ? "#fca5a5"
+      ? PE.err
       : sev === "warn"
-        ? "var(--semantic-warning, #F59E0B)"
-        : "var(--surface-muted, #94A3B8)",
+        ? PE.warn
+        : PE.t4,
   background: "rgba(11,14,19,0.82)",
   border: `0.5px solid ${
     sev === "error"

@@ -25,6 +25,7 @@
 // ShareView, where it is the whole document rather than a second opinion.
 
 import { useState } from "react";
+import { Button } from "../../components/Button";
 import { PE } from "../../styles/pe-chrome";
 import {
   deriveBriefViewModel,
@@ -109,7 +110,7 @@ export function BriefSourcesStrip({
 
       {explanations.length > 0 ? (
         <div style={{ marginTop: 8 }}>
-          <button
+          <Button
             type="button"
             data-testid="brief-definitions-toggle"
             aria-expanded={openDefs}
@@ -118,6 +119,7 @@ export function BriefSourcesStrip({
               background: "transparent",
               border: 0,
               padding: 0,
+              height: "auto",
               color: BLUE,
               fontSize: 11.5,
               fontWeight: 600,
@@ -125,7 +127,7 @@ export function BriefSourcesStrip({
             }}
           >
             {openDefs ? "Hide definitions" : "What these terms mean"}
-          </button>
+          </Button>
           {openDefs ? (
             <div data-testid="brief-definitions" style={{ marginTop: 6 }}>
               {explanations.map((e) => (

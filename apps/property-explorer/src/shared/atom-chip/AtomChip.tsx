@@ -8,6 +8,7 @@
 // component, to keep the extraction mechanical and its tests untouched.
 
 import type { CSSProperties } from "react";
+import { Button } from "../../components/Button";
 import {
   ATOM_ACCENT,
   ATOM_ACCENT_BG,
@@ -39,10 +40,11 @@ export function AtomChip({
     borderRadius: 8,
     padding: "0 5px",
     lineHeight: 1.6,
+    height: "auto",
     cursor: "pointer",
   };
   return (
-    <button
+    <Button
       type="button"
       data-testid={testId}
       aria-expanded={isOpen}
@@ -69,6 +71,6 @@ export function AtomChip({
       >
         {label}
       </span>
-    </button>
+    </Button>
   );
 }

@@ -355,7 +355,7 @@ export function PropertyBriefPanel({
           </Button>
           {/* Embedded (dock) mode: the dock header owns the × — no double close. */}
           {!embedded && (
-            <button
+            <Button
               type="button"
               aria-label="Close"
               data-testid="brief-close"
@@ -368,10 +368,11 @@ export function PropertyBriefPanel({
                 fontSize: 15,
                 lineHeight: 1,
                 padding: 0,
+                height: "auto",
               }}
             >
               ×
-            </button>
+            </Button>
           )}
         </div>
       </div>
