@@ -246,23 +246,15 @@ export function searchBarWrapStyle(isMobile: boolean): CSSProperties {
   }
   // v2 find bar: 436 wide, dropping 6px to its suggestion list.
   //
-  // IT RESCALES AROUND THE DOCK. The bar used to be centred on the whole
-  // viewport at a fixed 436px. Expand the workbench column and it grows to
-  // 860px on the right, which on a 1180px window covers x=246..1106 — the
-  // centred bar sits at 372..808, entirely underneath it. The operator hit
-  // exactly that.
-  //
-  // The reserve is published by the Workbench as --ss-dock-reserve (0 when
-  // nothing is expanded), so this reads live from CSS with no prop drilling
-  // and no second source of truth for the column width. Centring is done by
-  // the auto margins on the child rather than a translate, because a
-  // translate cannot centre inside a shrinking box.
+  // IT STAYS CENTRED ON THE VIEWPORT AND DOES NOT MOVE. A version that shrank
+  // around the expanded workbench column shipped on 2026-08-28 and was pulled
+  // the same day: the operator did not want the bar relocating as docks open
+  // and close. The overlap it addressed is real — an expanded column can sit
+  // over the bar — but a bar that moves is the worse of the two. Left here so
+  // the next person knows this was tried, not overlooked.
   return {
     ...base,
-    left: 12,
-    right: "calc(var(--ss-dock-reserve, 0px) + 12px)",
-    transform: "none",
-    alignItems: "center",
+    width: "min(436px, calc(100vw - 24px))",
   };
 }
 
