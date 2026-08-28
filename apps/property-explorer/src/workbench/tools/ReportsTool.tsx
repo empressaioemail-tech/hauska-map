@@ -43,6 +43,13 @@ import {
 } from "./RecordsRequestSection";
 import { RecordsRunsInbox } from "./RecordsRunsInbox";
 import {
+  isUnseen,
+  loadSeen,
+  reportKey,
+  resolveSeen,
+  saveSeen,
+} from "./reports-seen";
+import {
   assembleDossierExportBody,
   dossierExportNotice,
   requestDossierExport,
@@ -75,6 +82,8 @@ const MUTED = PE.muted2;
 const TEXT = PE.text;
 const CARD_BORDER = "var(--surface-border, #243247)";
 const BLUE = PE.accent;
+/** Unread marker. Amber is the operator-chosen colour for "new to you". */
+const AMBER = PE.warning;
 
 export interface DossierDockState {
   notice: string | null;
@@ -260,6 +269,16 @@ export function ReportsTool() {
             host={host}
             onOpenRecordsForParcel={openRecordsForParcel}
           />
+          {/* THE LIBRARY IS ACCOUNT-WIDE AND BELONGS IN BOTH STATES.
+              It used to render only when NO parcel was selected, so selecting
+              a property made your filed reports vanish — the same list, the
+              same account, gone because you clicked a parcel. Operator
+              2026-08-28: the pre-selection presentation is the one to keep,
+              in both. `ReportsLibrary` reads listSavedProperties, not the
+              active parcel, so this is the identical list, not a variant. */}
+          <div style={{ marginBottom: 12 }}>
+            <ReportsLibrary />
+          </div>
           {locked ? (
         <div data-testid="reports-locked" data-pro-only="false">
           <OptionDChrome
@@ -339,6 +358,18 @@ function ReportsLibrary() {
     "loading",
   );
   const [viewing, setViewing] = useState<FiledReportRow | null>(null);
+  // null until the rows land: the seed decision needs the rows to seed WITH.
+  const [seen, setSeen] = useState<ReadonlySet<string> | null>(null);
+
+  /** Opening a report is what marks it read. Nothing else does. */
+  const markSeen = (row: FiledReportRow) => {
+    setSeen((cur) => {
+      const next = new Set(cur ?? []);
+      next.add(reportKey(row));
+      saveSeen(next);
+      return next;
+    });
+  };
 
   useEffect(() => {
     let cancelled = false;
@@ -354,7 +385,13 @@ function ReportsLibrary() {
         setRows([]);
         return;
       }
-      setRows(filedReportsFromSaved(outcome.items));
+      const filed = filedReportsFromSaved(outcome.items);
+      setRows(filed);
+      // Seed here, not on mount: an untracked reader's EXISTING library is
+      // not news, and only rows filed after this point may light up.
+      const resolved = resolveSeen(filed, loadSeen());
+      saveSeen(resolved);
+      setSeen(resolved);
       setMode("ready");
     });
     return () => {
@@ -410,6 +447,25 @@ function ReportsLibrary() {
             fontSize: 12.5,
           }}
         >
+          <span
+            data-testid={
+              seen && isUnseen(row, seen)
+                ? "reports-library-unseen"
+                : "reports-library-seen"
+            }
+            aria-label={seen && isUnseen(row, seen) ? "Not opened yet" : undefined}
+            style={{
+              width: 6,
+              height: 6,
+              borderRadius: "50%",
+              flex: "0 0 auto",
+              alignSelf: "center",
+              // Amber only when we actually know it is new. While `seen` is
+              // still null we know nothing, so the slot holds its space and
+              // shows no colour rather than guessing.
+              background: seen && isUnseen(row, seen) ? AMBER : "transparent",
+            }}
+          />
           <span style={{ flex: 1, color: TEXT }}>
             {filedKindLabel(row.kind)}
             <span style={{ color: MUTED, fontSize: 11.5 }}>
@@ -422,7 +478,10 @@ function ReportsLibrary() {
             <button
               type="button"
               data-testid="reports-library-view"
-              onClick={() => setViewing(row)}
+              onClick={() => {
+                markSeen(row);
+                setViewing(row);
+              }}
               style={{
                 background: "transparent",
                 border: 0,

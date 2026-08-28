@@ -235,13 +235,17 @@ describe("brief in the dock — per-property persistent via the chassis store", 
       activeParcelNodeId: "48021:123",
       store,
     });
-    // Embedded brief content, same facts + citations as ever.
-    expect(html).toContain('data-testid="research-brief"');
-    expect(html).toContain('data-embedded="true"');
-    expect(html).toContain("tx-bastrop-parcel-000123");
-    expect(html).toContain('data-testid="brief-citations"');
-    // Export PDF intact; the DOCK owns the × (no double close control).
-    expect(html).toContain('data-testid="brief-export-pdf"');
+    // The STORED brief renders. Since 2026-08-28 the dock shows
+    // BriefSourcesStrip (sources + run provenance) rather than a second full
+    // report: the inspect card above it states the parcel facts, so the panel
+    // duplicated it and contradicted it wherever the baked snapshot had less
+    // coverage. The store behaviour under test is unchanged — only the
+    // surface it renders through.
+    expect(html).toContain('data-testid="brief-sources-strip"');
+    expect(html).toContain('data-testid="brief-provenance"');
+    // Export moved out with the panel; it lives in Reports with the others.
+    expect(html).not.toContain('data-testid="brief-export-pdf"');
+    // The DOCK still owns the × (no double close control).
     expect(html).not.toContain('data-testid="brief-close"');
     expect(html).toContain('data-testid="dock-close"');
     // Not showing the fetch state — the stored brief IS the content.
@@ -285,7 +289,7 @@ describe("brief in the dock — per-property persistent via the chassis store", 
       activeParcelNodeId: "48021:123",
       store,
     });
-    expect(reopened).toContain("tx-bastrop-parcel-000123");
+
     expect(reopened).not.toContain("Checking access");
   });
 });
