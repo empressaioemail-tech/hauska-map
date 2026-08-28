@@ -21,12 +21,14 @@ export function PdfViewer({
   title,
   parcelNodeId,
   grantId,
+  downloadLabel = "Download PDF",
   onClose,
 }: {
   href: string;
   title: string;
   parcelNodeId?: string | null;
   grantId?: string | null;
+  downloadLabel?: string;
   onClose: () => void;
 }) {
   const live = liveViewHref({ parcelNodeId, grantId });
@@ -329,7 +331,7 @@ export function PdfViewer({
               textDecoration: "none",
             }}
           >
-            Download PDF
+            {downloadLabel}
           </a>
         </div>
       </Modal>

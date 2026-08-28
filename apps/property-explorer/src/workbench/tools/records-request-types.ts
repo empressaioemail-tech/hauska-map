@@ -43,6 +43,8 @@ export interface RecordsInstrumentRow {
   readDepth: RecordsReadDepth;
   acquisitionNote?: string;
   corridorPlaced?: boolean;
+  /** Prefixed PE deep-proxy href, or null when no captured image exists. */
+  documentUrl?: string | null;
 }
 
 export interface RecordsTypeFilter {

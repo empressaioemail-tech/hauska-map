@@ -31,6 +31,7 @@ function isDeepPathAllowed(method: string, upstreamPath: string): boolean {
   ])
   const DEEP_GET_PREFIX = [
     'api/property-explorer/v1/research/layer-manifest',
+    'api/property-explorer/v1/records-request/artifacts',
   ]
   const DEEP_POST_EXACT = new Set([
     'api/property-explorer/v1/research/brief',
@@ -163,6 +164,21 @@ describe('proxy allowlists', () => {
   it('allows records-request GET and inbox on deep proxy', () => {
     expect(isDeepPathAllowed('GET', 'api/property-explorer/v1/records-request')).toBe(true)
     expect(isDeepPathAllowed('GET', 'api/property-explorer/v1/records-request/inbox')).toBe(true)
+  })
+
+  it('allows records-request artifact document GET and blocks a neighboring invent', () => {
+    expect(
+      isDeepPathAllowed(
+        'GET',
+        'api/property-explorer/v1/records-request/artifacts/art-1/document',
+      ),
+    ).toBe(true)
+    expect(
+      isDeepPathAllowed('GET', 'api/property-explorer/v1/records-request/artifacts'),
+    ).toBe(true)
+    expect(
+      isDeepPathAllowed('GET', 'api/property-explorer/v1/records-request/extra'),
+    ).toBe(false)
   })
 
   it('allows records-request fee approve/decline POST on deep proxy', () => {

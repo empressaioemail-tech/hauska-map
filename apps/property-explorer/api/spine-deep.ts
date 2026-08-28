@@ -21,6 +21,8 @@ const DEEP_GET_EXACT = new Set([
 
 const DEEP_GET_PREFIX = [
   'api/property-explorer/v1/research/layer-manifest',
+  // P-85 Card 3 — captured instrument page (PNG/PDF) on a records-request artifact.
+  'api/property-explorer/v1/records-request/artifacts',
 ]
 
 const DEEP_POST_EXACT = new Set([

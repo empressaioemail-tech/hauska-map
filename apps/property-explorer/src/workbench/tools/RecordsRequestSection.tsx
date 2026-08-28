@@ -4,6 +4,7 @@
 
 import { useCallback, useEffect, useState, type CSSProperties } from "react";
 import { Button } from "../../components/Button";
+import { PdfViewer } from "../../components/PdfViewer";
 import { PE } from "../../styles/pe-chrome";
 import {
   approveRecordsPurchase,
@@ -582,6 +583,9 @@ function RecordsResultsPanel({
   pendingMessage?: string | null;
 }) {
   const sub = [address, countyName].filter(Boolean).join(" · ");
+  const [viewer, setViewer] = useState<{ href: string; title: string } | null>(
+    null,
+  );
   return (
     <div
       data-testid="records-results-panel"
@@ -676,7 +680,11 @@ function RecordsResultsPanel({
           </div>
         ) : null}
         {instruments.map((row) => (
-          <RecordsInstrumentListRow key={row.id} row={row} />
+          <RecordsInstrumentListRow
+            key={row.id}
+            row={row}
+            onOpenImage={(href, title) => setViewer({ href, title })}
+          />
         ))}
       </div>
 
@@ -696,11 +704,25 @@ function RecordsResultsPanel({
           ))}
         </div>
       ) : null}
+      {viewer ? (
+        <PdfViewer
+          href={viewer.href}
+          title={viewer.title}
+          downloadLabel="Download image"
+          onClose={() => setViewer(null)}
+        />
+      ) : null}
     </div>
   );
 }
 
-function RecordsInstrumentListRow({ row }: { row: RecordsInstrumentRow }) {
+function RecordsInstrumentListRow({
+  row,
+  onOpenImage,
+}: {
+  row: RecordsInstrumentRow;
+  onOpenImage: (href: string, title: string) => void;
+}) {
   return (
     <div
       data-testid={`records-instrument-${row.id}`}
@@ -748,7 +770,31 @@ function RecordsInstrumentListRow({ row }: { row: RecordsInstrumentRow }) {
           ) : null}
         </div>
       </div>
-      <span style={{ fontSize: 12.5, color: BLUE, flex: "none" }}>Image</span>
+      {row.documentUrl ? (
+        <button
+          type="button"
+          data-testid={`records-instrument-image-${row.id}`}
+          onClick={() => onOpenImage(row.documentUrl!, row.label)}
+          style={{
+            fontSize: 12.5,
+            color: BLUE,
+            flex: "none",
+            background: "transparent",
+            border: 0,
+            cursor: "pointer",
+            padding: 0,
+          }}
+        >
+          Image
+        </button>
+      ) : (
+        <span
+          data-testid={`records-instrument-no-image-${row.id}`}
+          style={{ fontSize: 12.5, color: SLATE, flex: "none" }}
+        >
+          image not acquired yet
+        </span>
+      )}
     </div>
   );
 }

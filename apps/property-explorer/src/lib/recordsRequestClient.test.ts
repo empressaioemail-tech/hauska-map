@@ -5,6 +5,7 @@ import {
   instrumentsFromClassifiedScope,
   instrumentsFromIndexHits,
   instrumentsFromScope,
+  peDocumentHref,
   RECORDS_NOT_REQUESTED_NOTICE,
   RECORDS_NOT_WIRED_NOTICE,
   requestRecordsRun,
@@ -71,6 +72,25 @@ describe("instrumentsFromScope", () => {
     expect(rows[0]?.label).toBe("WARRANTY DEED");
     expect(rows[0]?.readDepth).toBe("not-acquired");
     expect(rows[0]?.acquisitionNote).toContain("Clerk index hit");
+    expect(rows[0]?.documentUrl).toBeNull();
+  });
+
+  it("prefixes a captured documentUrl and refuses a raw http(s) object URL", () => {
+    const rows = instrumentsFromIndexHits({
+      indexHits: [
+        {
+          recordingRef: "2019012345",
+          documentType: "WARRANTY DEED",
+          documentUrl:
+            "/api/property-explorer/v1/records-request/artifacts/art-1/document",
+        },
+      ],
+    });
+    expect(rows[0]?.documentUrl).toBe(
+      "/api/spine-deep/api/property-explorer/v1/records-request/artifacts/art-1/document",
+    );
+    expect(peDocumentHref("https://storage.googleapis.com/bucket/obj")).toBeNull();
+    expect(peDocumentHref(null)).toBeNull();
   });
 
   it("prefers classified recordedInstruments over indexHits", () => {
