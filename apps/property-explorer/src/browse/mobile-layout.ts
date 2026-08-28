@@ -80,10 +80,27 @@ export function dockLayoutStyle(
   // and grows LEFTWARD into the map. Same height budget as compact — the only
   // thing that changes is width.
   if (isExpanded) {
+    // THE COLUMN STOPS BEFORE THE FIND BAR. Expanded, it used to grow to 860
+    // and slide under the search bar, which shares this top band. The bar is
+    // not allowed to move (operator, 2026-08-28, after a version that did),
+    // so the column yields instead.
+    //
+    // The arithmetic, so the next person can check it rather than trust it:
+    //   12  bar left inset
+    //  436  bar width
+    //   12  channel between bar and column
+    //   74  right gutter the column already anchors to
+    //  ---
+    //  534  taken out of the viewport before the column gets any
+    //
+    // CLAMPED AT BOTH ENDS on purpose. max(380px, ...) means expanded can
+    // never come out NARROWER than compact, which is what a naive subtraction
+    // produces on a small window and would read as the button doing the
+    // opposite of its label. min(860px, ...) keeps the ceiling it always had.
     return {
       top: 12,
       right: 74,
-      width: "min(860px, calc(100vw - 98px))",
+      width: "max(380px, min(860px, calc(100vw - 534px)))",
       maxHeight: "calc(100vh - 28px)",
     };
   }

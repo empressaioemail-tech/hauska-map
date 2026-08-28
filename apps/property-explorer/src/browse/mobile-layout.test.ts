@@ -41,7 +41,10 @@ describe("dockLayoutStyle — desktop preserved", () => {
 
   it("EXPANDED widens the COLUMN, keeping the compact anchor", () => {
     const s = dockLayoutStyle(true, false);
-    expect(s.width).toBe("min(860px, calc(100vw - 98px))");
+    // SUPERSEDED 2026-08-28: the column now stops before the find bar, which
+    // shares this top band and is not allowed to move. 534 = 12 bar inset +
+    // 436 bar + 12 channel + 74 right gutter.
+    expect(s.width).toBe("max(380px, min(860px, calc(100vw - 534px)))");
     expect(String(s.maxHeight)).toBe("calc(100vh - 28px)");
   });
 });
@@ -89,5 +92,28 @@ describe("the find bar is fixed and does not move", () => {
 
   it("mobile fills the viewport, unchanged", () => {
     expect(searchBarWrapStyle(true).width).toBe("calc(100vw - 16px)");
+  });
+});
+
+describe("expanded never comes out narrower than compact", () => {
+  // A naive "viewport minus the bar" subtraction drops below the 380 compact
+  // width on a small window, so the expand control would make the column
+  // SMALLER — the opposite of its label. The max() floor is the guard; this
+  // pins that it is present rather than trusting the expression reads right.
+  it("floors the expanded width at the compact width", () => {
+    const expanded = String(dockLayoutStyle(true, false).width);
+    const compact = String(dockLayoutStyle(false, false).width);
+    expect(compact).toContain("380px");
+    expect(expanded.startsWith("max(380px,")).toBe(true);
+  });
+
+  it("keeps the 860 ceiling it always had", () => {
+    expect(String(dockLayoutStyle(true, false).width)).toContain("min(860px,");
+  });
+
+  it("reserves the bar PLUS both gutters, not just the bar", () => {
+    // 534, not 436: a subtraction that forgets the gutters puts the column
+    // flush against the bar and re-creates the overlap.
+    expect(String(dockLayoutStyle(true, false).width)).toContain("100vw - 534px");
   });
 });
