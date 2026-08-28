@@ -96,7 +96,8 @@ export interface FloatingMapProps {
    */
   suppressAttributionControl?: boolean;
   /** PE restyles the renderer legend chip as a 34px bubble. CC keeps the chip. */
-  legendChrome?: "chip" | "bubble";
+  /** "none" hands the legend to the host — see map-renderer.js. */
+  legendChrome?: "chip" | "bubble" | "none";
   /** Title shown in the floating window title bar. */
   title?: string;
   /** Container style overrides. */

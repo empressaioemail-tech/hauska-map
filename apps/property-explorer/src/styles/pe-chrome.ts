@@ -17,7 +17,7 @@ export const PE = {
   // ---- Ground -----------------------------------------------------------
   void: "var(--ss-void, #07090D)",
   ink: "var(--ss-ink, #0B0E13)",
-  raised: "var(--ss-raised, #12171F)",
+  raised: "var(--ss-raised, #12161D)",
   /** dock / inspect / any card on the map */
   panel: "var(--ss-ink-94, rgba(11,14,19,.94))",
   /** find bar, map controls */
@@ -25,8 +25,8 @@ export const PE = {
   /** rail bubble at rest */
   bubbleRest: "var(--ss-ink-90, rgba(11,14,19,.90))",
   sheet: "var(--ss-ink-96, rgba(11,14,19,.96))",
-  tipBg: "var(--ss-raised-97, rgba(18,23,31,.97))",
-  modalBg: "var(--ss-raised-98, rgba(18,23,31,.98))",
+  tipBg: "var(--ss-raised-97, rgba(18,22,29,.97))",
+  modalBg: "var(--ss-raised-98, rgba(18,22,29,.98))",
   scrim: "var(--ss-scrim, rgba(6,9,13,.74))",
 
   // ---- Hairlines. Three weights, one hue. Never a fourth. ---------------

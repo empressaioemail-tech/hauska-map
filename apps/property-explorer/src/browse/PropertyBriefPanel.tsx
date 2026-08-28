@@ -313,7 +313,7 @@ export function PropertyBriefPanel({
               padding: 14,
               borderRadius: 8,
               color: TEXT,
-              background: "rgba(13,17,23,0.94)",
+              background: "rgba(11,14,19,0.94)",
               border: "1px solid rgba(154,166,178,0.35)",
               font: "12px/1.45 system-ui, -apple-system, Segoe UI, Roboto, sans-serif",
               animation: "pe-brief-in 280ms ease",

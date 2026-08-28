@@ -110,7 +110,7 @@ function MobileBottomNav({
         zIndex: MAP_PANEL_Z.nav,
         display: "flex",
         borderTop: "1px solid rgba(154,166,178,0.35)",
-        background: "rgba(13,17,23,0.96)",
+        background: "rgba(11,14,19,0.96)",
         fontFamily: "system-ui, -apple-system, Segoe UI, Roboto, sans-serif",
         paddingBottom: "env(safe-area-inset-bottom, 0px)",
       }}
@@ -211,7 +211,7 @@ export function MobileSheet({
         maxHeight: `calc(100vh - ${PE_MOBILE_NAV_HEIGHT_PX}px - 56px)`,
         overflowY: "auto",
         WebkitOverflowScrolling: "touch",
-        background: "rgba(13,17,23,0.98)",
+        background: "rgba(11,14,19,0.98)",
         borderTop: "1px solid rgba(154,166,178,0.28)",
         boxShadow: "0 -10px 36px rgba(0,0,0,0.45)",
       }}

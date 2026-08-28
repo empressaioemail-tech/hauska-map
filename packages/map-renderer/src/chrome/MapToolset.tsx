@@ -35,6 +35,7 @@ import { GeolocateControl } from "maplibre-gl";
 import type { Map as MaplibreMap } from "maplibre-gl";
 import type { FloatingMapHandle } from "../FloatingMap";
 import { LAYER_REGISTRY } from "../layer-registry.js";
+import { legendSectionsFor, legendPanelHtml } from "../map/map-legend.js";
 import {
   INTERACTION_CYAN,
   MAP_LAYER_PRESETS,
@@ -51,7 +52,7 @@ import {
   EMPTY_TOOLS_SNAPSHOT,
 } from "./mapToolsController";
 
-const PANEL_BG = "rgba(13,17,23,0.9)";
+const PANEL_BG = "rgba(11,14,19,0.9)";
 const PANEL_BORDER = "0.5px solid rgba(154,166,178,0.28)";
 const TEXT = "#e6edf3";
 const MUTED = "#8b97a5";
@@ -164,6 +165,76 @@ function chromeBubbleStyle(active: boolean): CSSProperties {
  * glass with an arrow, matching the workbench BubbleTip on the opposite edge
  * so the two rails speak one language.
  */
+/**
+ * The LEGEND, rendered by the host so it can live in the capsule with the
+ * other three tools (operator ruling 2026-08-27: legend and notifications join
+ * draw and layers in one tool area).
+ *
+ * The renderer is put in `legendChrome: "none"` and its MODEL is reused —
+ * `legendSectionsFor` / `legendPanelHtml` are the same exported pure functions
+ * its own DOM legend calls, so this is a second RENDERER of one model, never a
+ * second copy of the rules. If the palette changes there, it changes here.
+ *
+ * The panel is absolutely positioned: a 300px key cannot sit in the flow of a
+ * 46px rail without bursting it.
+ */
+function LegendBubble({
+  visible,
+  side,
+}: {
+  visible: ReadonlySet<LayerKey>;
+  side: "left" | "right";
+}) {
+  const [open, setOpen] = useState(false);
+  const sections = legendSectionsFor([...visible]);
+  // No sections means nothing on screen needs a key. Render no bubble at all
+  // rather than one that opens onto an empty panel.
+  if (sections.length === 0) return null;
+  return (
+    <div style={{ position: "relative", display: "inline-flex" }}>
+      <MapFlyTip side={side} label="Legend">
+        <button
+          type="button"
+          data-testid="map-toolset-legend-bubble"
+          aria-label={open ? "Hide legend" : "Legend"}
+          aria-expanded={open}
+          onClick={() => setOpen((v) => !v)}
+          style={chromeBubbleStyle(open)}
+        >
+          <svg viewBox="0 0 24 24" width={16} height={16} aria-hidden="true" fill="none" stroke="currentColor" strokeWidth={1.7} strokeLinecap="round" strokeLinejoin="round">
+            <path d="M4 6h10 M4 12h16 M4 18h7" />
+          </svg>
+        </button>
+      </MapFlyTip>
+      {open ? (
+        <div
+          data-testid="map-toolset-legend-panel"
+          className="pe-scroll"
+          style={{
+            position: "absolute",
+            bottom: 0,
+            ...(side === "right"
+              ? { left: "100%", marginLeft: 13 }
+              : { right: "100%", marginRight: 13 }),
+            width: 264,
+            maxHeight: "46vh",
+            overflowY: "auto",
+            padding: "10px 12px",
+            borderRadius: 10,
+            background: "rgba(11,14,19,.96)",
+            border: "1px solid rgba(154,166,178,.15)",
+            boxShadow: "0 18px 44px rgba(0,0,0,.55)",
+            font: "400 11.5px/1.35 system-ui,-apple-system,'Segoe UI',sans-serif",
+            color: "#C6D0DC",
+            zIndex: 40,
+          }}
+          dangerouslySetInnerHTML={{ __html: legendPanelHtml(sections) }}
+        />
+      ) : null}
+    </div>
+  );
+}
+
 function MapFlyTip({
   label,
   side,
@@ -1321,7 +1392,7 @@ export function MapToolset({
         maxHeight: "calc(100vh - 52px - 56px)",
         overflowY: "auto",
         WebkitOverflowScrolling: "touch",
-        background: "rgba(13,17,23,0.98)",
+        background: "rgba(11,14,19,0.98)",
         borderTop: "1px solid rgba(154,166,178,0.28)",
         boxShadow: "0 -10px 36px rgba(0,0,0,0.45)",
         display: "flex",
@@ -1375,7 +1446,9 @@ export function MapToolset({
       data-anchor={anchor}
       style={{
         position: "absolute",
-        bottom: anchor === "left" ? 56 : 16,
+        // 72, not 56: at 56 the capsule crowded the brand chip below it
+        // (operator, 2026-08-27). Kit 04 draws the left rail at bottom:72.
+        bottom: anchor === "left" ? 72 : 16,
         ...(anchor === "left" ? { left: 12 } : { right: 12 }),
         zIndex: MAP_PANEL_Z.toolset,
         display: "flex",
@@ -1581,11 +1654,6 @@ export function MapToolset({
           "Sources" panel (© OSM / © CARTO + SATELLITE_ATTRIBUTION), which is the
           single attribution place. See MapCornerChrome.tsx / ExplorerMap.tsx. */}
 
-      {/* `stackExtras` (the app's Sources ⓘ and its 264px panel) sits OUTSIDE
-          the capsule: it carries a panel far wider than a 46px rail, so
-          nesting it would have burst the container. */}
-      {stackExtras}
-
       {/* THE CAPSULE. Kit 04: ONE floating glass container holding the
           bubbles, not N separately-bordered buttons — same language as the
           workbench rail on the opposite edge.
@@ -1603,13 +1671,19 @@ export function MapToolset({
           gap: 6,
           padding: "8px 6px",
           borderRadius: 24,
-          background: "rgba(10,14,26,.92)",
+          background: "rgba(11,14,19,.92)",
           border: "1px solid rgba(255,255,255,.09)",
           boxShadow: "0 10px 34px rgba(0,0,0,.5)",
           backdropFilter: "blur(14px)",
           WebkitBackdropFilter: "blur(14px)",
         }}
       >
+        {/* FOUR TOOLS, ONE CAPSULE (operator ruling 2026-08-27): legend and
+            notifications join draw and layers. Every panel they open is
+            absolutely positioned, so a 264px key or source register never
+            sits in the flow of a 46px rail. */}
+        <LegendBubble visible={visible} side={tipSide} />
+        {stackExtras}
         {splitBubbles ? (
           <>
             <MapFlyTip

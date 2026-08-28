@@ -102,7 +102,7 @@
 /* Note-pin hover. MapLibre defaults to a white card; PE canvas text is
    white, so the unstyled popup is white-on-white (W0.7). Named island. */
 .map-note-hover .maplibregl-popup-content {
-  background: #0d1117;
+  background: #0B0E13;
   color: #e5e7eb;
   border: 1px solid rgba(154, 166, 178, 0.35);
   border-radius: 6px;
@@ -113,17 +113,17 @@
 }
 
 .map-note-hover.maplibregl-popup-anchor-bottom .maplibregl-popup-tip {
-  border-top-color: #0d1117;
+  border-top-color: #0B0E13;
 }
 
 .map-note-hover.maplibregl-popup-anchor-top .maplibregl-popup-tip {
-  border-bottom-color: #0d1117;
+  border-bottom-color: #0B0E13;
 }
 
 .map-note-hover.maplibregl-popup-anchor-left .maplibregl-popup-tip {
-  border-right-color: #0d1117;
+  border-right-color: #0B0E13;
 }
 
 .map-note-hover.maplibregl-popup-anchor-right .maplibregl-popup-tip {
-  border-left-color: #0d1117;
+  border-left-color: #0B0E13;
 }

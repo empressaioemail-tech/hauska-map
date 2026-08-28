@@ -85,7 +85,11 @@ export function RecordsRunsInbox({
   const [rows, setRows] = useState<RecordsInboxRow[]>([]);
   const [notice, setNotice] = useState<string | null>(null);
   const [wired, setWired] = useState(true);
-  const [collapsed, setCollapsed] = useState(false);
+  // Collapsed on arrival (operator ruling 2026-08-27). Landing on My reports
+  // with 25 request rows already unrolled buries the reports themselves — the
+  // list is a drawer you open, not the first thing the tab is about. The count
+  // stays visible in the header, so nothing is hidden, only folded.
+  const [collapsed, setCollapsed] = useState(true);
 
   const refresh = useCallback(async () => {
     const result = await fetchRecordsInbox();
@@ -130,7 +134,7 @@ export function RecordsRunsInbox({
         marginBottom: 14,
         border: `1px solid ${CARD_BORDER}`,
         borderRadius: 10,
-        background: "rgba(15,23,42,0.35)",
+        background: "rgba(18,22,29,0.35)",
         overflow: "hidden",
       }}
     >

@@ -1910,7 +1910,9 @@ function ExplorerMapSurface({
         // into the same lower-right corner (a floating imagery strip overlapping
         // the ⓘ / layers bubbles). One attribution place, not two.
         suppressAttributionControl
-        legendChrome="bubble"
+        // The legend now lives in the left capsule with the other three
+        // tools; the renderer must not also mount its own bubble.
+        legendChrome="none"
         // Mount-time seed ONLY (stable identity). Subject changes re-point the
         // live handle via rebindProperty — the center prop never re-points.
         center={DEFAULT_CENTER}

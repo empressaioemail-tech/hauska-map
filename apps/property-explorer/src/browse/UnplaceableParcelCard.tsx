@@ -23,7 +23,7 @@ import { isPresent, type UnplaceableParcel } from "@empressaio/parcel-fact-sheet
 import { Button } from "../components/Button";
 
 const MUTED = "var(--surface-muted, #94A3B8)";
-const CARD_BG = "var(--surface-card-translucent, rgba(13,17,23,0.94))";
+const CARD_BG = "var(--surface-card-translucent, rgba(11,14,19,0.94))";
 
 const shell: CSSProperties = {
   position: "absolute",

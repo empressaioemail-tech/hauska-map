@@ -44,6 +44,24 @@ const BASEMAP_ATTRIBUTION = "© OpenStreetMap © CARTO";
 const REQUIRED_ATTRIBUTION_LINES = [BASEMAP_ATTRIBUTION, SATELLITE_ATTRIBUTION];
 
 /**
+ * The FIPS comes off the county name on the brand chip.
+ *
+ * `card.county` is composed as "Bastrop County (48021)" in sheet-to-card.ts,
+ * and that is RIGHT for the inspect card's County row, which is an identity
+ * row where the code earns its place. On the brand chip it is noise beside a
+ * wordmark. Stripped here rather than at the source so the identity row keeps
+ * it. Pure and exported, so the rule is testable.
+ */
+export function countyDisplayName(county: string | null | undefined): string | null {
+  if (!county) return null;
+  const trimmed = county.trim();
+  if (!trimmed) return null;
+  // Only a trailing parenthesised FIPS — never a general paren strip, which
+  // would eat a legitimate name like "Doña Ana County (formerly ...)".
+  return trimmed.replace(/\s*\(\d{4,6}\)$/, "").trim() || null;
+}
+
+/**
  * Lower-left Smart Site brand chip. Static, non-interactive; pointer-events
  * none so it never eats a map click.
  */
@@ -110,7 +128,7 @@ export function SmartSiteBadge({
       >
         SMART <span style={{ color: PE.goldLt }}>SITE</span>
       </span>
-      {county ? (
+      {countyDisplayName(county) ? (
         <>
           <span
             aria-hidden
@@ -130,7 +148,7 @@ export function SmartSiteBadge({
               whiteSpace: "nowrap",
             }}
           >
-            {county}
+            {countyDisplayName(county)}
           </span>
         </>
       ) : null}
@@ -165,9 +183,9 @@ export function MapSourceInfo({
       style={{
         position: stacked ? "relative" : "absolute",
         ...(stacked ? {} : { right: 64, bottom: 16, zIndex: 11 }),
-        display: "flex",
+        display: stacked ? "inline-flex" : "flex",
         flexDirection: "column",
-        alignItems: stacked ? "flex-start" : "flex-end",
+        alignItems: stacked ? "center" : "flex-end",
         gap: 9,
         fontFamily: PE.ui,
       }}
@@ -177,9 +195,24 @@ export function MapSourceInfo({
       <div
         data-testid="map-source-info-panel"
         data-ss-motion=""
+        className="pe-scroll"
         style={{
           display: open ? "flex" : "none",
+          // In the capsule the panel must NOT take part in the rail's flow —
+          // 264px inside a 46px capsule would burst it. It floats beside the
+          // bubble instead, anchored to the same bottom edge.
+          ...(stacked
+            ? {
+                position: "absolute",
+                bottom: 0,
+                left: "100%",
+                marginLeft: 13,
+                zIndex: 40,
+              }
+            : null),
           width: 264,
+          maxHeight: "46vh",
+          overflowY: "auto",
           flexDirection: "column",
           borderRadius: PE.rFloat,
           overflow: "hidden",

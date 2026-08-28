@@ -141,7 +141,7 @@ export function UnlockCheckoutModal({
                 overflowY: "auto",
                 borderRadius: 6,
                 border: "1px dashed rgba(154,166,178,0.28)",
-                background: "rgba(20,25,33,0.9)",
+                background: "rgba(18,22,29,0.9)",
               }}
             />
           ) : (

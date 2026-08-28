@@ -14,15 +14,18 @@
   /* ---- Ground -------------------------------------------------------- */
   --ss-void:      #07090D;  /* page behind everything */
   --ss-ink:       #0B0E13;  /* panel, dock, card fill */
-  --ss-raised:    #12171F;  /* modal, tooltip, popover fill */
+  --ss-raised:    #12161D;  /* modal, tooltip, popover fill — a LIFT of
+                               --ss-ink, not a bluer hue. Was #12171F, which
+                               carried +13 blue over red against the logo's +8
+                               and read as a different, colder material. */
 
   /* the translucent panel fills, derived from the two grounds */
   --ss-ink-94:    rgba(11,14,19,.94);   /* dock / inspect / card on the map */
   --ss-ink-92:    rgba(11,14,19,.92);   /* find bar, map controls */
   --ss-ink-90:    rgba(11,14,19,.90);   /* rail bubble at rest */
   --ss-ink-96:    rgba(11,14,19,.96);   /* sources sheet */
-  --ss-raised-97: rgba(18,23,31,.97);   /* tooltip */
-  --ss-raised-98: rgba(18,23,31,.98);   /* modal */
+  --ss-raised-97: rgba(18,22,29,.97);   /* tooltip */
+  --ss-raised-98: rgba(18,22,29,.98);   /* modal */
   --ss-scrim:     rgba(6,9,13,.74);     /* modal scrim over the map */
 
   /* ---- Hairlines — three weights, one hue. Do not add a fourth. ------- */

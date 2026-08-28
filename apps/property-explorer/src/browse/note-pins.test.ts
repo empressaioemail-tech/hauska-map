@@ -31,7 +31,8 @@ describe("map-pin notes — up to 10 colors, hover shows text", () => {
       "utf8",
     );
     expect(css).toContain(".map-note-hover .maplibregl-popup-content");
-    expect(css).toContain("background: #0d1117");
+    // Neutral-ground sweep 2026-08-27: every surface moved onto the logo ink.
+    expect(css).toContain("background: #0B0E13");
     expect(css).toContain("color: #e5e7eb");
   });
 

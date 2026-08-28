@@ -37,7 +37,7 @@ const AMBER = PE.warning;
 const TEXT = PE.text;
 const ACCENT = PE.accent;
 const SECTION_BORDER = "1px solid rgba(154,166,178,0.2)";
-const PERSONA_BG = "#0d1117";
+const PERSONA_BG = "#0B0E13";
 const PERSONA_FG = "#e5e7eb";
 
 /** Debounce delay for notes autosave (ms). Exported for tests. */
@@ -127,7 +127,7 @@ export function DossierStatusSelector({
               padding: "3px 10px",
               borderRadius: 999,
               cursor: busy ? "default" : "pointer",
-              color: selected ? "#0d1117" : accent,
+              color: selected ? "#0B0E13" : accent,
               background: selected ? accent : "transparent",
               border: `1px solid ${accent}`,
               opacity: busy ? 0.6 : 1,
