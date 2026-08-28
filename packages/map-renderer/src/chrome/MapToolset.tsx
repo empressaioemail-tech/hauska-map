@@ -204,26 +204,60 @@ function LegendBubble({
   );
 }
 
-/** The legend key, as a panel in the left column. */
+/** The legend key, on the same StackPanel template as everything else. */
 function LegendPanel({
   sections,
+  open,
+  onToggle,
   onClose,
 }: {
   sections: ReturnType<typeof legendSectionsFor>;
+  open: boolean;
+  onToggle: () => void;
   onClose: () => void;
 }) {
   return (
-    <div
-      data-testid="map-toolset-legend-panel"
-      className="pe-scroll"
+    <StackPanel
+      testId="map-toolset-legend-panel"
+      title="Legend"
+      open={open}
+      onToggle={onToggle}
+      onClose={onClose}
+    >
+      <div
+        style={{ font: "400 11.5px/1.35 system-ui,-apple-system,'Segoe UI',sans-serif" }}
+        dangerouslySetInnerHTML={{ __html: legendPanelHtml(sections) }}
+      />
+    </StackPanel>
+  );
+}
+
+function StackPanel({
+  title,
+  testId,
+  open,
+  onToggle,
+  onClose,
+  children,
+}: {
+  title: string;
+  testId: string;
+  open: boolean;
+  onToggle: () => void;
+  onClose?: () => void;
+  children: ReactNode;
+}) {
+  return (
+    <section
+      data-testid={testId}
+      data-folded={!open ? "1" : undefined}
       style={{
-        display: "flex",
-        flexDirection: "column",
         width: "100%",
         flex: "0 0 auto",
-        maxHeight: "46vh",
-        overflowY: "auto",
-        borderRadius: 9,
+        display: "flex",
+        flexDirection: "column",
+        overflow: "hidden",
+        borderRadius: 10,
         background: PANEL_BG,
         border: PANEL_BORDER,
         boxShadow: "0 10px 32px rgba(0,0,0,0.45)",
@@ -231,44 +265,107 @@ function LegendPanel({
       }}
     >
       <div
+        role="button"
+        tabIndex={0}
+        aria-expanded={open}
+        onClick={onToggle}
+        onKeyDown={(e) => {
+          if (e.key === "Enter" || e.key === " ") {
+            e.preventDefault();
+            onToggle();
+          }
+        }}
         style={{
+          flex: "0 0 auto",
+          position: "sticky",
+          top: 0,
+          zIndex: 2,
           display: "flex",
           alignItems: "center",
-          height: 32,
+          gap: 8,
+          height: 36,
           padding: "0 8px 0 12px",
-          borderBottom: "1px solid rgba(154,166,178,.10)",
-          flex: "0 0 auto",
+          cursor: "pointer",
+          borderBottom: `1px solid ${open ? "rgba(154,166,178,.10)" : "transparent"}`,
+          background: PANEL_BG,
+          transition: "border-color 140ms cubic-bezier(.2,.6,.35,1)",
         }}
       >
-        <span style={{ ...sectionHeaderStyle(), flex: 1 }}>Legend</span>
-        <button
-          type="button"
-          aria-label="Hide legend"
-          onClick={onClose}
+        <span
           style={{
-            display: "inline-flex",
-            alignItems: "center",
-            justifyContent: "center",
-            width: 22,
-            height: 22,
-            borderRadius: 6,
-            background: "transparent",
-            border: "none",
-            color: MUTED,
-            cursor: "pointer",
-            padding: 0,
+            flex: 1,
+            fontSize: 11,
+            fontWeight: 600,
+            letterSpacing: ".1em",
+            textTransform: "uppercase",
+            color: open ? TEXT : MUTED,
+            overflow: "hidden",
+            textOverflow: "ellipsis",
+            whiteSpace: "nowrap",
+            transition: "color 140ms cubic-bezier(.2,.6,.35,1)",
           }}
         >
-          <svg viewBox="0 0 24 24" width={12} height={12} aria-hidden fill="none" stroke="currentColor" strokeWidth={1.7} strokeLinecap="round">
-            <path d="M18 6 6 18 M6 6l12 12" />
-          </svg>
-        </button>
+          {title}
+        </span>
+        <svg
+          viewBox="0 0 24 24"
+          width={12}
+          height={12}
+          aria-hidden
+          fill="none"
+          stroke={MUTED}
+          strokeWidth={1.7}
+          strokeLinecap="round"
+          strokeLinejoin="round"
+          style={{
+            flex: "none",
+            transform: open ? "rotate(0deg)" : "rotate(-90deg)",
+            transition: "transform 180ms cubic-bezier(.2,.6,.35,1)",
+          }}
+        >
+          <path d="m6 9 6 6 6-6" />
+        </svg>
+        {onClose ? (
+          <button
+            type="button"
+            aria-label={`Close ${title}`}
+            onClick={(e) => {
+              e.stopPropagation();
+              onClose();
+            }}
+            style={{
+              display: "inline-flex",
+              alignItems: "center",
+              justifyContent: "center",
+              width: 22,
+              height: 22,
+              borderRadius: 6,
+              background: "transparent",
+              border: "none",
+              color: MUTED,
+              cursor: "pointer",
+              padding: 0,
+              flex: "none",
+            }}
+          >
+            <svg viewBox="0 0 24 24" width={12} height={12} aria-hidden fill="none" stroke="currentColor" strokeWidth={1.7} strokeLinecap="round">
+              <path d="M18 6 6 18 M6 6l12 12" />
+            </svg>
+          </button>
+        ) : null}
       </div>
       <div
-        style={{ padding: "10px 12px", font: "400 11.5px/1.35 system-ui,-apple-system,'Segoe UI',sans-serif" }}
-        dangerouslySetInnerHTML={{ __html: legendPanelHtml(sections) }}
-      />
-    </div>
+        style={{
+          maxHeight: open ? 2000 : 0,
+          opacity: open ? 1 : 0,
+          overflow: "hidden",
+          transition:
+            "max-height 220ms cubic-bezier(.2,.6,.35,1), opacity 140ms cubic-bezier(.2,.6,.35,1)",
+        }}
+      >
+        <div style={{ padding: "10px 12px 12px" }}>{children}</div>
+      </div>
+    </section>
   );
 }
 
@@ -517,7 +614,8 @@ export function ToolsetToolsSection({
 }) {
   return (
     <div data-testid="map-toolset-tools">
-      <div style={{ ...sectionHeaderStyle(), marginBottom: 7 }}>Tools</div>
+      {/* No heading here. The StackPanel wrapping this IS the heading; a
+          second one is what made the column read DRAW & MEASURE / TOOLS. */}
       <div style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>
         <button
           type="button"
@@ -1281,13 +1379,18 @@ export function MapToolset({
               : undefined
           }
         >
-          <SectionHeader
-            label="Layers"
-            open={layersOpen}
-            testId="map-toolset-layers-toggle"
-            onToggle={() => setLayersOpen((v) => !v)}
-          />
-          {layersOpen && (
+          {/* Only the UNIFIED panel needs this heading. In the split column
+              each panel is wrapped in a StackPanel that carries its own, and
+              rendering both is what made the column read LAYERS / LAYERS. */}
+          {!splitBubbles ? (
+            <SectionHeader
+              label="Layers"
+              open={layersOpen}
+              testId="map-toolset-layers-toggle"
+              onToggle={() => setLayersOpen((v) => !v)}
+            />
+          ) : null}
+          {(layersOpen || splitBubbles) && (
             <>
               <div
                 data-testid="map-toolset-presets"
@@ -1474,11 +1577,14 @@ export function MapToolset({
   // The legend's open state lives HERE, not inside its bubble, so the bubble
   // can sit in the capsule while the panel sits in the column.
   const [legendOpen, setLegendOpen] = useState(false);
+  const [legendCollapsed, setLegendCollapsed] = useState(false);
   const legendSections = legendSectionsFor([...visible]);
   const splitOpenCount = openKinds.size;
   // COLLAPSE, PER PANEL — the same act the right column calls folding, and
   // the same rule: only the panel you click changes, and nothing collapses
-  // because something else opened.
+  // because something else opened. The panel CHROME now comes from
+  // StackPanel, which is the right column's template; splitPanelStyle went
+  // away with it rather than being kept as a second way to draw a panel.
   const isCollapsed = (kind: "tools" | "layers") => collapsedKinds.has(kind);
   const toggleCollapsed = (kind: "tools" | "layers") =>
     setCollapsedKinds((cur) => {
@@ -1488,28 +1594,6 @@ export function MapToolset({
       return next;
     });
 
-  const splitPanelStyle = (kind: "tools" | "layers"): CSSProperties => ({
-    display: openKinds.has(kind) ? "flex" : "none",
-    width: 216,
-    flex: "0 0 auto",
-    flexDirection: "column",
-    gap: isCollapsed(kind) ? 0 : 9,
-    padding: isCollapsed(kind) ? "8px 12px" : "8px 12px 10px",
-    borderRadius: 9,
-    background: PANEL_BG,
-    border: PANEL_BORDER,
-    color: TEXT,
-    fontSize: 11.5,
-    boxShadow: "0 10px 32px rgba(0,0,0,0.45)",
-    // Collapsed keeps ONLY its header, exactly like a folded dock. The panel
-    // body no longer scrolls itself either: the left COLUMN is the one
-    // scroller, so a wheel gesture carries across panels instead of catching
-    // inside one.
-    maxHeight: isCollapsed(kind) ? 34 : leftUtilityMaxHeight(splitOpenCount),
-    overflow: "hidden",
-    transition:
-      "max-height 220ms cubic-bezier(.2,.6,.35,1), padding 140ms cubic-bezier(.2,.6,.35,1)",
-  });
 
   return (
     <div
@@ -1545,11 +1629,15 @@ export function MapToolset({
             justifyContent: "flex-end",
             gap: 8,
             width: 216,
-            // ONE scroller, same as the right column — and it fades out
-            // rather than being cut off. The vanishing point is 3/4 up the
-            // viewport, so the stack dissolves into the map instead of
-            // ending on a hard edge.
-            maxHeight: "75vh",
+            // ONE scroller, same as the right column.
+            //
+            // The height is bounded so the stack CANNOT run off the top of
+            // the screen, which is what it was doing: the root is anchored at
+            // bottom:72 and the capsule below it is ~130 tall, so the column
+            // gets whatever is left above that, minus a 20px breath at the
+            // top. Four open panels now scroll inside it instead of growing
+            // past the viewport.
+            maxHeight: "calc(100vh - 240px)",
             overflowY: "auto",
             overscrollBehavior: "contain",
           }}
@@ -1558,6 +1646,8 @@ export function MapToolset({
           {legendOpen && legendSections.length > 0 ? (
             <LegendPanel
               sections={legendSections}
+              open={!legendCollapsed}
+              onToggle={() => setLegendCollapsed((v) => !v)}
               onClose={() => setLegendOpen(false)}
             />
           ) : null}
@@ -1585,150 +1675,38 @@ export function MapToolset({
               Collapse all
             </button>
           )}
-          <div
-            data-testid="map-toolset-draw-panel"
-            style={splitPanelStyle("tools")}
+          <StackPanel
+            testId="map-toolset-draw-panel"
+            title="Draw & measure"
+            open={!isCollapsed("tools")}
+            onToggle={() => toggleCollapsed("tools")}
+            onClose={() => {
+              setOpenKinds((cur) => {
+                const next = new Set(cur);
+                next.delete("tools");
+                return next;
+              });
+              dispatchPanelDismiss("hide-all");
+            }}
           >
-            <div
-              style={{
-                display: "flex",
-                alignItems: "center",
-                gap: 6,
-                paddingBottom: 6,
-                borderBottom: "0.5px solid rgba(154,166,178,0.18)",
-              }}
-            >
-              <button
-                type="button"
-                data-testid="map-toolset-collapse-tools"
-                aria-expanded={!isCollapsed("tools")}
-                aria-label={
-                  isCollapsed("tools") ? "Expand Draw & measure" : "Collapse Draw & measure"
-                }
-                onClick={() => toggleCollapsed("tools")}
-                style={{
-                  ...sectionHeaderStyle(),
-                  flex: 1,
-                  display: "flex",
-                  alignItems: "center",
-                  gap: 6,
-                  background: "transparent",
-                  border: "none",
-                  padding: 0,
-                  cursor: "pointer",
-                  textAlign: "left",
-                }}
-              >
-                <svg
-                  viewBox="0 0 24 24"
-                  width={11}
-                  height={11}
-                  aria-hidden="true"
-                  fill="none"
-                  stroke="currentColor"
-                  strokeWidth={2}
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                  style={{
-                    flex: "none",
-                    transform: isCollapsed("tools")
-                      ? "rotate(-90deg)"
-                      : "rotate(0deg)",
-                    transition: "transform 180ms cubic-bezier(.2,.6,.35,1)",
-                  }}
-                >
-                  <path d="m6 9 6 6 6-6" />
-                </svg>
-                Draw & measure
-              </button>
-              <button
-                type="button"
-                data-testid="map-toolset-hide-all"
-                title="Hide all panels"
-                aria-label="Hide all panels"
-                onClick={() => {
-                  setExpanded(false);
-                  setOpenKinds(new Set());
-                  dispatchPanelDismiss("hide-all");
-                  onRequestClose?.();
-                }}
-                style={{
-                  display: "inline-flex",
-                  alignItems: "center",
-                  justifyContent: "center",
-                  width: 22,
-                  height: 22,
-                  borderRadius: 5,
-                  border: "0.5px solid rgba(154,166,178,0.25)",
-                  background: "transparent",
-                  color: MUTED,
-                  cursor: "pointer",
-                }}
-              >
-                <ToolIcon path={ICONS.hide} size={12} />
-              </button>
-            </div>
             {toolsInner}
-          </div>
-          <div
-            data-testid="map-toolset-layers-panel"
-            style={splitPanelStyle("layers")}
+          </StackPanel>
+          <StackPanel
+            testId="map-toolset-layers-panel"
+            title="Layers"
+            open={!isCollapsed("layers")}
+            onToggle={() => toggleCollapsed("layers")}
+            onClose={() => {
+              setOpenKinds((cur) => {
+                const next = new Set(cur);
+                next.delete("layers");
+                return next;
+              });
+              dispatchPanelDismiss("hide-all");
+            }}
           >
-            <div
-              style={{
-                display: "flex",
-                alignItems: "center",
-                gap: 6,
-                paddingBottom: 6,
-                borderBottom: "0.5px solid rgba(154,166,178,0.18)",
-              }}
-            >
-              <button
-                type="button"
-                data-testid="map-toolset-collapse-layers"
-                aria-expanded={!isCollapsed("layers")}
-                aria-label={
-                  isCollapsed("layers") ? "Expand Layers" : "Collapse Layers"
-                }
-                onClick={() => toggleCollapsed("layers")}
-                style={{
-                  ...sectionHeaderStyle(),
-                  flex: 1,
-                  display: "flex",
-                  alignItems: "center",
-                  gap: 6,
-                  background: "transparent",
-                  border: "none",
-                  padding: 0,
-                  cursor: "pointer",
-                  textAlign: "left",
-                }}
-              >
-                <svg
-                  viewBox="0 0 24 24"
-                  width={11}
-                  height={11}
-                  aria-hidden="true"
-                  fill="none"
-                  stroke="currentColor"
-                  strokeWidth={2}
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                  style={{
-                    flex: "none",
-                    transform: isCollapsed("layers")
-                      ? "rotate(-90deg)"
-                      : "rotate(0deg)",
-                    transition: "transform 180ms cubic-bezier(.2,.6,.35,1)",
-                  }}
-                >
-                  <path d="m6 9 6 6 6-6" />
-                </svg>
-                Layers
-              </button>
-            </div>
             {layersInner}
-          </div>
+          </StackPanel>
         </div>
       ) : (
       <div

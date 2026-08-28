@@ -250,7 +250,7 @@ export function SourcesPanel({
         flex: "0 0 auto",
         maxHeight: "46vh",
         overflowY: "auto",
-        borderRadius: 9,
+        borderRadius: 10,
         background: PE.sheet,
         border: `1px solid ${PE.line14}`,
         boxShadow: "0 10px 32px rgba(0,0,0,.45)",
@@ -261,20 +261,27 @@ export function SourcesPanel({
         style={{
           display: "flex",
           alignItems: "center",
-          height: 32,
+          // 36 and the uppercase 11/600 title, matching StackPanel on the
+          // left and the dock header on the right. One header treatment for
+          // every panel in the product.
+          height: 36,
           padding: "0 8px 0 12px",
           borderBottom: `1px solid ${PE.line06}`,
           flex: "0 0 auto",
+          position: "sticky",
+          top: 0,
+          zIndex: 2,
+          background: PE.sheet,
         }}
       >
         <span
           style={{
             flex: 1,
-            fontSize: 10,
+            fontSize: 11,
             fontWeight: 600,
-            letterSpacing: ".13em",
+            letterSpacing: ".1em",
             textTransform: "uppercase",
-            color: PE.t5,
+            color: PE.t3,
           }}
         >
           Sources
