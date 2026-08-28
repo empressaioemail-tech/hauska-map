@@ -68,13 +68,23 @@ export function dockLayoutStyle(
     };
   }
 
+  // WIDE is a property of the COLUMN, not of one dock.
+  //
+  // It used to lift a single dock out of the column into a fixed floating box
+  // at a different width and offset, which meant it LANDED ON TOP of the docks
+  // still in the column. Now the column itself widens: every open dock is
+  // 100% of it, so they all grow and shrink together and none of them can
+  // overlap another.
+  //
+  // Same top and the same right:74, so the column stays anchored to the rail
+  // and grows LEFTWARD into the map. Same height budget as compact — the only
+  // thing that changes is width.
   if (isExpanded) {
     return {
-      top: "5vh",
-      right: "max(4vw, 54px)",
-      width: "min(860px, 78vw)",
-      maxHeight: "90vh",
-      boxShadow: "0 18px 60px rgba(0,0,0,0.55)",
+      top: 12,
+      right: 74,
+      width: "min(860px, calc(100vw - 98px))",
+      maxHeight: "calc(100vh - 28px)",
     };
   }
   // ONE dock width for every tool, so the stack has one left edge no matter

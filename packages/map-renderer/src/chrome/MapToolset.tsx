@@ -1723,6 +1723,13 @@ export function MapToolset({
               Collapse all
             </button>
           )}
+          {/* GATED ON ITS OWN BUBBLE. splitPanelStyle carried
+              `display: openKinds.has(kind) ? "flex" : "none"`, and swapping it
+              for StackPanel dropped that gate — so Draw and Layers rendered
+              whenever the COLUMN rendered. Opening the legend made the column
+              appear and brought both of them with it, which is why one button
+              looked like it opened everything. */}
+          {openKinds.has("tools") ? (
           <StackPanel
             testId="map-toolset-draw-panel"
             title="Draw & measure"
@@ -1739,6 +1746,8 @@ export function MapToolset({
           >
             {toolsInner}
           </StackPanel>
+          ) : null}
+          {openKinds.has("layers") ? (
           <StackPanel
             testId="map-toolset-layers-panel"
             title="Layers"
@@ -1755,6 +1764,7 @@ export function MapToolset({
           >
             {layersInner}
           </StackPanel>
+          ) : null}
         </div>
       ) : (
       <div

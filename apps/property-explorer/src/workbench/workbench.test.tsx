@@ -305,15 +305,20 @@ describe("expand-to-floating-box (Fix A)", () => {
     expect(s.boxShadow).toBeUndefined();
   });
 
-  it("dockLayoutStyle — EXPANDED is a large floating box, offset from the right (map stays visible), never full-screen", () => {
+  it("dockLayoutStyle — EXPANDED widens the COLUMN, it does not float one dock", () => {
     const s = dockLayoutStyle(true);
-    expect(s.width).toBe("min(860px, 78vw)");
-    expect(s.maxHeight).toBe("90vh");
-    // Offset from the right edge so the main map shows AROUND the box.
-    expect(s.right).toBe("max(4vw, 54px)");
-    expect(s.top).toBe("5vh");
-    // Not full-screen: width and height are capped below the viewport.
-    expect(String(s.width)).not.toContain("100vw");
+    expect(s.width).toBe("min(860px, calc(100vw - 98px))");
+    // WIDE IS THE COLUMN'S, not one dock's. It keeps the compact anchor
+    // (top:12, right:74) and the same height budget; only width changes, so
+    // every open dock grows together and none can overlap another. It used to
+    // lift ONE dock out into a fixed box at its own offset, which is exactly
+    // how docks ended up on top of each other.
+    expect(s.maxHeight).toBe("calc(100vh - 28px)");
+    expect(s.right).toBe(74);
+    expect(s.top).toBe(12);
+    // Not full-screen: both are capped below the viewport, and the width
+    // leaves the rail and its channel visible (98 = right:74 + 24 gutter).
+    expect(String(s.width)).toContain("calc(100vw - 98px)");
     expect(String(s.maxHeight)).not.toBe("100vh");
   });
 

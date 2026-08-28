@@ -38,10 +38,10 @@ describe("dockLayoutStyle — desktop preserved", () => {
     expect(s.width).toBe("min(380px, calc(100vw - 98px))");
   });
 
-  it("expanded desktop dock is a large floating box, not full-screen", () => {
+  it("EXPANDED widens the COLUMN, keeping the compact anchor", () => {
     const s = dockLayoutStyle(true, false);
-    expect(s.width).toBe("min(860px, 78vw)");
-    expect(String(s.maxHeight)).toBe("90vh");
+    expect(s.width).toBe("min(860px, calc(100vw - 98px))");
+    expect(String(s.maxHeight)).toBe("calc(100vh - 28px)");
   });
 });
 
