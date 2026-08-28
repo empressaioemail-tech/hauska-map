@@ -46,9 +46,9 @@ import { GoogleSignInButton } from "../../components/GoogleSignInButton";
 import { TextArea } from "../../components/Input";
 import { PE } from "../../styles/pe-chrome";
 import {
-  attachDossierToChatSubject,
-  chatDossierContextFrom,
-  getChatPropertyDossier,
+  chatUserWorkFrom,
+  composeMessageWithUserWork,
+  getChatUserRows,
 } from "./dossier-chat-context";
 import { UnverifiedSource } from "../../components/StatusChip";
 import { TypingDots } from "../../components/Loading";
@@ -1234,9 +1234,19 @@ export function ChatTool() {
       // OUTGOING message (tenant-private client context passed to the model).
       // Persisted bubble + history stay the clean question — no leakage of the
       // wrapped block into storage or the shared layer.
-      const messageForModel = composeMessageWithAttachments(
-        message,
-        activeSess.attachments,
+      // The user's OWN work — every report they have generated across the
+      // account, plus their notes on the property in view. It rides the
+      // MESSAGE, not the subject: the request body is built from an allowlist
+      // (chat-research.ts areaContext.subject) that would silently drop it,
+      // and the backend passes the message to the model verbatim. Same
+      // transport attachments already use, for the same reason.
+      const userWork = chatUserWorkFrom(
+        await getChatUserRows(),
+        activeParcelNodeId,
+      );
+      const messageForModel = composeMessageWithUserWork(
+        composeMessageWithAttachments(message, activeSess.attachments),
+        userWork,
       );
 
       // SELF-SUFFICIENT context: the chat sources the property's BAKED FACETS
@@ -1246,23 +1256,14 @@ export function ChatTool() {
       const facets = await getChatPropertyFacets(activeParcelNodeId);
       const recordsFetch = await getChatPropertyRecords(activeParcelNodeId);
       const recordsContext = chatRecordsContextFromFetch(recordsFetch);
-      // The user's OWN work on this property — notes, status, and which
-      // reports they generated. Filing records only; report contents are not
-      // read here (see dossier-chat-context.ts).
-      const userWork = chatDossierContextFrom(
-        await getChatPropertyDossier(activeParcelNodeId),
-      );
-      const subject = attachDossierToChatSubject(
-        attachRecordsToChatSubject(
-          buildChatSubjectFromFacets(
-            activeParcelNodeId,
-            facets,
-            briefStored?.brief ?? null,
-            host.getActivePropertyAddress?.() ?? null,
-          ),
-          recordsContext,
+      const subject = attachRecordsToChatSubject(
+        buildChatSubjectFromFacets(
+          activeParcelNodeId,
+          facets,
+          briefStored?.brief ?? null,
+          host.getActivePropertyAddress?.() ?? null,
         ),
-        userWork,
+        recordsContext,
       );
       const outcome = await runChatTurn({
         message: messageForModel,
