@@ -1,5 +1,15 @@
 import { useEffect, useState } from "react";
 import { fetchRecordsInbox, type RecordsInboxRow } from "./recordsRequestClient";
+import {
+  loadSeenRuns,
+  markRunsSeen,
+  resolveSeenRuns,
+  runKey,
+  saveSeenRuns,
+  subscribeRecordsSeenChanged,
+  notifyRecordsSeenChanged,
+  unseenRunCount,
+} from "./records-seen";
 
 // THE RAIL'S UNREAD SIGNAL.
 //
@@ -116,7 +126,18 @@ export function useRecordsUnread(): number {
         // signed-out caller. Zero, not a guess — and stop polling something
         // that just told us it has nothing to say.
         wired = result.wired;
-        setCount(result.wired ? readyCount(result.rows) : 0);
+        if (!result.wired) {
+          setCount(0);
+        } else {
+          // UNSEEN, not merely finished. isReadyForPickup answers "has this
+          // run stopped cleanly", which is true forever once it is true. The
+          // dot has to answer "is there something here you have not looked
+          // at", and that needs read state, which the product has none of.
+          const finished = result.rows.filter(isReadyForPickup).map(runKey);
+          const seen = resolveSeenRuns(finished, loadSeenRuns());
+          saveSeenRuns(seen);
+          setCount(unseenRunCount(finished, seen));
+        }
       } catch {
         // A failed read is not news. Never light the dot on an error.
         if (!cancelled) setCount(0);
@@ -135,6 +156,9 @@ export function useRecordsUnread(): number {
     };
 
     void read();
+    // Re-read the instant the dock marks runs seen, so the dot goes out when
+    // you look rather than up to a poll interval later.
+    const unsubscribeSeen = subscribeRecordsSeenChanged(() => void read());
     if (typeof document !== "undefined") {
       document.addEventListener("visibilitychange", onVisibility);
     }
@@ -142,6 +166,7 @@ export function useRecordsUnread(): number {
     return () => {
       cancelled = true;
       clear();
+      unsubscribeSeen();
       if (typeof document !== "undefined") {
         document.removeEventListener("visibilitychange", onVisibility);
       }
@@ -149,4 +174,22 @@ export function useRecordsUnread(): number {
   }, []);
 
   return count;
+}
+
+/**
+ * Opening the Reports dock marks every currently finished run as seen and
+ * darkens the dot. This is the ONLY thing that clears it, which is what makes
+ * it mean something: the dot goes out because you looked, not because time
+ * passed.
+ */
+export async function markRecordsSeenNow(): Promise<void> {
+  try {
+    const result = await fetchRecordsInbox();
+    if (!result.wired) return;
+    const finished = result.rows.filter(isReadyForPickup).map(runKey);
+    saveSeenRuns(markRunsSeen(finished, resolveSeenRuns(finished, loadSeenRuns())));
+    notifyRecordsSeenChanged();
+  } catch {
+    // Failing to remember that you looked is not worth an error path.
+  }
 }

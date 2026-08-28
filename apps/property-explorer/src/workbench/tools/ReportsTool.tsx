@@ -27,7 +27,10 @@ import { LockedToolPanel } from "./LockedToolPanel";
 import { persistCheckoutOrigin } from "../../lib/checkoutOrigin";
 import { PdfViewer } from "../../components/PdfViewer";
 import { GoogleSignInButton } from "../../components/GoogleSignInButton";
-import { listSavedProperties } from "../../lib/savedPropertiesClient";
+import {
+  listSavedProperties,
+  subscribeSavedPropertiesChanged,
+} from "../../lib/savedPropertiesClient";
 import {
   attachExportToDossier,
   fileReportOnProperty,
@@ -368,8 +371,19 @@ function ReportsLibrary() {
     });
   };
 
+  // SUBSCRIBED, not fetch-once. This effect had an EMPTY dep array, so the
+  // library read the list when the dock mounted and never again — generate a
+  // report while the dock is open and the list under the generator is from
+  // before you started. That is the "I ran this report and it didn't show up"
+  // bug; nothing was lost, the list was stale.
+  //
+  // The signal already existed and already fires on every write
+  // (notifySavedPropertiesChanged in savedPropertiesClient, which InspectCard
+  // and SavedPropertyPins were already listening to). This library simply was
+  // not a subscriber. No new mechanism, no poll.
   useEffect(() => {
     let cancelled = false;
+    const read = () => {
     void listSavedProperties().then((outcome) => {
       if (cancelled) return;
       if (outcome.kind === "sign-in") {
@@ -391,8 +405,12 @@ function ReportsLibrary() {
       setSeen(resolved);
       setMode("ready");
     });
+    };
+    read();
+    const unsubscribe = subscribeSavedPropertiesChanged(read);
     return () => {
       cancelled = true;
+      unsubscribe();
     };
   }, []);
 

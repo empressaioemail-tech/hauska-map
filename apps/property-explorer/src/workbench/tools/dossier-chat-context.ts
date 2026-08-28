@@ -34,6 +34,7 @@
 import type { PropertyDossier } from "../../lib/propertyDossier";
 import {
   listSavedProperties,
+  subscribeSavedPropertiesChanged,
   type SavedPropertyRow,
 } from "../../lib/savedPropertiesClient";
 
@@ -198,3 +199,14 @@ export function getChatUserRows(
 export function invalidateChatUserWork(): void {
   workCache = null;
 }
+
+// WIRED, because it was not. invalidateChatUserWork shipped with ZERO call
+// sites: the cache is filled once per session, so after saving a property or
+// generating a report the chat kept telling the model about the work as it
+// stood when the session began. Correct code that nothing calls is the dormant
+// defect this codebase keeps finding, and this was one of mine.
+//
+// The signal already exists and already fires on every write. Subscribing at
+// module load is safe here: this module already imports the client, so no new
+// dependency edge is created, and the listener is idempotent.
+subscribeSavedPropertiesChanged(invalidateChatUserWork);
