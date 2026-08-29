@@ -214,6 +214,7 @@ export function CompareView({
             <label key={slot} style={{ flex: 1, fontSize: 12.5, color: MUTED }}>
               {slot === "a" ? "Property A" : "Property B"}
               <select
+                className="ss-focusable"
                 data-testid={`compare-select-${slot}`}
                 value={slots[slot] ?? ""}
                 onChange={(e) => onSelect(slot, e.target.value || null)}

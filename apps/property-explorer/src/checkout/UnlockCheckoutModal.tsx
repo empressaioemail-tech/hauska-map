@@ -6,6 +6,8 @@ import { resolveCheckoutMountCredentials } from "../lib/stripeCheckoutMount";
 import { useStripeCheckoutMount } from "../lib/useStripeCheckoutMount";
 import { UNLOCK_PRICE, UNLOCK_SUBMIT } from "./checkoutCopy";
 
+import { useRef } from "react";
+import { useDialogFocus } from "../components/useDialogFocus";
 import { PE } from "../styles/pe-chrome";
 
 const TEXT = PE.t1;
@@ -39,9 +41,12 @@ export function UnlockCheckoutModal({
 }) {
   const creds = resolveCheckoutMountCredentials({ clientSecret, publishableKey });
   const mount = useStripeCheckoutMount({ clientSecret, publishableKey });
+  const dialogRef = useRef<HTMLDivElement>(null);
+  useDialogFocus(dialogRef, onClose);
 
   return (
     <div
+      ref={dialogRef}
       role="dialog"
       aria-modal="true"
       aria-label="Unlock this property"

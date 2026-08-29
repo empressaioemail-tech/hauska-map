@@ -184,6 +184,7 @@ export function TerrainExportSection({
             Format
           </label>
           <select
+            className="ss-focusable"
             data-testid="terrain-format-picker"
             value={format}
             disabled={busy}

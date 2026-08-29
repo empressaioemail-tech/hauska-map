@@ -15,8 +15,9 @@
 // CTAs use Button.tsx. --brand-blue is the only interactive accent. Gold is
 // mark-only. No --sc-* tokens. No Oxygen CDN.
 
-import { useState } from "react";
+import { useRef, useState } from "react";
 import { Button } from "../components/Button";
+import { useDialogFocus } from "../components/useDialogFocus";
 import { PE } from "../styles/pe-chrome";
 import { useCheckoutActions, clampTeamSeats } from "./useCheckoutActions";
 import { UnlockCheckoutModal } from "../checkout/UnlockCheckoutModal";
@@ -113,6 +114,8 @@ export function PricingModal({
   const [teamSeats, setTeamSeats] = useState<number>(
     initialTeamSeats ?? PE_PRICING.team.baseSeats,
   );
+  const dialogRef = useRef<HTMLDivElement>(null);
+  useDialogFocus(dialogRef, onClose);
 
   const emphasize = (tier: PeCheckoutTier): boolean =>
     tier === "studio" ||
@@ -157,6 +160,7 @@ export function PricingModal({
 
   return (
     <div
+      ref={dialogRef}
       role="dialog"
       aria-modal="true"
       aria-label="Pricing"

@@ -166,8 +166,8 @@
      NO ALIAS BELOW CARRIES A COLOUR LITERAL. 34 are bare var() pointers; two
      (--atom-accent-bg / --atom-accent-border) are color-mix derivations of
      --ss-atom, because Stone ships no atom fill/line pair to point at; four
-     (--btn-pad-*) are non-colour spacing values that have no --ss-* token to
-     point at and are flagged in place rather than defaulted. */
+     (--btn-pad-*) are deleted: they carried their own px literals and
+     measured zero consumers. */
   /* brand */
   --brand-gold: var(--ss-gold);
   --brand-gold-light: var(--ss-gold-lt);
@@ -219,15 +219,8 @@
   --atom-accent-contrast: var(--ss-void);
   /* control scale — height is the spec now; padding is derived in Button */
   --btn-radius: var(--ss-r-touch);
-  /* NOT REPOINTED, AND THIS IS THE HONEST STATE. Stone has no spacing scale:
-     the 65-token contract carries colour, size/radii, type, motion and the
-     brand face, and nothing between them. There is no --ss-* token these four
-     could point at, so repointing them would mean inventing a 66th token,
-     which is out of this lane scope. All four measure ZERO consumers across
-     src/ and scripts/ (same profile as the deleted --space-*), so deletion is
-     available — it needs a ruling, not a guess. Flagged, not defaulted. */
-  --btn-pad-y: 0px; --btn-pad-x: 14px;
-  --btn-pad-y-dense: 0px; --btn-pad-x-dense: 10px;
+  /* --btn-pad-* DELETED in P-96. They carried their own literals against
+     this file header rule and measured zero consumers in src/ and scripts/. */
   /* was 0 0 0 2px var(--ss-ink), 0 0 0 4px rgba(59,130,246,.55) — a two-ring
      form with a literal outer. Stone ships ONE focus ring and this now points
      at it, so the app has a single focus mechanism instead of two. */
@@ -246,7 +239,10 @@
 /* Unified focus ring — keyboard-accessible only (:focus-visible), so mouse
    clicks stay quiet. */
 .pe-btn:focus-visible,
-.ss-focusable:focus-visible {
+.ss-focusable:focus-visible,
+input:focus-visible,
+select:focus-visible,
+textarea:focus-visible {
   outline: none;
   box-shadow: var(--btn-focus-ring);
 }

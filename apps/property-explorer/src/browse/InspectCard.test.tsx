@@ -24,6 +24,7 @@ import {
   SetbackXrayDetail,
   liveSetbackLine,
   toFactPresentation,
+  customerValueSlot,
   whoServesFactPresentation,
   ROW_SPECS,
   inspectRowGroup,
@@ -524,6 +525,40 @@ describe("InspectCard Flood row — floodHazardFact only (WDLL 3)", () => {
     );
     expect(html).not.toContain("inspect-flood");
     expect(html).not.toContain("Flood");
+  });
+});
+
+describe("P-96 join hold never reaches the customer value slot", () => {
+  const leaked =
+    "LANDUSE_JOIN_HOLD county 48491 — TxGIO prop_id does not join CAD property_use_code";
+  const sentence =
+    "Not read — the county's parcel id does not match the appraisal record, so zoning is unavailable.";
+
+  it("customerValueSlot keeps the token in the source note only", () => {
+    const slot = customerValueSlot(leaked);
+    expect(slot.face).toBe(sentence);
+    expect(slot.sourceNote).toBe(leaked);
+    expect(slot.face).not.toMatch(/LANDUSE_JOIN_HOLD|property_use_code|48491/);
+  });
+
+  it("a present leaked hold becomes absent-covered with the prescribed sentence", () => {
+    const fact = toFactPresentation(
+      { state: "present", value: leaked },
+      ROW_SPECS.landUse,
+    );
+    expect(fact?.state).toBe("absent-covered");
+    if (fact?.state !== "absent-covered") throw new Error("expected covered");
+    expect(fact.reason).toBe(sentence);
+    expect(fact.provenance).toBe(leaked);
+    const html = renderToStaticMarkup(
+      <dl>
+        <FactRow label="Zone" fact={fact} testid="inspect-landuse" />
+      </dl>,
+    );
+    expect(html.replace(/&#x27;/g, "'")).toContain(sentence);
+    expect(html).not.toContain("LANDUSE_JOIN_HOLD");
+    expect(html).not.toContain("property_use_code");
+    expect(html).not.toContain("48491");
   });
 });
 

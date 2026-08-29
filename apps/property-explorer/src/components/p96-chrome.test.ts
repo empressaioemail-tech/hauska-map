@@ -1,0 +1,54 @@
+// P-96 file-shaped checks. No jsdom: read the write path.
+
+import { readFileSync } from "node:fs";
+import { dirname, join } from "node:path";
+import { fileURLToPath } from "node:url";
+import { describe, expect, it } from "vitest";
+import { PE } from "../styles/pe-chrome";
+
+const ROOT = join(dirname(fileURLToPath(import.meta.url)), "..");
+
+function src(rel: string): string {
+  return readFileSync(join(ROOT, rel), "utf8");
+}
+
+describe("P-96 chrome write-path pins", () => {
+  it("Dock uses ss-enter; pe-dock-in is neither declared nor used", () => {
+    const dock = src("components/Dock.tsx");
+    const tokens = src("styles/pe-tokens.css");
+    expect(dock).toContain("ss-enter");
+    expect(dock).not.toContain("pe-dock-in");
+    expect(tokens).not.toContain("pe-dock-in");
+    expect(src("browse/ExplorerMap.tsx")).not.toContain("pe-dock-in");
+  });
+
+  it("geometry reads --ss-* tokens, not leftover pixel numbers", () => {
+    expect(PE.hControl).toBe("var(--ss-h-control)");
+    expect(PE.hDense).toBe("var(--ss-h-dense)");
+    expect(PE.hField).toBe("var(--ss-h-field)");
+    expect(PE.dockW).toBe("var(--ss-dock-w)");
+    expect(PE.rModal).toBe("var(--ss-r-modal)");
+  });
+
+  it("native selects and checkboxes carry ss-focusable", () => {
+    expect(src("workbench/tools/ShareTool.tsx")).toMatch(
+      /type="checkbox"[\s\S]*className="ss-focusable"/,
+    );
+    expect(src("workbench/tools/CompareTool.tsx")).toContain(
+      'className="ss-focusable"',
+    );
+    expect(src("browse/TerrainExportSection.tsx")).toContain(
+      'className="ss-focusable"',
+    );
+    expect(src("browse/SitePlanExportSection.tsx")).toContain(
+      'className="ss-focusable"',
+    );
+    expect(src("workbench/tools/PropertyDossierDetail.tsx")).toContain(
+      'className="ss-focusable"',
+    );
+  });
+
+  it("TransientChips.tsx is gone (orphan, zero imports)", () => {
+    expect(() => src("browse/TransientChips.tsx")).toThrow();
+  });
+});
