@@ -99,12 +99,33 @@ describe("dossier detail — status selector (WB7d)", () => {
   });
 });
 
-describe("master list — status chip on rows", () => {
-  it("rows with a status render the chip; unset rows render none", () => {
+describe("master list — status on rows, as a rail and a word", () => {
+  // SUPERSEDED 2026-08-28. Status was an inline PILL after the title, which
+  // shoved the title by its own width so no two rows started their meta line
+  // in the same place. It is now a 2px rail on the row plus the word at the
+  // end of the meta line, which costs no horizontal room and keeps the
+  // marker column aligned. Same derivation, same colour, same coverage.
+  it("rows with a status render the word; unset rows render none", () => {
     const html = renderList([row("48021:1", "offer"), row("48021:2", null)]);
-    const chips = html.match(/data-testid="properties-status-chip"/g) ?? [];
-    expect(chips).toHaveLength(1);
+    const words = html.match(/data-testid="properties-status-word"/g) ?? [];
+    expect(words).toHaveLength(1);
     expect(html).toContain("Offer");
+  });
+
+  it("the inline pill is gone", () => {
+    const html = renderList([row("48021:1", "offer")]);
+    expect(html).not.toContain('data-testid="properties-status-chip"');
+  });
+
+  it("every row carries the four marker slots, on or off", () => {
+    // Off is DRAWN, not omitted — an absent slot collapses the column and
+    // brings back the misalignment the column exists to remove.
+    const html = renderList([row("48021:1", "offer"), row("48021:2", null)]);
+    const marks = html.match(/data-testid="properties-row-marks"/g) ?? [];
+    expect(marks).toHaveLength(2);
+    for (const k of ["N", "D", "C", "E"]) {
+      expect(html).toContain(`data-mark="${k}"`);
+    }
   });
 });
 
