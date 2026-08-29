@@ -26,7 +26,13 @@ const base: CSSProperties = {
   fontSize: 14.5,
   lineHeight: 1.45,
   color: PE.t2,
-  background: "rgba(255,255,255,.02)",
+  // THE RECESS, 2026-08-29. A field is a slot you type into, so it sits one
+  // plane BELOW the panel rather than as a lighter patch on it. --ss-void with
+  // --ss-sh-inset, not a white veil: rgba(255,255,255,.02) was also a spelled
+  // literal, which the derived-wash rule forbids for exactly the reason it
+  // shows here — it had no relationship to any token and could not follow one.
+  background: PE.void,
+  boxShadow: "var(--ss-sh-inset)",
   border: `1px solid ${PE.line14}`,
   borderRadius: PE.rTouch,
   outline: "none",
