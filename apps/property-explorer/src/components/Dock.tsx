@@ -51,7 +51,7 @@ export function Dock({
     // from the corner it hangs off. It never slides in from off-screen and
     // never overshoots.
     transformOrigin: isMobile ? "bottom center" : "right top",
-    animation: `pe-dock-in ${PE.dMove} ${PE.ease} both`,
+    animation: `ss-enter ${PE.dMove} ${PE.ease} both`,
   };
 
   return (

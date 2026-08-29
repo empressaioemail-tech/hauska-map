@@ -415,11 +415,34 @@ export function splitWeldedProvenance(
  * forbids re-deriving, and unpacking a string the deriver welded together is
  * not a second derivation.
  */
+const JOIN_HOLD_RE =
+  /LANDUSE_JOIN_HOLD|property_use_code|TxGIO prop_id|does not join CAD/i;
+const JOIN_HOLD_CUSTOMER =
+  "Not read — the county's parcel id does not match the appraisal record, so zoning is unavailable.";
+
+/** Customer value slot. Internal hold tokens stay in provenance / Sources. */
+export function customerValueSlot(raw: string): {
+  face: string;
+  sourceNote: string | null;
+} {
+  if (JOIN_HOLD_RE.test(raw)) {
+    return { face: JOIN_HOLD_CUSTOMER, sourceNote: raw };
+  }
+  return { face: raw, sourceNote: null };
+}
+
 export function toFactPresentation(
   facet: CardFacet<string>,
   spec: FactRowSpec,
 ): FactPresentation | null {
   if (facet.state === "unknown") return null;
+  if (facet.value && JOIN_HOLD_RE.test(facet.value)) {
+    return {
+      state: "absent-covered",
+      reason: JOIN_HOLD_CUSTOMER,
+      provenance: facet.value,
+    };
+  }
   if (facet.silentEmpty) {
     return {
       state: "absent-covered",
@@ -1086,8 +1109,15 @@ export function InspectCard({
       r.fact?.state === "absent-uncovered" && ROW_SPECS[r.key]?.inCoverageBlock === true,
   );
   const demotedProvenance = factRows.filter(
-    (r): r is typeof r & { fact: Extract<FactPresentation, { state: "present" }> } =>
-      r.fact?.state === "present" && !!r.fact.provenance,
+    (
+      r,
+    ): r is typeof r & {
+      fact: Extract<FactPresentation, { provenance: string | null }> & {
+        provenance: string;
+      };
+    } =>
+      (r.fact?.state === "present" || r.fact?.state === "absent-covered") &&
+      !!r.fact.provenance,
   );
 
   return (

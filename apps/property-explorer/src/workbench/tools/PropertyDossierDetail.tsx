@@ -552,6 +552,7 @@ export function PropertyRowReports({
       >
         <input
           type="checkbox"
+          className="ss-focusable"
           checked={xray}
           disabled={disabled}
           onChange={(e) => onToggle?.("xray", e.target.checked)}
@@ -565,6 +566,7 @@ export function PropertyRowReports({
       >
         <input
           type="checkbox"
+          className="ss-focusable"
           checked={flood}
           disabled={disabled}
           onChange={(e) => onToggle?.("flood", e.target.checked)}
@@ -721,6 +723,7 @@ export function PropertySharePicker({
       >
         <input
           type="checkbox"
+          className="ss-focusable"
           data-testid="dossier-share-include-notes-input"
           checked={includeNotes}
           disabled={busy || !notesPresent}

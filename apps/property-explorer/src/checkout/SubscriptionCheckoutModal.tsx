@@ -1,7 +1,9 @@
 // Subscription payment modal — sibling of PricingModal. Map stays mounted.
 // Left Smart Site copy + right Stripe Payment Element. No invented fields.
 
+import { useRef } from "react";
 import type { CustomCheckoutSession } from "../lib/checkoutOrigin";
+import { useDialogFocus } from "../components/useDialogFocus";
 import { CheckoutPage } from "./CheckoutPage";
 
 export function SubscriptionCheckoutModal({
@@ -15,8 +17,11 @@ export function SubscriptionCheckoutModal({
   originLabel?: string | null;
   onClose: () => void;
 }) {
+  const dialogRef = useRef<HTMLDivElement>(null);
+  useDialogFocus(dialogRef, onClose);
   return (
     <div
+      ref={dialogRef}
       role="dialog"
       aria-modal="true"
       aria-label="Subscribe"

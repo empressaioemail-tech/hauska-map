@@ -202,6 +202,7 @@ export function SitePlanExportSection({
             Format
           </label>
           <select
+            className="ss-focusable"
             data-testid="site-plan-format-picker"
             value={format}
             disabled={busy}

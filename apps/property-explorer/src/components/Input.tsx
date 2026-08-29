@@ -42,11 +42,12 @@ const base: CSSProperties = {
 export const Input = forwardRef<
   HTMLInputElement,
   InputHTMLAttributes<HTMLInputElement> & { invalid?: boolean }
->(function Input({ style, invalid, ...rest }, ref) {
+>(function Input({ style, invalid, className, ...rest }, ref) {
   return (
     <input
       {...rest}
       ref={ref}
+      className={["ss-focusable", className].filter(Boolean).join(" ")}
       data-pe="input"
       data-invalid={invalid ? "1" : undefined}
       data-ss-motion=""
@@ -66,11 +67,12 @@ export const Input = forwardRef<
 export const TextArea = forwardRef<
   HTMLTextAreaElement,
   TextareaHTMLAttributes<HTMLTextAreaElement> & { invalid?: boolean }
->(function TextArea({ style, invalid, ...rest }, ref) {
+>(function TextArea({ style, invalid, className, ...rest }, ref) {
   return (
     <textarea
       {...rest}
       ref={ref}
+      className={["ss-focusable", className].filter(Boolean).join(" ")}
       data-pe="textarea"
       data-invalid={invalid ? "1" : undefined}
       data-ss-motion=""

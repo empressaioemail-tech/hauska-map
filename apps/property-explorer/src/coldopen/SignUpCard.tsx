@@ -4,7 +4,8 @@
 // when env is configured; honest "sign-in not configured" when secrets missing.
 // "Just browse" stays anonymous — no auth required.
 
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
+import { useDialogFocus } from "../components/useDialogFocus";
 import {
   fetchAuthStatus,
   googleSignInUrl,
@@ -29,10 +30,10 @@ export function SignUpCard({ onDismiss }: { onDismiss: () => void }) {
       .catch(() => setLoadError("Could not reach auth status"));
   }, []);
 
-  const dismissBrowse = () => {
+  const dismissBrowse = useCallback(() => {
     void recordPeGtmEvent({ eventType: "pe_cold_open_dismissed" });
     onDismiss();
-  };
+  }, [onDismiss]);
 
   const startGoogle = () => {
     if (!authStatus?.configured.google) return;
@@ -49,9 +50,12 @@ export function SignUpCard({ onDismiss }: { onDismiss: () => void }) {
   };
 
   const signInConfigured = authStatus?.anyProvider ?? false;
+  const dialogRef = useRef<HTMLDivElement>(null);
+  useDialogFocus(dialogRef, dismissBrowse);
 
   return (
     <div
+      ref={dialogRef}
       role="dialog"
       aria-modal="false"
       aria-label="Get started"

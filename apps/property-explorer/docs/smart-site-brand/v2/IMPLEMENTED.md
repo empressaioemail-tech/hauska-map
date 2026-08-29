@@ -31,6 +31,10 @@ Radii 4 / 6 / 10 / 14 / 50%.
 opens its own height while scaling up 3% from its anchored corner — dock from
 top-right, sources sheet from bottom-right, suggestion list from the find bar's
 top edge, modal from centre, and a folded dock body collapsing its own height.
+The dock entrance is the declared `ss-enter` keyframe (`Dock.tsx` inline
+`animation`, and the `.ss-enter` class). `pe-dock-in` is neither declared nor
+referenced; an earlier note that named it as shipped was wrong — the identifier
+had a use and no `@keyframes`, so the animation never ran.
 `ss-spin`, `ss-shimmer` and `ss-blink` are defined once. `ss-pulse` is NOT
 defined: see the parcel-geometry refusal below. `prefers-reduced-motion` keeps
 the opacity fade and drops the scale and the height animation, reaching

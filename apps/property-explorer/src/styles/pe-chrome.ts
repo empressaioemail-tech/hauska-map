@@ -16,13 +16,8 @@
 //                surface files still read them. Each resolves to a Stone var,
 //                so a port is a rename with no visual step.
 //
-// THE GEOMETRY AND TYPE NUMBERS BELOW ARE THE REAL ONES. The --ss-h-*,
-// --ss-bubble, --ss-dock-w, --ss-find-w, --ss-inset and --ss-fs-* tokens in
-// pe-tokens.css have ZERO consumers in this app: they document the scale, this
-// file renders it. Editing a --ss-fs-* token changes nothing on screen until
-// something here reads it. Both sets are on Stone as of this port, so they
-// agree today — that agreement is unenforced and will drift unless something
-// checks it.
+// Geometry reads the --ss-* tokens. A height edit in pe-tokens.css is the
+// one that shows. Plain numbers here were a second source of truth.
 //
 // Map overlays and print HTML are named islands and stay out of this module:
 // map geometry is the only place --ss-sky is legal, and print CSS cannot read
@@ -118,21 +113,21 @@ export const PE = {
   // Stone moved the control scale up a notch. dockW / findW / inset did NOT
   // change — verified against the design system tokens/size.css, which carries
   // 380 / 436 / 20 exactly as below.
-  hControl: 36,
-  hDense: 30,
-  hField: 40,
-  hFind: 46,
-  hHead: 42,
-  bubble: 40,
-  dockW: 380,
-  findW: 436,
-  inset: 20,
+  hControl: "var(--ss-h-control)",
+  hDense: "var(--ss-h-dense)",
+  hField: "var(--ss-h-field)",
+  hFind: "var(--ss-h-find)",
+  hHead: "var(--ss-h-head)",
+  bubble: "var(--ss-bubble)",
+  dockW: "var(--ss-dock-w)",
+  findW: "var(--ss-find-w)",
+  inset: "var(--ss-inset)",
 
-  rTouch: 10,
-  rChip: 8,
-  rTip: 12,
-  rFloat: 14,
-  rModal: 18,
+  rTouch: "var(--ss-r-touch)",
+  rChip: "var(--ss-r-chip)",
+  rTip: "var(--ss-r-tip)",
+  rFloat: "var(--ss-r-float)",
+  rModal: "var(--ss-r-modal)",
 
   // ---- Elevation --------------------------------------------------------
   // Stone shadows are markedly shallower than v2: a panel is identified by its

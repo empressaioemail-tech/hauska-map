@@ -1,7 +1,14 @@
-import type { CSSProperties, HTMLAttributes, MouseEvent, ReactNode } from "react";
+import {
+  useRef,
+  type CSSProperties,
+  type HTMLAttributes,
+  type MouseEvent,
+  type ReactNode,
+} from "react";
 import { Button } from "./Button";
 import { PE, MOTION } from "../styles/pe-chrome";
 import { Card } from "./Card";
+import { useDialogFocus } from "./useDialogFocus";
 
 // A SHELL FOR PRICING, CHECKOUT AND AUTH — NEVER A PAGE.
 //
@@ -29,6 +36,8 @@ export function Modal({
   /** Optional 40px uppercase header with a close control. */
   title?: ReactNode;
 }) {
+  const rootRef = useRef<HTMLDivElement>(null);
+  useDialogFocus(rootRef, onClose);
   const stop = (e: MouseEvent) => e.stopPropagation();
   const panel: CSSProperties = {
     width: `min(${width}px, calc(100vw - 32px))`,
@@ -39,6 +48,7 @@ export function Modal({
   };
   return (
     <div
+      ref={rootRef}
       role="dialog"
       aria-modal="true"
       aria-label={label}

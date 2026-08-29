@@ -117,6 +117,7 @@ export function ShareBody({
           >
             <input
               type="checkbox"
+              className="ss-focusable"
               data-testid="share-include-notes-input"
               checked={includeNotes}
               onChange={(e) => onIncludeNotesChange(e.target.checked)}
@@ -191,6 +192,7 @@ export function ShareBody({
           >
             <input
               type="checkbox"
+              className="ss-focusable"
               data-testid="share-include-notes-input"
               checked={includeNotes}
               onChange={(e) => onIncludeNotesChange(e.target.checked)}
