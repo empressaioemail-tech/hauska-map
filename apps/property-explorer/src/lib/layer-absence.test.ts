@@ -21,6 +21,14 @@ describe("layer-absence", () => {
     expect(isLayerAbsenceWire({ ...lookupFailed, verdict: "bogus" })).toBe(false);
   });
 
+  it("isLayerAbsenceWire accepts stamp-missing and unmeasured; still rejects bogus", () => {
+    const stampMissing = { ...lookupFailed, verdict: "stamp-missing" };
+    const unmeasured = { ...lookupFailed, verdict: "unmeasured" };
+    expect(isLayerAbsenceWire(stampMissing)).toBe(true);
+    expect(isLayerAbsenceWire(unmeasured)).toBe(true);
+    expect(isLayerAbsenceWire({ ...lookupFailed, verdict: "bogus" })).toBe(false);
+  });
+
   it("layerWireToCardFacet maps absence to verdict label + provenance", () => {
     const facet = layerWireToCardFacet(lookupFailed, () => null);
     expect(facet.state).toBe("absent");
