@@ -13,7 +13,7 @@
 
 import { describe, expect, it } from "vitest";
 import { renderToStaticMarkup } from "react-dom/server";
-import { Workbench, nextOpenToolId, nextOpenToolIds, dockLayoutStyle, DEFAULT_DOCK_SIDE } from "./Workbench";
+import { Workbench, nextOpenToolId, nextOpenToolIds, dockLayoutStyle, DEFAULT_DOCK_SIDE, columnCanExpand } from "./Workbench";
 import { WORKBENCH_TOOLS } from "./registry";
 import { createWorkbenchToolStateStore } from "./tool-state-store";
 import type { WorkbenchHostActions, WorkbenchToolDef } from "./types";
@@ -569,5 +569,39 @@ describe("folding the dock the shell is pointing at", () => {
     expect(html).not.toMatch(/aria-expanded="true"/);
     // Each one keeps its header, so all three are one click from coming back.
     expect(html.match(/data-testid="dock-header"/g)).toHaveLength(3);
+  });
+});
+
+describe("column expand permission — one compact dock must not veto the column", () => {
+  // THE BUG THIS EXISTS FOR. `canExpand` read the NEWEST open dock alone. So
+  // opening "Use in your AI" (expandable: false, correctly — its content is a
+  // connector card that gains nothing from width) on top of a report made the
+  // whole column unexpandable, and the report underneath could not be widened
+  // to be read. The operator hit it; nothing in the suite could, because the
+  // predicate was an inline expression and the render harness cannot build a
+  // multi-open stack.
+  const T = (id: string, expandable?: boolean) =>
+    ({ id, label: id, render: () => null, ...(expandable === undefined ? {} : { expandable }) }) as never;
+  const tools = [T("reports"), T("use-in-ai", false), T("compare")];
+
+  it("ANY open dock that benefits lets the column widen", () => {
+    expect(columnCanExpand(tools, ["reports", "use-in-ai"])).toBe(true);
+    // order must not matter — the newest being the compact one was the bug
+    expect(columnCanExpand(tools, ["use-in-ai", "reports"])).toBe(true);
+  });
+
+  it("a column of only compact docks still cannot widen", () => {
+    // NOT VACUOUS. If this passed too, the predicate would just be `true`
+    // and the test above would prove nothing.
+    expect(columnCanExpand(tools, ["use-in-ai"])).toBe(false);
+  });
+
+  it("an empty column cannot widen, and an unknown id is not a licence", () => {
+    expect(columnCanExpand(tools, [])).toBe(false);
+    expect(columnCanExpand(tools, ["no-such-tool"])).toBe(false);
+  });
+
+  it("expandable defaults to true — only an explicit false opts out", () => {
+    expect(columnCanExpand(tools, ["compare"])).toBe(true);
   });
 });

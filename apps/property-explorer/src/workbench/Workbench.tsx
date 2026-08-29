@@ -99,6 +99,30 @@ export const DEFAULT_DOCK_SIDE = "right" as const;
  *     harness (the file's `nextOpenToolId` pure-rule precedent).
  */
 /** @deprecated import from mobile-layout.ts — kept for existing tests. */
+/**
+ * Can the COLUMN widen? True if ANY open dock benefits.
+ *
+ * Exported because it was worth a test and could not have one while it was an
+ * inline expression: the render harness takes a single `openToolId` and the
+ * multi-open prop is ignored for workbench tools, so the condition that broke
+ * — a non-expandable dock stacked with an expandable one — is unreachable
+ * through the component. The predicate is the unit; test it as one.
+ *
+ * `expandable: false` is a statement about ONE dock's content ("compact,
+ * gains nothing from enlarging"). It is not a statement about the column, and
+ * reading it as one let a single compact tool hold every dock beneath it
+ * narrow.
+ */
+export function columnCanExpand(
+  tools: readonly WorkbenchToolDef[],
+  openIds: readonly string[],
+): boolean {
+  return openIds.some((id) => {
+    const tool = tools.find((t) => t.id === id);
+    return tool ? tool.expandable !== false : false;
+  });
+}
+
 export function dockLayoutStyle(isExpanded: boolean): CSSProperties {
   return resolveDockLayoutStyle(isExpanded, false);
 }
@@ -274,7 +298,10 @@ export function Workbench({
   const newest = newestOpen(synced);
   const stackedIds = isMobile ? (newest ? [newest] : []) : synced.open;
   const openIds = synced.open;
-  const openTool = newest ? (tools.find((t) => t.id === newest) ?? null) : null;
+  // `openTool` (the newest open dock) was removed with the expand-veto fix:
+  // it existed only to answer a question that is now the column's, and a
+  // binding kept alive for a reader that no longer exists is how the next
+  // person concludes the newest dock still governs something here.
 
   const applyStack = (next: DockStack) => {
     setStack(next);
@@ -308,7 +335,23 @@ export function Workbench({
     // setting has nothing left to apply to.
     if (openToolId === null) setExpanded(false);
   }, [openToolId]);
-  const canExpand = openTool ? openTool.expandable !== false : false;
+  // WIDE IS THE COLUMN'S, SO THE PERMISSION HAS TO BE THE COLUMN'S TOO.
+  //
+  // This read `openTool.expandable !== false` — the NEWEST open dock alone.
+  // `expandable: false` means "this tool's own content is compact and gains
+  // nothing from enlarging", which is a true statement about one dock and was
+  // correct when expanding lifted that single dock out into its own floating
+  // box. The model changed: the COLUMN widens and every open dock widens with
+  // it. Under that model a per-dock opt-out became a veto over every dock
+  // stacked with it — open "Use in your AI" on top of a report and the report
+  // could no longer be made readable, which is what the operator hit.
+  //
+  // The state above already knows this: width "belongs to the COLUMN, so it
+  // must NOT reset every time another tool opens". The permission was the half
+  // that never moved. So: the column can widen if ANY open dock benefits. A
+  // compact tool riding along at a wider column costs nothing; a report stuck
+  // narrow because of one costs the read.
+  const canExpand = columnCanExpand(tools, stackedIds);
   const isExpanded = expanded && canExpand;
   return (
     <WorkbenchProvider
