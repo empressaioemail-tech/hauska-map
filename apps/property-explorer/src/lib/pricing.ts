@@ -23,8 +23,8 @@
 //     Solo plus professional deliverables: site-plan CAD (DXF, IFC), terrain
 //     export, owner data.
 //
-//   TEAM — $299/mo · $2,990/yr for up to 10 seats, then $25 per additional
-//     seat (extra seats monthly-only; annual Team is capped at 10).
+//   TEAM — $299/mo · $2,990/yr for up to 3 seats, then $25 per additional
+//     seat (extra seats monthly-only; annual Team is capped at 3).
 //     Everything in Studio for a firm — shared saved properties, one bill.
 
 export type PricingInterval = "annual" | "monthly";
@@ -114,15 +114,15 @@ export const PE_PRICING = {
     monthlySuffix: "/mo",
     annualPriceLabel: "$2,990",
     annualSuffix: "/yr",
-    annualCompare: "$299/mo · 10 seats",
-    monthlyCompare: "10 seats · $2,990/yr billed annually",
+    annualCompare: "$299/mo · 3 seats",
+    monthlyCompare: "3 seats · $2,990/yr billed annually",
     extraSeatPriceLabel: "$25",
     extraSeatPeriod: "/mo",
-    baseSeats: 10,
-    seatNote: "up to 10 seats, then $25 per seat",
-    annualSeatCell: "10, then $25 each",
-    monthlySeatCell: "10, then $25 each",
-    annualCapNote: "Annual Team carries 10 seats. Extra seats are monthly.",
+    baseSeats: 3,
+    seatNote: "up to 3 seats, then $25 per seat",
+    annualSeatCell: "3, then $25 each",
+    monthlySeatCell: "3, then $25 each",
+    annualCapNote: "Annual Team carries 3 seats. Extra seats are monthly.",
     title: "Team",
     ctaLabel: "Start Team",
     blurb: "Everything in Studio — shared saved properties, seats, one bill",
@@ -301,7 +301,7 @@ export function extraSeatCount(seats: number): number {
   return Math.max(0, seats - PE_PRICING.team.baseSeats);
 }
 
-/** Team monthly total: $299 through 10 seats, then $25 each. 12 seats is $349. */
+/** Team monthly total: $299 through 3 seats, then $25 each. 5 seats is $349. */
 export function teamMonthlyTotalUsd(seats: number): number {
   return usdFromLabel(PE_PRICING.team.monthlyAmount) + extraSeatCount(seats) * extraSeatUsd();
 }

@@ -29,7 +29,7 @@ describe("PE_PRICING — locked 2026-08-10 ladder", () => {
     expect(PE_PRICING.solo.priceLabel).toBe("$49/mo");
     expect(PE_PRICING.studio.priceLabel).toBe("$129/mo");
     expect(PE_PRICING.team.priceLabel).toBe("$299/mo");
-    expect(PE_PRICING.team.seatNote).toContain("10 seats");
+    expect(PE_PRICING.team.seatNote).toContain("3 seats");
     expect(PE_PRICING.team.seatNote).toContain("$25");
   });
 
@@ -38,7 +38,7 @@ describe("PE_PRICING — locked 2026-08-10 ladder", () => {
     expect(PE_PRICING.studio.annualPriceLabel).toBe("$1,290");
     expect(PE_PRICING.team.annualPriceLabel).toBe("$2,990");
     expect(PE_PRICING.team.extraSeatPriceLabel).toBe("$25");
-    expect(PE_PRICING.team.baseSeats).toBe(10);
+    expect(PE_PRICING.team.baseSeats).toBe(3);
     expect(defaultPricingInterval()).toBe("monthly");
     expect(teamSeatsControlVisible("annual")).toBe(false);
     expect(teamSeatsControlVisible("monthly")).toBe(true);
@@ -56,12 +56,12 @@ describe("PE_PRICING — locked 2026-08-10 ladder", () => {
     expect(teamSeatsOnWire("monthly", 14)).toBe(14);
   });
 
-  it("Team 12-seat math is $25 after 10, never leftover $45", () => {
+  it("Team 5-seat math is $25 after 3, never leftover $45", () => {
     expect(extraSeatUsd()).toBe(25);
     expect(extraSeatUsd()).not.toBe(45);
-    expect(teamMonthlyTotalUsd(10)).toBe(299);
-    expect(teamMonthlyTotalUsd(12)).toBe(349);
-    expect(teamMonthlyTotalUsd(12)).not.toBe(299 + 2 * 45);
+    expect(teamMonthlyTotalUsd(3)).toBe(299);
+    expect(teamMonthlyTotalUsd(5)).toBe(349);
+    expect(teamMonthlyTotalUsd(5)).not.toBe(299 + 2 * 45);
     expect(annualFromMonthlyUsd(49)).toBe(490);
     expect(annualFromMonthlyUsd(129)).toBe(1290);
     expect(annualFromMonthlyUsd(299)).toBe(2990);
