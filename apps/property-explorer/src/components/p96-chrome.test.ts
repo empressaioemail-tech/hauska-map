@@ -51,4 +51,20 @@ describe("P-96 chrome write-path pins", () => {
   it("TransientChips.tsx is gone (orphan, zero imports)", () => {
     expect(() => src("browse/TransientChips.tsx")).toThrow();
   });
+
+  it("favicon tile is Stone void, not v2 #0b0e13 or action blue", () => {
+    const icons = [
+      readFileSync(join(ROOT, "..", "public/icons/icon-192.svg"), "utf8"),
+      readFileSync(join(ROOT, "..", "public/icons/icon-512.svg"), "utf8"),
+      readFileSync(join(ROOT, "..", "public/icon-192.svg"), "utf8"),
+    ];
+    for (const svg of icons) {
+      expect(svg).toMatch(/<rect[^>]*fill="#2A2A2B"/);
+      expect(svg).not.toMatch(/fill="#0[Bb]0[Ee]13"/);
+      expect(svg).not.toMatch(/fill="#3[Bb]82[Ff]6"/);
+    }
+    const index = readFileSync(join(ROOT, "..", "index.html"), "utf8");
+    expect(index).toContain('content="#2A2A2B"');
+    expect(index).not.toContain("#0b0e13");
+  });
 });
