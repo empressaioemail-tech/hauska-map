@@ -93,14 +93,22 @@ export function dockLayoutStyle(
     //  ---
     //  534  taken out of the viewport before the column gets any
     //
-    // CLAMPED AT BOTH ENDS on purpose. max(380px, ...) means expanded can
-    // never come out NARROWER than compact, which is what a naive subtraction
-    // produces on a small window and would read as the button doing the
-    // opposite of its label. min(860px, ...) keeps the ceiling it always had.
+    // CLAMPED AT BOTH ENDS on purpose: never narrower than the 380 compact
+    // width (a naive subtraction goes below it under a 914px viewport, which
+    // would make the expand control shrink the column), never wider than the
+    // 860 ceiling it always had.
+    //
+    // clamp(), NOT max(380px, min(860px, calc(...))). The nested form shipped
+    // first and did not render at all: the column fell back to width:auto and
+    // shrink-to-fit, which lands near 855 and looks deceptively like the old
+    // 860 — so it read as "the deploy did not take" rather than as a broken
+    // value. The old expression was min(calc()) with no nesting, which is why
+    // this was the new variable. clamp is the same three numbers with none of
+    // the nesting.
     return {
       top: 12,
       right: 74,
-      width: "max(380px, min(860px, calc(100vw - 534px)))",
+      width: "clamp(380px, calc(100vw - 534px), 860px)",
       maxHeight: "calc(100vh - 28px)",
     };
   }

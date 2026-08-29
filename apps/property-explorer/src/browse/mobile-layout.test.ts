@@ -44,7 +44,7 @@ describe("dockLayoutStyle — desktop preserved", () => {
     // SUPERSEDED 2026-08-28: the column now stops before the find bar, which
     // shares this top band and is not allowed to move. 534 = 12 bar inset +
     // 436 bar + 12 channel + 74 right gutter.
-    expect(s.width).toBe("max(380px, min(860px, calc(100vw - 534px)))");
+    expect(s.width).toBe("clamp(380px, calc(100vw - 534px), 860px)");
     expect(String(s.maxHeight)).toBe("calc(100vh - 28px)");
   });
 });
@@ -104,11 +104,21 @@ describe("expanded never comes out narrower than compact", () => {
     const expanded = String(dockLayoutStyle(true, false).width);
     const compact = String(dockLayoutStyle(false, false).width);
     expect(compact).toContain("380px");
-    expect(expanded.startsWith("max(380px,")).toBe(true);
+    expect(expanded.startsWith("clamp(380px,")).toBe(true);
+  });
+
+  it("uses clamp, NOT nested max(min()) — the nested form did not render", () => {
+    // The nested version shipped and silently fell back to width:auto and
+    // shrink-to-fit, landing near 855 so it looked like the old 860 and read
+    // as a failed deploy. Pinned so it cannot come back.
+    const w = String(dockLayoutStyle(true, false).width);
+    expect(w.startsWith("clamp(")).toBe(true);
+    expect(w).not.toContain("max(");
+    expect(w).not.toContain("min(");
   });
 
   it("keeps the 860 ceiling it always had", () => {
-    expect(String(dockLayoutStyle(true, false).width)).toContain("min(860px,");
+    expect(String(dockLayoutStyle(true, false).width)).toContain("860px)");
   });
 
   it("reserves the bar PLUS both gutters, not just the bar", () => {
