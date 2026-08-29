@@ -350,7 +350,18 @@
    can put eyes on the map, not silently "fixed". */
 .maplibregl-ctrl-group button .maplibregl-ctrl-icon {
   opacity: .78;
-  filter: invert(84%) sepia(6%) saturate(430%) hue-rotate(174deg) brightness(94%);
+  /* REPOINTED 2026-08-29, and the mechanism changed rather than the numbers.
+     brightness(0) forces ANY source colour to black, so invert(a) then lands on
+     exactly 255*a regardless of what MapLibre ships. That removes the objection
+     that killed the previous attempt: the chain no longer depends on a source
+     colour nobody had measured, so it CAN be verified without rendering.
+       invert(85.5%) -> #DADADA
+       at rest, opacity .78 over --ss-ink -> rgb(181,181,181), 15 off --ss-t4
+       on hover, opacity 1  over --ss-ink -> rgb(218,218,218), 14 off --ss-t3
+     Both within ~15/255 on a 14px glyph. The old chain's hue-rotate(174deg) was
+     hand tuned to v2 --ss-t3 #C6D0DC, a COOL grey; Stone's #DAD6CD is warm, so
+     that leg was pulling the wrong way. */
+  filter: brightness(0) invert(85.5%);
 }
 .maplibregl-ctrl-group button:hover .maplibregl-ctrl-icon { opacity: 1 }
 

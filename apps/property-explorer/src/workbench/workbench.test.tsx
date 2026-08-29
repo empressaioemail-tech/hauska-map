@@ -311,11 +311,14 @@ describe("expand-to-floating-box (Fix A)", () => {
 
   it("dockLayoutStyle — EXPANDED widens the COLUMN, it does not float one dock", () => {
     const s = dockLayoutStyle(true);
-    // SUPERSEDED 2026-08-28: the column stops before the find bar now, which
-    // shares this top band. 534 = 12 bar inset + 436 bar + 12 channel + 74
-    // right gutter. The max() floor keeps expanded from coming out narrower
-    // than compact on a small window.
-    expect(s.width).toBe("clamp(380px, calc(100vw - 534px), 860px)");
+    // SUPERSEDED 2026-08-29. 534 reserved for a LEFT-ANCHORED bar at inset 12.
+    // The bar is centred, so its right edge is 50vw + findW/2 and grows with
+    // the viewport; the old rule under-reserved by more the wider the screen,
+    // measured live at 1903 as a 201px overlap. The clamp floor still keeps
+    // expanded from coming out narrower than compact on a small window.
+    expect(s.width).toBe(
+      "clamp(380px, calc(50vw - 86px - var(--ss-find-w) / 2), 860px)",
+    );
     // WIDE IS THE COLUMN'S, not one dock's. It keeps the compact anchor
     // (top:12, right:74) and the same height budget; only width changes, so
     // every open dock grows together and none can overlap another. It used to
@@ -327,7 +330,8 @@ describe("expand-to-floating-box (Fix A)", () => {
     // Not full-screen: capped below the viewport, and the width now also
     // leaves the FIND BAR clear (534 = 12 bar inset + 436 bar + 12 channel +
     // 74 right gutter), which is strictly more reserved than the old 98.
-    expect(String(s.width)).toContain("calc(100vw - 534px)");
+    expect(String(s.width)).toContain("50vw");
+    expect(String(s.width)).toContain("var(--ss-find-w) / 2");
     expect(String(s.maxHeight)).not.toBe("100vh");
   });
 

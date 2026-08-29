@@ -41,10 +41,13 @@ describe("dockLayoutStyle — desktop preserved", () => {
 
   it("EXPANDED widens the COLUMN, keeping the compact anchor", () => {
     const s = dockLayoutStyle(true, false);
-    // SUPERSEDED 2026-08-28: the column now stops before the find bar, which
-    // shares this top band and is not allowed to move. 534 = 12 bar inset +
-    // 436 bar + 12 channel + 74 right gutter.
-    expect(s.width).toBe("clamp(380px, calc(100vw - 534px), 860px)");
+    // SUPERSEDED 2026-08-29. The 534 form assumed the find bar was LEFT
+    // ANCHORED at inset 12. It is centred, so its right edge grows with the
+    // viewport and the old subtraction under-reserved by more the wider the
+    // screen got. Measured live at 1903: a 201px overlap.
+    expect(s.width).toBe(
+      "clamp(380px, calc(50vw - 86px - var(--ss-find-w) / 2), 860px)",
+    );
     expect(String(s.maxHeight)).toBe("calc(100vh - 28px)");
   });
 });
@@ -122,8 +125,40 @@ describe("expanded never comes out narrower than compact", () => {
   });
 
   it("reserves the bar PLUS both gutters, not just the bar", () => {
-    // 534, not 436: a subtraction that forgets the gutters puts the column
-    // flush against the bar and re-creates the overlap.
-    expect(String(dockLayoutStyle(true, false).width)).toContain("100vw - 534px");
+    // The bar is CENTRED, so it is HALF its width that sits right of the
+    // midpoint and has to be cleared. A rule written against 100vw reserves for
+    // a left-anchored bar that does not exist.
+    const w = String(dockLayoutStyle(true, false).width);
+    expect(w).toContain("50vw");
+    expect(w).toContain("var(--ss-find-w) / 2");
+    expect(w).not.toContain("100vw");
+  });
+
+  // THE TEST THAT WOULD HAVE CAUGHT THE BUG. Both assertions above compare
+  // STRINGS, and a string assertion passed for the entire time the column was
+  // visibly tucked behind the bar — because the string was exactly what its
+  // author meant to write. What nothing checked was the RELATIONSHIP the string
+  // is supposed to produce. So evaluate the geometry instead.
+  it("the expanded column never reaches the centred find bar", () => {
+    const GUTTER = 74;
+    const CHANNEL = 12;
+    const BAR = 436;
+    const COMPACT = 380;
+    const CEIL = 860;
+    const width = (vw: number) =>
+      Math.min(CEIL, Math.max(COMPACT, vw / 2 - (GUTTER + CHANNEL + BAR / 2)));
+    const columnLeft = (vw: number) => vw - GUTTER - width(vw);
+    const barRight = (vw: number) => (vw + BAR) / 2;
+
+    // NOT VACUOUS: the superseded rule must FAIL this, or passing proves
+    // nothing about the fix.
+    const oldWidth = (vw: number) =>
+      Math.min(CEIL, Math.max(COMPACT, vw - 534));
+    const oldLeft = (vw: number) => vw - GUTTER - oldWidth(vw);
+    expect(oldLeft(1903)).toBeLessThan(barRight(1903));
+
+    for (const vw of [1368, 1440, 1600, 1903, 2200, 2560]) {
+      expect(columnLeft(vw)).toBeGreaterThanOrEqual(barRight(vw) + CHANNEL);
+    }
   });
 });

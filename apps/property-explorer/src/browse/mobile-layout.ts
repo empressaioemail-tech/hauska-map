@@ -108,7 +108,26 @@ export function dockLayoutStyle(
     return {
       top: 12,
       right: 74,
-      width: "clamp(380px, calc(100vw - 534px), 860px)",
+      // CORRECTED 2026-08-29. The 534 above assumed the find bar was LEFT
+      // ANCHORED at inset 12, so its right edge was 448. It is not: App
+      // renders it `left: 50%; transform: translateX(-50%)`, dead centre. A
+      // centred bar's right edge is (100vw + barWidth)/2, which GROWS with the
+      // viewport, so the old subtraction under-reserved by more the wider the
+      // screen got. Measured on the live DOM at 1903: bar right 1170, column
+      // left 969, a 201px overlap. The operator saw it as the panel tucking
+      // behind the bar.
+      //
+      //   column left  = 100vw - 74 - W        must be >=
+      //   bar right    = 50vw + findW/2        plus a 12 channel
+      //   =>  W <= 50vw - 74 - 12 - findW/2
+      //
+      // findW comes from the TOKEN, not a repeated literal. --ss-find-w had
+      // zero consumers before this line; binding the layout to it is what stops
+      // the bar width and the column arithmetic from drifting apart, which is
+      // the same two-sources-of-truth defect the port spent the day removing.
+      // Clamped at both ends as before: never below the 380 compact width,
+      // never above the 860 ceiling.
+      width: "clamp(380px, calc(50vw - 86px - var(--ss-find-w) / 2), 860px)",
       maxHeight: "calc(100vh - 28px)",
     };
   }
