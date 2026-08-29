@@ -324,7 +324,7 @@ export function PdfViewer({
               borderRadius: PE.rTouch,
               fontFamily: PE.ui,
               fontWeight: 600,
-              fontSize: 11.5,
+              fontSize: 12.5,
               color: PE.t1,
               background: "rgba(255,255,255,.03)",
               border: `1px solid ${PE.line28}`,

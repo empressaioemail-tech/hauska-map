@@ -122,7 +122,7 @@ export function BubbleTip({
               WebkitBackdropFilter: "blur(14px)",
               whiteSpace: "nowrap",
               fontFamily: PE.ui,
-              fontSize: 12.5,
+              fontSize: 14.5,
               fontWeight: 500,
               color: PE.t1,
             }}
@@ -132,7 +132,7 @@ export function BubbleTip({
               <span
                 style={{
                   fontFamily: PE.mono,
-                  fontSize: 10,
+                  fontSize: 11.5,
                   color: "rgba(255,255,255,.6)",
                 }}
               >

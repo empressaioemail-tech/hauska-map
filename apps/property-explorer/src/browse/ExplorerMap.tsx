@@ -192,6 +192,38 @@ const PE_OPPORTUNITY_ZONE_URL = "/api/pe-opportunity-zone";
 /** LAYERS-panel registry key for Opportunity Zone tracts. */
 const OPPORTUNITY_ZONE_TOGGLE_KEY = "opportunity-zone-tract" as LayerKey;
 
+/**
+ * Resolve a PE palette token to the literal colour a MapLibre paint spec needs.
+ *
+ * A paint spec takes a literal colour string; MapLibre does not resolve
+ * `var(--x)`. The APP can, though, so the token still reaches the renderer:
+ * read the computed custom property off the document root at paint-build time.
+ * That is what keeps the map ON the palette rather than beside it — the next
+ * palette change lands in pe-tokens.css and the map follows it with no code
+ * edit, which is precisely what a bare literal here would prevent.
+ *
+ * DECLARED DEGRADATION, not a silent one. Outside a browser (jsdom, SSR) or
+ * before the stylesheet applies, getComputedStyle yields "". We then paint the
+ * documented Stone literal rather than painting nothing, because refusing to
+ * draw a transient search highlight would break the interaction it exists to
+ * give. The fallback is passed in at the call site so a palette change that
+ * misses it is findable by grepping this file for the hex.
+ */
+function paletteColor(token: string, fallback: string): string {
+  if (typeof window === "undefined" || typeof document === "undefined") {
+    return fallback;
+  }
+  try {
+    const v = window
+      .getComputedStyle(document.documentElement)
+      .getPropertyValue(token)
+      .trim();
+    return v || fallback;
+  } catch {
+    return fallback;
+  }
+}
+
 /** Zoom gate for viewport road-node layer (same altitude as parcels). */
 const MIN_ROAD_ZOOM = MIN_PARCEL_ZOOM;
 
@@ -1188,7 +1220,53 @@ function ExplorerMapSurface({
       [minLon, maxLat],
       [minLon, minLat],
     ];
-    const spec = (lineOpacity: number, fillOpacity: number): OverlaySpec => ({
+    // STONE PALETTE (P-95). The map has two colour jobs and they are told
+    // apart by TREATMENT, not by hue, because hue alone never survives aerial
+    // imagery: bright roofs and dark canopy sit in the same frame, so one
+    // stroke colour reads against one of them and vanishes against the other.
+    //
+    //   parcel geometry   dark line, LIGHT casing  — it RECEDES. Data.
+    //   search highlight  light line, DARK casing  — it ADVANCES. Interaction.
+    //
+    // This is the search highlight, so: light line over a dark casing. The
+    // retired #7dd3fc is gone from both the stroke and the wash — interactions
+    // are blue everywhere else in the product and the map is not where the
+    // product invents a fourth blue.
+    const stroke = paletteColor("--ss-blue", "#86ADDF");
+    // Neither casing is a brand colour, so no token is added for it.
+    const casing = "rgba(0,0,0,.45)";
+
+    // ORDER IS LOAD-BEARING. reconcileOverlays walks specs in array order and
+    // each addLayer with no beforeId goes on TOP, so the casing spec must come
+    // first to render beneath. Within one spec the renderer adds fill then
+    // line, so the translucent wash rides on the casing spec (bottom) and the
+    // stroke spec carries no fill — otherwise the stroke's own fill would be
+    // stacked between the casing and the line it is meant to sit under.
+    const casingSpec = (
+      lineOpacity: number,
+      fillOpacity: number,
+    ): OverlaySpec => ({
+      layerKey: "search-street-highlight-casing" as LayerKey,
+      layerKind: "search-street-highlight",
+      geojson: {
+        type: "Feature",
+        properties: { name },
+        geometry: { type: "Polygon", coordinates: [ring] },
+      },
+      paint: {
+        "line-color": casing,
+        // 4px under a 2px stroke = 1px of halo each side. The ruling's own
+        // parcel pair sets the stroke:casing ratio at 1:2 (1px over 2px); the
+        // literal "2px casing" written for the search line would be exactly
+        // occluded by its own 2px stroke and show no halo at all, so the ratio
+        // is carried across rather than the number. Flagged in the lane report.
+        "line-width": 4,
+        "line-opacity": lineOpacity,
+        "fill-color": stroke,
+        "fill-opacity": fillOpacity,
+      },
+    });
+    const strokeSpec = (lineOpacity: number): OverlaySpec => ({
       layerKey: "search-street-highlight" as LayerKey,
       layerKind: "search-street-highlight",
       geojson: {
@@ -1197,16 +1275,20 @@ function ExplorerMapSurface({
         geometry: { type: "Polygon", coordinates: [ring] },
       },
       paint: {
-        "line-color": "#7dd3fc", // INTERACTION cyan (taxonomy) — search highlight only
-        "line-width": 2.5,
+        "line-color": stroke,
+        "line-width": 2,
         "line-opacity": lineOpacity,
-        "fill-color": "#7dd3fc",
-        "fill-opacity": fillOpacity,
+        "fill-color": stroke,
+        "fill-opacity": 0, // the wash belongs to the casing spec, beneath.
       },
     });
-    setSearchOverlays([spec(0.85, 0.07)]);
+    const frame = (lineOpacity: number, fillOpacity: number): OverlaySpec[] => [
+      casingSpec(lineOpacity, fillOpacity),
+      strokeSpec(lineOpacity),
+    ];
+    setSearchOverlays(frame(0.85, 0.07));
     streetTimersRef.current.push(
-      setTimeout(() => setSearchOverlays([spec(0.3, 0.02)]), 2_600),
+      setTimeout(() => setSearchOverlays(frame(0.3, 0.02)), 2_600),
       setTimeout(() => setSearchOverlays([]), 4_200),
     );
   }, []);

@@ -162,12 +162,12 @@ function CheckoutDeepLinkHost() {
           transform: "translateX(-50%)",
           zIndex: 40,
           padding: "8px 16px",
-          borderRadius: 8,
-          background: "rgba(11,14,19,0.92)",
-          border: "0.5px solid rgba(245,158,11,0.5)",
+          borderRadius: 12,
+          background: PE.panelLight,
+          border: "0.5px solid color-mix(in oklab, var(--ss-warn) 50%, transparent)",
           color: PE.warn,
           fontFamily: "system-ui, sans-serif",
-          fontSize: 12.5,
+          fontSize: 14.5,
         }}
       >
         {note.text}
@@ -255,11 +255,11 @@ function MapApp() {
             zIndex: 40,
             padding: "8px 16px",
             borderRadius: 999,
-            background: "rgba(11,14,19,0.92)",
-            border: "0.5px solid rgba(59,130,246,0.4)",
+            background: PE.panelLight,
+            border: "0.5px solid color-mix(in oklab, var(--ss-blue) 40%, transparent)",
             color: PE.t2,
             fontFamily: "system-ui, sans-serif",
-            fontSize: 12.5,
+            fontSize: 14.5,
           }}
         >
           Confirming your purchase…
@@ -285,7 +285,7 @@ function MapApp() {
               inset: 0,
               zIndex: 15,
               background:
-                "radial-gradient(120% 90% at 50% 42%, rgba(6,9,13,0.45), rgba(6,9,13,0.82))",
+                "radial-gradient(120% 90% at 50% 42%, color-mix(in oklab, var(--ss-void) 45%, transparent), color-mix(in oklab, var(--ss-void) 82%, transparent))",
               backdropFilter: "blur(1.5px) saturate(0.9)",
               pointerEvents: "auto",
             }}

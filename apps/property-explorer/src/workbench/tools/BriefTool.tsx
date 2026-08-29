@@ -157,7 +157,7 @@ export function BriefTool() {
         data-testid="brief-tool-notice"
         style={{
           margin: 0,
-          fontSize: 11.5,
+          fontSize: 12.5,
           color: phase.tone === "amber" ? AMBER : MUTED,
         }}
       >
@@ -179,7 +179,7 @@ export function BriefTool() {
           alignItems: "center",
           gap: 9,
           marginBottom: checkingAccess ? 0 : 14,
-          fontSize: 11.5,
+          fontSize: 12.5,
           color: PE.t5,
         }}
       >

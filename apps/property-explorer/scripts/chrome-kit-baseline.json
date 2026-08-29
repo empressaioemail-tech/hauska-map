@@ -1,6 +1,18 @@
 {
+  "src/browse/__fixtures__/research-brief.fixture.ts": {
+    "hex": 1,
+    "buttons": 0
+  },
+  "src/browse/building-footprint-overlay.ts": {
+    "hex": 2,
+    "buttons": 0
+  },
   "src/browse/ExplorerMap.tsx": {
     "hex": 2,
+    "buttons": 0
+  },
+  "src/browse/inspect-highlight.ts": {
+    "hex": 1,
     "buttons": 0
   },
   "src/browse/InspectCard.tsx": {
@@ -8,27 +20,111 @@
     "buttons": 0
   },
   "src/browse/MapCornerChrome.tsx": {
-    "hex": 0,
+    "hex": 7,
     "buttons": 2
+  },
+  "src/browse/mobile-layout.ts": {
+    "hex": 6,
+    "buttons": 0
+  },
+  "src/browse/MobilePanelContext.tsx": {
+    "hex": 1,
+    "buttons": 0
+  },
+  "src/browse/PricingModal.tsx": {
+    "hex": 1,
+    "buttons": 0
+  },
+  "src/browse/SearchBar.tsx": {
+    "hex": 2,
+    "buttons": 0
+  },
+  "src/browse/SitePlanExportSection.tsx": {
+    "hex": 1,
+    "buttons": 0
+  },
+  "src/browse/special-district-overlay.ts": {
+    "hex": 2,
+    "buttons": 0
+  },
+  "src/browse/TerrainExportSection.tsx": {
+    "hex": 1,
+    "buttons": 0
+  },
+  "src/browse/UnplaceableParcelCard.tsx": {
+    "hex": 1,
+    "buttons": 0
   },
   "src/coldopen/SignUpCard.tsx": {
     "hex": 6,
     "buttons": 0
   },
+  "src/components/BubbleTip.tsx": {
+    "hex": 8,
+    "buttons": 0
+  },
   "src/components/Button.tsx": {
-    "hex": 0,
+    "hex": 2,
     "buttons": 1
   },
   "src/components/GoogleSignInButton.tsx": {
     "hex": 10,
     "buttons": 0
   },
-  "src/workbench/tools/FloodTool.tsx": {
+  "src/components/Input.tsx": {
+    "hex": 1,
+    "buttons": 0
+  },
+  "src/components/Loading.tsx": {
+    "hex": 1,
+    "buttons": 0
+  },
+  "src/components/PdfViewer.tsx": {
     "hex": 2,
     "buttons": 0
   },
+  "src/lib/saved-pins.ts": {
+    "hex": 5,
+    "buttons": 0
+  },
+  "src/lib/stripeAppearance.ts": {
+    "hex": 4,
+    "buttons": 0
+  },
+  "src/share/ShareLandingOverlay.tsx": {
+    "hex": 1,
+    "buttons": 0
+  },
+  "src/shared/atom-chip/atom-accent.ts": {
+    "hex": 1,
+    "buttons": 0
+  },
+  "src/workbench/tools/ChatTool.tsx": {
+    "hex": 1,
+    "buttons": 0
+  },
+  "src/workbench/tools/FloodTool.tsx": {
+    "hex": 9,
+    "buttons": 0
+  },
+  "src/workbench/tools/PropertyDossierDetail.tsx": {
+    "hex": 1,
+    "buttons": 0
+  },
+  "src/workbench/tools/RecordsRunsInbox.tsx": {
+    "hex": 1,
+    "buttons": 0
+  },
+  "src/workbench/tools/ShareTool.tsx": {
+    "hex": 1,
+    "buttons": 0
+  },
+  "src/workbench/tools/UseInYourAiTool.tsx": {
+    "hex": 3,
+    "buttons": 0
+  },
   "src/workbench/Workbench.tsx": {
-    "hex": 0,
+    "hex": 5,
     "buttons": 2
   }
 }

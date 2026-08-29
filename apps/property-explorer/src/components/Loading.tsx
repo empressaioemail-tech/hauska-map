@@ -60,7 +60,7 @@ export function LabelledSkeleton({
         <div key={label}>
           <div
             style={{
-              fontSize: 10,
+              fontSize: 11.5,
               fontWeight: 600,
               letterSpacing: ".13em",
               textTransform: "uppercase",

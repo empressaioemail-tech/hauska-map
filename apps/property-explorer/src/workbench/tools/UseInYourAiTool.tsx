@@ -157,11 +157,11 @@ function VendorConnectPanel({
                 padding: "5px 0",
                 borderBottom:
                   i === 2 ? undefined : `1px solid ${PE.line06}`,
-                fontSize: 12.5,
+                fontSize: 14.5,
                 lineHeight: 1.45,
               }}
             >
-              <span style={{ fontFamily: PE.mono, fontSize: 11.5, color: PE.t6 }}>
+              <span style={{ fontFamily: PE.mono, fontSize: 12.5, color: PE.t6 }}>
                 {i + 1}
               </span>
               <span style={{ color: PE.t2 }}>{action}</span>
@@ -170,14 +170,14 @@ function VendorConnectPanel({
           ))}
         </ol>
       ) : (
-        <p style={{ margin: "0 0 10px", fontSize: 12.5, lineHeight: 1.5, color: PE.t3 }}>
+        <p style={{ margin: "0 0 10px", fontSize: 14.5, lineHeight: 1.5, color: PE.t3 }}>
           {connectBeatCopy(vendor)}
         </p>
       )}
       <p
         style={{
           margin: "0 0 3px",
-          fontSize: 10,
+          fontSize: 11.5,
           fontWeight: 600,
           letterSpacing: ".13em",
           textTransform: "uppercase",
@@ -190,7 +190,7 @@ function VendorConnectPanel({
         data-testid={`use-in-ai-connect-host-${vendor}`}
         style={{
           fontFamily: PE.mono,
-          fontSize: 11.5,
+          fontSize: 12.5,
           lineHeight: 1.65,
           color: PE.t2,
           wordBreak: "break-all",
@@ -239,7 +239,7 @@ function VendorConnectPanel({
       {connectPhase.kind === "notice" ? (
         <p
           data-testid={`use-in-ai-connect-notice-${vendor}`}
-          style={{ margin: "8px 0 0", fontSize: 11.5, color: PE.t5 }}
+          style={{ margin: "8px 0 0", fontSize: 12.5, color: PE.t5 }}
         >
           {connectPhase.text}
         </p>
@@ -288,7 +288,7 @@ export function UseInYourAiBody({
     <div data-testid="use-in-ai-tool">
       <p
         data-testid="use-in-ai-lede"
-        style={{ margin: "0 0 12px", fontSize: 12.5, lineHeight: 1.5, color: PE.t3 }}
+        style={{ margin: "0 0 12px", fontSize: 14.5, lineHeight: 1.5, color: PE.t3 }}
       >
         {USE_IN_YOUR_AI_VALUE_LINE}
       </p>
@@ -302,14 +302,14 @@ export function UseInYourAiBody({
           border: `1px solid ${PE.accentBorderSoft}`,
         }}
       >
-        <p style={{ margin: "0 0 8px", fontSize: 12.5, lineHeight: 1.5, color: PE.t3 }}>
+        <p style={{ margin: "0 0 8px", fontSize: 14.5, lineHeight: 1.5, color: PE.t3 }}>
           Connect Claude or Cursor below with your Smart Site account. Or paste a share
           link into any chat that fetches URLs.
         </p>
         {!hasParcel ? (
           <p
             data-testid="use-in-ai-need-parcel"
-            style={{ margin: 0, fontSize: 11.5, color: PE.t5 }}
+            style={{ margin: 0, fontSize: 12.5, color: PE.t5 }}
           >
             Select a property on the map to mint a share link from this sheet.
           </p>
@@ -319,7 +319,7 @@ export function UseInYourAiBody({
               data-testid="use-in-ai-share-url"
               style={{
                 fontFamily: PE.mono,
-                fontSize: 11.5,
+                fontSize: 12.5,
                 lineHeight: 1.65,
                 color: PE.t2,
                 wordBreak: "break-all",
@@ -359,7 +359,7 @@ export function UseInYourAiBody({
             data-testid="use-in-ai-share-notice"
             style={{
               margin: "8px 0 0",
-              fontSize: 11.5,
+              fontSize: 12.5,
               color: sharePhase.tone === "amber" ? PE.warning : PE.muted,
             }}
           >
@@ -379,7 +379,7 @@ export function UseInYourAiBody({
             data-status={row.status}
             style={{
               padding: "10px 0",
-              borderTop: "1px solid rgba(154,166,178,0.2)",
+              borderTop: `1px solid ${PE.line14}`,
             }}
           >
             <div
@@ -390,14 +390,14 @@ export function UseInYourAiBody({
                 gap: 8,
               }}
             >
-              <strong style={{ fontSize: 12.5, color: PE.t1 }}>{row.name}</strong>
+              <strong style={{ fontSize: 14.5, color: PE.t1 }}>{row.name}</strong>
               {row.status === "connect" ? (
                 <Button
                   variant="primary"
                   type="button"
                   data-testid={`use-in-ai-connect-${row.id}`}
                   onClick={() => handleConnectClick(row.id)}
-                  style={{ padding: "4px 10px", fontSize: 11.5, minHeight: 0 }}
+                  style={{ padding: "4px 10px", fontSize: 12.5, minHeight: 0 }}
                 >
                   Connect
                 </Button>
@@ -410,13 +410,13 @@ export function UseInYourAiBody({
                 </StatusChip>
               )}
             </div>
-            <p style={{ margin: "5px 0 0", fontSize: 11.5, lineHeight: 1.45, color: PE.t5 }}>
+            <p style={{ margin: "5px 0 0", fontSize: 12.5, lineHeight: 1.45, color: PE.t5 }}>
               {row.line}
             </p>
             {row.note ? (
               <p
                 data-testid={`use-in-ai-note-${row.id}`}
-                style={{ margin: "5px 0 0", fontSize: 11.5, lineHeight: 1.45, color: PE.t5 }}
+                style={{ margin: "5px 0 0", fontSize: 12.5, lineHeight: 1.45, color: PE.t5 }}
               >
                 {row.note}
               </p>

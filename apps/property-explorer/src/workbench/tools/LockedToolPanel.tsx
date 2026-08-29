@@ -102,7 +102,7 @@ function LockedPanelBody({
       style={{
         borderRadius: PE.rTip,
         padding: "13px",
-        background: "rgba(7,9,13,.55)",
+        background: "color-mix(in oklab, var(--ss-void) 55%, transparent)",
         border: `1px solid ${PE.line14}`,
       }}
     >
@@ -128,15 +128,23 @@ function LockedPanelBody({
         >
           <path d="M5 11h14v10H5z M8 11V7a4 4 0 0 1 8 0v4" />
         </svg>
-        <span style={{ fontSize: 12.5, fontWeight: 600, color: PE.t2 }}>
+        <span
+          style={{
+            fontSize: 14.5,
+            fontWeight: 600,
+            letterSpacing: "normal",
+            textTransform: "none",
+            color: PE.t2,
+          }}
+        >
           Locked on this property
         </span>
       </div>
-      <p style={{ margin: "0 0 11px", fontSize: 12.5, lineHeight: 1.5, color: PE.t3 }}>
+      <p style={{ margin: "0 0 11px", fontSize: 14.5, lineHeight: 1.5, color: PE.t3 }}>
         {valueLine}
       </p>
       {proOnly && proOnlyNote ? (
-        <p style={{ margin: "0 0 11px", fontSize: 11.5, lineHeight: 1.45, color: PE.t5 }}>
+        <p style={{ margin: "0 0 11px", fontSize: 12.5, lineHeight: 1.45, color: PE.t5 }}>
           {proOnlyNote}
         </p>
       ) : null}
@@ -151,7 +159,7 @@ function LockedPanelBody({
       >
         Unlock this property, 30 days
       </Button>
-      <p style={{ margin: "9px 0 0", fontSize: 11.5, color: PE.t5 }}>
+      <p style={{ margin: "9px 0 0", fontSize: 12.5, color: PE.t5 }}>
         The inspect card and map layers stay free.
       </p>
     </div>

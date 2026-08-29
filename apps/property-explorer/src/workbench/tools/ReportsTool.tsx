@@ -325,7 +325,7 @@ export function ReportsTool() {
               data-testid="reports-no-property"
               style={{
                 margin: "10px 0 0",
-                fontSize: 12.5,
+                fontSize: 14.5,
                 lineHeight: 1.55,
                 color: MUTED,
               }}
@@ -417,7 +417,7 @@ function ReportsLibrary() {
   if (mode === "sign-in") {
     return (
       <div data-testid="reports-library-signin">
-        <p style={{ margin: "0 0 10px", fontSize: 12.5, color: MUTED }}>
+        <p style={{ margin: "0 0 10px", fontSize: 14.5, color: MUTED }}>
           Sign in to see reports you have already filed. You do not need to
           pick a parcel first.
         </p>
@@ -427,21 +427,21 @@ function ReportsLibrary() {
   }
   if (mode === "loading") {
     return (
-      <p data-testid="reports-library-loading" style={{ margin: 0, fontSize: 12.5, color: MUTED }}>
+      <p data-testid="reports-library-loading" style={{ margin: 0, fontSize: 14.5, color: MUTED }}>
         Loading your reports…
       </p>
     );
   }
   if (mode === "error") {
     return (
-      <p data-testid="reports-library-error" style={{ margin: 0, fontSize: 12.5, color: MUTED }}>
+      <p data-testid="reports-library-error" style={{ margin: 0, fontSize: 14.5, color: MUTED }}>
         Could not load filed reports. Open My properties and retry.
       </p>
     );
   }
   if (!rows?.length) {
     return (
-      <p data-testid="reports-library-empty" style={{ margin: 0, fontSize: 12.5, color: MUTED }}>
+      <p data-testid="reports-library-empty" style={{ margin: 0, fontSize: 14.5, color: MUTED }}>
         No filed reports yet. Run Flood or X-ray on a property and it lands
         here.
       </p>
@@ -458,8 +458,8 @@ function ReportsLibrary() {
             alignItems: "baseline",
             gap: 8,
             padding: "6px 0",
-            borderBottom: "1px solid rgba(154,166,178,0.15)",
-            fontSize: 12.5,
+            borderBottom: `1px solid ${CARD_BORDER}`,
+            fontSize: 14.5,
           }}
         >
           <span
@@ -483,7 +483,7 @@ function ReportsLibrary() {
           />
           <span style={{ flex: 1, color: TEXT }}>
             {filedKindLabel(row.kind)}
-            <span style={{ color: MUTED, fontSize: 11.5 }}>
+            <span style={{ color: MUTED, fontSize: 12.5 }}>
               {" "}
               · {row.address}
               {row.savedAt ? ` · ${row.savedAt.slice(0, 10)}` : ""}
@@ -503,7 +503,7 @@ function ReportsLibrary() {
                 padding: 0,
                 height: "auto",
                 color: BLUE,
-                fontSize: 11.5,
+                fontSize: 12.5,
                 fontWeight: 600,
                 cursor: "pointer",
               }}
@@ -514,7 +514,7 @@ function ReportsLibrary() {
           <a
             href={row.downloadPath}
             data-testid="reports-library-download"
-            style={{ color: BLUE, fontSize: 11.5, fontWeight: 600 }}
+            style={{ color: BLUE, fontSize: 12.5, fontWeight: 600 }}
           >
             Download
           </a>
@@ -552,11 +552,11 @@ function ReportsTabs({
         style={{
           flex: 1,
           padding: "7px 8px",
-          fontSize: 12.5,
+          fontSize: 14.5,
           fontWeight: 600,
-          borderRadius: 6,
+          borderRadius: 10,
           border: `1px solid ${CARD_BORDER}`,
-          background: tab === "mine" ? "rgba(59,130,246,0.12)" : "transparent",
+          background: tab === "mine" ? PE.blueBg : "transparent",
           color: TEXT,
           cursor: "pointer",
         }}
@@ -571,11 +571,11 @@ function ReportsTabs({
         style={{
           flex: 1,
           padding: "7px 8px",
-          fontSize: 12.5,
+          fontSize: 14.5,
           fontWeight: 600,
-          borderRadius: 6,
+          borderRadius: 10,
           border: `1px solid ${CARD_BORDER}`,
-          background: tab === "shared" ? "rgba(59,130,246,0.12)" : "transparent",
+          background: tab === "shared" ? PE.blueBg : "transparent",
           color: TEXT,
           cursor: "pointer",
         }}
@@ -589,7 +589,7 @@ function ReportsTabs({
 function SharedWithMeList({ rows }: { rows: ReceivedShareRow[] }) {
   if (rows.length === 0) {
     return (
-      <p data-testid="reports-shared-empty" style={{ margin: 0, fontSize: 12.5, color: MUTED }}>
+      <p data-testid="reports-shared-empty" style={{ margin: 0, fontSize: 14.5, color: MUTED }}>
         Nothing has been shared with this browser yet. Open a share link to
         file it here. You can read shared reports; generating new ones stays
         on My reports after upgrade.
@@ -610,26 +610,26 @@ function SharedWithMeList({ rows }: { rows: ReceivedShareRow[] }) {
             style={{
               marginBottom: 10,
               padding: "10px 12px",
-              borderRadius: 8,
+              borderRadius: 12,
               border: `1px solid ${CARD_BORDER}`,
             }}
           >
-            <strong style={{ display: "block", fontSize: 13.5 }}>
+            <strong style={{ display: "block", fontSize: 15.5 }}>
               {row.address ?? `Parcel ${row.parcelNodeId}`}
             </strong>
-            <div style={{ fontSize: 11.5, color: MUTED, marginTop: 2 }}>
+            <div style={{ fontSize: 12.5, color: MUTED, marginTop: 2 }}>
               {row.parcelNodeId}
               {row.expiresAt ? ` · expires ${row.expiresAt.slice(0, 10)}` : ""}
             </div>
             {row.notes ? (
               <p
                 data-testid="reports-shared-notes"
-                style={{ margin: "6px 0 0", fontSize: 12.5, whiteSpace: "pre-wrap" }}
+                style={{ margin: "6px 0 0", fontSize: 14.5, whiteSpace: "pre-wrap" }}
               >
                 {row.notes}
               </p>
             ) : null}
-            <div style={{ marginTop: 6, fontSize: 11.5, color: MUTED }}>
+            <div style={{ marginTop: 6, fontSize: 12.5, color: MUTED }}>
               {[
                 row.artifacts.xray ? "X-ray" : null,
                 row.artifacts.sitePlan ? "Site plan" : null,
@@ -642,7 +642,7 @@ function SharedWithMeList({ rows }: { rows: ReceivedShareRow[] }) {
               <a
                 href={live}
                 data-testid="reports-shared-live-view"
-                style={{ display: "inline-block", marginTop: 6, fontSize: 12.5, color: BLUE }}
+                style={{ display: "inline-block", marginTop: 6, fontSize: 14.5, color: BLUE }}
               >
                 Open live view
               </a>
@@ -703,14 +703,14 @@ function OptionDChrome({
     <div>
       <div
         data-testid="reports-freshness"
-        style={{ fontSize: 11.5, color: MUTED, marginBottom: 10 }}
+        style={{ fontSize: 12.5, color: MUTED, marginBottom: 10 }}
       >
         {freshness}
       </div>
 
       <div
         style={{
-          fontSize: 11.5,
+          fontSize: 12.5,
           letterSpacing: "0.1em",
           textTransform: "uppercase",
           color: MUTED,
@@ -732,17 +732,17 @@ function OptionDChrome({
           justifyContent: "space-between",
           gap: 10,
           padding: "11px 12px",
-          borderRadius: 8,
-          background: "rgba(11,14,19,0.9)",
-          border: "1px solid rgba(154,166,178,0.4)",
+          borderRadius: 12,
+          background: "color-mix(in oklab, var(--ss-ink) 90%, transparent)",
+          border: `1px solid ${PE.line28}`,
           color: selected ? TEXT : MUTED,
-          fontSize: 13.5,
+          fontSize: 15.5,
           cursor: "pointer",
           fontFamily: "inherit",
         }}
       >
         <span>{selected ? selected.name : "Choose a report or export"}</span>
-        <span style={{ color: MUTED, fontSize: 11.5 }} aria-hidden>
+        <span style={{ color: MUTED, fontSize: 12.5 }} aria-hidden>
           ▾
         </span>
       </Button>
@@ -765,7 +765,7 @@ function OptionDChrome({
             <div
               style={{
                 padding: "10px 12px 5px",
-                fontSize: 10,
+                fontSize: 11.5,
                 fontWeight: 600,
                 letterSpacing: ".13em",
                 textTransform: "uppercase",
@@ -809,11 +809,11 @@ function OptionDChrome({
                       minWidth: 0,
                     }}
                   >
-                    <span style={{ fontSize: 12.5, color: PE.t2 }}>{row.name}</span>
+                    <span style={{ fontSize: 14.5, color: PE.t2 }}>{row.name}</span>
                     <span
                       style={{
                         fontFamily: PE.mono,
-                        fontSize: 10,
+                        fontSize: 11.5,
                         color: PE.t6,
                       }}
                     >
@@ -822,7 +822,7 @@ function OptionDChrome({
                   </span>
                   <span
                     style={{
-                      fontSize: 11.5,
+                      fontSize: 12.5,
                       fontWeight: 600,
                       whiteSpace: "nowrap",
                       color: rowStatus.color,
@@ -842,7 +842,7 @@ function OptionDChrome({
           data-testid="reports-pick-hint"
           style={{
             padding: "14px 2px 4px",
-            fontSize: 12.5,
+            fontSize: 14.5,
             lineHeight: 1.55,
             color: PE.t5,
           }}
@@ -856,9 +856,9 @@ function OptionDChrome({
           data-doc={selected.id}
           style={{
             marginTop: 10,
-            borderRadius: 10,
+            borderRadius: 14,
             border: `1px solid ${CARD_BORDER}`,
-            background: "rgba(11,14,19,0.5)",
+            background: "color-mix(in oklab, var(--ss-ink) 50%, transparent)",
             padding: 14,
             display: "flex",
             flexDirection: "column",
@@ -875,7 +875,7 @@ function OptionDChrome({
           >
             <span
               style={{
-                fontSize: 10,
+                fontSize: 11.5,
                 fontWeight: 600,
                 letterSpacing: "0.16em",
                 textTransform: "uppercase",
@@ -884,18 +884,18 @@ function OptionDChrome({
             >
               {selected.kind}
             </span>
-            <span style={{ fontSize: 11.5, color: status?.color ?? MUTED }}>
+            <span style={{ fontSize: 12.5, color: status?.color ?? MUTED }}>
               {status?.text}
             </span>
           </div>
           <div>
-            <div style={{ fontWeight: 600, fontSize: 15, color: TEXT }}>
+            <div style={{ fontWeight: 600, fontSize: 17.5, color: TEXT }}>
               {selected.name}
             </div>
             <div
               style={{
                 marginTop: 5,
-                fontSize: 12.5,
+                fontSize: 14.5,
                 lineHeight: 1.5,
                 color: MUTED,
               }}
@@ -908,7 +908,7 @@ function OptionDChrome({
               display: "grid",
               gridTemplateColumns: "auto 1fr",
               gap: "6px 12px",
-              fontSize: 11.5,
+              fontSize: 12.5,
               borderTop: `1px solid ${CARD_BORDER}`,
               paddingTop: 10,
             }}
@@ -954,7 +954,7 @@ function OptionDChrome({
           marginTop: 12,
           paddingTop: 10,
           borderTop: `1px solid ${CARD_BORDER}`,
-          fontSize: 11.5,
+          fontSize: 12.5,
           color: MUTED,
         }}
       >
@@ -1185,7 +1185,7 @@ function DossierExportAction({
       {state?.notice ? (
         <div
           data-testid="reports-dossier-notice"
-          style={{ marginTop: 8, fontSize: 11.5, color: MUTED, lineHeight: 1.45 }}
+          style={{ marginTop: 8, fontSize: 12.5, color: MUTED, lineHeight: 1.45 }}
         >
           {state.notice}
         </div>

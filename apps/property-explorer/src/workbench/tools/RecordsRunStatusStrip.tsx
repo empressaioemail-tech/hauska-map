@@ -24,10 +24,10 @@ export function RecordsRunStatusStrip({
 
   const borderColor =
     status.tone === "active"
-      ? "rgba(59,130,246,0.3)"
+      ? "color-mix(in oklab, var(--ss-blue) 34%, transparent)"
       : status.tone === "warn"
-        ? "rgba(245,158,11,0.45)"
-        : "rgba(154,166,178,0.16)";
+        ? "color-mix(in oklab, var(--ss-warn) 34%, transparent)"
+        : "var(--ss-line-14)";
 
   return (
     <div
@@ -36,7 +36,7 @@ export function RecordsRunStatusStrip({
       style={{
         background: APP_INK,
         border: `1px solid ${borderColor}`,
-        borderRadius: 10,
+        borderRadius: 14,
         padding: "14px 15px",
         display: "flex",
         gap: 12,
@@ -54,11 +54,17 @@ export function RecordsRunStatusStrip({
       >
         <div
           data-testid="records-run-status-title"
-          style={{ fontSize: 13.5, fontWeight: 600, color: TEXT }}
+          style={{
+            fontSize: 15.5,
+            fontWeight: 600,
+            letterSpacing: "normal",
+            textTransform: "none",
+            color: TEXT,
+          }}
         >
           {status.title}
         </div>
-        <div style={{ fontSize: 12.5, lineHeight: 1.55, color: MUTED_2 }}>
+        <div style={{ fontSize: 14.5, lineHeight: 1.55, color: MUTED_2 }}>
           {status.body}
         </div>
         {status.progress != null ? (
@@ -66,8 +72,8 @@ export function RecordsRunStatusStrip({
             data-testid="records-run-status-progress"
             style={{
               height: 4,
-              borderRadius: 4,
-              background: "rgba(154,166,178,0.14)",
+              borderRadius: 8,
+              background: "var(--ss-line-14)",
               overflow: "hidden",
             }}
           >
@@ -84,7 +90,7 @@ export function RecordsRunStatusStrip({
           <div
             style={{
               fontFamily: "ui-monospace, Menlo, monospace",
-              fontSize: 11.5,
+              fontSize: 12.5,
               color: SLATE,
             }}
           >

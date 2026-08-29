@@ -114,7 +114,7 @@ export function FloodVizSvg({ model }: { model: FloodVizModel }) {
       width="100%"
       role="img"
       aria-label="Flood and drainage visualization"
-      style={{ display: "block", borderRadius: 8, background: "rgba(6,9,13,0.55)" }}
+      style={{ display: "block", borderRadius: 12, background: "color-mix(in oklab, var(--ss-void) 55%, transparent)" }}
     >
       {/* Drainage zones — graded subtle fills (upstream → concentrated). */}
       {model.zonePaths.map((z, i) => (
@@ -215,14 +215,14 @@ function Legend({ hasPonding = true }: { hasPonding?: boolean }) {
           display: "inline-block",
           width: 13,
           height: 13,
-          borderRadius: 4,
+          borderRadius: 8,
           flex: "0 0 auto",
           ...swatch,
         }}
       />
       <span
         style={{
-          fontSize: 11.5,
+          fontSize: 12.5,
           color: MUTED,
           whiteSpace: "nowrap",
         }}
@@ -269,7 +269,7 @@ function Legend({ hasPonding = true }: { hasPonding?: boolean }) {
       )}
       {/* Flow path — solid teal line (render: teal line). */}
       {item(
-        { background: FLOOD_FLOW_LINE_COLOR, borderRadius: 6, height: 4, width: 15 },
+        { background: FLOOD_FLOW_LINE_COLOR, borderRadius: 10, height: 4, width: 15 },
         "Flow path",
       )}
       {/* Exit point — 45°-rotated square (DIAMOND) in the render: deepest teal
@@ -451,18 +451,18 @@ export function FloodDrainageSection({ embed = false }: { embed?: boolean } = {}
           : {
               marginTop: 10,
               paddingTop: 10,
-              borderTop: "0.5px solid rgba(154,166,178,0.22)",
+              borderTop: `0.5px solid ${PE.line28}`,
             }
       }
     >
       {embed ? null : (
-        <div style={{ fontSize: 10, color: MUTED, marginBottom: 6 }}>
+        <div style={{ fontSize: 11.5, color: MUTED, marginBottom: 6 }}>
           Flood &amp; drainage report · public-paid
         </div>
       )}
 
       {!study && !embed && (
-        <p style={{ margin: "0 0 8px", fontSize: 11.5, lineHeight: 1.5, color: TEXT }}>
+        <p style={{ margin: "0 0 8px", fontSize: 12.5, lineHeight: 1.5, color: TEXT }}>
           Model this parcel&apos;s drainage: the upstream catchment delivering
           runoff, where water concentrates, modeled ponding at the design
           storm, and where it exits — drawn on the map.
@@ -472,7 +472,7 @@ export function FloodDrainageSection({ embed = false }: { embed?: boolean } = {}
       {staleStyledStored && !busy && (
         <div
           data-testid="flood-stale-style"
-          style={{ margin: "0 0 8px", fontSize: 11.5, color: MUTED, lineHeight: 1.45 }}
+          style={{ margin: "0 0 8px", fontSize: 12.5, color: MUTED, lineHeight: 1.45 }}
         >
           A drainage study was run on this parcel in an earlier build — re-run it
           to redraw with the current severity bands and flow paths.
@@ -495,7 +495,7 @@ export function FloodDrainageSection({ embed = false }: { embed?: boolean } = {}
       {busy && (
         <div
           data-testid="flood-progress"
-          style={{ marginTop: 8, fontSize: 11.5, color: MUTED, lineHeight: 1.45 }}
+          style={{ marginTop: 8, fontSize: 12.5, color: MUTED, lineHeight: 1.45 }}
         >
           {FLOOD_RUNNING_LINE}
         </div>
@@ -504,7 +504,7 @@ export function FloodDrainageSection({ embed = false }: { embed?: boolean } = {}
       {notice && !busy && (
         <div
           data-testid="flood-notice"
-          style={{ marginTop: 8, fontSize: 11.5, color: MUTED, lineHeight: 1.45 }}
+          style={{ marginTop: 8, fontSize: 12.5, color: MUTED, lineHeight: 1.45 }}
         >
           {notice}
           {notice.includes("Sign in") && (
@@ -519,10 +519,10 @@ export function FloodDrainageSection({ embed = false }: { embed?: boolean } = {}
       {study && study.honestEmpty && (
         <div data-testid="flood-honest-empty" style={{ marginTop: 10 }}>
           {/* HONEST-EMPTY: the engine's reason VERBATIM — never a fake result. */}
-          <p style={{ margin: 0, fontSize: 11.5, lineHeight: 1.5, color: TEXT }}>
+          <p style={{ margin: 0, fontSize: 12.5, lineHeight: 1.5, color: TEXT }}>
             {study.honestEmpty.reason}
           </p>
-          <div style={{ marginTop: 6, fontSize: 10, color: MUTED }}>
+          <div style={{ marginTop: 6, fontSize: 11.5, color: MUTED }}>
             {floodProvenanceLine(study)}
           </div>
         </div>
@@ -533,7 +533,7 @@ export function FloodDrainageSection({ embed = false }: { embed?: boolean } = {}
           {finding ? (
             <p
               data-testid="flood-finding-lead"
-              style={{ margin: "0 0 12px", fontSize: 13.5, lineHeight: 1.5, color: TEXT }}
+              style={{ margin: "0 0 12px", fontSize: 15.5, lineHeight: 1.5, color: TEXT }}
             >
               {finding}
             </p>
@@ -550,9 +550,9 @@ export function FloodDrainageSection({ embed = false }: { embed?: boolean } = {}
           <div
             style={{
               marginTop: 12,
-              borderRadius: 8,
+              borderRadius: 12,
               overflow: "hidden",
-              border: "0.5px solid rgba(154,166,178,0.25)",
+              border: `0.5px solid ${PE.line28}`,
               position: "relative",
             }}
           >
@@ -568,12 +568,12 @@ export function FloodDrainageSection({ embed = false }: { embed?: boolean } = {}
                   bottom: 9,
                   height: 26,
                   padding: "0 10px",
-                  borderRadius: 6,
-                  background: "rgba(11,14,19,0.85)",
-                  border: "0.5px solid rgba(154,166,178,0.35)",
+                  borderRadius: 10,
+                  background: "color-mix(in oklab, var(--ss-ink) 85%, transparent)",
+                  border: `0.5px solid ${PE.line28}`,
                   display: "flex",
                   alignItems: "center",
-                  fontSize: 11.5,
+                  fontSize: 12.5,
                   color: ACCENT,
                 }}
               >
@@ -593,8 +593,8 @@ export function FloodDrainageSection({ embed = false }: { embed?: boolean } = {}
                   bottom: 9,
                   height: 26,
                   padding: "0 10px",
-                  background: "rgba(11,14,19,0.85)",
-                  fontSize: 11.5,
+                  background: "color-mix(in oklab, var(--ss-ink) 85%, transparent)",
+                  fontSize: 12.5,
                 }}
               >
                 Open on the map
@@ -609,7 +609,7 @@ export function FloodDrainageSection({ embed = false }: { embed?: boolean } = {}
               gap: 12,
               flexWrap: "wrap",
               marginTop: 8,
-              fontSize: 11.5,
+              fontSize: 12.5,
               color: MUTED,
             }}
           >
@@ -632,7 +632,7 @@ export function FloodDrainageSection({ embed = false }: { embed?: boolean } = {}
           {!hasPonding && (
             <div
               data-testid="flood-no-ponding"
-              style={{ marginTop: 6, fontSize: 11.5, color: MUTED, lineHeight: 1.45 }}
+              style={{ marginTop: 6, fontSize: 12.5, color: MUTED, lineHeight: 1.45 }}
             >
               {FLOOD_NO_PONDING_LINE}
             </div>
@@ -645,7 +645,7 @@ export function FloodDrainageSection({ embed = false }: { embed?: boolean } = {}
             <summary
               style={{
                 cursor: "pointer",
-                fontSize: 12.5,
+                fontSize: 14.5,
                 color: PE.t3,
                 listStyle: "none",
               }}
@@ -654,7 +654,7 @@ export function FloodDrainageSection({ embed = false }: { embed?: boolean } = {}
             </summary>
             <div
               data-testid="flood-provenance"
-              style={{ marginTop: 10, fontSize: 10, color: MUTED, lineHeight: 1.5 }}
+              style={{ marginTop: 10, fontSize: 11.5, color: MUTED, lineHeight: 1.5 }}
             >
               {floodProvenanceLine(study)}
               {study.gradient?.note ? (
@@ -664,7 +664,7 @@ export function FloodDrainageSection({ embed = false }: { embed?: boolean } = {}
             {study.briefing ? (
               <p
                 data-testid="flood-briefing"
-                style={{ margin: "8px 0 0", fontSize: 11.5, lineHeight: 1.55, color: TEXT }}
+                style={{ margin: "8px 0 0", fontSize: 12.5, lineHeight: 1.55, color: TEXT }}
               >
                 {study.briefing}
               </p>

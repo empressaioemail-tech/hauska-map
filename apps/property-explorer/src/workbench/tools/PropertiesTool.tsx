@@ -167,14 +167,14 @@ export function PropertiesList({
 }) {
   if (phase.kind === "loading") {
     return (
-      <p data-testid="properties-loading" style={{ margin: 0, fontSize: 11.5, color: MUTED }}>
+      <p data-testid="properties-loading" style={{ margin: 0, fontSize: 12.5, color: MUTED }}>
         Loading saved properties…
       </p>
     );
   }
   if (phase.kind === "sign-in") {
     return (
-      <div data-testid="properties-sign-in" style={{ margin: 0, fontSize: 11.5, color: AMBER }}>
+      <div data-testid="properties-sign-in" style={{ margin: 0, fontSize: 12.5, color: AMBER }}>
         Sign in to save properties and see your workspace across devices.
         <div style={{ marginTop: 8 }}>
           <GoogleSignInButton size="sm" testId="properties-sign-in-link" />
@@ -184,7 +184,7 @@ export function PropertiesList({
   }
   if (phase.kind === "notice") {
     return (
-      <p data-testid="properties-notice" style={{ margin: 0, fontSize: 11.5, color: MUTED }}>
+      <p data-testid="properties-notice" style={{ margin: 0, fontSize: 12.5, color: MUTED }}>
         {phase.text}
       </p>
     );
@@ -240,7 +240,7 @@ export function PropertiesList({
                 aria-pressed={selected}
                 onClick={() => onStatusFilterChange?.(f)}
                 style={{
-                  fontSize: 10,
+                  fontSize: 11.5,
                   fontWeight: 600,
                   padding: "2px 8px",
                   borderRadius: 999,
@@ -264,12 +264,12 @@ export function PropertiesList({
       )}
 
       {items.length === 0 ? (
-        <p data-testid="properties-empty" style={{ margin: 0, fontSize: 11.5, color: MUTED }}>
+        <p data-testid="properties-empty" style={{ margin: 0, fontSize: 12.5, color: MUTED }}>
           No saved properties yet. Click a parcel on the map and save it — your
           workspace lives on the server, not this browser.
         </p>
       ) : visibleItems.length === 0 ? (
-        <p data-testid="properties-filter-empty" style={{ margin: 0, fontSize: 11.5, color: MUTED }}>
+        <p data-testid="properties-filter-empty" style={{ margin: 0, fontSize: 12.5, color: MUTED }}>
           No saved properties with this status.
         </p>
       ) : (
@@ -340,7 +340,7 @@ export function PropertiesList({
                   cursor: "pointer",
                   padding: 0,
                   height: "auto",
-                  fontSize: 12.5,
+                  fontSize: 14.5,
                   lineHeight: 1.4,
                 }}
               >
@@ -369,7 +369,7 @@ export function PropertiesList({
                     display: "block",
                     marginTop: 3,
                     fontFamily: PE.mono,
-                    fontSize: 11.5,
+                    fontSize: 12.5,
                     color: PE.t6,
                     overflow: "hidden",
                     textOverflow: "ellipsis",
@@ -410,7 +410,7 @@ export function PropertiesList({
                   gap: 4,
                   flex: "0 0 auto",
                   fontFamily: PE.mono,
-                  fontSize: 10,
+                  fontSize: 11.5,
                   lineHeight: 1,
                   color: PE.t6,
                 }}
@@ -453,7 +453,7 @@ export function PropertiesList({
                   border: "none",
                   color: MUTED,
                   cursor: busy ? "default" : "pointer",
-                  fontSize: 13.5,
+                  fontSize: 15.5,
                   lineHeight: 1,
                   padding: "2px 4px",
                 }}
@@ -750,7 +750,7 @@ export function PropertiesTool() {
       // Row vanished (removed elsewhere) — honest return to the list.
       return (
         <div>
-          <p style={{ margin: "0 0 8px", fontSize: 11.5, color: MUTED }}>
+          <p style={{ margin: "0 0 8px", fontSize: 12.5, color: MUTED }}>
             This property is no longer saved.
           </p>
           <Button
@@ -759,7 +759,7 @@ export function PropertiesTool() {
             type="button"
             data-testid="dossier-back"
             onClick={handleBack}
-            style={{ padding: 0, height: "auto", border: "none", fontSize: 11.5 }}
+            style={{ padding: 0, height: "auto", border: "none", fontSize: 12.5 }}
           >
             ← All saved properties
           </Button>

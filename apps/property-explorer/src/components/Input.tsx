@@ -23,7 +23,7 @@ const base: CSSProperties = {
   boxSizing: "border-box",
   width: "100%",
   fontFamily: PE.ui,
-  fontSize: 12.5,
+  fontSize: 14.5,
   lineHeight: 1.45,
   color: PE.t2,
   background: "rgba(255,255,255,.02)",
@@ -49,7 +49,7 @@ export const Input = forwardRef<
         height: PE.hField,
         padding: "0 11px",
         ...(invalid
-          ? { borderColor: PE.err, background: "rgba(239,68,68,.05)" }
+          ? { borderColor: PE.err, background: "color-mix(in oklab, var(--ss-err) 5%, transparent)" }
           : null),
         ...style,
       }}
@@ -74,7 +74,7 @@ export const TextArea = forwardRef<
         padding: "8px 11px",
         resize: "none",
         ...(invalid
-          ? { borderColor: PE.err, background: "rgba(239,68,68,.05)" }
+          ? { borderColor: PE.err, background: "color-mix(in oklab, var(--ss-err) 5%, transparent)" }
           : null),
         ...style,
       }}
@@ -100,7 +100,7 @@ export function Field({
         style={{
           display: "block",
           marginBottom: 3,
-          fontSize: 10,
+          fontSize: 11.5,
           fontWeight: 600,
           letterSpacing: ".13em",
           textTransform: "uppercase",

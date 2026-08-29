@@ -150,7 +150,7 @@ export function CompareView({
 }) {
   if (phase.kind === "sign-in") {
     return (
-      <div data-testid="compare-sign-in" style={{ margin: 0, fontSize: 11.5, color: AMBER }}>
+      <div data-testid="compare-sign-in" style={{ margin: 0, fontSize: 12.5, color: AMBER }}>
         Sign in to compare saved properties — the saved list is account-scoped.
         <div style={{ marginTop: 8 }}>
           <GoogleSignInButton size="sm" testId="compare-sign-in-link" />
@@ -160,7 +160,7 @@ export function CompareView({
   }
   if (phase.kind === "notice") {
     return (
-      <p data-testid="compare-notice" style={{ margin: 0, fontSize: 11.5, color: MUTED }}>
+      <p data-testid="compare-notice" style={{ margin: 0, fontSize: 12.5, color: MUTED }}>
         {phase.text}
       </p>
     );
@@ -175,7 +175,7 @@ export function CompareView({
   // payloads while the list refreshes — reopen never blanks the table.)
   if (phase.kind === "loading" && !bothSelected) {
     return (
-      <p data-testid="compare-loading" style={{ margin: 0, fontSize: 11.5, color: MUTED }}>
+      <p data-testid="compare-loading" style={{ margin: 0, fontSize: 12.5, color: MUTED }}>
         Loading saved properties…
       </p>
     );
@@ -185,7 +185,7 @@ export function CompareView({
   // properties means there is nothing to compare — say so, never fake rows.
   if (phase.kind === "ready" && items.length < 2 && !bothSelected) {
     return (
-      <p data-testid="compare-empty" style={{ margin: 0, fontSize: 11.5, color: MUTED }}>
+      <p data-testid="compare-empty" style={{ margin: 0, fontSize: 12.5, color: MUTED }}>
         Save two properties to compare. Click a parcel on the map, save it from
         the card or My properties, then pick both here.
       </p>
@@ -204,14 +204,14 @@ export function CompareView({
   return (
     <div data-testid="compare-tool">
       {phase.kind === "loading" && (
-        <p style={{ margin: "0 0 8px", fontSize: 11.5, color: MUTED }}>
+        <p style={{ margin: "0 0 8px", fontSize: 12.5, color: MUTED }}>
           Refreshing saved properties…
         </p>
       )}
       {phase.kind === "ready" && (
         <div style={{ display: "flex", gap: 8, marginBottom: 10 }}>
           {(["a", "b"] as const).map((slot) => (
-            <label key={slot} style={{ flex: 1, fontSize: 11.5, color: MUTED }}>
+            <label key={slot} style={{ flex: 1, fontSize: 12.5, color: MUTED }}>
               {slot === "a" ? "Property A" : "Property B"}
               <select
                 data-testid={`compare-select-${slot}`}
@@ -222,14 +222,14 @@ export function CompareView({
                   width: "100%",
                   marginTop: 3,
                   padding: "5px 6px",
-                  fontSize: 11.5,
+                  fontSize: 12.5,
                   color: TEXT,
                   // Solid dark control + dark open-menu (options carry their own
                   // dark bg below): the browser default paints the dropdown list
                   // white unless the OPTIONS are colored, so both are set here.
                   background: OPTION_BG,
-                  border: "1px solid rgba(154,166,178,0.35)",
-                  borderRadius: 6,
+                  border: "1px solid var(--ss-line-14)",
+                  borderRadius: 10,
                 }}
               >
                 <option value="" style={OPTION_STYLE}>Choose a saved property…</option>
@@ -251,7 +251,7 @@ export function CompareView({
       )}
 
       {!bothSelected ? (
-        <p data-testid="compare-pick-second" style={{ margin: 0, fontSize: 11.5, color: MUTED }}>
+        <p data-testid="compare-pick-second" style={{ margin: 0, fontSize: 12.5, color: MUTED }}>
           {slots.a || slots.b
             ? "Pick a second property to compare."
             : "Pick two saved properties to compare their cited facts side by side."}
@@ -333,7 +333,7 @@ function CompareTable({
   const cellStyle = { padding: "5px 6px 5px 0", verticalAlign: "top" as const };
 
   return (
-    <div data-testid="compare-table" style={{ fontSize: 11.5, lineHeight: 1.4 }}>
+    <div data-testid="compare-table" style={{ fontSize: 12.5, lineHeight: 1.4 }}>
       {/* Column headers: label + open-in-My-properties + optional map fly. */}
       <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 8 }}>
         {cols.map(({ slot, parcelNodeId }) => {
@@ -358,7 +358,7 @@ function CompareTable({
                   fontWeight: 600,
                   color: TEXT,
                   overflowWrap: "anywhere",
-                  fontSize: 11.5,
+                  fontSize: 12.5,
                 }}
               >
                 <span data-testid={`compare-header-${slot}`}>{labelFor(parcelNodeId)}</span>
@@ -371,7 +371,7 @@ function CompareTable({
                 {labelFor(parcelNodeId)}
               </div>
             )}
-            <div style={{ fontSize: 11.5, color: MUTED }}>
+            <div style={{ fontSize: 12.5, color: MUTED }}>
               {parcelNodeId}
               {onView && (
                 <>
@@ -385,7 +385,7 @@ function CompareTable({
                     title="Fly the map to this property"
                     style={{
                       padding: 0,
-                      fontSize: 10,
+                      fontSize: 11.5,
                       border: "none",
                       fontWeight: 600,
                     }}
@@ -398,7 +398,7 @@ function CompareTable({
             <div data-testid={`compare-notes-${slot}`} style={{ marginTop: 6 }}>
               <div
                 style={{
-                  fontSize: 10,
+                  fontSize: 11.5,
                   fontWeight: 600,
                   letterSpacing: 0.4,
                   textTransform: "uppercase",
@@ -411,14 +411,14 @@ function CompareTable({
               {existing ? (
                 <p
                   data-testid={`compare-notes-existing-${slot}`}
-                  style={{ margin: "0 0 6px", fontSize: 11.5, color: TEXT, whiteSpace: "pre-wrap" }}
+                  style={{ margin: "0 0 6px", fontSize: 12.5, color: TEXT, whiteSpace: "pre-wrap" }}
                 >
                   {existing}
                 </p>
               ) : (
                 <p
                   data-testid={`compare-notes-empty-${slot}`}
-                  style={{ margin: "0 0 6px", fontSize: 11.5, color: MUTED, fontStyle: "italic" }}
+                  style={{ margin: "0 0 6px", fontSize: 12.5, color: MUTED, fontStyle: "italic" }}
                 >
                   No notes yet.
                 </p>
@@ -437,7 +437,7 @@ function CompareTable({
               {noteNotices?.[parcelNodeId] && (
                 <p
                   data-testid={`compare-notes-notice-${slot}`}
-                  style={{ margin: "5px 0 0", fontSize: 11.5, color: AMBER }}
+                  style={{ margin: "5px 0 0", fontSize: 12.5, color: AMBER }}
                 >
                   {noteNotices[parcelNodeId]}
                 </p>
@@ -457,7 +457,7 @@ function CompareTable({
           gap: 8,
           margin: "8px 0 4px",
           paddingBottom: 6,
-          borderBottom: "1px solid rgba(154,166,178,0.2)",
+          borderBottom: "1px solid var(--ss-line-06)",
         }}
       >
         {cols.map(({ slot, parcelNodeId, column }) => (
@@ -485,13 +485,13 @@ function CompareTable({
                 key={id}
                 data-testid={`compare-row-${id}`}
                 data-differs={differs ? "true" : "false"}
-                style={{ borderBottom: "1px solid rgba(154,166,178,0.12)" }}
+                style={{ borderBottom: "1px solid var(--ss-line-06)" }}
               >
                 <td
                   style={{
                     ...cellStyle,
                     width: 86,
-                    fontSize: 11.5,
+                    fontSize: 12.5,
                     // SUBTLE difference emphasis: the row label carries the
                     // accent (color + weight) — legibility without noise.
                     color: differs ? ACCENT : MUTED,
@@ -528,7 +528,7 @@ function CompareTable({
                           {cell.source && (
                             <span
                               data-testid="compare-cell-source"
-                              style={{ display: "block", fontSize: 10, color: MUTED }}
+                              style={{ display: "block", fontSize: 11.5, color: MUTED }}
                             >
                               {cell.source}
                             </span>
@@ -559,7 +559,7 @@ function ColumnPlaceholder({
     return (
       <span
         data-testid="compare-column-failed"
-        style={{ fontSize: compact ? 10.5 : 11.5, color: AMBER, fontStyle: "italic" }}
+        style={{ fontSize: compact ? 11.5 : 12.5, color: AMBER, fontStyle: "italic" }}
       >
         {compact ? "—" : message}
       </span>
@@ -568,7 +568,7 @@ function ColumnPlaceholder({
   return (
     <span
       data-testid="compare-column-loading"
-      style={{ fontSize: compact ? 10.5 : 11.5, color: MUTED, fontStyle: "italic" }}
+      style={{ fontSize: compact ? 11.5 : 12.5, color: MUTED, fontStyle: "italic" }}
     >
       {compact ? "…" : "Loading facts…"}
     </span>

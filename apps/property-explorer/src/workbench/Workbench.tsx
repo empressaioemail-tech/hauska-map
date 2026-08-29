@@ -375,7 +375,8 @@ export function Workbench({
                       borderRadius: "50%",
                       background: PE.gold,
                       boxShadow:
-                        "0 0 0 2px rgba(11,14,19,.95), 0 0 8px 1px rgba(232,150,59,.85)",
+                        "0 0 0 2px color-mix(in oklab, var(--ss-ink) 95%, transparent), " +
+                        "0 0 8px 1px color-mix(in oklab, var(--ss-gold) 85%, transparent)",
                     }}
                   />
                 ) : null}
@@ -543,7 +544,7 @@ export function Workbench({
                     style={{
                       flex: 1,
                       minWidth: 0,
-                      fontSize: 11,
+                      fontSize: 11.5,
                       fontWeight: 600,
                       letterSpacing: ".1em",
                       textTransform: "uppercase",
@@ -571,11 +572,12 @@ export function Workbench({
                         marginLeft: 6,
                         padding: "1px 6px",
                         borderRadius: 999,
-                        fontSize: 10,
+                        fontSize: 11.5,
                         letterSpacing: ".04em",
                         textTransform: "none",
                         color: PE.warning,
-                        border: `1px solid ${PE.warning}55`,
+                        border:
+                          "1px solid color-mix(in oklab, var(--ss-warn) 34%, transparent)",
                         background: "transparent",
                         whiteSpace: "nowrap",
                       }}
@@ -627,7 +629,7 @@ export function Workbench({
                           justifyContent: "center",
                           width: 22,
                           height: 22,
-                          borderRadius: 6,
+                          borderRadius: 10,
                           background: "transparent",
                           border: "none",
                           color: PE.t5,
@@ -673,7 +675,7 @@ export function Workbench({
                         justifyContent: "center",
                         width: 22,
                         height: 22,
-                        borderRadius: 6,
+                        borderRadius: 10,
                         background: "transparent",
                         border: "none",
                         color: PE.t5,

@@ -43,7 +43,7 @@ export function ShareLandingOverlay({
         gap: 8,
         width: "min(320px, calc(100vw - 90px))",
         pointerEvents: "none",
-        font: "12px/1.5 system-ui, -apple-system, Segoe UI, Roboto, sans-serif",
+        font: "12.5px/1.5 system-ui, -apple-system, Segoe UI, Roboto, sans-serif",
       }}
     >
       {linkBad && (
@@ -52,11 +52,12 @@ export function ShareLandingOverlay({
           style={{
             pointerEvents: "auto",
             padding: "8px 12px",
-            borderRadius: 8,
+            borderRadius: 12,
             background: CARD_BG,
-            border: "1px solid rgba(245,158,11,0.45)",
+            border:
+              "1px solid color-mix(in oklab, var(--ss-warn) 34%, transparent)",
             color: AMBER,
-            fontSize: 11.5,
+            fontSize: 12.5,
           }}
         >
           {phase.kind === "expired"
@@ -74,20 +75,20 @@ export function ShareLandingOverlay({
           style={{
             pointerEvents: "auto",
             padding: "12px 14px",
-            borderRadius: 10,
+            borderRadius: 14,
             background: CARD_BG,
-            border: "1px solid var(--brand-blue-border-soft, rgba(59,130,246,0.28))",
+            border: "1px solid var(--ss-blue-line)",
             boxShadow: "0 10px 32px rgba(0,0,0,0.45)",
             color: TEXT,
           }}
         >
           <p
             data-testid="share-inspect-cta"
-            style={{ margin: "0 0 8px", fontSize: 12.5, lineHeight: 1.45 }}
+            style={{ margin: "0 0 8px", fontSize: 14.5, lineHeight: 1.45 }}
           >
             This property is open — use the inspect card.
           </p>
-          <p style={{ margin: "0 0 8px", fontSize: 12.5, lineHeight: 1.45 }}>
+          <p style={{ margin: "0 0 8px", fontSize: 14.5, lineHeight: 1.45 }}>
             <strong>Shared with you</strong> — sign up free to explore this and
             any property.
           </p>
@@ -96,7 +97,7 @@ export function ShareLandingOverlay({
             testId="share-signup-link"
             onClick={() => void recordPeGtmEvent({ eventType: "pe_signup_intent" })}
           />
-          <p style={{ margin: "6px 0 0", fontSize: 10, color: MUTED }}>
+          <p style={{ margin: "6px 0 0", fontSize: 11.5, color: MUTED }}>
             Browsing the map stays free — no account needed to look around.
           </p>
         </div>

@@ -56,7 +56,7 @@ const SHELL: CSSProperties = {
   color: PE.t1,
   textDecoration: "none",
   fontFamily: PE.ui,
-  fontSize: 12.5,
+  fontSize: 14.5,
   fontWeight: 600,
   cursor: "pointer",
   transition: `background ${MOTION.state}, border-color ${MOTION.state}`,
@@ -133,9 +133,9 @@ export function DownloadFileButton({
   const ready = state === "ready" && !!href;
 
   const border = failed
-    ? `1px solid rgba(239,68,68,.28)`
+    ? `1px solid color-mix(in oklab, var(--ss-err) 34%, transparent)`
     : `1px solid ${PE.line28}`;
-  const background = failed ? "rgba(239,68,68,.06)" : "transparent";
+  const background = failed ? "color-mix(in oklab, var(--ss-err) 13%, transparent)" : "transparent";
   const glyphColor = failed ? PE.err : PE.blue;
 
   // The right-hand slot: a real size when the file is real, a real duration
@@ -166,7 +166,7 @@ export function DownloadFileButton({
           style={{
             flex: "none",
             fontFamily: PE.mono,
-            fontSize: 11,
+            fontSize: 11.5,
             fontWeight: 400,
             color: PE.t5,
           }}
@@ -192,7 +192,7 @@ export function DownloadFileButton({
             height: "auto",
             color: PE.blue,
             fontFamily: PE.ui,
-            fontSize: 11.5,
+            fontSize: 12.5,
             fontWeight: 600,
             cursor: "pointer",
           }}

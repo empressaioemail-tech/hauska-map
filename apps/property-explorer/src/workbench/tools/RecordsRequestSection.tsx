@@ -47,7 +47,7 @@ const MUTED_2 = PE.muted;
 const SLATE = PE.absence;
 const BLUE = PE.accent;
 const ATOM = ATOM_ACCENT;
-const CARD_BORDER = "rgba(154,166,178,0.16)";
+const CARD_BORDER = PE.line14;
 
 const POLL_MS = 5000;
 
@@ -315,7 +315,7 @@ export function RecordsRequestSection({
         <div
           data-testid="records-request-notice"
           style={{
-            fontSize: 11.5,
+            fontSize: 12.5,
             lineHeight: 1.5,
             color: SLATE,
             borderLeft: `2px solid ${SLATE}`,
@@ -344,7 +344,7 @@ export function RecordsRequestSection({
             <p
               style={{
                 margin: 0,
-                fontSize: 12.5,
+                fontSize: 14.5,
                 lineHeight: 1.55,
                 color: MUTED_2,
               }}
@@ -413,7 +413,7 @@ export function RecordsRequestSection({
         <div
           data-testid="records-scaffold-preview"
           style={{
-            fontSize: 11.5,
+            fontSize: 12.5,
             letterSpacing: "0.12em",
             textTransform: "uppercase",
             color: MUTED,
@@ -473,12 +473,12 @@ function RecordsFeeDecisionActions({
         flexDirection: "column",
         gap: 8,
         padding: "12px 14px",
-        borderRadius: 10,
-        border: "1px solid rgba(245,158,11,0.35)",
-        background: "rgba(245,158,11,0.08)",
+        borderRadius: 14,
+        border: "1px solid color-mix(in oklab, var(--ss-warn) 34%, transparent)",
+        background: APP_INK,
       }}
     >
-      <div style={{ fontSize: 12.5, lineHeight: 1.5, color: TEXT }}>
+      <div style={{ fontSize: 14.5, lineHeight: 1.5, color: TEXT }}>
         County clerk image fees
         {projectedFeeLabel ? ` · projected ${projectedFeeLabel}` : ""}. Approve
         to queue acquisition (human clerk checkout if the portal requires
@@ -590,7 +590,7 @@ function RecordsResultsPanel({
     <div
       data-testid="records-results-panel"
       style={{
-        borderRadius: 10,
+        borderRadius: 14,
         border: `1px solid ${CARD_BORDER}`,
         background: APP_INK,
         overflow: "hidden",
@@ -609,20 +609,20 @@ function RecordsResultsPanel({
           style={{
             fontFamily: "Oxygen, system-ui, sans-serif",
             fontWeight: 600,
-            fontSize: 15,
+            fontSize: 17.5,
             color: TEXT,
           }}
         >
           Property records
         </div>
         {sub ? (
-          <div style={{ fontSize: 11.5, color: SLATE }}>{sub}</div>
+          <div style={{ fontSize: 12.5, color: SLATE }}>{sub}</div>
         ) : null}
         <div
           style={{
-            borderLeft: `2px solid rgba(59,130,246,0.55)`,
+            borderLeft: `2px solid ${PE.blueLine}`,
             paddingLeft: 10,
-            fontSize: 12.5,
+            fontSize: 14.5,
             lineHeight: 1.6,
             color: MUTED_2,
           }}
@@ -660,7 +660,7 @@ function RecordsResultsPanel({
             </Button>
           );
         })}
-        <span style={{ marginLeft: "auto", fontSize: 11.5, color: MUTED }}>
+        <span style={{ marginLeft: "auto", fontSize: 12.5, color: MUTED }}>
           Newest recording first
         </span>
       </div>
@@ -671,7 +671,7 @@ function RecordsResultsPanel({
             data-testid="records-instrument-pending"
             style={{
               padding: "16px",
-              fontSize: 12.5,
+              fontSize: 14.5,
               lineHeight: 1.55,
               color: SLATE,
             }}
@@ -728,7 +728,7 @@ function RecordsInstrumentListRow({
       data-testid={`records-instrument-${row.id}`}
       style={{
         padding: "12px 16px",
-        borderBottom: `1px solid rgba(154,166,178,0.09)`,
+        borderBottom: `1px solid ${PE.line06}`,
         display: "flex",
         gap: 12,
         alignItems: "flex-start",
@@ -738,8 +738,8 @@ function RecordsInstrumentListRow({
         style={{
           width: 22,
           height: 22,
-          borderRadius: 6,
-          background: row.readDepth === "header-only" ? "rgba(124,139,160,0.12)" : ATOM_ACCENT_BG,
+          borderRadius: 10,
+          background: row.readDepth === "header-only" ? "color-mix(in oklab, var(--ss-slate) 13%, transparent)" : ATOM_ACCENT_BG,
           flex: "none",
           marginTop: 1,
         }}
@@ -747,26 +747,26 @@ function RecordsInstrumentListRow({
       />
       <div style={{ flex: 1, display: "flex", flexDirection: "column", gap: 4 }}>
         <div style={{ display: "flex", flexWrap: "wrap", gap: 8, alignItems: "baseline" }}>
-          <span style={{ fontSize: 13.5, fontWeight: 600, color: TEXT }}>{row.label}</span>
+          <span style={{ fontSize: 15.5, fontWeight: 600, color: TEXT }}>{row.label}</span>
           <span
             style={{
               fontFamily: "ui-monospace, Menlo, monospace",
-              fontSize: 11.5,
+              fontSize: 12.5,
               color: ATOM,
             }}
           >
             {row.instrumentNumber}
           </span>
-          <span style={{ fontSize: 11.5, color: SLATE }}>{row.recordedAt}</span>
+          <span style={{ fontSize: 12.5, color: SLATE }}>{row.recordedAt}</span>
         </div>
-        <div style={{ fontSize: 12.5, lineHeight: 1.5, color: MUTED_2 }}>{row.partiesLine}</div>
+        <div style={{ fontSize: 14.5, lineHeight: 1.5, color: MUTED_2 }}>{row.partiesLine}</div>
         <div style={{ display: "flex", gap: 6, flexWrap: "wrap", alignItems: "center" }}>
           <ReadDepthChip depth={row.readDepth} />
           {row.acquisitionNote ? (
-            <span style={{ fontSize: 11.5, color: SLATE }}>{row.acquisitionNote}</span>
+            <span style={{ fontSize: 12.5, color: SLATE }}>{row.acquisitionNote}</span>
           ) : null}
           {row.corridorPlaced ? (
-            <span style={{ fontSize: 11.5, color: ATOM }}>Corridor drawn</span>
+            <span style={{ fontSize: 12.5, color: ATOM }}>Corridor drawn</span>
           ) : null}
         </div>
       </div>
@@ -776,7 +776,7 @@ function RecordsInstrumentListRow({
           data-testid={`records-instrument-image-${row.id}`}
           onClick={() => onOpenImage(row.documentUrl!, row.label)}
           style={{
-            fontSize: 12.5,
+            fontSize: 14.5,
             color: BLUE,
             flex: "none",
             background: "transparent",
@@ -790,7 +790,7 @@ function RecordsInstrumentListRow({
       ) : (
         <span
           data-testid={`records-instrument-no-image-${row.id}`}
-          style={{ fontSize: 12.5, color: SLATE, flex: "none" }}
+          style={{ fontSize: 14.5, color: SLATE, flex: "none" }}
         >
           image not acquired yet
         </span>
@@ -813,11 +813,11 @@ function ReadDepthChip({ depth }: { depth: RecordsReadDepth }) {
     <span
       style={{
         fontFamily: "ui-monospace, Menlo, monospace",
-        fontSize: 11.5,
+        fontSize: 12.5,
         color: teal ? ATOM : SLATE,
-        border: `1px solid ${teal ? ATOM_ACCENT_BORDER : "rgba(124,139,160,0.35)"}`,
-        background: teal ? ATOM_ACCENT_BG : "rgba(124,139,160,0.10)",
-        borderRadius: 4,
+        border: `1px solid ${teal ? ATOM_ACCENT_BORDER : "color-mix(in oklab, var(--ss-slate) 34%, transparent)"}`,
+        background: teal ? ATOM_ACCENT_BG : "color-mix(in oklab, var(--ss-slate) 13%, transparent)",
+        borderRadius: 8,
         padding: "2px 6px",
       }}
     >
@@ -832,16 +832,16 @@ function RecordsVerdictCardView({ card }: { card: RecordsVerdictCard }) {
     <div
       data-testid={`records-verdict-${card.kind}`}
       style={{
-        borderRadius: 10,
-        border: `1px solid ${absent ? "rgba(124,139,160,0.3)" : "rgba(245,158,11,0.4)"}`,
+        borderRadius: 14,
+        border: `1px solid ${absent ? "color-mix(in oklab, var(--ss-slate) 34%, transparent)" : "color-mix(in oklab, var(--ss-warn) 34%, transparent)"}`,
         padding: 14,
         display: "flex",
         flexDirection: "column",
         gap: 6,
       }}
     >
-      <div style={{ fontSize: 13.5, fontWeight: 600, color: TEXT }}>{card.title}</div>
-      <div style={{ fontSize: 12.5, lineHeight: 1.6, color: MUTED_2 }}>{card.body}</div>
+      <div style={{ fontSize: 15.5, fontWeight: 600, color: TEXT }}>{card.title}</div>
+      <div style={{ fontSize: 14.5, lineHeight: 1.6, color: MUTED_2 }}>{card.body}</div>
     </div>
   );
 }
@@ -850,13 +850,13 @@ function filterChipStyle(active: boolean): CSSProperties {
   return {
     height: 28,
     padding: "0 11px",
-    borderRadius: 4,
+    borderRadius: 8,
     border: active
-      ? "1px solid rgba(59,130,246,0.5)"
-      : "1px solid rgba(154,166,178,0.24)",
-    background: active ? "rgba(59,130,246,0.16)" : "transparent",
+      ? `1px solid ${PE.blueLine}`
+      : `1px solid ${PE.line28}`,
+    background: active ? PE.blueBg : "transparent",
     color: active ? TEXT : PE.t3,
-    fontSize: 12.5,
+    fontSize: 14.5,
     fontWeight: active ? 600 : 400,
     cursor: "pointer",
     fontFamily: "inherit",

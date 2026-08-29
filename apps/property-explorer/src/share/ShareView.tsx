@@ -34,7 +34,7 @@ const MUTED = PE.t4;
 const AMBER = PE.warn;
 const TEXT = PE.t3;
 const ACCENT = PE.blue;
-const CARD_BG = "var(--surface-card-translucent, rgba(11,14,19,0.94))";
+const CARD_BG = "var(--ss-ink-94)";
 
 export interface ShareBriefResponse {
   property: {
@@ -195,12 +195,12 @@ export function DownloadButton({
         disabled={state.kind === "busy"}
         style={{
           padding: "7px 12px",
-          fontSize: 12,
+          fontSize: 12.5,
           fontWeight: 600,
           color: ACCENT,
           background: "transparent",
-          border: "0.5px solid var(--brand-blue-border, rgba(59,130,246,0.4))",
-          borderRadius: 6,
+          border: "0.5px solid var(--ss-blue-line)",
+          borderRadius: 10,
           cursor: state.kind === "busy" ? "default" : "pointer",
           marginRight: 8,
         }}
@@ -213,19 +213,19 @@ export function DownloadButton({
         disabled={state.kind === "busy"}
         style={{
           padding: "7px 12px",
-          fontSize: 12,
+          fontSize: 12.5,
           fontWeight: 600,
           color: ACCENT,
           background: "transparent",
-          border: "0.5px solid var(--brand-blue-border, rgba(59,130,246,0.4))",
-          borderRadius: 6,
+          border: "0.5px solid var(--ss-blue-line)",
+          borderRadius: 10,
           cursor: state.kind === "busy" ? "default" : "pointer",
         }}
       >
         {state.kind === "busy" ? "Downloading…" : label}
       </Button>
       {state.kind === "notice" && (
-        <p style={{ margin: "4px 0 0", fontSize: 10.5, color: MUTED }}>{state.text}</p>
+        <p style={{ margin: "4px 0 0", fontSize: 11.5, color: MUTED }}>{state.text}</p>
       )}
       {viewerOpen && viewerHref ? (
         <PdfViewer
@@ -258,20 +258,20 @@ export function ShareDossierSection({ dossier }: { dossier: ShareDossierData }) 
       data-testid="share-dossier"
       style={{
         padding: "12px 14px",
-        borderRadius: 8,
+        borderRadius: 12,
         background: CARD_BG,
-        border: "1px solid rgba(154,166,178,0.3)",
+        border: "1px solid var(--ss-line-28)",
         marginBottom: 14,
       }}
     >
-      <div style={{ fontSize: 10.5, color: MUTED, marginBottom: 6 }}>
+      <div style={{ fontSize: 11.5, color: MUTED, marginBottom: 6 }}>
         From the sharer&apos;s workspace
         {dossier.savedAt ? ` · saved ${dossier.savedAt.slice(0, 10)}` : ""}
       </div>
 
       {dossier.drawings && (
         <div data-testid="share-dossier-drawings" style={{ marginBottom: 10 }}>
-          <div style={{ fontSize: 11.5, fontWeight: 600, marginBottom: 4 }}>
+          <div style={{ fontSize: 12.5, fontWeight: 600, marginBottom: 4 }}>
             Map drawings{summaryLine ? ` · ${summaryLine}` : ""}
           </div>
           {sketch ? (
@@ -285,16 +285,20 @@ export function ShareDossierSection({ dossier }: { dossier: ShareDossierData }) 
                   width: 180,
                   height: 180,
                   display: "block",
-                  background: "rgba(154,166,178,0.06)",
-                  border: "1px solid rgba(154,166,178,0.25)",
-                  borderRadius: 6,
+                  background: "var(--ss-line-06)",
+                  border: "1px solid var(--ss-line-28)",
+                  borderRadius: 10,
                 }}
               >
                 {sketch.paths.map((p, i) => (
                   <path
                     key={i}
                     d={p.d}
-                    fill={p.closed ? "rgba(59,130,246,0.15)" : "none"}
+                    style={{
+                      fill: p.closed
+                        ? "color-mix(in oklab, var(--ss-blue) 13%, transparent)"
+                        : "none",
+                    }}
                     stroke={ACCENT}
                     strokeWidth={1.2}
                     strokeLinejoin="round"
@@ -305,13 +309,13 @@ export function ShareDossierSection({ dossier }: { dossier: ShareDossierData }) 
                   <circle key={i} cx={pt.x} cy={pt.y} r={2} fill={AMBER} />
                 ))}
               </svg>
-              <div style={{ marginTop: 4, fontSize: 9.5, color: MUTED }}>
+              <div style={{ marginTop: 4, fontSize: 11.5, color: MUTED }}>
                 Schematic sketch of the sharer&apos;s annotations — not to
                 scale, no basemap.
               </div>
             </>
           ) : (
-            <div style={{ fontSize: 10.5, color: MUTED }}>
+            <div style={{ fontSize: 11.5, color: MUTED }}>
               The sharer saved annotations that cannot be sketched here.
             </div>
           )}
@@ -320,13 +324,13 @@ export function ShareDossierSection({ dossier }: { dossier: ShareDossierData }) 
 
       {dossier.chatSummary && (
         <div data-testid="share-dossier-chat" style={{ marginBottom: 10 }}>
-          <div style={{ fontSize: 10, color: AMBER, fontWeight: 600 }}>
+          <div style={{ fontSize: 11.5, color: AMBER, fontWeight: 600 }}>
             AI research summary · saved {dossier.chatSummary.savedAt.slice(0, 10)}
           </div>
           <p
             style={{
               margin: "3px 0 0",
-              fontSize: 11.5,
+              fontSize: 12.5,
               whiteSpace: "pre-wrap",
             }}
           >
@@ -334,7 +338,7 @@ export function ShareDossierSection({ dossier }: { dossier: ShareDossierData }) 
           </p>
           <p
             data-testid="share-dossier-chat-disclaimer"
-            style={{ margin: "3px 0 0", fontSize: 9.5, color: MUTED }}
+            style={{ margin: "3px 0 0", fontSize: 11.5, color: MUTED }}
           >
             {dossier.chatSummary.disclaimer ??
               "AI-generated summary of a research chat — verify against the cited sources before relying on it."}
@@ -344,10 +348,10 @@ export function ShareDossierSection({ dossier }: { dossier: ShareDossierData }) 
 
       {dossier.notes && (
         <div data-testid="share-dossier-notes">
-          <div style={{ fontSize: 11.5, fontWeight: 600, marginBottom: 2 }}>
+          <div style={{ fontSize: 12.5, fontWeight: 600, marginBottom: 2 }}>
             Notes from the sharer
           </div>
-          <p style={{ margin: 0, fontSize: 11.5, whiteSpace: "pre-wrap" }}>
+          <p style={{ margin: 0, fontSize: 12.5, whiteSpace: "pre-wrap" }}>
             {dossier.notes}
           </p>
         </div>
@@ -372,9 +376,9 @@ function CenterCard({ children }: { children: React.ReactNode }) {
         style={{
           maxWidth: 460,
           padding: 24,
-          borderRadius: 10,
+          borderRadius: 14,
           background: CARD_BG,
-          border: "1px solid rgba(154,166,178,0.35)",
+          border: "1px solid var(--ss-line-28)",
           color: TEXT,
           font: "13px/1.5 system-ui, -apple-system, Segoe UI, Roboto, sans-serif",
         }}
@@ -426,7 +430,7 @@ export function ShareAnalysisContent({
   return (
     <div data-testid="share-analysis-content">
       {live ? (
-        <p data-testid="share-live-view" style={{ margin: "0 0 8px", fontSize: 12 }}>
+        <p data-testid="share-live-view" style={{ margin: "0 0 8px", fontSize: 12.5 }}>
           <a href={live} style={{ color: ACCENT }}>
             Open live view of this property
           </a>
@@ -435,18 +439,18 @@ export function ShareAnalysisContent({
       {/* Property header */}
       <header style={{ marginBottom: dock ? 10 : 14 }}>
         {!dock && (
-          <div style={{ fontSize: 10.5, color: MUTED, letterSpacing: 0.4 }}>
+          <div style={{ fontSize: 11.5, color: MUTED, letterSpacing: 0.4 }}>
             SHARED PROPERTY ANALYSIS · READ-ONLY
           </div>
         )}
         {dock ? (
-          <strong style={{ display: "block", fontSize: 13.5, lineHeight: 1.3 }}>
+          <strong style={{ display: "block", fontSize: 15.5, lineHeight: 1.3 }}>
             {title}
           </strong>
         ) : (
-          <h1 style={{ margin: "4px 0 2px", fontSize: 19, lineHeight: 1.3 }}>{title}</h1>
+          <h1 style={{ margin: "4px 0 2px", fontSize: 17.5, lineHeight: 1.3 }}>{title}</h1>
         )}
-        <div style={{ fontSize: 11, color: MUTED }}>
+        <div style={{ fontSize: 11.5, color: MUTED }}>
           {property.parcelNodeId}
           {property.countyName ? ` · ${property.countyName} County` : ""}
           {share.expiresAt ? ` · link expires ${share.expiresAt.slice(0, 10)}` : ""}
@@ -458,24 +462,24 @@ export function ShareAnalysisContent({
         data-testid="share-verdict"
         style={{
           padding: "12px 14px",
-          borderRadius: 8,
+          borderRadius: 12,
           background: CARD_BG,
-          border: "1px solid var(--brand-blue-border, rgba(59,130,246,0.4))",
+          border: "1px solid var(--ss-blue-line)",
           marginBottom: 14,
         }}
       >
-        <div style={{ fontSize: 10.5, color: MUTED, marginBottom: 4 }}>Verdict</div>
+        <div style={{ fontSize: 11.5, color: MUTED, marginBottom: 4 }}>Verdict</div>
         {verdict ? (
-          <div style={{ fontSize: 13.5, fontWeight: 600 }} data-tone={verdict.tone}>
+          <div style={{ fontSize: 15.5, fontWeight: 600 }} data-tone={verdict.tone}>
             {verdict.line}
           </div>
         ) : (
-          <div style={{ fontSize: 12, color: "var(--semantic-absence)" }}>
+          <div style={{ fontSize: 12.5, color: "var(--semantic-absence)" }}>
             No verified facts to headline — see the brief below for what is and
             is not verified for this parcel.
           </div>
         )}
-        <div style={{ marginTop: 6, fontSize: 10, color: MUTED }}>
+        <div style={{ marginTop: 6, fontSize: 11.5, color: MUTED }}>
           Public-record-derived · approximate, not survey grade · every fact
           below carries its citation.
         </div>
@@ -485,9 +489,9 @@ export function ShareAnalysisContent({
       <section
         style={{
           padding: "12px 14px",
-          borderRadius: 8,
+          borderRadius: 12,
           background: CARD_BG,
-          border: "1px solid rgba(154,166,178,0.3)",
+          border: "1px solid var(--ss-line-28)",
           marginBottom: 14,
         }}
       >
@@ -504,12 +508,12 @@ export function ShareAnalysisContent({
         data-testid="share-downloads"
         style={{
           padding: "12px 14px",
-          borderRadius: 8,
+          borderRadius: 12,
           background: CARD_BG,
-          border: "1px solid rgba(154,166,178,0.3)",
+          border: "1px solid var(--ss-line-28)",
         }}
       >
-        <div style={{ fontSize: 10.5, color: MUTED, marginBottom: 2 }}>Documents</div>
+        <div style={{ fontSize: 11.5, color: MUTED, marginBottom: 2 }}>Documents</div>
         <DownloadButton
           label="Download site plan (PDF)"
           href={`${downloadBase}&what=siteplan`}
@@ -571,12 +575,12 @@ export function ShareView() {
   if (phase.kind === "expired" || phase.kind === "invalid") {
     return (
       <CenterCard>
-        <strong style={{ fontSize: 15 }}>
+        <strong style={{ fontSize: 17.5 }}>
           {phase.kind === "expired"
             ? "This share link has expired."
             : "This share link is invalid or has expired."}
         </strong>
-        <p style={{ margin: "10px 0 0", color: MUTED, fontSize: 12 }}>
+        <p style={{ margin: "10px 0 0", color: MUTED, fontSize: 12.5 }}>
           Ask the person who shared it with you for a fresh link.
         </p>
       </CenterCard>

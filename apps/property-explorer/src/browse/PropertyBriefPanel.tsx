@@ -68,7 +68,7 @@ function FactRow({ fact }: { fact: BriefFact }) {
         <span style={{ color: MUTED }}>{fact.label}: </span>
         <span style={{ color: TEXT, fontWeight: 600 }}>{fact.value}</span>
         {fact.citationIndex !== null && (
-          <sup style={{ fontSize: 10, marginLeft: 2 }}>
+          <sup style={{ fontSize: 11.5, marginLeft: 2 }}>
             <a
               href={`#brief-cite-${fact.citationIndex}`}
               data-testid="brief-fact-citeref"
@@ -79,7 +79,7 @@ function FactRow({ fact }: { fact: BriefFact }) {
           </sup>
         )}
       </div>
-      <div style={{ fontSize: 10, color: MUTED }}>
+      <div style={{ fontSize: 11.5, color: MUTED }}>
         {fact.provenance ? (
           <>
             Source:{" "}
@@ -115,23 +115,23 @@ function SectionBlock({ section }: { section: BriefSectionVM }) {
       <div
         style={{
           fontWeight: 600,
-          fontSize: 12.5,
+          fontSize: 14.5,
           color: TEXT,
-          borderBottom: "1px solid rgba(154,166,178,0.25)",
+          borderBottom: "1px solid var(--ss-line-28)",
           paddingBottom: 3,
         }}
       >
         {section.title}
       </div>
       {section.explanation && (
-        <p style={{ margin: "5px 0 2px", fontSize: 11.5, color: MUTED, fontStyle: "italic" }}>
+        <p style={{ margin: "5px 0 2px", fontSize: 12.5, color: MUTED, fontStyle: "italic" }}>
           {section.explanation}
         </p>
       )}
       {section.kind === "absent" ? (
         <p
           data-testid="brief-absent"
-          style={{ margin: "6px 0 0", color: "var(--semantic-absence)", fontSize: 11.5 }}
+          style={{ margin: "6px 0 0", color: "var(--semantic-absence)", fontSize: 12.5 }}
         >
           {section.absentMessage ?? "Not verified here."}
         </p>
@@ -139,7 +139,7 @@ function SectionBlock({ section }: { section: BriefSectionVM }) {
         section.facts.map((fact, i) => <FactRow key={`${fact.label}-${i}`} fact={fact} />)
       )}
       {section.notes.map((note) => (
-        <p key={note} style={{ margin: "4px 0 0", fontSize: 11.5, color: MUTED, fontStyle: "italic" }}>
+        <p key={note} style={{ margin: "4px 0 0", fontSize: 12.5, color: MUTED, fontStyle: "italic" }}>
           {note}
         </p>
       ))}
@@ -150,7 +150,7 @@ function SectionBlock({ section }: { section: BriefSectionVM }) {
 function CitationAppendix({ citations }: { citations: CitationEntry[] }) {
   if (citations.length === 0) {
     return (
-      <p style={{ fontSize: 11.5, color: MUTED, margin: "6px 0 0" }}>
+      <p style={{ fontSize: 12.5, color: MUTED, margin: "6px 0 0" }}>
         No sources are recorded in this parcel's baked snapshot.
       </p>
     );
@@ -165,7 +165,7 @@ function CitationAppendix({ citations }: { citations: CitationEntry[] }) {
     <div data-testid="brief-citations">
       {[...groups.entries()].map(([sectionTitle, rows]) => (
         <div key={sectionTitle} style={{ marginTop: 6 }}>
-          <div style={{ fontSize: 11.5, fontWeight: 600, color: MUTED }}>
+          <div style={{ fontSize: 12.5, fontWeight: 600, color: MUTED }}>
             {sectionTitle}
           </div>
           {rows.map((row) => (
@@ -173,7 +173,7 @@ function CitationAppendix({ citations }: { citations: CitationEntry[] }) {
               key={row.index}
               id={`brief-cite-${row.index}`}
               data-testid="brief-cite-row"
-              style={{ fontSize: 11.5, color: TEXT, margin: "3px 0", scrollMarginTop: 8 }}
+              style={{ fontSize: 12.5, color: TEXT, margin: "3px 0", scrollMarginTop: 8 }}
             >
               [{row.index}]{" "}
               {row.url ? (
@@ -201,9 +201,9 @@ function CitationAppendix({ citations }: { citations: CitationEntry[] }) {
                 style={{
                   color: FRESHNESS_COLOR[row.freshness],
                   border: `0.5px solid ${FRESHNESS_COLOR[row.freshness]}`,
-                  borderRadius: 4,
+                  borderRadius: 8,
                   padding: "0 4px",
-                  fontSize: 10,
+                  fontSize: 11.5,
                 }}
               >
                 {row.freshness}
@@ -284,7 +284,7 @@ export function PropertyBriefPanel({
   };
 
   const headerLine = (label: string, value: string | null) => (
-    <div style={{ fontSize: 10, color: MUTED }}>
+    <div style={{ fontSize: 11.5, color: MUTED }}>
       {label}: {value ?? "(not recorded)"}
     </div>
   );
@@ -302,7 +302,7 @@ export function PropertyBriefPanel({
           ? {
               width: "100%",
               color: TEXT,
-              font: "12px/1.45 system-ui, -apple-system, Segoe UI, Roboto, sans-serif",
+              font: "12.5px/1.45 system-ui, -apple-system, Segoe UI, Roboto, sans-serif",
             }
           : {
               position: "absolute",
@@ -311,11 +311,11 @@ export function PropertyBriefPanel({
               zIndex: 8,
               width: "min(400px, calc(100vw - 24px))",
               padding: 14,
-              borderRadius: 8,
+              borderRadius: 12,
               color: TEXT,
-              background: "rgba(11,14,19,0.94)",
-              border: "1px solid rgba(154,166,178,0.35)",
-              font: "12px/1.45 system-ui, -apple-system, Segoe UI, Roboto, sans-serif",
+              background: "var(--ss-ink-94)",
+              border: "1px solid var(--ss-line-28)",
+              font: "12.5px/1.45 system-ui, -apple-system, Segoe UI, Roboto, sans-serif",
               animation: "pe-brief-in 280ms ease",
             }
       }
@@ -334,7 +334,7 @@ export function PropertyBriefPanel({
       >
         <strong
           style={{
-            fontSize: 15,
+            fontSize: 17.5,
             fontWeight: 400,
             letterSpacing: "-.01em",
             color: PE.t1,
@@ -365,7 +365,7 @@ export function PropertyBriefPanel({
                 border: "none",
                 color: MUTED,
                 cursor: "pointer",
-                fontSize: 15,
+                fontSize: 17.5,
                 lineHeight: 1,
                 padding: 0,
                 height: "auto",
@@ -380,7 +380,7 @@ export function PropertyBriefPanel({
       {exportNotice && (
         <p
           data-testid="brief-export-notice"
-          style={{ margin: "6px 0 0", fontSize: 11.5, color: MUTED }}
+          style={{ margin: "6px 0 0", fontSize: 12.5, color: MUTED }}
         >
           {exportNotice}
         </p>
@@ -393,7 +393,7 @@ export function PropertyBriefPanel({
         data-tone={verdict.tone}
         style={{
           margin: "8px 0 0",
-          fontSize: 12.5,
+          fontSize: 14.5,
           fontWeight: 600,
           lineHeight: 1.45,
           color: VERDICT_COLOR[verdict.tone],
@@ -424,16 +424,16 @@ export function PropertyBriefPanel({
           <div
             style={{
               fontWeight: 600,
-              fontSize: 12.5,
+              fontSize: 14.5,
               color: TEXT,
-              borderBottom: "1px solid rgba(154,166,178,0.25)",
+              borderBottom: "1px solid var(--ss-line-28)",
               paddingBottom: 3,
             }}
           >
             Disclosures
           </div>
           {vm.disclosures.map((disclosure) => (
-            <p key={disclosure} style={{ color: AMBER, margin: "6px 0 0", fontSize: 11.5 }}>
+            <p key={disclosure} style={{ color: AMBER, margin: "6px 0 0", fontSize: 12.5 }}>
               {disclosure}
             </p>
           ))}
@@ -444,9 +444,9 @@ export function PropertyBriefPanel({
         <div
           style={{
             fontWeight: 600,
-            fontSize: 12.5,
+            fontSize: 14.5,
             color: TEXT,
-            borderBottom: "1px solid rgba(154,166,178,0.25)",
+            borderBottom: "1px solid var(--ss-line-28)",
             paddingBottom: 3,
           }}
         >

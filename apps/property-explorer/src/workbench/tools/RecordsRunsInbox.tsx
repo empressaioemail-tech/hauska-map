@@ -134,8 +134,8 @@ export function RecordsRunsInbox({
       style={{
         marginBottom: 14,
         border: `1px solid ${CARD_BORDER}`,
-        borderRadius: 10,
-        background: "rgba(18,22,29,0.35)",
+        borderRadius: 14,
+        background: PE.raised,
         overflow: "hidden",
       }}
     >
@@ -152,18 +152,18 @@ export function RecordsRunsInbox({
           padding: "10px 12px",
           border: "none",
           background: activeElsewhere
-            ? "rgba(59,130,246,0.08)"
+            ? PE.blueBg
             : "transparent",
           color: TEXT,
           cursor: "pointer",
           textAlign: "left",
         }}
       >
-        <span style={{ fontSize: 12.5, fontWeight: 600 }}>
+        <span style={{ fontSize: 14.5, fontWeight: 600 }}>
           Your records requests
           {rows.length > 0 ? ` (${rows.length})` : ""}
         </span>
-        <span style={{ fontSize: 11.5, color: MUTED }}>
+        <span style={{ fontSize: 12.5, color: MUTED }}>
           {collapsed ? "Show" : "Hide"}
         </span>
       </Button>
@@ -171,10 +171,10 @@ export function RecordsRunsInbox({
       {!collapsed ? (
         <div style={{ padding: "0 12px 12px", display: "flex", flexDirection: "column", gap: 8 }}>
           {notice ? (
-            <p style={{ margin: 0, fontSize: 12.5, color: MUTED }}>{notice}</p>
+            <p style={{ margin: 0, fontSize: 14.5, color: MUTED }}>{notice}</p>
           ) : null}
           {rows.length === 0 && !notice ? (
-            <p style={{ margin: 0, fontSize: 12.5, color: MUTED }}>
+            <p style={{ margin: 0, fontSize: 14.5, color: MUTED }}>
               No clerk index searches yet. Start one from Records request below.
             </p>
           ) : null}
@@ -199,22 +199,22 @@ export function RecordsRunsInbox({
                   gap: 4,
                   width: "100%",
                   padding: "10px 11px",
-                  borderRadius: 8,
-                  border: `1px solid ${isActive ? "rgba(59,130,246,0.35)" : CARD_BORDER}`,
+                  borderRadius: 12,
+                  border: `1px solid ${isActive ? PE.blueLine : CARD_BORDER}`,
                   background: isActive
-                    ? "rgba(59,130,246,0.06)"
+                    ? PE.blueBg
                     : "rgba(0,0,0,0.15)",
                   cursor: "pointer",
                   textAlign: "left",
                 }}
               >
-                <span style={{ fontSize: 12.5, fontWeight: 600, color: TEXT }}>
+                <span style={{ fontSize: 14.5, fontWeight: 600, color: TEXT }}>
                   {county ?? "Parcel"} · {parcelNodeId}
                   {isActive ? " · this parcel" : ""}
                 </span>
                 <span
                   style={{
-                    fontSize: 12.5,
+                    fontSize: 14.5,
                     color: isActiveInboxRow(row) ? BLUE : MUTED,
                   }}
                 >
@@ -224,7 +224,7 @@ export function RecordsRunsInbox({
               </Button>
             );
           })}
-          <p style={{ margin: 0, fontSize: 11.5, lineHeight: 1.45, color: MUTED }}>
+          <p style={{ margin: 0, fontSize: 12.5, lineHeight: 1.45, color: MUTED }}>
             Runs continue in the background. We email your account when a search
             finishes — open any row to see status on that parcel.
           </p>
