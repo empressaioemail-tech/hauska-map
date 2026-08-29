@@ -315,7 +315,7 @@ describe("expand-to-floating-box (Fix A)", () => {
     // shares this top band. 534 = 12 bar inset + 436 bar + 12 channel + 74
     // right gutter. The max() floor keeps expanded from coming out narrower
     // than compact on a small window.
-    expect(s.width).toBe("max(380px, min(860px, calc(100vw - 534px)))");
+    expect(s.width).toBe("clamp(380px, calc(100vw - 534px), 860px)");
     // WIDE IS THE COLUMN'S, not one dock's. It keeps the compact anchor
     // (top:12, right:74) and the same height budget; only width changes, so
     // every open dock grows together and none can overlap another. It used to
