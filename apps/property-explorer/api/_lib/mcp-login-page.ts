@@ -1,4 +1,7 @@
 // Standalone HTML sign-in page for WorkOS External Sign-in URI (MCP flow).
+// Inlines the --ss-* tokens this page uses. Copied verbatim from
+// apps/property-explorer/src/styles/pe-tokens.css on the same commit.
+// A relative pe-tokens.css link 404s on the Vercel HTML response.
 
 function escapeHtml(value: string): string {
   return value
@@ -48,44 +51,74 @@ export function renderMcpLoginPage(params: {
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <title>Sign in — Smart Site</title>
   <style>
+    :root {
+      --ss-void: #2A2A2B;
+      --ss-ink: #323234;
+      --ss-raised: #3F4043;
+      --ss-line-06: #414247;
+      --ss-line-14: #56575C;
+      --ss-line-28: #8A8A8F;
+      --ss-t1: #FBFBFC;
+      --ss-t2: #EEEFF1;
+      --ss-t5: #A9ABAF;
+      --ss-gold-lt: #F5B95C;
+      --ss-slate: #A9ABAF;
+      --ss-ui: ui-sans-serif, system-ui, -apple-system, "Segoe UI", sans-serif;
+      --ss-fs-label: 11.5px;
+      --ss-fs-body: 14.5px;
+      --ss-fs-title: 26px;
+      --ss-h-control: 36px;
+      --ss-r-touch: 10px;
+      --ss-r-float: 14px;
+      --ss-sh-dock: inset 0 1px 0 rgba(255,255,255,.05), 0 2px 6px rgba(0,0,0,.30), 0 14px 34px rgba(0,0,0,.42);
+      --ss-sh-focus: 0 0 0 3px rgba(134,173,223,.67);
+    }
     * { box-sizing: border-box; }
-    body {
+    html, body {
       margin: 0;
       min-height: 100vh;
+      background: var(--ss-void);
+    }
+    body {
       display: flex;
       align-items: center;
       justify-content: center;
       padding: 24px;
-      background: #0b0e14;
-      color: #e9eef5;
-      font-family: system-ui, -apple-system, Segoe UI, Roboto, Helvetica, Arial, sans-serif;
+      color: var(--ss-t1);
+      font-family: var(--ss-ui);
     }
     .card {
       width: min(420px, 100%);
       padding: 28px;
-      border-radius: 16px;
-      background: rgba(17, 21, 28, 0.92);
-      border: 0.5px solid rgba(59, 130, 246, 0.28);
-      box-shadow: 0 24px 80px rgba(0, 0, 0, 0.55);
+      border-radius: var(--ss-r-float);
+      background: var(--ss-ink);
+      border: 1px solid var(--ss-line-14);
+      box-shadow: var(--ss-sh-dock);
     }
     .eyebrow {
-      font-size: 12px;
-      font-weight: 700;
-      letter-spacing: 0.16em;
-      color: #3B82F6;
       margin: 0 0 14px;
+      font-family: var(--ss-ui);
+      font-size: var(--ss-fs-label);
+      font-weight: 600;
+      letter-spacing: 0.13em;
+      text-transform: uppercase;
+      color: var(--ss-gold-lt);
     }
     h1 {
       margin: 0 0 10px;
-      font-size: 22px;
+      font-family: var(--ss-ui);
+      font-size: var(--ss-fs-title);
+      font-weight: 300;
+      letter-spacing: -0.02em;
       line-height: 1.25;
-      font-weight: 700;
+      color: var(--ss-t1);
     }
     .lead {
       margin: 0 0 22px;
-      font-size: 14px;
+      font-family: var(--ss-ui);
+      font-size: var(--ss-fs-body);
       line-height: 1.45;
-      color: #c6d0dc;
+      color: var(--ss-t5);
     }
     .btn {
       display: flex;
@@ -93,32 +126,39 @@ export function renderMcpLoginPage(params: {
       justify-content: center;
       gap: 10px;
       width: 100%;
-      padding: 12px 16px;
-      border-radius: 10px;
-      font-size: 15px;
+      height: var(--ss-h-control);
+      padding: 0 16px;
+      border-radius: var(--ss-r-touch);
+      font-family: var(--ss-ui);
+      font-size: var(--ss-fs-body);
       font-weight: 600;
       text-decoration: none;
       cursor: pointer;
+    }
+    .btn:focus-visible {
+      outline: none;
+      box-shadow: var(--ss-sh-focus);
     }
     .btn + .btn { margin-top: 10px; }
     .btn-google {
       color: #E3E3E3;
       background: #131314;
-      border: 1px solid #5F6368;
+      border: 1px solid var(--ss-line-28);
     }
     .btn-microsoft {
-      color: #11151c;
-      background: #ffffff;
-      border: none;
+      color: var(--ss-t2);
+      background: var(--ss-ink);
+      border: 1px solid var(--ss-line-28);
     }
     .notice {
       margin: 0;
-      font-size: 13px;
-      color: #aeb8c4;
+      font-family: var(--ss-ui);
+      font-size: var(--ss-fs-body);
+      color: var(--ss-slate);
       padding: 10px 12px;
-      border-radius: 8px;
-      border: 0.5px solid rgba(154, 166, 178, 0.3);
-      background: rgba(0, 0, 0, 0.2);
+      border-radius: var(--ss-r-touch);
+      border: 1px solid var(--ss-line-06);
+      background: var(--ss-raised);
     }
   </style>
 </head>
