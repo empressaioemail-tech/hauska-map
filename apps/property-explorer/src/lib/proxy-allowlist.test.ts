@@ -3,6 +3,7 @@
  */
 
 import { describe, it, expect } from 'vitest'
+import { isDeepPathAllowed } from '../../api/_lib/deep-allowlist.js'
 
 function isCortexBrowsePathAllowed(method: string, upstreamPath: string): boolean {
   if (method === 'GET' || method === 'HEAD') {
@@ -18,42 +19,6 @@ function isCortexBrowsePathAllowed(method: string, upstreamPath: string): boolea
       'api/brokerage/v1/map-data/composite-layer',
     ]
     return exact.includes(upstreamPath)
-  }
-  return false
-}
-
-function isDeepPathAllowed(method: string, upstreamPath: string): boolean {
-  const DEEP_GET_EXACT = new Set([
-    'api/property-explorer/v1/entitlement',
-    'api/property-explorer/v1/saved-properties',
-    'api/property-explorer/v1/records-request',
-    'api/property-explorer/v1/records-request/inbox',
-  ])
-  const DEEP_GET_PREFIX = [
-    'api/property-explorer/v1/research/layer-manifest',
-    'api/property-explorer/v1/records-request/artifacts',
-  ]
-  const DEEP_POST_EXACT = new Set([
-    'api/property-explorer/v1/research/brief',
-    'api/property-explorer/v1/research/hydrology',
-    'api/property-explorer/v1/research/subsurface',
-    'api/property-explorer/v1/entitlement/dev-unlock',
-    'api/property-explorer/v1/records-request',
-  ])
-  const SAVED_PROPERTY_ITEM_RE = /^api\/property-explorer\/v1\/saved-properties\/[^/]+$/
-  const RECORDS_REQUEST_PURCHASE_RE =
-    /^api\/property-explorer\/v1\/records-request\/[^/]+\/(approve-purchase|decline-purchase)$/
-  if (method === 'GET' || method === 'HEAD') {
-    if (DEEP_GET_EXACT.has(upstreamPath)) return true
-    return DEEP_GET_PREFIX.some((p) => upstreamPath === p || upstreamPath.startsWith(`${p}/`))
-  }
-  if (method === 'POST') {
-    if (DEEP_POST_EXACT.has(upstreamPath)) return true
-    if (RECORDS_REQUEST_PURCHASE_RE.test(upstreamPath)) return true
-    return false
-  }
-  if (method === 'PUT' || method === 'DELETE') {
-    return SAVED_PROPERTY_ITEM_RE.test(upstreamPath)
   }
   return false
 }
@@ -159,6 +124,14 @@ describe('proxy allowlists', () => {
     expect(
       isDeepPathAllowed('DELETE', 'api/property-explorer/v1/saved-properties'),
     ).toBe(false)
+  })
+
+  it('allows team roster GET on deep proxy and blocks neighbors (P-94)', () => {
+    expect(isDeepPathAllowed('GET', 'api/property-explorer/v1/team/members')).toBe(true)
+    expect(isDeepPathAllowed('HEAD', 'api/property-explorer/v1/team/members')).toBe(true)
+    expect(isDeepPathAllowed('GET', 'api/property-explorer/v1/team/members/extra')).toBe(false)
+    expect(isDeepPathAllowed('GET', 'api/property-explorer/v1/team')).toBe(false)
+    expect(isDeepPathAllowed('POST', 'api/property-explorer/v1/team/members')).toBe(false)
   })
 
   it('allows records-request GET and inbox on deep proxy', () => {
