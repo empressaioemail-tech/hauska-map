@@ -25,40 +25,40 @@
      --ss-void is the page and map ground, --ss-ink the panel body,
      --ss-raised panel-on-panel, fields and hover. The ladder is shallow on
      purpose; it is also why nothing may sit type on a line token. */
-  --ss-void:      #2A2A28;  /* page and map behind everything */
-  --ss-ink:       #323230;  /* panel, dock, card fill */
-  --ss-raised:    #3C3C39;  /* modal, tooltip, popover fill */
+  --ss-void:      #2A2A2B;  /* page and map behind everything */
+  --ss-ink:       #323234;  /* panel, dock, card fill */
+  --ss-raised:    #3C3C3F;  /* modal, tooltip, popover fill */
 
   /* Named chrome fills. OPAQUE, by operator ruling: a panel does not let
      parcel colour bleed through into panel text. These six were translucent
      rgba() in v2 and are flat hexes now — the ONE value class that changed
      kind, not just hue, in the Stone port. */
-  --ss-ink-94:    #323230;  /* dock / inspect / card on the map */
-  --ss-ink-92:    #323230;  /* find bar, map controls */
-  --ss-ink-90:    #323230;  /* rail bubble at rest */
-  --ss-ink-96:    #323230;  /* sources sheet */
-  --ss-raised-97: #3C3C39;  /* tooltip */
-  --ss-raised-98: #3C3C39;  /* modal */
+  --ss-ink-94:    #323234;  /* dock / inspect / card on the map */
+  --ss-ink-92:    #323234;  /* find bar, map controls */
+  --ss-ink-90:    #323234;  /* rail bubble at rest */
+  --ss-ink-96:    #323234;  /* sources sheet */
+  --ss-raised-97: #3C3C3F;  /* tooltip */
+  --ss-raised-98: #3C3C3F;  /* modal */
 
   /* The ONE translucent value in the palette. Behind a modal, over the map. */
-  --ss-scrim:     rgba(24,24,23,.72);
+  --ss-scrim:     rgba(23,23,25,.72);
 
   /* ---- Hairlines — three weights, opaque. Do not add a fourth. --------
      Structure comes from these, not from shadow. THESE ARE HAIRLINE TOKENS
      AND ARE NEVER A TEXT COLOUR: the palette has six text steps and a
      component that reaches past all of them for a line token is a component
      defect, not a palette one. */
-  --ss-line-06:   #3E3E3B;  /* rules INSIDE a surface */
-  --ss-line-14:   #4E4E49;  /* the edge OF a surface */
-  --ss-line-28:   #86867D;  /* focus, outline buttons, emphasis */
+  --ss-line-06:   #3E3E41;  /* rules INSIDE a surface */
+  --ss-line-14:   #4E4E52;  /* the edge OF a surface */
+  --ss-line-28:   #86868B;  /* focus, outline buttons, emphasis */
 
   /* ---- Text ramp — t1 brightest, t6 faintest ------------------------- */
-  --ss-t1:        #FCFBF9;  /* subject lines, values that matter */
-  --ss-t2:        #F0EEE8;  /* strong body, button labels */
-  --ss-t3:        #DAD6CD;  /* default body */
-  --ss-t4:        #B4B0A7;  /* secondary body, panel titles */
-  --ss-t5:        #ADA9A1;  /* captions, notes */
-  --ss-t6:        #9D9991;  /* field labels, mono metadata, placeholders */
+  --ss-t1:        #FBFBFC;  /* subject lines, values that matter */
+  --ss-t2:        #EEEFF1;  /* strong body, button labels */
+  --ss-t3:        #D6D8DB;  /* default body */
+  --ss-t4:        #B0B2B6;  /* secondary body, panel titles */
+  --ss-t5:        #A9ABAF;  /* captions, notes */
+  --ss-t6:        #999B9F;  /* field labels, mono metadata, placeholders */
 
   /* ---- Action. Blue is the ONLY action color. ------------------------ */
   --ss-blue:      #86ADDF;
@@ -243,7 +243,7 @@
 
    THE 7% IS NOT THE OLD 7%. rgba(255,255,255,.07) was tuned against v2
    near-black #0B0E13, where a 7% white veil is a visible step. --ss-t1 at 7%
-   mixed into --ss-ink #323230 is a far smaller lift, because the ground is
+   mixed into --ss-ink #323234 is a far smaller lift, because the ground is
    already mid-tone and the two colours are much closer together. The number
    carries over by ruling, not by measurement. If the hover reads too quiet on
    Stone, that is a palette-author question and belongs in a request, not in a
@@ -343,7 +343,7 @@
 
    THIS FILTER IS STALE AND IS LEFT STALE DELIBERATELY. The chain was hand
    tuned to land on v2 --ss-t3 #C6D0DC, a COOL grey — hence hue-rotate(174deg).
-   Stone --ss-t3 is #DAD6CD, a WARM grey, so this now lands off its target. It
+   Stone --ss-t3 is #D6D8DB, a WARM grey, so this now lands off its target. It
    is not repointed here because a filter chain cannot be verified without
    rendering, and guessing a new hue-rotate would be inventing a value the
    design system does not carry. Recorded as a known residue for the lane that
@@ -359,8 +359,9 @@
        at rest, opacity .78 over --ss-ink -> rgb(181,181,181), 15 off --ss-t4
        on hover, opacity 1  over --ss-ink -> rgb(218,218,218), 14 off --ss-t3
      Both within ~15/255 on a 14px glyph. The old chain's hue-rotate(174deg) was
-     hand tuned to v2 --ss-t3 #C6D0DC, a COOL grey; Stone's #DAD6CD is warm, so
-     that leg was pulling the wrong way. */
+     hand tuned to v2 --ss-t3 #C6D0DC, a COOL grey; the v2 target was cool, Light Charcoal's
+     #D6D8DB is near-neutral, and a hand-tuned chain cannot follow either without
+     being re-tuned by eye. brightness(0) removes the dependency entirely. */
   filter: brightness(0) invert(85.5%);
 }
 .maplibregl-ctrl-group button:hover .maplibregl-ctrl-icon { opacity: 1 }
