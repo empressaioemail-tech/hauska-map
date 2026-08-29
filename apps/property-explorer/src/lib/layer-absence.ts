@@ -11,11 +11,15 @@ import {
   type SubjectKind,
 } from "@hauska/instrument-registry";
 
-/** Fixed absence verdict union per 19_the_instrument_contract.md §Layer. */
+/** Fixed absence verdict union per 19_the_instrument_contract.md §Layer.
+ *  stamp-missing and unmeasured are the two cortex zoning wires card F serves;
+ *  they are distinct from not-applicable (no authority) and from a decline. */
 export type LayerAbsenceVerdict =
   | "absent-verified"
   | "lookup-failed"
-  | "not-applicable";
+  | "not-applicable"
+  | "stamp-missing"
+  | "unmeasured";
 
 /** Cortex layer wire when status === "absent". */
 export interface LayerAbsenceWire {
@@ -53,10 +57,12 @@ export interface LayerAbsenceProvenance {
   entityType?: string;
 }
 
-const LAYER_ABSENCE_VERDICTS: readonly LayerAbsenceVerdict[] = [
+export const LAYER_ABSENCE_VERDICTS: readonly LayerAbsenceVerdict[] = [
   "absent-verified",
   "lookup-failed",
   "not-applicable",
+  "stamp-missing",
+  "unmeasured",
 ];
 
 function nonEmptyString(v: unknown): v is string {

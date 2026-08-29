@@ -10,6 +10,7 @@ import { afterEach, describe, it, expect, vi } from "vitest";
 import {
   deriveBakedCardModel,
   fetchBakedNodeFacets,
+  zoningLayerToCardFacet,
   type BakedFacetPayload,
 } from "./baked-facets";
 
@@ -528,6 +529,48 @@ describe("deriveBakedCardModel — layer absence verdicts (P-63 Track B)", () =>
   it.todo(
     "live Tarrant metro GET returns lookup-failed livingAreaSqft (cortex Track A)",
   );
+});
+
+describe("zoningLayerToCardFacet — stamp-missing and unmeasured (CTX card G)", () => {
+  const required = {
+    status: "absent" as const,
+    authority: "tx_city_boundary",
+    scopeSearched: "municipal zoning authority for parcel",
+    asOf: "2026-08-29T00:00:00.000Z",
+    basis: "containment-derived verdict",
+  };
+
+  it("stamp-missing is named and is not 'no zoning stamp here'", () => {
+    const facet = zoningLayerToCardFacet(
+      { ...required, verdict: "stamp-missing" },
+      false,
+      "no-zoning-stamp",
+    );
+    expect(facet.state).toBe("absent");
+    expect(facet.value).toBe("stamp-missing");
+    expect(facet.value).not.toBe("no zoning stamp here");
+    expect(String(facet.value ?? "")).not.toMatch(/Zoning not verified/i);
+    expect(facet.layerAbsence?.verdict).toBe("stamp-missing");
+  });
+
+  it("unmeasured is named and is not the decline collapse", () => {
+    const facet = zoningLayerToCardFacet(
+      { ...required, verdict: "unmeasured" },
+      false,
+      null,
+    );
+    expect(facet.state).toBe("absent");
+    expect(facet.value).toBe("unmeasured");
+    expect(facet.value).not.toBe("no zoning stamp here");
+    expect(String(facet.value ?? "")).not.toMatch(/Zoning not verified/i);
+    expect(facet.layerAbsence?.verdict).toBe("unmeasured");
+  });
+
+  it("QA-3 decline path is unchanged when there is no absence wire", () => {
+    const facet = zoningLayerToCardFacet(null, false, "no-zoning-stamp");
+    expect(facet.state).toBe("absent");
+    expect(facet.value).toBe("no zoning stamp here");
+  });
 });
 
 // ---------------------------------------------------------------------------
