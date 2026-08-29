@@ -163,8 +163,8 @@ export function workbenchClusterStyle(isMobile: boolean): CSSProperties {
     flexDirection: "column",
     gap: 6,
     padding: "8px 6px",
-    borderRadius: 24,
-    background: "rgba(11,14,19,.92)",
+    borderRadius: 999,
+    background: "var(--ss-ink-92)",
     border: "1px solid rgba(255,255,255,.09)",
     boxShadow: "0 10px 34px rgba(0,0,0,.5)",
     backdropFilter: "blur(14px)",
@@ -186,8 +186,8 @@ export function mobileToolPickerStyle(): CSSProperties {
     overflowX: "auto",
     WebkitOverflowScrolling: "touch",
     padding: "8px 12px",
-    borderTop: "1px solid rgba(154,166,178,0.2)",
-    background: "rgba(11,14,19,0.98)",
+    borderTop: "1px solid var(--ss-line-14)",
+    background: "var(--ss-ink)",
   };
 }
 
@@ -243,9 +243,9 @@ export function inspectCardShellStyle(
     width: 288,
     maxWidth: "calc(100% - 60px)",
     padding: "13px 15px",
-    borderRadius: 10,
+    borderRadius: 14,
     boxShadow: "0 12px 40px rgba(0,0,0,0.5)",
-    border: "0.5px solid var(--brand-blue-border-soft, rgba(59,130,246,0.28))",
+    border: "0.5px solid var(--ss-blue-line)",
   };
 }
 
@@ -286,10 +286,10 @@ export function searchBarWrapStyle(isMobile: boolean): CSSProperties {
 /** Suggest dropdown on mobile — fills space below the bar without overlapping panels. */
 export function searchDropdownStyle(isMobile: boolean): CSSProperties {
   const base: CSSProperties = {
-    borderRadius: "var(--ss-r-float, 10px)",
-    background: "var(--ss-ink-96, rgba(11,14,19,.96))",
-    border: "1px solid var(--ss-line-14, rgba(154,166,178,.15))",
-    boxShadow: "var(--ss-sh-dock, 0 18px 44px rgba(0,0,0,.5))",
+    borderRadius: "var(--ss-r-float)",
+    background: "var(--ss-ink-96)",
+    border: "1px solid var(--ss-line-14)",
+    boxShadow: "var(--ss-sh-dock)",
     overflow: "hidden",
     display: "flex",
     flexDirection: "column",
@@ -297,7 +297,7 @@ export function searchDropdownStyle(isMobile: boolean): CSSProperties {
     // from: 220ms of height, 140ms of opacity, 180ms of the 2% scale.
     transformOrigin: "top center",
     animation:
-      "ss-suggest-in var(--ss-d-move, 180ms) var(--ss-ease, cubic-bezier(.2,.6,.35,1)) both",
+      "ss-suggest-in var(--ss-d-move) var(--ss-ease) both",
   };
   if (isMobile) {
     return {
@@ -365,7 +365,7 @@ export function embeddedToolsetPanelStyle(): CSSProperties {
     gap: 9,
     padding: "10px 12px 16px",
     color: "#e6edf3",
-    fontSize: 11.5,
+    fontSize: 12.5,
     maxHeight: `calc(100vh - ${PE_MOBILE_SEARCH_CHROME_PX + PE_MOBILE_NAV_HEIGHT_PX}px)`,
     overflowY: "auto",
     WebkitOverflowScrolling: "touch",

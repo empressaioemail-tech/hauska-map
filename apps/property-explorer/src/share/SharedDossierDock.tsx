@@ -48,10 +48,10 @@ export function ShareReadOnlyBanner({ expiresAt }: { expiresAt: string | null })
       style={{
         margin: "0 0 10px",
         padding: "6px 9px",
-        borderRadius: 6,
-        background: "var(--brand-blue-bg-soft, rgba(59,130,246,0.08))",
-        border: "1px solid var(--brand-blue-border, rgba(59,130,246,0.4))",
-        fontSize: 10.5,
+        borderRadius: 10,
+        background: PE.blueBg,
+        border: `1px solid ${PE.blueLine}`,
+        fontSize: 12.5,
         letterSpacing: 0.3,
         color: ACCENT,
       }}
@@ -76,12 +76,12 @@ export function SharedDossierDock({ share }: { share: ShareFunnelBinding }) {
   if (phase.kind === "expired" || phase.kind === "invalid") {
     return (
       <div data-testid="share-dock-invalid">
-        <strong style={{ fontSize: 13 }}>
+        <strong style={{ fontSize: 14.5 }}>
           {phase.kind === "expired"
             ? "This share link has expired."
             : "This share link is invalid or has expired."}
         </strong>
-        <p style={{ margin: "8px 0 0", color: MUTED, fontSize: 11.5 }}>
+        <p style={{ margin: "8px 0 0", color: MUTED, fontSize: 12.5 }}>
           Ask the person who shared it with you for a fresh link. The map stays
           open — browse any property meanwhile.
         </p>

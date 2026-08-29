@@ -77,7 +77,7 @@ function Eyebrow({ children }: { children: ReactNode }) {
   return (
     <div
       style={{
-        fontSize: 10,
+        fontSize: 11.5,
         fontWeight: 700,
         letterSpacing: ".16em",
         textTransform: "uppercase",
@@ -93,7 +93,7 @@ function Aside({ children }: { children: ReactNode }) {
   return (
     <div
       style={{
-        fontSize: 12.5,
+        fontSize: 14.5,
         lineHeight: 1.6,
         color: PE.t4,
         borderLeft: `2px solid ${PE.line28}`,
@@ -150,11 +150,11 @@ function Row({
           gap: 20,
         }}
       >
-        <span style={{ fontSize: 12.5, color: PE.t3 }}>{label}</span>
-        <span style={{ fontSize: 12.5, color: PE.t5 }}>{value}</span>
+        <span style={{ fontSize: 14.5, color: PE.t3 }}>{label}</span>
+        <span style={{ fontSize: 14.5, color: PE.t5 }}>{value}</span>
       </div>
       {note ? (
-        <div style={{ fontSize: 11.5, lineHeight: 1.55, color: PE.t5 }}>{note}</div>
+        <div style={{ fontSize: 12.5, lineHeight: 1.55, color: PE.t5 }}>{note}</div>
       ) : null}
     </div>
   );
@@ -228,7 +228,7 @@ export function SettingsModal({
                 onClick={() => setSection(s.id)}
                 style={{
                   padding: "12px 16px",
-                  fontSize: 13.5,
+                  fontSize: 15.5,
                   borderRadius: 0,
                   border: 0,
                   borderBottom: `2px solid ${on ? PE.blue : "transparent"}`,
@@ -272,7 +272,7 @@ export function SettingsModal({
                     >
                       Sign out
                     </Button>
-                    <span style={{ fontSize: 11.5, color: PE.t5 }}>
+                    <span style={{ fontSize: 12.5, color: PE.t5 }}>
                       Signing out clears this browser only.
                     </span>
                   </div>
@@ -312,8 +312,8 @@ export function SettingsModal({
                   }}
                 >
                   <div style={{ display: "flex", flexDirection: "column", gap: 5 }}>
-                    <div style={{ fontSize: 20, fontWeight: 700, color: PE.t1 }}>{access}</div>
-                    <div style={{ fontSize: 11.5, color: PE.t5 }}>
+                    <div style={{ fontSize: 26, fontWeight: 700, color: PE.t1 }}>{access}</div>
+                    <div style={{ fontSize: 12.5, color: PE.t5 }}>
                       Entitlement reads paid or free. Tier name and billing
                       interval are not on that wire.
                     </div>
@@ -327,7 +327,7 @@ export function SettingsModal({
                     View plans
                   </Button>
                 </div>
-                <div style={{ fontSize: 13.5, lineHeight: 1.65, color: PE.t2 }}>
+                <div style={{ fontSize: 15.5, lineHeight: 1.65, color: PE.t2 }}>
                   Upgrading opens the same checkout as everywhere else in the
                   app, so a plan is never priced in two places.
                 </div>
@@ -350,7 +350,7 @@ export function SettingsModal({
             {section === "connections" ? (
               <div data-testid="settings-connections" style={{ display: "flex", flexDirection: "column", gap: 18 }}>
                 <Eyebrow>Connections</Eyebrow>
-                <div style={{ fontSize: 13.5, lineHeight: 1.65, color: PE.t2 }}>
+                <div style={{ fontSize: 15.5, lineHeight: 1.65, color: PE.t2 }}>
                   Connect Smart Site to an AI assistant so it can read the
                   properties and reports on this account.
                 </div>
@@ -373,8 +373,8 @@ export function SettingsModal({
                       }}
                     >
                       <div style={{ display: "flex", flexDirection: "column", gap: 3 }}>
-                        <span style={{ fontSize: 13.5, color: PE.t1 }}>{row.name}</span>
-                        <span style={{ fontSize: 11.5, color: PE.t5 }}>
+                        <span style={{ fontSize: 15.5, color: PE.t1 }}>{row.name}</span>
+                        <span style={{ fontSize: 12.5, color: PE.t5 }}>
                           {row.status === "connect"
                             ? "Reads properties and reports on this account"
                             : row.statusLabel}
@@ -382,7 +382,7 @@ export function SettingsModal({
                       </div>
                       <span
                         style={{
-                          fontSize: row.status === "connect" ? 12.5 : 11.5,
+                          fontSize: row.status === "connect" ? 14.5 : 12.5,
                           fontWeight: row.status === "connect" ? 600 : 400,
                           color: row.status === "connect" ? PE.blue : PE.t5,
                         }}
@@ -392,7 +392,7 @@ export function SettingsModal({
                     </div>
                   ))}
                 </Panel>
-                <div style={{ fontSize: 11.5, color: PE.t5 }}>
+                <div style={{ fontSize: 12.5, color: PE.t5 }}>
                   Rows render the shared vendor list the rail bubble renders.
                   Settings does not declare its own.
                 </div>
@@ -422,7 +422,7 @@ export function SettingsModal({
           >
             <div
               style={{
-                fontSize: 10,
+                fontSize: 11.5,
                 fontWeight: 700,
                 letterSpacing: ".16em",
                 textTransform: "uppercase",
@@ -431,13 +431,13 @@ export function SettingsModal({
             >
               On this tab
             </div>
-            <div style={{ fontSize: 12.5, lineHeight: 1.65, color: PE.t3 }}>
+            <div style={{ fontSize: 14.5, lineHeight: 1.65, color: PE.t3 }}>
               {SIDE_NOTE[section]}
             </div>
             <div style={{ flex: 1 }} />
             <div
               style={{
-                fontSize: 11.5,
+                fontSize: 12.5,
                 lineHeight: 1.6,
                 color: PE.t5,
                 borderTop: `1px solid ${PE.line14}`,
@@ -480,7 +480,7 @@ function TeamTab({
     return (
       <div data-testid="settings-team" style={{ display: "flex", flexDirection: "column", gap: 16 }}>
         <Eyebrow>Team</Eyebrow>
-        <div style={{ fontSize: 12.5, color: PE.t5 }}>Reading the roster.</div>
+        <div style={{ fontSize: 14.5, color: PE.t5 }}>Reading the roster.</div>
       </div>
     );
   }
@@ -502,12 +502,12 @@ function TeamTab({
           }}
         >
           <StatusChip tone="absence">Not read</StatusChip>
-          <div style={{ fontSize: 15, fontWeight: 700, color: PE.t1 }}>
+          <div style={{ fontSize: 17.5, fontWeight: 700, color: PE.t1 }}>
             {outcome.kind === "sign-in"
               ? "Sign in to see who is on this account"
               : "The roster could not be read"}
           </div>
-          <div style={{ fontSize: 13.5, lineHeight: 1.65, color: PE.t2 }}>
+          <div style={{ fontSize: 15.5, lineHeight: 1.65, color: PE.t2 }}>
             {notBuilt
               ? "The member service is not deployed yet. This is not an empty team: how many people are on this account is unknown, and so is the seat count."
               : outcome.kind === "sign-in"
@@ -548,14 +548,14 @@ function TeamTab({
             gap: 10,
           }}
         >
-          <div style={{ fontSize: 15, fontWeight: 700, color: PE.t1 }}>
+          <div style={{ fontSize: 17.5, fontWeight: 700, color: PE.t1 }}>
             This account has no seats
           </div>
-          <div style={{ fontSize: 13.5, lineHeight: 1.65, color: PE.t2 }}>
+          <div style={{ fontSize: 15.5, lineHeight: 1.65, color: PE.t2 }}>
             Seats are bought at checkout as a count. Until an account has more
             than one, there is nobody to list and no role to assign.
           </div>
-          <div style={{ fontSize: 13.5, lineHeight: 1.65, color: PE.t4 }}>
+          <div style={{ fontSize: 15.5, lineHeight: 1.65, color: PE.t4 }}>
             Two roles exist when there are: an owner, who handles billing and
             invitations, and members, who use the product.
           </div>
@@ -564,7 +564,7 @@ function TeamTab({
           <Button variant="primary" glyph={OPEN_GLYPH} onClick={onUpgrade}>
             View plans
           </Button>
-          <span style={{ fontSize: 11.5, color: PE.t5 }}>
+          <span style={{ fontSize: 12.5, color: PE.t5 }}>
             Seat counts and prices live in checkout. Settings never prices
             anything itself.
           </span>
@@ -597,13 +597,13 @@ function TeamTab({
         }}
       >
         <div style={{ display: "flex", alignItems: "baseline", justifyContent: "space-between", gap: 16 }}>
-          <span style={{ fontSize: 13.5, color: PE.t1 }}>
+          <span style={{ fontSize: 15.5, color: PE.t1 }}>
             {counts.purchased === null
               ? `${counts.used} in this account, seats Not read`
               : `${counts.used} of ${counts.purchased} seats used` +
                 (counts.invited ? `, ${counts.invited} invited` : "")}
           </span>
-          <span style={{ fontSize: 12.5, color: counts.remaining ? PE.t3 : PE.t1 }}>
+          <span style={{ fontSize: 14.5, color: counts.remaining ? PE.t3 : PE.t1 }}>
             {counts.remaining === null
               ? "Not read"
               : counts.remaining > 0
@@ -611,7 +611,7 @@ function TeamTab({
                 : "No seats remaining"}
           </span>
         </div>
-        <div style={{ display: "flex", flexWrap: "wrap", gap: 14, fontSize: 11.5, color: PE.t5 }}>
+        <div style={{ display: "flex", flexWrap: "wrap", gap: 14, fontSize: 12.5, color: PE.t5 }}>
           <span>Accepted {counts.accepted}</span>
           <span>Invited {counts.invited} — an invitation holds a seat</span>
           <span>
@@ -634,11 +634,11 @@ function TeamTab({
           }}
         >
           <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
-            <span style={{ fontSize: 13.5, color: PE.t1 }}>
+            <span style={{ fontSize: 15.5, color: PE.t1 }}>
               Every purchased seat is taken. Inviting is refused until a seat
               frees up.
             </span>
-            <span style={{ fontSize: 11.5, color: PE.t5 }}>
+            <span style={{ fontSize: 12.5, color: PE.t5 }}>
               Revoke an invitation or remove a member to free one, or buy more
               seats.
             </span>
@@ -672,18 +672,18 @@ function TeamTab({
               >
                 <div style={{ display: "flex", flexDirection: "column", gap: 3, minWidth: 0 }}>
                   <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-                    <span style={{ fontSize: 13.5, color: PE.t1 }}>{member.email}</span>
+                    <span style={{ fontSize: 15.5, color: PE.t1 }}>{member.email}</span>
                     {isSelf ? <StatusChip tone="absence">You</StatusChip> : null}
                     {invited ? <StatusChip tone="absence">Invited</StatusChip> : null}
                   </div>
-                  <span style={{ fontSize: 11.5, color: PE.t5 }}>
+                  <span style={{ fontSize: 12.5, color: PE.t5 }}>
                     {invited
                       ? `Invited${member.at ? ` ${member.at.slice(0, 10)}` : ""} — holding a seat`
                       : `Joined${member.at ? ` ${member.at.slice(0, 10)}` : ""}`}
                   </span>
                 </div>
                 <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
-                  <span style={{ fontSize: 12.5, color: invited ? PE.t5 : PE.t2 }}>
+                  <span style={{ fontSize: 14.5, color: invited ? PE.t5 : PE.t2 }}>
                     {invited ? "Invitation pending" : member.role === "owner" ? "Owner" : "Member"}
                   </span>
                   {acts ? (
@@ -695,7 +695,7 @@ function TeamTab({
                       {invited ? "Revoke" : "Remove"}
                     </Button>
                   ) : (
-                    <span style={{ fontSize: 11.5, color: PE.t5 }}>
+                    <span style={{ fontSize: 12.5, color: PE.t5 }}>
                       {isSelf
                         ? "You cannot remove yourself"
                         : last
@@ -718,7 +718,7 @@ function TeamTab({
                     background: PE.raised,
                   }}
                 >
-                  <span style={{ fontSize: 12.5, color: PE.t2 }}>
+                  <span style={{ fontSize: 14.5, color: PE.t2 }}>
                     {invited
                       ? "Revoke this invitation? The seat is released immediately and the link stops working."
                       : `Remove ${member.email} from this account? They lose access at once and the seat is released.`}
@@ -755,7 +755,7 @@ function TeamTab({
         >
           <div
             style={{
-              fontSize: 10,
+              fontSize: 11.5,
               fontWeight: 700,
               letterSpacing: ".16em",
               textTransform: "uppercase",
@@ -764,7 +764,7 @@ function TeamTab({
           >
             Invite
           </div>
-          <div style={{ fontSize: 11.5, lineHeight: 1.55, color: PE.t5 }}>
+          <div style={{ fontSize: 12.5, lineHeight: 1.55, color: PE.t5 }}>
             {inviteAllowed
               ? `The invitation holds one of the ${counts.remaining} remaining seats from the moment it is sent. An owner can invite; a member cannot.`
               : counts.remaining === null

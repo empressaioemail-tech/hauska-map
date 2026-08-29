@@ -204,7 +204,7 @@ export function PricingModal({
             <div
               style={{
                 fontFamily: DISPLAY,
-                fontSize: 10,
+                fontSize: 11.5,
                 fontWeight: 600,
                 letterSpacing: ".18em",
                 textTransform: "uppercase",
@@ -217,9 +217,9 @@ export function PricingModal({
               style={{
                 margin: 0,
                 fontFamily: DISPLAY,
-                fontSize: 26,
+                fontSize: 32,
                 lineHeight: 1.15,
-                fontWeight: 300,
+                fontWeight: 700,
                 letterSpacing: "-.02em",
               }}
             >
@@ -233,8 +233,8 @@ export function PricingModal({
               style={{
                 display: "flex",
                 padding: 3,
-                borderRadius: 8,
-                background: "rgba(11,14,19,0.6)",
+                borderRadius: 12,
+                background: "color-mix(in oklab, var(--ss-ink) 60%, transparent)",
                 border: ROW_BORDER,
                 gap: 2,
               }}
@@ -272,7 +272,7 @@ export function PricingModal({
                 border: "none",
                 color: MUTED,
                 cursor: "pointer",
-                fontSize: 15,
+                fontSize: 17.5,
                 lineHeight: 1,
                 padding: 0,
                 height: "auto",
@@ -290,8 +290,8 @@ export function PricingModal({
               margin: 0,
               padding: "8px 20px",
               borderBottom: ROW_BORDER,
-              background: "var(--brand-blue-bg-soft, rgba(59,130,246,0.08))",
-              fontSize: 12.5,
+              background: "color-mix(in oklab, var(--ss-blue) 8%, transparent)",
+              fontSize: 14.5,
               lineHeight: 1.5,
               color: BODY,
             }}
@@ -313,7 +313,7 @@ export function PricingModal({
               borderBottom: ROW_BORDER,
               display: "flex",
               alignItems: "flex-end",
-              fontSize: 12.5,
+              fontSize: 14.5,
               color: ABSENCE,
               lineHeight: 1.45,
             }}
@@ -350,7 +350,7 @@ export function PricingModal({
           <div
             style={{
               padding: "10px 20px",
-              fontSize: 11.5,
+              fontSize: 12.5,
               color: MUTED,
               lineHeight: 1.5,
             }}
@@ -400,12 +400,12 @@ export function PricingModal({
             alignItems: "center",
             justifyContent: "space-between",
             gap: 20,
-            background: "rgba(11,14,19,0.35)",
+            background: "color-mix(in oklab, var(--ss-ink) 35%, transparent)",
             opacity: studioOnly ? 0.62 : 1,
           }}
         >
           <div style={{ display: "flex", flexDirection: "column", gap: 4, minWidth: 0 }}>
-            <div style={{ fontSize: 12.5, lineHeight: 1.45 }}>
+            <div style={{ fontSize: 14.5, lineHeight: 1.45 }}>
               {PE_PRICING.property.footerLead}{" "}
               <span style={{ fontWeight: 600 }}>{propertyUnlockOffer()}</span>
               {" — "}
@@ -414,7 +414,7 @@ export function PricingModal({
             {shouldShowSoloCompare(unlocksThisWeek()) ? (
               <p
                 data-testid="pricing-solo-second-unlock"
-                style={{ margin: 0, fontSize: 11, lineHeight: 1.45, color: BODY }}
+                style={{ margin: 0, fontSize: 11.5, lineHeight: 1.45, color: BODY }}
               >
                 {PE_PRICING.soloSecondUnlockFact}
               </p>
@@ -422,7 +422,7 @@ export function PricingModal({
             {studioOnly ? (
               <p
                 data-testid="pricing-unlock-na-note"
-                style={{ margin: 0, fontSize: 11, lineHeight: 1.45, color: AMBER }}
+                style={{ margin: 0, fontSize: 11.5, lineHeight: 1.45, color: AMBER }}
               >
                 {PE_PRICING.property.studioOnlyNote}
               </p>
@@ -430,7 +430,7 @@ export function PricingModal({
             {!parcelNodeId ? (
               <p
                 data-testid="pricing-unlock-needs-property"
-                style={{ margin: 0, fontSize: 11.5, color: MUTED }}
+                style={{ margin: 0, fontSize: 12.5, color: MUTED }}
               >
                 {PE_PRICING.property.needsPropertyNote}
               </p>
@@ -457,7 +457,7 @@ export function PricingModal({
             style={{
               margin: 0,
               padding: "8px 20px 0",
-              fontSize: 11,
+              fontSize: 11.5,
               lineHeight: 1.45,
               color: note.tone === "amber" ? AMBER : MUTED,
             }}
@@ -472,7 +472,7 @@ export function PricingModal({
             style={{
               margin: 0,
               padding: "6px 20px 10px",
-              fontSize: 10,
+              fontSize: 11.5,
               color: MUTED,
               lineHeight: 1.45,
             }}
@@ -521,7 +521,9 @@ function ColumnHead({
         padding: "8px 12px",
         borderBottom: ROW_BORDER,
         borderLeft: emphasized ? EMPHASIS_BORDER : COL_BORDER,
-        borderTop: emphasized ? "2px solid var(--brand-blue-border, rgba(59,130,246,0.55))" : undefined,
+        borderTop: emphasized
+          ? "2px solid color-mix(in oklab, var(--ss-blue) 55%, transparent)"
+          : undefined,
         background: emphasized ? EMPHASIS_BG : "transparent",
         display: "flex",
         flexDirection: "column",
@@ -531,7 +533,7 @@ function ColumnHead({
       <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
         <span
           style={{
-            fontSize: 11,
+            fontSize: 11.5,
             fontWeight: 600,
             letterSpacing: ".1em",
             textTransform: "uppercase",
@@ -544,7 +546,7 @@ function ColumnHead({
           <span
             data-testid="pricing-studio-badge"
             style={{
-              fontSize: 10,
+              fontSize: 11.5,
               letterSpacing: "0.12em",
               textTransform: "uppercase",
               color: ACCENT,
@@ -554,17 +556,17 @@ function ColumnHead({
           </span>
         ) : null}
       </div>
-      <div style={{ fontFamily: PE.mono, fontWeight: 400, fontSize: 24, letterSpacing: "-.01em", color: TEXT }}>
+      <div style={{ fontFamily: PE.mono, fontWeight: 400, fontSize: 17.5, letterSpacing: "-.01em", color: TEXT }}>
         {headline.amount}
-        <span style={{ fontSize: 12.5, fontWeight: 400, color: MUTED }}>
+        <span style={{ fontSize: 14.5, fontWeight: 400, color: MUTED }}>
           {headline.suffix}
         </span>
       </div>
-      <div style={{ fontSize: 11, color: MUTED }}>{headline.compare}</div>
+      <div style={{ fontSize: 11.5, color: MUTED }}>{headline.compare}</div>
       {tier === "team" && interval === "annual" ? (
         <div
           data-testid="pricing-team-annual-note"
-          style={{ fontSize: 11, color: ACCENT }}
+          style={{ fontSize: 11.5, color: ACCENT }}
         >
           {PE_PRICING.interval.teamAnnualNote}
         </div>
@@ -576,7 +578,7 @@ function ColumnHead({
             flexDirection: "column",
             gap: 4,
             marginTop: 4,
-            fontSize: 11,
+            fontSize: 11.5,
             color: MUTED,
           }}
         >
@@ -597,13 +599,13 @@ function ColumnHead({
             style={{
               width: "100%",
               boxSizing: "border-box",
-              borderRadius: 6,
-              border: "1px solid var(--brand-blue-border, rgba(59,130,246,0.4))",
+              borderRadius: 10,
+              border: "1px solid color-mix(in oklab, var(--ss-blue) 40%, transparent)",
               background: "transparent",
               color: TEXT,
               padding: "3px 6px",
               fontFamily: "inherit",
-              fontSize: 12.5,
+              fontSize: 14.5,
             }}
           />
           <span>{PE_PRICING.team.seatNote}</span>
@@ -688,7 +690,7 @@ function GroupBlock({
         style={{
           padding: "6px 20px 4px",
           gridColumn: "1 / -1",
-          fontSize: 10,
+          fontSize: 11.5,
           fontWeight: 600,
           letterSpacing: ".13em",
           textTransform: "uppercase",
@@ -728,7 +730,7 @@ function FeatureRow({
         style={{
           padding: "6px 16px 6px 20px",
           borderBottom: ROW_BORDER_SOFT,
-          fontSize: 12.5,
+          fontSize: 14.5,
           color: BODY,
         }}
       >
@@ -750,7 +752,7 @@ function FeatureRow({
               borderBottom: ROW_BORDER_SOFT,
               borderLeft: emphasize(tier) ? EMPHASIS_BORDER : COL_BORDER,
               background: emphasize(tier) ? EMPHASIS_BG : "transparent",
-              fontSize: 12.5,
+              fontSize: 14.5,
               lineHeight: 1.35,
               color: muted ? ABSENCE : TEXT,
             }}

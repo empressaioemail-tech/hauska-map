@@ -179,7 +179,7 @@ const rowActive: CSSProperties = {
 /** Metadata rides the right edge in mono — it is a code, not prose. */
 const sublabelStyle: CSSProperties = {
   fontFamily: PE.mono,
-  fontSize: 11,
+  fontSize: 11.5,
   lineHeight: 1.2,
   color: PE.t6,
   marginLeft: "auto",
@@ -215,10 +215,11 @@ const SHIMMER_KEYFRAMES = `
 const shimmerBar = (width: string): CSSProperties => ({
   height: 10,
   width,
-  borderRadius: 4,
+  borderRadius: 8,
   margin: "8px 12px",
   background:
-    "linear-gradient(90deg, rgba(154,166,178,0.12) 25%, rgba(154,166,178,0.28) 50%, rgba(154,166,178,0.12) 75%)",
+    "linear-gradient(90deg, var(--ss-line-14) 25%, " +
+    "var(--ss-line-28) 50%, var(--ss-line-14) 75%)",
   backgroundSize: "320px 100%",
   animation: "pe-search-shimmer 1.1s linear infinite",
 });

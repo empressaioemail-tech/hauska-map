@@ -88,7 +88,7 @@ export function UnlockCheckoutModal({
             style={{
               fontFamily: DISPLAY,
               fontWeight: 600,
-              fontSize: 11,
+              fontSize: 11.5,
               letterSpacing: "0.2em",
               textTransform: "uppercase",
               color: BLUE,
@@ -106,18 +106,18 @@ export function UnlockCheckoutModal({
           >
             <span
               data-testid="unlock-checkout-situs"
-              style={{ fontFamily: DISPLAY, fontWeight: 300, fontSize: 20, letterSpacing: "-.02em" }}
+              style={{ fontFamily: DISPLAY, fontWeight: 300, fontSize: 26, letterSpacing: "-.02em" }}
             >
               {situs}
             </span>
             <span
               data-testid="unlock-checkout-price"
-              style={{ fontFamily: PE.mono, fontWeight: 400, fontSize: 22, letterSpacing: "-.01em" }}
+              style={{ fontFamily: PE.mono, fontWeight: 400, fontSize: 17.5, letterSpacing: "-.01em" }}
             >
               {UNLOCK_PRICE}
             </span>
           </div>
-          <div data-testid="unlock-checkout-window" style={{ fontSize: 12.5, color: MUTED }}>
+          <div data-testid="unlock-checkout-window" style={{ fontSize: 14.5, color: MUTED }}>
             All reports on this parcel, {PE_PRICING.property.durationDays} days. One charge.
           </div>
         </div>
@@ -139,15 +139,15 @@ export function UnlockCheckoutModal({
                 minHeight: 88,
                 maxHeight: "min(360px, 50dvh)",
                 overflowY: "auto",
-                borderRadius: 6,
-                border: "1px dashed rgba(154,166,178,0.28)",
-                background: "rgba(18,22,29,0.9)",
+                borderRadius: 10,
+                border: "1px dashed var(--ss-line-28)",
+                background: "color-mix(in oklab, var(--ss-raised) 90%, transparent)",
               }}
             />
           ) : (
             <div
               data-testid="checkout-mount-error"
-              style={{ fontSize: 13.5, color: "#FBBF24", lineHeight: 1.45 }}
+              style={{ fontSize: 15.5, color: "#FBBF24", lineHeight: 1.45 }}
             >
               {mount.error}
             </div>
@@ -155,14 +155,14 @@ export function UnlockCheckoutModal({
           {creds.ok && mount.error ? (
             <div
               data-testid="checkout-mount-error"
-              style={{ fontSize: 13.5, color: "#FBBF24", lineHeight: 1.45 }}
+              style={{ fontSize: 15.5, color: "#FBBF24", lineHeight: 1.45 }}
             >
               {mount.error}
             </div>
           ) : null}
           <p
             data-testid="unlock-wallet-note"
-            style={{ margin: 0, fontSize: 12.5, color: MUTED, lineHeight: 1.45 }}
+            style={{ margin: 0, fontSize: 14.5, color: MUTED, lineHeight: 1.45 }}
           >
             {PE_PRICING.walletHonestDecline}
           </p>
@@ -175,10 +175,10 @@ export function UnlockCheckoutModal({
             }}
             style={{
               height: 44,
-              borderRadius: 6,
+              borderRadius: 10,
               background: BLUE,
               border: "none",
-              fontSize: 13.5,
+              fontSize: 15.5,
               fontWeight: 600,
               color: TEXT,
               opacity: mount.canSubmit ? 1 : 0.55,

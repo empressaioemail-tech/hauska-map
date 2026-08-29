@@ -32,12 +32,17 @@ export function AtomChip({
     alignItems: "center",
     gap: 3,
     maxWidth: "100%",
-    fontSize: 9.5,
+    fontSize: 11.5,
     fontWeight: 600,
+    // Stated, not inherited. A shared chip that sets only size and weight
+    // takes its container's casing and tracking, and a dock header supplies
+    // uppercase + .13em. An atom label is a proper name; it never shouts.
+    letterSpacing: "normal",
+    textTransform: "none",
     color: isOpen ? ATOM_ACCENT_CONTRAST : ATOM_ACCENT,
     background: isOpen ? ATOM_ACCENT : ATOM_ACCENT_BG,
     border: `1px solid ${isOpen ? ATOM_ACCENT : ATOM_ACCENT_BORDER}`,
-    borderRadius: 8,
+    borderRadius: 12,
     padding: "0 5px",
     lineHeight: 1.6,
     height: "auto",

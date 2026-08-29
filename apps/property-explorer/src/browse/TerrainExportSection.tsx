@@ -168,19 +168,19 @@ export function TerrainExportSection({
           : {
               marginTop: 10,
               paddingTop: 10,
-              borderTop: "0.5px solid rgba(154,166,178,0.22)",
+              borderTop: "0.5px solid var(--ss-line-06)",
             }
       }
     >
       {embed ? null : (
-        <div style={{ fontSize: 10, color: MUTED, marginBottom: 6 }}>
+        <div style={{ fontSize: 11.5, color: MUTED, marginBottom: 6 }}>
           Terrain export · paid
         </div>
       )}
 
       {lockedFormat ? null : (
         <>
-          <label style={{ display: "block", fontSize: 11.5, color: MUTED, marginBottom: 4 }}>
+          <label style={{ display: "block", fontSize: 12.5, color: MUTED, marginBottom: 4 }}>
             Format
           </label>
           <select
@@ -198,11 +198,11 @@ export function TerrainExportSection({
               width: "100%",
               marginBottom: 8,
               padding: "6px 8px",
-              borderRadius: 6,
-              border: "0.5px solid rgba(154,166,178,0.35)",
+              borderRadius: 10,
+              border: "0.5px solid var(--ss-line-14)",
               background: "rgba(6,9,13,0.6)",
               color: PE.t2,
-              fontSize: 12.5,
+              fontSize: 14.5,
             }}
           >
             {TERRAIN_FORMAT_OPTIONS.map((opt) => (
@@ -236,7 +236,7 @@ export function TerrainExportSection({
       {notice && (
         <div
           data-testid="terrain-export-notice"
-          style={{ marginTop: 8, fontSize: 11.5, color: MUTED, lineHeight: 1.45 }}
+          style={{ marginTop: 8, fontSize: 12.5, color: MUTED, lineHeight: 1.45 }}
         >
           {notice}
           {notice.includes("Sign in") && (
@@ -269,14 +269,14 @@ export function TerrainExportSection({
         <div data-testid="terrain-export-result" style={{ marginTop: 8 }}>
           <div
             data-testid="terrain-source-citation"
-            style={{ fontSize: 11.5, color: PE.t3, lineHeight: 1.45 }}
+            style={{ fontSize: 12.5, color: PE.t3, lineHeight: 1.45 }}
           >
             Source: {result.atom.sourceCitation ?? "USGS 3DEP"}
             {result.atom.fetchedAt ? ` · ${result.atom.fetchedAt.slice(0, 10)}` : ""}
           </div>
           <div
             data-testid="terrain-confidence"
-            style={{ fontSize: 11.5, color: MUTED, marginTop: 4, lineHeight: 1.45 }}
+            style={{ fontSize: 12.5, color: MUTED, marginTop: 4, lineHeight: 1.45 }}
           >
             Confidence{" "}
             {typeof result.atom.confidence?.value === "number"
@@ -289,11 +289,11 @@ export function TerrainExportSection({
           </div>
 
           {!selectedDownload && result.selectedFormat !== format ? (
-            <div style={{ marginTop: 8, fontSize: 11.5, color: WARN }}>
+            <div style={{ marginTop: 8, fontSize: 12.5, color: WARN }}>
               Click Re-run again for {format}.
             </div>
           ) : !selectedDownload ? (
-            <div style={{ marginTop: 8, fontSize: 11.5, color: WARN }}>
+            <div style={{ marginTop: 8, fontSize: 12.5, color: WARN }}>
               Selected format unavailable in this export.
             </div>
           ) : null}
@@ -301,7 +301,7 @@ export function TerrainExportSection({
           {landxml?.deferred && (
             <div
               data-testid="terrain-landxml-deferred"
-              style={{ marginTop: 6, fontSize: 10, color: MUTED, lineHeight: 1.4 }}
+              style={{ marginTop: 6, fontSize: 11.5, color: MUTED, lineHeight: 1.4 }}
             >
               LandXML TIN deferred - {landxml.deferredReason ?? "writer not shipped this phase."}
             </div>
@@ -310,7 +310,7 @@ export function TerrainExportSection({
           {(format === "dxf-contour" || format === "dxf-3dface") && (
             <div
               data-testid="terrain-revit-hint"
-              style={{ marginTop: 6, fontSize: 10, color: MUTED, lineHeight: 1.4 }}
+              style={{ marginTop: 6, fontSize: 11.5, color: MUTED, lineHeight: 1.4 }}
             >
               Revit: Link CAD (not Import) into a floor/site plan. Units meters.
               After link, Zoom to Fit - geometry is local meters near the origin.

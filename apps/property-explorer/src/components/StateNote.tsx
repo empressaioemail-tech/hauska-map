@@ -18,25 +18,32 @@ import { PE } from "../styles/pe-chrome";
 
 export type StateRegister = "not-on-file" | "waiting" | "failed" | "nothing-yet";
 
+// A NOTE IS NOT A CHIP. The 13%-fill / 34%-border wash is calibrated for a
+// chip; a large surface tinted with a state colour reads as a state of the
+// WHOLE PANEL, which is not what "Sign in to use this tool" means. So a note
+// takes the neutral panel ground and carries its register on the BORDER only.
+// No state fill at any register.
 const REGISTER: Record<StateRegister, CSSProperties> = {
   "not-on-file": {
     color: PE.slate,
-    background: "rgba(124,139,160,.07)",
-    border: `1px dashed ${PE.line28}`,
+    background: "var(--ss-ink)",
+    border: "1px dashed color-mix(in oklab, var(--ss-slate) 34%, transparent)",
   },
   waiting: {
     color: PE.warn,
-    background: "rgba(245,158,11,.07)",
-    border: "1px solid rgba(245,158,11,.25)",
+    background: "var(--ss-ink)",
+    border: "1px solid color-mix(in oklab, var(--ss-warn) 34%, transparent)",
   },
   failed: {
     color: PE.err,
-    background: "rgba(239,68,68,.06)",
-    border: "1px solid rgba(239,68,68,.28)",
+    background: "var(--ss-ink)",
+    border: "1px solid color-mix(in oklab, var(--ss-err) 34%, transparent)",
   },
+  // No state hue exists for this register — its colour is a text-ramp
+  // neutral, so its border stays the neutral hairline.
   "nothing-yet": {
     color: PE.t4,
-    background: "transparent",
+    background: "var(--ss-ink)",
     border: `1px dashed ${PE.line14}`,
   },
 };
@@ -75,13 +82,21 @@ export function StateNote({
         ...style,
       }}
     >
-      <div style={{ fontSize: 12.5, fontWeight: 600, lineHeight: 1.3 }}>
+      <div
+        style={{
+          fontSize: 14.5,
+          fontWeight: 600,
+          lineHeight: 1.3,
+          letterSpacing: "normal",
+          textTransform: "none",
+        }}
+      >
         {title}
       </div>
       <div
         style={{
           marginTop: 4,
-          fontSize: 11.5,
+          fontSize: 12.5,
           lineHeight: 1.45,
           color: PE.t5,
         }}

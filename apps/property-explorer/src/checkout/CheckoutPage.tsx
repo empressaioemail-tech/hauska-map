@@ -98,26 +98,26 @@ export function CheckoutPage({
           alignItems: "center",
           gap: 16,
           padding: "0 20px",
-          borderBottom: "0.5px solid rgba(154,166,178,0.3)",
-          background: "rgba(11,14,19,0.9)",
+          borderBottom: `0.5px solid ${PE.line28}`,
+          background: PE.ink,
         }}
       >
         <span
           style={{
             fontFamily: DISPLAY,
             fontWeight: 600,
-            fontSize: 13.5,
+            fontSize: 15.5,
             letterSpacing: "0.04em",
           }}
         >
-          SMART<span style={{ color: "#F5B95C" }}>SITE</span>
+          SMART<span style={{ color: PE.goldLt }}>SITE</span>
         </span>
         <button
           type="button"
           data-testid="checkout-back"
           onClick={onClose}
           style={{
-            fontSize: 12.5,
+            fontSize: 14.5,
             color: ABSENCE,
             background: "transparent",
             border: "none",
@@ -134,7 +134,7 @@ export function CheckoutPage({
             data-testid="checkout-change-seats"
             onClick={onClose}
             style={{
-              fontSize: 12.5,
+              fontSize: 14.5,
               color: ABSENCE,
               background: "transparent",
               border: "none",
@@ -161,7 +161,7 @@ export function CheckoutPage({
             display: "flex",
             flexDirection: "column",
             gap: 26,
-            borderRight: "0.5px solid rgba(154,166,178,0.2)",
+            borderRight: `0.5px solid ${PE.line14}`,
           }}
         >
           <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
@@ -169,7 +169,7 @@ export function CheckoutPage({
               style={{
                 fontFamily: DISPLAY,
                 fontWeight: 600,
-                fontSize: 11,
+                fontSize: 11.5,
                 letterSpacing: "0.2em",
                 textTransform: "uppercase",
                 color: BLUE,
@@ -181,8 +181,8 @@ export function CheckoutPage({
               data-testid="checkout-product-name"
               style={{
                 fontFamily: DISPLAY,
-                fontWeight: 300,
-                fontSize: 26,
+                fontWeight: 700,
+                fontSize: 32,
                 letterSpacing: "-.02em",
                 lineHeight: 1.2,
               }}
@@ -192,15 +192,15 @@ export function CheckoutPage({
             <div style={{ display: "flex", alignItems: "baseline", gap: 10 }}>
               <span
                 data-testid="checkout-amount"
-                style={{ fontFamily: PE.mono, fontWeight: 400, fontSize: 34, letterSpacing: "-.01em" }}
+                style={{ fontFamily: PE.mono, fontWeight: 400, fontSize: 32, letterSpacing: "-.01em" }}
               >
                 {dueToday}
               </span>
-              <span data-testid="checkout-interval" style={{ fontSize: 12.5, color: MUTED }}>
+              <span data-testid="checkout-interval" style={{ fontSize: 14.5, color: MUTED }}>
                 {headline.periodWord}
               </span>
             </div>
-            <div style={{ fontSize: 12.5, color: MUTED }}>{headline.compare}</div>
+            <div style={{ fontSize: 14.5, color: MUTED }}>{headline.compare}</div>
           </div>
 
           <div style={{ height: 1, background: PE.line06 }} />
@@ -208,10 +208,10 @@ export function CheckoutPage({
           <div style={{ display: "flex", flexDirection: "column", gap: 11 }}>
             <div
               style={{
-                fontSize: 11,
+                fontSize: 11.5,
                 letterSpacing: "0.16em",
                 textTransform: "uppercase",
-                color: "#64748B",
+                color: PE.t6,
               }}
             >
               Included
@@ -225,12 +225,12 @@ export function CheckoutPage({
                 display: "flex",
                 flexDirection: "column",
                 gap: 9,
-                fontSize: 13.5,
+                fontSize: 15.5,
               }}
             >
               {included.map((line) => (
                 <li key={line} style={{ display: "flex", gap: 11 }}>
-                  <span style={{ color: "#10B981" }}>✓</span>
+                  <span style={{ color: PE.ok }}>✓</span>
                   <span>{line}</span>
                 </li>
               ))}
@@ -248,12 +248,12 @@ export function CheckoutPage({
               }}
             >
               {situs ? (
-                <div style={{ fontSize: 12.5 }}>
+                <div style={{ fontSize: 14.5 }}>
                   Started from <span style={{ fontWeight: 600 }}>{situs}</span>
                 </div>
               ) : null}
               {origin ? (
-                <div style={{ fontSize: 11.5, color: ABSENCE, marginTop: 3 }}>
+                <div style={{ fontSize: 12.5, color: ABSENCE, marginTop: 3 }}>
                   {origin} is queued and runs the moment this completes.
                 </div>
               ) : null}
@@ -263,7 +263,7 @@ export function CheckoutPage({
           <div style={{ flex: 1 }} />
           <div
             data-testid="checkout-terms"
-            style={{ display: "flex", gap: 22, fontSize: 11.5, color: PE.t6 }}
+            style={{ display: "flex", gap: 22, fontSize: 12.5, color: PE.t6 }}
           >
             <span>Cancel any time</span>
             <span>Payments by Stripe</span>
@@ -292,13 +292,13 @@ export function CheckoutPage({
                 overflowY: "auto",
                 borderRadius: PE.rTouch,
                 border: `1px dashed ${PE.line28}`,
-                background: "rgba(124,139,160,.07)",
+                background: PE.ink,
               }}
             />
           ) : (
             <div
               data-testid="checkout-mount-error"
-              style={{ fontSize: 12.5, color: PE.warn, lineHeight: 1.45 }}
+              style={{ fontSize: 14.5, color: PE.warn, lineHeight: 1.45 }}
             >
               {mount.error}
             </div>
@@ -306,7 +306,7 @@ export function CheckoutPage({
           {creds.ok && mount.error ? (
             <div
               data-testid="checkout-mount-error"
-              style={{ fontSize: 12.5, color: PE.warn, lineHeight: 1.45 }}
+              style={{ fontSize: 14.5, color: PE.warn, lineHeight: 1.45 }}
             >
               {mount.error}
             </div>
@@ -320,17 +320,17 @@ export function CheckoutPage({
               borderTop: `1px solid ${PE.line28}`,
             }}
           >
-            <span style={{ fontSize: 12.5, color: MUTED }}>Total due today</span>
+            <span style={{ fontSize: 14.5, color: MUTED }}>Total due today</span>
             <span
               data-testid="checkout-total"
-              style={{ fontFamily: PE.mono, fontWeight: 400, fontSize: 20, color: PE.t1 }}
+              style={{ fontFamily: PE.mono, fontWeight: 400, fontSize: 26, color: PE.t1 }}
             >
               {dueToday}
             </span>
           </div>
           <p
             data-testid="checkout-wallet-note"
-            style={{ margin: 0, fontSize: 11.5, color: MUTED, lineHeight: 1.45 }}
+            style={{ margin: 0, fontSize: 12.5, color: MUTED, lineHeight: 1.45 }}
           >
             {PE_PRICING.walletHonestDecline}
           </p>
@@ -351,9 +351,9 @@ export function CheckoutPage({
               borderRadius: PE.rTouch,
               background: BLUE,
               border: `1px solid ${BLUE}`,
-              fontSize: 13.5,
+              fontSize: 15.5,
               fontWeight: 600,
-              color: "#F8FAFC",
+              color: PE.onBlue,
               opacity: mount.canSubmit ? 1 : 0.45,
               cursor: mount.canSubmit ? "pointer" : "default",
               fontFamily: FONT,

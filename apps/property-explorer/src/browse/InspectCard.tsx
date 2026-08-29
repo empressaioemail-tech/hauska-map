@@ -92,7 +92,7 @@ const TEXT = PE.t2;
 /** Field label above value: 10/600/.13em uppercase in t6. This one rule is
  *  why the v2 card scans — the label stops competing with the value. */
 const FACT_LABEL: CSSProperties = {
-  fontSize: 10,
+  fontSize: 11.5,
   fontWeight: 600,
   letterSpacing: ".13em",
   textTransform: "uppercase",
@@ -649,10 +649,10 @@ export function FacetsLoadErrorBanner({ onRetry }: { onRetry: () => void }) {
       style={{
         marginTop: 8,
         padding: "6px 8px",
-        borderRadius: 6,
-        background: "rgba(239,68,68,0.10)",
+        borderRadius: 10,
+        background: "var(--ss-ink)",
         border: `0.5px solid ${ERROR}`,
-        fontSize: 11.5,
+        fontSize: 12.5,
         lineHeight: 1.45,
         color: TEXT,
       }}
@@ -671,7 +671,7 @@ export function FacetsLoadErrorBanner({ onRetry }: { onRetry: () => void }) {
           border: "none",
           color: ERROR,
           cursor: "pointer",
-          fontSize: 11.5,
+          fontSize: 12.5,
           fontWeight: 600,
           padding: 0,
           height: "auto",
@@ -728,7 +728,7 @@ function InspectFactsAccordion<T>({
               padding: 0,
               color: PE.blue,
               cursor: "pointer",
-              fontSize: 11.5,
+              fontSize: 12.5,
               fontWeight: 600,
             }}
           >
@@ -1101,7 +1101,7 @@ export function InspectCard({
         background: CARD_BG,
         color: PE.t3,
         fontFamily: PE.ui,
-        fontSize: 12.5,
+        fontSize: 14.5,
         lineHeight: 1.5,
       }}
     >
@@ -1117,7 +1117,7 @@ export function InspectCard({
           <div
             style={{
               fontWeight: 400,
-              fontSize: 20,
+              fontSize: 26,
               letterSpacing: "-.01em",
               lineHeight: 1.2,
               color: PE.t1,
@@ -1132,7 +1132,7 @@ export function InspectCard({
           {!heading.isAddress && (
             <div
               data-testid="inspect-no-address"
-              style={{ marginTop: 4, fontSize: 11.5, color: PE.t5 }}
+              style={{ marginTop: 4, fontSize: 12.5, color: PE.t5 }}
             >
               No street address on the county record
             </div>
@@ -1151,7 +1151,7 @@ export function InspectCard({
               width: 22,
               height: 22,
               flex: "none",
-              borderRadius: 6,
+              borderRadius: 10,
               background: "transparent",
               border: "none",
               color: PE.t5,
@@ -1281,7 +1281,7 @@ export function InspectCard({
 
       {/* Honest coverage / disclosure states. */}
       {source === "loading" && (
-        <div style={{ marginTop: 8, fontSize: 11.5, color: MUTED }}>
+        <div style={{ marginTop: 8, fontSize: 12.5, color: MUTED }}>
           Reading this parcel…
         </div>
       )}
@@ -1296,10 +1296,10 @@ export function InspectCard({
           style={{
             marginTop: 8,
             padding: "6px 8px",
-            borderRadius: 6,
+            borderRadius: 10,
             background: ABSENT_BG,
             border: `0.5px dashed ${ABSENT_BORDER}`,
-            fontSize: 10,
+            fontSize: 11.5,
             lineHeight: 1.45,
           }}
         >
@@ -1323,7 +1323,7 @@ export function InspectCard({
         baked.buildableDisplayKind === "declined-consume" && (
           <div
             data-testid="no-buildable-area"
-            style={{ marginTop: 8, fontSize: 11.5, color: PE.warn }}
+            style={{ marginTop: 8, fontSize: 12.5, color: PE.warn }}
           >
             {baked.envelopeEmptyReason ||
               "No buildable area after setbacks — the setbacks consume the lot."}
@@ -1332,12 +1332,12 @@ export function InspectCard({
 
       {/* LIVE fallback coverage states (un-baked nodes only). */}
       {source === "live" && env.status === "loading" && (
-        <div style={{ marginTop: 8, fontSize: 11.5, color: MUTED }}>
+        <div style={{ marginTop: 8, fontSize: 12.5, color: MUTED }}>
           Reading zoning &amp; setbacks…
         </div>
       )}
       {source === "live" && env.status === "empty" && (
-        <div style={{ marginTop: 8, fontSize: 11.5, color: PE.warn }}>
+        <div style={{ marginTop: 8, fontSize: 12.5, color: PE.warn }}>
           {env.reason || "No buildable area — setbacks consume the lot."}
         </div>
       )}
@@ -1352,7 +1352,7 @@ export function InspectCard({
       {/* Approximate / not-survey-grade treatment whenever an envelope shows. */}
       {((source === "baked" && baked?.envelopeApproximate) ||
         (source === "live" && (env.status === "ok" || env.status === "empty"))) && (
-        <div style={{ marginTop: 8, fontSize: 10, color: MUTED }}>
+        <div style={{ marginTop: 8, fontSize: 11.5, color: MUTED }}>
           Approximate — not survey grade. Verify with the city.
         </div>
       )}
@@ -1442,7 +1442,7 @@ export function InspectCard({
       {saveNotice && (
         <div
           data-testid="save-property-notice"
-          style={{ marginTop: 4, fontSize: 10, color: MUTED, lineHeight: 1.45 }}
+          style={{ marginTop: 4, fontSize: 11.5, color: MUTED, lineHeight: 1.45 }}
         >
           {saveNotice}
         </div>
@@ -1468,7 +1468,7 @@ export function InspectCard({
           style={{
             marginTop: 12,
             paddingTop: 10,
-            borderTop: "1px solid rgba(154,166,178,0.2)",
+            borderTop: "1px solid var(--ss-line-06)",
           }}
         >
           <BriefTool />
@@ -1543,7 +1543,7 @@ export function SourcesDisclosure({
   const has = entries.length > 0;
   return (
     <div style={{ marginTop: 6 }} data-testid="inspect-provenance">
-      <div style={{ fontSize: 10, color: MUTED }}>
+      <div style={{ fontSize: 11.5, color: MUTED }}>
         Checked against the county record
         {asOf ? ` · as of ${asOf}` : ""}
         {has && (
@@ -1559,7 +1559,7 @@ export function SourcesDisclosure({
                 border: "none",
                 color: MUTED,
                 cursor: "pointer",
-                fontSize: 10,
+                fontSize: 11.5,
                 padding: 0,
                 textDecoration: "underline",
               }}
@@ -1575,10 +1575,10 @@ export function SourcesDisclosure({
           style={{
             marginTop: 4,
             padding: "5px 7px",
-            borderRadius: 6,
-            background: "rgba(154,166,178,0.10)",
+            borderRadius: 10,
+            background: "var(--ss-line-06)",
             border: `1px solid ${ATOM_ACCENT_BORDER}`,
-            fontSize: 10,
+            fontSize: 11.5,
           }}
         >
           {entries.map((e) => (
@@ -1702,7 +1702,7 @@ export function SetbackXrayDetail({
           border: "none",
           color: MUTED,
           cursor: "pointer",
-          fontSize: 11.5,
+          fontSize: 12.5,
           padding: 0,
           height: "auto",
           textDecoration: "underline",
@@ -1716,10 +1716,10 @@ export function SetbackXrayDetail({
           style={{
             marginTop: 4,
             padding: "5px 7px",
-            borderRadius: 6,
-            background: "rgba(154,166,178,0.10)",
+            borderRadius: 10,
+            background: "var(--ss-line-06)",
             border: `1px solid ${ATOM_ACCENT_BORDER}`,
-            fontSize: 10,
+            fontSize: 11.5,
           }}
         >
           {entries.map((e) => (
@@ -1805,7 +1805,7 @@ function LayerAbsenceChips({
           data-testid="layer-absence-detail"
           style={{
             marginTop: 4,
-            fontSize: 10,
+            fontSize: 11.5,
             color: MUTED,
             fontFamily: "ui-monospace, SFMono-Regular, Menlo, monospace",
           }}
@@ -1899,7 +1899,7 @@ export function FactRow({
     <div data-pe="fact">
       <dt style={FACT_LABEL}>{label}</dt>
       <dd
-        style={{ margin: 0, fontSize: 13.5, lineHeight: 1.3, ...style }}
+        style={{ margin: 0, fontSize: 15.5, lineHeight: 1.3, ...style }}
         data-testid={testid}
         data-state={fact.state}
         data-absent={fact.state.startsWith("absent") ? "true" : undefined}
@@ -1911,7 +1911,7 @@ export function FactRow({
         {layerProv && (
           <div
             data-testid="layer-absence-basis"
-            style={{ marginTop: 3, fontSize: 10, fontStyle: "normal" }}
+            style={{ marginTop: 3, fontSize: 11.5, fontStyle: "normal" }}
           >
             {layerProv.basis}
           </div>
@@ -2000,7 +2000,7 @@ export function Row({
     <div data-pe="fact">
       <dt style={FACT_LABEL}>{label}</dt>
       <dd
-        style={{ margin: 0, fontSize: 13.5, lineHeight: 1.3, color: PE.t1 }}
+        style={{ margin: 0, fontSize: 15.5, lineHeight: 1.3, color: PE.t1 }}
         data-testid={testid}
       >
         {value}

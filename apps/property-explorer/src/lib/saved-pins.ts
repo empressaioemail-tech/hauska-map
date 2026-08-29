@@ -99,7 +99,13 @@ export function pinSvgMarkup(accent: string): string {
   return (
     `<svg viewBox="0 0 24 24" width="14" height="14" aria-hidden="true">` +
     `<path d="M12 2.5l2.9 5.9 6.5.9-4.7 4.6 1.1 6.5-5.8-3-5.8 3 1.1-6.5L2.6 9.3l6.5-.9L12 2.5z" ` +
-    `fill="${accent}" stroke="rgba(11,14,19,0.9)" stroke-width="1.5" stroke-linejoin="round"/>` +
+    // The dark outline is a TOKEN, but it rides in `style` rather than as a
+    // `stroke=` presentation attribute: var() substitution is not reliably
+    // applied to SVG presentation attributes in Chromium, and a silently
+    // dropped stroke is a worse outcome than a spelled colour. The accent
+    // stays a literal hex on purpose — it is pinned by saved-pins.test.ts.
+    `fill="${accent}" style="stroke:color-mix(in oklab, var(--ss-ink) 90%, transparent)" ` +
+    `stroke-width="1.5" stroke-linejoin="round"/>` +
     `</svg>`
   );
 }

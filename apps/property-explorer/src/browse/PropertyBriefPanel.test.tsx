@@ -59,8 +59,21 @@ describe("PropertyBriefPanel — zoned parcel", () => {
     expect(html).toContain("library.municode.com");
     // Links/citations use the action blue; the Export X-ray PDF hero CTA is
     // blue too (actions are blue; gold is reserved for the brand mark).
-    // chrome v2 renamed the token --brand-blue -> --ss-blue; same hex.
-    expect(html).toContain("var(--ss-blue, #3B82F6)");
+    // STONE PORT (P-95). This asserted `var(--ss-blue, #3B82F6)`. The
+    // fallback form is BANNED outright by the NO FALLBACKS ruling at the
+    // head of styles/pe-chrome.ts: it looks like it respects the token
+    // while being a second source of truth that surfaces only when the
+    // first is missing. So the old assertion encoded a value the system no
+    // longer permits, and restoring the fallback to make it pass would
+    // invert the ruling.
+    //
+    // The replacement holds the RULING, not the output: the action blue is
+    // reached through the BARE token, and neither the banned fallback form
+    // nor the raw v2 hex may appear. The two negative assertions are what
+    // make this a check rather than a transcription of current output.
+    expect(html).toContain("var(--ss-blue)");
+    expect(html).not.toMatch(/var\(--ss-blue,/);
+    expect(html).not.toContain("#3B82F6");
   });
 
   it("has the close control and the Export X-ray PDF button", () => {

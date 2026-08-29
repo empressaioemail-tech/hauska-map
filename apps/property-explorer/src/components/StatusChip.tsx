@@ -4,7 +4,8 @@ import { PE } from "../styles/pe-chrome";
 // WORD PLUS COLOUR, NEVER COLOUR ALONE. Every chip carries a readable state
 // word; the hue is a second channel on top of it, not the message.
 //
-// Height 22, padding 0 8, radius 4, label 11/600, 12px glyph, 6px gap.
+// Height 22, padding 0 8, radius 4, label 11.5/600 at normal tracking in
+// sentence case, 12px glyph, 6px gap.
 //
 // "Not on file" is the one dashed chip in the product — absence is drawn as an
 // outline that has not been filled in, which is exactly what it means.
@@ -21,38 +22,34 @@ export type StatusChipTone =
   | "info"
   | "ok";
 
-/** A semantic chip: the hue at 10% fill behind a 30% border. Written as
- *  explicit rgba rather than color-mix so the chip does not depend on a
- *  colour function for its most common state. */
-const solid = (hue: string, rgb: string): CSSProperties => ({
+/** A semantic chip: the hue at the 13% fill behind the 34% border, BOTH
+ *  DERIVED FROM THE SAME TOKEN as the label colour. The previous form read
+ *  the token for `color` and a hardcoded rgb triple for the wash, so a
+ *  palette swap left a sage word inside a v2 emerald box on all three tones.
+ *  A wash is derived, never spelled. */
+const solid = (hue: string): CSSProperties => ({
   color: hue,
-  background: `rgba(${rgb},.10)`,
-  border: `1px solid rgba(${rgb},.30)`,
+  background: `color-mix(in oklab, ${hue} 13%, transparent)`,
+  border: `1px solid color-mix(in oklab, ${hue} 34%, transparent)`,
 });
 
-const RGB = {
-  ok: "16,185,129",
-  warn: "245,158,11",
-  err: "239,68,68",
-} as const;
-
 const TONE: Record<StatusChipTone, CSSProperties> = {
-  cited: solid(PE.ok, RGB.ok),
-  provisional: solid(PE.warn, RGB.warn),
+  cited: solid(PE.ok),
+  provisional: solid(PE.warn),
   "not-on-file": {
     color: PE.slate,
     background: "transparent",
     border: `1px dashed ${PE.line28}`,
   },
-  failed: solid(PE.err, RGB.err),
+  failed: solid(PE.err),
   studio: {
     color: PE.blue,
     background: PE.blueBg,
     border: `1px solid ${PE.blueLine}`,
   },
   // legacy aliases
-  ok: solid(PE.ok, RGB.ok),
-  warning: solid(PE.warn, RGB.warn),
+  ok: solid(PE.ok),
+  warning: solid(PE.warn),
   absence: {
     color: PE.slate,
     background: "transparent",
@@ -89,8 +86,14 @@ export function StatusChip({
         padding: "0 8px",
         borderRadius: PE.rChip,
         fontFamily: PE.ui,
-        fontSize: 11,
+        fontSize: 11.5,
         fontWeight: 600,
+        // DECLARED, not inherited. A chip rendered inside a dock header was
+        // picking up that header's .13em tracking and uppercase transform,
+        // so the same word read two different ways depending on where it sat.
+        // The chip label is sentence case at normal tracking, everywhere.
+        letterSpacing: "normal",
+        textTransform: "none",
         lineHeight: 1,
         whiteSpace: "nowrap",
         ...TONE[tone],
@@ -159,7 +162,7 @@ export function UnverifiedSource({
     background: "transparent",
     color: PE.t4,
     fontFamily: PE.ui,
-    fontSize: 11,
+    fontSize: 11.5,
     fontWeight: 600,
     lineHeight: 1,
     textDecoration: "none",

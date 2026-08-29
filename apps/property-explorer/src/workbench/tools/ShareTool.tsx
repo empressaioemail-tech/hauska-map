@@ -80,7 +80,7 @@ export function ShareBody({
     <div data-testid="share-tool">
       {stored ? (
         <>
-          <p style={{ margin: "0 0 6px", fontSize: 11.5, color: TEXT }}>
+          <p style={{ margin: "0 0 6px", fontSize: 12.5, color: TEXT }}>
             Anyone with this link can fetch it. The public-record brief is one
             source on the share, not the share by itself. Site plan, terrain,
             and X-ray appear when exported. Owner data is labelled when
@@ -90,7 +90,7 @@ export function ShareBody({
             data-testid="share-link-url"
             style={{
               fontFamily: PE.mono,
-              fontSize: 11.5,
+              fontSize: 12.5,
               lineHeight: 1.5,
               color: PE.t2,
               wordBreak: "break-all",
@@ -110,7 +110,7 @@ export function ShareBody({
               alignItems: "center",
               gap: 8,
               marginBottom: 8,
-              fontSize: 11.5,
+              fontSize: 12.5,
               color: TEXT,
               cursor: "pointer",
             }}
@@ -164,14 +164,14 @@ export function ShareBody({
               {phase.kind === "minting" ? "…" : "Regenerate"}
             </Button>
           </div>
-          <p data-testid="share-expiry" style={{ margin: 0, fontSize: 10, color: MUTED }}>
+          <p data-testid="share-expiry" style={{ margin: 0, fontSize: 11.5, color: MUTED }}>
             {fmtExpiry(stored.link.expiresAt)} Regenerating mints a fresh link;
             previously shared links stay valid until their own expiry.
           </p>
         </>
       ) : (
         <>
-          <p style={{ margin: "0 0 8px", fontSize: 11.5, color: TEXT }}>
+          <p style={{ margin: "0 0 8px", fontSize: 12.5, color: TEXT }}>
             Create a read-only /s/{"{grantId}"} link a model can fetch. The
             public-record brief is one source. Site plan, terrain, and X-ray
             appear when the sharer exported them. Owner data is labelled when
@@ -184,7 +184,7 @@ export function ShareBody({
               alignItems: "center",
               gap: 8,
               marginBottom: 10,
-              fontSize: 11.5,
+              fontSize: 12.5,
               color: TEXT,
               cursor: "pointer",
             }}
@@ -214,7 +214,7 @@ export function ShareBody({
           data-testid="share-notice"
           style={{
             margin: "8px 0 0",
-            fontSize: 11.5,
+            fontSize: 12.5,
             color: phase.tone === "amber" ? AMBER : MUTED,
           }}
         >

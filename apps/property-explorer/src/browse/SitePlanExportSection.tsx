@@ -186,19 +186,19 @@ export function SitePlanExportSection({
           : {
               marginTop: 10,
               paddingTop: 10,
-              borderTop: "0.5px solid rgba(154,166,178,0.22)",
+              borderTop: "0.5px solid var(--ss-line-14)",
             }
       }
     >
       {embed ? null : (
-        <div style={{ fontSize: 10, color: MUTED, marginBottom: 6 }}>
+        <div style={{ fontSize: 11.5, color: MUTED, marginBottom: 6 }}>
           Site-plan export · paid
         </div>
       )}
 
       {lockedFormat ? null : (
         <>
-          <label style={{ display: "block", fontSize: 11.5, color: MUTED, marginBottom: 4 }}>
+          <label style={{ display: "block", fontSize: 12.5, color: MUTED, marginBottom: 4 }}>
             Format
           </label>
           <select
@@ -216,11 +216,11 @@ export function SitePlanExportSection({
               width: "100%",
               marginBottom: 8,
               padding: "6px 8px",
-              borderRadius: 6,
-              border: "0.5px solid rgba(154,166,178,0.35)",
+              borderRadius: 10,
+              border: "0.5px solid var(--ss-line-28)",
               background: "rgba(6,9,13,0.6)",
               color: PE.t2,
-              fontSize: 12.5,
+              fontSize: 14.5,
             }}
           >
             {SITE_PLAN_FORMAT_OPTIONS.map((opt) => (
@@ -251,7 +251,7 @@ export function SitePlanExportSection({
       {notice && (
         <div
           data-testid="site-plan-export-notice"
-          style={{ marginTop: 8, fontSize: 11.5, color: MUTED, lineHeight: 1.45 }}
+          style={{ marginTop: 8, fontSize: 12.5, color: MUTED, lineHeight: 1.45 }}
         >
           {notice}
           {notice.includes("Sign in") && (
@@ -284,14 +284,14 @@ export function SitePlanExportSection({
         <div data-testid="site-plan-export-result" style={{ marginTop: 8 }}>
           <div
             data-testid="site-plan-source-citation"
-            style={{ fontSize: 11.5, color: PE.t3, lineHeight: 1.45 }}
+            style={{ fontSize: 12.5, color: PE.t3, lineHeight: 1.45 }}
           >
             Source: {result.atom.sourceCitation ?? "Parcel GIS + setback-rule + USGS 3DEP"}
             {result.atom.fetchedAt ? ` · ${result.atom.fetchedAt.slice(0, 10)}` : ""}
           </div>
           <div
             data-testid="site-plan-confidence"
-            style={{ fontSize: 11.5, color: MUTED, marginTop: 4, lineHeight: 1.45 }}
+            style={{ fontSize: 12.5, color: MUTED, marginTop: 4, lineHeight: 1.45 }}
           >
             Confidence{" "}
             {typeof result.atom.confidence?.value === "number"
@@ -304,11 +304,11 @@ export function SitePlanExportSection({
           </div>
 
           {!selectedDownload && result.selectedFormat !== format ? (
-            <div style={{ marginTop: 8, fontSize: 11.5, color: WARN }}>
+            <div style={{ marginTop: 8, fontSize: 12.5, color: WARN }}>
               Click Re-run again for {format}.
             </div>
           ) : !selectedDownload ? (
-            <div style={{ marginTop: 8, fontSize: 11.5, color: WARN }}>
+            <div style={{ marginTop: 8, fontSize: 12.5, color: WARN }}>
               Selected format unavailable in this export.
             </div>
           ) : null}
@@ -316,7 +316,7 @@ export function SitePlanExportSection({
           {result.setbackHonestAbsence && (
             <div
               data-testid="site-plan-setback-absence"
-              style={{ marginTop: 6, fontSize: 10, color: MUTED, lineHeight: 1.4 }}
+              style={{ marginTop: 6, fontSize: 11.5, color: MUTED, lineHeight: 1.4 }}
             >
               Setback layer: {result.setbackHonestAbsenceReason ??
                 "no setback rule on file for this parcel — setbacks not specified here and not verified."}
@@ -326,7 +326,7 @@ export function SitePlanExportSection({
           {result.setbackDegenerate && (
             <div
               data-testid="site-plan-setback-degenerate"
-              style={{ marginTop: 6, fontSize: 10, color: WARN, lineHeight: 1.4 }}
+              style={{ marginTop: 6, fontSize: 11.5, color: WARN, lineHeight: 1.4 }}
             >
               Setback offset degenerate — {result.setbackDegenerateReason ?? "lot geometry could not support the offset."}
             </div>
@@ -335,7 +335,7 @@ export function SitePlanExportSection({
           {result.streetHonestAbsence && (
             <div
               data-testid="site-plan-street-absence"
-              style={{ marginTop: 6, fontSize: 10, color: MUTED, lineHeight: 1.4 }}
+              style={{ marginTop: 6, fontSize: 11.5, color: MUTED, lineHeight: 1.4 }}
             >
               STREET layer: no road-node attaches to this parcel yet.
             </div>
@@ -344,7 +344,7 @@ export function SitePlanExportSection({
           {result.floodZoneHonestUnavailable && (
             <div
               data-testid="site-plan-flood-unavailable"
-              style={{ marginTop: 6, fontSize: 10, color: MUTED, lineHeight: 1.4 }}
+              style={{ marginTop: 6, fontSize: 11.5, color: MUTED, lineHeight: 1.4 }}
             >
               Flood zone: unavailable this refresh (FEMA lookup did not resolve).
             </div>
@@ -352,7 +352,7 @@ export function SitePlanExportSection({
 
           <div
             data-testid="site-plan-honesty-line"
-            style={{ marginTop: 8, fontSize: 10, color: MUTED, lineHeight: 1.4, fontStyle: "italic" }}
+            style={{ marginTop: 8, fontSize: 11.5, color: MUTED, lineHeight: 1.4, fontStyle: "italic" }}
           >
             {HONESTY_LINE}
           </div>
@@ -360,7 +360,7 @@ export function SitePlanExportSection({
           {(format === "dxf-site-plan" || format === "ifc-site-plan") && (
             <div
               data-testid="site-plan-revit-hint"
-              style={{ marginTop: 6, fontSize: 10, color: MUTED, lineHeight: 1.4 }}
+              style={{ marginTop: 6, fontSize: 11.5, color: MUTED, lineHeight: 1.4 }}
             >
               Revit: Link CAD (not Import) into a floor/site plan. Units meters.
               After link, Zoom to Fit — geometry is local meters near the origin.

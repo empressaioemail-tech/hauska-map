@@ -16,7 +16,7 @@ import { fetchAtomByDid, type AtomFetchOutcome } from "./atom-fetch";
 
 const MUTED = PE.t4;
 const TEXT = PE.t3;
-const DETAIL_BG = "rgba(154,166,178,0.10)";
+const DETAIL_BG = PE.line06;
 
 function rec(v: unknown): Record<string, unknown> | null {
   return v !== null && typeof v === "object" && !Array.isArray(v)
@@ -92,10 +92,10 @@ export function AtomDetailPopover({
       style={{
         marginTop: 4,
         padding: "5px 7px",
-        borderRadius: 6,
+        borderRadius: 10,
         background: DETAIL_BG,
         border: `1px solid ${ATOM_ACCENT_BORDER}`,
-        fontSize: 10,
+        fontSize: 11.5,
       }}
     >
       <p style={{ margin: 0, fontWeight: 600, color: TEXT }}>{label}</p>
@@ -135,7 +135,7 @@ export function AtomDetailPopover({
             </p>
           )}
           {model.accessPolicy && (
-            <p style={{ margin: "2px 0 0", color: MUTED, fontSize: 9.5 }}>
+            <p style={{ margin: "2px 0 0", color: MUTED, fontSize: 11.5 }}>
               access: {model.accessPolicy}
             </p>
           )}
@@ -146,7 +146,7 @@ export function AtomDetailPopover({
           display: "block",
           marginTop: 2,
           color: MUTED,
-          fontSize: 9,
+          fontSize: 11.5,
           wordBreak: "break-all",
         }}
       >

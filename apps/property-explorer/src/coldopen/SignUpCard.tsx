@@ -97,7 +97,7 @@ export function SignUpCard({ onDismiss }: { onDismiss: () => void }) {
           </svg>
           <span
             style={{
-              fontSize: 12.5,
+              fontSize: 14.5,
               fontWeight: 600,
               letterSpacing: ".16em",
               color: PE.t1,
@@ -110,9 +110,9 @@ export function SignUpCard({ onDismiss }: { onDismiss: () => void }) {
         <h1
           style={{
             margin: "0 0 16px",
-            fontSize: 26,
+            fontSize: 32,
             lineHeight: 1.2,
-            fontWeight: 300,
+            fontWeight: 700,
             letterSpacing: "-.02em",
             color: PE.t1,
           }}
@@ -137,7 +137,7 @@ export function SignUpCard({ onDismiss }: { onDismiss: () => void }) {
             <li
               key={t}
               style={{
-                fontSize: 12.5,
+                fontSize: 14.5,
                 lineHeight: 1.55,
                 color: PE.t3,
                 padding: i === 0 ? "0 0 10px" : "10px 0",
@@ -150,7 +150,7 @@ export function SignUpCard({ onDismiss }: { onDismiss: () => void }) {
         </ul>
 
         {loadError && (
-          <p data-testid="auth-load-error" style={{ color: PE.err, fontSize: 12.5, marginBottom: 12 }}>
+          <p data-testid="auth-load-error" style={{ color: PE.err, fontSize: 14.5, marginBottom: 12 }}>
             {loadError}
           </p>
         )}
@@ -159,14 +159,14 @@ export function SignUpCard({ onDismiss }: { onDismiss: () => void }) {
           <p
             data-testid="sign-in-not-configured"
             style={{
-              fontSize: 12.5,
+              fontSize: 14.5,
               lineHeight: 1.45,
               color: PE.t4,
               marginBottom: 14,
               padding: "12px 13px",
               borderRadius: PE.rTip,
               border: `1px dashed ${PE.line28}`,
-              background: "rgba(124,139,160,.07)",
+              background: "color-mix(in oklab, var(--ss-slate) 7%, transparent)",
             }}
           >
             Sign-in is not configured on this deploy yet. You can browse the map anonymously.
@@ -214,7 +214,7 @@ export function SignUpCard({ onDismiss }: { onDismiss: () => void }) {
         <p
           style={{
             margin: "14px 0 0",
-            fontSize: 11.5,
+            fontSize: 12.5,
             lineHeight: 1.45,
             color: PE.t5,
           }}
@@ -238,13 +238,13 @@ function primaryBtnStyle(busy: boolean) {
     justifyContent: "center",
     gap: 9,
     height: 44,
-    fontSize: 13.5,
+    fontSize: 15.5,
     fontWeight: 600,
     fontFamily: PE.ui,
     color: "#FFFFFF",
     background: "#2F2F2F",
-    border: "1px solid var(--ss-line-28, rgba(154,166,178,.28))",
-    borderRadius: 6,
+    border: `1px solid ${PE.line28}`,
+    borderRadius: 10,
     cursor: busy ? "default" : "pointer",
     opacity: busy ? 0.45 : 1,
   } as const;

@@ -111,8 +111,8 @@ function MobileBottomNav({
         height: PE_MOBILE_NAV_HEIGHT_PX,
         zIndex: MAP_PANEL_Z.nav,
         display: "flex",
-        borderTop: "1px solid rgba(154,166,178,0.35)",
-        background: "rgba(11,14,19,0.96)",
+        borderTop: "1px solid var(--ss-line-14)",
+        background: "var(--ss-ink-96)",
         fontFamily: "system-ui, -apple-system, Segoe UI, Roboto, sans-serif",
         paddingBottom: "env(safe-area-inset-bottom, 0px)",
       }}
@@ -131,7 +131,7 @@ function MobileBottomNav({
               border: "none",
               background: "transparent",
               color: selected ? PE.blue : PE.t4,
-              fontSize: 11,
+              fontSize: 11.5,
               fontWeight: selected ? 700 : 600,
               cursor: "pointer",
               padding: "6px 4px",
@@ -214,8 +214,8 @@ export function MobileSheet({
         maxHeight: `calc(100vh - ${PE_MOBILE_NAV_HEIGHT_PX}px - 56px)`,
         overflowY: "auto",
         WebkitOverflowScrolling: "touch",
-        background: "rgba(11,14,19,0.98)",
-        borderTop: "1px solid rgba(154,166,178,0.28)",
+        background: "color-mix(in oklab, var(--ss-ink) 98%, transparent)",
+        borderTop: "1px solid var(--ss-line-14)",
         boxShadow: "0 -10px 36px rgba(0,0,0,0.45)",
       }}
     >

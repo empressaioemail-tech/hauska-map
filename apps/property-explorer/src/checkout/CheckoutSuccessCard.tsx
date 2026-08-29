@@ -67,8 +67,8 @@ export function CheckoutSuccessCard({
   // timeout — the register is the whole message here.
   const border =
     status === "timeout"
-      ? "1px solid rgba(239,68,68,.28)"
-      : "1px solid rgba(16,185,129,.30)";
+      ? "1px solid color-mix(in oklab, var(--ss-err) 34%, transparent)"
+      : "1px solid color-mix(in oklab, var(--ss-ok) 34%, transparent)";
 
   return (
     <div
@@ -104,17 +104,17 @@ export function CheckoutSuccessCard({
             borderRadius: "50%",
             background:
               status === "timeout"
-                ? "rgba(239,68,68,.10)"
-                : "rgba(16,185,129,.10)",
+                ? "color-mix(in oklab, var(--ss-err) 13%, transparent)"
+                : "color-mix(in oklab, var(--ss-ok) 13%, transparent)",
             border:
               status === "timeout"
-                ? "1px solid rgba(239,68,68,.30)"
-                : "1px solid rgba(16,185,129,.30)",
+                ? "1px solid color-mix(in oklab, var(--ss-err) 34%, transparent)"
+                : "1px solid color-mix(in oklab, var(--ss-ok) 34%, transparent)",
             display: "flex",
             alignItems: "center",
             justifyContent: "center",
             color: status === "timeout" ? PE.err : PE.ok,
-            fontSize: 13.5,
+            fontSize: 15.5,
           }}
         >
           {status === "timeout" ? "!" : "✓"}
@@ -124,7 +124,7 @@ export function CheckoutSuccessCard({
           style={{
             fontFamily: DISPLAY,
             fontWeight: 400,
-            fontSize: 20,
+            fontSize: 26,
             letterSpacing: "-.01em",
             color: status === "timeout" ? PE.err : PE.ok,
           }}
@@ -134,12 +134,12 @@ export function CheckoutSuccessCard({
       </div>
       <div
         data-testid="checkout-success-receipt"
-        style={{ fontSize: 12.5, color: PE.t3, lineHeight: 1.55 }}
+        style={{ fontSize: 14.5, color: PE.t3, lineHeight: 1.55 }}
       >
         {body}
       </div>
       {resolvedOrigin && status === "confirmed" ? (
-        <div data-testid="checkout-success-job" style={{ fontSize: 11.5, color: PE.t5 }}>
+        <div data-testid="checkout-success-job" style={{ fontSize: 12.5, color: PE.t5 }}>
           Queued: {resolvedOrigin}
         </div>
       ) : null}
@@ -173,7 +173,7 @@ export function CheckoutSuccessCard({
             background: "none",
             border: "none",
             color: PE.t5,
-            fontSize: 11.5,
+            fontSize: 12.5,
             cursor: "pointer",
             padding: 0,
             fontFamily: FONT,

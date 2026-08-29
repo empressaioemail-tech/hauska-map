@@ -16,7 +16,7 @@ const MUTED = PE.muted2;
 const MUTED_2 = PE.muted;
 const SLATE = PE.absence;
 const BLUE = PE.accent;
-const CARD_BORDER = "rgba(154,166,178,0.16)";
+const CARD_BORDER = PE.line14;
 
 export function RecordsAcknowledgementPanel({
   countyName,
@@ -49,7 +49,7 @@ export function RecordsAcknowledgementPanel({
     <div
       data-testid="records-acknowledgement"
       style={{
-        borderRadius: 10,
+        borderRadius: 14,
         border: `1px solid ${CARD_BORDER}`,
         background: APP_INK,
         padding: 20,
@@ -64,13 +64,13 @@ export function RecordsAcknowledgementPanel({
             width: 28,
             height: 28,
             borderRadius: "50%",
-            border: "1px solid rgba(59,130,246,0.5)",
-            background: "rgba(59,130,246,0.12)",
+            border: "1px solid color-mix(in oklab, var(--ss-blue) 50%, transparent)",
+            background: PE.blueBg,
             display: "flex",
             alignItems: "center",
             justifyContent: "center",
             flex: "none",
-            fontSize: 13.5,
+            fontSize: 15.5,
             color: BLUE,
           }}
           aria-hidden
@@ -82,13 +82,13 @@ export function RecordsAcknowledgementPanel({
             style={{
               fontFamily: "Oxygen, system-ui, sans-serif",
               fontWeight: 600,
-              fontSize: 15,
+              fontSize: 17.5,
               color: TEXT,
             }}
           >
             Searching the {county} clerk index
           </div>
-          <div style={{ fontSize: 12.5, lineHeight: 1.6, color: MUTED_2 }}>
+          <div style={{ fontSize: 14.5, lineHeight: 1.6, color: MUTED_2 }}>
             Runs take 20 minutes to a few hours. You can leave this parcel — the
             result lands in its property records and we email you at{" "}
             <span style={{ color: PE.t3 }}>{contact}</span> when the run
@@ -108,7 +108,7 @@ export function RecordsAcknowledgementPanel({
       >
         <div
           style={{
-            fontSize: 11.5,
+            fontSize: 12.5,
             letterSpacing: "0.14em",
             textTransform: "uppercase",
             color: MUTED,
@@ -119,7 +119,7 @@ export function RecordsAcknowledgementPanel({
         {showGisResearchingOnly ? (
           <div
             data-testid="records-ack-gis-researching"
-            style={{ fontSize: 12.5, lineHeight: 1.6, color: MUTED_2 }}
+            style={{ fontSize: 14.5, lineHeight: 1.6, color: MUTED_2 }}
           >
             No public GIS easements intersect this parcel. The clerk index
             search is researching recorded instruments in the background.
@@ -133,14 +133,14 @@ export function RecordsAcknowledgementPanel({
                 style={{
                   border: `1px solid ${ATOM_ACCENT_BORDER}`,
                   background: ATOM_ACCENT_BG,
-                  borderRadius: 10,
+                  borderRadius: 14,
                   padding: "11px 12px",
                   display: "flex",
                   flexDirection: "column",
                   gap: 6,
                 }}
               >
-                <div style={{ fontSize: 13.5, fontWeight: 600, color: TEXT }}>
+                <div style={{ fontSize: 15.5, fontWeight: 600, color: TEXT }}>
                   {hit.title}
                 </div>
                 <div
@@ -154,17 +154,17 @@ export function RecordsAcknowledgementPanel({
                   <span
                     style={{
                       fontFamily: "ui-monospace, Menlo, monospace",
-                      fontSize: 11.5,
+                      fontSize: 12.5,
                       color: ATOM_ACCENT,
                       border: `1px solid ${ATOM_ACCENT_BORDER}`,
                       background: ATOM_ACCENT_BG,
-                      borderRadius: 4,
+                      borderRadius: 8,
                       padding: "2px 6px",
                     }}
                   >
                     {hit.citation}
                   </span>
-                  <span style={{ fontSize: 11.5, color: SLATE }}>
+                  <span style={{ fontSize: 12.5, color: SLATE }}>
                     {hit.mapNote}
                   </span>
                 </div>
@@ -173,7 +173,7 @@ export function RecordsAcknowledgementPanel({
           </div>
         )}
         {!showGisResearchingOnly ? (
-          <div style={{ fontSize: 11.5, lineHeight: 1.55, color: SLATE }}>
+          <div style={{ fontSize: 12.5, lineHeight: 1.55, color: SLATE }}>
             These come from GIS layers, not from recorded instruments. The clerk
             index search may confirm, correct, or add to them.
           </div>
@@ -191,7 +191,7 @@ export function RecordsAcknowledgementPanel({
       >
         <div
           style={{
-            fontSize: 11.5,
+            fontSize: 12.5,
             letterSpacing: "0.14em",
             textTransform: "uppercase",
             color: MUTED,
@@ -205,7 +205,7 @@ export function RecordsAcknowledgementPanel({
             display: "flex",
             flexDirection: "column",
             gap: 7,
-            fontSize: 12.5,
+            fontSize: 14.5,
             lineHeight: 1.5,
             color: PE.t3,
           }}
@@ -216,7 +216,7 @@ export function RecordsAcknowledgementPanel({
                 style={{
                   color: ATOM_ACCENT,
                   fontFamily: "ui-monospace, Menlo, monospace",
-                  fontSize: 11.5,
+                  fontSize: 12.5,
                   paddingTop: 2,
                 }}
               >
@@ -226,7 +226,7 @@ export function RecordsAcknowledgementPanel({
             </div>
           ))}
         </div>
-        <div style={{ fontSize: 11.5, lineHeight: 1.55, color: SLATE }}>
+        <div style={{ fontSize: 12.5, lineHeight: 1.55, color: SLATE }}>
           {SCAFFOLD_SEARCH_SCOPE.footer}
         </div>
       </div>

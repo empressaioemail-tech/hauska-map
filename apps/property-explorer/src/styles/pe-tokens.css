@@ -1,62 +1,82 @@
-/* Smart Site — Property Explorer chrome tokens, v2
-   Source of truth: docs/smart-site-brand/v2/tokens/pe-tokens-v2.css (the drop).
+/* Smart Site — Property Explorer chrome tokens, STONE
+   Source of truth: "/p/tmp/Smart Site Design System"/tokens/*.css — 65 tokens
+   across colors / size / typography / motion / fonts. Every --ss-* value below
+   is transcribed from that folder and from nothing else. Do not re-derive one
+   from a screenshot, a sibling app, or an older drop of this file.
    Dark only; there is no light theme.
 
    TWO LAYERS in this file, in this order:
-     1. --ss-*  the v2 vocabulary. New code reads ONLY these.
+     1. --ss-*  the vocabulary. New code reads ONLY these.
      2. legacy  --brand-* / --surface-* / --text-* / --semantic-* / --atom-*
                 aliases, each pointing at an --ss-* value. They exist so the
                 surfaces not yet ported keep resolving, and so porting a file
                 is a rename with no visual step. Do not add a new legacy name;
-                do not give a legacy name a value of its own. */
+                do not give a legacy name a value of its own.
+
+   THE SECOND RULE WAS BEING BROKEN. At be60021, 18 of the 48 legacy aliases
+   carried a literal of their own rather than pointing at a token, which is the
+   defect the header rule names, sitting directly under the header rule. Ten are
+   repointed below. Eight (--space-1..8) are deleted: they were defective AND
+   dead, measured at zero consumers across src/ and scripts/. Four (--btn-pad-*)
+   could NOT be repointed and are marked in place — see the note there. */
 
 :root {
-  /* ---- Ground -------------------------------------------------------- */
-  --ss-void:      #07090D;  /* page behind everything */
-  --ss-ink:       #0B0E13;  /* panel, dock, card fill */
-  --ss-raised:    #12161D;  /* modal, tooltip, popover fill — a LIFT of
-                               --ss-ink, not a bluer hue. Was #12171F, which
-                               carried +13 blue over red against the logo's +8
-                               and read as a different, colder material. */
+  /* ---- Ground — three opaque steps ------------------------------------
+     --ss-void is the page and map ground, --ss-ink the panel body,
+     --ss-raised panel-on-panel, fields and hover. The ladder is shallow on
+     purpose; it is also why nothing may sit type on a line token. */
+  --ss-void:      #2A2A28;  /* page and map behind everything */
+  --ss-ink:       #323230;  /* panel, dock, card fill */
+  --ss-raised:    #3C3C39;  /* modal, tooltip, popover fill */
 
-  /* the translucent panel fills, derived from the two grounds */
-  --ss-ink-94:    rgba(11,14,19,.94);   /* dock / inspect / card on the map */
-  --ss-ink-92:    rgba(11,14,19,.92);   /* find bar, map controls */
-  --ss-ink-90:    rgba(11,14,19,.90);   /* rail bubble at rest */
-  --ss-ink-96:    rgba(11,14,19,.96);   /* sources sheet */
-  --ss-raised-97: rgba(18,22,29,.97);   /* tooltip */
-  --ss-raised-98: rgba(18,22,29,.98);   /* modal */
-  --ss-scrim:     rgba(6,9,13,.74);     /* modal scrim over the map */
+  /* Named chrome fills. OPAQUE, by operator ruling: a panel does not let
+     parcel colour bleed through into panel text. These six were translucent
+     rgba() in v2 and are flat hexes now — the ONE value class that changed
+     kind, not just hue, in the Stone port. */
+  --ss-ink-94:    #323230;  /* dock / inspect / card on the map */
+  --ss-ink-92:    #323230;  /* find bar, map controls */
+  --ss-ink-90:    #323230;  /* rail bubble at rest */
+  --ss-ink-96:    #323230;  /* sources sheet */
+  --ss-raised-97: #3C3C39;  /* tooltip */
+  --ss-raised-98: #3C3C39;  /* modal */
 
-  /* ---- Hairlines — three weights, one hue. Do not add a fourth. ------- */
-  --ss-line-06:   rgba(154,166,178,.07);  /* rules INSIDE a surface */
-  --ss-line-14:   rgba(154,166,178,.15);  /* the edge OF a surface */
-  --ss-line-28:   rgba(154,166,178,.28);  /* focus, outline buttons, emphasis */
+  /* The ONE translucent value in the palette. Behind a modal, over the map. */
+  --ss-scrim:     rgba(24,24,23,.72);
+
+  /* ---- Hairlines — three weights, opaque. Do not add a fourth. --------
+     Structure comes from these, not from shadow. THESE ARE HAIRLINE TOKENS
+     AND ARE NEVER A TEXT COLOUR: the palette has six text steps and a
+     component that reaches past all of them for a line token is a component
+     defect, not a palette one. */
+  --ss-line-06:   #3E3E3B;  /* rules INSIDE a surface */
+  --ss-line-14:   #4E4E49;  /* the edge OF a surface */
+  --ss-line-28:   #86867D;  /* focus, outline buttons, emphasis */
 
   /* ---- Text ramp — t1 brightest, t6 faintest ------------------------- */
-  --ss-t1:        #F8FAFC;  /* subject lines, values that matter */
-  --ss-t2:        #E9EEF5;  /* strong body, button labels */
-  --ss-t3:        #C6D0DC;  /* default body */
-  --ss-t4:        #94A3B8;  /* secondary body, panel titles */
-  --ss-t5:        #7C8BA0;  /* captions, notes */
-  --ss-t6:        #64748B;  /* field labels, mono metadata, placeholders */
+  --ss-t1:        #FCFBF9;  /* subject lines, values that matter */
+  --ss-t2:        #F0EEE8;  /* strong body, button labels */
+  --ss-t3:        #DAD6CD;  /* default body */
+  --ss-t4:        #B4B0A7;  /* secondary body, panel titles */
+  --ss-t5:        #ADA9A1;  /* captions, notes */
+  --ss-t6:        #9D9991;  /* field labels, mono metadata, placeholders */
 
   /* ---- Action. Blue is the ONLY action color. ------------------------ */
-  --ss-blue:      #3B82F6;
-  --ss-blue-bg:   rgba(59,130,246,.12);
-  --ss-blue-line: rgba(59,130,246,.32);
+  --ss-blue:      #86ADDF;
+  --ss-blue-bg:   #37424C;
+  --ss-blue-line: #54718E;
 
   /* ---- Reserved hues. Each has exactly one job. ---------------------- */
-  --ss-gold:      #E8963B;  /* brand mark only — never a button/link/fill/hover */
+  --ss-gold:      #E8963B;  /* brand mark + rail unread dot. Never a control. */
   --ss-gold-lt:   #F5B95C;  /* the word SITE in the wordmark */
-  --ss-atom:      #4CC9C0;  /* an openable record. Not chrome, not emphasis. */
-  --ss-slate:     #7C8BA0;  /* absence: a thing that is not on file */
-  --ss-sky:       #7DD3FC;  /* MAP GEOMETRY ONLY. Never inside a panel. */
+  --ss-atom:      #6FC1B8;  /* an openable record. Not chrome, not emphasis. */
+  --ss-slate:     #A09C93;  /* absence: a thing that is not on file */
+  --ss-sky:       #2C6B9E;  /* MAP GEOMETRY ONLY. Never inside a panel. */
 
-  /* ---- Semantic. Always paired with a word, never color alone. ------- */
-  --ss-ok:        #10B981;  /* cited, included, live */
-  --ss-warn:      #F59E0B;  /* waiting, tier-gated */
-  --ss-err:       #EF4444;  /* failed */
+  /* ---- Semantic. Desaturated so gold stays the loudest orange on screen.
+          Always paired with a word or a glyph, never colour alone. ------ */
+  --ss-ok:        #74AF8D;  /* cited, included, live */
+  --ss-warn:      #CFB165;  /* waiting, tier-gated */
+  --ss-err:       #D38577;  /* failed */
 
   /* ---- Motion. One curve. Four durations. ---------------------------- */
   --ss-ease:      cubic-bezier(.2,.6,.35,1);
@@ -68,48 +88,74 @@
   /* ---- Type ---------------------------------------------------------- */
   --ss-ui:        ui-sans-serif, system-ui, -apple-system, "Segoe UI", sans-serif;
   --ss-mono:      ui-monospace, "SF Mono", Menlo, monospace;
+  /* THE WORDMARK FACE. Resolves to the UI stack today and that is not a bug:
+     nothing loads Oxygen, because the deployed CSP blocks fonts.googleapis.com
+     (style-src) and fonts.gstatic.com (font-src) both. The first name never
+     matches and the fallback renders. The day a woff2 is self-hosted, this
+     token starts resolving to Oxygen with no diff on the files whose
+     appearance changes. Reasoning: design-system tokens/fonts.css. */
+  --ss-brand:     Oxygen, var(--ss-ui);
 
-  /* Ramp — five steps with real jumps. Do not add an in-between size. */
-  --ss-fs-label:  10px;    /* uppercase .13em field labels, 600 */
-  --ss-fs-meta:   11.5px;  /* captions, notes, chips */
-  --ss-fs-body:   12.5px;  /* running body, button labels at 600 */
-  --ss-fs-value:  13.5px;  /* the value under a field label */
-  --ss-fs-subject:15px;    /* subject line inside a panel */
-  --ss-fs-title:  20px;    /* panel title, weight 300, -.02em */
+  /* Ramp — six steps with real jumps. Do not add an in-between size. */
+  --ss-fs-label:  11.5px;  /* uppercase .13em field labels, 600 */
+  --ss-fs-meta:   12.5px;  /* captions, notes, chips */
+  --ss-fs-body:   14.5px;  /* running body, button labels at 600 */
+  --ss-fs-value:  15.5px;  /* the value under a field label */
+  --ss-fs-subject:17.5px;  /* subject line inside a panel */
+  --ss-fs-title:  26px;    /* panel title, weight 300, -.02em */
+  /* SEVENTH STEP, authorised 2026-08-28 by the palette author. Display is NOT
+     a UI step. It is legal only in the cold open, the pricing modal headline
+     and checkout: surfaces seen once, never the dense surfaces an operator
+     works in. It never appears in a panel, a dock, a row, a chip, or over the
+     map. THE ALLOW-LIST IS THE CONTROL, NOT THE NUMBER — a rule that only
+     checks the value permits a 32px headline inside a dock, which is the thing
+     the ruling exists to prevent. Enforced in scripts/pe-chrome-kit-gate.mjs
+     by DISPLAY_ALLOWED, not by admitting 32 to the ramp. */
+  --ss-fs-display: 32px;
 
   /* ---- Geometry ------------------------------------------------------ */
-  --ss-h-control: 32px;  /* buttons, segments */
-  --ss-h-dense:   26px;  /* toolbar and dock-row buttons */
-  --ss-h-field:   34px;  /* inputs */
-  --ss-h-find:    40px;  /* find bar — the one control allowed above 34 */
-  --ss-h-head:    36px;  /* dock header */
-  --ss-bubble:    34px;  /* rail bubble diameter */
-  --ss-dock-w:    380px; /* every dock, one width (340 until 2026-08-27) */
-  --ss-find-w:    436px;
-  --ss-inset:     20px;  /* every map-chrome element's edge inset */
+  --ss-h-control: 36px;  /* buttons, segments */
+  --ss-h-dense:   30px;  /* toolbar and dock-row buttons */
+  --ss-h-field:   40px;  /* inputs */
+  --ss-h-find:    46px;  /* find bar — the one control allowed above 40 */
+  --ss-h-head:    42px;  /* dock header */
+  --ss-bubble:    40px;  /* rail bubble diameter */
+  --ss-dock-w:    380px; /* every dock, one width. UNCHANGED in the Stone port. */
+  --ss-find-w:    436px; /* UNCHANGED in the Stone port. */
+  --ss-inset:     20px;  /* every map-chrome element edge inset. UNCHANGED. */
 
-  --ss-r-touch:   6px;   /* anything you click: buttons, fields, rows */
-  --ss-r-chip:    4px;   /* status chips */
-  --ss-r-tip:     8px;   /* tooltips, state notes, map controls */
-  --ss-r-float:   10px;  /* anything that floats: docks, panels */
-  --ss-r-modal:   14px;  /* the modal, and nothing else */
+  --ss-r-chip:    8px;   /* status chips */
+  --ss-r-touch:   10px;  /* anything you click: buttons, fields, rows */
+  --ss-r-tip:     12px;  /* tooltips, state notes, map controls */
+  --ss-r-float:   14px;  /* anything that floats: docks, panels */
+  --ss-r-modal:   18px;  /* the modal, and nothing else */
 
-  /* ---- Elevation ----------------------------------------------------- */
-  --ss-sh-rail:   0 4px 14px rgba(0,0,0,.4);
-  --ss-sh-dock:   0 18px 44px rgba(0,0,0,.5);
-  --ss-sh-modal:  0 24px 80px rgba(0,0,0,.6);
-  --ss-sh-tip:    0 10px 30px rgba(0,0,0,.55);
-  --ss-sh-focus:  0 0 0 3px rgba(59,130,246,.14);
-  --ss-sh-open:   0 6px 20px rgba(59,130,246,.28);  /* open rail bubble */
+  /* ---- Elevation ------------------------------------------------------
+     A panel is identified by its border and its surface step, not by a glow.
+     Stone shadows are markedly shallower than v2 for that reason. */
+  --ss-sh-rail:   0 1px 2px rgba(0,0,0,.22);
+  --ss-sh-dock:   0 8px 22px rgba(0,0,0,.26);
+  --ss-sh-modal:  0 20px 56px rgba(0,0,0,.38);
+  --ss-sh-tip:    0 6px 16px rgba(0,0,0,.28);
+  --ss-sh-focus:  0 0 0 3px rgba(134,173,223,.67);
+  --ss-sh-open:   0 2px 8px rgba(0,0,0,.22);  /* open rail bubble */
 
-  /* ================= LEGACY ALIASES — v1 names, v2 values ============= */
+  /* ================= LEGACY ALIASES — v1 names, Stone values ===========
+     NO ALIAS BELOW CARRIES A COLOUR LITERAL. 34 are bare var() pointers; two
+     (--atom-accent-bg / --atom-accent-border) are color-mix derivations of
+     --ss-atom, because Stone ships no atom fill/line pair to point at; four
+     (--btn-pad-*) are non-colour spacing values that have no --ss-* token to
+     point at and are flagged in place rather than defaulted. */
   /* brand */
   --brand-gold: var(--ss-gold);
   --brand-gold-light: var(--ss-gold-lt);
   --brand-blue: var(--ss-blue);
   --brand-white: var(--ss-t1);
   --brand-blue-bg: var(--ss-blue-bg);
-  --brand-blue-bg-soft: rgba(59,130,246,.08);
+  /* was rgba(59,130,246,.08). Stone has no "soft" step under --ss-blue-bg —
+     the palette ships one blue fill and one blue line. The distinction
+     collapses onto the fill rather than inventing a 66th token. */
+  --brand-blue-bg-soft: var(--ss-blue-bg);
   --brand-blue-border: var(--ss-blue-line);
   --brand-blue-border-soft: var(--ss-blue-line);
   /* surfaces */
@@ -130,24 +176,47 @@
   --semantic-warning: var(--ss-warn);
   --semantic-error: var(--ss-err);
   --semantic-absence: var(--ss-slate);
-  --semantic-absence-bg: rgba(124,139,160,.07);
+  /* was rgba(124,139,160,.07), a slate veil over the panel. Stone has no
+     absence fill; the raised step is the surface an absence chip sits on and
+     --semantic-absence still carries the slate hue in text and glyph. */
+  --semantic-absence-bg: var(--ss-raised);
   --semantic-absence-border: var(--ss-line-28);
   /* atom */
   --atom-accent: var(--ss-atom);
-  --atom-accent-bg: rgba(76,201,192,.12);
-  --atom-accent-border: rgba(76,201,192,.42);
-  --atom-accent-contrast: #08111F;
+  /* were rgba(76,201,192,.12) and rgba(76,201,192,.42) — two more hand-spelled
+     copies of the v2 atom hue, in the very file that defines the token. Stone
+     ships --ss-atom alone (no atom fill and no atom line, unlike blue which has
+     both), so the pair is DERIVED from the token and cannot desync from it.
+     The 13% / 50% mixes are not chosen here: they match
+     src/shared/atom-chip/atom-accent.ts exactly, so the CSS alias and the TS
+     constant are one wash spelled twice rather than two washes. */
+  --atom-accent-bg: color-mix(in oklab, var(--ss-atom) 13%, transparent);
+  --atom-accent-border: color-mix(in oklab, var(--ss-atom) 50%, transparent);
+  /* was #08111F — the dark ink that sat ON a light atom fill. --ss-void is
+     the darkest step Stone has and is the correct on-atom colour. */
+  --atom-accent-contrast: var(--ss-void);
   /* control scale — height is the spec now; padding is derived in Button */
   --btn-radius: var(--ss-r-touch);
+  /* NOT REPOINTED, AND THIS IS THE HONEST STATE. Stone has no spacing scale:
+     the 65-token contract carries colour, size/radii, type, motion and the
+     brand face, and nothing between them. There is no --ss-* token these four
+     could point at, so repointing them would mean inventing a 66th token,
+     which is out of this lane scope. All four measure ZERO consumers across
+     src/ and scripts/ (same profile as the deleted --space-*), so deletion is
+     available — it needs a ruling, not a guess. Flagged, not defaulted. */
   --btn-pad-y: 0px; --btn-pad-x: 14px;
   --btn-pad-y-dense: 0px; --btn-pad-x-dense: 10px;
-  --btn-focus-ring: 0 0 0 2px var(--ss-ink), 0 0 0 4px rgba(59,130,246,.55);
-  /* type + spacing */
+  /* was 0 0 0 2px var(--ss-ink), 0 0 0 4px rgba(59,130,246,.55) — a two-ring
+     form with a literal outer. Stone ships ONE focus ring and this now points
+     at it, so the app has a single focus mechanism instead of two. */
+  --btn-focus-ring: var(--ss-sh-focus);
+  /* type */
   --font-display: var(--ss-ui);
   --font-body: var(--ss-ui);
   --font-mono: var(--ss-mono);
-  --space-1:4px; --space-2:8px; --space-3:16px; --space-4:24px;
-  --space-5:32px; --space-6:48px; --space-7:64px; --space-8:80px;
+  /* --space-1 .. --space-8 DELETED in the Stone port. They carried their own
+     literals (4/8/16/24/32/48/64/80px) against this file header rule and
+     measured zero consumers in src/ and scripts/. Defective and dead. */
   --radius-card: var(--ss-r-float);
   --radius-chip: var(--ss-r-chip);
 }
@@ -160,21 +229,33 @@
   box-shadow: var(--btn-focus-ring);
 }
 
-/* Press. One rule for every control that carries .pe-btn. */
-.pe-btn:not(:disabled):active { transform: scale(.97); }
-
-/* Hover. A TINT, never a size, a shadow, or a new hue. Every hover below is
-   the same white lift at a different strength — no button ever gains a colour
-   it did not already have, which is the rule that keeps blue out of the
-   ground and gold off controls entirely. */
-.pe-btn[data-variant="primary"]:not(:disabled):hover   { background: rgba(255,255,255,.07);
-                                                         border-color: rgba(154,166,178,.38) }
-.pe-btn[data-variant="secondary"]:not(:disabled):hover { background: rgba(255,255,255,.03);
-                                                         border-color: var(--ss-line-28);
-                                                         color: var(--ss-t2) }
-.pe-btn[data-variant="ghost"]:not(:disabled):hover     { background: rgba(255,255,255,.05) }
-.pe-btn[data-variant="subtle"]:not(:disabled):hover    { background: rgba(255,255,255,.09) }
+/* Press. NOTHING SCALES. The v2 rule scaled every .pe-btn to 97% on :active;
+   the Stone ruling (2026-08-28) is that press adds nothing further beyond the
+   hover state the control already carries. The rule is REMOVED rather than set
+   to `transform: none`, because a no-op declaration reads as a control and is
+   not one. */
 .pe-btn:disabled { pointer-events: none }
+
+/* Hover. ONE MECHANISM FOR EVERY VARIANT, ruled 2026-08-28. Previously each of
+   the four variants carried its own white-veil alpha (.07 / .03 / .05 / .09)
+   and primary carried a second literal for its border — five literals
+   expressing one idea, free to drift apart.
+
+   THE 7% IS NOT THE OLD 7%. rgba(255,255,255,.07) was tuned against v2
+   near-black #0B0E13, where a 7% white veil is a visible step. --ss-t1 at 7%
+   mixed into --ss-ink #323230 is a far smaller lift, because the ground is
+   already mid-tone and the two colours are much closer together. The number
+   carries over by ruling, not by measurement. If the hover reads too quiet on
+   Stone, that is a palette-author question and belongs in a request, not in a
+   re-tune here.
+
+   color-mix INTO an opaque surface, never a translucent overlay: an rgba veil
+   lets whatever sits under the panel bleed through the control, which is the
+   thing the opaque-chrome ruling removed from --ss-ink-9x. */
+.pe-btn:not(:disabled):hover {
+  background: color-mix(in oklab, var(--ss-t1) 7%, var(--ss-ink));
+  border-color: var(--ss-line-28);
+}
 /* The glyph is the emphasis the blue fill used to be. Keep it 14px wherever
    an icon is handed in, so a call site cannot resize the indicator. */
 .ss-btn-glyph > svg { width: 14px; height: 14px }
@@ -187,37 +268,45 @@
   border-color: var(--ss-blue);
   box-shadow: var(--ss-sh-focus);
 }
+/* The invalid ring mirrors --ss-sh-focus exactly — same 3px, same 67% — with
+   the error hue substituted. It was rgba(239,68,68,.14), a literal of the
+   retired red at an alpha that matched nothing else in the file. */
 [data-pe="input"][data-invalid="1"]:focus,
 [data-pe="textarea"][data-invalid="1"]:focus {
   border-color: var(--ss-err);
-  box-shadow: 0 0 0 3px rgba(239,68,68,.14);
+  box-shadow: 0 0 0 3px color-mix(in oklab, var(--ss-err) 67%, transparent);
 }
 
 /* ---- Rail bubble ----------------------------------------------------
    Hover is a TINT ONLY. Never a scale transform, never a count badge,
-   never a red dot. The open state is set inline by bubbleStyle. */
+   never a red dot. The open state is set inline by bubbleStyle.
+   Same one hover mechanism as .pe-btn; the bubble own surface is --ss-ink
+   (--ss-ink-90 resolves to it now that the chrome fills are opaque). */
 .ss-bubble:not([data-open]):not([data-coming]):hover {
-  background: rgba(24,30,42,.96);
+  background: color-mix(in oklab, var(--ss-t1) 7%, var(--ss-ink));
   border-color: var(--ss-line-28);
   color: var(--ss-t1);
 }
 .ss-bubble:not(:disabled):active { transform: none }  /* the rail does not press */
 
-/* The dock header's 13px tool glyph. The rail renders its icon at 15px; an
+/* The dock header 13px tool glyph. The rail renders its icon at 15px; an
    inline style cannot reach the child svg, so the size lives here. */
 .ss-dock-glyph > svg { width: 13px; height: 13px }
 
-/* 22px header controls (expand, close). */
-.ss-headbtn:hover { background: rgba(255,255,255,.05); color: var(--ss-t3) }
+/* 22px header controls (expand, close). Same hover mechanism. */
+.ss-headbtn:hover {
+  background: color-mix(in oklab, var(--ss-t1) 7%, var(--ss-ink));
+  color: var(--ss-t3);
+}
 
 /* ---- Map controls ---------------------------------------------------
-   MapLibre's NavigationControl, restyled to the v2 map-control spec: 30px
-   squares, radius 8, ink at 92%, a line-14 edge, the rail shadow, t3 glyphs.
+   MapLibre NavigationControl, restyled to the map-control spec: 30px squares,
+   radius --ss-r-tip, the ink fill, a line-14 edge, the rail shadow, t3 glyphs.
    Zoom in/out are ONE stacked unit split by a line-06 rule.
 
-   This is CSS in PE's own stylesheet, deliberately: packages/map-renderer is
+   This is CSS in PE own stylesheet, deliberately: packages/map-renderer is
    shared with command-center, and a restyle of one product must not repaint
-   another product's map. */
+   another product map. */
 /* The zoom control shares a CENTRE LINE with the tool rail directly below it
    (operator, 2026-08-27). The rail capsule is 48 wide at right:18, so its
    centre is right:42; the control is 32 wide, so it needs right:26 to match.
@@ -242,13 +331,23 @@
 .maplibregl-ctrl-group button + button {
   border-top: 1px solid var(--ss-line-06) !important;
 }
-.maplibregl-ctrl-group button:hover { background: rgba(255,255,255,.05) !important }
+.maplibregl-ctrl-group button:hover {
+  background: color-mix(in oklab, var(--ss-t1) 7%, var(--ss-ink)) !important;
+}
 .maplibregl-ctrl-group button:focus-visible {
   outline: none !important;
   box-shadow: var(--btn-focus-ring) !important;
 }
 /* MapLibre draws its control glyphs as background SVGs whose stroke is baked
-   in, so tint them to t3 rather than trying to recolour the source. */
+   in, so tint them rather than trying to recolour the source.
+
+   THIS FILTER IS STALE AND IS LEFT STALE DELIBERATELY. The chain was hand
+   tuned to land on v2 --ss-t3 #C6D0DC, a COOL grey — hence hue-rotate(174deg).
+   Stone --ss-t3 is #DAD6CD, a WARM grey, so this now lands off its target. It
+   is not repointed here because a filter chain cannot be verified without
+   rendering, and guessing a new hue-rotate would be inventing a value the
+   design system does not carry. Recorded as a known residue for the lane that
+   can put eyes on the map, not silently "fixed". */
 .maplibregl-ctrl-group button .maplibregl-ctrl-icon {
   opacity: .78;
   filter: invert(84%) sepia(6%) saturate(430%) hue-rotate(174deg) brightness(94%);
@@ -256,7 +355,7 @@
 .maplibregl-ctrl-group button:hover .maplibregl-ctrl-icon { opacity: 1 }
 
 /* ---- Scrollbars -----------------------------------------------------
-   EVERY scroll container in the app, not just the dock's.
+   EVERY scroll container in the app, not just the dock one.
    The white platform scrollbar was showing because only .pe-dock-scroll was
    styled while SEVEN containers scroll: the dock column, the dock body, the
    chat log and its attachment strip, the modal, the checkout page, and the
@@ -279,9 +378,12 @@
 .pe-scroll::-webkit-scrollbar { width: 8px; height: 8px }
 .pe-dock-scroll::-webkit-scrollbar-track,
 .pe-scroll::-webkit-scrollbar-track { background: transparent }
+/* 999px, not 4px: 4 left the legal radius set in the Stone port. On an 8px
+   thumb a pill and a 4px radius are the same shape, so this is a rename to a
+   legal value rather than a visual change. */
 .pe-dock-scroll::-webkit-scrollbar-thumb,
 .pe-scroll::-webkit-scrollbar-thumb {
-  background: var(--ss-line-14); border-radius: 4px;
+  background: var(--ss-line-14); border-radius: 999px;
   border: 2px solid transparent; background-clip: content-box;
 }
 .pe-dock-scroll::-webkit-scrollbar-thumb:hover,
@@ -296,9 +398,9 @@
 @keyframes ss-shimmer { 0% { opacity: .35 } 50% { opacity: .7 } 100% { opacity: .35 } }
 @keyframes ss-blink   { 0%, 100% { opacity: 1 } 50% { opacity: .25 } }
 /* ss-pulse (the once-on-arrival selection pulse, SPEC section 4) is NOT
-   declared here. It belongs on the map's selected-parcel geometry, which is a
+   declared here. It belongs on the map selected-parcel geometry, which is a
    MapLibre overlay and cannot run a CSS keyframe, and the parcel highlight is
-   deliberately mirrored from the shared renderer's tile feature-state. A
+   deliberately mirrored from the shared renderer tile feature-state. A
    keyframe sitting here with nothing able to trigger it is a dormant
    mechanism, which reports as success and is worse than an absence. It comes
    back with the cross-product geometry card that can actually fire it. */
@@ -326,7 +428,7 @@
    rise and a fade, which is enough to say "this is new" without the surface
    under it appearing to move. Before this, motion stopped at the panel edge —
    a dock would animate open and its contents would simply be there, which is
-   what "the animation doesn't hit everywhere it should" was describing. */
+   what "the animation does not hit everywhere it should" was describing. */
 @keyframes ss-rise {
   from { opacity: 0; transform: translateY(4px) }
   to   { opacity: 1; transform: none }
@@ -358,7 +460,7 @@
   }
 }
 
-/* The find bar's suggestion list drops from the bar's own top edge. */
+/* The find bar suggestion list drops from the bar own top edge. */
 @keyframes ss-suggest-in {
   from { opacity: 0; transform: scale(.98) translateY(-6px) }
   to   { opacity: 1; transform: none }
@@ -376,12 +478,21 @@
 /* Reduced motion: keep the opacity fade, drop the scale and the height
    animation. Transitions narrow to opacity rather than dying, so a state
    change stays legible. Surfaces that animate height or transform carry
-   data-ss-motion so this rule can reach them. */
+   data-ss-motion so this rule can reach them.
+
+   NOTE: the design system tokens/motion.css ALSO re-declares --ss-d-* to 1ms
+   under this media query, which this file does not carry. Not added here: it
+   is an app-wide behavioural change nobody asked this lane for, and a silent
+   one — every transition in the product would become instant for
+   reduced-motion users. Raised as a finding for the planner rather than
+   slipped in under a value port.
+
+   The .pe-btn :active override that used to sit here is gone with the press
+   rule it was cancelling. */
 @media (prefers-reduced-motion: reduce) {
   .ss-enter,
   .ss-enter-up,
   .ss-enter-modal { animation: ss-fade var(--ss-d-state) var(--ss-ease) both }
-  .pe-btn:not(:disabled):active { transform: none }
   [data-ss-motion] {
     transition-property: opacity !important;
     transition-duration: var(--ss-d-state) !important;

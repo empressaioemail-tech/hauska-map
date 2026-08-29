@@ -132,7 +132,7 @@ const MUTED = PE.muted;
 const ACCENT = PE.accent;
 const AMBER = PE.warning;
 const CHIP_BORDER = PE.border;
-const DETAIL_BG = "rgba(154,166,178,0.10)";
+const DETAIL_BG = "var(--ss-line-06)";
 
 // ---------------------------------------------------------------------------
 // Stored (per-property, JSON-serializable) thread state.
@@ -183,13 +183,13 @@ export function FreshnessBadge({ chatRef }: { chatRef: ChatRef }) {
       data-fresh={f.status}
       title={freshnessTitle(f)}
       style={{
-        fontSize: 10,
+        fontSize: 11.5,
         fontWeight: 600,
         letterSpacing: 0.3,
         textTransform: "uppercase",
         color: outdated ? AMBER : MUTED,
-        border: `1px solid ${outdated ? "rgba(245,158,11,0.5)" : "rgba(154,166,178,0.4)"}`,
-        borderRadius: 4,
+        border: `1px solid ${outdated ? "color-mix(in oklab, var(--ss-warn) 34%, transparent)" : "var(--ss-line-28)"}`,
+        borderRadius: 8,
         padding: "0 3px",
         marginLeft: 4,
       }}
@@ -249,11 +249,11 @@ export function ChatCitationChips({
                 alignItems: "center",
                 gap: 4,
                 maxWidth: "100%",
-                fontSize: 11.5,
+                fontSize: 12.5,
                 color: isOpen ? ATOM_ACCENT_CONTRAST : ATOM_ACCENT,
                 background: isOpen ? ATOM_ACCENT : "transparent",
                 border: `1px solid ${isOpen ? ATOM_ACCENT : ATOM_ACCENT_BORDER}`,
-                borderRadius: 10,
+                borderRadius: 14,
                 padding: "1px 7px",
                 height: "auto",
                 cursor: "pointer",
@@ -336,7 +336,7 @@ export function InlineAnswerText({
                 style={{
                   display: "inline-block",
                   verticalAlign: "super",
-                  fontSize: 10,
+                  fontSize: 11.5,
                   fontWeight: 600,
                   lineHeight: 1,
                   color: ATOM_ACCENT,
@@ -373,7 +373,7 @@ function ConfidenceLine({
   return (
     <p
       data-testid="atom-card-confidence"
-      style={{ margin: "3px 0 0", fontSize: 10, color: MUTED }}
+      style={{ margin: "3px 0 0", fontSize: 11.5, color: MUTED }}
     >
       Confidence {confidence.value.toFixed(2)} ·{" "}
       <span data-testid="atom-card-confidence-basis">{confidence.basis}</span>
@@ -395,7 +395,7 @@ function AsOfLine({ model }: { model: AtomCardModel }) {
   const date = asOf.slice(0, 10);
   const stale = verdict === "stale";
   return (
-    <p style={{ margin: "3px 0 0", fontSize: 10, color: MUTED }}>
+    <p style={{ margin: "3px 0 0", fontSize: 11.5, color: MUTED }}>
       As of {date}
       {verdict !== "unknown" ? (
         <span
@@ -403,19 +403,19 @@ function AsOfLine({ model }: { model: AtomCardModel }) {
           data-fresh={verdict}
           style={{
             marginLeft: 5,
-            fontSize: 10,
+            fontSize: 11.5,
             fontWeight: 600,
             letterSpacing: 0.3,
             textTransform: "uppercase",
             color: stale ? AMBER : verdict === "fresh" ? PE.ok : MUTED,
             border: `1px solid ${
               stale
-                ? "rgba(245,158,11,0.5)"
+                ? "color-mix(in oklab, var(--ss-warn) 34%, transparent)"
                 : verdict === "fresh"
-                  ? "rgba(74,222,128,0.45)"
-                  : "rgba(154,166,178,0.4)"
+                  ? "color-mix(in oklab, var(--ss-ok) 34%, transparent)"
+                  : "var(--ss-line-28)"
             }`,
-            borderRadius: 4,
+            borderRadius: 8,
             padding: "0 3px",
           }}
         >
@@ -443,7 +443,7 @@ function LineageChipRow({
       <p
         style={{
           margin: 0,
-          fontSize: 10,
+          fontSize: 11.5,
           fontWeight: 600,
           letterSpacing: 0.4,
           textTransform: "uppercase",
@@ -461,11 +461,11 @@ function LineageChipRow({
             data-did={c.did}
             onClick={() => onTap(c.did)}
             style={{
-              fontSize: 10,
+              fontSize: 11.5,
               color: ATOM_ACCENT,
               background: ATOM_ACCENT_BG,
               border: `1px solid ${ATOM_ACCENT_BORDER}`,
-              borderRadius: 8,
+              borderRadius: 12,
               padding: "1px 7px",
               height: "auto",
               cursor: "pointer",
@@ -519,7 +519,7 @@ export function AtomCardView({
       style={{
         marginTop: 5,
         padding: "6px 8px",
-        borderRadius: 6,
+        borderRadius: 10,
         background: DETAIL_BG,
         border: `1px solid ${ATOM_ACCENT_BORDER}`,
       }}
@@ -530,7 +530,7 @@ export function AtomCardView({
           data-testid="atom-card-back"
           onClick={onBack}
           style={{
-            fontSize: 10,
+            fontSize: 11.5,
             color: ATOM_ACCENT,
             background: "transparent",
             border: "none",
@@ -543,18 +543,18 @@ export function AtomCardView({
           ← back
         </Button>
       )}
-      <p style={{ margin: 0, fontSize: 11.5, fontWeight: 600, color: TEXT }}>
+      <p style={{ margin: 0, fontSize: 12.5, fontWeight: 600, color: TEXT }}>
         {title}
         {localRef ? <FreshnessBadge chatRef={localRef} /> : null}
       </p>
 
       {/* BRIEF: local snippet immediately; enrichment layers on when it lands. */}
       {localRef?.snippet ? (
-        <p style={{ margin: "3px 0 0", fontSize: 11.5, color: TEXT }}>
+        <p style={{ margin: "3px 0 0", fontSize: 12.5, color: TEXT }}>
           {localRef.snippet.slice(0, full ? 1000 : 480)}
         </p>
       ) : !model?.claim && !loading ? (
-        <p style={{ margin: "3px 0 0", fontSize: 11.5, color: MUTED }}>
+        <p style={{ margin: "3px 0 0", fontSize: 12.5, color: MUTED }}>
           No excerpt for this source — open the property brief for full code
           context.
         </p>
@@ -563,7 +563,7 @@ export function AtomCardView({
       {loading && (
         <p
           data-testid="atom-card-loading"
-          style={{ margin: "3px 0 0", fontSize: 10, color: MUTED, fontStyle: "italic" }}
+          style={{ margin: "3px 0 0", fontSize: 11.5, color: MUTED, fontStyle: "italic" }}
         >
           Loading atom record…
         </p>
@@ -572,7 +572,7 @@ export function AtomCardView({
       {degraded && (
         <p
           data-testid="atom-card-unavailable"
-          style={{ margin: "3px 0 0", fontSize: 10, color: MUTED }}
+          style={{ margin: "3px 0 0", fontSize: 11.5, color: MUTED }}
         >
           Full record unavailable — showing the cited excerpt.
         </p>
@@ -583,7 +583,7 @@ export function AtomCardView({
           {(model.source || model.method) && (
             <p
               data-testid="atom-card-provenance"
-              style={{ margin: "3px 0 0", fontSize: 10, color: MUTED }}
+              style={{ margin: "3px 0 0", fontSize: 11.5, color: MUTED }}
             >
               {[model.source, model.method].filter(Boolean).join(" · ")}
             </p>
@@ -596,7 +596,7 @@ export function AtomCardView({
           {model.accessPolicy && (
             <p
               data-testid="atom-card-access"
-              style={{ margin: "3px 0 0", fontSize: 10, color: MUTED }}
+              style={{ margin: "3px 0 0", fontSize: 11.5, color: MUTED }}
             >
               access: {model.accessPolicy}
             </p>
@@ -607,13 +607,13 @@ export function AtomCardView({
       {full && (
         <div data-testid="atom-card-full">
           {model?.calibrated == null && model?.confidence != null && (
-            <p style={{ margin: "4px 0 0", fontSize: 10, color: MUTED }}>
+            <p style={{ margin: "4px 0 0", fontSize: 11.5, color: MUTED }}>
               Calibration not yet earned for this atom — the figure above is
               an asserted basis, not an outcome-calibrated one.
             </p>
           )}
           {model?.sourceCitation && (
-            <p style={{ margin: "4px 0 0", fontSize: 10, color: MUTED }}>
+            <p style={{ margin: "4px 0 0", fontSize: 11.5, color: MUTED }}>
               {model.sourceCitation.slice(0, 300)}
             </p>
           )}
@@ -626,7 +626,7 @@ export function AtomCardView({
               style={{
                 display: "inline-block",
                 marginTop: 4,
-                fontSize: 10,
+                fontSize: 11.5,
                 color: ACCENT,
               }}
             >
@@ -650,7 +650,7 @@ export function AtomCardView({
               {lineage.citedInputs.length > 0 && (
                 <p
                   data-testid="atom-card-cited-inputs"
-                  style={{ margin: "4px 0 0", fontSize: 10, color: MUTED }}
+                  style={{ margin: "4px 0 0", fontSize: 11.5, color: MUTED }}
                 >
                   Cited inputs: {lineage.citedInputs.join(" · ")}
                 </p>
@@ -661,7 +661,7 @@ export function AtomCardView({
             style={{
               display: "block",
               marginTop: 4,
-              fontSize: 10,
+              fontSize: 11.5,
               color: MUTED,
               wordBreak: "break-all",
             }}
@@ -678,7 +678,7 @@ export function AtomCardView({
         style={{
           display: "block",
           marginTop: 4,
-          fontSize: 10,
+          fontSize: 11.5,
           color: ATOM_ACCENT,
           background: "transparent",
           border: "none",
@@ -820,7 +820,7 @@ function AssistantTurn({
       {turn.disclaimer ? (
         <p
           data-testid="chat-disclaimer"
-          style={{ margin: "5px 0 0", fontSize: 10, color: MUTED }}
+          style={{ margin: "5px 0 0", fontSize: 11.5, color: MUTED }}
         >
           {turn.disclaimer}
         </p>
@@ -839,11 +839,11 @@ function AssistantTurn({
 // ---------------------------------------------------------------------------
 
 const starterChipStyle: CSSProperties = {
-  fontSize: 11.5,
+  fontSize: 12.5,
   color: TEXT,
   background: "transparent",
   border: CHIP_BORDER,
-  borderRadius: 6,
+  borderRadius: 10,
   padding: "4px 9px",
   cursor: "pointer",
   textAlign: "left",
@@ -855,11 +855,11 @@ const starterChipStyle: CSSProperties = {
 // ---------------------------------------------------------------------------
 
 const smallBtn: CSSProperties = {
-  fontSize: 11.5,
+  fontSize: 12.5,
   color: ACCENT,
   background: "transparent",
-  border: "1px solid var(--brand-blue-border, rgba(59,130,246,0.4))",
-  borderRadius: 6,
+  border: "1px solid var(--ss-blue-line)",
+  borderRadius: 10,
   padding: "2px 8px",
   height: "auto",
   cursor: "pointer",
@@ -914,11 +914,11 @@ export function ChatSessionBar({
           alignItems: "center",
           justifyContent: "space-between",
           gap: 6,
-          fontSize: 11.5,
+          fontSize: 12.5,
           color: TEXT,
-          background: "rgba(154,166,178,0.08)",
+          background: "var(--ss-line-06)",
           border: CHIP_BORDER,
-          borderRadius: 6,
+          borderRadius: 10,
           padding: "2px 8px",
           cursor: "pointer",
         }}
@@ -929,7 +929,7 @@ export function ChatSessionBar({
           {activeLabel}
           {multiple ? ` · ${sessions.length} chats` : ""}
         </span>
-        <span style={{ color: MUTED, fontSize: 10 }}>{pickerOpen ? "▲" : "▼"}</span>
+        <span style={{ color: MUTED, fontSize: 11.5 }}>{pickerOpen ? "▲" : "▼"}</span>
       </Button>
 
       {pickerOpen && (
@@ -947,7 +947,7 @@ export function ChatSessionBar({
             overflowY: "auto",
             background: PE.ink,
             border: CHIP_BORDER,
-            borderRadius: 6,
+            borderRadius: 10,
             boxShadow: "0 6px 18px rgba(0,0,0,0.45)",
           }}
         >
@@ -968,8 +968,8 @@ export function ChatSessionBar({
                   alignItems: "center",
                   gap: 6,
                   padding: "5px 8px",
-                  borderBottom: "1px solid rgba(154,166,178,0.15)",
-                  background: isActive ? "var(--brand-blue-bg-soft, rgba(59,130,246,0.08))" : "transparent",
+                  borderBottom: "1px solid var(--ss-line-06)",
+                  background: isActive ? "var(--ss-blue-bg)" : "transparent",
                 }}
               >
                 <Button
@@ -991,7 +991,7 @@ export function ChatSessionBar({
                   <span
                     style={{
                       display: "block",
-                      fontSize: 11.5,
+                      fontSize: 12.5,
                       fontWeight: isActive ? 600 : 500,
                       overflow: "hidden",
                       textOverflow: "ellipsis",
@@ -1000,7 +1000,7 @@ export function ChatSessionBar({
                   >
                     {label}
                   </span>
-                  <span style={{ display: "block", fontSize: 10, color: MUTED }}>
+                  <span style={{ display: "block", fontSize: 11.5, color: MUTED }}>
                     {meta}
                     {isActive ? " · current" : ""}
                   </span>
@@ -1015,7 +1015,7 @@ export function ChatSessionBar({
                     border: "none",
                     color: MUTED,
                     cursor: "pointer",
-                    fontSize: 13.5,
+                    fontSize: 15.5,
                     lineHeight: 1,
                     padding: "0 2px",
                   }}
@@ -1046,7 +1046,7 @@ export function CopyMessageButton({
       aria-label="Copy message"
       onClick={onCopy}
       style={{
-        fontSize: 10,
+        fontSize: 11.5,
         color: copied ? PE.ok : MUTED,
         background: "transparent",
         border: "none",
@@ -1084,11 +1084,11 @@ export function AttachmentChips({
             alignItems: "center",
             gap: 5,
             maxWidth: "100%",
-            fontSize: 10,
+            fontSize: 11.5,
             color: TEXT,
-            background: "rgba(154,166,178,0.10)",
+            background: "var(--ss-line-06)",
             border: CHIP_BORDER,
-            borderRadius: 10,
+            borderRadius: 14,
             padding: "1px 7px",
           }}
         >
@@ -1098,7 +1098,7 @@ export function AttachmentChips({
           >
             {a.name}
           </span>
-          <span style={{ color: MUTED, fontSize: 10 }}>
+          <span style={{ color: MUTED, fontSize: 11.5 }}>
             {formatBytes(a.sizeBytes)}
             {a.extractedText ? "" : " · not read"}
           </span>
@@ -1113,7 +1113,7 @@ export function AttachmentChips({
                 border: "none",
                 color: MUTED,
                 cursor: "pointer",
-                fontSize: 12.5,
+                fontSize: 14.5,
                 lineHeight: 1,
                 padding: 0,
                 height: "auto",
@@ -1570,7 +1570,7 @@ export function ChatTool() {
       >
         {turns.length === 0 && (
           <div data-testid="chat-starter">
-            <p style={{ margin: "0 0 6px", fontSize: 11.5, color: MUTED }}>
+            <p style={{ margin: "0 0 6px", fontSize: 12.5, color: MUTED }}>
               Ask about this property — answers cite the municipal-code atoms
               they rest on. Start with a question or a starter:
             </p>
@@ -1621,10 +1621,10 @@ export function ChatTool() {
                   margin: 0,
                   maxWidth: "85%",
                   padding: "7px 10px",
-                  borderRadius: "10px 10px 4px 10px",
+                  borderRadius: "14px 14px 8px 14px",
                   background: PE.blueBg,
                   color: PE.t2,
-                  fontSize: 12.5,
+                  fontSize: 14.5,
                   lineHeight: 1.5,
                 }}
               >
@@ -1664,7 +1664,7 @@ export function ChatTool() {
               display: "flex",
               alignItems: "center",
               gap: 9,
-              fontSize: 11.5,
+              fontSize: 12.5,
               color: PE.t5,
             }}
           >
@@ -1678,7 +1678,7 @@ export function ChatTool() {
             <p
               style={{
                 margin: 0,
-                fontSize: 11.5,
+                fontSize: 12.5,
                 color: phase.tone === "amber" ? AMBER : MUTED,
               }}
             >
@@ -1687,7 +1687,7 @@ export function ChatTool() {
             {phase.detail && (
               <p
                 data-testid="chat-notice-detail"
-                style={{ margin: "3px 0 0", fontSize: 11.5, color: MUTED }}
+                style={{ margin: "3px 0 0", fontSize: 12.5, color: MUTED }}
               >
                 {phase.detail}
               </p>
@@ -1709,11 +1709,11 @@ export function ChatTool() {
                 }}
                 style={{
                   marginTop: 5,
-                  fontSize: 11.5,
+                  fontSize: 12.5,
                   color: ACCENT,
                   background: "transparent",
-                  border: "1px solid var(--brand-blue-border, rgba(59,130,246,0.4))",
-                  borderRadius: 6,
+                  border: "1px solid var(--ss-blue-line)",
+                  borderRadius: 10,
                   padding: "2px 8px",
                   cursor: "pointer",
                 }}
@@ -1751,11 +1751,11 @@ export function ChatTool() {
               void handleSaveToProperty();
             }}
             style={{
-              fontSize: 11.5,
+              fontSize: 12.5,
               color: ACCENT,
               background: "transparent",
-              border: "1px solid var(--brand-blue-border, rgba(59,130,246,0.4))",
-              borderRadius: 6,
+              border: "1px solid var(--ss-blue-line)",
+              borderRadius: 10,
               padding: "2px 8px",
               cursor: saveBusy ? "default" : "pointer",
               opacity: saveBusy ? 0.6 : 1,
@@ -1771,7 +1771,7 @@ export function ChatTool() {
             <span
               data-testid="chat-save-status"
               style={{
-                fontSize: 10,
+                fontSize: 11.5,
                 color: saveStatus.tone === "amber" ? AMBER : MUTED,
               }}
             >
@@ -1801,7 +1801,7 @@ export function ChatTool() {
         <div>
           <p
             data-testid="chat-sign-in-first"
-            style={{ margin: 0, fontSize: 11.5, color: MUTED }}
+            style={{ margin: 0, fontSize: 12.5, color: MUTED }}
           >
             Sign in free to chat — {ent.freeMessagesLimit} free messages on every
             property.
@@ -1819,7 +1819,7 @@ export function ChatTool() {
       {ent.locked && !chatWalled && (
         <p
           data-testid="chat-free-remaining"
-          style={{ margin: 0, fontSize: 11.5, color: MUTED }}
+          style={{ margin: 0, fontSize: 12.5, color: MUTED }}
         >
           {ent.freeMessagesLeft === 1
             ? "1 free message left on this property"
@@ -1845,7 +1845,7 @@ export function ChatTool() {
       {attachError && (
         <p
           data-testid="chat-attach-error"
-          style={{ margin: 0, fontSize: 10, color: AMBER }}
+          style={{ margin: 0, fontSize: 11.5, color: AMBER }}
         >
           {attachError}
         </p>
@@ -1870,12 +1870,12 @@ export function ChatTool() {
           disabled={phase.kind === "sending" || attachBusy}
           onClick={() => fileInputRef.current?.click()}
           style={{
-            fontSize: 13.5,
+            fontSize: 15.5,
             lineHeight: 1,
             color: MUTED,
             background: "transparent",
             border: CHIP_BORDER,
-            borderRadius: 6,
+            borderRadius: 10,
             padding: "5px 8px",
             cursor: phase.kind === "sending" || attachBusy ? "default" : "pointer",
             opacity: phase.kind === "sending" || attachBusy ? 0.55 : 1,

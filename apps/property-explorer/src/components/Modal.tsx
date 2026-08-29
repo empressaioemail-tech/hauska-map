@@ -80,7 +80,7 @@ export function Modal({
             <span
               style={{
                 flex: 1,
-                fontSize: 11,
+                fontSize: 11.5,
                 fontWeight: 600,
                 letterSpacing: ".1em",
                 textTransform: "uppercase",
@@ -100,7 +100,7 @@ export function Modal({
                 display: "inline-flex",
                 alignItems: "center",
                 justifyContent: "center",
-                borderRadius: 6,
+                borderRadius: 10,
                 background: "transparent",
                 border: "none",
                 color: PE.t5,

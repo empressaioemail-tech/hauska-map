@@ -34,11 +34,11 @@ const shell: CSSProperties = {
   width: 320,
   maxWidth: "calc(100vw - 28px)",
   padding: "12px 14px",
-  borderRadius: 10,
+  borderRadius: 14,
   background: CARD_BG,
-  border: "1px solid rgba(154,166,178,0.35)",
+  border: `1px solid ${PE.line28}`,
   boxShadow: "0 8px 28px rgba(0,0,0,0.4)",
-  font: "13px/1.45 system-ui, -apple-system, Segoe UI, Roboto, sans-serif",
+  font: "14.5px/1.45 system-ui, -apple-system, Segoe UI, Roboto, sans-serif",
   color: PE.t3,
 };
 
@@ -72,7 +72,7 @@ export function UnplaceableParcelCard({
           gap: 8,
         }}
       >
-        <strong style={{ fontSize: 13.5, lineHeight: 1.3 }}>
+        <strong style={{ fontSize: 15.5, lineHeight: 1.3 }}>
           {address ?? `Parcel ${apn ?? parcel.parcelNodeId}`}
         </strong>
         <Button variant="ghost" dense onClick={onClose} data-testid="unplaceable-close">
@@ -81,7 +81,7 @@ export function UnplaceableParcelCard({
       </div>
 
       {/* WHAT WE HOLD. The record is real, and saying so is the point. */}
-      <div style={{ marginTop: 2, fontSize: 11, color: MUTED }}>
+      <div style={{ marginTop: 2, fontSize: 11.5, color: MUTED }}>
         {parcel.parcelNodeId} · {identity.county.name} County (
         {identity.county.fips})
       </div>
@@ -91,7 +91,7 @@ export function UnplaceableParcelCard({
         data-testid="unplaceable-reason"
         style={{
           margin: "10px 0 0",
-          fontSize: 12,
+          fontSize: 12.5,
           color: "var(--semantic-absence)",
         }}
       >
@@ -102,7 +102,7 @@ export function UnplaceableParcelCard({
           it is not honest, it is just empty (I4). */}
       <p
         data-testid="unplaceable-would-be-filled-by"
-        style={{ margin: "6px 0 0", fontSize: 11, color: MUTED }}
+        style={{ margin: "6px 0 0", fontSize: 11.5, color: MUTED }}
       >
         Filled by: {parcel.wouldBeFilledBy}
       </p>

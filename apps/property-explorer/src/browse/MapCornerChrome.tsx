@@ -91,8 +91,8 @@ export function SmartSiteBadge({
         // solved legibility over satellite but left the mark floating; the
         // pill sits it on the same glass language as the rails and the
         // tooltips, and holds against imagery without a hard fill.
-        borderRadius: 17,
-        background: "rgba(11,14,19,.78)",
+        borderRadius: 999,
+        background: PE.bubbleRest,
         border: "1px solid rgba(255,255,255,.09)",
         boxShadow: "0 10px 34px rgba(0,0,0,.5)",
         backdropFilter: "blur(14px)",
@@ -119,7 +119,7 @@ export function SmartSiteBadge({
         style={{
           fontFamily: PE.ui,
           fontWeight: 600,
-          fontSize: 11.5,
+          fontSize: 12.5,
           letterSpacing: ".16em",
           color: PE.t1,
           whiteSpace: "nowrap",
@@ -142,7 +142,7 @@ export function SmartSiteBadge({
           <span
             style={{
               fontFamily: PE.ui,
-              fontSize: 11.5,
+              fontSize: 12.5,
               fontWeight: 600,
               color: PE.t2,
               whiteSpace: "nowrap",
@@ -308,7 +308,7 @@ export function SourcesPanel({
         flex: "0 0 auto",
         maxHeight: "46vh",
         overflowY: "auto",
-        borderRadius: 10,
+        borderRadius: 14,
         background: PE.sheet,
         border: `1px solid ${PE.line14}`,
         boxShadow: "0 10px 32px rgba(0,0,0,.45)",
@@ -335,7 +335,7 @@ export function SourcesPanel({
         <span
           style={{
             flex: 1,
-            fontSize: 11,
+            fontSize: 11.5,
             fontWeight: 600,
             letterSpacing: ".1em",
             textTransform: "uppercase",
@@ -355,7 +355,7 @@ export function SourcesPanel({
             justifyContent: "center",
             width: 22,
             height: 22,
-            borderRadius: 6,
+            borderRadius: 10,
             background: "transparent",
             border: "none",
             color: PE.t5,
@@ -398,7 +398,7 @@ export function SourcesPanel({
               style={{
                 width: 3,
                 height: 22,
-                borderRadius: 2,
+                borderRadius: 999,
                 background: PE.line28,
                 flex: "none",
               }}
@@ -407,7 +407,7 @@ export function SourcesPanel({
               style={{
                 flex: 1,
                 minWidth: 0,
-                fontSize: 11.5,
+                fontSize: 12.5,
                 lineHeight: 1.35,
                 color: PE.t3,
               }}
@@ -431,7 +431,7 @@ export function SourcesPanel({
           }}
         >
           {REQUIRED_ATTRIBUTION_LINES.map((line, i) => (
-            <div key={i} style={{ fontSize: 10, lineHeight: 1.4, color: PE.t6 }}>
+            <div key={i} style={{ fontSize: 11.5, lineHeight: 1.4, color: PE.t6 }}>
               {line}
             </div>
           ))}

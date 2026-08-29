@@ -97,9 +97,23 @@ describe("W3.3 on-property share personas with default message", () => {
     expect(html).toContain("does not send email");
     expect(html).not.toMatch(/gmail/i);
     // Neutral-ground sweep 2026-08-27: the ground matches the brand chip now.
-    // P-93 chrome-debt: PERSONA_BG/FG read PE.ink / PE.t2 (token fallbacks).
-    expect(html).toContain("#0B0E13");
-    expect(html).toContain("#E9EEF5");
+    //
+    // STONE PORT (P-95). This asserted the raw hexes #0B0E13 and #E9EEF5
+    // appeared in the rendered markup. They only ever did so because PE.ink
+    // and PE.t2 were written as `var(--ss-ink, #0B0E13)` — the FALLBACK
+    // form, which the NO FALLBACKS ruling at the head of styles/pe-chrome.ts
+    // has since banned outright. The test's own note called them "token
+    // fallbacks", so it was knowingly asserting on the smuggled literal.
+    //
+    // Under the ruling a surface can never emit the hex: the hex lives in
+    // pe-tokens.css and nowhere else. Restoring the fallback to make this
+    // pass would invert the ruling. So the assertion now holds the RULING:
+    // the persona ground and text resolve through BARE tokens, and neither
+    // literal may reach the output.
+    expect(html).toContain("var(--ss-ink)");
+    expect(html).toContain("var(--ss-t2)");
+    expect(html).not.toContain("#0B0E13");
+    expect(html).not.toContain("#E9EEF5");
     expect(html).toContain("color-scheme:dark");
     expect(html).not.toContain("<select");
   });

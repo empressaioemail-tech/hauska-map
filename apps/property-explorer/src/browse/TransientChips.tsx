@@ -25,11 +25,11 @@ import { useMobilePanel } from "./MobilePanelContext";
 import { PE } from "../styles/pe-chrome";
 
 const chipStyle = (sev: ChipSeverity): React.CSSProperties => ({
-  fontSize: 10.5,
+  fontSize: 11.5,
   fontFamily: "system-ui, -apple-system, Segoe UI, Roboto, sans-serif",
   fontWeight: 600,
   padding: "3px 9px",
-  borderRadius: 5,
+  borderRadius: 8,
   pointerEvents: "none",
   whiteSpace: "nowrap",
   color:
@@ -38,13 +38,13 @@ const chipStyle = (sev: ChipSeverity): React.CSSProperties => ({
       : sev === "warn"
         ? PE.warn
         : PE.t4,
-  background: "rgba(11,14,19,0.82)",
+  background: "color-mix(in oklab, var(--ss-ink) 82%, transparent)",
   border: `0.5px solid ${
     sev === "error"
-      ? "rgba(248,113,113,0.55)"
+      ? "color-mix(in oklab, var(--ss-err) 34%, transparent)"
       : sev === "warn"
-        ? "rgba(245,158,11,0.5)"
-        : "var(--surface-border-rgba, rgba(154,166,178,0.3))"
+        ? "color-mix(in oklab, var(--ss-warn) 34%, transparent)"
+        : "var(--ss-line-14)"
   }`,
 });
 

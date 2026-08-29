@@ -60,7 +60,7 @@ export function BriefSourcesStrip({
         <>
           <div
             style={{
-              fontSize: 10.5,
+              fontSize: 11.5,
               letterSpacing: ".08em",
               textTransform: "uppercase",
               color: MUTED,
@@ -78,7 +78,7 @@ export function BriefSourcesStrip({
                 alignItems: "baseline",
                 gap: 6,
                 padding: "3px 0",
-                fontSize: 11.5,
+                fontSize: 12.5,
               }}
             >
               <span style={{ color: MUTED, flex: "0 0 auto" }}>[{c.index}]</span>
@@ -98,7 +98,7 @@ export function BriefSourcesStrip({
                 data-testid="brief-source-freshness"
                 style={{
                   color: FRESHNESS_COLOR[c.freshness] ?? MUTED,
-                  fontSize: 10.5,
+                  fontSize: 11.5,
                 }}
               >
                 {c.freshness}
@@ -121,7 +121,7 @@ export function BriefSourcesStrip({
               padding: 0,
               height: "auto",
               color: BLUE,
-              fontSize: 11.5,
+              fontSize: 12.5,
               fontWeight: 600,
               cursor: "pointer",
             }}
@@ -135,7 +135,7 @@ export function BriefSourcesStrip({
                   key={e.title}
                   style={{
                     margin: "0 0 6px",
-                    fontSize: 11.5,
+                    fontSize: 12.5,
                     lineHeight: 1.5,
                     color: MUTED,
                   }}
@@ -156,8 +156,8 @@ export function BriefSourcesStrip({
         style={{
           marginTop: 10,
           paddingTop: 8,
-          borderTop: "1px solid rgba(154,166,178,0.15)",
-          fontSize: 10.5,
+          borderTop: `1px solid ${PE.line14}`,
+          fontSize: 12.5,
           fontFamily: PE.mono,
           color: MUTED,
           lineHeight: 1.6,
