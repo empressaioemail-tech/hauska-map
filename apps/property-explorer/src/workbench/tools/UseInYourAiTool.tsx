@@ -128,9 +128,52 @@ function VendorConnectPanel({
         background: "rgba(255,255,255,.02)",
       }}
     >
-      <p style={{ margin: "0 0 10px", fontSize: 12.5, lineHeight: 1.5, color: PE.t3 }}>
-        {connectBeatCopy(vendor)}
-      </p>
+      {/* THREE STEP ROWS, not a run-on sentence. This was one paragraph
+          carrying five numbered steps, and the operator got lost on step one
+          — a numbered list read as prose gives you nothing to hold your place
+          against while you switch to another app and back.
+
+          Each row is: the number, WHAT YOU DO on the left, WHAT HAPPENS on
+          the right. Step three has no control on purpose: it happens inside
+          Claude, and drawing a button for it would promise something this app
+          cannot do. */}
+      {vendor === "claude" ? (
+        <ol
+          data-testid={`use-in-ai-steps-${vendor}`}
+          style={{ margin: "0 0 12px", padding: 0, listStyle: "none" }}
+        >
+          {[
+            ["Copy the address below", "It is the full URL, not just the host"],
+            ["In Claude: Settings, Connectors, Add custom connector", "Paste it there"],
+            ["Approve Smart Site when Claude asks", "Sign-in is OAuth. There is no key"],
+          ].map(([action, effect], i) => (
+            <li
+              key={action}
+              style={{
+                display: "grid",
+                gridTemplateColumns: "16px 1fr 1fr",
+                gap: 8,
+                alignItems: "baseline",
+                padding: "5px 0",
+                borderBottom:
+                  i === 2 ? undefined : `1px solid ${PE.line06}`,
+                fontSize: 12.5,
+                lineHeight: 1.45,
+              }}
+            >
+              <span style={{ fontFamily: PE.mono, fontSize: 11.5, color: PE.t6 }}>
+                {i + 1}
+              </span>
+              <span style={{ color: PE.t2 }}>{action}</span>
+              <span style={{ color: PE.t5 }}>{effect}</span>
+            </li>
+          ))}
+        </ol>
+      ) : (
+        <p style={{ margin: "0 0 10px", fontSize: 12.5, lineHeight: 1.5, color: PE.t3 }}>
+          {connectBeatCopy(vendor)}
+        </p>
+      )}
       <p
         style={{
           margin: "0 0 3px",

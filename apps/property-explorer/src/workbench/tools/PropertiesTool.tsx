@@ -60,7 +60,6 @@ import {
 const MUTED = PE.muted;
 const AMBER = PE.warning;
 const TEXT = PE.text;
-const ACCENT = PE.accent;
 
 type ListPhase =
   | { kind: "loading" }
@@ -221,9 +220,18 @@ export function PropertiesList({
           data-testid="properties-status-filter"
           style={{ display: "flex", gap: 5, marginBottom: 8, flexWrap: "wrap" }}
         >
+          {/* NEUTRAL CHIPS WITH COUNTS, one tint. Every chip used to carry
+              its own status colour at full strength, so four competing
+              accents sat above the list and none of them meant "this is the
+              filter you are in". Only the SELECTED chip is tinted now; the
+              rest are quiet. The count is the useful part and it was missing
+              — "Offer 0" tells you not to bother clicking. */}
           {(["all", "researching", "offer", "passed"] as const).map((f) => {
             const selected = statusFilter === f;
-            const accent = f === "all" ? ACCENT : pinAccent(f);
+            const count =
+              f === "all"
+                ? items.length
+                : items.filter((r) => (r.snapshot?.status ?? null) === f).length;
             return (
               <Button
                 key={f}
@@ -237,12 +245,18 @@ export function PropertiesList({
                   padding: "2px 8px",
                   borderRadius: 999,
                   cursor: "pointer",
-                  color: selected ? PE.ink : accent,
-                  background: selected ? accent : "transparent",
-                  border: `1px solid ${accent}`,
+                  color: selected ? PE.t1 : PE.t4,
+                  background: selected ? PE.blueBg : "transparent",
+                  border: `1px solid ${selected ? PE.blueLine : PE.line14}`,
                 }}
               >
                 {f === "all" ? "All" : STATUS_LABELS[f]}
+                <span
+                  data-testid={`properties-filter-count-${f}`}
+                  style={{ marginLeft: 5, color: selected ? PE.t3 : PE.t6 }}
+                >
+                  {count}
+                </span>
               </Button>
             );
           })}
@@ -264,16 +278,24 @@ export function PropertiesList({
           // WB6 label fallback chain: label → dossier address → parcel id.
           // cleanDisplayString inside guarantees no ", ," artifacts render.
           const title = savedRowDisplayLabel(row);
-          const dossierBits = [
-            row.snapshot?.notes ? "notes" : null,
-            row.snapshot?.drawings ? "drawings" : null,
-            row.snapshot?.chatSummary ||
-            row.snapshot?.chatThread ||
-            row.snapshot?.chatThreads?.length
-              ? "chat"
-              : null,
-            row.snapshot?.exports?.length ? "exports" : null,
-          ].filter((b): b is string => b !== null);
+          // FOUR FIXED SLOTS, not a variable-length join. The same four
+          // derivations as before — only the presentation changes — but they
+          // now occupy one aligned column so the eye can read DOWN the list
+          // instead of re-parsing a different-length tail on every row.
+          const marks = [
+            { key: "N", on: Boolean(row.snapshot?.notes), label: "notes" },
+            { key: "D", on: Boolean(row.snapshot?.drawings), label: "drawings" },
+            {
+              key: "C",
+              on: Boolean(
+                row.snapshot?.chatSummary ||
+                  row.snapshot?.chatThread ||
+                  row.snapshot?.chatThreads?.length,
+              ),
+              label: "chat",
+            },
+            { key: "E", on: Boolean(row.snapshot?.exports?.length), label: "exports" },
+          ];
           const status = row.snapshot?.status ?? null;
           return (
             <div
@@ -288,10 +310,17 @@ export function PropertiesList({
                 gap: 9,
                 padding: "8px 8px 8px 0",
                 borderBottom: `1px solid ${PE.line06}`,
+                // ONE RAIL, TWO MEANINGS, in priority order. Active parcel
+                // wins because it answers "where am I" before "what did I
+                // decide"; otherwise the rail carries the status colour that
+                // used to be an inline pill. Transparent when neither, so
+                // every row keeps the same 3px inset and nothing shifts.
                 borderLeft: `3px solid ${
                   row.parcelNodeId === activeParcelNodeId
                     ? PE.blue
-                    : "transparent"
+                    : status
+                      ? pinAccent(status)
+                      : "transparent"
                 }`,
                 paddingLeft: 9,
               }}
@@ -315,25 +344,26 @@ export function PropertiesList({
                   lineHeight: 1.4,
                 }}
               >
-                <span style={{ fontWeight: 600, color: PE.t1 }}>{title}</span>
-                {status && (
-                  <span
-                    data-testid="properties-status-chip"
-                    style={{
-                      marginLeft: 7,
-                      display: "inline-block",
-                      fontSize: 11.5,
-                      fontWeight: 600,
-                      padding: "1px 7px",
-                      borderRadius: PE.rChip,
-                      color: pinAccent(status),
-                      border: `1px solid ${pinAccent(status)}`,
-                      verticalAlign: "middle",
-                    }}
-                  >
-                    {STATUS_LABELS[status]}
-                  </span>
-                )}
+                {/* TITLE TRUNCATES rather than wrapping: a two-line address
+                    pushes the marker column out of alignment on that row only,
+                    which is the thing the aligned column exists to prevent. */}
+                <span
+                  style={{
+                    display: "block",
+                    fontWeight: 600,
+                    color: PE.t1,
+                    overflow: "hidden",
+                    textOverflow: "ellipsis",
+                    whiteSpace: "nowrap",
+                  }}
+                >
+                  {title}
+                </span>
+                {/* THE STATUS PILL IS GONE. It sat inline after the title and
+                    shoved the title around by its own width, so no two rows
+                    started their meta line in the same place. Status is now a
+                    2px rail on the row (below) plus the word at the end of
+                    this line, which costs no horizontal room. */}
                 <span
                   style={{
                     display: "block",
@@ -341,14 +371,65 @@ export function PropertiesList({
                     fontFamily: PE.mono,
                     fontSize: 11.5,
                     color: PE.t6,
+                    overflow: "hidden",
+                    textOverflow: "ellipsis",
+                    whiteSpace: "nowrap",
                   }}
                 >
                   {title === row.parcelNodeId ? "parcel" : row.parcelNodeId}
                   {date ? ` · saved ${date}` : ""}
-                  {dossierBits.length > 0 ? ` · ${dossierBits.join(" · ")}` : ""}
                   {row.parcelNodeId === activeParcelNodeId ? " · active" : ""}
+                  {status ? (
+                    <span
+                      data-testid="properties-status-word"
+                      style={{ color: pinAccent(status), marginLeft: 6 }}
+                    >
+                      {STATUS_LABELS[status]}
+                    </span>
+                  ) : null}
                 </span>
               </Button>
+              {/* THE MARKER COLUMN — four fixed slots, always in the same
+                  place, on or off. It replaced a variable-length " · notes ·
+                  chat · exports" tail whose width changed per row, so nothing
+                  lined up and the eye had to re-read each line. Off is drawn,
+                  not omitted: an absent slot would collapse the column and
+                  bring the misalignment straight back.
+
+                  aria-label carries the words, because N/D/C/E is legible
+                  only once you know the key. */}
+              <div
+                data-testid="properties-row-marks"
+                aria-label={
+                  marks.filter((m) => m.on).map((m) => m.label).join(", ") ||
+                  "nothing filed yet"
+                }
+                style={{
+                  display: "grid",
+                  gridTemplateColumns: "repeat(4, 11px)",
+                  gap: 4,
+                  flex: "0 0 auto",
+                  fontFamily: PE.mono,
+                  fontSize: 10,
+                  lineHeight: 1,
+                  color: PE.t6,
+                }}
+              >
+                {marks.map((m) => (
+                  <span
+                    key={m.key}
+                    data-mark={m.key}
+                    data-on={m.on ? "1" : undefined}
+                    title={m.label}
+                    style={{
+                      textAlign: "center",
+                      color: m.on ? PE.t4 : PE.line14,
+                    }}
+                  >
+                    {m.key}
+                  </span>
+                ))}
+              </div>
               {/* THE X-RAY / FLOOD CHECKBOXES ARE GONE from the list rows.
                   They were not view toggles: each one wrote
                   shareReportSelection, deciding which reports a SHARE LINK for

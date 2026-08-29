@@ -264,8 +264,14 @@
 
    Both engines are covered: `scrollbar-width/color` for Firefox, the
    ::-webkit- pair for Chromium and Safari. */
+/* scrollbar-gutter: stable — the gutter is reserved whether or not the
+   scrollbar is showing, so content does not reflow the moment a list grows
+   past its box, and the bar never lands on a control sitting at the right
+   edge. In My properties that control is Remove, at a 340px row: the bar sat
+   on it. Reserving the gutter is cheaper than moving the control. */
 .pe-dock-scroll,
 .pe-scroll {
+  scrollbar-gutter: stable;
   scrollbar-width: thin;
   scrollbar-color: var(--ss-line-28) transparent;
 }
