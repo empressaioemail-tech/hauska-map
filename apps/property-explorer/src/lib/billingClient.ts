@@ -39,7 +39,7 @@ export async function startPeCheckout(input: {
   /** REQUIRED: cortex enum. Omitted interval defaults to month on cortex,
    *  which is the A1 defect (an annual Studio click charging monthly). */
   interval: PeCheckoutInterval;
-  /** Team only: TOTAL desired seats (base covers 10, +$25/mo each above).
+  /** Team only: TOTAL desired seats (base covers 3, +$25/mo each above).
    *  Omitted from the body when undefined — cortex 400s seats on non-team.
    *  Annual Team is capped at PE_PRICING.team.baseSeats on the wire. */
   seats?: number;

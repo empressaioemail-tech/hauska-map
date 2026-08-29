@@ -61,7 +61,9 @@ describe("PE_PRICING — locked 2026-08-10 ladder", () => {
     expect(extraSeatUsd()).not.toBe(45);
     expect(teamMonthlyTotalUsd(3)).toBe(299);
     expect(teamMonthlyTotalUsd(5)).toBe(349);
+    expect(teamMonthlyTotalUsd(12)).toBe(524);
     expect(teamMonthlyTotalUsd(5)).not.toBe(299 + 2 * 45);
+    expect(teamMonthlyTotalUsd(12)).not.toBe(299 + 9 * 45);
     expect(annualFromMonthlyUsd(49)).toBe(490);
     expect(annualFromMonthlyUsd(129)).toBe(1290);
     expect(annualFromMonthlyUsd(299)).toBe(2990);

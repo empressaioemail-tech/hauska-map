@@ -106,7 +106,7 @@ describe("startPeCheckout — the tier on the wire matches the button the user s
     expect(calls[0].body.interval).toBe("month");
   });
 
-  it("annual Team never sends seats above the base cap (14 → 10 on the wire)", async () => {
+  it("annual Team never sends seats above the base cap (14 → 3 on the wire)", async () => {
     const { calls } = stubCheckoutFetch(200, {
       checkoutUrl: "https://checkout.stripe.com/pay/cs_test_annual_team",
     });

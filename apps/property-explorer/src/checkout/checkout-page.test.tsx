@@ -155,7 +155,7 @@ describe("CheckoutPage — left column from PE_PRICING + frame 3b", () => {
     });
   });
 
-  it("Team checkout shows Change seats and 12-seat $349, never leftover $45", () => {
+  it("Team checkout shows Change seats and 12-seat $524, never leftover $45", () => {
     const html = renderToStaticMarkup(
       <CheckoutPage
         search="?tier=team&interval=month&seats=12"
@@ -164,8 +164,9 @@ describe("CheckoutPage — left column from PE_PRICING + frame 3b", () => {
     );
     expect(html).toContain("Change seats");
     expect(html).toContain('data-testid="checkout-change-seats"');
-    expect(html).toContain("$349");
-    expect(html).not.toContain("$389");
+    expect(html).toContain("$524");
+    expect(html).not.toContain("$704");
+    expect(html).not.toContain("$349");
     expect(html).not.toContain("$45");
     expect(html).toContain("overflow-y:auto");
     expect(html).toContain('data-testid="checkout-wallet-note"');

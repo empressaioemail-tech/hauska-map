@@ -90,7 +90,7 @@ describe("PricingModal — ALL pricing in one popup, every string from config", 
     expect(monthly).toContain('data-testid="pricing-team-seats"');
     expect(monthly).toContain('min="1"');
     expect(monthly).toContain('max="500"');
-    expect(monthly).toContain('value="10"');
+    expect(monthly).toContain('value="3"');
     expect(monthly).toContain(PE_PRICING.team.seatNote);
     expect(teamSeatsControlVisible("monthly")).toBe(true);
     expect(clampTeamSeats(0)).toBe(1);
@@ -110,7 +110,7 @@ describe("PricingModal — ALL pricing in one popup, every string from config", 
     expect(annual).not.toContain("2 months free");
   });
 
-  it("Team 12-seat price is $349, never leftover $45 (violate: $45 extra-seat math fails)", () => {
+  it("Team 12-seat price is $524 (3 included + 9 extras), never leftover $45 (violate: $45 extra-seat math fails)", () => {
     const html = renderToStaticMarkup(
       <PricingModal
         parcelNodeId="48021:1"
@@ -120,10 +120,11 @@ describe("PricingModal — ALL pricing in one popup, every string from config", 
       />,
     );
     expect(html).toContain('data-testid="pricing-team-12-total"');
-    expect(html).toContain('data-usd="349"');
-    expect(html).not.toContain('data-usd="389"');
+    expect(html).toContain('data-usd="524"');
+    expect(html).not.toContain('data-usd="704"');
+    expect(html).not.toContain('data-usd="349"');
     expect(html).not.toContain("$45");
-    expect(html).toContain("$349");
+    expect(html).toContain("$524");
   });
 
   it("NO active parcel → the unlock button is DISABLED with honest copy; subscriptions stay live", () => {
