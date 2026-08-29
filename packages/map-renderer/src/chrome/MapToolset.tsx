@@ -41,13 +41,17 @@ import {
   ensureLegendStyles,
 } from "../map/map-legend.js";
 import {
-  INTERACTION_CYAN,
   MAP_LAYER_PRESETS,
   enforceDataLayerMutex,
 } from "../map/layer-role-taxonomy.js";
 import type { LayerKey, LayerDef } from "../postMessage";
 import { asMaplibreMap, setSatelliteBase } from "./satelliteBase";
 import { MAP_PANEL_Z, dispatchPanelDismiss } from "./panelLayering";
+// The note index mirrors its map pin. The pin palette is a 10-colour
+// categorical set for MAP GEOMETRY that the design system does not carry;
+// reading noteColorAt(0) rather than re-spelling its first entry means the
+// panel mirror cannot desync from the pin.
+import { noteColorAt } from "./note-pins";
 import {
   installMapTools,
   type MapToolsController,
@@ -56,12 +60,83 @@ import {
   EMPTY_TOOLS_SNAPSHOT,
 } from "./mapToolsController";
 
-const PANEL_BG = "rgba(11,14,19,0.9)";
-const PANEL_BORDER = "0.5px solid rgba(154,166,178,0.28)";
-const TEXT = "#e6edf3";
-const MUTED = "#8b97a5";
-const ACCENT = INTERACTION_CYAN;
-const DANGER = "#fca5a5";
+// ---------------------------------------------------------------------------
+// SMART SITE — Light Charcoal.  Every value below is a BARE var() into
+// apps/property-explorer/src/styles/pe-tokens.css, which defines all 65
+// tokens on :root and is imported once at src/main.tsx. This component is
+// rendered in exactly one place — apps/property-explorer/src/browse/
+// ExplorerMap.tsx, through the nine-line re-export at browse/MapToolset.tsx
+// — so the tokens are in scope wherever it paints.
+//
+// NO FALLBACK ARGUMENT ON ANY var(). A fallback is a second source of
+// truth that only surfaces when the first is missing, which is precisely
+// the failure it claims to handle, hidden. A missing token must render
+// wrong and loudly.
+//
+// WASHES ARE DERIVED, NEVER SPELLED. color-mix off the token, 13% for a
+// fill and 34% for a border. An rgba() of a token's VALUE is the defect
+// that produced 169 desynced sites; this file adds none.
+// ---------------------------------------------------------------------------
+
+/** panel / dock / sheet fill. OPAQUE: the basemap is bright aerial imagery
+ *  and at any lower alpha canopy and roofs bleed into panel text. */
+const PANEL_BG = "var(--ss-ink)";
+/** the edge OF a surface */
+const LINE = "var(--ss-line-14)";
+/** a rule INSIDE a surface. Separator only — never a hover fill. */
+const HAIRLINE = "var(--ss-line-06)";
+const PANEL_BORDER = `0.5px solid ${LINE}`;
+/** a control resting on the panel: fields, tool buttons, chips, tooltips */
+const RAISED = "var(--ss-raised)";
+/** default body */
+const TEXT = "var(--ss-t3)";
+/** captions, notes, secondary rows. t5, not t6: t6 is field-label metadata,
+ *  and t5 is the caption step that the sibling SourcesPanel already uses
+ *  for the same glyphs in the same column. */
+const MUTED = "var(--ss-t5)";
+/**
+ * BLUE IS THE ONLY ACTION COLOUR, AND THERE IS NO SOLID BLUE FILL HERE.
+ * An ON control is the derived 13% wash, the 34% border and a blue glyph —
+ * the same 'brighter lift plus a blue GLYPH' the capsule bubbles were ruled
+ * onto on 2026-08-27, now applied to every active state in the panel: tool
+ * buttons, the measure segment, the highlighted result row and Save note.
+ *
+ * The near-black #0b0f14 that used to sit ON the cyan slab is gone with the
+ * slab. Stone blue is LIGHT — near-white on it measures about
+ * 2.2:1, so nothing legible sits on top of it and nothing tries to.
+ *
+ * INTERACTION_CYAN is no longer imported. It is the MAP GEOMETRY hue from
+ * layer-role-taxonomy.js and stays that, for LayersControl and parcel-tiles
+ * — chrome is not where a map-geometry colour belongs.
+ */
+const ACCENT = "var(--ss-blue)";
+const ACCENT_WASH = "color-mix(in oklab, var(--ss-blue) 13%, transparent)";
+const ACCENT_LINE = "color-mix(in oklab, var(--ss-blue) 34%, transparent)";
+const DANGER = "var(--ss-err)";
+
+/** Motion: one curve, four durations. Ported for the same reason the
+ *  colours were — a hand-written 140ms beside --ss-d-state is the same
+ *  literal-beside-token defect one property over. */
+const EASE = "var(--ss-ease)";
+const D_TINT = "var(--ss-d-tint)";
+const D_STATE = "var(--ss-d-state)";
+const D_MOVE = "var(--ss-d-move)";
+const D_OPEN = "var(--ss-d-open)";
+const UI_FONT = "var(--ss-ui)";
+
+/** Type ramp. The six Stone steps and nothing between them. Everything in
+ *  this panel that was 9.5 / 10 / 10.5 / 11 lands on the 11.5 label step —
+ *  the smallest legal size — and 12 / 13 land on the 12.5 meta step. */
+const FS_LABEL = "var(--ss-fs-label)";
+const FS_META = "var(--ss-fs-meta)";
+
+/** Radii, by ROLE: chip 8, touch 10 (buttons, fields, rows), tip 12,
+ *  float 14 (anything that floats). The v2 set — 4, 5, 6, 7, 9, 24 — has
+ *  no member in the Stone scale, so every one of them moves. */
+const R_CHIP = "var(--ss-r-chip)";
+const R_TOUCH = "var(--ss-r-touch)";
+const R_TIP = "var(--ss-r-tip)";
+const R_FLOAT = "var(--ss-r-float)";
 
 /**
  * Zoom the map settles at after a location fix. The hidden GeolocateControl is
@@ -91,10 +166,10 @@ export interface LocatedPosition {
 }
 
 const BADGE_COLOR: Record<LayerStateBadge["tone"], string> = {
-  ok: "#4ade80",
-  info: "#9aa6b2",
-  warn: "#fcd34d",
-  error: "#fca5a5",
+  ok: "var(--ss-ok)",
+  info: "var(--ss-t4)",
+  warn: "var(--ss-warn)",
+  error: "var(--ss-err)",
 };
 
 const ICONS = {
@@ -151,8 +226,8 @@ function chromeBubbleStyle(active: boolean): CSSProperties {
     height: 34,
     borderRadius: "50%",
     border: "none",
-    background: active ? "rgba(255,255,255,.14)" : "transparent",
-    color: active ? "#3B82F6" : "rgba(255,255,255,.58)",
+    background: active ? ACCENT_WASH : "transparent",
+    color: active ? ACCENT : "var(--ss-t4)",
     cursor: "pointer",
     display: "flex",
     alignItems: "center",
@@ -160,7 +235,7 @@ function chromeBubbleStyle(active: boolean): CSSProperties {
     padding: 0,
     boxShadow: "none",
     transition:
-      "background 140ms cubic-bezier(.2,.6,.35,1), color 140ms cubic-bezier(.2,.6,.35,1)",
+      `background ${D_STATE} ${EASE}, color ${D_STATE} ${EASE}`,
   };
 }
 
@@ -240,7 +315,12 @@ function LegendPanel({
       onClose={onClose}
     >
       <div
-        style={{ font: "400 11.5px/1.35 system-ui,-apple-system,'Segoe UI',sans-serif" }}
+        style={{
+          fontWeight: 400,
+          fontSize: FS_LABEL,
+          lineHeight: 1.35,
+          fontFamily: UI_FONT,
+        }}
         dangerouslySetInnerHTML={{ __html: legendPanelHtml(sections) }}
       />
     </StackPanel>
@@ -272,10 +352,10 @@ function StackPanel({
         display: "flex",
         flexDirection: "column",
         overflow: "hidden",
-        borderRadius: 10,
+        borderRadius: R_FLOAT,
         background: PANEL_BG,
         border: PANEL_BORDER,
-        boxShadow: "0 10px 32px rgba(0,0,0,0.45)",
+        boxShadow: "var(--ss-sh-dock)",
         color: TEXT,
       }}
     >
@@ -301,15 +381,15 @@ function StackPanel({
           height: 36,
           padding: "0 8px 0 12px",
           cursor: "pointer",
-          borderBottom: `1px solid ${open ? "rgba(154,166,178,.10)" : "transparent"}`,
+          borderBottom: `1px solid ${open ? HAIRLINE : "transparent"}`,
           background: PANEL_BG,
-          transition: "border-color 140ms cubic-bezier(.2,.6,.35,1)",
+          transition: `border-color ${D_STATE} ${EASE}`,
         }}
       >
         <span
           style={{
             flex: 1,
-            fontSize: 11,
+            fontSize: FS_LABEL,
             fontWeight: 600,
             letterSpacing: ".1em",
             textTransform: "uppercase",
@@ -317,7 +397,7 @@ function StackPanel({
             overflow: "hidden",
             textOverflow: "ellipsis",
             whiteSpace: "nowrap",
-            transition: "color 140ms cubic-bezier(.2,.6,.35,1)",
+            transition: `color ${D_STATE} ${EASE}`,
           }}
         >
           {title}
@@ -335,7 +415,7 @@ function StackPanel({
           style={{
             flex: "none",
             transform: open ? "rotate(0deg)" : "rotate(-90deg)",
-            transition: "transform 180ms cubic-bezier(.2,.6,.35,1)",
+            transition: `transform ${D_MOVE} ${EASE}`,
           }}
         >
           <path d="m6 9 6 6 6-6" />
@@ -354,7 +434,7 @@ function StackPanel({
               justifyContent: "center",
               width: 22,
               height: 22,
-              borderRadius: 6,
+              borderRadius: R_TOUCH,
               background: "transparent",
               border: "none",
               color: MUTED,
@@ -375,14 +455,14 @@ function StackPanel({
           opacity: open ? 1 : 0,
           overflow: "hidden",
           transition:
-            "max-height 220ms cubic-bezier(.2,.6,.35,1), opacity 140ms cubic-bezier(.2,.6,.35,1)",
+            `max-height ${D_OPEN} ${EASE}, opacity ${D_STATE} ${EASE}`,
         }}
       >
         {/* fontSize is NOT decoration here. The splitPanelStyle this
             replaced carried 11.5 and every layer row inherited it; without it
             the rows fell back to the browser default 16px, which is why the
             layer list came out oversized against the rest of the chrome. */}
-        <div style={{ padding: "10px 12px 12px", fontSize: 11.5 }}>
+        <div style={{ padding: "10px 12px 12px", fontSize: FS_LABEL }}>
           {children}
         </div>
       </div>
@@ -413,13 +493,13 @@ function MapFlyTip({
     side === "left"
       ? {
           right: -5,
-          borderRight: "1px solid rgba(255,255,255,.18)",
-          borderTop: "1px solid rgba(255,255,255,.18)",
+          borderRight: `1px solid ${LINE}`,
+          borderTop: `1px solid ${LINE}`,
         }
       : {
           left: -5,
-          borderLeft: "1px solid rgba(255,255,255,.18)",
-          borderBottom: "1px solid rgba(255,255,255,.18)",
+          borderLeft: `1px solid ${LINE}`,
+          borderBottom: `1px solid ${LINE}`,
         };
   return (
     <div
@@ -444,7 +524,7 @@ function MapFlyTip({
             transform: "translateY(-50%)",
             pointerEvents: "none",
             animation:
-              "map-tip-in 180ms cubic-bezier(.2,.6,.35,1) both",
+              `map-tip-in ${D_MOVE} ${EASE} both`,
           }}
         >
           <style>{`@keyframes map-tip-in{from{opacity:0}to{opacity:1}}`}</style>
@@ -452,15 +532,13 @@ function MapFlyTip({
             style={{
               position: "relative",
               padding: "7px 12px",
-              borderRadius: 8,
-              background: "rgba(255,255,255,.10)",
-              border: "1px solid rgba(255,255,255,.18)",
-              backdropFilter: "blur(14px)",
-              WebkitBackdropFilter: "blur(14px)",
+              borderRadius: R_TIP,
+              background: RAISED,
+              border: `1px solid ${LINE}`,
               whiteSpace: "nowrap",
-              fontSize: 12.5,
+              fontSize: FS_META,
               fontWeight: 500,
-              color: "#fff",
+              color: "var(--ss-t1)",
             }}
           >
             {label}
@@ -471,7 +549,7 @@ function MapFlyTip({
                 top: "50%",
                 width: 9,
                 height: 9,
-                background: "rgba(255,255,255,.10)",
+                background: RAISED,
                 transform: "translateY(-50%) rotate(45deg)",
                 ...arrow,
               }}
@@ -508,19 +586,19 @@ function toolButtonStyle(active: boolean, disabled = false): React.CSSProperties
     justifyContent: "center",
     width: 30,
     height: 30,
-    borderRadius: 7,
+    borderRadius: R_TOUCH,
     cursor: disabled ? "default" : "pointer",
     opacity: disabled ? 0.38 : 1,
-    color: active ? "#0b0f14" : TEXT,
-    background: active ? ACCENT : "rgba(154,166,178,0.12)",
-    border: active ? `0.5px solid ${ACCENT}` : "0.5px solid rgba(154,166,178,0.22)",
-    transition: "background 120ms ease, color 120ms ease",
+    color: active ? ACCENT : TEXT,
+    background: active ? ACCENT_WASH : RAISED,
+    border: `0.5px solid ${active ? ACCENT_LINE : LINE}`,
+    transition: `background ${D_TINT} ${EASE}, color ${D_TINT} ${EASE}`,
   };
 }
 
 function sectionHeaderStyle(): React.CSSProperties {
   return {
-    fontSize: 10,
+    fontSize: FS_LABEL,
     fontWeight: 700,
     letterSpacing: 0.4,
     textTransform: "uppercase",
@@ -567,7 +645,7 @@ function SectionHeader({
           style={{
             display: "inline-flex",
             transform: open ? "rotate(0deg)" : "rotate(180deg)",
-            transition: "transform 120ms ease",
+            transition: `transform ${D_TINT} ${EASE}`,
           }}
         >
           <ToolIcon path={ICONS.collapse} size={11} />
@@ -738,9 +816,9 @@ export function ToolsetToolsSection({
             marginTop: 7,
             padding: 3,
             gap: 3,
-            borderRadius: 8,
-            background: "rgba(154,166,178,0.1)",
-            border: "0.5px solid rgba(154,166,178,0.2)",
+            borderRadius: R_TOUCH,
+            background: RAISED,
+            border: PANEL_BORDER,
           }}
         >
           {(["line", "area"] as const).map((mode) => (
@@ -750,13 +828,13 @@ export function ToolsetToolsSection({
               onClick={() => onSetMeasureMode(mode)}
               style={{
                 padding: "4px 10px",
-                borderRadius: 6,
+                borderRadius: R_CHIP,
                 border: "none",
                 cursor: "pointer",
-                fontSize: 11,
+                fontSize: FS_LABEL,
                 fontWeight: 700,
-                color: measureMode === mode ? "#0b0f14" : MUTED,
-                background: measureMode === mode ? ACCENT : "transparent",
+                color: measureMode === mode ? ACCENT : MUTED,
+                background: measureMode === mode ? ACCENT_WASH : "transparent",
               }}
             >
               {mode === "line" ? "Distance" : "Area"}
@@ -769,7 +847,7 @@ export function ToolsetToolsSection({
       {readout && (
         <div
           data-testid="map-toolset-readout"
-          style={{ marginTop: 7, fontSize: 11, fontWeight: 600, color: TEXT }}
+          style={{ marginTop: 7, fontSize: FS_LABEL, fontWeight: 600, color: TEXT }}
         >
           {readout}
         </div>
@@ -780,7 +858,7 @@ export function ToolsetToolsSection({
       {locateError && (
         <div
           data-testid="map-toolset-locate-error"
-          style={{ marginTop: 7, fontSize: 10.5, lineHeight: 1.35, color: DANGER }}
+          style={{ marginTop: 7, fontSize: FS_LABEL, lineHeight: 1.35, color: DANGER }}
         >
           {locateError}
         </div>
@@ -793,11 +871,11 @@ export function ToolsetToolsSection({
           style={{
             marginTop: 7,
             padding: "3px 7px",
-            borderRadius: 5,
-            border: "0.5px solid rgba(154,166,178,0.3)",
-            background: "rgba(255,255,255,0.04)",
-            color: "#c8d0d8",
-            fontSize: 10,
+            borderRadius: R_CHIP,
+            border: PANEL_BORDER,
+            background: RAISED,
+            color: TEXT,
+            fontSize: FS_LABEL,
             cursor: "pointer",
             textAlign: "left",
           }}
@@ -840,8 +918,8 @@ function ResultRow({
         alignItems: "center",
         gap: 7,
         padding: "3px 4px",
-        borderRadius: 5,
-        background: highlighted ? "rgba(125,211,252,0.14)" : "transparent",
+        borderRadius: R_TOUCH,
+        background: highlighted ? ACCENT_WASH : "transparent",
       }}
     >
       <span
@@ -849,7 +927,7 @@ function ResultRow({
         style={{
           width: 15,
           flexShrink: 0,
-          fontSize: 9.5,
+          fontSize: FS_LABEL,
           fontWeight: 700,
           color: MUTED,
           textAlign: "right",
@@ -858,8 +936,8 @@ function ResultRow({
         {index}
       </span>
       <span style={{ flex: 1, minWidth: 0 }}>
-        <span style={{ fontSize: 11.5, fontWeight: 700, color: TEXT }}>{primary}</span>
-        <span style={{ display: "block", fontSize: 9.5, color: MUTED }}>{secondary}</span>
+        <span style={{ fontSize: FS_LABEL, fontWeight: 700, color: TEXT }}>{primary}</span>
+        <span style={{ display: "block", fontSize: FS_LABEL, color: MUTED }}>{secondary}</span>
       </span>
       <button
         type="button"
@@ -871,13 +949,13 @@ function ResultRow({
           flexShrink: 0,
           width: 20,
           height: 20,
-          borderRadius: 4,
-          border: "0.5px solid rgba(154,166,178,0.25)",
+          borderRadius: R_CHIP,
+          border: PANEL_BORDER,
           background: "transparent",
           color: MUTED,
           cursor: "pointer",
           lineHeight: 1,
-          fontSize: 12,
+          fontSize: FS_META,
         }}
       >
         ×
@@ -1223,7 +1301,7 @@ export function MapToolset({
         {toolsReady && (resultCount > 0 || pendingNote) && (
           <div
             data-testid="map-toolset-results"
-            style={{ borderTop: "0.5px solid rgba(154,166,178,0.22)", paddingTop: 9 }}
+            style={{ borderTop: `0.5px solid ${HAIRLINE}`, paddingTop: 9 }}
           >
             <SectionHeader
               label={`Measurements & notes (${resultCount})`}
@@ -1270,20 +1348,20 @@ export function MapToolset({
                         style={{
                           width: 15,
                           flexShrink: 0,
-                          fontSize: 9.5,
+                          fontSize: FS_LABEL,
                           fontWeight: 700,
-                          color: n.color ?? "#3B82F6",
+                          color: n.color ?? noteColorAt(0),
                           textAlign: "right",
                         }}
                       >
                         {n.index}
                       </span>
                       <span style={{ flex: 1, minWidth: 0 }}>
-                        <span style={{ fontSize: 11, color: TEXT, wordBreak: "break-word" }}>
+                        <span style={{ fontSize: FS_LABEL, color: TEXT, wordBreak: "break-word" }}>
                           {n.text}
                         </span>
                         {n.scopeLabel && (
-                          <span style={{ display: "block", fontSize: 9.5, color: MUTED }}>
+                          <span style={{ display: "block", fontSize: FS_LABEL, color: MUTED }}>
                             {n.scopeLabel}
                           </span>
                         )}
@@ -1298,13 +1376,13 @@ export function MapToolset({
                           flexShrink: 0,
                           width: 20,
                           height: 20,
-                          borderRadius: 4,
-                          border: "0.5px solid rgba(154,166,178,0.25)",
+                          borderRadius: R_CHIP,
+                          border: PANEL_BORDER,
                           background: "transparent",
                           color: MUTED,
                           cursor: "pointer",
                           lineHeight: 1,
-                          fontSize: 12,
+                          fontSize: FS_META,
                         }}
                       >
                         ×
@@ -1319,7 +1397,7 @@ export function MapToolset({
                     style={{ display: "flex", flexDirection: "column", gap: 5, padding: "4px 0" }}
                   >
                     {noteScope?.label && (
-                      <span style={{ fontSize: 9.5, color: MUTED }}>{noteScope.label}</span>
+                      <span style={{ fontSize: FS_LABEL, color: MUTED }}>{noteScope.label}</span>
                     )}
                     <textarea
                       data-testid="map-toolset-note-input"
@@ -1332,11 +1410,19 @@ export function MapToolset({
                         width: "100%",
                         boxSizing: "border-box",
                         resize: "vertical",
-                        borderRadius: 6,
-                        border: "0.5px solid rgba(154,166,178,0.3)",
-                        background: "rgba(255,255,255,0.04)",
+                        borderRadius: R_TOUCH,
+                        border: PANEL_BORDER,
+                        // THE RECESS. A field is a slot you type into, so it
+                        // sits one plane BELOW the panel, not lifted above it.
+                        // Ruled with the depth pass, 2026-08-29, the same rule
+                        // the PE Input follows. The port lane correctly left
+                        // this alone rather than chase an uncommitted ruling
+                        // from another seat mid-flight; closing it here where
+                        // the ruling is now landed.
+                        background: "var(--ss-void)",
+                        boxShadow: "var(--ss-sh-inset)",
                         color: TEXT,
-                        fontSize: 11.5,
+                        fontSize: FS_LABEL,
                         fontFamily: "inherit",
                         padding: "5px 7px",
                       }}
@@ -1352,13 +1438,13 @@ export function MapToolset({
                         }}
                         style={{
                           padding: "3px 9px",
-                          borderRadius: 5,
-                          border: "none",
+                          borderRadius: R_TOUCH,
+                          border: `0.5px solid ${ACCENT_LINE}`,
                           cursor: noteDraft.trim().length === 0 ? "default" : "pointer",
                           opacity: noteDraft.trim().length === 0 ? 0.4 : 1,
-                          background: ACCENT,
-                          color: "#0b0f14",
-                          fontSize: 10.5,
+                          background: ACCENT_WASH,
+                          color: ACCENT,
+                          fontSize: FS_LABEL,
                           fontWeight: 700,
                         }}
                       >
@@ -1373,11 +1459,11 @@ export function MapToolset({
                         }}
                         style={{
                           padding: "3px 9px",
-                          borderRadius: 5,
-                          border: "0.5px solid rgba(154,166,178,0.3)",
+                          borderRadius: R_TOUCH,
+                          border: PANEL_BORDER,
                           background: "transparent",
                           color: MUTED,
-                          fontSize: 10.5,
+                          fontSize: FS_LABEL,
                           cursor: "pointer",
                         }}
                       >
@@ -1400,7 +1486,7 @@ export function MapToolset({
           style={
             toolsReady
               ? {
-                  borderTop: "0.5px solid rgba(154,166,178,0.22)",
+                  borderTop: `0.5px solid ${HAIRLINE}`,
                   paddingTop: 9,
                 }
               : undefined
@@ -1435,12 +1521,12 @@ export function MapToolset({
                     data-testid={`map-toolset-preset-${name.toLowerCase()}`}
                     onClick={() => applyPreset(name)}
                     style={{
-                      fontSize: 10,
+                      fontSize: FS_LABEL,
                       padding: "3px 7px",
-                      borderRadius: 4,
-                      border: "0.5px solid rgba(154,166,178,0.35)",
-                      background: "rgba(255,255,255,0.04)",
-                      color: "#c8d0d8",
+                      borderRadius: R_CHIP,
+                      border: PANEL_BORDER,
+                      background: RAISED,
+                      color: TEXT,
                       cursor: "pointer",
                     }}
                   >
@@ -1510,7 +1596,7 @@ export function MapToolset({
                       <div
                         style={{
                           marginLeft: 21,
-                          fontSize: 9.5,
+                          fontSize: FS_LABEL,
                           lineHeight: 1.35,
                           color: BADGE_COLOR[badge.tone],
                         }}
@@ -1544,8 +1630,8 @@ export function MapToolset({
           gap: 9,
           padding: "10px 12px 16px",
           color: TEXT,
-          fontSize: 11.5,
-          fontFamily: "system-ui, -apple-system, Segoe UI, Roboto, sans-serif",
+          fontSize: FS_LABEL,
+          fontFamily: UI_FONT,
           overflowY: "auto",
           WebkitOverflowScrolling: "touch",
         }}
@@ -1567,15 +1653,20 @@ export function MapToolset({
         maxHeight: "calc(100vh - 52px - 56px)",
         overflowY: "auto",
         WebkitOverflowScrolling: "touch",
-        background: "rgba(11,14,19,0.98)",
-        borderTop: "1px solid rgba(154,166,178,0.28)",
+        background: PANEL_BG,
+        borderTop: `1px solid ${LINE}`,
+        // UNMAPPED, DELIBERATELY. The palette ships four elevation tokens
+        // and every one of them casts DOWNWARD (--ss-sh-dock is 0 8px 22px).
+        // A bottom sheet needs an upward shadow and Light Charcoal has no
+        // token for one. Inventing a mapping here would be worse than the
+        // literal: it would read as ported. Left, named, and reported.
         boxShadow: "0 -10px 36px rgba(0,0,0,0.45)",
         display: "flex",
         flexDirection: "column",
         gap: 9,
         padding: "10px 12px 16px",
         color: TEXT,
-        fontSize: 11.5,
+        fontSize: FS_LABEL,
       }}
     >
       {panelInner}
@@ -1649,7 +1740,7 @@ export function MapToolset({
         // of one floating against the other.
         alignItems: "flex-end",
         gap: 8,
-        fontFamily: "system-ui, -apple-system, Segoe UI, Roboto, sans-serif",
+        fontFamily: UI_FONT,
       }}
     >
       {/* Split left utilities: draw and layers are separate containers.
@@ -1750,12 +1841,12 @@ export function MapToolset({
           flexDirection: "column",
           gap: 9,
           padding: "8px 12px 10px",
-          borderRadius: 9,
+          borderRadius: R_FLOAT,
           background: PANEL_BG,
           border: PANEL_BORDER,
           color: TEXT,
-          fontSize: 11.5,
-          boxShadow: "0 10px 32px rgba(0,0,0,0.45)",
+          fontSize: FS_LABEL,
+          boxShadow: "var(--ss-sh-dock)",
           maxHeight: "32vh",
           overflowY: "auto",
         }}
@@ -1766,7 +1857,7 @@ export function MapToolset({
             alignItems: "center",
             gap: 6,
             paddingBottom: 6,
-            borderBottom: "0.5px solid rgba(154,166,178,0.18)",
+            borderBottom: `0.5px solid ${HAIRLINE}`,
           }}
         >
           <span style={{ ...sectionHeaderStyle(), flex: 1 }}>
@@ -1793,8 +1884,8 @@ export function MapToolset({
               justifyContent: "center",
               width: 22,
               height: 22,
-              borderRadius: 5,
-              border: "0.5px solid rgba(154,166,178,0.25)",
+              borderRadius: R_CHIP,
+              border: PANEL_BORDER,
               background: "transparent",
               color: MUTED,
               cursor: "pointer",
@@ -1818,13 +1909,13 @@ export function MapToolset({
               justifyContent: "center",
               width: 22,
               height: 22,
-              borderRadius: 5,
-              border: "0.5px solid rgba(154,166,178,0.25)",
+              borderRadius: R_CHIP,
+              border: PANEL_BORDER,
               background: "transparent",
               color: MUTED,
               cursor: "pointer",
               lineHeight: 1,
-              fontSize: 13,
+              fontSize: FS_META,
             }}
           >
             −
@@ -1859,12 +1950,13 @@ export function MapToolset({
           alignItems: "center",
           gap: 6,
           padding: "8px 6px",
-          borderRadius: 24,
-          background: "rgba(11,14,19,.92)",
-          border: "1px solid rgba(255,255,255,.09)",
-          boxShadow: "0 10px 34px rgba(0,0,0,.5)",
-          backdropFilter: "blur(14px)",
-          WebkitBackdropFilter: "blur(14px)",
+          // 999, not 24. The capsule is 46 wide, so a pill radius clamps to
+          // 23 and renders within a pixel of what 24 drew — but 24 is not a
+          // member of the Stone radius set and 999 (the pill) is.
+          borderRadius: 999,
+          background: PANEL_BG,
+          border: `1px solid ${LINE}`,
+          boxShadow: "var(--ss-sh-dock)",
         }}
       >
         {/* FOUR TOOLS, ONE CAPSULE (operator ruling 2026-08-27): legend and

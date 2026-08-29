@@ -333,6 +333,21 @@ export function PropertiesList({
                 title={`Open ${title} — dossier + map`}
                 style={{
                   flex: 1,
+                  // LEFT JUSTIFIED, and textAlign alone could not do it.
+                  // The kit Button is `display: inline-flex` with
+                  // `justifyContent: center` (Button.tsx:91), so its children
+                  // are centred as FLEX ITEMS. textAlign governs inline text
+                  // inside a box; it has nothing to say about how flex
+                  // distributes that box, which is why "textAlign: left" sat
+                  // here reading as correct while every address rendered
+                  // centred and ragged on both edges. A row of addresses that
+                  // do not share a left edge cannot be scanned down, and
+                  // scanning many parcels quickly is what this dock is for.
+                  justifyContent: "flex-start",
+                  // minWidth: 0 lets the flex child actually shrink; without it
+                  // a long address overflows the row rather than being clipped
+                  // by the dock.
+                  minWidth: 0,
                   textAlign: "left",
                   background: "transparent",
                   border: "none",

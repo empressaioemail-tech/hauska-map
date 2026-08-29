@@ -159,6 +159,35 @@ describe("W3.4 add/exclude reports replaces Export X-ray on the property row", (
     expect(html).not.toContain("Export X-ray");
     expect(html).not.toContain('data-testid="dossier-export-pdf-button"');
   });
+
+  // ADDED 2026-08-29 after the operator saw every address centred. The row's
+  // open control already carried `textAlign: "left"`, which reads as correct
+  // and does nothing: the kit Button is display:inline-flex with
+  // justifyContent:center, so its children are centred as FLEX ITEMS and
+  // textAlign has no say over that. Nothing asserted the outcome, so the row
+  // shipped ragged on both edges — in the one dock whose whole job is scanning
+  // a column of addresses.
+  it("list rows are LEFT justified, not centred by the kit Button", () => {
+    const html = renderToStaticMarkup(
+      <PropertiesList
+        phase={{ kind: "ready", items: [row] }}
+        activeParcelNodeId={null}
+        busy={false}
+        onSaveCurrent={noop}
+        onOpen={noop}
+        onRemove={noop}
+      />,
+    );
+    const open = html.slice(html.indexOf('data-testid="properties-reopen"'));
+    const style = open.slice(open.indexOf('style="'), open.indexOf('"', open.indexOf('style="') + 7));
+
+    // The override must be present...
+    expect(style).toContain("justify-content:flex-start");
+    // ...and the kit default must NOT survive on this control. This is the
+    // half that makes the test non-vacuous: asserting only the first would
+    // still pass if both landed and the cascade picked the wrong one.
+    expect(style).not.toContain("justify-content:center");
+  });
 });
 
 describe("W3.5 chats collapsed by date, markdown cleaned, one open", () => {

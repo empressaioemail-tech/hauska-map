@@ -27,7 +27,7 @@
      purpose; it is also why nothing may sit type on a line token. */
   --ss-void:      #2A2A2B;  /* page and map behind everything */
   --ss-ink:       #323234;  /* panel, dock, card fill */
-  --ss-raised:    #3C3C3F;  /* modal, tooltip, popover fill */
+  --ss-raised:    #3F4043;  /* modal, tooltip, popover fill */
 
   /* Named chrome fills. OPAQUE, by operator ruling: a panel does not let
      parcel colour bleed through into panel text. These six were translucent
@@ -37,8 +37,8 @@
   --ss-ink-92:    #323234;  /* find bar, map controls */
   --ss-ink-90:    #323234;  /* rail bubble at rest */
   --ss-ink-96:    #323234;  /* sources sheet */
-  --ss-raised-97: #3C3C3F;  /* tooltip */
-  --ss-raised-98: #3C3C3F;  /* modal */
+  --ss-raised-97: #3F4043;  /* tooltip */
+  --ss-raised-98: #3F4043;  /* modal */
 
   /* The ONE translucent value in the palette. Behind a modal, over the map. */
   --ss-scrim:     rgba(23,23,25,.72);
@@ -48,9 +48,16 @@
      AND ARE NEVER A TEXT COLOUR: the palette has six text steps and a
      component that reaches past all of them for a line token is a component
      defect, not a palette one. */
-  --ss-line-06:   #3E3E41;  /* rules INSIDE a surface */
-  --ss-line-14:   #4E4E52;  /* the edge OF a surface */
-  --ss-line-28:   #86868B;  /* focus, outline buttons, emphasis */
+  --ss-line-06:   #414247;  /* rules INSIDE a surface */
+  --ss-line-14:   #56575C;  /* the edge OF a surface */
+  --ss-line-28:   #8A8A8F;  /* focus, outline buttons, emphasis */
+  /* CORRECTED with the depth pass, 2026-08-29, and NOT the handoff's number.
+     The handoff kept #86868B and verified only that --ss-t5 still cleared 4.5
+     on the deeper --ss-raised. It did not re-check line-28, which had been
+     moved to #86868B in the first place precisely to clear 3.0 on raised.
+     Lifting raised to #3F4043 dropped it to 2.861 and broke that ruling.
+     #8A8A8F restores it at 3.017. A ruling that was earned by measurement can
+     be un-earned by a later change that measures something else. */
 
   /* ---- Text ramp — t1 brightest, t6 faintest ------------------------- */
   --ss-t1:        #FBFBFC;  /* subject lines, values that matter */
@@ -133,12 +140,21 @@
   /* ---- Elevation ------------------------------------------------------
      A panel is identified by its border and its surface step, not by a glow.
      Stone shadows are markedly shallower than v2 for that reason. */
-  --ss-sh-rail:   0 1px 2px rgba(0,0,0,.22);
-  --ss-sh-dock:   0 8px 22px rgba(0,0,0,.26);
-  --ss-sh-modal:  0 20px 56px rgba(0,0,0,.38);
-  --ss-sh-tip:    0 6px 16px rgba(0,0,0,.28);
+  --ss-sh-rail:   inset 0 1px 0 rgba(255,255,255,.05), 0 2px 6px rgba(0,0,0,.30);
+  --ss-sh-dock:   inset 0 1px 0 rgba(255,255,255,.05), 0 2px 6px rgba(0,0,0,.30), 0 14px 34px rgba(0,0,0,.42);
+  --ss-sh-modal:  inset 0 1px 0 rgba(255,255,255,.06), 0 28px 72px rgba(0,0,0,.52);
+  --ss-sh-tip:    0 8px 20px rgba(0,0,0,.38);
   --ss-sh-focus:  0 0 0 3px rgba(134,173,223,.67);
   --ss-sh-open:   0 2px 8px rgba(0,0,0,.22);  /* open rail bubble */
+  /* THE RECESS, 66th token, authorised 2026-08-29 with the depth pass.
+     Fields and any slot the operator types or pastes into sit at --ss-void
+     with this inset, one plane BELOW the panel rather than above it. The old
+     palette had two planes ten points apart, which is why stacked sheets read
+     as one surface.
+     Depth is bought with a THIRD PLANE and shadow, not by lightening the
+     lifted one: --ss-raised could only take three points before --ss-t5 broke
+     4.5:1 on it, and it took --ss-line-28 with it. See the note there. */
+  --ss-sh-inset: inset 0 1px 3px rgba(0,0,0,.32);
 
   /* ================= LEGACY ALIASES — v1 names, Stone values ===========
      NO ALIAS BELOW CARRIES A COLOUR LITERAL. 34 are bare var() pointers; two
@@ -266,7 +282,10 @@
 [data-pe="input"]:focus,
 [data-pe="textarea"]:focus {
   border-color: var(--ss-blue);
-  box-shadow: var(--ss-sh-focus);
+  /* THE RECESS SURVIVES FOCUS. box-shadow REPLACES, it does not stack, so a
+     bare var(--ss-sh-focus) here would flatten the field the moment it is
+     used — the one moment it should read as a slot. Both, inset first. */
+  box-shadow: var(--ss-sh-inset), var(--ss-sh-focus);
 }
 /* The invalid ring mirrors --ss-sh-focus exactly — same 3px, same 67% — with
    the error hue substituted. It was rgba(239,68,68,.14), a literal of the
@@ -274,7 +293,7 @@
 [data-pe="input"][data-invalid="1"]:focus,
 [data-pe="textarea"][data-invalid="1"]:focus {
   border-color: var(--ss-err);
-  box-shadow: 0 0 0 3px color-mix(in oklab, var(--ss-err) 67%, transparent);
+  box-shadow: var(--ss-sh-inset), 0 0 0 3px color-mix(in oklab, var(--ss-err) 67%, transparent);
 }
 
 /* ---- Rail bubble ----------------------------------------------------
