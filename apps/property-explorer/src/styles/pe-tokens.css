@@ -76,7 +76,13 @@
   --ss-gold:      #E8963B;  /* brand mark + rail unread dot. Never a control. */
   --ss-gold-lt:   #F5B95C;  /* the word SITE in the wordmark */
   --ss-atom:      #6FC1B8;  /* an openable record. Not chrome, not emphasis. */
-  --ss-slate:     #A09C93;  /* absence: a thing that is not on file */
+  --ss-slate:     #A9ABAF;  /* absence: a thing that is not on file.
+                               CORRECTED 2026-08-29: this was still #A09C93, a WARM
+                               Stone value left in a neutral palette. The Light
+                               Charcoal table listed its before-value as #ADA9A1,
+                               which slate had never been on, so the acceptance grep
+                               inherited a wrong premise from the document it was
+                               checking and passed on a token that never moved. */
   --ss-sky:       #2C6B9E;  /* MAP GEOMETRY ONLY. Never inside a panel. */
 
   /* ---- Semantic. Desaturated so gold stays the loudest orange on screen.
