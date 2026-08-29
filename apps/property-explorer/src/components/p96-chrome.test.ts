@@ -66,5 +66,8 @@ describe("P-96 chrome write-path pins", () => {
     const index = readFileSync(join(ROOT, "..", "index.html"), "utf8");
     expect(index).toContain('content="#2A2A2B"');
     expect(index).not.toContain("#0b0e13");
+    expect(index).toContain('href="/favicon.ico"');
+    const ico = readFileSync(join(ROOT, "..", "public/favicon.ico"));
+    expect([...ico.slice(0, 4)]).toEqual([0, 0, 1, 0]);
   });
 });
