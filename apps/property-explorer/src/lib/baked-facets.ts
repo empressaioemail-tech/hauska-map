@@ -132,6 +132,11 @@ export interface BakedFacetPayload {
    */
   livingAreaSqft?: LayerWire<number> | null;
   yearBuilt?: LayerWire<number> | null;
+  /**
+   * CAD structural year source from the BFF (structuralFact.source or
+   * cad_property). A populated year with no source is refused at the card.
+   */
+  yearBuiltSource?: string | null;
   provenance?: {
     parcelSource?: string;
     parcelVintage?: string | null;
@@ -418,6 +423,11 @@ export interface BakedCardModel {
   /** Structural living area (doc 19 layer wire). Hidden when unknown. */
   livingArea: CardFacet<string>;
   /**
+   * CAD structural year with its source, or hidden. A bare number is refused.
+   * Never a listing year.
+   */
+  yearBuilt: CardFacet<string>;
+  /**
    * Special district row from specialDistrictFact only. `unknown` when the
    * field is missing (FactRow hides it). Never derived from bake / CAD /
    * mud-pid.
@@ -577,6 +587,25 @@ export function zoningLayerToCardFacet(
   return absent<string>();
 }
 
+export function yearBuiltLayerToCardFacet(
+  payload: BakedFacetPayload,
+  source: string | null,
+): CardFacet<string> {
+  const mapped = layerWireToCardFacet(payload.yearBuilt, (year) =>
+    typeof year === "number" && Number.isFinite(year)
+      ? source && source.trim()
+        ? `${year} (${source.trim()})`
+        : null
+      : null,
+  );
+  // Refuse a bare number: hide the row. Absent-null would paint
+  // "Not stamped here"; the patch test is row not present.
+  if (mapped.state === "absent" && mapped.value == null && !mapped.layerAbsence) {
+    return { state: "unknown", value: null };
+  }
+  return mapped as CardFacet<string>;
+}
+
 export function livingAreaLayerToCardFacet(payload: BakedFacetPayload): CardFacet<string> {
   if (isSilentEmptyStructuralLayer(payload)) {
     return {
@@ -719,6 +748,7 @@ export function deriveBakedCardModel(payload: BakedFacetPayload): BakedCardModel
     buildablePct,
     flood: { state: "unknown", value: null },
     livingArea: livingAreaLayerToCardFacet(payload),
+    yearBuilt: yearBuiltLayerToCardFacet(payload, payload.yearBuiltSource ?? null),
     specialDistrict: { state: "unknown", value: null },
     pipeline: { state: "unknown", value: null },
     well: { state: "unknown", value: null },

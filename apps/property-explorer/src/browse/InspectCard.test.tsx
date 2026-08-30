@@ -103,7 +103,7 @@ describe("inspect accordion — high-level first, rest collapsed", () => {
     expect(inspectRowGroup("landUse")).toBe("high");
     expect(inspectRowGroup("flood")).toBe("high");
     expect(inspectRowGroup("acreage")).toBe("high");
-    expect(inspectHighLevelLabel("landUse", "Land use")).toBe("Zone");
+    expect(inspectHighLevelLabel("landUse", "Land use")).toBe("Land use");
     expect(inspectHighLevelLabel("acreage", "Acreage")).toBe("Lot");
   });
 
@@ -579,6 +579,29 @@ describe("InspectCard Land use row — landUseFact preferred (WDLL 5 leftover)",
     expect(html).toContain('data-testid="inspect-landuse"');
     expect(html).toContain("A1 — Single-family residential");
     expect(html).not.toContain("cad-roll");
+  });
+
+  it("year built with source renders; bare year is hidden", () => {
+    const withSource = renderToStaticMarkup(
+      <dl>
+        <FactRow
+          label="Year built"
+          fact={toFactPresentation(
+            { state: "present", value: "2021 (cad_property)" },
+            ROW_SPECS.yearBuilt,
+          )}
+          testid="inspect-year-built"
+        />
+      </dl>,
+    );
+    expect(withSource).toContain('data-testid="inspect-year-built"');
+    expect(withSource).toContain("2021 (cad_property)");
+    const bare = toFactPresentation(
+      { state: "unknown", value: null },
+      ROW_SPECS.yearBuilt,
+    );
+    expect(bare).toBeNull();
+    expect(ROW_SPECS.yearBuilt.inCoverageBlock).toBeUndefined();
   });
 
   it("named refusals render the code, never a silent cad-roll swap", () => {

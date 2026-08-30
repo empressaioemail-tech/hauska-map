@@ -10,6 +10,13 @@ const spineProxyTarget = process.env.SPINE_PROXY_TARGET;
 
 export default defineConfig({
   plugins: [react()],
+  define: {
+    __HAUSKA_BUILD__: JSON.stringify(
+      process.env.VERCEL_GIT_COMMIT_SHA ||
+        process.env.HAUSKA_BUILD_SHA ||
+        "UNSTAMPED",
+    ),
+  },
   server: {
     port: 5174,
     ...(spineProxyTarget

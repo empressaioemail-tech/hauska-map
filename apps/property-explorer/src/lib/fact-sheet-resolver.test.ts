@@ -1290,6 +1290,25 @@ describe("landUseFact only (WDLL 5 leftover)", () => {
     expect(sheet.landUse.value.code).not.toBe("CADROLL");
   });
 
+  it("label-less present keeps description empty, never A1 — A1", async () => {
+    const wire = facetsWire() as unknown as Record<string, unknown>;
+    delete (wire.facets as { baseFacts: { landUse?: unknown } }).baseFacts.landUse;
+    wire.landUseFact = {
+      state: "present",
+      source: "land-use-fact",
+      landUseCode: "A1",
+    };
+    const stub = installFetchStub({ facets: wire, gisFeatures: [SUBJECT_FEATURE] });
+    const sheet = await sheetOf(makeResolver(stub), NODE_ID);
+    expect(sheet.landUse.state).toBe("present");
+    if (sheet.landUse.state !== "present") throw new Error("unreachable");
+    expect(sheet.landUse.value.code).toBe("A1");
+    expect(sheet.landUse.value.description).toBe("");
+    expect(`${sheet.landUse.value.code} — ${sheet.landUse.value.description}`).not.toBe(
+      "A1 — A1",
+    );
+  });
+
   it("cad-roll-only bake without landUseFact does not claim the atom (retiredStore)", async () => {
     const wire = facetsWire() as unknown as Record<string, unknown>;
     delete wire.landUseFact;

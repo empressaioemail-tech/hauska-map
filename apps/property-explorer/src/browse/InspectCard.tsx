@@ -509,6 +509,9 @@ export const ROW_SPECS: Record<string, FactRowSpec> = {
     wouldBeFilledBy: "a structural living area on the county record",
     labelledAbsenceIsCovered: true,
   },
+  yearBuilt: {
+    wouldBeFilledBy: "a year built on the county appraisal roll",
+  },
   zoning: {
     wouldBeFilledBy: "a zoning district stamp from this parcel's city or county",
     inCoverageBlock: true,
@@ -579,7 +582,7 @@ export function inspectRowGroup(key: string): "high" | "collapsed" {
 }
 
 export function inspectHighLevelLabel(key: string, fallback: string): string {
-  if (key === "landUse") return "Zone";
+  if (key === "landUse") return "Land use";
   if (key === "acreage") return "Lot";
   return fallback;
 }
@@ -1070,6 +1073,12 @@ export function InspectCard({
           testid: "inspect-living-area",
           layerVerdict: true,
         },
+        {
+          key: "yearBuilt",
+          label: "Year built",
+          fact: toFactPresentation(baked.yearBuilt, ROW_SPECS.yearBuilt),
+          testid: "inspect-year-built",
+        },
         { key: "zoning", label: "Zoning", fact: toFactPresentation(baked.zoning, ROW_SPECS.zoning), testid: "inspect-zoning", chipRow: "zoning", layerVerdict: true },
         { key: "setbacks", label: "Setbacks", fact: toFactPresentation(baked.setbacks, ROW_SPECS.setbacks), testid: "inspect-setbacks", chipRow: "setback" },
         { key: "buildable", label: "Buildable", fact: toFactPresentation(baked.buildablePct, ROW_SPECS.buildable), chipRow: "buildable" },
@@ -1334,7 +1343,7 @@ export function InspectCard({
           }}
         >
           <div style={{ color: TEXT, fontWeight: 600 }}>
-            Not stamped in this area yet
+            Not stamped on this parcel yet
           </div>
           <div style={{ color: ABSENT, marginTop: 2 }}>
             {coverageFooterLine(uncovered.map((r) => r.label))} Fills in from{" "}
@@ -1525,7 +1534,7 @@ export function joinList(items: string[]): string {
 /** The coverage block's lead sentence — names the fields, in card labels. */
 export function coverageFooterLine(labels: string[]): string {
   if (labels.length === 0) return "";
-  return `We have not stamped ${joinList(labels.map((l) => l.toLowerCase()))} for this area.`;
+  return `We have not stamped ${joinList(labels.map((l) => l.toLowerCase()))} for this parcel.`;
 }
 
 /**

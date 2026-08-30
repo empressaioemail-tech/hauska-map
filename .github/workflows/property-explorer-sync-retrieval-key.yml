@@ -161,7 +161,8 @@ jobs:
           set -euo pipefail
           # Project Root Directory is already apps/property-explorer in Vercel
           # settings — do NOT pass --cwd apps/property-explorer (doubles the path).
-          vercel deploy --prod --yes --token "$VERCEL_TOKEN"
+          vercel deploy --prod --yes --token "$VERCEL_TOKEN" \
+            --build-env HAUSKA_BUILD_SHA="$GITHUB_SHA"
 
       - name: Live verify PE facets gold Bastrop 34137 (exit-bounded)
         run: |
