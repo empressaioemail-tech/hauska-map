@@ -1,6 +1,6 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" role="img" aria-label="Smart Site">
-  <!-- Stone --ss-void. The v2 near-black tile is retired. -->
-  <rect width="512" height="512" rx="96" fill="#2A2A2B"/>
+  <!-- Light Charcoal --ss-ink tile (#323234), 2026-08-30, rendered by scripts/render-mark.mjs. The Stone --ss-void tile is retired. -->
+  <rect width="512" height="512" rx="96" fill="#323234"/>
   <g transform="translate(53.333,53.333) scale(5.33333)">
     <circle cx="38" cy="38" r="30" stroke="#FBFBFC" stroke-width="4" fill="none"/>
     <circle cx="38" cy="38" r="6" fill="#E8963B"/>
