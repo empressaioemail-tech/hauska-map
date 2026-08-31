@@ -46,6 +46,7 @@ import {
   type BakedFacetPayload,
   type CardFacet,
   livingAreaLayerToCardFacet,
+  yearBuiltLayerToCardFacet,
   zoningLayerToCardFacet,
 } from "./baked-facets";
 import { isLayerAbsenceWire } from "./layer-absence";
@@ -58,7 +59,7 @@ import type {
 /** P-63 verdict layer wires copied from the facets payload at seal time. */
 export type VerdictLayerSnapshot = Pick<
   BakedFacetPayload,
-  "livingAreaSqft" | "zoning" | "facetCoverage"
+  "livingAreaSqft" | "yearBuilt" | "yearBuiltSource" | "zoning" | "facetCoverage"
 > & {
   zoningDecline?: string | null;
 };
@@ -70,21 +71,25 @@ export type ParcelFactSheetWithVerdictLayers = ParcelFactSheet & {
 
 function verdictLayersToCardFacets(
   layers: VerdictLayerSnapshot | undefined,
-): Partial<Pick<BakedCardModel, "livingArea" | "zoning">> | null {
+): Partial<Pick<BakedCardModel, "livingArea" | "yearBuilt" | "zoning">> | null {
   if (!layers) return null;
   const hasStructural =
     layers.facetCoverage?.structural === true ||
-    layers.livingAreaSqft != null;
+    layers.livingAreaSqft != null ||
+    layers.yearBuilt != null;
   const hasZoningVerdict = isLayerAbsenceWire(layers.zoning);
   if (!hasStructural && !hasZoningVerdict) return null;
 
   const payload: BakedFacetPayload = {
     livingAreaSqft: layers.livingAreaSqft,
+    yearBuilt: layers.yearBuilt,
+    yearBuiltSource: layers.yearBuiltSource,
     zoning: layers.zoning,
     facetCoverage: layers.facetCoverage,
   };
-  const out: Partial<Pick<BakedCardModel, "livingArea" | "zoning">> = {
+  const out: Partial<Pick<BakedCardModel, "livingArea" | "yearBuilt" | "zoning">> = {
     livingArea: livingAreaLayerToCardFacet(payload),
+    yearBuilt: yearBuiltLayerToCardFacet(payload, payload.yearBuiltSource ?? null),
   };
   if (hasZoningVerdict) {
     out.zoning = zoningLayerToCardFacet(
@@ -584,12 +589,16 @@ export function bakedCardModelFromSheet(
       isPresent(sheet.setbacks) ? sheet.setbacks.value : null,
     ),
     livingArea: { state: "unknown", value: null },
+    yearBuilt: { state: "unknown", value: null },
   };
 
   const verdictFacets = verdictLayersToCardFacets(sheet.verdictLayers);
   if (verdictFacets) {
     if (verdictFacets.livingArea) {
       model.livingArea = verdictFacets.livingArea;
+    }
+    if (verdictFacets.yearBuilt) {
+      model.yearBuilt = verdictFacets.yearBuilt;
     }
     if (verdictFacets.zoning) {
       model.zoning = verdictFacets.zoning;

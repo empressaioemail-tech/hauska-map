@@ -10,6 +10,7 @@ import { afterEach, describe, it, expect, vi } from "vitest";
 import {
   deriveBakedCardModel,
   fetchBakedNodeFacets,
+  yearBuiltLayerToCardFacet,
   zoningLayerToCardFacet,
   type BakedFacetPayload,
 } from "./baked-facets";
@@ -529,6 +530,53 @@ describe("deriveBakedCardModel — layer absence verdicts (P-63 Track B)", () =>
   it.todo(
     "live Tarrant metro GET returns lookup-failed livingAreaSqft (cortex Track A)",
   );
+});
+
+describe("yearBuiltLayerToCardFacet — CAD year with source, never a bare number", () => {
+  const yearWire = { status: "populated" as const, value: 2021 };
+
+  it("CAD year 2021 + source cad_property → 2021 (cad_property)", () => {
+    const facet = yearBuiltLayerToCardFacet(
+      { yearBuilt: yearWire },
+      "cad_property",
+    );
+    expect(facet).toEqual({
+      state: "present",
+      value: "2021 (cad_property)",
+    });
+  });
+
+  it("CAD year 2021 + no source → not present, never 2021", () => {
+    const facet = yearBuiltLayerToCardFacet({ yearBuilt: yearWire }, null);
+    expect(facet.state).not.toBe("present");
+    expect(facet.value).not.toBe("2021");
+    expect(JSON.stringify(facet)).not.toContain("2021");
+  });
+
+  it("deriveBakedCardModel hides a year with no source", () => {
+    const m = deriveBakedCardModel({
+      parcelNodeId: "48021:8715051",
+      yearBuilt: yearWire,
+    });
+    expect(m.yearBuilt.state).not.toBe("present");
+    expect(JSON.stringify(m.yearBuilt)).not.toContain("2021");
+  });
+
+  it("deriveBakedCardModel does not merge a listing year onto the row", () => {
+    const m = deriveBakedCardModel({
+      parcelNodeId: "48021:8715051",
+      yearBuilt: yearWire,
+      yearBuiltSource: "cad_property",
+      baseFacts: {
+        // listing year must not appear; only CAD structural + source
+      } as BakedFacetPayload["baseFacts"],
+    });
+    expect(m.yearBuilt).toEqual({
+      state: "present",
+      value: "2021 (cad_property)",
+    });
+    expect(JSON.stringify(m.yearBuilt)).not.toMatch(/listing|2022/i);
+  });
 });
 
 describe("zoningLayerToCardFacet — stamp-missing and unmeasured (CTX card G)", () => {

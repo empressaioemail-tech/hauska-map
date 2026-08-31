@@ -275,7 +275,7 @@ describe("SS-W2 item 4 / I4 — three absences, three registers", () => {
 
   it("an uncovered absence NAMES what would fill it", () => {
     expect(coverageFooterLine(["Zoning", "Setbacks"])).toBe(
-      "We have not stamped zoning and setbacks for this area.",
+      "We have not stamped zoning and setbacks for this parcel.",
     );
     expect(coverageFooterLine([])).toBe("");
     expect(joinList(["a", "b", "c"])).toBe("a, b and c");

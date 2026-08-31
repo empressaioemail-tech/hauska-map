@@ -679,6 +679,25 @@ describe("mergeBakedBaseFacts — P-63 structuralFact and verdict facets", () =>
     });
     expect(merged.facets.facetCoverage?.structural).toBe(true);
   });
+
+  it("copies CAD yearBuilt with source cad_property, never a listing year", () => {
+    const adapted = adaptAtomChainToBakedFacets(haysChain)!;
+    const merged = mergeBakedBaseFacts(adapted, {
+      ...bakedCortexBody,
+      structuralFact: {
+        state: "present" as const,
+        source: "cad_property",
+        livingAreaSqft: 1850,
+        yearBuilt: 2021,
+      },
+    });
+    expect(merged.facets.yearBuilt).toEqual({
+      status: "populated",
+      value: 2021,
+    });
+    expect(merged.facets.yearBuiltSource).toBe("cad_property");
+    expect(JSON.stringify(merged.facets)).not.toMatch(/listing/i);
+  });
 });
 
 const colonyMudFact = {

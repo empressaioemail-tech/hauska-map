@@ -32,6 +32,10 @@ import {
 } from './admin/workspace/activeContext'
 import type { ActiveContext } from '@empressaio/tile-shell'
 
+declare const __HAUSKA_BUILD__: string
+document.documentElement.dataset.hauskaBuild = __HAUSKA_BUILD__
+;(globalThis as { __HAUSKA_BUILD__?: string }).__HAUSKA_BUILD__ = __HAUSKA_BUILD__
+
 function ConfigBar() {
   const config = loadConfig()
   const [keyInput, setKeyInput] = useState('')

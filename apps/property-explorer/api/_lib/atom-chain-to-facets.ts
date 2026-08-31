@@ -267,6 +267,20 @@ export interface PeBakedFacetPayload {
         basis: string;
       }
     | null;
+  /** CAD structural year from cortex structuralFact. Never a listing year. */
+  yearBuilt?:
+    | { status: "populated"; value: number }
+    | {
+        status: "absent";
+        verdict: string;
+        authority: string;
+        scopeSearched: string;
+        asOf: string;
+        basis: string;
+      }
+    | null;
+  /** CAD source for yearBuilt. Absent means the card refuses a bare year. */
+  yearBuiltSource?: string | null;
   provenance?: {
     parcelSource?: string;
     parcelVintage?: string | null;

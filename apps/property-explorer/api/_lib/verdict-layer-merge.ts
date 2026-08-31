@@ -73,6 +73,29 @@ function structuralFactToLivingAreaWire(fact: unknown): LayerWire<number> | null
   return layerAbsenceFromRecord(fact);
 }
 
+function structuralFactToYearBuiltWire(fact: unknown): LayerWire<number> | null {
+  if (!fact || typeof fact !== "object" || Array.isArray(fact)) return null;
+  const o = fact as Record<string, unknown>;
+  if (o.state === "present") {
+    const year = o.yearBuilt;
+    if (typeof year === "number" && Number.isFinite(year)) {
+      return { status: "populated", value: year };
+    }
+    return null;
+  }
+  return null;
+}
+
+function structuralFactYearBuiltSource(fact: unknown): string | null {
+  if (!fact || typeof fact !== "object" || Array.isArray(fact)) return null;
+  const o = fact as Record<string, unknown>;
+  if (o.state !== "present") return null;
+  const year = o.yearBuilt;
+  if (typeof year !== "number" || !Number.isFinite(year)) return null;
+  if (typeof o.source === "string" && o.source.trim()) return o.source.trim();
+  return "cad_property";
+}
+
 function bakedZoningHasDistrict(zoning: PeBakedFacetPayload["zoning"]): boolean {
   if (!zoning || typeof zoning !== "object" || Array.isArray(zoning)) return false;
   if ("status" in zoning && zoning.status === "absent") return false;
@@ -83,6 +106,8 @@ function bakedZoningHasDistrict(zoning: PeBakedFacetPayload["zoning"]): boolean 
 /** Cortex JSON ROOT only — never invents verdicts. */
 export function verdictLayersFromCortexRoot(bakedBody: unknown): {
   livingAreaSqft?: LayerWire<number> | null;
+  yearBuilt?: LayerWire<number> | null;
+  yearBuiltSource?: string | null;
   zoning?: LayerAbsenceWire | null;
   structuralCoverage?: boolean;
 } {
@@ -95,6 +120,8 @@ export function verdictLayersFromCortexRoot(bakedBody: unknown): {
     facets?: { zoning?: PeBakedFacetPayload["zoning"] };
   };
   const livingAreaSqft = structuralFactToLivingAreaWire(root.structuralFact);
+  const yearBuilt = structuralFactToYearBuiltWire(root.structuralFact);
+  const yearBuiltSource = structuralFactYearBuiltSource(root.structuralFact);
   const landAbsence = layerAbsenceFromRecord(root.landUseFact);
   const zoning =
     landAbsence?.verdict === "not-applicable" &&
@@ -103,6 +130,8 @@ export function verdictLayersFromCortexRoot(bakedBody: unknown): {
       : null;
   return {
     livingAreaSqft: livingAreaSqft ?? undefined,
+    yearBuilt: yearBuilt ?? undefined,
+    yearBuiltSource: yearBuiltSource ?? undefined,
     zoning: zoning ?? undefined,
     structuralCoverage: root.structuralFact != null,
   };
@@ -115,6 +144,7 @@ export function withVerdictLayerFields(
   const layers = verdictLayersFromCortexRoot(bakedBody);
   if (
     layers.livingAreaSqft === undefined &&
+    layers.yearBuilt === undefined &&
     layers.zoning === undefined &&
     !layers.structuralCoverage
   ) {
@@ -127,6 +157,12 @@ export function withVerdictLayerFields(
   }
   if (layers.livingAreaSqft !== undefined) {
     facets.livingAreaSqft = layers.livingAreaSqft;
+  }
+  if (layers.yearBuilt !== undefined) {
+    facets.yearBuilt = layers.yearBuilt;
+  }
+  if (layers.yearBuiltSource !== undefined) {
+    facets.yearBuiltSource = layers.yearBuiltSource;
   }
   if (layers.zoning !== undefined) {
     facets.zoning = layers.zoning;

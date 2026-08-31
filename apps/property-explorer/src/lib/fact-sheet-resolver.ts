@@ -448,7 +448,7 @@ function landUseFromInspectWire(
     state: "present",
     value: {
       code: landUseCode ?? "",
-      description: landUseLabel ?? landUseCode ?? "",
+      description: landUseLabel ?? "",
     },
     provenance: prov,
   };
@@ -1452,11 +1452,15 @@ function floodFact(floodHazardFact: unknown): Fact<FloodDetermination> {
 
 function verdictLayersFromFacets(facets: BakedFacetPayload): VerdictLayerSnapshot | undefined {
   const hasStructural =
-    facets.facetCoverage?.structural === true || facets.livingAreaSqft != null;
+    facets.facetCoverage?.structural === true ||
+    facets.livingAreaSqft != null ||
+    facets.yearBuilt != null;
   const hasZoningVerdict = isLayerAbsenceWire(facets.zoning);
   if (!hasStructural && !hasZoningVerdict) return undefined;
   return {
     livingAreaSqft: facets.livingAreaSqft,
+    yearBuilt: facets.yearBuilt,
+    yearBuiltSource: facets.yearBuiltSource,
     zoning: facets.zoning,
     facetCoverage: facets.facetCoverage,
     zoningDecline:
