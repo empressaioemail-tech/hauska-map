@@ -43,7 +43,7 @@ const ROOT = join(dirname(fileURLToPath(import.meta.url)), "..");
 const REQUIRED_BUTTON = [
   "src/workbench/tools/LockedToolPanel.tsx",
   "src/workbench/tools/ShareTool.tsx",
-  "src/workbench/tools/UseInYourAiTool.tsx",
+  "src/workbench/tools/ClaudeSyncTool.tsx",
   "src/workbench/tools/PropertiesTool.tsx",
   "src/workbench/tools/ChatTool.tsx",
   "src/workbench/tools/CompareTool.tsx",

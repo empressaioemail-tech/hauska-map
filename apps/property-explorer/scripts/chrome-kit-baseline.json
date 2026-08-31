@@ -119,10 +119,7 @@
     "hex": 1,
     "buttons": 0
   },
-  "src/workbench/tools/UseInYourAiTool.tsx": {
-    "hex": 3,
-    "buttons": 0
-  },
+
   "src/workbench/Workbench.tsx": {
     "hex": 5,
     "buttons": 2

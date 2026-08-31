@@ -343,7 +343,7 @@ export function Workbench({
   // correct when expanding lifted that single dock out into its own floating
   // box. The model changed: the COLUMN widens and every open dock widens with
   // it. Under that model a per-dock opt-out became a veto over every dock
-  // stacked with it — open "Use in your AI" on top of a report and the report
+  // stacked with it — open "Claude Sync" on top of a report and the report
   // could no longer be made readable, which is what the operator hit.
   //
   // The state above already knows this: width "belongs to the COLUMN, so it

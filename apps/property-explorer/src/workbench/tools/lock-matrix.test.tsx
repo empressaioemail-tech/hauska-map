@@ -327,23 +327,37 @@ describe("SHARE bubble (free for signed-in users — acquisition channel)", () =
   });
 });
 
-describe("USE IN YOUR AI bubble (Connect live for Claude/Cursor, share mint secondary)", () => {
-  it("anon → sign-in-first, no Connect", () => {
+describe("CLAUDE SYNC bubble (setup free on sign-in, share mint secondary)", () => {
+  it("anon → sign-in-first, no setup steps", () => {
     primePropertyEntitlement(PARCEL, ANON);
     const html = renderTool("use-in-ai");
-    expect(html).toContain('data-testid="use-in-ai-locked-sign-in"');
-    expect(html).not.toContain('data-testid="use-in-ai-connect-claude"');
+    expect(html).toContain('data-testid="claude-sync-locked-sign-in"');
+    expect(html).not.toContain('data-testid="claude-sync-copy-address"');
   });
 
-  it("free signed-in → sheet + Connect for Claude/Cursor, no paywall", () => {
+  it("free signed-in → the card, with setup and share mint, no paywall", () => {
     primePropertyEntitlement(PARCEL, FREE);
     const html = renderTool("use-in-ai");
-    expect(html).toContain('data-testid="use-in-ai-tool"');
-    expect(html).toContain('data-testid="use-in-ai-create-share"');
-    expect(html).toContain('data-testid="use-in-ai-connect-claude"');
-    expect(html).toContain('data-testid="use-in-ai-connect-cursor"');
-    expect(html).toContain("Coming soon");
+    expect(html).toContain('data-testid="claude-sync-tool"');
+    expect(html).toContain('data-testid="claude-sync-create-share"');
+    // The connection read has not resolved in a static render, so this is the
+    // loading state -- and loading must NOT paint a Sync button. Same
+    // fail-closed rule as `unknown`.
+    expect(html).not.toContain('data-testid="claude-sync-push"');
     expect(html).not.toContain('data-testid="view-pricing-button"');
+  });
+
+  it("advertises no vendor other than Claude at any entitlement", () => {
+    // Operator ruling 2026-08-31. Asserted as absence so the rows cannot
+    // return with nothing failing.
+    for (const tier of [ANON, FREE, PRO]) {
+      primePropertyEntitlement(PARCEL, tier);
+      // Style attributes stripped first: `cursor:pointer` is in every inline
+      // style and is not a vendor row.
+      const text = renderTool("use-in-ai").replace(/ style="[^"]*"/g, "");
+      expect(text).not.toMatch(/ChatGPT|Copilot|Cursor/i);
+      expect(text).not.toContain("Coming soon");
+    }
   });
 });
 
