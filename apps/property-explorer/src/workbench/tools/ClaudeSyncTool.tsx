@@ -29,7 +29,6 @@
 import { useCallback, useEffect, useState, type ReactNode } from "react";
 import { Button } from "../../components/Button";
 import { usePropertyEntitlement } from "../../lib/usePropertyEntitlement";
-import { mintShareLink } from "../../lib/shareClient";
 import { getSavedProperty } from "../../lib/savedPropertiesClient";
 import { savedRowDisplayLabel } from "../../lib/propertyDossier";
 import {
@@ -45,9 +44,8 @@ import {
   subscribeConnectionRefresh,
 } from "../../lib/claudeSync";
 import { PE } from "../../styles/pe-chrome";
-import { useDockToolState, useWorkbench } from "../WorkbenchContext";
+import { useWorkbench } from "../WorkbenchContext";
 import { LockedToolPanel } from "./LockedToolPanel";
-import type { ShareToolStoredState } from "./ShareTool";
 
 export const CLAUDE_SYNC_VALUE_LINE =
   "Your Smart Site account, in Claude. Same plan. No key.";
@@ -143,12 +141,6 @@ export function ClaudeMark({ size = 15 }: { size?: number }) {
     </svg>
   );
 }
-
-type SharePhase =
-  | { kind: "idle" }
-  | { kind: "minting" }
-  | { kind: "notice"; text: string; tone: "muted" | "amber" }
-  | { kind: "copied" };
 
 type CopyPhase =
   { kind: "idle" } | { kind: "copied" } | { kind: "notice"; text: string };
@@ -503,10 +495,6 @@ export function ClaudeSyncBody({
   connection,
   hasParcel,
   subjectLabel,
-  shareUrl,
-  sharePhase,
-  onCreateShare,
-  onCopyShare,
   onSync,
   onSyncDesktop,
   syncPhase,
@@ -517,10 +505,6 @@ export function ClaudeSyncBody({
   connection: ClaudeConnectionState;
   hasParcel: boolean;
   subjectLabel: string | null;
-  shareUrl: string | null;
-  sharePhase: SharePhase;
-  onCreateShare: () => void;
-  onCopyShare: () => void;
   onSync: () => void;
   onSyncDesktop: () => void;
   syncPhase: SyncPhase;
@@ -614,87 +598,12 @@ export function ClaudeSyncBody({
           />
         </>
       )}
-
-      {/* SHARE LINK — a DIFFERENT job, kept on this card by operator ruling
-          2026-08-31: Claude Sync expands YOUR OWN toolset; a share link hands
-          this property to SOMEONE ELSE. Below a divider so the card still
-          leads with one action. This mirrors the Share bubble's stored state
-          rather than minting a second link. */}
-      <div
-        data-testid="claude-sync-share"
-        style={{
-          marginTop: 16,
-          paddingTop: 14,
-          borderTop: `1px solid ${PE.line14}`,
-        }}
-      >
-        <Label>Or hand it to someone else</Label>
-        <p
-          style={{
-            margin: "0 0 8px",
-            fontSize: 12.5,
-            lineHeight: 1.5,
-            color: PE.t5,
-          }}
-        >
-          A share link carries this property into any chat that fetches URLs,
-          and to people who are not on this account.
-        </p>
-        {!hasParcel ? (
-          <p
-            data-testid="claude-sync-share-need-parcel"
-            style={{ margin: 0, fontSize: 12.5, color: PE.t5 }}
-          >
-            Select a property on the map to mint a share link from this sheet.
-          </p>
-        ) : shareUrl ? (
-          <>
-            <Mono testId="claude-sync-share-url">{shareUrl}</Mono>
-            <Button
-              variant="secondary"
-              fullWidth
-              type="button"
-              data-testid="claude-sync-copy-share"
-              onClick={onCopyShare}
-            >
-              {sharePhase.kind === "copied" ? "Copied" : "Copy share link"}
-            </Button>
-          </>
-        ) : (
-          <Button
-            variant="secondary"
-            fullWidth
-            type="button"
-            data-testid="claude-sync-create-share"
-            onClick={onCreateShare}
-            disabled={sharePhase.kind === "minting"}
-          >
-            {sharePhase.kind === "minting"
-              ? "Creating link…"
-              : "Create a share link"}
-          </Button>
-        )}
-        {sharePhase.kind === "notice" ? (
-          <p
-            data-testid="claude-sync-share-notice"
-            style={{
-              margin: "8px 0 0",
-              fontSize: 12.5,
-              color: sharePhase.tone === "amber" ? PE.warning : PE.muted,
-            }}
-          >
-            {sharePhase.text}
-          </p>
-        ) : null}
-      </div>
     </div>
   );
 }
 
 export function ClaudeSyncTool() {
   const { activeParcelNodeId } = useWorkbench();
-  const [stored, setStored] = useDockToolState<ShareToolStoredState>("share");
-  const [sharePhase, setSharePhase] = useState<SharePhase>({ kind: "idle" });
   const [syncPhase, setSyncPhase] = useState<SyncPhase>({ kind: "idle" });
   const [connection, setConnection] = useState<ClaudeConnectionState>({
     kind: "loading",
@@ -812,57 +721,6 @@ export function ClaudeSyncTool() {
     [activeParcelNodeId, subjectLabel],
   );
 
-  const handleCreate = async () => {
-    if (!activeParcelNodeId) return;
-    setSharePhase({ kind: "minting" });
-    const outcome = await mintShareLink(activeParcelNodeId, {
-      includeNotes: true,
-    });
-    switch (outcome.kind) {
-      case "ready":
-        setStored({ link: outcome.link, mintedAt: new Date().toISOString() });
-        setSharePhase({ kind: "idle" });
-        return;
-      case "sign-in":
-        setSharePhase({
-          kind: "notice",
-          text: "Sign in to create a share link for this property.",
-          tone: "amber",
-        });
-        return;
-      case "not-configured":
-        setSharePhase({ kind: "notice", text: outcome.message, tone: "muted" });
-        return;
-      case "message":
-        setSharePhase({ kind: "notice", text: outcome.text, tone: "muted" });
-        return;
-      case "unreachable":
-        setSharePhase({
-          kind: "notice",
-          text: "Could not reach the sharing service.",
-          tone: "muted",
-        });
-        return;
-    }
-  };
-
-  const handleCopy = async () => {
-    if (!stored) return;
-    try {
-      await navigator.clipboard.writeText(stored.link.url);
-      setSharePhase({ kind: "copied" });
-      window.setTimeout(() => {
-        setSharePhase((p) => (p.kind === "copied" ? { kind: "idle" } : p));
-      }, 1800);
-    } catch {
-      setSharePhase({
-        kind: "notice",
-        text: "Copy failed — select the link text and copy it manually.",
-        tone: "muted",
-      });
-    }
-  };
-
   if (activeParcelNodeId && ent.signedOut) {
     return (
       <LockedToolPanel
@@ -879,10 +737,6 @@ export function ClaudeSyncTool() {
       connection={connection}
       hasParcel={Boolean(activeParcelNodeId)}
       subjectLabel={subjectLabel}
-      shareUrl={stored?.link.url ?? null}
-      sharePhase={sharePhase}
-      onCreateShare={() => void handleCreate()}
-      onCopyShare={() => void handleCopy()}
       onSync={() => void pushToClaude("web")}
       onSyncDesktop={() => void pushToClaude("desktop")}
       syncPhase={syncPhase}

@@ -327,7 +327,7 @@ describe("SHARE bubble (free for signed-in users — acquisition channel)", () =
   });
 });
 
-describe("CLAUDE SYNC bubble (setup free on sign-in, share mint secondary)", () => {
+describe("CLAUDE SYNC bubble (setup free on sign-in; no share block)", () => {
   it("anon → sign-in-first, no setup steps", () => {
     primePropertyEntitlement(PARCEL, ANON);
     const html = renderTool("use-in-ai");
@@ -335,11 +335,12 @@ describe("CLAUDE SYNC bubble (setup free on sign-in, share mint secondary)", () 
     expect(html).not.toContain('data-testid="claude-sync-copy-address"');
   });
 
-  it("free signed-in → the card, with setup and share mint, no paywall", () => {
+  it("free signed-in → the card, no paywall, no share block", () => {
     primePropertyEntitlement(PARCEL, FREE);
     const html = renderTool("use-in-ai");
     expect(html).toContain('data-testid="claude-sync-tool"');
-    expect(html).toContain('data-testid="claude-sync-create-share"');
+    // The share block was removed from this card 2026-08-31.
+    expect(html).not.toContain('data-testid="claude-sync-create-share"');
     // The connection read has not resolved in a static render, so this is the
     // loading state -- and loading must NOT paint a Sync button. Same
     // fail-closed rule as `unknown`.
