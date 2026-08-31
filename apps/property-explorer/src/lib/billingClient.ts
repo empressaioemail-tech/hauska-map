@@ -2,7 +2,6 @@
  * Property Explorer billing checkout seam (WDLL 26).
  */
 
-import { CORTEX_PROXY_BASE } from "./config";
 import { getInstallId } from "./installId";
 import { CORTEX_DEEP_PROXY_BASE } from "./auth";
 import { PE_PRICING, type PeCheckoutInterval } from "./pricing";
@@ -101,8 +100,23 @@ export async function startPeCheckout(input: {
       },
     );
     if (res.status === 404 || res.status === 403) {
-      // FEATURE-DETECT: fall back to install-scoped seam until WA1 is live.
-      return startPeCheckoutInstallScoped({ successUrl, cancelUrl });
+      // HONEST REFUSAL (P-97). This branch used to feature-detect back to
+      // startPeCheckoutInstallScoped, a legacy install-scoped seam that posted
+      // a HARDCODED `tier: "pro"` with no interval and no seats. "pro" resolves
+      // to STRIPE_PRO_PRICE_ID, the RETIRED pre-ladder price. A Studio, Team or
+      // annual click that met a 403/404 therefore opened a checkout for a
+      // different product at a different amount and told nobody — a silent tier
+      // downgrade. A checkout is never retried as another tier: same rule the
+      // 503 branch below already states. That seam is retired with this change.
+      //
+      // 403 is REACHABLE, not hypothetical. api/spine-deep.ts:33 returns exactly
+      // 403 for any path failing isDeepPathAllowed, and the deep checkout route
+      // lives on that list by one line (api/_lib/deep-allowlist.ts). An omission
+      // there happened to a different route on 2026-08-31. 404 is the
+      // route-not-deployed case. Both now refuse visibly: the caller surfaces
+      // ok:false through resolveSubscriptionNavigation as an error note, so a
+      // missing route reads as a broken checkout instead of a wrong charge.
+      return { ok: false, message: CHECKOUT_UNAVAILABLE_MESSAGE };
     }
     const json = (await res.json()) as PeCheckoutResult & {
       error?: string;
@@ -127,49 +141,16 @@ export async function startPeCheckout(input: {
   }
 }
 
-/** Legacy install-scoped checkout — retained for feature-detect fallback only. */
-async function startPeCheckoutInstallScoped(input: {
-  successUrl: string;
-  cancelUrl: string;
-}): Promise<PeCheckoutResult> {
-  try {
-    const res = await fetch(
-      `${CORTEX_PROXY_BASE}/brokerage/v1/property-explorer/billing/checkout`,
-      {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          "X-Hauska-Install-Id": getInstallId(),
-        },
-        body: JSON.stringify({
-          tier: "pro",
-          successUrl: input.successUrl,
-          cancelUrl: input.cancelUrl,
-        }),
-      },
-    );
-    const json = (await res.json()) as PeCheckoutResult & {
-      error?: string;
-      message?: string;
-    };
-    if (!res.ok) {
-      return {
-        ok: false,
-        message: json.message ?? json.error ?? `checkout failed (${res.status})`,
-      };
-    }
-    return {
-      ok: true,
-      mode: json.mode,
-      checkoutUrl: json.checkoutUrl,
-      sessionId: json.sessionId,
-      stripeConfigured: json.stripeConfigured,
-      honestNote: json.honestNote,
-    };
-  } catch (err) {
-    return { ok: false, message: (err as Error).message };
-  }
-}
+// RETIRED (P-97): startPeCheckoutInstallScoped. It was the only consumer of
+// the legacy install-scoped seam POST /brokerage/v1/property-explorer/billing/
+// checkout, and its only caller was the 403/404 feature-detect above. It posted
+// a hardcoded tier "pro" — the retired pre-ladder price — so keeping it would
+// leave a live-reading path back to the exact downgrade this card removes.
+// Retired here rather than left dead, per the same-card retirement rule.
+// NOTE: the seam itself is NOT retired by this change. Two other paths still
+// reach it and are out of scope for this card, both reported in the close:
+// the deployed Vercel function api/pe-billing.ts (routed at vercel.json:42),
+// and the starved cortexPostPaths entry at api/spine.ts:346.
 
 /** @deprecated use startPeCheckout — callers must now pass an explicit tier
  *  (the retired "Pro" framing maps to Solo; pass `tier: "solo"`). */
