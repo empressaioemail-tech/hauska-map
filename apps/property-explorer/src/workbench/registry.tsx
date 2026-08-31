@@ -17,7 +17,7 @@ import { ChatTool } from "./tools/ChatTool";
 import { ReportsTool } from "./tools/ReportsTool";
 import { PropertiesTool } from "./tools/PropertiesTool";
 import { ShareTool } from "./tools/ShareTool";
-import { UseInYourAiTool } from "./tools/UseInYourAiTool";
+import { ClaudeMark, ClaudeSyncTool } from "./tools/ClaudeSyncTool";
 import { CompareTool } from "./tools/CompareTool";
 
 // Stroke glyphs in the MapToolset icon language (24-viewBox paths).
@@ -32,15 +32,18 @@ const ICONS = {
   properties: "M7 3h10v18l-5-4-5 4V3Z",
   // iOS share — tray with an arrow flying out the top.
   share: "M4 12v8a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-8M16 6l-4-4-4 4M12 2v13",
-  // Monitor face (Use in your AI — rail circle).
-  useInAi: "M4 6h16a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2Zm5 5h.01M15 11h.01M9.5 14.5h5",
+  // Claude Sync has NO entry here. Every other bubble is a stroke glyph in
+  // currentColor that takes the rail's rest/hover/open ramp; the Claude mark is
+  // a filled vendor logo in its own colour and is rendered by <ClaudeMark />
+  // instead. Do not add a stroke path for it -- a vendor mark that recolours on
+  // hover stops reading as that vendor's mark.
   // Two overlapping rectangles (compare).
   compare: "M4 4h11v11H4V4Zm5 5h11v11H9V9Z",
 } as const;
 
 /**
  * The static v1 registry. Rail order = cluster order, top to bottom. SEVEN
- * rail bubbles (brief, chat, reports, properties, share, use-in-ai, compare).
+ * rail bubbles (brief, chat, reports, properties, share, Claude Sync, compare).
  * The inspect card opens inside the brief dock. Flood stays in Reports.
  */
 export const WORKBENCH_TOOLS: WorkbenchToolDef[] = [
@@ -94,14 +97,18 @@ export const WORKBENCH_TOOLS: WorkbenchToolDef[] = [
     render: () => <ShareTool />,
   },
   {
+    // ID STAYS `use-in-ai` THOUGH THE CARD IS NOW "Claude Sync". The id is the
+    // key for persisted dock layouts and per-tool state in localStorage;
+    // renaming it silently orphans every saved layout in the field for a
+    // cosmetic gain. The label is what the user reads.
     id: "use-in-ai",
-    label: "Use in your AI",
-    icon: <WorkbenchIcon path={ICONS.useInAi} />,
+    label: "Claude Sync",
+    icon: <ClaudeMark />,
     status: "live",
     propertyScoped: false,
     expandable: false,
-    tip: "Open this property in Claude, ChatGPT, Cursor, or Copilot.",
-    render: () => <UseInYourAiTool />,
+    tip: "Push this property into a new Claude chat.",
+    render: () => <ClaudeSyncTool />,
   },
   {
     id: "compare",

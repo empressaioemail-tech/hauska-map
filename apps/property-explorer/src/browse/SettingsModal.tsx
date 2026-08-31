@@ -20,8 +20,11 @@
 //                renewal date have no read anywhere and say Not read. Payment
 //                method, invoices and cancel need a billing portal that does
 //                not exist and say Not built.
-//   Connections  REAL. Renders USE_IN_AI_VENDORS, the same list the rail
-//                bubble renders, so the two cannot drift.
+//   Connections  REAL. Renders CLAUDE_SYNC_VENDORS, the same list the Claude
+//                Sync rail bubble renders, so the two cannot drift. Claude-only
+//                since the 2026-08-31 operator ruling: Cursor Connect still
+//                works against the same OAuth server and is simply no longer
+//                advertised on either surface.
 //   Team         REAL UI over a read that does not exist yet. There is no
 //                members table and no endpoint; fetchTeamRoster calls the one
 //                the server will expose and reports what it got. Today that
@@ -43,7 +46,7 @@ import {
   type AuthStatus,
 } from "../lib/auth";
 import { usePropertyEntitlement } from "../lib/usePropertyEntitlement";
-import { USE_IN_AI_VENDORS } from "../workbench/tools/UseInYourAiTool";
+import { CLAUDE_SYNC_VENDORS } from "../workbench/tools/ClaudeSyncTool";
 import {
   canActOn,
   canInvite,
@@ -355,7 +358,7 @@ export function SettingsModal({
                   properties and reports on this account.
                 </div>
                 <Panel>
-                  {USE_IN_AI_VENDORS.map((row, i) => (
+                  {CLAUDE_SYNC_VENDORS.map((row, i) => (
                     <div
                       key={row.id}
                       data-testid={`settings-connection-${row.id}`}
@@ -367,7 +370,7 @@ export function SettingsModal({
                         gap: 20,
                         padding: "13px 16px",
                         borderBottom:
-                          i === USE_IN_AI_VENDORS.length - 1
+                          i === CLAUDE_SYNC_VENDORS.length - 1
                             ? undefined
                             : `1px solid ${PE.line14}`,
                       }}
@@ -393,8 +396,8 @@ export function SettingsModal({
                   ))}
                 </Panel>
                 <div style={{ fontSize: 12.5, color: PE.t5 }}>
-                  Rows render the shared vendor list the rail bubble renders.
-                  Settings does not declare its own.
+                  Rows render the shared vendor list the Claude Sync bubble
+                  renders. Settings does not declare its own.
                 </div>
               </div>
             ) : null}

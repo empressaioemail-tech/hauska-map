@@ -90,6 +90,12 @@ export const PE = {
   atomLine: "var(--atom-accent-border)",
   /** absence: a thing that is not on file */
   slate: "var(--ss-slate)",
+  /**
+   * The Claude vendor mark. ONE job: the Claude glyph on the Claude Sync rail
+   * bubble and inside that card. Never a control, never chrome. A red-orange,
+   * so it never reads as `gold`, which stays the only brand orange.
+   */
+  claude: "var(--ss-claude)",
 
   // ---- Semantic. Always paired with a word, never colour alone. ---------
   ok: "var(--ss-ok)",
@@ -138,6 +144,9 @@ export const PE = {
   shTip: "var(--ss-sh-tip)",
   shFocus: "var(--ss-sh-focus)",
   shOpen: "var(--ss-sh-open)",
+  /** THE RECESS. Fields and any slot the operator copies from sit one plane
+      BELOW the panel: PE.void ground plus this inset. See pe-tokens.css. */
+  shInset: "var(--ss-sh-inset)",
 
   // ================= LEGACY KEYS — v1 names, Stone values ================
   accent: "var(--ss-blue)",

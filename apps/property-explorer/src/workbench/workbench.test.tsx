@@ -574,7 +574,7 @@ describe("folding the dock the shell is pointing at", () => {
 
 describe("column expand permission — one compact dock must not veto the column", () => {
   // THE BUG THIS EXISTS FOR. `canExpand` read the NEWEST open dock alone. So
-  // opening "Use in your AI" (expandable: false, correctly — its content is a
+  // opening "Claude Sync" (expandable: false, correctly — its content is a
   // connector card that gains nothing from width) on top of a report made the
   // whole column unexpandable, and the report underneath could not be widened
   // to be read. The operator hit it; nothing in the suite could, because the

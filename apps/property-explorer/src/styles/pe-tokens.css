@@ -84,6 +84,14 @@
                                inherited a wrong premise from the document it was
                                checking and passed on a token that never moved. */
   --ss-sky:       #2C6B9E;  /* MAP GEOMETRY ONLY. Never inside a panel. */
+  --ss-claude:    #D97757;  /* THE CLAUDE VENDOR MARK. One job: the Claude
+                               glyph on the Claude Sync rail bubble and inside
+                               that card. Never a button, a link, a fill, a
+                               hover, or any chrome. It is a foreign brand
+                               colour carried so the connector is recognisable,
+                               and it is deliberately a RED-orange so it cannot
+                               be mistaken for --ss-gold, which stays the
+                               loudest orange and the only brand orange. */
 
   /* ---- Semantic. Desaturated so gold stays the loudest orange on screen.
           Always paired with a word or a glyph, never colour alone. ------ */
