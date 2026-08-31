@@ -19,12 +19,24 @@ on:
       - "apps/command-center/**"
       - "packages/map-renderer/**"
       - ".github/workflows/command-center-ci.yml"
+      # .gitattributes governs how EVERY file in this repo is checked out.
+      # Without it here a line-ending policy change triggers no CI at all: the
+      # file most able to break every other file was the one file this workflow
+      # could not see. Found 2026-08-31 when a .gitattributes-only PR sat with
+      # its required checks permanently unreported.
+      - ".gitattributes"
   push:
     branches: [main]
     paths:
       - "apps/command-center/**"
       - "packages/map-renderer/**"
       - ".github/workflows/command-center-ci.yml"
+      # .gitattributes governs how EVERY file in this repo is checked out.
+      # Without it here a line-ending policy change triggers no CI at all: the
+      # file most able to break every other file was the one file this workflow
+      # could not see. Found 2026-08-31 when a .gitattributes-only PR sat with
+      # its required checks permanently unreported.
+      - ".gitattributes"
   workflow_dispatch:
     inputs:
       live_smoke:

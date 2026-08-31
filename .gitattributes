@@ -1,0 +1,35 @@
+# Line endings.
+#
+# This repo is built and deployed from Linux (GitHub Actions, Vercel builders),
+# always from a fresh clone. The LF blob in git is therefore the artifact that
+# actually ships. A Windows checkout with core.autocrlf=true rewrites tracked
+# text to CRLF, so the working copy stops matching the thing that gets built and
+# served. That is a defect in the checkout, not in the tests that catch it, and
+# both rules below name a concrete mechanism that breaks without them.
+
+# Everything under apps/property-explorer/public is copied into dist and served
+# to clients byte for byte, so the committed blob is the served bytes.
+#
+# "-text" rather than "text eol=lf" on purpose: git performs no end-of-line
+# conversion in either direction, which keeps two properties. The blob is
+# literally what ships, and the llms.txt contract assertion in
+# apps/property-explorer/src/lib/pe-llms-txt.test.ts stays a true byte
+# comparison against the LLMS_TXT template literal on every platform. Under
+# "text eol=lf" git would silently rewrite a CRLF commit and that assertion
+# could never fail on line endings again.
+apps/property-explorer/public/** -text
+
+# Shebang scripts must check out with LF.
+#
+# vite's SSR transform locates the hashbang with /^#!.*\n/ (vite 6.4.3,
+# ssrTransformScript). "." does not match "\r" in JavaScript, so on a CRLF file
+# the pattern never matches, fileStartIndex falls back to 0, and the hoisted
+# __vite_ssr_import__ block is inserted BEFORE the "#!". That leaves a hashbang
+# part-way through the source, which is a SyntaxError, and the importing test
+# file fails to collect with no useful message.
+#
+# Nine tracked .mjs files carry a shebang. render-mark.mjs is the one currently
+# imported by a vitest suite (apps/property-explorer/scripts/render-mark.test.mjs),
+# but the rule is written for the class rather than that one file, because the
+# next test to import any of the other eight would hit the identical failure.
+*.mjs text eol=lf
