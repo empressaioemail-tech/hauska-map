@@ -19,6 +19,7 @@ import {
   CLAUDE_SYNC_VALUE_LINE,
   CLAUDE_SYNC_VENDORS,
   ClaudeSyncBody,
+  connectionFailureLine,
   SMART_SITE_CONNECT_HOST,
   SMART_SITE_CONNECT_URL,
   type ClaudeConnectionState,
@@ -122,16 +123,44 @@ describe("state A — not connected", () => {
   it("shows setup for EVERY unknown, never a Sync button", () => {
     // The fail-closed direction. A read that 404s, 500s or times out resolves
     // to `unknown`, and `unknown` must never paint a control that does nothing.
-    for (const kind of ["unknown", "loading"] as const) {
-      const html = sheet({ connection: { kind } });
-      expect(html).not.toContain('data-testid="claude-sync-push"');
+    const unknown = { kind: "unknown", reason: "could not check" } as const;
+    for (const connection of [unknown, { kind: "loading" } as const]) {
+      expect(sheet({ connection })).not.toContain(
+        'data-testid="claude-sync-push"',
+      );
     }
-    expect(sheet({ connection: { kind: "unknown" } })).toContain(
+    expect(sheet({ connection: unknown })).toContain(
       'data-testid="claude-sync-setup"',
     );
     expect(sheet({ connection: { kind: "loading" } })).toContain(
       'data-testid="claude-sync-loading"',
     );
+  });
+
+  it("SAYS the check failed instead of silently implying not-connected", () => {
+    // The whole reason the dead-proxy bug survived a deploy: a read that
+    // failed and a read that returned nothing painted the identical panel.
+    // A failed read must be visible as a failure.
+    const html = sheet({
+      connection: {
+        kind: "unknown",
+        reason: "Smart Site could not check this account.",
+      },
+    });
+    expect(html).toContain('data-testid="claude-sync-check-failed"');
+    expect(html).toContain("Smart Site could not check this account.");
+
+    // And an honest empty answer must NOT show that notice.
+    const clean = sheet({ connection: { kind: "not-connected" } });
+    expect(clean).not.toContain('data-testid="claude-sync-check-failed"');
+  });
+
+  it("never tells a signed-in user to sign in when the fault is ours", () => {
+    // 403 from our own deep proxy is a misconfiguration, not a session
+    // problem. Saying "sign in" there is the specific lie that hid this.
+    expect(connectionFailureLine({ kind: "blocked" })).not.toMatch(/sign in/i);
+    expect(connectionFailureLine({ kind: "blocked" })).toMatch(/our side/i);
+    expect(connectionFailureLine({ kind: "sign-in" })).toMatch(/sign in/i);
   });
 
   it("offers NO way back when setup is the only state — there is nothing to go back to", () => {
