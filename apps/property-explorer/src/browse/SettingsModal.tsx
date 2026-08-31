@@ -200,7 +200,31 @@ export function SettingsModal({
     };
   }, [section, team]);
 
-  const access = ent.locked ? "Free" : ent.signedOut ? "Not read" : "Paid";
+  // ACCESS SAYS "Not read" UNTIL THE READ RESOLVES, AND HERE IT NEVER DOES.
+  //
+  // This line used to be `locked ? "Free" : signedOut ? "Not read" : "Paid"`,
+  // and it showed **Paid to every account, including anonymous**. The chain:
+  // line 183 passes `null` on purpose, because Settings is account-scoped and
+  // has no parcel; usePropertyEntitlement returns its LOADING constant for a
+  // null id; LOADING carries `locked: false` and `signedOut: false`; so both
+  // guards missed and the ternary fell through to its most generous branch.
+  //
+  // The entitlement route requires a parcelNodeId, so this hook can never
+  // answer an account-level question and the field is UNREADABLE from here.
+  // This panel's own rule is that a field with no traced source says Not read.
+  // It now obeys that rule rather than guessing the flattering answer.
+  //
+  // The real fix is an account-level entitlement read that does not need a
+  // parcel. That same missing read also starves the next-action rail's
+  // annual_upgrade rung, which needs billingInterval. One route unblocks both.
+  const access =
+    ent.status !== "ready"
+      ? "Not read"
+      : ent.locked
+        ? "Free"
+        : ent.signedOut
+          ? "Not read"
+          : "Paid";
 
   return (
     <Modal label="Settings" title="Settings" onClose={onClose} width={940}>
