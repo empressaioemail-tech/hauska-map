@@ -17,6 +17,8 @@ import type { WorkbenchHostActions } from "../types";
 import {
   CLAUDE_CUSTOMIZE_CONNECTORS_URL,
   CLAUDE_SYNC_VALUE_LINE,
+  CLAUDE_CAN_DO,
+  CLAUDE_NOT_YET,
   CLAUDE_SYNC_VENDORS,
   ClaudeSyncBody,
   connectionFailureLine,
@@ -325,5 +327,56 @@ describe("Claude Sync in the dock", () => {
     expect(html).toContain("Claude Sync");
     expect(html).toContain(CLAUDE_SYNC_VALUE_LINE);
     expect(html).not.toContain('data-testid="dock-coming"');
+  });
+});
+
+describe("what you can do in Claude with Smart Site", () => {
+  // The list is transcribed from the server's own llms.txt, which publishes
+  // thirteen tools and marks THREE of them `not ready`. A card headed "what
+  // you can do" that names one of those three is a promise the product cannot
+  // keep, and the user finds out by asking Claude and getting a refusal.
+  const NOT_READY = ["request_records", "check_request", "ask_the_map"];
+  const NOT_READY_PROSE = [
+    /records request/i,
+    /ask the map/i,
+    /check a request/i,
+  ];
+
+  it("names no capability the server reports as not ready", () => {
+    const blob = CLAUDE_CAN_DO.map((r) => `${r.title} ${r.line}`).join(" ");
+    for (const tool of NOT_READY) {
+      expect(blob).not.toContain(tool);
+    }
+    for (const re of NOT_READY_PROSE) {
+      expect(blob).not.toMatch(re);
+    }
+  });
+
+  it("says what is NOT yet live rather than staying silent about it", () => {
+    // Silence reads as "not possible" rather than "not yet".
+    expect(CLAUDE_NOT_YET).toMatch(/not live yet/i);
+    expect(CLAUDE_NOT_YET).toMatch(/records/i);
+  });
+
+  it("is a real list with a line for every row (NOT VACUOUS)", () => {
+    expect(CLAUDE_CAN_DO.length).toBeGreaterThanOrEqual(5);
+    for (const row of CLAUDE_CAN_DO) {
+      expect(row.title.trim().length).toBeGreaterThan(0);
+      expect(row.line.trim().length).toBeGreaterThan(0);
+    }
+  });
+
+  it("is COLLAPSED by default and lives in the connected state", () => {
+    const html = sheet({ connection: CONNECTED });
+    expect(html).toContain('data-testid="claude-sync-can-do-toggle"');
+    expect(html).toContain("What you can do in Claude with Smart Site");
+    // Collapsed: the rows are not in the markup until it is opened.
+    expect(html).not.toContain('data-testid="claude-sync-can-do"');
+    expect(html).not.toContain(CLAUDE_CAN_DO[0]!.line);
+  });
+
+  it("sits under Connect a different Claude, not in the setup state", () => {
+    const setup = sheet({ connection: { kind: "not-connected" } });
+    expect(setup).not.toContain('data-testid="claude-sync-can-do-toggle"');
   });
 });
