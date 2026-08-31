@@ -41,6 +41,7 @@ import {
   claudeDesktopChatUrl,
   claudeWebChatUrl,
   relativeSeen,
+  subscribeConnectionRefresh,
 } from "../../lib/claudeSync";
 import { PE } from "../../styles/pe-chrome";
 import { useDockToolState, useWorkbench } from "../WorkbenchContext";
@@ -236,12 +237,17 @@ export function ClaudeSetupPanel({
   onCopyAddress,
   heading,
   onBack,
+  onRecheck,
+  checking,
 }: {
   copyPhase: CopyPhase;
   onCopyAddress: () => void;
   heading?: string;
   /** Present only when these steps were reached FROM the connected state. */
   onBack?: () => void;
+  /** Manual re-read. The belt for when a focus event does not fire. */
+  onRecheck?: () => void;
+  checking?: boolean;
 }) {
   return (
     <div data-testid="claude-sync-setup">
@@ -313,6 +319,18 @@ export function ClaudeSetupPanel({
         >
           Open Customize → Connectors
         </Button>
+        {onRecheck ? (
+          <Button
+            variant="ghost"
+            dense
+            type="button"
+            data-testid="claude-sync-recheck"
+            onClick={onRecheck}
+            disabled={checking}
+          >
+            {checking ? "Checking…" : "Already connected? Check again"}
+          </Button>
+        ) : null}
         {onBack ? (
           <Button
             variant="ghost"
@@ -464,6 +482,8 @@ export function ClaudeSyncBody({
   onSync,
   onSyncDesktop,
   syncPhase,
+  onRecheck,
+  checking,
   now,
 }: {
   connection: ClaudeConnectionState;
@@ -476,6 +496,9 @@ export function ClaudeSyncBody({
   onSync: () => void;
   onSyncDesktop: () => void;
   syncPhase: SyncPhase;
+  /** Manual re-read of the connection. Absent in pure-render tests. */
+  onRecheck?: () => void;
+  checking?: boolean;
   now?: number;
 }) {
   const [copyPhase, setCopyPhase] = useState<CopyPhase>({ kind: "idle" });
@@ -541,6 +564,8 @@ export function ClaudeSyncBody({
               : "Connect Claude to this Smart Site account. Three steps, no key."
           }
           onBack={forceSetup ? () => setForceSetup(false) : undefined}
+          onRecheck={onRecheck}
+          checking={checking}
         />
       )}
 
@@ -631,27 +656,53 @@ export function ClaudeSyncTool() {
   const [subjectLabel, setSubjectLabel] = useState<string | null>(null);
   const ent = usePropertyEntitlement(activeParcelNodeId);
 
-  // THE CONNECTED READ. Every non-ready outcome resolves to a state that
-  // renders SETUP. `unknown` and `not-connected` are kept apart because they
-  // are different facts even though they paint the same panel today.
+  // THE CONNECTED READ, AND WHY IT RE-RUNS.
+  //
+  // This shipped 2026-08-31 as a mount-only `useEffect` with `[]` deps, and it
+  // was the defect the operator hit within the hour: connect Claude, come back
+  // to the tab, and the card is still showing setup instructions computed
+  // BEFORE the connect. Reopening the card did not help either, because the
+  // dock collapse keeps its content mounted (`maxHeight: isOpen ? 100000 : 0`
+  // in Workbench.tsx) rather than unmounting it. Only a full page reload ever
+  // re-read. A correct read that runs once and can never run again is a
+  // starved mechanism: it reports as working and answers with stale state.
+  //
+  // Connecting happens in ANOTHER APPLICATION. The whole flow is: leave this
+  // tab, do something in Claude, come back. So the return itself is the
+  // signal, and `focus` plus `visibilitychange` are what carry it. The manual
+  // control below is the belt: focus events do not fire in every arrangement
+  // (same-tab navigation and back, some window managers), and a user who has
+  // just connected needs a way to say so that does not depend on us guessing
+  // the window semantics right.
+  const [checking, setChecking] = useState(false);
+
+  const refreshConnection = useCallback(async () => {
+    setChecking(true);
+    const outcome = await fetchAiConnections();
+    setChecking(false);
+    if (outcome.kind !== "ready") {
+      setConnection({ kind: "unknown" });
+      return;
+    }
+    setConnection(
+      outcome.claude
+        ? { kind: "connected", connection: outcome.claude }
+        : { kind: "not-connected" },
+    );
+  }, []);
+
   useEffect(() => {
     let live = true;
-    void fetchAiConnections().then((outcome) => {
-      if (!live) return;
-      if (outcome.kind !== "ready") {
-        setConnection({ kind: "unknown" });
-        return;
-      }
-      setConnection(
-        outcome.claude
-          ? { kind: "connected", connection: outcome.claude }
-          : { kind: "not-connected" },
-      );
-    });
+    const run = () => {
+      if (live) void refreshConnection();
+    };
+    run();
+    const unsubscribe = subscribeConnectionRefresh(run, window, document);
     return () => {
       live = false;
+      unsubscribe();
     };
-  }, []);
+  }, [refreshConnection]);
 
   // BEST-EFFORT LABEL. Resolved from the saved-property row when there is one.
   // Never synthesised: an unresolved label falls back to the node id, which is
@@ -786,6 +837,8 @@ export function ClaudeSyncTool() {
       onSync={() => void pushToClaude("web")}
       onSyncDesktop={() => void pushToClaude("desktop")}
       syncPhase={syncPhase}
+      onRecheck={() => void refreshConnection()}
+      checking={checking}
     />
   );
 }
