@@ -376,6 +376,119 @@ export function ClaudeSetupPanel({
 }
 
 /**
+ * WHAT YOU CAN DO IN CLAUDE WITH SMART SITE.
+ *
+ * TAKEN FROM THE SERVER'S OWN llms.txt, not written from memory. The Smart
+ * Site MCP publishes thirteen tools and marks THREE of them `not ready`:
+ * request_records, check_request and ask_the_map. Those are deliberately
+ * absent from this list. A card headed "what you can do" that names a tool
+ * returning not_ready is a promise the product cannot keep, and the user
+ * discovers it by asking Claude and getting a refusal.
+ *
+ * When one of the three goes live, it moves from CLAUDE_NOT_YET to
+ * CLAUDE_CAN_DO. The test pins that the two sets never overlap.
+ */
+export const CLAUDE_CAN_DO: { title: string; line: string }[] = [
+  {
+    title: "Find a property",
+    line: "By address or parcel id, anywhere in Central Texas coverage.",
+  },
+  {
+    title: "Open its smart site",
+    line: "Zoning and jurisdiction, land use, flood zone and the setback disposition, each with its citation.",
+  },
+  {
+    title: "Run the property report",
+    line: "The same R1 report the Reports tool builds, read from the baked snapshot.",
+  },
+  {
+    title: "Export an instrument",
+    line: "Site plan, terrain model, dossier or brief, at whatever your plan allows.",
+  },
+  {
+    title: "Screen a pasted list",
+    line: "Paste addresses and Claude opens a screening board with a rail state per property.",
+  },
+  {
+    title: "Keep a screen",
+    line: "Add properties to a screen and reopen it later by name.",
+  },
+  {
+    title: "Save and track",
+    line: "Save a property, set it to New, Watching, Chasing or Passed, and list what you have saved.",
+  },
+];
+
+/**
+ * Named because silence reads as "not possible" rather than "not yet", and a
+ * user who asks Claude for records should not have to learn this from a
+ * refusal. These are the server's own `not ready` tools.
+ */
+export const CLAUDE_NOT_YET =
+  "Records requests and free-form questions about a parcel are not live yet.";
+
+function WhatYouCanDo() {
+  const [open, setOpen] = useState(false);
+  return (
+    <div style={{ marginTop: 4 }}>
+      <Button
+        variant="ghost"
+        dense
+        type="button"
+        data-testid="claude-sync-can-do-toggle"
+        aria-expanded={open}
+        onClick={() => setOpen((v) => !v)}
+      >
+        {open ? "Hide" : "What you can do in Claude with Smart Site"}
+      </Button>
+      {open ? (
+        <ul
+          data-testid="claude-sync-can-do"
+          style={{ listStyle: "none", margin: "6px 0 0", padding: 0 }}
+        >
+          {CLAUDE_CAN_DO.map((row, i) => (
+            <li
+              key={row.title}
+              style={{
+                padding: "7px 0",
+                borderTop: i === 0 ? undefined : `1px solid ${PE.line06}`,
+              }}
+            >
+              <div style={{ fontSize: 12.5, fontWeight: 600, color: PE.t2 }}>
+                {row.title}
+              </div>
+              <div
+                style={{
+                  marginTop: 2,
+                  fontSize: 12.5,
+                  lineHeight: 1.45,
+                  color: PE.t5,
+                }}
+              >
+                {row.line}
+              </div>
+            </li>
+          ))}
+          <li
+            data-testid="claude-sync-not-yet"
+            style={{
+              marginTop: 8,
+              paddingTop: 8,
+              borderTop: `1px solid ${PE.line06}`,
+              fontSize: 12.5,
+              lineHeight: 1.45,
+              color: PE.t6,
+            }}
+          >
+            {CLAUDE_NOT_YET}
+          </li>
+        </ul>
+      ) : null}
+    </div>
+  );
+}
+
+/**
  * STATE B — push it.
  *
  * Sync copies the prompt AND opens a chat, and the confirmation says both.
@@ -486,6 +599,7 @@ export function ClaudeSyncPanel({
         >
           Connect a different Claude
         </Button>
+        <WhatYouCanDo />
       </div>
     </div>
   );
