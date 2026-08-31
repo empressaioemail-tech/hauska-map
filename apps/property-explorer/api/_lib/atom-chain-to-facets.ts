@@ -242,6 +242,16 @@ export interface PeBakedFacetPayload {
     secondSource?: { source: string; note: string; citationUrl?: string };
     buildableAreaPct?: number;
     buildableAreaSqFt?: number;
+    /**
+     * C4 / liveBuildablePct nest. Written only when a percent is a real
+     * number. Absent when the lot area is unknown — never a 0 standing in
+     * for a missing denominator.
+     */
+    summary?: {
+      buildableAreaPct: number;
+      buildableAreaSqFt: number;
+      parcelAreaSqFt: number;
+    };
     disclosure?: string;
     emptyReason?: string;
     citationUrl?: string;
@@ -1226,6 +1236,75 @@ export function mergeBakedBaseFacts(
     },
   };
   return withRootFacts(merged, bakedBody);
+}
+
+const SQFT_PER_ACRE = 43560;
+
+function lotAreaSqFtFromAcreage(
+  acreage: { value?: number; sqft?: number } | null | undefined,
+): number | null {
+  if (!acreage || typeof acreage !== "object") return null;
+  if (typeof acreage.sqft === "number" && Number.isFinite(acreage.sqft) && acreage.sqft > 0) {
+    return acreage.sqft;
+  }
+  if (typeof acreage.value === "number" && Number.isFinite(acreage.value) && acreage.value > 0) {
+    return acreage.value * SQFT_PER_ACRE;
+  }
+  return null;
+}
+
+function roundTenths(n: number): number {
+  return Math.round(n * 10) / 10;
+}
+
+/**
+ * C4: after acreage is merged from the cortex bake, derive
+ * buildableAreaPct when the envelope claims a positive area and the lot
+ * area is known. Writes the root field (sheet resolver) and the summary
+ * nest (Gate 8 C4 / liveBuildablePct).
+ *
+ * Fail closed: unknown or non-positive lot area leaves both fields
+ * absent. Never emit 0 for a missing denominator.
+ */
+export function attachBuildablePctFromKnownLotArea(
+  payload: PeBakedFacetsResponse,
+): PeBakedFacetsResponse {
+  const facets = payload.facets;
+  const env = facets.envelope;
+  if (!env || typeof env !== "object" || env.status !== "ok") {
+    return payload;
+  }
+  const sqft = env.buildableAreaSqFt;
+  if (typeof sqft !== "number" || !Number.isFinite(sqft) || sqft <= 0) {
+    return payload;
+  }
+  const lotSqFt = lotAreaSqFtFromAcreage(facets.baseFacts?.acreage);
+  if (lotSqFt == null) {
+    return payload;
+  }
+  const existing =
+    typeof env.buildableAreaPct === "number" && Number.isFinite(env.buildableAreaPct)
+      ? env.buildableAreaPct
+      : null;
+  const pct = existing ?? roundTenths((sqft / lotSqFt) * 100);
+  if (!Number.isFinite(pct) || pct <= 0) {
+    return payload;
+  }
+  return {
+    ...payload,
+    facets: {
+      ...facets,
+      envelope: {
+        ...env,
+        buildableAreaPct: pct,
+        summary: {
+          buildableAreaPct: pct,
+          buildableAreaSqFt: sqft,
+          parcelAreaSqFt: lotSqFt,
+        },
+      },
+    },
+  };
 }
 
 /**
