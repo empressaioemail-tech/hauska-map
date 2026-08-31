@@ -7,6 +7,7 @@ import {
   claudeDesktopChatUrl,
   claudeWebChatUrl,
   relativeSeen,
+  subscribeConnectionRefresh,
 } from "./claudeSync";
 import { parseAiConnections } from "./aiConnectionClient";
 
@@ -130,5 +131,76 @@ describe("parseAiConnections", () => {
       claude: null,
     });
     expect(parsed?.connections.map((c) => c.client)).toEqual(["claude-ai"]);
+  });
+});
+
+describe("subscribeConnectionRefresh — the defect that shipped 2026-08-31", () => {
+  // The card read the connection once on mount with [] deps and could never
+  // read it again. Connect Claude, come back, and it still showed setup.
+  // Collapsing the dock did not help either: the dock keeps its content
+  // mounted. These tests exist so that wiring cannot go missing silently.
+  function fakeTarget() {
+    const handlers = new Map<string, Set<() => void>>();
+    return {
+      addEventListener(t: string, h: () => void) {
+        if (!handlers.has(t)) handlers.set(t, new Set());
+        handlers.get(t)!.add(h);
+      },
+      removeEventListener(t: string, h: () => void) {
+        handlers.get(t)?.delete(h);
+      },
+      fire(t: string) {
+        for (const h of [...(handlers.get(t) ?? [])]) h();
+      },
+      count(t: string) {
+        return handlers.get(t)?.size ?? 0;
+      },
+    };
+  }
+
+  it("re-reads when the window regains focus (NOT VACUOUS)", () => {
+    const win = fakeTarget();
+    const doc = { ...fakeTarget(), visibilityState: "visible" };
+    let runs = 0;
+    subscribeConnectionRefresh(() => runs++, win, doc as never);
+    expect(runs).toBe(0);
+    win.fire("focus");
+    expect(runs).toBe(1);
+    win.fire("focus");
+    expect(runs).toBe(2);
+  });
+
+  it("re-reads when the tab becomes visible", () => {
+    const win = fakeTarget();
+    const doc = Object.assign(fakeTarget(), { visibilityState: "visible" });
+    let runs = 0;
+    subscribeConnectionRefresh(() => runs++, win, doc as never);
+    doc.fire("visibilitychange");
+    expect(runs).toBe(1);
+  });
+
+  it("does NOT re-read when the document is hidden", () => {
+    // A background tab waking up is not a user coming back to look.
+    const win = fakeTarget();
+    const doc = Object.assign(fakeTarget(), { visibilityState: "hidden" });
+    let runs = 0;
+    subscribeConnectionRefresh(() => runs++, win, doc as never);
+    doc.fire("visibilitychange");
+    expect(runs).toBe(0);
+  });
+
+  it("unsubscribes both listeners, so a closed card stops polling the account", () => {
+    const win = fakeTarget();
+    const doc = Object.assign(fakeTarget(), { visibilityState: "visible" });
+    let runs = 0;
+    const off = subscribeConnectionRefresh(() => runs++, win, doc as never);
+    expect(win.count("focus")).toBe(1);
+    expect(doc.count("visibilitychange")).toBe(1);
+    off();
+    expect(win.count("focus")).toBe(0);
+    expect(doc.count("visibilitychange")).toBe(0);
+    win.fire("focus");
+    doc.fire("visibilitychange");
+    expect(runs).toBe(0);
   });
 });

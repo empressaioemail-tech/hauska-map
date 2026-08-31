@@ -67,6 +67,7 @@ function sheet(opts?: {
   hasParcel?: boolean;
   shareUrl?: string | null;
   subjectLabel?: string | null;
+  onRecheck?: () => void;
 }): string {
   return renderToStaticMarkup(
     <ClaudeSyncBody
@@ -80,6 +81,7 @@ function sheet(opts?: {
       onSync={noop}
       onSyncDesktop={noop}
       syncPhase={{ kind: "idle" }}
+      onRecheck={opts?.onRecheck}
       now={Date.parse("2026-08-31T12:00:00.000Z")}
     />,
   );
@@ -138,6 +140,18 @@ describe("state A — not connected", () => {
     // at a panel that cannot render.
     const html = sheet({ connection: { kind: "not-connected" } });
     expect(html).not.toContain('data-testid="claude-sync-setup-back"');
+  });
+
+  it("offers a MANUAL re-check, so the flip never depends only on a focus event", () => {
+    // The operator connected Claude, came back, and the card still showed
+    // setup. Focus/visibility now re-read, but neither fires in every window
+    // arrangement, so someone who has just connected must be able to say so.
+    const html = sheet({
+      connection: { kind: "not-connected" },
+      onRecheck: () => {},
+    });
+    expect(html).toContain('data-testid="claude-sync-recheck"');
+    expect(html).toContain("Already connected? Check again");
   });
 
   it("carries three numbered steps, not a run-on paragraph", () => {

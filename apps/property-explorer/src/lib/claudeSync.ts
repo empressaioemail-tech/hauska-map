@@ -89,3 +89,47 @@ export function relativeSeen(
   const days = Math.round(hours / 24);
   return `${days} day${days === 1 ? "" : "s"} ago`;
 }
+
+/** Minimal shapes so this is testable without jsdom. */
+export interface RefreshTarget {
+  addEventListener(type: string, handler: () => void): void;
+  removeEventListener(type: string, handler: () => void): void;
+}
+export interface VisibilityDoc extends RefreshTarget {
+  readonly visibilityState: string;
+}
+
+/**
+ * Re-read the Claude connection when the user COMES BACK to this tab.
+ *
+ * Connecting a connector happens in another application, so the whole flow is
+ * leave, do something in Claude, return. The return is the signal. The card
+ * originally read once on mount and never again, which meant it answered with
+ * state computed before the connect and looked, from the outside, exactly like
+ * a working card that had decided you were not connected.
+ *
+ * `focus` and `visibilitychange` are both wired because neither alone covers
+ * the cases: switching windows fires focus, switching tabs fires
+ * visibilitychange, and which one you get depends on the OS and the browser.
+ * A hidden document must NOT trigger a read — that is a background tab waking
+ * up, not a user returning to look at the card.
+ *
+ * Returns the unsubscribe. Extracted from the component so the wiring itself
+ * has a test: the defect this replaces passed every test in the suite while
+ * being incapable of ever running twice.
+ */
+export function subscribeConnectionRefresh(
+  run: () => void,
+  win: RefreshTarget,
+  doc: VisibilityDoc,
+): () => void {
+  const onVisible = () => {
+    if (doc.visibilityState === "visible") run();
+  };
+  win.addEventListener("focus", run);
+  doc.addEventListener("visibilitychange", onVisible);
+  return () => {
+    win.removeEventListener("focus", run);
+    doc.removeEventListener("visibilitychange", onVisible);
+  };
+}
