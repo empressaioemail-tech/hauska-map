@@ -9,7 +9,22 @@ import { PE } from "../styles/pe-chrome";
 //
 //   resting  ink at 94%, line-14 edge, radius 10, dock shadow. Docks, inspect,
 //            anything sitting on the map.
-//   raised   raised at 98%, line-28 edge, radius 14, modal shadow. MODAL ONLY.
+//   raised   raised at 98%, line-14 edge, radius 14, modal shadow. MODAL ONLY.
+//
+// THE RAISED EDGE WAS line-28 AND THAT WAS THE WRONG TOKEN. pe-tokens.css
+// defines line-14 as "the edge OF a surface" and line-28 as "focus, outline
+// buttons, emphasis". A modal is a surface, so its border is an edge, and the
+// resting branch four lines up has always spelled that correctly. The raised
+// branch was reaching for the emphasis token to draw ordinary structure, which
+// is why Settings read white beside the docks. Measured on the raised ground
+// #3F4043: line-28 is 3.017, line-14 is 1.438.
+//
+// This is the ONLY consumer of the raised branch that exists (Card has one
+// importer, Modal.tsx, which has two: SettingsModal and PdfViewer), so the
+// change reaches exactly those two surfaces. It does NOT reach PricingModal,
+// CheckoutPage, UnlockCheckoutModal or SignUpCard, which hand-roll the same
+// chrome and still carry a line-28 edge. That inconsistency is recorded rather
+// than silently widened here.
 
 export function Card({
   raised,
@@ -19,7 +34,7 @@ export function Card({
   const chrome: CSSProperties = raised
     ? {
         background: PE.modalBg,
-        border: `1px solid ${PE.line28}`,
+        border: `1px solid ${PE.line14}`,
         borderRadius: PE.rModal,
         boxShadow: PE.shModal,
         color: PE.t3,

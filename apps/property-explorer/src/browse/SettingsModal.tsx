@@ -114,7 +114,7 @@ function Panel({ children }: { children: ReactNode }) {
       style={{
         display: "flex",
         flexDirection: "column",
-        border: `1px solid ${PE.line28}`,
+        border: `1px solid ${PE.line14}`,
         borderRadius: PE.rTouch,
         overflow: "hidden",
       }}
@@ -142,7 +142,7 @@ function Row({
         flexDirection: "column",
         gap: 4,
         padding: "13px 16px",
-        borderBottom: last ? undefined : `1px solid ${PE.line14}`,
+        borderBottom: last ? undefined : `1px solid ${PE.line06}`,
       }}
     >
       <div
@@ -211,7 +211,7 @@ export function SettingsModal({
           style={{
             display: "flex",
             gap: 4,
-            borderBottom: `1px solid ${PE.line28}`,
+            borderBottom: `1px solid ${PE.line06}`,
             marginBottom: 0,
           }}
         >
@@ -310,7 +310,7 @@ export function SettingsModal({
                     justifyContent: "space-between",
                     gap: 20,
                     padding: "16px 18px",
-                    border: `1px solid ${PE.line28}`,
+                    border: `1px solid ${PE.line14}`,
                     borderRadius: PE.rTouch,
                   }}
                 >
@@ -372,7 +372,7 @@ export function SettingsModal({
                         borderBottom:
                           i === CLAUDE_SYNC_VENDORS.length - 1
                             ? undefined
-                            : `1px solid ${PE.line14}`,
+                            : `1px solid ${PE.line06}`,
                       }}
                     >
                       <div style={{ display: "flex", flexDirection: "column", gap: 3 }}>
@@ -416,7 +416,7 @@ export function SettingsModal({
           {/* ON THIS TAB */}
           <div
             style={{
-              borderLeft: `1px solid ${PE.line28}`,
+              borderLeft: `1px solid ${PE.line06}`,
               padding: "22px 20px",
               display: "flex",
               flexDirection: "column",
@@ -443,7 +443,7 @@ export function SettingsModal({
                 fontSize: 12.5,
                 lineHeight: 1.6,
                 color: PE.t5,
-                borderTop: `1px solid ${PE.line14}`,
+                borderTop: `1px solid ${PE.line06}`,
                 paddingTop: 14,
               }}
             >
@@ -496,7 +496,7 @@ function TeamTab({
         <div
           data-testid="settings-team-not-read"
           style={{
-            border: `1px solid ${PE.line28}`,
+            border: `1px solid ${PE.line14}`,
             borderRadius: PE.rTouch,
             padding: 20,
             display: "flex",
@@ -543,7 +543,7 @@ function TeamTab({
         <div
           data-testid="settings-team-no-plan"
           style={{
-            border: `1px solid ${PE.line28}`,
+            border: `1px solid ${PE.line14}`,
             borderRadius: PE.rTouch,
             padding: 20,
             display: "flex",
@@ -591,7 +591,7 @@ function TeamTab({
       <div
         data-testid="settings-team-seats"
         style={{
-          border: `1px solid ${PE.line28}`,
+          border: `1px solid ${PE.line14}`,
           borderRadius: PE.rTouch,
           padding: "13px 16px",
           display: "flex",
@@ -627,7 +627,7 @@ function TeamTab({
         <div
           data-testid="settings-team-at-capacity"
           style={{
-            border: `1px solid ${PE.line28}`,
+            border: `1px solid ${PE.line14}`,
             borderRadius: PE.rTouch,
             padding: "13px 16px",
             display: "flex",
@@ -670,7 +670,7 @@ function TeamTab({
                   gap: 20,
                   padding: "13px 16px",
                   borderBottom:
-                    i === roster.members.length - 1 ? undefined : `1px solid ${PE.line14}`,
+                    i === roster.members.length - 1 ? undefined : `1px solid ${PE.line06}`,
                 }}
               >
                 <div style={{ display: "flex", flexDirection: "column", gap: 3, minWidth: 0 }}>
@@ -717,7 +717,7 @@ function TeamTab({
                     justifyContent: "space-between",
                     gap: 16,
                     padding: "12px 16px",
-                    borderBottom: `1px solid ${PE.line14}`,
+                    borderBottom: `1px solid ${PE.line06}`,
                     background: PE.raised,
                   }}
                 >
@@ -748,7 +748,7 @@ function TeamTab({
         <div
           data-testid="settings-team-invite"
           style={{
-            border: `1px solid ${PE.line28}`,
+            border: `1px solid ${PE.line14}`,
             borderRadius: PE.rTouch,
             padding: "13px 16px",
             display: "flex",
