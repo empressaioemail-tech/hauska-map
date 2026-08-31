@@ -20,6 +20,7 @@ import {
   floodHazardFactFromCortexRoot,
   isPropertyAtomPathEnabled,
   landUseFactFromCortexRoot,
+  attachBuildablePctFromKnownLotArea,
   mergeBakedBaseFacts,
   pipelineFactFromCortexRoot,
   specialDistrictFactFromCortexRoot,
@@ -587,6 +588,7 @@ export async function handlePropertyAtomsFacets(
           payload = mergeBakedBaseFacts(adapted, parsedBody);
         }
       }
+      payload = attachBuildablePctFromKnownLotArea(payload);
       payload = echoRequestedParcelNodeId(payload, parcelNodeId);
       const readHeader: PeReadPathHeader =
         adapted.readPath === "atom-chain-warm" ? "atom-chain-warm" : "atom-chain";

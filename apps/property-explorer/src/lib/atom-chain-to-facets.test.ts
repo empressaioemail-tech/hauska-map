@@ -8,6 +8,7 @@ import {
   isPropertyAtomPathEnabled,
   isDepthWarmPromoted,
   hasLiveAtomChainSetbackRule,
+  attachBuildablePctFromKnownLotArea,
   mergeBakedBaseFacts,
   parsePropertyAtomsPath,
   shouldSkipColdDerive,
@@ -503,6 +504,67 @@ describe("mergeBakedBaseFacts — atom path + baked base facts (item 6)", () => 
     expect(mergeBakedBaseFacts(adapted, null)).toBe(adapted);
     expect(mergeBakedBaseFacts(adapted, "oops")).toBe(adapted);
     expect(mergeBakedBaseFacts(adapted, {})).toBe(adapted);
+  });
+});
+
+describe("attachBuildablePctFromKnownLotArea — C4 (F-06)", () => {
+  it("writes root and summary pct when sqft and lot area are both known (gold 48021:34137)", () => {
+    const adapted = adaptAtomChainToBakedFacets({
+      ...haysChain,
+      parcelNodeId: "48021:34137",
+      buildableEnvelope: {
+        outcome: { kind: "buildable", areaSqFt: 9350 },
+        extractedAt: "2026-07-31T15:13:47.773Z",
+      },
+    })!;
+    expect(adapted.facets.envelope?.buildableAreaSqFt).toBe(9350);
+    expect(adapted.facets.envelope?.buildableAreaPct).toBeUndefined();
+    expect(adapted.facets.envelope?.summary).toBeUndefined();
+
+    const merged = mergeBakedBaseFacts(adapted, {
+      facets: {
+        baseFacts: {
+          acreage: { sqft: 16673, value: 0.3827, method: "shoelace-wgs84" },
+        },
+        facetCoverage: { acreage: true },
+      },
+    });
+    const attached = attachBuildablePctFromKnownLotArea(merged);
+    expect(attached.facets.envelope?.buildableAreaPct).toBe(56.1);
+    expect(attached.facets.envelope?.summary).toEqual({
+      buildableAreaPct: 56.1,
+      buildableAreaSqFt: 9350,
+      parcelAreaSqFt: 16673,
+    });
+  });
+
+  it("leaves pct and summary absent when lot area is unknown — never a 0", () => {
+    const adapted = adaptAtomChainToBakedFacets(haysChain)!;
+    expect(adapted.facets.envelope?.buildableAreaSqFt).toBe(5100);
+    const attached = attachBuildablePctFromKnownLotArea(adapted);
+    expect(attached.facets.envelope?.buildableAreaPct).toBeUndefined();
+    expect(attached.facets.envelope?.summary).toBeUndefined();
+    expect(attached).toBe(adapted);
+  });
+
+  it("keeps an atom-supplied percent and still writes the summary nest", () => {
+    const adapted = adaptAtomChainToBakedFacets({
+      ...haysChain,
+      buildableEnvelope: {
+        outcome: { kind: "buildable", areaSqFt: 9350, buildableAreaPct: 42 },
+        extractedAt: "2026-07-31T15:13:47.773Z",
+      },
+    })!;
+    const merged = mergeBakedBaseFacts(adapted, {
+      facets: {
+        baseFacts: {
+          acreage: { sqft: 16673, value: 0.3827, method: "shoelace-wgs84" },
+        },
+      },
+    });
+    const attached = attachBuildablePctFromKnownLotArea(merged);
+    expect(attached.facets.envelope?.buildableAreaPct).toBe(42);
+    expect(attached.facets.envelope?.summary?.buildableAreaPct).toBe(42);
   });
 });
 
