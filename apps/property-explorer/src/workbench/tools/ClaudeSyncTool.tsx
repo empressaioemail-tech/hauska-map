@@ -35,6 +35,7 @@ import { savedRowDisplayLabel } from "../../lib/propertyDossier";
 import {
   fetchAiConnections,
   type AiConnection,
+  type AiConnectionsOutcome,
 } from "../../lib/aiConnectionClient";
 import {
   buildSyncPrompt,
@@ -158,12 +159,39 @@ type SyncPhase =
   | { kind: "sent" }
   | { kind: "notice"; text: string };
 
-/** What the card knows about Claude. `unknown` covers every failed read. */
+/**
+ * What the card knows about Claude.
+ *
+ * `unknown` CARRIES A REASON. The first cut did not, and that is why a
+ * completely dead read looked exactly like an honest "you have not connected
+ * yet": both painted the setup panel with no notice. A read that failed and a
+ * read that returned nothing are different facts and the card now says which.
+ */
 export type ClaudeConnectionState =
   | { kind: "loading" }
   | { kind: "connected"; connection: AiConnection }
   | { kind: "not-connected" }
-  | { kind: "unknown" };
+  | { kind: "unknown"; reason: string };
+
+/**
+ * Customer-facing line for a read that did NOT come back clean.
+ *
+ * `blocked` gets its own wording because it is OUR fault, not the user's, and
+ * telling a signed-in person to sign in is the specific lie that made this bug
+ * invisible. None of these name an internal system.
+ */
+export function connectionFailureLine(outcome: AiConnectionsOutcome): string {
+  switch (outcome.kind) {
+    case "sign-in":
+      return "Sign in to Smart Site to see whether Claude is connected.";
+    case "blocked":
+      return "Smart Site could not check this account. This is a fault on our side, not a problem with your Claude connection.";
+    case "not-built":
+      return "This Smart Site cannot check Claude connections yet.";
+    default:
+      return "Smart Site could not reach your account to check for a Claude connection.";
+  }
+}
 
 export const CONNECT_STEPS: [string, string][] = [
   ["Copy the address below", "It is the full URL, not just the host"],
@@ -555,18 +583,36 @@ export function ClaudeSyncBody({
           now={now}
         />
       ) : (
-        <ClaudeSetupPanel
-          copyPhase={copyPhase}
-          onCopyAddress={() => void handleCopyAddress()}
-          heading={
-            forceSetup
-              ? "Add Smart Site to another Claude account or surface."
-              : "Connect Claude to this Smart Site account. Three steps, no key."
-          }
-          onBack={forceSetup ? () => setForceSetup(false) : undefined}
-          onRecheck={onRecheck}
-          checking={checking}
-        />
+        <>
+          {connection.kind === "unknown" ? (
+            <p
+              data-testid="claude-sync-check-failed"
+              style={{
+                margin: "0 0 12px",
+                padding: "8px 10px",
+                borderRadius: PE.rTouch,
+                border: `1px solid ${PE.line14}`,
+                fontSize: 12.5,
+                lineHeight: 1.45,
+                color: PE.warning,
+              }}
+            >
+              {connection.reason}
+            </p>
+          ) : null}
+          <ClaudeSetupPanel
+            copyPhase={copyPhase}
+            onCopyAddress={() => void handleCopyAddress()}
+            heading={
+              forceSetup
+                ? "Add Smart Site to another Claude account or surface."
+                : "Connect Claude to this Smart Site account. Three steps, no key."
+            }
+            onBack={forceSetup ? () => setForceSetup(false) : undefined}
+            onRecheck={onRecheck}
+            checking={checking}
+          />
+        </>
       )}
 
       {/* SHARE LINK — a DIFFERENT job, kept on this card by operator ruling
@@ -681,7 +727,10 @@ export function ClaudeSyncTool() {
     const outcome = await fetchAiConnections();
     setChecking(false);
     if (outcome.kind !== "ready") {
-      setConnection({ kind: "unknown" });
+      setConnection({
+        kind: "unknown",
+        reason: connectionFailureLine(outcome),
+      });
       return;
     }
     setConnection(

@@ -197,3 +197,34 @@ describe('proxy allowlists', () => {
     expect(isRetrievalBrowsePathAllowed('POST', 'property-nodes/x/atom-chain')).toBe(false)
   })
 })
+
+describe('every deep path a shipped client calls is allowlisted', () => {
+  // THE CHECK THAT WAS MISSING. P-87 shipped a GET the deep proxy refused, and
+  // it was invisible because spine-deep.ts checks the session cookie BEFORE the
+  // allowlist: signed out, every path returns 401 and an unlisted path looks
+  // exactly like a listed one. Only a signed-IN request reveals the 403. The
+  // card read that 403 as 'not connected' and showed setup instructions to
+  // every user, on every account, permanently.
+  //
+  // A client-side fetch constant and a server-side allowlist entry are two
+  // independently authored halves. This asserts they agree.
+  const SHIPPED_DEEP_GETS = [
+    'api/property-explorer/v1/entitlement',
+    'api/property-explorer/v1/saved-properties',
+    'api/property-explorer/v1/team/members',
+    'api/property-explorer/v1/records-request',
+    // P-87 Claude Sync.
+    'api/property-explorer/v1/ai-connections',
+  ]
+
+  it.each(SHIPPED_DEEP_GETS)('allows GET %s', (path) => {
+    expect(isDeepPathAllowed('GET', path)).toBe(true)
+  })
+
+  it('is NOT VACUOUS — a path nobody listed is still refused', () => {
+    expect(isDeepPathAllowed('GET', 'api/property-explorer/v1/ai-connections-nope')).toBe(
+      false,
+    )
+    expect(isDeepPathAllowed('GET', 'api/property-explorer/v1/invented')).toBe(false)
+  })
+})

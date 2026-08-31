@@ -13,6 +13,14 @@ export const DEEP_GET_EXACT = new Set([
   // P-94 Team roster — Settings tab GET. Writes stay off until the client
   // has a write path; invite UI is display-only.
   'api/property-explorer/v1/team/members',
+  // P-87 Claude Sync — which AI clients have authenticated as this account.
+  // OMITTING THIS SHIPPED A DEAD CARD. spine-deep checks the session cookie
+  // FIRST and the allowlist SECOND, so a signed-out probe returns 401 for every
+  // path and an unlisted one looks exactly like a listed one; only a signed-IN
+  // request reveals the 403. The card read that 403 as "not connected" and
+  // showed setup instructions to every user on every account. A new deep GET is
+  // not done until its path is on this list.
+  'api/property-explorer/v1/ai-connections',
 ])
 
 export const DEEP_GET_PREFIX = [

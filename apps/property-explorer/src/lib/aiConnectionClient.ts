@@ -33,6 +33,18 @@ export type AiConnectionsOutcome =
   | { kind: "ready"; connections: AiConnection[]; claude: AiConnection | null }
   /** Signed out. Not the same as connected-to-nothing. */
   | { kind: "sign-in" }
+  /**
+   * Signed IN, but the same-origin deep proxy refused to forward this path.
+   * That is a misconfiguration of ours (the path is missing from
+   * api/_lib/deep-allowlist.ts), NEVER a fact about the user's account.
+   *
+   * This exists as its own outcome because collapsing it into `sign-in` is
+   * exactly how the card shipped dead: 403 read as "not signed in", which the
+   * card rendered as setup instructions, which is indistinguishable from an
+   * honest "you have not connected Claude yet". Two account pairs were tested
+   * against it before anyone could tell the difference.
+   */
+  | { kind: "blocked" }
   /** Endpoint not deployed yet. Not the same as no connections. */
   | { kind: "not-built" }
   | { kind: "error"; message: string };
@@ -75,7 +87,11 @@ export async function fetchAiConnections(): Promise<AiConnectionsOutcome> {
     return { kind: "error", message: "Could not reach the account service." };
   }
 
-  if (res.status === 401 || res.status === 403) return { kind: "sign-in" };
+  // 401 and 403 are DIFFERENT FACTS and must not be merged. 401 is "no
+  // session cookie reached the proxy". 403 is "you are signed in and we
+  // refused our own path".
+  if (res.status === 401) return { kind: "sign-in" };
+  if (res.status === 403) return { kind: "blocked" };
   if (res.status === 404) return { kind: "not-built" };
   if (!res.ok) {
     return {
