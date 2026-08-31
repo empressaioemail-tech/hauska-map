@@ -251,6 +251,17 @@ function Mono({ children, testId }: { children: ReactNode; testId: string }) {
  * Each row is the number, WHAT YOU DO on the left, WHAT HAPPENS on the right.
  * Step three has no control on purpose. It happens inside Claude, and drawing
  * a button for it would promise something this app cannot do.
+ *
+ * THE CAPABILITY DISCLOSURE IS HERE TOO, AND IT GOES LAST. It shipped in the
+ * connected panel only, which put "what you get" in front of the one audience
+ * that had already decided. The person weighing up whether to connect is in
+ * THIS panel and was the only one the old placement could never reach.
+ *
+ * Last child, not between the address and the Copy button. Two constraints
+ * pin it there and neither is negotiable: the steps are the only thing an
+ * unconnected account can act on, so nothing may push them down; and this card
+ * leads with ONE action, which here is Copy. Any position above the button
+ * column breaks the second, any position above the list breaks the first.
  */
 export function ClaudeSetupPanel({
   copyPhase,
@@ -371,6 +382,9 @@ export function ClaudeSetupPanel({
           {copyPhase.text}
         </p>
       ) : null}
+      <div style={{ marginTop: 10 }}>
+        <WhatYouCanDo />
+      </div>
     </div>
   );
 }
@@ -427,6 +441,23 @@ export const CLAUDE_CAN_DO: { title: string; line: string }[] = [
 export const CLAUDE_NOT_YET =
   "Records requests and free-form questions about a parcel are not live yet.";
 
+/**
+ * TWO MOUNT SITES, ONE COMPONENT, ONE COPY.
+ *
+ * Rendered last in the setup panel and last in the connected panel. Not
+ * duplicated and not forked per state: this file already holds one vendor row
+ * feeding two surfaces for the same reason, which is that two copies of a
+ * capability list drift and the drift is invisible until a user is promised
+ * something that is not there.
+ *
+ * Each mount owns its own `open`, which is right rather than merely tolerable
+ * — the two panels are mutually exclusive (`showSync` XOR setup) and never
+ * co-render, so there is no shared state for them to disagree about.
+ *
+ * Collapsed on first render in BOTH. The card leads with one action in each
+ * state (Copy when not connected, Sync when connected) and a disclosure that
+ * opened itself would take that lead away.
+ */
 function WhatYouCanDo() {
   const [open, setOpen] = useState(false);
   return (

@@ -55,6 +55,36 @@ function visibleText(html: string): string {
   return html.replace(/ style="[^"]*"/g, "").replace(/ class="[^"]*"/g, "");
 }
 
+/**
+ * Document position of a marker, asserting it is THERE before comparing it.
+ *
+ * `indexOf` returns -1 for absent, and -1 is less than every real index, so an
+ * ordering assertion written on bare `indexOf` passes when the thing it is
+ * ordering has vanished entirely. That is the sentinel-satisfies-the-check
+ * shape, and this exists so an ordering test cannot go green on an absence.
+ */
+function at(html: string, needle: string): number {
+  const i = html.indexOf(needle);
+  expect(i, `${needle} is missing from this state entirely`).toBeGreaterThan(
+    -1,
+  );
+  return i;
+}
+
+/**
+ * testids of the `primary`-variant controls, in document order, read off the
+ * rendered button open-tags. Asserts what the card ACTUALLY leads with rather
+ * than restating an expectation the test itself wrote down.
+ */
+function primaryActions(html: string): string[] {
+  return html
+    .split("<button")
+    .slice(1)
+    .map((frag) => frag.slice(0, frag.indexOf(">")))
+    .filter((openTag) => openTag.includes('data-variant="primary"'))
+    .map((openTag) => /data-testid="([^"]+)"/.exec(openTag)?.[1] ?? "(unnamed)");
+}
+
 const CONNECTED: ClaudeConnectionState = {
   kind: "connected",
   connection: {
@@ -366,17 +396,69 @@ describe("what you can do in Claude with Smart Site", () => {
     }
   });
 
-  it("is COLLAPSED by default and lives in the connected state", () => {
-    const html = sheet({ connection: CONNECTED });
-    expect(html).toContain('data-testid="claude-sync-can-do-toggle"');
-    expect(html).toContain("What you can do in Claude with Smart Site");
-    // Collapsed: the rows are not in the markup until it is opened.
-    expect(html).not.toContain('data-testid="claude-sync-can-do"');
-    expect(html).not.toContain(CLAUDE_CAN_DO[0]!.line);
+  it("is COLLAPSED by default in BOTH states", () => {
+    for (const connection of [
+      { kind: "not-connected" } as ClaudeConnectionState,
+      CONNECTED,
+    ]) {
+      const html = sheet({ connection });
+      expect(html).toContain('data-testid="claude-sync-can-do-toggle"');
+      expect(html).toContain("What you can do in Claude with Smart Site");
+      // Collapsed: the rows are not in the markup until it is opened.
+      expect(html).not.toContain('data-testid="claude-sync-can-do"');
+      expect(html).not.toContain(CLAUDE_CAN_DO[0]!.line);
+    }
   });
 
-  it("sits under Connect a different Claude, not in the setup state", () => {
+  // REVERSED 2026-08-31. This block previously asserted the disclosure was
+  // ABSENT from the setup state and was named for a connected-state ordering
+  // it never actually checked. Both halves are fixed rather than deleted: the
+  // setup absence inverts to presence, and the ordering the old name claimed
+  // is now a real assertion.
+  //
+  // Someone deciding WHETHER to connect is exactly who needs to know what they
+  // get, and the connected-only placement was the one placement that could
+  // never reach them.
+  it("ALSO renders in the setup state, where the connect decision is made", () => {
     const setup = sheet({ connection: { kind: "not-connected" } });
-    expect(setup).not.toContain('data-testid="claude-sync-can-do-toggle"');
+    expect(setup).toContain('data-testid="claude-sync-can-do-toggle"');
+    expect(setup).toContain("What you can do in Claude with Smart Site");
+  });
+
+  it("sits BELOW the steps, the address and Copy — never above the instructions", () => {
+    // ORDERING, not presence. A presence check passes on any placement, and
+    // the constraint that matters is positional: the steps are the only thing
+    // an unconnected account can act on, so a disclosure above them pushes the
+    // actual instructions down. Only a positional assertion fails on that.
+    const setup = sheet({ connection: { kind: "not-connected" } });
+    const toggle = at(setup, 'data-testid="claude-sync-can-do-toggle"');
+    expect(at(setup, 'data-testid="claude-sync-steps"')).toBeLessThan(toggle);
+    expect(at(setup, 'data-testid="claude-sync-connect-host"')).toBeLessThan(
+      toggle,
+    );
+    expect(at(setup, 'data-testid="claude-sync-copy-address"')).toBeLessThan(
+      toggle,
+    );
+  });
+
+  it("sits under Connect a different Claude in the connected state", () => {
+    const html = sheet({ connection: CONNECTED });
+    const toggle = at(html, 'data-testid="claude-sync-can-do-toggle"');
+    expect(at(html, 'data-testid="claude-sync-push"')).toBeLessThan(toggle);
+    expect(at(html, 'data-testid="claude-sync-reconnect"')).toBeLessThan(
+      toggle,
+    );
+  });
+
+  it("never takes the lead action — ONE primary per state, and it is not this", () => {
+    // Read off the rendered controls, not off a list the test supplies. The
+    // two states expect DIFFERENT single testids, so a helper returning a
+    // constant (or an empty parse) cannot satisfy both.
+    expect(
+      primaryActions(sheet({ connection: { kind: "not-connected" } })),
+    ).toEqual(["claude-sync-copy-address"]);
+    expect(primaryActions(sheet({ connection: CONNECTED }))).toEqual([
+      "claude-sync-push",
+    ]);
   });
 });
