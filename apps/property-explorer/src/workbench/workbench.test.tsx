@@ -67,8 +67,8 @@ describe("bubble cluster", () => {
       "reports",
       "properties",
       "share",
-      "use-in-ai",
       "compare",
+      "use-in-ai",
     ]) {
       expect(html).toContain(`data-testid="workbench-bubble-${id}"`);
     }
@@ -83,8 +83,8 @@ describe("bubble cluster", () => {
       "reports",
       "properties",
       "share",
-      "use-in-ai",
       "compare",
+      "use-in-ai",
     ]);
     expect(WORKBENCH_TOOLS.find((t) => t.id === "brief")?.inCluster).not.toBe(
       false,
@@ -97,8 +97,8 @@ describe("bubble cluster", () => {
       "reports",
       "properties",
       "share",
-      "use-in-ai",
       "compare",
+      "use-in-ai",
     ]);
     expect(
       WORKBENCH_TOOLS.find((t) => t.id === "reports")?.label,
@@ -574,26 +574,31 @@ describe("folding the dock the shell is pointing at", () => {
 
 describe("column expand permission — one compact dock must not veto the column", () => {
   // THE BUG THIS EXISTS FOR. `canExpand` read the NEWEST open dock alone. So
-  // opening "Claude Sync" (expandable: false, correctly — its content is a
-  // connector card that gains nothing from width) on top of a report made the
-  // whole column unexpandable, and the report underneath could not be widened
-  // to be read. The operator hit it; nothing in the suite could, because the
-  // predicate was an inline expression and the render harness cannot build a
-  // multi-open stack.
+  // opening a compact dock on top of a report made the whole column
+  // unexpandable, and the report underneath could not be widened to be read.
+  // The operator hit it; nothing in the suite could, because the predicate was
+  // an inline expression and the render harness cannot build a multi-open
+  // stack.
+  //
+  // The compact tool here is a LOCAL FIXTURE, not a registry id. It used to be
+  // "use-in-ai", which stopped being honest the moment Claude Sync became
+  // expandable: a fixture named after a real tool, asserting the opposite of
+  // what that tool now does, reads as coverage of something it no longer
+  // describes.
   const T = (id: string, expandable?: boolean) =>
     ({ id, label: id, render: () => null, ...(expandable === undefined ? {} : { expandable }) }) as never;
-  const tools = [T("reports"), T("use-in-ai", false), T("compare")];
+  const tools = [T("reports"), T("compact-fixture", false), T("compare")];
 
   it("ANY open dock that benefits lets the column widen", () => {
-    expect(columnCanExpand(tools, ["reports", "use-in-ai"])).toBe(true);
+    expect(columnCanExpand(tools, ["reports", "compact-fixture"])).toBe(true);
     // order must not matter — the newest being the compact one was the bug
-    expect(columnCanExpand(tools, ["use-in-ai", "reports"])).toBe(true);
+    expect(columnCanExpand(tools, ["compact-fixture", "reports"])).toBe(true);
   });
 
   it("a column of only compact docks still cannot widen", () => {
     // NOT VACUOUS. If this passed too, the predicate would just be `true`
     // and the test above would prove nothing.
-    expect(columnCanExpand(tools, ["use-in-ai"])).toBe(false);
+    expect(columnCanExpand(tools, ["compact-fixture"])).toBe(false);
   });
 
   it("an empty column cannot widen, and an unknown id is not a licence", () => {

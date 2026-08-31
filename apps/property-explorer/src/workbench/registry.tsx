@@ -43,7 +43,7 @@ const ICONS = {
 
 /**
  * The static v1 registry. Rail order = cluster order, top to bottom. SEVEN
- * rail bubbles (brief, chat, reports, properties, share, Claude Sync, compare).
+ * rail bubbles (brief, chat, reports, properties, share, compare, Claude Sync).
  * The inspect card opens inside the brief dock. Flood stays in Reports.
  */
 export const WORKBENCH_TOOLS: WorkbenchToolDef[] = [
@@ -97,20 +97,6 @@ export const WORKBENCH_TOOLS: WorkbenchToolDef[] = [
     render: () => <ShareTool />,
   },
   {
-    // ID STAYS `use-in-ai` THOUGH THE CARD IS NOW "Claude Sync". The id is the
-    // key for persisted dock layouts and per-tool state in localStorage;
-    // renaming it silently orphans every saved layout in the field for a
-    // cosmetic gain. The label is what the user reads.
-    id: "use-in-ai",
-    label: "Claude Sync",
-    icon: <ClaudeMark />,
-    status: "live",
-    propertyScoped: false,
-    expandable: false,
-    tip: "Push this property into a new Claude chat.",
-    render: () => <ClaudeSyncTool />,
-  },
-  {
     id: "compare",
     label: "Compare",
     icon: <WorkbenchIcon path={ICONS.compare} />,
@@ -118,5 +104,26 @@ export const WORKBENCH_TOOLS: WorkbenchToolDef[] = [
     propertyScoped: false,
     tip: "Two saved properties, side by side.",
     render: () => <CompareTool />,
+  },
+  {
+    // ID STAYS `use-in-ai` THOUGH THE CARD IS NOW "Claude Sync". The id is the
+    // key for persisted dock layouts and per-tool state in localStorage;
+    // renaming it silently orphans every saved layout in the field for a
+    // cosmetic gain. The label is what the user reads.
+    //
+    // LAST IN THE RAIL by operator ruling 2026-08-31. It is the hand-off out of
+    // this app rather than another way to read the property, so it sits below
+    // the tools that work on the parcel itself.
+    //
+    // EXPANDABLE. It carried `expandable: false` from when the card was a
+    // vendor list of one-line rows. It is now a property hand-off with an
+    // address and controls, and it widens like every other dock.
+    id: "use-in-ai",
+    label: "Claude Sync",
+    icon: <ClaudeMark />,
+    status: "live",
+    propertyScoped: false,
+    tip: "Push this property into a new Claude chat.",
+    render: () => <ClaudeSyncTool />,
   },
 ];

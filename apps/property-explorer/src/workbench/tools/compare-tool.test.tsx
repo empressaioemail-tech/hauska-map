@@ -176,7 +176,11 @@ describe("compare in the registry + dock", () => {
     expect(def?.status).toBe("live");
     expect(def?.propertyScoped).toBe(false);
     expect(def?.label).toBe("Compare");
-    expect(WORKBENCH_TOOLS[WORKBENCH_TOOLS.length - 1]?.id).toBe("compare");
+    // Compare is no longer the tail: Claude Sync moved below it 2026-08-31.
+    // Still asserted by POSITION, so a reshuffle is still caught.
+    const ids = WORKBENCH_TOOLS.map((t) => t.id);
+    expect(ids[ids.length - 2]).toBe("compare");
+    expect(ids[ids.length - 1]).toBe("use-in-ai");
   });
 
   it("renders INSIDE the one shared dock with NO active property", () => {

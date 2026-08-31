@@ -66,7 +66,6 @@ const CONNECTED: ClaudeConnectionState = {
 function sheet(opts?: {
   connection?: ClaudeConnectionState;
   hasParcel?: boolean;
-  shareUrl?: string | null;
   subjectLabel?: string | null;
   onRecheck?: () => void;
 }): string {
@@ -75,10 +74,6 @@ function sheet(opts?: {
       connection={opts?.connection ?? { kind: "not-connected" }}
       hasParcel={opts?.hasParcel ?? true}
       subjectLabel={opts?.subjectLabel ?? "1200 Chestnut St, Bastrop"}
-      shareUrl={opts?.shareUrl ?? null}
-      sharePhase={{ kind: "idle" }}
-      onCreateShare={noop}
-      onCopyShare={noop}
       onSync={noop}
       onSyncDesktop={noop}
       syncPhase={{ kind: "idle" }}
@@ -221,28 +216,28 @@ describe("state B — connected", () => {
   });
 });
 
-describe("the share link stays, as a different job", () => {
-  it("renders below the Claude flow in both states", () => {
+describe("the share link is GONE from this card", () => {
+  // Operator ruling 2026-08-31, reversing the earlier keep. Share is its own
+  // rail bubble and this card is now one job: push the open property into
+  // Claude. Asserted as ABSENCE so the block cannot drift back in, and across
+  // BOTH states so neither panel can quietly carry it.
+  it("renders no share control in either state", () => {
     for (const connection of [
       { kind: "not-connected" } as ClaudeConnectionState,
       CONNECTED,
     ]) {
       const html = sheet({ connection });
-      expect(html).toContain('data-testid="claude-sync-share"');
-      expect(html).toContain('data-testid="claude-sync-create-share"');
+      expect(html).not.toContain('data-testid="claude-sync-share"');
+      expect(html).not.toContain('data-testid="claude-sync-create-share"');
+      expect(html).not.toContain('data-testid="claude-sync-copy-share"');
+      expect(html).not.toMatch(/share link/i);
+      expect(html).not.toMatch(/hand it to someone else/i);
     }
   });
 
-  it("shows the minted link when there is one", () => {
-    const html = sheet({ shareUrl: "https://smartsite.cloud/s/abc123" });
-    expect(html).toContain('data-testid="claude-sync-share-url"');
-    expect(html).toContain("https://smartsite.cloud/s/abc123");
-    expect(html).not.toContain('data-testid="claude-sync-create-share"');
-  });
-
-  it("needs a property before it can mint", () => {
-    const html = sheet({ hasParcel: false });
-    expect(html).toContain('data-testid="claude-sync-share-need-parcel"');
+  it("leaves Sync as the only primary action when connected", () => {
+    const html = sheet({ connection: CONNECTED });
+    expect(html).toContain('data-testid="claude-sync-push"');
     expect(html).not.toContain('data-testid="claude-sync-create-share"');
   });
 });
@@ -277,14 +272,18 @@ describe("customer-facing strings only", () => {
 });
 
 describe("Claude Sync in the dock", () => {
-  it("is live, not property-scoped, and sits before Compare", () => {
+  it("is live, not property-scoped, and sits LAST, after Compare", () => {
     const def = WORKBENCH_TOOLS.find((t) => t.id === "use-in-ai");
     expect(def?.status).toBe("live");
     expect(def?.propertyScoped).toBe(false);
     expect(def?.label).toBe("Claude Sync");
+    // Widens like every other dock. It carried expandable:false from when the
+    // card was a vendor list of one-line rows.
+    expect(def?.expandable).not.toBe(false);
     const ids = WORKBENCH_TOOLS.map((t) => t.id);
-    expect(ids.indexOf("use-in-ai")).toBe(ids.indexOf("share") + 1);
-    expect(ids[ids.length - 1]).toBe("compare");
+    // LAST in the rail, below Compare, by operator ruling 2026-08-31.
+    expect(ids[ids.length - 1]).toBe("use-in-ai");
+    expect(ids.indexOf("use-in-ai")).toBeGreaterThan(ids.indexOf("compare"));
   });
 
   it("keeps the `use-in-ai` id so saved dock layouts survive the rename", () => {
