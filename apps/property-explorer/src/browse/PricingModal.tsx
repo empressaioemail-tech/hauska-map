@@ -30,7 +30,6 @@ import {
   matrixCellText,
   propertyUnlockOffer,
   teamMonthlyTotalLabel,
-  teamMonthlyTotalUsd,
   teamSeatsControlVisible,
   tierHeadline,
   toCheckoutInterval,
@@ -613,13 +612,6 @@ function ColumnHead({
             }}
           />
           <span>{PE_PRICING.team.seatNote}</span>
-          <span
-            data-testid="pricing-team-12-total"
-            data-usd={String(teamMonthlyTotalUsd(12))}
-            style={{ color: TEXT }}
-          >
-            12 seats {teamMonthlyTotalLabel(12)}/mo
-          </span>
         </label>
       ) : null}
     </div>

@@ -119,12 +119,24 @@ describe("PricingModal — ALL pricing in one popup, every string from config", 
         onClose={noop}
       />,
     );
-    expect(html).toContain('data-testid="pricing-team-12-total"');
-    expect(html).toContain('data-usd="524"');
-    expect(html).not.toContain('data-usd="704"');
-    expect(html).not.toContain('data-usd="349"');
-    expect(html).not.toContain("$45");
+    // REMOVED 2026-08-31 by operator ruling. The card carried a hardcoded
+    // "12 seats $524/mo" example that was NOT bound to the seat stepper: the
+    // stepper could read 3 while this line read 12, which is two numbers for
+    // one thing on a pricing surface. Asserted as ABSENCE so it cannot return.
+    expect(html).not.toContain('data-testid="pricing-team-12-total"');
+    // NOT asserted: absence of the string "12 seats". The headline's compare
+    // line legitimately renders "12 seats · then $25/mo after 3" from the LIVE
+    // stepper value. The first cut of this assertion banned that string and
+    // failed on correct behaviour, which is the over-broad-control mistake:
+    // ban the removed ELEMENT, not a substring the real one also produces.
+    // The math protection MOVES to the headline rather than being dropped.
+    // data-usd lived only on the removed span; the headline renders the same
+    // total and is BOUND TO THE STEPPER, so this now asserts the live value
+    // rather than a hardcoded one. $704 is the falsifier: it is what 12 seats
+    // costs if an extra seat is wrongly priced at $45 instead of $25.
     expect(html).toContain("$524");
+    expect(html).not.toContain("$704");
+    expect(html).not.toContain("$45");
   });
 
   it("NO active parcel → the unlock button is DISABLED with honest copy; subscriptions stay live", () => {
