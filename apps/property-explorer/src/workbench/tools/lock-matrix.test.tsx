@@ -238,7 +238,82 @@ describe("REPORTS bubble (Option D picker; TERRAIN Studio-only when selected)", 
       expect(html).not.toContain('data-testid="reports-locked"');
       expect(html).not.toContain('data-testid="terrain-pro-lock"');
       expect(html).not.toContain('data-testid="records-studio-lock"');
+      expect(html).not.toContain('data-testid="site-plan-studio-lock"');
     }
+  });
+
+  // ---------------------------------------------------------------------------
+  // P-104. SITE PLAN IS STUDIO, exactly like terrain. Until P-104 the SITEPLAN
+  // catalog rows carried no studioGated flag at all, so this panel rendered
+  // unlocked for a Solo subscriber AND the server served the export. These
+  // cases mirror the TERGLB cases above one for one, deliberately: site plan
+  // and terrain are one product rule and a divergence between them is the
+  // regression this block exists to catch.
+  // ---------------------------------------------------------------------------
+
+  it("P-104: SOLO + SITEPLAN gates CLOSED (the leak, in the violation direction)", () => {
+    primePropertyEntitlement(PARCEL, SOLO);
+    const html = renderTool("reports", { selectedDoc: "SITEPLAN" });
+    expect(html).not.toContain('data-testid="reports-locked"');
+    expect(html).toContain('data-testid="site-plan-studio-lock"');
+    expect(html).toContain('data-testid="view-pricing-button"');
+    expect(html).toContain("not part of the single-property unlock");
+    expect(html).not.toContain('data-testid="site-plan-export-section"');
+  });
+
+  it("P-104: STUDIO + SITEPLAN renders the real export section, no lock", () => {
+    primePropertyEntitlement(PARCEL, STUDIO);
+    const html = renderTool("reports", { selectedDoc: "SITEPLAN" });
+    expect(html).not.toContain('data-testid="reports-locked"');
+    expect(html).not.toContain('data-testid="site-plan-studio-lock"');
+    expect(html).toContain('data-testid="site-plan-export-section"');
+  });
+
+  it("P-104: TEAM grants site plan too (everything in Studio)", () => {
+    primePropertyEntitlement(PARCEL, TEAM);
+    const html = renderTool("reports", { selectedDoc: "SITEPLAN" });
+    expect(html).not.toContain('data-testid="site-plan-studio-lock"');
+    expect(html).toContain('data-testid="site-plan-export-section"');
+  });
+
+  it("P-104: the $15 property unlock does NOT buy site plan", () => {
+    // The unlock buys every REPORT on the parcel. Site-plan CAD is a Studio
+    // deliverable, not a report, and the server agrees: fetchPeEntitlement
+    // maps a free tier to 402 regardless of the per-property unlock.
+    primePropertyEntitlement(PARCEL, PROPERTY_UNLOCKED);
+    const html = renderTool("reports", { selectedDoc: "SITEPLAN" });
+    expect(html).toContain('data-testid="site-plan-studio-lock"');
+    expect(html).not.toContain('data-testid="site-plan-export-section"');
+  });
+
+  it("P-104 FAIL CLOSED: a paid row with NO subscriptionTier gates site plan CLOSED", () => {
+    primePropertyEntitlement(PARCEL, PRO);
+    const html = renderTool("reports", { selectedDoc: "SITEPLAN" });
+    expect(html).toContain('data-testid="site-plan-studio-lock"');
+    expect(html).not.toContain('data-testid="site-plan-export-section"');
+  });
+
+  it("P-104: SITEPLAN and TERRAIN lock identically on every entitlement state", () => {
+    // A divergence test. Two locks for one product rule is how one of them
+    // silently stops matching the server.
+    let lockedSomewhere = 0;
+    let openSomewhere = 0;
+    for (const state of [FREE, PROPERTY_UNLOCKED, SOLO, PRO, STUDIO, TEAM, DEV]) {
+      primePropertyEntitlement(PARCEL, state);
+      const sp = renderTool("reports", { selectedDoc: "SITEPLAN" });
+      const te = renderTool("reports", { selectedDoc: "TERRAIN" });
+      const spLocked = sp.includes('data-testid="site-plan-studio-lock"');
+      const teLocked = te.includes('data-testid="terrain-pro-lock"');
+      expect(spLocked).toBe(teLocked);
+      if (spLocked) lockedSomewhere += 1;
+      else openSomewhere += 1;
+    }
+    // NOT VACUOUS: a comparison of two absent testids passes trivially, so
+    // the loop must have seen both outcomes for the agreement to mean
+    // anything. FREE renders the whole dock locked and no per-engine lock at
+    // all, which is exactly the shape that would make this test hollow.
+    expect(lockedSomewhere).toBeGreaterThan(0);
+    expect(openSomewhere).toBeGreaterThan(0);
   });
 
   it("FAIL CLOSED: a paid row with NO subscriptionTier gates terrain CLOSED", () => {

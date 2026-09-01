@@ -186,7 +186,8 @@ export function engineApiGateToken(): string | null {
  * Gate-front headers engine-api requires on every non-health call.
  * Header names/values mirror hauska-mcp-server gate-front seam
  * (`x-hauska-package-id`, product enum, etc.). PE BFF holds the
- * service token and only reaches engine after session+paid entitlement.
+ * service token and only reaches engine after session + STUDIO entitlement
+ * (P-104; it read "session+paid" until then, and paid admits Solo).
  */
 export function buildTerrainEngineGateHeaders(opts?: {
   requestId?: string
@@ -332,11 +333,31 @@ export type TerrainExportAuthResult =
   | { ok: true; devBypass?: boolean }
   | { ok: false; status: 401 | 402 | 503; error: string; message?: string }
 
-/** Mirrors BFF session + entitlement gate (testable without Vercel). */
+/** Refusal reason when the account is paid but not Studio (P-104). Distinct
+ *  from the free-tier `payment_required` so the surface can offer the right
+ *  upgrade instead of a generic paywall. */
+export const TERRAIN_STUDIO_REQUIRED_MESSAGE =
+  'Terrain export is a Studio deliverable. Your plan does not include it.'
+
+/** Refusal reason when the entitlement server did not report `studioGranted`
+ *  at all — UNMEASURED, not denied. Never shown as a paywall. */
+export const TERRAIN_STUDIO_UNMEASURED_MESSAGE =
+  'Studio entitlement could not be determined: the entitlement service did not report studioGranted. Terrain export is refused rather than served unverified.'
+
+/**
+ * Mirrors BFF session + entitlement gate (testable without Vercel).
+ *
+ * P-104: this gate used to read `tier !== 'paid'`, which a $49 Solo
+ * subscriber passes, so the web served the $129 Studio deliverable while the
+ * catalog's `studioGated: true` drove nothing but a client-side lock a direct
+ * call skips. It now requires the SERVER-COMPUTED `studioGranted`. Site plan
+ * carries the identical change in `resolveSitePlanExportAuth` — the two share
+ * one product rule and must not diverge.
+ */
 export function resolveTerrainExportAuth(input: {
   sessionToken: string | null
   entitlement:
-    | { ok: true; tier: 'free' | 'paid' }
+    | { ok: true; tier: 'free' | 'paid'; studioGranted: boolean | null }
     | { ok: false; status: 401 | 402 | 503; message?: string }
   /** Operator/dev bypass — session still required; skips paid check. */
   devBypass?: boolean
@@ -372,6 +393,23 @@ export function resolveTerrainExportAuth(input: {
       status: 402,
       error: 'payment_required',
       message: 'Pro entitlement required.',
+    }
+  }
+  // P-104. Paid is necessary and NOT sufficient: Solo is paid.
+  if (input.entitlement.studioGranted === null) {
+    return {
+      ok: false,
+      status: 503,
+      error: 'entitlement_contract_incomplete',
+      message: TERRAIN_STUDIO_UNMEASURED_MESSAGE,
+    }
+  }
+  if (input.entitlement.studioGranted !== true) {
+    return {
+      ok: false,
+      status: 402,
+      error: 'studio_required',
+      message: TERRAIN_STUDIO_REQUIRED_MESSAGE,
     }
   }
   return { ok: true }

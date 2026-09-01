@@ -16,7 +16,10 @@ import {
   parseSitePlanFormat,
   resolveSitePlanExportAuth,
   retryableEngineFailureResponse,
+  STUDIO_REQUIRED_MESSAGE,
+  STUDIO_UNMEASURED_MESSAGE,
 } from '../../api/_lib/pe-site-plan-export-core.js'
+import { resolveTerrainExportAuth } from '../../api/_lib/pe-terrain-export-core.js'
 
 describe('site-plan export core', () => {
   it('validates parcel node ids', () => {
@@ -47,7 +50,7 @@ describe('site-plan export core', () => {
   it('denies free tier on auth gate', () => {
     const gate = resolveSitePlanExportAuth({
       sessionToken: 'session-token',
-      entitlement: { ok: true, tier: 'free' },
+      entitlement: { ok: true, tier: 'free', studioGranted: false },
     })
     expect(gate.ok).toBe(false)
     if (!gate.ok) {
@@ -56,18 +59,109 @@ describe('site-plan export core', () => {
     }
   })
 
-  it('allows paid tier on auth gate', () => {
+  it('allows a Studio account on auth gate', () => {
     const gate = resolveSitePlanExportAuth({
       sessionToken: 'session-token',
-      entitlement: { ok: true, tier: 'paid' },
+      entitlement: { ok: true, tier: 'paid', studioGranted: true },
     })
     expect(gate.ok).toBe(true)
+  })
+
+  // -------------------------------------------------------------------------
+  // P-104. The gate used to read `tier !== 'paid'` and nothing else, so a $49
+  // Solo subscriber was served the $129 Studio deliverable. Every case below
+  // is stated in the violation direction: what the gate must REFUSE, and what
+  // it must not confuse with something else.
+  // -------------------------------------------------------------------------
+
+  it('P-104 VIOLATION: a Solo subscriber is paid and is REFUSED', () => {
+    const gate = resolveSitePlanExportAuth({
+      sessionToken: 'session-token',
+      // Exactly what /entitlement returns for a $49 Solo account: tier
+      // "paid", studioGranted false. The old gate passed it.
+      entitlement: { ok: true, tier: 'paid', studioGranted: false },
+    })
+    expect(gate.ok).toBe(false)
+    if (!gate.ok) {
+      expect(gate.status).toBe(402)
+      expect(gate.error).toBe('studio_required')
+      expect(gate.message).toBe(STUDIO_REQUIRED_MESSAGE)
+      expect(gate.message).toMatch(/Studio/)
+    }
+  })
+
+  it('P-104: the Solo refusal is DISTINGUISHABLE from the free-tier refusal', () => {
+    const free = resolveSitePlanExportAuth({
+      sessionToken: 'session-token',
+      entitlement: { ok: true, tier: 'free', studioGranted: false },
+    })
+    const solo = resolveSitePlanExportAuth({
+      sessionToken: 'session-token',
+      entitlement: { ok: true, tier: 'paid', studioGranted: false },
+    })
+    expect(free.ok).toBe(false)
+    expect(solo.ok).toBe(false)
+    if (!free.ok && !solo.ok) {
+      // Same status, different reason. A Solo subscriber told "payment
+      // required" has already paid; the surface needs to know which upgrade
+      // to offer.
+      expect(free.status).toBe(402)
+      expect(solo.status).toBe(402)
+      expect(free.error).not.toBe(solo.error)
+      expect(free.error).toBe('payment_required')
+      expect(solo.error).toBe('studio_required')
+    }
+  })
+
+  it('P-104 VIOLATION: an UNMEASURED grant is refused, and NOT as a paywall', () => {
+    // studioGranted null = the /entitlement body carried no such key, i.e.
+    // this BFF is deployed ahead of the cortex-api that computes it. Absent
+    // is not false: telling a paying Studio customer they need to pay would
+    // be a false statement about their account.
+    const gate = resolveSitePlanExportAuth({
+      sessionToken: 'session-token',
+      entitlement: { ok: true, tier: 'paid', studioGranted: null },
+    })
+    expect(gate.ok).toBe(false)
+    if (!gate.ok) {
+      expect(gate.status).toBe(503)
+      expect(gate.error).toBe('entitlement_contract_incomplete')
+      expect(gate.error).not.toBe('studio_required')
+      expect(gate.error).not.toBe('payment_required')
+      expect(gate.message).toBe(STUDIO_UNMEASURED_MESSAGE)
+    }
+  })
+
+  it('P-104: site plan and terrain answer identically on every tier', () => {
+    // They are one product rule. A divergence test, not two careful edits:
+    // if a later change fixes one and not the other, this fails.
+    const cases = [
+      { tier: 'free' as const, studioGranted: false },
+      { tier: 'paid' as const, studioGranted: false },
+      { tier: 'paid' as const, studioGranted: true },
+      { tier: 'paid' as const, studioGranted: null },
+    ]
+    for (const ent of cases) {
+      const sp = resolveSitePlanExportAuth({
+        sessionToken: 'session-token',
+        entitlement: { ok: true, ...ent },
+      })
+      const te = resolveTerrainExportAuth({
+        sessionToken: 'session-token',
+        entitlement: { ok: true, ...ent },
+      })
+      expect(sp.ok).toBe(te.ok)
+      if (!sp.ok && !te.ok) {
+        expect(sp.status).toBe(te.status)
+        expect(sp.error).toBe(te.error)
+      }
+    }
   })
 
   it('mirrors terrain: signed-in free tier allowed when operator/dev bypass armed', () => {
     const gate = resolveSitePlanExportAuth({
       sessionToken: 'session-token',
-      entitlement: { ok: true, tier: 'free' },
+      entitlement: { ok: true, tier: 'free', studioGranted: false },
       devBypass: true,
     })
     expect(gate.ok).toBe(true)

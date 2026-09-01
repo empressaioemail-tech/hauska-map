@@ -94,4 +94,64 @@ describe("reports catalog — W7 purchase surface", () => {
     const locked = reportDocLockChip(rec, { studioGranted: false });
     expect(locked?.text).toContain("Studio");
   });
+
+  // ---------------------------------------------------------------------------
+  // P-104. The four site-plan rows carried NO studioGated flag while the
+  // pricing table sold site-plan CAD as Studio, so the picker rendered them
+  // unlocked for a $49 Solo subscriber. The flag is the SURFACE half; the
+  // enforcing half is the server gate in pe-site-plan-export-core.ts. Landing
+  // this flag alone would have been the defect, not the fix.
+  // ---------------------------------------------------------------------------
+
+  it("P-104: every site-plan row is Studio-gated (SITEPLAN, SPPDF, SPDXF, SPIFC)", () => {
+    const sitePlanRows = REPORTS_CATALOG.filter((d) => d.engine === "site-plan");
+    expect(sitePlanRows.map((d) => d.id).sort()).toEqual(
+      ["SITEPLAN", "SPDXF", "SPIFC", "SPPDF"].sort(),
+    );
+    for (const row of sitePlanRows) {
+      expect(row.studioGated).toBe(true);
+      expect(reportDocIsGeneratable(row, false)).toBe(false);
+      expect(reportDocIsGeneratable(row, true)).toBe(true);
+    }
+  });
+
+  it("P-104 VIOLATION: a Solo subscriber sees the Studio lock chip on site plan", () => {
+    const sitePlan = findReportDoc("SITEPLAN");
+    const locked = reportDocLockChip(sitePlan, { studioGranted: false });
+    expect(locked?.text).toBe("Studio, $129/mo");
+    expect(reportDocLockChip(sitePlan, { studioGranted: true })).toBeNull();
+  });
+
+  it("P-104: site-plan and terrain rows are gated identically", () => {
+    // One product rule, two engines. Any future row added to either engine
+    // inherits the assertion rather than needing a second careful edit.
+    const sitePlan = REPORTS_CATALOG.filter((d) => d.engine === "site-plan");
+    const terrain = REPORTS_CATALOG.filter((d) => d.engine === "terrain");
+    expect(sitePlan.length).toBeGreaterThan(0);
+    expect(terrain.length).toBeGreaterThan(0);
+    for (const row of [...sitePlan, ...terrain]) {
+      expect(row.studioGated).toBe(true);
+    }
+  });
+
+  it("P-104: the X-ray is NOT Studio-gated, and that is deliberate", () => {
+    // DOSS is the X-ray report, a SOLO capability (pricing.ts: Solo is
+    // "X-ray, flood & drainage study, unlimited AI, unlimited properties").
+    // The MCP puts "dossier" in STUDIO_EXPORT_KINDS; the web deliberately
+    // does not, because gating it here would take a sold capability away.
+    const xray = findReportDoc("DOSS");
+    expect(xray.name).toBe("X-ray");
+    expect(xray.engine).toBe("dossier");
+    expect(xray.studioGated).toBeUndefined();
+    expect(reportDocIsGeneratable(xray, false)).toBe(true);
+    expect(reportDocLockChip(xray, { studioGranted: false })).toBeNull();
+  });
+
+  it("P-104: flood and brief stay open to Solo", () => {
+    for (const id of ["FLOOD", "BRIEF"] as const) {
+      const doc = findReportDoc(id);
+      expect(doc.studioGated).toBeUndefined();
+      expect(reportDocIsGeneratable(doc, false)).toBe(true);
+    }
+  });
 });
