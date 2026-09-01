@@ -41,6 +41,8 @@ import {
   claudeDesktopChatUrl,
   claudeWebChatUrl,
   relativeSeen,
+  SMART_SITE_CONNECT_HOST,
+  SMART_SITE_CONNECT_URL,
   subscribeConnectionRefresh,
 } from "../../lib/claudeSync";
 import { PE } from "../../styles/pe-chrome";
@@ -50,11 +52,13 @@ import { LockedToolPanel } from "./LockedToolPanel";
 export const CLAUDE_SYNC_VALUE_LINE =
   "Your Smart Site account, in Claude. Same plan. No key.";
 
-/** Customer-facing hostname only — never a Cloud Run hash. */
-export const SMART_SITE_CONNECT_HOST = "mcp.smartsite.cloud";
-
-/** Full connector URL copied into Claude. */
-export const SMART_SITE_CONNECT_URL = `https://${SMART_SITE_CONNECT_HOST}/mcp`;
+/**
+ * P-105: these two moved to src/lib/claudeSync.ts so the share plane's
+ * serverless function can read them without importing a React component.
+ * Re-exported here so every existing consumer and test is untouched, and so
+ * there stays exactly ONE definition of the connector's address.
+ */
+export { SMART_SITE_CONNECT_HOST, SMART_SITE_CONNECT_URL };
 
 /**
  * Deep link to Claude's Connectors pane.

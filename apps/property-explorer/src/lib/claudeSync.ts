@@ -16,9 +16,37 @@
 // This is a declared degradation, not a silent one. If the web `?q=` form is
 // later confirmed working, the clipboard step becomes belt-and-braces and the
 // copy can quieten — that is a copy change here, not a redesign.
+//
+// P-105. The share plane (api/_lib/pe-share-handoff.ts) imports this module
+// so the recipient of a share gets the SAME prompt the sharer's workbench
+// builds. A second prompt builder was the named defect on that card, so the
+// connector identity below moved here too: it was declared in
+// src/workbench/tools/ClaudeSyncTool.tsx, which is a React component and
+// therefore not importable from a serverless function. ClaudeSyncTool
+// re-exports these, so its own consumers are unchanged.
 
 /** Documented: opens Claude Desktop with the composer prefilled. */
 export const CLAUDE_DESKTOP_NEW_CHAT = "claude://claude.ai/new";
+
+/** Customer-facing hostname only — never a Cloud Run hash. */
+export const SMART_SITE_CONNECT_HOST = "mcp.smartsite.cloud";
+
+/** Full connector URL copied into Claude. */
+export const SMART_SITE_CONNECT_URL = `https://${SMART_SITE_CONNECT_HOST}/mcp`;
+
+/** The connector's name as a person and a model both see it. */
+export const SMART_SITE_CONNECTOR_NAME = "Smart Site";
+
+/**
+ * The one tool a share may name to a foreign model.
+ *
+ * It is one of the three APP_HOST_TOOLS that mounts the Smart Site panel, it
+ * takes a parcel node id, and it is what Sync's prompt drives. Every other
+ * tool on that server is either internal or takes a scope a share recipient
+ * does not have, which is why the share body's copy guard allowlists exactly
+ * this name and refuses the rest.
+ */
+export const SMART_SITE_PARCEL_TOOL = "get_smart_site";
 
 /** Undocumented for prefill; always opens a new web chat, which is enough. */
 export const CLAUDE_WEB_NEW_CHAT = "https://claude.ai/new";
