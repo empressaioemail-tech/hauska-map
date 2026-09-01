@@ -547,11 +547,14 @@ describe("the annual rung", () => {
     expect(nextAction("plan", paid("solo", "annual"))).toBeNull();
   });
 
-  it("does NOT fire when the interval was never read — the STARVED state today", () => {
-    // Nothing in this client reads a billing interval; the Plan tab renders
-    // "Billing interval: Not read". Inferring monthly from that absence would
-    // push an upgrade at someone who already switched. This pin is what keeps
-    // the rung starved rather than wrong.
+  it("does NOT fire when the interval is UNKNOWN — and unknown is now a live state, not a starved one", () => {
+    // This pin used to read "the STARVED state today", because no client read
+    // a billing interval at all. P-98b's account-level read landed and the
+    // rung is now fed — which makes this assertion MORE load-bearing, not
+    // less. Null no longer means "we never look"; it means the server told us
+    // nothing, and nothing backfills the column, so a real test-mode
+    // subscriber reads null. Inferring monthly from that would push an upgrade
+    // at somebody already on annual.
     expect(nextAction("plan", paid("solo", null))).toBeNull();
     expect(nextAction("plan", paid("studio", null))).toBeNull();
   });

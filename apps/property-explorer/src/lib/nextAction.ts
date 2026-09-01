@@ -127,11 +127,14 @@ export type PlanTier = "solo" | "studio" | "team";
  * The nullable fields inside the `read` arm are NOT laziness: the read
  * genuinely landed and the field genuinely is not on the wire.
  *
- *   billingInterval — no client read exists anywhere in this app today. The
- *     Plan tab renders "Billing interval: Not read" for exactly this reason.
- *     Until `/entitlement` carries it, this is null and the annual rung
- *     cannot fire. That is a STARVED rung, declared here rather than papered
- *     over by inferring monthly from the absence of evidence.
+ *   billingInterval — NO LONGER STARVED (P-98b). The account-level read at
+ *     lib/accountEntitlementClient.ts calls `/entitlement` WITHOUT a
+ *     parcelNodeId and carries this field, so the annual rung can now fire.
+ *     It is still nullable and NULL STILL MEANS UNKNOWN: nothing backfills the
+ *     column, so a test-mode subscriber reads null, and a server that predates
+ *     the field reads null too. Those are the same answer to the rung — stay
+ *     quiet — and neither may be widened into "monthly" on the way here. The
+ *     Plan tab prints "Not read" off the same null.
  *
  *   freeMessagesLeft — the free-message counters live inside the response's
  *     per-PROPERTY block, so an account-level read has none. Null suppresses
@@ -380,9 +383,18 @@ function switchToAnnualRung(state: AccountLadderState): NextAction | null {
   // would be proposing that they lose seats. That is a different decision
   // with a real cost and it is not this rung's to make.
   if (e.subscriptionTier !== "solo" && e.subscriptionTier !== "studio") return null;
-  // STARVED TODAY, DELIBERATELY. Nothing reads a billing interval, so this is
-  // null and the rung never fires. Inferring "monthly" from a missing field
-  // would put an upgrade in front of somebody who already switched.
+  // THE LINE THIS RUNG IS JUDGED ON, and it is a WHITELIST rather than a
+  // blacklist on purpose. Only the literal "monthly" fires. "annual" does not,
+  // and NULL does not — null means UNKNOWN, not monthly, and offering "switch
+  // to annual" to somebody already on annual is the exact failure this rung
+  // would be judged on. Nothing backfills the interval, so null is a real and
+  // common state rather than a transient one.
+  //
+  // There are TWO independent refusals on this path: accountEntitlementClient
+  // .parseBillingInterval resolves only the two literal strings and everything
+  // else to null, and this line then admits only one of those two. Neither may
+  // be relaxed on the strength of the other. Pinned in both directions in
+  // nextAction.test.ts.
   if (e.billingInterval !== "monthly") return null;
   return {
     id: "annual_upgrade",

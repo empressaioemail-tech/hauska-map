@@ -153,11 +153,34 @@ describe("the mount reads, it does not guess", () => {
   });
 
   it("never invents a billing interval", () => {
-    // Nothing in this client reads one; the Plan tab says "Billing interval:
-    // Not read". Inferring monthly would push an upgrade at someone who
-    // already switched, so the annual rung stays starved.
-    expect(src).toMatch(/billingInterval:\s*null/);
+    // THIS TEST CHANGED WITH THE BEHAVIOUR, AND THE HALF THAT MATTERS DID NOT.
+    //
+    // It used to assert the literal `billingInterval: null` in this file,
+    // because no client read an interval at all and the mount hard-coded the
+    // absence. P-98b's account-level read removed that starvation, so the
+    // literal is gone — pinning it would now be pinning the bug.
+    //
+    // The anti-invention half is preserved VERBATIM below: this file must
+    // never contain a literal "monthly". What replaces the positive half is
+    // stronger than the literal was, because it names the SOURCE: the mount
+    // must derive its ladder input from the account read through the pure
+    // exported bridge, which is where the null-is-not-monthly rule is tested
+    // in both directions (lib/account-entitlement-client.test.ts).
     expect(src).not.toMatch(/billingInterval:\s*"monthly"/);
+    expect(src).toContain("ladderEntitlementFromAccount(account)");
+    // And the mount must not build an EntitlementRead by hand alongside it,
+    // which is how a second, unreviewed path to the same rung would appear.
+    expect(src).not.toMatch(/kind:\s*"read",\s*tier:/);
+  });
+
+  it("the Plan rows read from the ACCOUNT entitlement, not the per-property hook", () => {
+    // Settings is account-scoped. Passing null into the PER-PROPERTY hook is
+    // what shipped "Paid" to every anonymous account (commit b4add1b): the
+    // hook returns a LOADING constant for a null id and the constant fell
+    // through a ternary to its most generous branch. The per-property hook is
+    // not weakened to fix that — it is simply not the reader this surface uses.
+    expect(src).toContain("useAccountEntitlement()");
+    expect(src).not.toContain("usePropertyEntitlement");
   });
 
   it("treats an unread session as not signed in", () => {

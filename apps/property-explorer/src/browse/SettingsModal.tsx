@@ -16,10 +16,15 @@
 //                hasSession } and the BFF holds an opaque token. The address
 //                exists only at the OAuth callback. The slot says so instead
 //                of printing a specimen address.
-//   Plan         REAL for access (free/paid). Tier name, billing interval and
-//                renewal date have no read anywhere and say Not read. Payment
-//                method, invoices and cancel need a billing portal that does
-//                not exist and say Not built.
+//   Plan         REAL. Access, Tier name and Billing interval all come off the
+//                ACCOUNT-level entitlement read (lib/accountEntitlementClient
+//                — the parcel-less GET, added P-98b), and each says Not read
+//                on its own null rather than on the row above it. NULL IS
+//                UNKNOWN, never a default: nothing backfills the billing
+//                interval, so a test-mode subscriber genuinely reads null and
+//                the row says so. Renewal date is not on that wire at all.
+//                Payment method, invoices and cancel need a billing portal
+//                that does not exist and say Not built.
 //   Connections  REAL. Renders CLAUDE_SYNC_VENDORS, the same list the Claude
 //                Sync rail bubble renders, so the two cannot drift. Claude-only
 //                since the 2026-08-31 operator ruling: Cursor Connect still
@@ -45,7 +50,12 @@ import {
   microsoftSignInUrl,
   type AuthStatus,
 } from "../lib/auth";
-import { usePropertyEntitlement } from "../lib/usePropertyEntitlement";
+import {
+  ladderEntitlementFromAccount,
+  useAccountEntitlement,
+  type AccountEntitlementRead,
+} from "../lib/useAccountEntitlement";
+import { PE_PRICING } from "../lib/pricing";
 import {
   CLAUDE_CUSTOMIZE_CONNECTORS_URL,
   CLAUDE_SYNC_VENDORS,
@@ -207,6 +217,83 @@ function Row({
 /** The one emphasis treatment: quiet outline plus a blue glyph. Never a fill. */
 const OPEN_GLYPH = "↗";
 
+/**
+ * The panel's word for a value with no traced source. It is used by three
+ * rows below and is written once so a future edit cannot make one of them
+ * say something softer than the others.
+ */
+const NOT_READ = "Not read";
+
+/**
+ * ACCESS, off the ACCOUNT read.
+ *
+ * THE HISTORY THIS FUNCTION CARRIES. This value used to be
+ * `locked ? "Free" : signedOut ? "Not read" : "Paid"` computed from
+ * usePropertyEntitlement(null). Settings is account-scoped and passes no
+ * parcel; that hook returns its LOADING constant for a null id; the constant
+ * carries locked:false and signedOut:false; so both guards missed and the
+ * ternary fell through to its most generous branch and showed **Paid to every
+ * account, including anonymous** (commit b4add1b). The account read fixes the
+ * INPUT. This function keeps the two guards that were missed, because a
+ * correct input through a generous ternary is the same defect one deploy
+ * later.
+ *
+ * FOUR STATES, AND THREE OF THEM ARE "Not read":
+ *
+ *   read not resolved       we have not asked or have not heard. Unknown.
+ *   sign-in/blocked/
+ *   not-built/error         we asked and did not learn. Unknown, and NOT a
+ *                           free account — a 404 is a fact about the route.
+ *   ready, not authed       there is no account behind this browser. The
+ *                           panel is showing sign-in buttons; printing a plan
+ *                           beside them would be a claim about a person who
+ *                           has not identified themselves.
+ *   ready, authed           the server's own answer. accessTier null (the
+ *                           wire did not carry either key) is still unknown.
+ */
+export function accessLabel(read: AccountEntitlementRead): string {
+  if (read === null || read.kind !== "ready") return NOT_READ;
+  const { account } = read;
+  if (!account.authenticated) return NOT_READ;
+  if (account.accessTier === null) return NOT_READ;
+  return account.accessTier === "paid" ? "Paid" : PE_PRICING.free.title;
+}
+
+/**
+ * TIER NAME, off the same read. The label comes from PE_PRICING so the plan
+ * is never named in two places; Settings does not keep its own copy of "Solo".
+ * Null — free, unlock-only, or a pre-contract server that does not emit the
+ * field — stays "Not read" rather than being back-derived from paid/free.
+ */
+export function tierNameLabel(read: AccountEntitlementRead): string {
+  if (read === null || read.kind !== "ready") return NOT_READ;
+  const tier = read.account.subscriptionTier;
+  if (tier === null) return NOT_READ;
+  return PE_PRICING[tier].title;
+}
+
+/**
+ * BILLING INTERVAL, and this is the row the whole card turns on.
+ *
+ * NULL IS UNKNOWN AND PRINTS "Not read". It is not monthly. Nothing backfills
+ * the column, so today's test-mode subscribers genuinely read null, and a row
+ * that printed "Monthly" for them would be asserting a billing fact about
+ * somebody's money that no one read. The same null suppresses the ladder's
+ * annual rung, for the same reason and out of the same field.
+ *
+ * The two labels come from PE_PRICING.interval, the same strings the pricing
+ * popup's toggle uses, so the account console and the checkout cannot end up
+ * calling the same interval two different things.
+ */
+export function billingIntervalLabel(read: AccountEntitlementRead): string {
+  if (read === null || read.kind !== "ready") return NOT_READ;
+  const interval = read.account.billingInterval;
+  if (interval === null) return NOT_READ;
+  return interval === "annual"
+    ? PE_PRICING.interval.annualLabel
+    : PE_PRICING.interval.monthlyLabel;
+}
+
 export function SettingsModal({
   onClose,
   onUpgrade,
@@ -221,7 +308,10 @@ export function SettingsModal({
   const [status, setStatus] = useState<AuthStatus | null>(null);
   const [team, setTeam] = useState<TeamOutcome | null>(null);
   const [confirmEmail, setConfirmEmail] = useState<string | null>(null);
-  const ent = usePropertyEntitlement(null);
+  // THE ACCOUNT READ. Not usePropertyEntitlement(null) — see accessLabel
+  // above for what that cost. This asks an account-level question of a
+  // parcel-less GET and is a different hook over a different shape.
+  const account = useAccountEntitlement();
   const [claude, setClaude] = useState<ClaudeRead>({ kind: "unread" });
   const [unlocks, setUnlocks] = useState<UnlocksRead>({ kind: "unread" });
   const [unlocksAsked, setUnlocksAsked] = useState(false);
@@ -311,54 +401,33 @@ export function SettingsModal({
     };
   }, [section, unlocksAsked]);
 
-  // ACCESS SAYS "Not read" UNTIL THE READ RESOLVES, AND HERE IT NEVER DOES.
+  // THE THREE PLAN VALUES, ALL OFF THE ONE ACCOUNT READ.
   //
-  // This line used to be `locked ? "Free" : signedOut ? "Not read" : "Paid"`,
-  // and it showed **Paid to every account, including anonymous**. The chain:
-  // line 183 passes `null` on purpose, because Settings is account-scoped and
-  // has no parcel; usePropertyEntitlement returns its LOADING constant for a
-  // null id; LOADING carries `locked: false` and `signedOut: false`; so both
-  // guards missed and the ternary fell through to its most generous branch.
+  // Access, Tier name and Billing interval are three questions about the same
+  // account and are answered from the same response, so they cannot disagree
+  // with each other about what plan this is. Each falls to "Not read" on its
+  // own null, and the reasoning for each lives on its function above rather
+  // than in a ternary here.
   //
-  // The entitlement route requires a parcelNodeId, so this hook can never
-  // answer an account-level question and the field is UNREADABLE from here.
-  // This panel's own rule is that a field with no traced source says Not read.
-  // It now obeys that rule rather than guessing the flattering answer.
-  //
-  // The real fix is an account-level entitlement read that does not need a
-  // parcel. That same missing read also starves the next-action rail's
-  // annual_upgrade rung, which needs billingInterval. One route unblocks both.
-  const access =
-    ent.status !== "ready"
-      ? "Not read"
-      : ent.locked
-        ? "Free"
-        : ent.signedOut
-          ? "Not read"
-          : "Paid";
+  // "Renewal date", "Payment method", "Invoices" and "Cancel subscription" are
+  // NOT touched by this card. Renewal is genuinely not on this wire and the
+  // other three need a billing portal that does not exist; they stay "Not
+  // read" and "Not built" because those are still the true answers.
+  const access = accessLabel(account);
+  const tierName = tierNameLabel(account);
+  const billingInterval = billingIntervalLabel(account);
 
-  // ENTITLEMENT IS UNREAD ON THIS SURFACE, and that is a fact about the read
-  // rather than a shortcut. usePropertyEntitlement is PER-PROPERTY, Settings
-  // has no property, and the hook returns its LOADING constant and never
-  // fetches when parcelNodeId is null. So `status` is "loading" here and this
-  // resolves to `unread`, which keeps every Plan and Team rung quiet instead
-  // of proposing an action off a constant. What would populate it is an
-  // ACCOUNT-level entitlement read, which does not exist in this client; the
-  // branch is written so that the day one lands, the rail lights up unchanged.
-  const entitlement: EntitlementRead =
-    ent.status === "ready"
-      ? {
-          kind: "read",
-          tier: ent.pro ? "paid" : "free",
-          subscriptionTier: ent.subscriptionTier,
-          // NOT ON THE WIRE. The Plan tab above renders "Billing interval:
-          // Not read" for exactly this reason. Inferring "monthly" from the
-          // absence would push an annual upgrade at someone who already
-          // switched, so the annual rung stays starved until the field exists.
-          billingInterval: null,
-          freeMessagesLeft: ent.freeMessagesLeft,
-        }
-      : { kind: "unread" };
+  // THE LADDER'S ENTITLEMENT INPUT, derived by a pure exported function so the
+  // rule that matters is testable without rendering anything. Every non-ready
+  // outcome, an unresolved read, a signed-out 200 and an unknown tier all
+  // become `unread`, and the ladder proposes nothing on unread.
+  //
+  // billingInterval travels STRAIGHT THROUGH, null included. That is what
+  // unstarves the annual rung: it can now be "monthly" and fire, and it can
+  // now be null or "annual" and stay quiet, which are three different answers
+  // where before there was one. Nothing here infers an interval, and
+  // nextAction.ts refuses anything but the literal "monthly" a second time.
+  const entitlement: EntitlementRead = ladderEntitlementFromAccount(account);
 
   // Seats come off the roster read that the Team tab already performs. An
   // unknown seat count stays unread — teamClient.canInvite refuses on one for
@@ -496,7 +565,11 @@ export function SettingsModal({
                     note="The session read returns authentication only. The address exists at the OAuth callback and is not persisted anywhere a later read can reach."
                   />
                   <Row label="Session" value="This browser" />
-                  <Row label="Access" value={access} last />
+                  <Row
+                    label="Access"
+                    value={<span data-testid="settings-access">{access}</span>}
+                    last
+                  />
                 </Panel>
                 {authed ? (
                   <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
@@ -549,8 +622,9 @@ export function SettingsModal({
                   <div style={{ display: "flex", flexDirection: "column", gap: 5 }}>
                     <div style={{ fontSize: 26, fontWeight: 700, color: PE.t1 }}>{access}</div>
                     <div style={{ fontSize: 12.5, color: PE.t5 }}>
-                      Entitlement reads paid or free. Tier name and billing
-                      interval are not on that wire.
+                      Read from the account entitlement. A value that is not on
+                      that wire says Not read rather than being guessed from
+                      the ones that are.
                     </div>
                   </div>
                   <Button
@@ -567,9 +641,31 @@ export function SettingsModal({
                   app, so a plan is never priced in two places.
                 </div>
                 <Panel>
-                  <Row label="Tier name" value="Not read" />
-                  <Row label="Billing interval" value="Not read" />
-                  <Row label="Renewal date" value="Not read" />
+                  {/*
+                    Tier name and Billing interval read from the account
+                    entitlement; each says "Not read" on its own null rather
+                    than on the row above it, so a server that carries one and
+                    not the other says so honestly.
+                  */}
+                  <Row
+                    label="Tier name"
+                    value={<span data-testid="settings-tier-name">{tierName}</span>}
+                  />
+                  <Row
+                    label="Billing interval"
+                    value={
+                      <span data-testid="settings-billing-interval">
+                        {billingInterval}
+                      </span>
+                    }
+                  />
+                  {/*
+                    UNTOUCHED BY P-98b, and each for its own reason. Renewal
+                    date is not on the entitlement wire at all. The last three
+                    need a billing portal that has not been built. Lighting any
+                    of them up would mean inventing the value.
+                  */}
+                  <Row label="Renewal date" value={NOT_READ} />
                   <Row label="Payment method" value="Not built" />
                   <Row label="Invoices" value="Not built" />
                   <Row label="Cancel subscription" value="Not built" last />
