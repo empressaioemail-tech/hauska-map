@@ -64,7 +64,7 @@ function quietAccount(overrides: Partial<AccountLadderState> = {}): AccountLadde
       kind: "read",
       tier: "paid",
       subscriptionTier: "studio",
-      billingInterval: "annual",
+      billingInterval: "year",
       freeMessagesLeft: 3,
     },
     unlocks: unlocksRead([]),
@@ -123,7 +123,7 @@ describe("THE FIVE ACTION IDS ARE A SERVER CONTRACT", () => {
             kind: "read",
             tier: "paid",
             subscriptionTier: "solo",
-            billingInterval: "monthly",
+            billingInterval: "month",
             freeMessagesLeft: 3,
           },
         }),
@@ -135,7 +135,7 @@ describe("THE FIVE ACTION IDS ARE A SERVER CONTRACT", () => {
             kind: "read",
             tier: "paid",
             subscriptionTier: "team",
-            billingInterval: "annual",
+            billingInterval: "year",
             freeMessagesLeft: 3,
           },
           seats: { kind: "read", seatsRemaining: 2, viewerIsOwner: true },
@@ -180,7 +180,7 @@ describe("THE LADDER CAN RETURN NOTHING (the acceptance test)", () => {
             kind: "read",
             tier: "paid",
             subscriptionTier: "team",
-            billingInterval: "annual",
+            billingInterval: "year",
             freeMessagesLeft: 3,
           },
           seats: { kind: "read", seatsRemaining: 2, viewerIsOwner: true },
@@ -198,7 +198,7 @@ describe("ONE ACTION PER CONTEXT, never a list", () => {
       kind: "read",
       tier: "paid",
       subscriptionTier: "solo",
-      billingInterval: "monthly",
+      billingInterval: "month",
       freeMessagesLeft: 3,
     },
   });
@@ -246,7 +246,7 @@ describe("THE TEAM GUARD — a solo user is never offered invite", () => {
         kind: "read",
         tier,
         subscriptionTier,
-        billingInterval: "annual",
+        billingInterval: "year",
         freeMessagesLeft: 3,
       },
       seats,
@@ -298,7 +298,7 @@ describe("nothing is proposed on unread state", () => {
         kind: "read",
         tier: "paid",
         subscriptionTier: "team",
-        billingInterval: "monthly",
+        billingInterval: "month",
         freeMessagesLeft: 0,
       },
       seats: { kind: "read", seatsRemaining: 3, viewerIsOwner: true },
@@ -514,7 +514,7 @@ describe("the property-unlock rung", () => {
             kind: "read",
             tier: "paid",
             subscriptionTier: "solo",
-            billingInterval: "annual",
+            billingInterval: "year",
             freeMessagesLeft: 0,
           },
         }),
@@ -526,7 +526,7 @@ describe("the property-unlock rung", () => {
 describe("the annual rung", () => {
   const paid = (
     subscriptionTier: "solo" | "studio" | "team",
-    billingInterval: "monthly" | "annual" | null,
+    billingInterval: "month" | "year" | null,
   ) =>
     quietAccount({
       entitlement: {
@@ -539,25 +539,28 @@ describe("the annual rung", () => {
     });
 
   it("fires for monthly solo and monthly studio", () => {
-    expect(nextAction("plan", paid("solo", "monthly"))?.id).toBe("annual_upgrade");
-    expect(nextAction("plan", paid("studio", "monthly"))?.id).toBe("annual_upgrade");
+    expect(nextAction("plan", paid("solo", "month"))?.id).toBe("annual_upgrade");
+    expect(nextAction("plan", paid("studio", "month"))?.id).toBe("annual_upgrade");
   });
 
   it("does NOT fire for an account already on annual", () => {
-    expect(nextAction("plan", paid("solo", "annual"))).toBeNull();
+    expect(nextAction("plan", paid("solo", "year"))).toBeNull();
   });
 
-  it("does NOT fire when the interval was never read — the STARVED state today", () => {
-    // Nothing in this client reads a billing interval; the Plan tab renders
-    // "Billing interval: Not read". Inferring monthly from that absence would
-    // push an upgrade at someone who already switched. This pin is what keeps
-    // the rung starved rather than wrong.
+  it("does NOT fire when the interval is UNKNOWN — and unknown is now a live state, not a starved one", () => {
+    // This pin used to read "the STARVED state today", because no client read
+    // a billing interval at all. P-98b's account-level read landed and the
+    // rung is now fed — which makes this assertion MORE load-bearing, not
+    // less. Null no longer means "we never look"; it means the server told us
+    // nothing, and nothing backfills the column, so a real test-mode
+    // subscriber reads null. Inferring monthly from that would push an upgrade
+    // at somebody already on annual.
     expect(nextAction("plan", paid("solo", null))).toBeNull();
     expect(nextAction("plan", paid("studio", null))).toBeNull();
   });
 
   it("does NOT fire for Team, whose annual plan is seat-capped", () => {
-    expect(nextAction("plan", paid("team", "monthly"))).toBeNull();
+    expect(nextAction("plan", paid("team", "year"))).toBeNull();
   });
 });
 
@@ -585,7 +588,7 @@ describe("capability-first copy law", () => {
           kind: "read",
           tier: "paid",
           subscriptionTier: "solo",
-          billingInterval: "monthly",
+          billingInterval: "month",
           freeMessagesLeft: 3,
         },
       }),
@@ -597,7 +600,7 @@ describe("capability-first copy law", () => {
           kind: "read",
           tier: "paid",
           subscriptionTier: "team",
-          billingInterval: "annual",
+          billingInterval: "year",
           freeMessagesLeft: 3,
         },
         seats: { kind: "read", seatsRemaining: 2, viewerIsOwner: true },

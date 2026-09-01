@@ -13,6 +13,10 @@ import { isDeepPathAllowed } from '../../api/_lib/deep-allowlist.js'
 // transcriptions.
 import { ACCOUNT_UNLOCKS_PATH } from './unlockClient'
 import { ACTIVATION_EVENTS_PATH } from './activationEvents'
+// P-98b: the parcel-LESS entitlement GET. Same reasoning as the two above —
+// the constant the client builds its URL from, compared against the server
+// allowlist rather than against a transcription of itself.
+import { ACCOUNT_ENTITLEMENT_PATH } from './accountEntitlementClient'
 
 function isCortexBrowsePathAllowed(method: string, upstreamPath: string): boolean {
   if (method === 'GET' || method === 'HEAD') {
@@ -248,6 +252,24 @@ describe('every deep path a shipped client calls is allowlisted', () => {
 
   it.each(SHIPPED_DEEP_POSTS)('allows POST %s', (path) => {
     expect(isDeepPathAllowed('POST', path)).toBe(true)
+  })
+
+  it('P-98b: the PARCEL-LESS entitlement GET needs no new allowlist line, and this proves it', () => {
+    // THE CLAIM BEING VERIFIED RATHER THAN ASSUMED. deep-allowlist.ts line 5
+    // is the string 'api/property-explorer/v1/entitlement' inside
+    // DEEP_GET_EXACT. api/spine-deep.ts builds its allowlist key from the
+    // req.query.upath SEGMENTS only (`const upstreamPath = path.join('/')`),
+    // so the query string never reaches the check — which is why the
+    // per-property form (?parcelNodeId=) and the account form (no query) hit
+    // the SAME set member and only one line is needed for both.
+    expect(ACCOUNT_ENTITLEMENT_PATH).toBe('api/property-explorer/v1/entitlement')
+    expect(isDeepPathAllowed('GET', ACCOUNT_ENTITLEMENT_PATH)).toBe(true)
+    expect(isDeepPathAllowed('HEAD', ACCOUNT_ENTITLEMENT_PATH)).toBe(true)
+    // NOT VACUOUS, and NARROW: the read stays a read. An entitlement WRITE and
+    // an invented neighbour are still refused on the same prefix.
+    expect(isDeepPathAllowed('POST', ACCOUNT_ENTITLEMENT_PATH)).toBe(false)
+    expect(isDeepPathAllowed('DELETE', ACCOUNT_ENTITLEMENT_PATH)).toBe(false)
+    expect(isDeepPathAllowed('GET', `${ACCOUNT_ENTITLEMENT_PATH}/account`)).toBe(false)
   })
 
   it('P-98 paths are the ones the clients actually fetch', () => {
