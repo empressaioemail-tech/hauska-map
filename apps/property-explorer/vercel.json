@@ -39,7 +39,6 @@
     { "source": "/api/spine-deep/(.*)", "destination": "/api/spine-deep?upath=$1" },
     { "source": "/api/spine/(.*)", "destination": "/api/spine?upath=$1" },
     { "source": "/api/pe-gtm", "destination": "/api/pe-gtm" },
-    { "source": "/api/pe-billing", "destination": "/api/pe-billing" },
     { "source": "/api/pe-terrain-export", "destination": "/api/pe-terrain-export" },
     { "source": "/api/pe-site-plan-export", "destination": "/api/pe-site-plan-export" },
     { "source": "/api/pe-topography", "destination": "/api/pe-map-layers?layer=topography" },
