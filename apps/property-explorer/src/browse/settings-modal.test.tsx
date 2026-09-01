@@ -74,14 +74,39 @@ describe("Account — the address is NOT READ, and says so", () => {
 });
 
 describe("Plan — half real, and declares which half", () => {
-  it("shows the three unbuilt billing rows AS Not built", () => {
-    // Their PRESENCE is the disclosure. Hiding them would leave the reader
-    // hunting for a cancel control that does not exist.
+  it("A-062: the three unbuilt billing rows are now ONE REAL CONTROL", () => {
+    // WHAT THIS TEST USED TO ASSERT, and why it changed. Until A-062 the panel
+    // showed "Payment method / Invoices / Cancel subscription", each valued
+    // "Not built", and their PRESENCE was the disclosure — hiding them would
+    // have left a reader hunting for a cancel control that did not exist.
+    //
+    // They are three doors into the SAME Stripe Customer Portal, which is
+    // Stripe's surface and not ours, so they are one row now. The old labels
+    // must be GONE rather than kept beside the new one: leaving "Cancel
+    // subscription — Not built" next to a working control would contradict
+    // itself on screen, and it is the exact sentence terms.html was accused of
+    // contradicting.
     const html = render("plan");
-    for (const label of ["Payment method", "Invoices", "Cancel subscription"]) {
-      expect(html).toContain(label);
+    for (const retired of ["Payment method", "Invoices", "Cancel subscription"]) {
+      expect(html).not.toContain(retired);
     }
-    expect(html).toContain("Not built");
+    expect(html).toContain("Payment, invoices and cancellation");
+    // "Not built" is gone from this tab entirely: nothing on it is unbuilt any
+    // more. Renewal date is "Not read", which is a different claim — the value
+    // is genuinely not on the wire.
+    expect(html).not.toContain("Not built");
+  });
+
+  it("A-062: the control WAITS for the account read rather than guessing", () => {
+    // First paint has an unresolved read. The honest answer there is "Not
+    // read", not a button: offering a portal to an account we have not read is
+    // how a customer lands on a 409 while trying to cancel. The `manage` arm
+    // is proven separately, without rendering, in
+    // src/lib/pe-terms-cancellation.test.tsx.
+    const html = render("plan");
+    expect(html).toContain('data-testid="settings-billing-not-read"');
+    expect(html).not.toContain('data-testid="settings-billing-portal"');
+    expect(html).not.toContain('data-testid="settings-billing-none"');
   });
 
   it("marks tier, interval and renewal as Not read", () => {
