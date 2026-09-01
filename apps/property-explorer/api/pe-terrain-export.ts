@@ -2,7 +2,8 @@
 //
 // POST /api/pe-terrain-export
 //   Body: { parcelNodeId: "48021:27303", format?: "glb"|"ifc"|"dxf-3dface"|"dxf-contour" }
-//   Requires PE session + paid entitlement. Calls MCP refresh_parcel_terrain_export
+//   Requires PE session + STUDIO entitlement (P-104). Calls MCP
+//   refresh_parcel_terrain_export
 //   with server-side MCP_PRODUCT_KEY (one SDK meter per request at MCP).
 //
 // GET /api/pe-terrain-export?parcelNodeId=...&format=glb&action=download
@@ -31,7 +32,13 @@ import {
   type TerrainExportFormat,
 } from './_lib/pe-terrain-export-core.js'
 
-async function requirePaidSession(
+/**
+ * P-104: renamed from `requirePaidSession`. The old name was accurate about
+ * what the code did (`tier !== 'paid'`) and wrong about what the product
+ * sells: Solo is paid, and Solo does not include terrain. The rename is not
+ * cosmetic - it is what a reader would have needed to catch this by reading.
+ */
+async function requireStudioSession(
   req: VercelRequest,
   res: VercelResponse,
 ): Promise<{ token: string; devBypass: boolean } | null> {
@@ -75,7 +82,7 @@ async function handleRefresh(
   req: VercelRequest,
   res: VercelResponse,
 ): Promise<void> {
-  const session = await requirePaidSession(req, res)
+  const session = await requireStudioSession(req, res)
   if (!session) return
 
   if (!mcpProductKey()) {
@@ -202,7 +209,7 @@ async function handleDownload(
   req: VercelRequest,
   res: VercelResponse,
 ): Promise<void> {
-  if (!(await requirePaidSession(req, res))) return
+  if (!(await requireStudioSession(req, res))) return
 
   const parcelNodeIdRaw = req.query.parcelNodeId
   const formatRaw = req.query.format
