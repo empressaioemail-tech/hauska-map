@@ -160,13 +160,20 @@ describe("the mount reads, it does not guess", () => {
     // absence. P-98b's account-level read removed that starvation, so the
     // literal is gone — pinning it would now be pinning the bug.
     //
-    // The anti-invention half is preserved VERBATIM below: this file must
-    // never contain a literal "monthly". What replaces the positive half is
-    // stronger than the literal was, because it names the SOURCE: the mount
-    // must derive its ladder input from the account read through the pure
-    // exported bridge, which is where the null-is-not-monthly rule is tested
-    // in both directions (lib/account-entitlement-client.test.ts).
+    // The anti-invention half is preserved below and WIDENED by P-98b: the
+    // mount must hard-code no interval at all. "month" is the live wire value
+    // now, so it is the string a hand-written invention would reach for; and
+    // "monthly" stays refused because it is the RETIRED product word, and a
+    // hard-coded one reappearing here is how the deleted translation layer
+    // would grow back. What replaces the positive half is stronger than the
+    // literal was, because it names the SOURCE: the mount must derive its
+    // ladder input from the account read through the pure exported bridge,
+    // which is where the null-is-not-month rule is tested in both directions
+    // (lib/account-entitlement-client.test.ts).
+    expect(src).not.toMatch(/billingInterval:\s*"month"/);
     expect(src).not.toMatch(/billingInterval:\s*"monthly"/);
+    expect(src).not.toMatch(/billingInterval:\s*"year"/);
+    expect(src).not.toMatch(/billingInterval:\s*"annual"/);
     expect(src).toContain("ladderEntitlementFromAccount(account)");
     // And the mount must not build an EntitlementRead by hand alongside it,
     // which is how a second, unreviewed path to the same rung would appear.

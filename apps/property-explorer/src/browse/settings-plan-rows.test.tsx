@@ -37,7 +37,7 @@ function account(overrides: Partial<AccountEntitlement> = {}): AccountEntitlemen
       entitlementSource: "stripe_sub",
       devRole: false,
       seatsPurchased: null,
-      billingInterval: "monthly",
+      billingInterval: "month",
       preContract: false,
       ...overrides,
     },
@@ -116,10 +116,13 @@ describe("Tier name", () => {
 
 describe("Billing interval — the row the whole card turns on", () => {
   it("prints the two known values using the pricing popup's own labels", () => {
-    expect(billingIntervalLabel(account({ billingInterval: "monthly" }))).toBe(
+    // The wire values are Stripe's ("month"/"year", P-98b); the LABELS stay
+    // the pricing popup's words. This is the render boundary, and it is the
+    // only place on the client where the two vocabularies are allowed to meet.
+    expect(billingIntervalLabel(account({ billingInterval: "month" }))).toBe(
       PE_PRICING.interval.monthlyLabel,
     );
-    expect(billingIntervalLabel(account({ billingInterval: "annual" }))).toBe(
+    expect(billingIntervalLabel(account({ billingInterval: "year" }))).toBe(
       PE_PRICING.interval.annualLabel,
     );
   });
@@ -139,7 +142,7 @@ describe("Billing interval — the row the whole card turns on", () => {
 
   it("NOT VACUOUS: the same fixture with a known interval does print one", () => {
     // Guards the block above against passing because every fixture is broken.
-    expect(billingIntervalLabel(account({ billingInterval: "annual" }))).not.toBe(
+    expect(billingIntervalLabel(account({ billingInterval: "year" }))).not.toBe(
       NOT_READ,
     );
   });

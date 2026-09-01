@@ -6,8 +6,8 @@
 //
 // THE VIOLATION TESTS ARE THE POINT. The annual rung is judged on whether it
 // ever proposes "switch to annual" to somebody already on annual, and the two
-// ways that happens are (1) the parse widens an unknown into "monthly" and
-// (2) the ladder admits something other than "monthly". Both directions are
+// ways that happens are (1) the parse widens an unknown into "month" and
+// (2) the ladder admits something other than "month". Both directions are
 // pinned below, and the end-to-end block pins the CHAIN rather than the two
 // halves separately — a wire body in, an action or null out — because two
 // individually correct halves can still be wired together wrong.
@@ -41,26 +41,32 @@ function statusOnly(status: number): Response {
 
 describe("parseBillingInterval — only two strings resolve, everything else is UNKNOWN", () => {
   it("resolves the two literal values and nothing else", () => {
-    expect(parseBillingInterval("monthly")).toBe("monthly");
-    expect(parseBillingInterval("annual")).toBe("annual");
+    expect(parseBillingInterval("month")).toBe("month");
+    expect(parseBillingInterval("year")).toBe("year");
   });
 
-  it("VIOLATION: no unknown value is ever widened into monthly", () => {
+  it("VIOLATION: no unknown value is ever widened into month", () => {
     // The failure this guards is a client deciding what the server meant on a
-    // field that decides how somebody is billed. Case included: "Monthly" is
-    // not "monthly", and a case-insensitive match here would be exactly the
+    // field that decides how somebody is billed. Case included: "Month" is
+    // not "month", and a case-insensitive match here would be exactly the
     // kind of helpfulness that invents a fact.
+    //
+    // "monthly" and "annual" are in this list DELIBERATELY and are the reason
+    // it was rewritten (P-98b, 2026-08-31). They are the retired product words
+    // a translation layer used to put on this wire. Admitting them "for
+    // compatibility" would rebuild the two-vocabulary bridge the ruling
+    // deleted, and it would do it silently.
     for (const bad of [
       null,
       undefined,
       "",
       " ",
-      "Monthly",
-      "MONTHLY",
+      "Month",
+      "MONTH",
+      "monthly",
+      "annual",
       "yearly",
-      "year",
-      "month",
-      "monthly ",
+      "month ",
       0,
       1,
       true,
@@ -105,7 +111,7 @@ describe("parseAccountEntitlement", () => {
         entitlementSource: "stripe_sub",
         devRole: false,
         seatsPurchased: 3,
-        billingInterval: "monthly",
+        billingInterval: "month",
       }),
     ).toEqual({
       authenticated: true,
@@ -114,7 +120,7 @@ describe("parseAccountEntitlement", () => {
       entitlementSource: "stripe_sub",
       devRole: false,
       seatsPurchased: 3,
-      billingInterval: "monthly",
+      billingInterval: "month",
       preContract: false,
     });
   });
@@ -291,7 +297,7 @@ describe("ladderEntitlementFromAccount — nothing but a clean, authenticated, t
       entitlementSource: null,
       devRole: false,
       seatsPurchased: null,
-      billingInterval: "monthly",
+      billingInterval: "month",
       preContract: false,
     } as const;
     expect(ladderEntitlementFromAccount({ kind: "ready", account })).toEqual({
@@ -306,7 +312,7 @@ describe("ladderEntitlementFromAccount — nothing but a clean, authenticated, t
   });
 
   it("passes the interval STRAIGHT THROUGH, null included, and never supplies a free-message count", () => {
-    for (const billingInterval of ["monthly", "annual", null] as const) {
+    for (const billingInterval of ["month", "year", null] as const) {
       expect(
         ladderEntitlementFromAccount({
           kind: "ready",
@@ -361,16 +367,16 @@ describe("VERIFY BY VIOLATION — wire body to rung, in both directions", () => 
     ...extra,
   });
 
-  it("MONTHLY DOES fire annual_upgrade — the rung is fed, not starved", () => {
+  it("MONTH DOES fire annual_upgrade — the rung is fed, not starved", () => {
     // If this ever goes null the card did not do its job: the whole point of
     // the account read is that this rung can now reach a user at all.
-    const action = nextAction("plan", planStateFromBody(paidSolo({ billingInterval: "monthly" })));
+    const action = nextAction("plan", planStateFromBody(paidSolo({ billingInterval: "month" })));
     expect(action?.id).toBe("annual_upgrade");
   });
 
   it("ANNUAL does NOT fire it", () => {
     expect(
-      nextAction("plan", planStateFromBody(paidSolo({ billingInterval: "annual" }))),
+      nextAction("plan", planStateFromBody(paidSolo({ billingInterval: "year" }))),
     ).toBeNull();
   });
 
@@ -398,8 +404,8 @@ describe("VERIFY BY VIOLATION — wire body to rung, in both directions", () => 
     // three negative assertions would pass for the wrong reason. The positive
     // case sharing every other field with them is what rules that out, and
     // this test states it rather than leaving it implied.
-    const monthly = paidSolo({ billingInterval: "monthly" });
-    const annual = paidSolo({ billingInterval: "annual" });
+    const monthly = paidSolo({ billingInterval: "month" });
+    const annual = paidSolo({ billingInterval: "year" });
     expect(Object.keys(monthly).sort()).toEqual(Object.keys(annual).sort());
     expect(nextAction("plan", planStateFromBody(monthly))).not.toBeNull();
     expect(nextAction("plan", planStateFromBody(annual))).toBeNull();

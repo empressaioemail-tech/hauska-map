@@ -117,7 +117,15 @@ export type ClaudeRead =
   | { kind: "read"; connected: boolean }
   | { kind: "unread" };
 
-export type BillingInterval = "monthly" | "annual";
+/**
+ * The wire vocabulary, and the ONLY one on this path: "month" | "year",
+ * Stripe's own recurring-interval grammar, the same two strings the
+ * pe_user_entitlements.billing_interval DDL CHECK admits. Operator ruling
+ * 2026-08-31 (P-98b): one vocabulary end to end, no translation layer on
+ * either side of the wire. The product words "monthly" and "annual" belong
+ * to display copy (PricingInterval in lib/pricing.ts) and never travel.
+ */
+export type BillingInterval = "month" | "year";
 
 export type PlanTier = "solo" | "studio" | "team";
 
@@ -133,7 +141,7 @@ export type PlanTier = "solo" | "studio" | "team";
  *     It is still nullable and NULL STILL MEANS UNKNOWN: nothing backfills the
  *     column, so a test-mode subscriber reads null, and a server that predates
  *     the field reads null too. Those are the same answer to the rung — stay
- *     quiet — and neither may be widened into "monthly" on the way here. The
+ *     quiet — and neither may be widened into "month" on the way here. The
  *     Plan tab prints "Not read" off the same null.
  *
  *   freeMessagesLeft — the free-message counters live inside the response's
@@ -384,7 +392,7 @@ function switchToAnnualRung(state: AccountLadderState): NextAction | null {
   // with a real cost and it is not this rung's to make.
   if (e.subscriptionTier !== "solo" && e.subscriptionTier !== "studio") return null;
   // THE LINE THIS RUNG IS JUDGED ON, and it is a WHITELIST rather than a
-  // blacklist on purpose. Only the literal "monthly" fires. "annual" does not,
+  // blacklist on purpose. Only the literal "month" fires. "year" does not,
   // and NULL does not — null means UNKNOWN, not monthly, and offering "switch
   // to annual" to somebody already on annual is the exact failure this rung
   // would be judged on. Nothing backfills the interval, so null is a real and
@@ -395,7 +403,7 @@ function switchToAnnualRung(state: AccountLadderState): NextAction | null {
   // else to null, and this line then admits only one of those two. Neither may
   // be relaxed on the strength of the other. Pinned in both directions in
   // nextAction.test.ts.
-  if (e.billingInterval !== "monthly") return null;
+  if (e.billingInterval !== "month") return null;
   return {
     id: "annual_upgrade",
     context: "plan",

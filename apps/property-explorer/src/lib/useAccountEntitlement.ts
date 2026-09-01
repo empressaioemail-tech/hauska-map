@@ -85,7 +85,7 @@ export function useAccountEntitlement(
  *   2. It never turns an unknown accessTier into "free". A free tier is a
  *      POSITIVE determination that unlocks the property_unlock rung; an
  *      unknown one must not.
- *   3. It never turns a null billingInterval into "monthly". It passes the
+ *   3. It never turns a null billingInterval into "month". It passes the
  *      null straight through, and nextAction.ts's whitelist refuses it again.
  *
  * freeMessagesLeft is ALWAYS null here and that is the contract, not a gap in

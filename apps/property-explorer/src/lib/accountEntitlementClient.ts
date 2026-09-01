@@ -21,7 +21,7 @@
 //   With a parcelNodeId the response is byte-identical to today, which is why
 //   the per-property caller above is untouched.
 //
-//   billingInterval is "monthly" | "annual" | null, and NULL MEANS UNKNOWN.
+//   billingInterval is "month" | "year" | null, and NULL MEANS UNKNOWN.
 //   Nothing backfills it, so today's test-mode subscribers read null. That is
 //   correct rather than a bug, and it is the single most important field in
 //   this file: see THE ONE RULE below.
@@ -36,13 +36,13 @@
 //
 // THE ONE RULE: A NULL INTERVAL IS NOT MONTHLY.
 //
-//   parseBillingInterval below returns "monthly" ONLY for the literal string
-//   "monthly". An absent key, an explicit null, a non-string, and any
-//   unrecognised string ("yearly", "Monthly", "") all resolve to null. The
+//   parseBillingInterval below returns "month" ONLY for the literal string
+//   "month". An absent key, an explicit null, a non-string, and any
+//   unrecognised string ("monthly", "Month", "") all resolve to null. The
 //   next-action ladder's annual rung then stays quiet, because offering
 //   "switch to annual" to somebody already on annual is the failure that rung
 //   would be judged on. There are TWO independent refusals on that path — this
-//   parse, and nextAction.ts's `!== "monthly"` whitelist — and neither is
+//   parse, and nextAction.ts's `!== "month"` whitelist — and neither is
 //   allowed to be relaxed on the strength of the other.
 //
 // FIVE OUTCOMES THAT MUST NEVER MERGE — the same discipline unlockClient.ts
@@ -111,7 +111,7 @@ export interface AccountEntitlement {
    */
   seatsPurchased: number | null;
   /**
-   * "monthly" | "annual" | null, and NULL MEANS UNKNOWN. Never defaulted,
+   * "month" | "year" | null, and NULL MEANS UNKNOWN. Never defaulted,
    * never inferred, never widened. See THE ONE RULE in the header.
    */
   billingInterval: BillingInterval | null;
@@ -150,14 +150,17 @@ function asRecord(v: unknown): Record<string, unknown> | null {
 /**
  * THE FIELD THIS WHOLE FILE IS ABOUT.
  *
- * Exactly two strings resolve. Everything else is null, which means UNKNOWN
- * and suppresses the annual rung. In particular "Monthly" does not resolve:
- * a case-insensitive match here would be a client deciding what the server
- * meant, and the two values differ by whether somebody is asked to pay
- * differently.
+ * Exactly two strings resolve, and they are the ones the column stores:
+ * "month" and "year", Stripe's own recurring-interval grammar (operator
+ * ruling 2026-08-31, P-98b -- one vocabulary end to end, no translation on
+ * either side of the wire). Everything else is null, which means UNKNOWN and
+ * suppresses the annual rung. In particular the PRODUCT words "monthly" and
+ * "annual" do NOT resolve, and neither does "Month": a case-insensitive or
+ * synonym match here would be a client deciding what the server meant, and
+ * the two values differ by whether somebody is asked to pay differently.
  */
 export function parseBillingInterval(v: unknown): BillingInterval | null {
-  return v === "monthly" || v === "annual" ? v : null;
+  return v === "month" || v === "year" ? v : null;
 }
 
 /** solo / studio / team only. Anything else is null and gates Studio CLOSED. */

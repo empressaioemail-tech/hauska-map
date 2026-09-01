@@ -289,7 +289,12 @@ export function billingIntervalLabel(read: AccountEntitlementRead): string {
   if (read === null || read.kind !== "ready") return NOT_READ;
   const interval = read.account.billingInterval;
   if (interval === null) return NOT_READ;
-  return interval === "annual"
+  // The WIRE says "year"/"month" (Stripe grammar, one vocabulary end to end
+  // per the 2026-08-31 P-98b ruling). The LABEL says Annual/Monthly, because
+  // that is what the pricing popup's toggle says and a person reads. Those are
+  // different jobs: this is the render boundary, not a second wire vocabulary,
+  // and it is the only place on the client where the two words meet.
+  return interval === "year"
     ? PE_PRICING.interval.annualLabel
     : PE_PRICING.interval.monthlyLabel;
 }
@@ -423,10 +428,10 @@ export function SettingsModal({
   // become `unread`, and the ladder proposes nothing on unread.
   //
   // billingInterval travels STRAIGHT THROUGH, null included. That is what
-  // unstarves the annual rung: it can now be "monthly" and fire, and it can
-  // now be null or "annual" and stay quiet, which are three different answers
+  // unstarves the annual rung: it can now be "month" and fire, and it can
+  // now be null or "year" and stay quiet, which are three different answers
   // where before there was one. Nothing here infers an interval, and
-  // nextAction.ts refuses anything but the literal "monthly" a second time.
+  // nextAction.ts refuses anything but the literal "month" a second time.
   const entitlement: EntitlementRead = ladderEntitlementFromAccount(account);
 
   // Seats come off the roster read that the Team tab already performs. An
