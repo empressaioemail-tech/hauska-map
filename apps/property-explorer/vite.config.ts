@@ -45,10 +45,6 @@ export default defineConfig({
               target: spineProxyTarget,
               changeOrigin: true,
             },
-            "/api/pe-billing": {
-              target: spineProxyTarget,
-              changeOrigin: true,
-            },
             "/api/pe-terrain-export": {
               target: spineProxyTarget,
               changeOrigin: true,
