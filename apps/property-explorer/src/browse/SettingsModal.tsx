@@ -46,7 +46,11 @@ import {
   type AuthStatus,
 } from "../lib/auth";
 import { usePropertyEntitlement } from "../lib/usePropertyEntitlement";
-import { CLAUDE_SYNC_VENDORS } from "../workbench/tools/ClaudeSyncTool";
+import {
+  CLAUDE_CUSTOMIZE_CONNECTORS_URL,
+  CLAUDE_SYNC_VENDORS,
+  SMART_SITE_CONNECT_URL,
+} from "../workbench/tools/ClaudeSyncTool";
 import {
   canActOn,
   canInvite,
@@ -55,6 +59,18 @@ import {
   seatCounts,
   type TeamOutcome,
 } from "../lib/teamClient";
+import { NextActionCard } from "../components/NextActionCard";
+import { fetchAiConnections } from "../lib/aiConnectionClient";
+import { fetchAccountUnlocks } from "../lib/unlockClient";
+import {
+  nextAction,
+  type ClaudeRead,
+  type EntitlementRead,
+  type NextAction,
+  type NextActionId,
+  type SeatsRead,
+  type UnlocksRead,
+} from "../lib/nextAction";
 
 export type SettingsSection = "account" | "plan" | "connections" | "team";
 
@@ -65,16 +81,41 @@ const SECTIONS: { id: SettingsSection; label: string }[] = [
   { id: "team", label: "Team" },
 ];
 
-/** The ON THIS TAB rail copy. One sentence per tab, from the drop. */
-const SIDE_NOTE: Record<SettingsSection, string> = {
-  account:
-    "Identity and session only. The address is not on the session read, so the slot states that rather than printing one.",
-  plan: "Pricing is never restated here. View plans opens the same checkout the rail and the locked tools open.",
-  connections:
-    "A connection reads this account. It does not grant a plan and it does not change what is unlocked.",
-  team:
-    "Two roles: owner and member. A seat is consumed by an accepted member or an outstanding invitation, so an invited person is counted before they arrive. Settings never prices seats.",
-};
+/**
+ * P-98. The right rail used to carry a per-tab sentence explaining the panel's
+ * own design discipline. It now carries ONE state-derived next step, or
+ * nothing, from the pure ladder in lib/nextAction.ts. Settings is the
+ * PROTOTYPE mount for that component, not its destination.
+ */
+const NEXT_ACTION_SURFACE = "settings";
+
+/**
+ * WHAT THIS MOUNT CAN ACTUALLY RUN, and it is fewer than the ladder can
+ * propose. The ladder is host-agnostic; this host does not have a working
+ * control for every step, and rendering a button that goes nowhere is the
+ * dead-control defect this panel exists to avoid.
+ *
+ * NOT RUNNABLE HERE, with the reason:
+ *
+ *   team_invite             There is NO invite write path anywhere in this
+ *                           client. The Team tab's Invite block is prose, and
+ *                           api/_lib/deep-allowlist.ts states the writes stay
+ *                           off "until the client has a write path".
+ *   unlock_expiring         onUpgrade opens the pricing modal scoped to the
+ *                           MAP's active parcel, which is not necessarily the
+ *                           parcel whose unlock is lapsing. Sending someone to
+ *                           a checkout for a different property is worse than
+ *                           not offering the step at all. Extending needs
+ *                           parcel-scoped routing this host does not have.
+ *
+ * FAIL CLOSED. A new NextActionId is not runnable until it is added here AND
+ * given a branch in runAction below. The rail goes quiet rather than guessing.
+ */
+const SETTINGS_RUNNABLE: ReadonlySet<NextActionId> = new Set<NextActionId>([
+  "connect_claude",
+  "property_unlock",
+  "annual_upgrade",
+]);
 
 function Eyebrow({ children }: { children: ReactNode }) {
   return (
@@ -181,6 +222,17 @@ export function SettingsModal({
   const [team, setTeam] = useState<TeamOutcome | null>(null);
   const [confirmEmail, setConfirmEmail] = useState<string | null>(null);
   const ent = usePropertyEntitlement(null);
+  const [claude, setClaude] = useState<ClaudeRead>({ kind: "unread" });
+  const [unlocks, setUnlocks] = useState<UnlocksRead>({ kind: "unread" });
+  const [unlocksAsked, setUnlocksAsked] = useState(false);
+  // The post-action note is KEYED TO THE ACTION THAT PRODUCED IT. Holding a
+  // bare ReactNode here was the first draft and it was wrong: "Address
+  // copied" would still be sitting under whatever action the next tab
+  // proposed, which is a line of text asserting something about a step the
+  // user never took.
+  const [actNote, setActNote] = useState<{ id: NextActionId; node: ReactNode } | null>(
+    null,
+  );
 
   useEffect(() => {
     let cancelled = false;
@@ -199,6 +251,65 @@ export function SettingsModal({
       cancelled = true;
     };
   }, [section, team]);
+
+  // THE CLAUDE READ IS REUSED, NOT REBUILT. fetchAiConnections is the same
+  // call the Claude Sync card makes; there is exactly one read of
+  // pe_ai_connections in this client and this is it.
+  //
+  // ONLY A CLEAN READ BECOMES A FACT. sign-in, blocked (403 — our own proxy),
+  // not-built (404) and error all stay `unread`, and the ladder proposes
+  // nothing on unread. That is the OPPOSITE of what the Claude Sync CARD does
+  // with the same outcomes, and the difference is deliberate: the card's job
+  // is disclosure, so showing setup on an unknown costs nothing, while the
+  // rail's job is to propose a step off read state. The reasoning is written
+  // out at the top of lib/nextAction.ts.
+  useEffect(() => {
+    let cancelled = false;
+    void fetchAiConnections().then((o) => {
+      if (cancelled) return;
+      setClaude(
+        o.kind === "ready"
+          ? { kind: "read", connected: o.claude !== null }
+          : { kind: "unread" },
+      );
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  // The account-wide unlock read, asked once, only on the tab that uses it.
+  //
+  // EVERY NON-READY OUTCOME KEEPS ITS OWN KIND. A 404 (route not deployed), a
+  // 403 (our own proxy refusing our own path) and a 500 (the server could not
+  // compute) must none of them reach the ladder looking like "this account
+  // holds no unlocks". The route fails LOUD and never returns an empty list to
+  // mean failure, which is exactly why an empty `read` can be trusted here.
+  //
+  // `asOf` travels with the list because it is the clock those expiries were
+  // computed against; the ladder reads it rather than the browser's.
+  useEffect(() => {
+    if (section !== "plan" || unlocksAsked) return;
+    setUnlocksAsked(true);
+    let cancelled = false;
+    void fetchAccountUnlocks().then((o) => {
+      if (cancelled) return;
+      setUnlocks(
+        o.kind === "ready"
+          ? { kind: "read", asOf: o.asOf, unlocks: o.unlocks }
+          : o.kind === "not-built"
+            ? { kind: "not-built" }
+            : o.kind === "blocked"
+              ? { kind: "blocked" }
+              : o.kind === "error"
+                ? { kind: "error" }
+                : { kind: "unread" },
+      );
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, [section, unlocksAsked]);
 
   // ACCESS SAYS "Not read" UNTIL THE READ RESOLVES, AND HERE IT NEVER DOES.
   //
@@ -225,6 +336,103 @@ export function SettingsModal({
         : ent.signedOut
           ? "Not read"
           : "Paid";
+
+  // ENTITLEMENT IS UNREAD ON THIS SURFACE, and that is a fact about the read
+  // rather than a shortcut. usePropertyEntitlement is PER-PROPERTY, Settings
+  // has no property, and the hook returns its LOADING constant and never
+  // fetches when parcelNodeId is null. So `status` is "loading" here and this
+  // resolves to `unread`, which keeps every Plan and Team rung quiet instead
+  // of proposing an action off a constant. What would populate it is an
+  // ACCOUNT-level entitlement read, which does not exist in this client; the
+  // branch is written so that the day one lands, the rail lights up unchanged.
+  const entitlement: EntitlementRead =
+    ent.status === "ready"
+      ? {
+          kind: "read",
+          tier: ent.pro ? "paid" : "free",
+          subscriptionTier: ent.subscriptionTier,
+          // NOT ON THE WIRE. The Plan tab above renders "Billing interval:
+          // Not read" for exactly this reason. Inferring "monthly" from the
+          // absence would push an annual upgrade at someone who already
+          // switched, so the annual rung stays starved until the field exists.
+          billingInterval: null,
+          freeMessagesLeft: ent.freeMessagesLeft,
+        }
+      : { kind: "unread" };
+
+  // Seats come off the roster read that the Team tab already performs. An
+  // unknown seat count stays unread — teamClient.canInvite refuses on one for
+  // the same reason: unknown is the absence of permission, not permission.
+  const seats: SeatsRead = (() => {
+    if (team?.kind !== "ready") return { kind: "unread" };
+    const counts = seatCounts(team.roster);
+    if (counts.remaining === null) return { kind: "unread" };
+    return {
+      kind: "read",
+      seatsRemaining: counts.remaining,
+      viewerIsOwner: team.roster.viewerRole === "owner",
+    };
+  })();
+
+  // No clock is passed. The only rung that needs one reads the `asOf` the
+  // server stamped on the same response as the expiries, so the rail and the
+  // server cannot disagree about what "four days" means.
+  const proposed = nextAction(section, {
+    // A session that has not been read yet is not a signed-in one.
+    authenticated: authed === true,
+    claude,
+    entitlement,
+    unlocks,
+    seats,
+  });
+  // Not runnable here means not rendered here. See SETTINGS_RUNNABLE.
+  const action = proposed && SETTINGS_RUNNABLE.has(proposed.id) ? proposed : null;
+
+  const runAction = (a: NextAction) => {
+    switch (a.id) {
+      case "connect_claude": {
+        // The real step is two things, and both constants come from
+        // ClaudeSyncTool so Settings and the Sync card cannot disagree about
+        // the address or about the hard-won connectors URL slug.
+        const paste = `Paste ${SMART_SITE_CONNECT_URL} into Claude: Add custom connector.`;
+        const say = (node: ReactNode) => setActNote({ id: a.id, node });
+        try {
+          const write = navigator.clipboard?.writeText(SMART_SITE_CONNECT_URL);
+          if (write) {
+            void write.then(
+              () =>
+                say("Address copied. In Claude: Settings, Connectors, Add custom connector."),
+              // The note reports what actually happened. Claiming a copy that
+              // failed would leave someone pasting an empty clipboard.
+              () => say(paste),
+            );
+          } else {
+            say(paste);
+          }
+        } catch {
+          say(paste);
+        }
+        window.open(
+          CLAUDE_CUSTOMIZE_CONNECTORS_URL,
+          "_blank",
+          "noopener,noreferrer",
+        );
+        return;
+      }
+      case "property_unlock":
+      case "annual_upgrade":
+        // ONE pricing surface. The rail names the capability and the checkout
+        // carries the number, so a plan is never priced in two places.
+        onUpgrade();
+        return;
+      case "unlock_expiring":
+      case "team_invite":
+        // Unreachable: SETTINGS_RUNNABLE excludes both, with reasons. Left as
+        // explicit arms so adding a NextActionId is a compile-time decision
+        // here rather than a silent no-op.
+        return;
+    }
+  };
 
   return (
     <Modal label="Settings" title="Settings" onClose={onClose} width={940}>
@@ -437,8 +645,9 @@ export function SettingsModal({
             ) : null}
           </div>
 
-          {/* ON THIS TAB */}
+          {/* NEXT ACTION — one state-derived step, or nothing. */}
           <div
+            data-testid="settings-next-action-rail"
             style={{
               borderLeft: `1px solid ${PE.line06}`,
               padding: "22px 20px",
@@ -447,21 +656,26 @@ export function SettingsModal({
               gap: 14,
             }}
           >
-            <div
-              style={{
-                fontSize: 11.5,
-                fontWeight: 700,
-                letterSpacing: ".16em",
-                textTransform: "uppercase",
-                color: PE.t5,
-              }}
-            >
-              On this tab
-            </div>
-            <div style={{ fontSize: 14.5, lineHeight: 1.65, color: PE.t3 }}>
-              {SIDE_NOTE[section]}
-            </div>
+            <NextActionCard
+              action={action}
+              surface={NEXT_ACTION_SURFACE}
+              onAct={runAction}
+              // Keyed to the action that produced it, so a note from one step
+              // can never sit under the next tab's step.
+              note={actNote && actNote.id === action?.id ? actNote.node : null}
+            />
             <div style={{ flex: 1 }} />
+            {/*
+              THE HONESTY NOTE STAYS, in one line, BELOW the action.
+
+              This panel is full of "Not read" and "Not built" rows and fixing
+              those rows was out of scope for the card that replaced this rail.
+              Deleting the sentence that makes them read as honest rather than
+              broken, while the rows it explains are still there, would make
+              the product look worse rather than cleaner. It lives here rather
+              than inside NextActionCard because it is a statement about
+              SETTINGS, and the component may not assume Settings.
+            */}
             <div
               style={{
                 fontSize: 12.5,
@@ -471,9 +685,9 @@ export function SettingsModal({
                 paddingTop: 14,
               }}
             >
-              Every value here names where it was read from. A field with no
-              traced source says Not read. Nothing in this popup is a control
-              that does nothing.
+              Every value here names where it was read from — a field with no
+              traced source says Not read, and nothing in this popup is a
+              control that does nothing.
             </div>
           </div>
         </div>

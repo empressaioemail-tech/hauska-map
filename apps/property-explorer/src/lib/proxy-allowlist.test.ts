@@ -4,6 +4,15 @@
 
 import { describe, it, expect } from 'vitest'
 import { isDeepPathAllowed } from '../../api/_lib/deep-allowlist.js'
+// P-98: imported, not retyped. The rest of the SHIPPED_DEEP_* lists below are
+// hand-transcribed literals, which makes them a THIRD copy of the path — a
+// typo in the test and a typo in the client agree with each other and the
+// check passes on a path nobody calls. Reading the client's own exported
+// constant makes this a comparison between the two independently authored
+// halves (client fetch target vs server allowlist) rather than between two
+// transcriptions.
+import { ACCOUNT_UNLOCKS_PATH } from './unlockClient'
+import { ACTIVATION_EVENTS_PATH } from './activationEvents'
 
 function isCortexBrowsePathAllowed(method: string, upstreamPath: string): boolean {
   if (method === 'GET' || method === 'HEAD') {
@@ -215,10 +224,39 @@ describe('every deep path a shipped client calls is allowlisted', () => {
     'api/property-explorer/v1/records-request',
     // P-87 Claude Sync.
     'api/property-explorer/v1/ai-connections',
+    // P-98 next-action rail — read from the client module, see the import note.
+    ACCOUNT_UNLOCKS_PATH,
+  ]
+
+  // The POST half had no parity coverage at all until P-98. The GET half was
+  // written after a GET shipped unlisted; the same omission on a POST is just
+  // as reachable and just as invisible (spine-deep checks the session cookie
+  // before the allowlist for every verb, not only GET).
+  const SHIPPED_DEEP_POSTS = [
+    'api/property-explorer/v1/research/brief',
+    'api/property-explorer/v1/billing/checkout',
+    'api/property-explorer/v1/entitlement/checkout',
+    'api/property-explorer/v1/claim-session',
+    'api/property-explorer/v1/records-request',
+    // P-98 activation instrumentation — read from the client module.
+    ACTIVATION_EVENTS_PATH,
   ]
 
   it.each(SHIPPED_DEEP_GETS)('allows GET %s', (path) => {
     expect(isDeepPathAllowed('GET', path)).toBe(true)
+  })
+
+  it.each(SHIPPED_DEEP_POSTS)('allows POST %s', (path) => {
+    expect(isDeepPathAllowed('POST', path)).toBe(true)
+  })
+
+  it('P-98 paths are the ones the clients actually fetch', () => {
+    // Second derivation for the two new rows: the constant the client builds
+    // its URL from, spelled out once here. If either module renames its path
+    // without the allowlist following, this fails rather than the rail
+    // quietly 403ing in production.
+    expect(ACCOUNT_UNLOCKS_PATH).toBe('api/property-explorer/v1/entitlement/unlocks')
+    expect(ACTIVATION_EVENTS_PATH).toBe('api/property-explorer/v1/activation-events')
   })
 
   it('is NOT VACUOUS — a path nobody listed is still refused', () => {
@@ -226,5 +264,16 @@ describe('every deep path a shipped client calls is allowlisted', () => {
       false,
     )
     expect(isDeepPathAllowed('GET', 'api/property-explorer/v1/invented')).toBe(false)
+    // The two P-98 neighbours, and the verbs they are NOT allowed on. A set
+    // membership check passes on any string that was added; these prove the
+    // additions are narrow.
+    expect(isDeepPathAllowed('GET', 'api/property-explorer/v1/entitlement/unlocks/x')).toBe(
+      false,
+    )
+    expect(isDeepPathAllowed('POST', ACCOUNT_UNLOCKS_PATH)).toBe(false)
+    expect(isDeepPathAllowed('GET', ACTIVATION_EVENTS_PATH)).toBe(false)
+    expect(isDeepPathAllowed('POST', 'api/property-explorer/v1/activation-event')).toBe(
+      false,
+    )
   })
 })

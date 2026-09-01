@@ -21,6 +21,13 @@ export const DEEP_GET_EXACT = new Set([
   // showed setup instructions to every user on every account. A new deep GET is
   // not done until its path is on this list.
   'api/property-explorer/v1/ai-connections',
+  // P-98 next-action rail — the ACCOUNT-WIDE active unlocks with expiry.
+  // peEntitlement can only answer one parcelNodeId at a time, so the rail's
+  // highest rung (an unlock about to lapse) has no read without this. Listed
+  // here in the SAME change that added the client (src/lib/unlockClient.ts),
+  // because the two are independently authored halves and a missing line here
+  // is a 403 that a signed-out probe cannot see.
+  'api/property-explorer/v1/entitlement/unlocks',
 ])
 
 export const DEEP_GET_PREFIX = [
@@ -54,6 +61,11 @@ export const DEEP_POST_EXACT = new Set([
   'api/property-explorer/v1/claim-local-state',
   // P-85 Records Request — enqueue clerk-index job by parcelNodeId.
   'api/property-explorer/v1/records-request',
+  // P-98 next-action rail — activation instrumentation (shown / acted per
+  // action id). User-scoped, NOT the install-scoped gtm_events spine. A
+  // missing line here would 403 every event and the rail would look measured
+  // while measuring nothing, which is the starved-mechanism defect exactly.
+  'api/property-explorer/v1/activation-events',
 ])
 
 // W4 My Properties: PUT (upsert) / DELETE on exactly ONE path segment after
