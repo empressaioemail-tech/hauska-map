@@ -39,6 +39,12 @@ jobs:
       - run: pnpm --filter property-explorer test
       - name: Records copy guard (P-85 item 16)
         run: node apps/property-explorer/scripts/records-copy-guard.mjs
+      # P-103 - the legacy install-scoped checkout seam stays retired. It resolved
+      # STRIPE_PRO_PRICE_ID, a price that is not on the locked ladder. Run as its own
+      # step as well as inside the PE test script, so a reorganisation of either one
+      # does not silently take the guard out of CI.
+      - name: Retired checkout seam guard (P-103)
+        run: node apps/property-explorer/scripts/seam-retired-guard.mjs
 
   typecheck:
     name: Typecheck
