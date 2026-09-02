@@ -163,3 +163,11 @@ test("basemap style still carries the required © OSM © CARTO source attributio
   assert.match(src.attribution, /OSM/);
   assert.match(src.attribution, /CARTO/);
 });
+
+test("basemap style's light_all tiles are keyed via the shared helper, not a hardcoded unkeyed array (MAP-LIGHTALL-KEY, F-01)", async () => {
+  const { HAUSKA_MAP_STYLE } = await import("./map/hauska-map-style.js");
+  const { keyedCartoTileUrls } = await import("./map/carto-key.js");
+  const src = HAUSKA_MAP_STYLE.sources["hauska-carto-light"];
+  assert.deepEqual(src.tiles, keyedCartoTileUrls("light_all"));
+  for (const url of src.tiles) assert.doesNotMatch(url, /\?key=$/);
+});

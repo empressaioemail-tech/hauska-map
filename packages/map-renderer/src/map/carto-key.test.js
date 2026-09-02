@@ -19,8 +19,8 @@ describe("carto-key (MAP-BASEMAP-KEY, F-01)", () => {
     for (const url of tiles) assert.doesNotMatch(url, /\?key=/);
   });
 
-  it("keyedCartoTileUrls uses the bare style path, never a rastertiles/ prefix (falsifier: this is the exact premise the dispatch stated wrong -- live-verified 2026-09-02, dark_all/light_only_labels are not part of the rastertiles/voyager family)", () => {
-    for (const style of ["dark_all", "light_only_labels"]) {
+  it("keyedCartoTileUrls uses the bare style path, never a rastertiles/ prefix (falsifier: this is the exact premise the dispatch stated wrong -- live-verified 2026-09-02, dark_all/light_only_labels/light_all are not part of the rastertiles/voyager family)", () => {
+    for (const style of ["dark_all", "light_only_labels", "light_all"]) {
       for (const url of keyedCartoTileUrls(style)) {
         assert.doesNotMatch(url, /rastertiles\//);
         assert.match(url, new RegExp(`/${style}/\\{z\\}/\\{x\\}/\\{y\\}@2x\\.png`));

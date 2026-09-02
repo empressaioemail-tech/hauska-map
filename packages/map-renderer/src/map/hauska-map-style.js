@@ -5,6 +5,7 @@
 
 import { ROLE_BUDGET } from "./layer-role-taxonomy.js";
 import { HAUSKA_MAP_GLYPHS_URL } from "./map-fonts.js";
+import { keyedCartoTileUrls } from "./carto-key.js";
 
 /** @type {import('maplibre-gl').StyleSpecification} */
 export const HAUSKA_MAP_STYLE = {
@@ -14,11 +15,10 @@ export const HAUSKA_MAP_STYLE = {
   sources: {
     "hauska-carto-light": {
       type: "raster",
-      tiles: [
-        "https://a.basemaps.cartocdn.com/light_all/{z}/{x}/{y}@2x.png",
-        "https://b.basemaps.cartocdn.com/light_all/{z}/{x}/{y}@2x.png",
-        "https://c.basemaps.cartocdn.com/light_all/{z}/{x}/{y}@2x.png",
-      ],
+      // CARTO retired keyless raster (MAP-BASEMAP-KEY, F-01); this style was
+      // that card's named leave_behind -- same fix, same shared helper, bare
+      // path unchanged. See carto-key.js for why.
+      tiles: keyedCartoTileUrls("light_all"),
       tileSize: 256,
       attribution:
         '&copy; <a href="https://www.openstreetmap.org/copyright">OSM</a> &copy; <a href="https://carto.com/">CARTO</a>',
