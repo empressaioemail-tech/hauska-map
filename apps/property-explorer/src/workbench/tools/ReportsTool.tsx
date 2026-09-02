@@ -19,7 +19,10 @@ import {
 import { Button } from "../../components/Button";
 import { PE } from "../../styles/pe-chrome";
 import { DownloadFileButton } from "../../components/DownloadFileButton";
-import { recordPeGtmEvent } from "../../lib/gtmClient";
+import {
+  recordPeActivationMilestone,
+  recordPeGtmEvent,
+} from "../../lib/gtmClient";
 import { studioGrantedForEntitlement } from "../../lib/entitlementClient";
 import { usePropertyEntitlement } from "../../lib/usePropertyEntitlement";
 import { useDockToolState, useWorkbench } from "../WorkbenchContext";
@@ -1148,6 +1151,12 @@ function DossierExportAction({
       });
       return;
     }
+    // P-100 item 4. Fired on the SUCCESS path only: a 402 or a failure is
+    // not a report opened, and counting the attempt would make the activation
+    // rate a measure of clicks rather than of a first useful answer. Once per
+    // account is held by the composite primary key, so this fires on every
+    // successful report and only the first one lands.
+    void recordPeActivationMilestone("first_report_opened", "reports-tool");
     onStateChange({
       notice: dossierExportNotice(result),
       downloadUrl: result.downloadUrl,

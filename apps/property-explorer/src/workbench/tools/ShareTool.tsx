@@ -29,6 +29,7 @@ import {
   upsertSharePackage,
 } from "../../lib/share-package";
 import { defaultShareMessage } from "../../lib/share-personas";
+import { recordPeGtmEvent } from "../../lib/gtmClient";
 
 /** Share value line — free for every signed-in user (acquisition channel). */
 export const SHARE_VALUE_LINE =
@@ -271,6 +272,19 @@ export function ShareTool() {
             });
             return;
           }
+        }
+        // P-100 item 2: the sharer's action, on the Smart Site share plane.
+        // Fired AFTER the grant row persisted, because the mint refuses
+        // rather than returning a link when the grant cannot be written -- an
+        // event here therefore attests to a real grant, not an attempt.
+        // The grant id is the only identifier carried: the parcel is already
+        // on the grant row, and "which parcel" is the half of an inspection
+        // the card keeps off the event.
+        if (grantId) {
+          void recordPeGtmEvent({
+            eventType: "share_created",
+            payload: { grantId },
+          });
         }
         setStored({ link: outcome.link, mintedAt: new Date().toISOString() });
         setPhase({ kind: "idle" });
