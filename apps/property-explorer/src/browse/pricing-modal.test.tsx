@@ -50,10 +50,15 @@ describe("PricingModal — ALL pricing in one popup, every string from config", 
     expect(html).toContain(PE_PRICING.property.title);
     expect(html).toContain(propertyUnlockOffer());
     expect(html).toContain(PE_PRICING.property.blurb);
+    // P-101: FOUR groups, walked from config rather than named one by one.
+    // The literal list is kept alongside so this cannot go vacuous if
+    // PE_PRICING.groups is ever emptied.
     expect(html).toContain('data-testid="pricing-group-answer"');
+    expect(html).toContain('data-testid="pricing-group-list"');
     expect(html).toContain('data-testid="pricing-group-handoff"');
     expect(html).toContain('data-testid="pricing-group-firm"');
     expect(html).toContain(PE_PRICING.groups.answer.title);
+    expect(html).toContain(PE_PRICING.groups.list.title);
     expect(html).toContain(PE_PRICING.groups.handoff.title);
     expect(html).toContain(PE_PRICING.groups.firm.title);
     for (const tier of ["solo", "studio", "team"] as const) {
@@ -67,7 +72,14 @@ describe("PricingModal — ALL pricing in one popup, every string from config", 
     expect(teamChoiceLabel()).toContain("$299/mo");
     expect(propertyChoiceLabel()).toContain("$15");
     expect(html).toContain(PE_PRICING.team.annualCapNote);
+    // P-101 item 8: a positive assertion on the badge STRING, plus a negative
+    // on the retired one. `toContain(PE_PRICING.studio.badge)` alone goes
+    // vacuous the moment the badge is emptied to "" — toContain("") passes on
+    // any string — so the empty case is refused explicitly.
+    expect(PE_PRICING.studio.badge.trim().length).toBeGreaterThan(0);
     expect(html).toContain(PE_PRICING.studio.badge);
+    expect(html).toContain('data-testid="pricing-studio-badge"');
+    expect(html).not.toContain("The packet");
   });
 
   it("team seat input lives in the Team column on monthly; hidden on annual", () => {
@@ -337,5 +349,106 @@ describe("PricingModal — unlock modal receives the custom session", () => {
     expect(src).toContain("SubscriptionCheckoutModal");
     expect(src).toContain("subscriptionSession");
     expect(src).not.toMatch(/window\.location\.assign/);
+  });
+});
+
+/**
+ * P-101 — the ladder re-cut on the comparison surface.
+ *
+ * Operator ruling 2026-08-31: Solo answers one parcel, Studio works a list of
+ * them. Prices are untouched; what moved is which rung a capability sits on
+ * and how the surface groups them.
+ *
+ * These are RENDERED-OUTPUT assertions, not config assertions, and that is the
+ * whole point of the item: `PricingModal.tsx` hand-wrote its three groups and
+ * nothing iterated `PE_PRICING.groups`, so a config-only edit would have
+ * shipped a fourth group that rendered nowhere while the suite stayed green.
+ */
+describe("P-101: the comparison surface is four groups and Studio works a list", () => {
+  const render = () =>
+    renderToStaticMarkup(<PricingModal parcelNodeId="48021:1" onClose={noop} />);
+
+  it("EVERY group in config renders — the drift this card exists to kill", () => {
+    const html = render();
+    const keys = Object.keys(PE_PRICING.groups);
+    // Not vacuous: there are four, and the count is asserted before the walk
+    // so an emptied config cannot make the loop pass by iterating nothing.
+    expect(keys).toEqual(["answer", "list", "handoff", "firm"]);
+    for (const key of keys) {
+      expect(html).toContain(`data-testid="pricing-group-${key}"`);
+      const group = PE_PRICING.groups[key as keyof typeof PE_PRICING.groups];
+      expect(html).toContain(group.title);
+      for (const row of group.rows) {
+        // renderToStaticMarkup escapes &, so compare against the escaped form
+        // rather than weakening the assertion to a substring of the label.
+        expect(html).toContain(row.label.replaceAll("&", "&amp;"));
+      }
+    }
+  });
+
+  it('the new group is named for the job and carries screens, owner data and records', () => {
+    const html = render();
+    expect(PE_PRICING.groups.list.title).toBe("Work a list of them");
+    expect(html).toContain("Work a list of them");
+    expect(html).toContain("Screens and boards");
+    expect(html).toContain("Owner data");
+    // Item 7: the SHIPPED label from the workbench catalog (reports-catalog.ts
+    // id REC), never "dossier" — which means an export kind on the MCP and the
+    // X-ray report engine on PE, and is not studio-gated there.
+    expect(html).toContain("Records request");
+    expect(html).not.toContain("Dossier");
+  });
+
+  it("owner data left the handoff group; handoff is the two deliverables only", () => {
+    const handoffLabels = PE_PRICING.groups.handoff.rows.map((r) => r.label);
+    expect(handoffLabels).toEqual([
+      "Site plan CAD · DXF, IFC",
+      "Terrain export · GLB, IFC4, DXF",
+    ]);
+    expect(handoffLabels).not.toContain("Owner data");
+    expect(PE_PRICING.groups.list.rows.map((r) => r.label)).toContain(
+      "Owner data",
+    );
+    expect(PE_PRICING.groups.handoff.title).toBe("Hand it off");
+    expect(render()).not.toContain("Hand it to someone else");
+  });
+
+  it("every new row is Solo-excluded and Studio-and-Team included — the move, not just the label", () => {
+    for (const row of PE_PRICING.groups.list.rows) {
+      expect(row.solo).toBe("notIncluded");
+      expect(row.studio).toBe("included");
+      expect(row.team).toBe("included");
+    }
+  });
+
+  it("the Studio badge is not empty, is not the retired one, and reaches the DOM", () => {
+    const html = render();
+    expect(PE_PRICING.studio.badge).not.toBe("");
+    expect(PE_PRICING.studio.badge).not.toBe("The packet");
+    expect(html).toContain('data-testid="pricing-studio-badge"');
+    expect(html).toContain(PE_PRICING.studio.badge);
+    expect(html).not.toContain("The packet");
+  });
+
+  it("PRICES ARE UNTOUCHED — the ruling amends the ladder, it does not reprice it", () => {
+    expect(PE_PRICING.solo.monthlyAmount).toBe("$49");
+    expect(PE_PRICING.solo.annualPriceLabel).toBe("$490");
+    expect(PE_PRICING.studio.monthlyAmount).toBe("$129");
+    expect(PE_PRICING.studio.annualPriceLabel).toBe("$1,290");
+    expect(PE_PRICING.team.monthlyAmount).toBe("$299");
+    expect(PE_PRICING.team.annualPriceLabel).toBe("$2,990");
+    expect(PE_PRICING.property.priceLabel).toBe("$15");
+    expect(PE_PRICING.property.durationDays).toBe(30);
+    expect(PE_PRICING.team.extraSeatPriceLabel).toBe("$25");
+    expect(PE_PRICING.team.baseSeats).toBe(3);
+  });
+
+  it("no coming-soon row is on the purchase surface (P-101 item 12: Prospect stays doc-only)", () => {
+    const html = render();
+    expect(html).not.toContain(PE_PRICING.cells.comingSoon);
+    const kinds = Object.values(PE_PRICING.groups).flatMap((g) =>
+      g.rows.flatMap((r) => [r.solo, r.studio, r.team]),
+    );
+    expect(kinds).not.toContain("comingSoon");
   });
 });
