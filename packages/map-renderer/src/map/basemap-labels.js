@@ -38,15 +38,20 @@
  * without a MapLibre instance; `chrome/satelliteBase.ts` does the map mutation.
  */
 
+import { keyedCartoTileUrls } from "./carto-key.js";
+
 export const SATELLITE_LABELS_SOURCE_ID = "explorer-satellite-labels";
 export const SATELLITE_LABELS_LAYER_ID = "explorer-satellite-labels-layer";
 
-/** CARTO labels-only raster. Same host family and terms as the base raster. */
-export const CARTO_LABELS_TILES = Object.freeze([
-  "https://a.basemaps.cartocdn.com/light_only_labels/{z}/{x}/{y}@2x.png",
-  "https://b.basemaps.cartocdn.com/light_only_labels/{z}/{x}/{y}@2x.png",
-  "https://c.basemaps.cartocdn.com/light_only_labels/{z}/{x}/{y}@2x.png",
-]);
+/**
+ * CARTO labels-only raster. Same host family and terms as the base raster.
+ * MAP-BASEMAP-KEY (F-01): CARTO retired keyless raster tiles; keyed via
+ * carto-key.js, same bare style path (no rastertiles/ rename) -- see that
+ * module's header for the live verification.
+ */
+export function cartoLabelsTiles() {
+  return keyedCartoTileUrls("light_only_labels");
+}
 
 /** The same OSM/CARTO credit the basemap source already carries. */
 export const SATELLITE_LABELS_ATTRIBUTION =
@@ -56,7 +61,7 @@ export const SATELLITE_LABELS_ATTRIBUTION =
 export function labelsSourceSpec() {
   return {
     type: "raster",
-    tiles: [...CARTO_LABELS_TILES],
+    tiles: cartoLabelsTiles(),
     tileSize: 256,
     maxzoom: 19,
     attribution: SATELLITE_LABELS_ATTRIBUTION,

@@ -8,6 +8,7 @@
 
 import { consequenceFillColorExpr, triageFillColorExpr } from "./reasoning-layers.js";
 import { HAUSKA_MAP_GLYPHS_URL } from "./map-fonts.js";
+import { keyedCartoTileUrls } from "./carto-key.js";
 import {
   CONTEXT_FEMA,
   DATA_LAND_USE_COLORS,
@@ -32,11 +33,7 @@ export const MAP_CANVAS_BROWN = "#16110c";
 /** Carto dark raster — streets/labels recede beneath the data so it glows. */
 const HAUSKA_BASEMAP_SOURCE = {
   type: "raster",
-  tiles: [
-    "https://a.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}@2x.png",
-    "https://b.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}@2x.png",
-    "https://c.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}@2x.png",
-  ],
+  tiles: keyedCartoTileUrls("dark_all"),
   tileSize: 256,
   attribution:
     '&copy; <a href="https://www.openstreetmap.org/copyright">OSM</a> &copy; <a href="https://carto.com/">CARTO</a>',
