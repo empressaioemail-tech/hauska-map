@@ -47,7 +47,10 @@ import "./pe-mobile.css";
 import { DEFAULT_CENTER, PARCEL_TILES, resolveParcelTiles } from "../lib/config";
 import { cortexClient } from "../lib/cortexClient";
 import { parcelNodes } from "../lib/parcel-node-store.js";
-import { recordPeGtmEvent } from "../lib/gtmClient";
+import {
+  recordPeActivationMilestone,
+  recordPeGtmEvent,
+} from "../lib/gtmClient";
 import { savePropertyWithDossier } from "../lib/savedPropertiesClient";
 import { sanitizeDrawings } from "../lib/propertyDossier";
 import {
@@ -870,6 +873,13 @@ function ExplorerMapSurface({
         });
       }
       inspectedRef.current = { card: next, parcelNodeId };
+      // P-100 item 4. Called on EVERY inspect, not just the first: once per
+      // account is held by the composite primary key on
+      // pe_account_activations, and a client-side "already sent" flag would
+      // be per browser while the milestone is per account. An anonymous
+      // visitor has no account, so the BFF refuses this with 401 and the
+      // client drops it -- which is the honest outcome, not a silent loss.
+      void recordPeActivationMilestone("first_parcel_inspected", "map-inspect");
       setCard(next);
       setCardNodeId(parcelNodeId);
       if (inspectStealsWorkbenchDock(dock?.keepDock)) {
@@ -1958,6 +1968,8 @@ function ExplorerMapSurface({
       eventType: "pe_save_property",
       parcelNodeId: nodeId,
     });
+    // P-100 item 4 -- see the note at the inspect milestone above.
+    void recordPeActivationMilestone("first_property_saved", "map-save");
     if (nodeId) {
       const inspCard = inspectedRef.current?.card ?? null;
       const address = inspCard?.situsAddress ?? null;
