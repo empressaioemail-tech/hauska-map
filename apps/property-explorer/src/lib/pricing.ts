@@ -20,12 +20,33 @@
 //     full answer on one parcel at a time.
 //
 //   STUDIO — $129/mo · $1,290/yr
-//     Solo plus professional deliverables: site-plan CAD (DXF, IFC), terrain
-//     export, owner data.
+//     Solo plus WORKING A LIST: screens and boards, owner data, and the
+//     records package; plus the professional deliverables you hand off,
+//     site-plan CAD (DXF, IFC) and terrain export.
 //
 //   TEAM — $299/mo · $2,990/yr for up to 3 seats, then $25 per additional
 //     seat (extra seats monthly-only; annual Team is capped at 3).
 //     Everything in Studio for a firm — shared saved properties, one bill.
+
+// AMENDED 2026-08-31 (operator, P-101): "Solo answers one parcel. Studio works
+// a list of them." Prices are UNTOUCHED — every number above still stands. What
+// changed is which rung a capability sits on and how the comparison surface
+// groups them:
+//
+//   - screens and boards move from ungated to Studio and Team (enforced on the
+//     api-server screens routes, not here; this file is the price list);
+//   - the records package, already Studio inside the `dossier` export kind,
+//     gets its own named row so the buyer can see what they are paying for;
+//   - the groups become four: answer / list / handoff / firm, and owner data
+//     moves out of "hand it off" into "work a list", because the investor and
+//     agent segment that wants owner data was reading a group header that told
+//     them the tier was not for them;
+//   - Studio's badge stops being "The packet".
+//
+// STRUCTURE IS NOT CONFIG. `groups` is now iterated by PricingModal, so a new
+// group here renders. That was NOT true before P-101: the modal hand-wrote its
+// three groups and an edit to this file alone would have shipped a fourth group
+// that rendered nowhere while every existing test still passed.
 
 export type PricingInterval = "annual" | "monthly";
 
@@ -103,9 +124,11 @@ export const PE_PRICING = {
     monthlyCompare: "$1,290/yr billed annually",
     title: "Studio",
     ctaLabel: "Start Studio",
-    badge: "The packet",
-    blurb: "The packet you hand to someone else — site plan, terrain, and owner data",
-    features: "The packet you hand off: site-plan CAD (DXF, IFC), terrain export, owner data",
+    /** P-101: was "The packet", which told the largest segment the tier was
+     *  for someone else while it held the one thing they would pay for. */
+    badge: "Work a list",
+    blurb: "Work a list of parcels — screens, owner data, records, and the sheets you hand off",
+    features: "Screens and boards, owner data, records request, site-plan CAD (DXF, IFC), terrain export",
   },
   /** Team subscription — firm tier (self-serve; seat expansion priced per seat). */
   team: {
@@ -135,7 +158,12 @@ export const PE_PRICING = {
     comingSoon: "Coming soon",
   },
   checkoutBusyLabel: "Starting checkout…",
-  /** Grouped comparison rows (A2). Cell kinds resolve through matrixCellText. */
+  /**
+   * Grouped comparison rows (A2, regrouped by P-101). Cell kinds resolve
+   * through matrixCellText. PricingModal ITERATES this object, so key order is
+   * render order and a new key renders; the test in pricing-modal.test.tsx
+   * walks Object.keys and fails if one stops rendering.
+   */
   groups: {
     answer: {
       title: "Answer this parcel",
@@ -160,8 +188,43 @@ export const PE_PRICING = {
         },
       ],
     },
+    /**
+     * P-101, the rung the amendment exists to make legible. Screens are
+     * enforced on the api-server screens routes (POST create / POST rows);
+     * the two GET routes stay open so a free connector user still mounts the
+     * Smart Site panel and meets this prompt in context.
+     *
+     * "Records request" is the SHIPPED label — it is what the workbench
+     * catalog calls the row (reports-catalog.ts, id REC). It is deliberately
+     * not called "dossier": the MCP means a Studio export kind by that word
+     * and the workbench means the X-ray report engine, which is not
+     * Studio-gated. A price list must not inherit that ambiguity.
+     */
+    list: {
+      title: "Work a list of them",
+      rows: [
+        {
+          label: "Screens and boards",
+          solo: "notIncluded",
+          studio: "included",
+          team: "included",
+        },
+        {
+          label: "Owner data",
+          solo: "notIncluded",
+          studio: "included",
+          team: "included",
+        },
+        {
+          label: "Records request",
+          solo: "notIncluded",
+          studio: "included",
+          team: "included",
+        },
+      ],
+    },
     handoff: {
-      title: "Hand it to someone else",
+      title: "Hand it off",
       rows: [
         {
           label: "Site plan CAD · DXF, IFC",
@@ -171,12 +234,6 @@ export const PE_PRICING = {
         },
         {
           label: "Terrain export · GLB, IFC4, DXF",
-          solo: "notIncluded",
-          studio: "included",
-          team: "included",
-        },
-        {
-          label: "Owner data",
           solo: "notIncluded",
           studio: "included",
           team: "included",

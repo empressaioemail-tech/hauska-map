@@ -462,3 +462,48 @@ describe("what you can do in Claude with Smart Site", () => {
     ]);
   });
 });
+
+/**
+ * P-101 item 11 — the card must not over-promise for a free account.
+ *
+ * The file's own header says a card headed "what you can do" that names a
+ * capability the product cannot deliver is a promise it cannot keep. Until the
+ * 2026-08-31 ladder re-cut that rule bit only on READINESS. It now bites on
+ * ENTITLEMENT too: `create_screen` and `add_to_screen` are refused at the
+ * api-server screens routes for free and Solo accounts, so the two screen rows
+ * must name the rung. `list_screens` stays open per operator call 1, so
+ * reopening a screen is deliberately NOT qualified.
+ */
+describe("P-101: the screens rows name the rung they need", () => {
+  const screenRows = CLAUDE_CAN_DO.filter((r) =>
+    /screen/i.test(`${r.title} ${r.line}`),
+  );
+
+  it("there are exactly the two screen rows, so this cannot pass on an empty filter", () => {
+    expect(screenRows.map((r) => r.title)).toEqual([
+      "Screen a pasted list",
+      "Keep a screen",
+    ]);
+  });
+
+  it("both name Studio or Team; neither promises the write side unqualified", () => {
+    for (const row of screenRows) {
+      expect(row.line).toMatch(/studio/i);
+      expect(row.line).toMatch(/team/i);
+    }
+  });
+
+  /* NO rendered-output assertion here, and the reason is stated rather than
+   * papered over: WhatYouCanDo holds `open` in local state with no prop to
+   * force it, so `renderToStaticMarkup` can only ever produce the COLLAPSED
+   * card. The config-to-render binding is held by the existing "is COLLAPSED by
+   * default in BOTH" case above, which asserts on CLAUDE_CAN_DO[0].line and so
+   * fails if the component stops rendering this list. Adding an `initialOpen`
+   * prop purely so a test could open it would be production code shaped by the
+   * test. Item 11's own check is the guard test plus the copy, not a render. */
+
+  it("reopening a screen is NOT qualified — list_screens stays open (call 1)", () => {
+    const keep = screenRows.find((r) => r.title === "Keep a screen")!;
+    expect(keep.line).toMatch(/reopen a screen by name on any plan/i);
+  });
+});
