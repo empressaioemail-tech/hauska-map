@@ -1,0 +1,362 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Documentation | Smart Site</title>
+    <meta
+      name="description"
+      content="What Smart Site does: the map, the parcel read, the reports that generate live, the exports, the coverage posture, and the AI connector. An Empressa product operated by Legacy Group ATX LLC."
+    />
+    <meta name="theme-color" content="#2A2A2B" />
+    <link rel="icon" href="/favicon.ico" sizes="32x32" />
+    <link rel="icon" href="/icons/icon-192.svg?v=ss-void-2" type="image/svg+xml" />
+    <style>
+      * { box-sizing: border-box; }
+      body {
+        margin: 0;
+        min-height: 100vh;
+        background: #07090d;
+        color: #c6d0dc;
+        font-family: ui-sans-serif, system-ui, -apple-system, "Segoe UI", sans-serif;
+        font-size: 16px;
+        line-height: 1.55;
+      }
+      a { color: #3b82f6; }
+      header, main, footer {
+        width: min(720px, calc(100% - 40px));
+        margin-left: auto;
+        margin-right: auto;
+      }
+      header {
+        padding: 28px 0 8px;
+        display: flex;
+        justify-content: space-between;
+        gap: 16px;
+        align-items: baseline;
+      }
+      .mark {
+        font-size: 12px;
+        font-weight: 700;
+        letter-spacing: 0.16em;
+        color: #3b82f6;
+        text-decoration: none;
+      }
+      nav { display: flex; gap: 16px; font-size: 13px; }
+      nav a { color: #94a3b8; text-decoration: none; }
+      nav a[aria-current="page"] { color: #f8fafc; }
+      h1 {
+        margin: 24px 0 8px;
+        font-size: 28px;
+        font-weight: 600;
+        color: #f8fafc;
+        letter-spacing: -0.02em;
+      }
+      .lead { color: #e9eef5; }
+      h2 {
+        margin: 28px 0 8px;
+        font-size: 18px;
+        font-weight: 600;
+        color: #e9eef5;
+      }
+      h3 {
+        margin: 20px 0 6px;
+        font-size: 15px;
+        font-weight: 600;
+        color: #e9eef5;
+      }
+      p, li { color: #c6d0dc; }
+      ul { padding-left: 1.2em; }
+      footer {
+        padding: 32px 0 48px;
+        color: #7c8ba0;
+        font-size: 13px;
+      }
+    </style>
+  </head>
+  <body>
+    <header>
+      <a class="mark" href="/">SMART SITE</a>
+      <nav>
+        <a href="/docs" aria-current="page">Docs</a>
+        <a href="/privacy">Privacy</a>
+        <a href="/terms">Terms</a>
+        <a href="/">App</a>
+      </nav>
+    </header>
+    <main>
+      <h1>What Smart Site does</h1>
+      <p class="lead">
+        A smart site is everything you need to know about a place, in one place.
+        Smart Site is the application that puts smart sites in your hands: the
+        map, the layers, the parcel answers, the research, and the reports.
+        It is an Empressa product operated by Legacy Group ATX LLC.
+      </p>
+      <p>
+        The information that governs a property is scattered across systems that
+        do not talk to each other: the county GIS, the zoning ordinance, the
+        FEMA panel, the code book. Answering one real question, what can I build
+        here and what is the risk, means logging into all of them and hoping
+        each is current. Smart Site assembles them against the place and answers
+        the question, with the source, the date, and the confidence attached.
+      </p>
+
+      <h2>The map</h2>
+      <p>
+        The application is map-first. There are no pages to navigate; every tool
+        opens over the map and closes back to it. It installs to a phone, so the
+        answer is in hand while standing on the site.
+      </p>
+      <p>The layers you can toggle:</p>
+      <ul>
+        <li>Parcel boundaries</li>
+        <li>Zoning and land use</li>
+        <li>FEMA flood zone and regulatory floodway</li>
+        <li>Contours at 1-foot elevation</li>
+        <li>Hydrography, meaning streams and water features</li>
+        <li>Sidewalks and footpaths</li>
+        <li>Opportunity Zone tracts</li>
+      </ul>
+      <p>
+        One-tap presets bundle these for common reads: Default, Flood, which is
+        parcels plus FEMA plus hydrography, Entitlement, which is parcels plus
+        zoning, and Terrain, which is parcels plus contours. Map tools include
+        measure for distance and area, draw and annotate, drop a marker, and
+        jump to your location. Search understands parcels, addresses, streets
+        and places, with type-ahead and recents.
+      </p>
+
+      <h2>Tap a parcel</h2>
+      <p>
+        Clicking any parcel opens a card with the core read: land use, zoning
+        district, setbacks, the buildable envelope, flood status, and acreage.
+        This card is free by rule. Whatever is in it costs nothing and needs no
+        login.
+      </p>
+      <p>
+        Two things distinguish it from a map popup. The numbers are served from
+        verified, precomputed records rather than fetched and hoped, and the
+        envelope carries "approximate, not survey grade" honestly. And where a
+        fact is not verified for that place, the card says exactly that, in
+        plain words, naming what is missing. It never shows a guess.
+      </p>
+
+      <h2>The workbench</h2>
+      <p>
+        The deeper work lives in a small set of tools that open one at a time
+        into a single dock beside the map. The map and the property stay the
+        star; there is never a split screen and never a second permanent panel.
+        Each tool remembers its state per property.
+      </p>
+      <h3>Property brief</h3>
+      <p>
+        The X-ray view of the active smart site. It leads with a verdict line, a
+        plain-English glance composed from the verified facts, with red flags
+        such as floodway placement leading when present. Below the verdict sits
+        the cited detail.
+      </p>
+      <h3>Research chat</h3>
+      <p>
+        Property-anchored research. Every thread is tied to a smart site; there
+        is no free-floating chatbot. Answers cite the property's actual records
+        with numbered, tappable citations. Tapping one opens the evidence, the
+        claim, the source, the confidence and the date, and lets you walk the
+        reasoning chain in place: the envelope traces to the setback rule, the
+        setback rule to the code section. The assistant can only cite records
+        that exist; where the record is absent it says so. You can run several
+        threads per property, attach documents as context, and pick a thread up
+        later.
+      </p>
+      <h3>My properties, Compare and Share</h3>
+      <p>
+        Saved smart sites each hold their brief, drawings, notes and research.
+        Compare puts two saved properties side by side. Share sends a link that
+        carries your analysis, not just a pin: the recipient lands on the live
+        map, flown to the property, with the analysis docked.
+      </p>
+
+      <h2>Reports</h2>
+      <p>
+        The report menu is X-ray, Flood and Drainage, Feasibility, and
+        Comparison.
+      </p>
+      <p>
+        <strong>Two of them generate today.</strong> The Smart Site X-ray is the
+        deep read on one place: what you can build with the envelope drawn,
+        flood and drainage, terrain, codes and utilities, each layer sourced and
+        dated, exported as a PDF with your notes and research summary and the
+        site plan sheets appended. The Flood and Drainage study is a real
+        computation rather than a lookup: the upstream catchment, the drainage
+        zones where water concentrates, modeled ponding at design rainfall, and
+        traced flow lines, rendered on the map over the property with a
+        plain-language briefing and a formatted PDF.
+      </p>
+      <p>
+        <strong>Feasibility and Comparison do not generate today.</strong> They
+        are on the menu and their generate paths are not live. Comparison as a
+        side-by-side tool is live; the Comparison report is not. We would rather
+        name that here than have you find it in the product.
+      </p>
+
+      <h2>Exports</h2>
+      <ul>
+        <li>
+          <strong>Site plan.</strong> Layered CAD in DXF and IFC plus a PDF
+          sheet: property lines, dimensions, setbacks drawn, contours, elevation
+          labels, named streets, north arrow and scale, with a summary block and
+          a provenance panel citing where every line came from.
+        </li>
+        <li>
+          <strong>Terrain.</strong> The site's terrain as a solid model in GLB,
+          IFC or DXF, ready to drop into design tools.
+        </li>
+      </ul>
+      <p>
+        Every sheet carries the same line: derived from public records, not a
+        boundary survey, not for legal record. Verify with city staff and
+        licensed professionals.
+      </p>
+
+      <h2>Records</h2>
+      <p>
+        Records is a request tool, not a report. It asks the county for the
+        recorded documents behind a parcel and returns what it retrieves.
+      </p>
+      <p>
+        This is a real connection to county clerk systems, not a form that
+        emails someone. Where a county's clerk portal permits automated search,
+        Smart Site queries that portal directly. The terms of each portal are
+        read and recorded before any request is allowed to run against it, and a
+        portal whose terms do not permit automated search is not queried at all.
+        That reading is a deliberate step, not an assumption: the permission is
+        recorded per county, with the date it was reviewed.
+      </p>
+      <p>
+        What comes back is what the county actually holds. Where a document is
+        not on file, or the portal answers with nothing, Records says so rather
+        than returning an empty result that reads like an answer. Retrieval is
+        also not instant: a request is a job, and the tool reports honestly
+        while it is still running rather than implying it has finished.
+      </p>
+
+      <h2>Coverage</h2>
+      <p>
+        Coverage is nationwide United States, built jurisdiction by jurisdiction
+        under mechanical certification gates and rolling out continuously. We do
+        not publish a county list, because any list is stale the month after it
+        is written and reads as a ceiling rather than a snapshot.
+      </p>
+      <p>
+        The safeguard is in the product rather than in a list: where a layer is
+        not verified for your parcel, the product says so plainly, naming what
+        is missing, instead of guessing. Coverage is a question the product
+        answers about your parcel, not a question you have to ask us. Worth
+        knowing too: much unincorporated land is legitimately unzoned, and an
+        honest "no zoning applies" is the correct answer there rather than
+        missing data.
+      </p>
+
+      <h2>How the system behaves when it does not know</h2>
+      <ul>
+        <li>
+          Every substantive answer carries citations that open. A citation is
+          something you can verify, not decoration.
+        </li>
+        <li>
+          Confidence is labeled with its basis and never dressed up. Where it is
+          asserted from source quality rather than earned from outcomes, it says
+          asserted.
+        </li>
+        <li>
+          Honest absence is styled distinctly and named specifically. The system
+          telling you what it does not know is the reason to trust what it does.
+        </li>
+        <li>
+          Currency is checked rather than assumed. A repealed ordinance still
+          published as current, or a re-platted parcel whose old record still
+          resolves, is caught and said rather than served.
+        </li>
+        <li>
+          Sources found by web search, used as supplementary context, are
+          visually distinct and labeled unverified. They never borrow the
+          authority of a verified record.
+        </li>
+      </ul>
+
+      <h2>The AI connector</h2>
+      <p>
+        Smart Site has two doors onto the same truth. A person opens the app; an
+        AI client calls the same system directly through the Smart Site MCP
+        server at
+        <a href="https://mcp.smartsite.cloud">mcp.smartsite.cloud</a>. Same
+        facts, same citations, same confidence, either door.
+      </p>
+      <p>
+        The connector is a door, not a plan. It is available at every rung
+        including Free, it signs in against your ordinary Smart Site account,
+        and it mirrors what your plan already allows in the app rather than
+        carrying gates of its own. What a plan unlocks in the workbench it
+        unlocks in the connector; nothing is moved onto or off the connector to
+        make a plan more attractive. It is not the Hauska catalog at
+        mcp.hauska.dev, which is a separate product.
+      </p>
+
+      <h2>Accounts and what is free</h2>
+      <p>
+        Browsing is anonymous and needs no account. A free account adds saved
+        properties, three research messages per property, and sharing; the map,
+        every layer toggle and the parcel card are free at that rung. The deep
+        work, meaning the X-ray, the Flood and Drainage study, unlimited
+        research, and the professional deliverables, sits behind a paid plan.
+        The current plans and prices are in the app.
+      </p>
+      <p>
+        Sharing is free, and a shared property carries everything the sharer has
+        stored at full fidelity regardless of the recipient's plan. What a plan
+        gates is what you can produce on your own account, never what you can
+        see of what someone shared with you.
+      </p>
+
+      <h2>What Smart Site is deliberately not</h2>
+      <ul>
+        <li>
+          <strong>Not valuation.</strong> The product tells you what you can do
+          with a place, not what it is worth. Constraints and buildability,
+          cited, is the wedge; an opinion of value is out of scope on purpose.
+        </li>
+        <li>
+          <strong>Not comparable sales.</strong> There are no comps and no sold
+          prices. Texas is a non-disclosure state, so sale prices are not public
+          record, and the MLS vendor route is closed to a product like this one.
+          Sales history carries dates and events honestly and marks the price
+          absent rather than inventing one.
+        </li>
+        <li>
+          <strong>Not a listings site.</strong> It complements where listings
+          live rather than competing with it.
+        </li>
+        <li>
+          <strong>Not survey or legal work.</strong> Nothing here approves,
+          permits, or certifies anything.
+        </li>
+        <li>
+          <strong>No 3D.</strong> There is no 3D or tilted view in the product
+          today, and we do not promise one.
+        </li>
+      </ul>
+
+      <h2>More</h2>
+      <p>
+        How the product handles your information, including what is kept and
+        what deletion does, is on the <a href="/privacy">privacy page</a>. The
+        terms of use are at <a href="/terms">/terms</a>. Questions:
+        <a href="mailto:support@empressa.io">support@empressa.io</a>.
+      </p>
+      <p>Last reviewed 2 September 2026.</p>
+    </main>
+    <footer>
+      Empressa / Legacy Group ATX LLC.
+      <a href="/privacy">Privacy</a>. <a href="/terms">Terms</a>.
+    </footer>
+  </body>
+</html>

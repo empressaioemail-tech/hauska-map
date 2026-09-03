@@ -2,7 +2,8 @@
 //
 // POST /api/pe-site-plan-export
 //   Body: { parcelNodeId: "48029:105129", format?: "dxf-site-plan"|"ifc-site-plan"|"pdf-site-plan", address?, countyName? }
-//   Requires PE session + paid entitlement. Calls MCP refresh_parcel_site_plan_export
+//   Requires PE session + STUDIO entitlement (P-104). Calls MCP
+//   refresh_parcel_site_plan_export
 //   with server-side MCP_PRODUCT_KEY (one SDK meter per request at MCP).
 //
 // GET /api/pe-site-plan-export?parcelNodeId=...&format=pdf-site-plan&action=download
@@ -12,7 +13,10 @@
 //
 // Sibling of pe-terrain-export.ts: same session/entitlement gate, distinct
 // engine route (site-plan-export/*) and MCP tool
-// (refresh_parcel_site_plan_export).
+// (refresh_parcel_site_plan_export). The shared gate is the point: site plan
+// and terrain are one product rule (Studio deliverables) and P-104 changed
+// both together. Fixing one and leaving the other would have made the leak
+// harder to see rather than smaller.
 //
 // DOSSIER FOLD-IN (engine #174 / MCP dossier tools): `?kind=dossier` routes
 // the SAME function to the property-dossier PDF export — no new serverless
@@ -20,9 +24,16 @@
 // refresh_parcel_dossier_export (body: address/countyName/verdictLine/brief/
 // chatSummary/notes, forwarded verbatim after cap-trim); GET ?kind=dossier&
 // action=download streams the pdf-dossier bytes via
-// download_parcel_dossier_export. GATE DIFFERENCE: the dossier requires
-// PROPERTY entitlement (paid OR the single-property unlock — the R1 line),
-// not the Pro-only tier the site-plan formats keep.
+// download_parcel_dossier_export. GATE DIFFERENCE, AND IT IS DELIBERATE: the
+// dossier here is the X-RAY report, a SOLO capability (reports-catalog.ts
+// DOSS, name "X-ray", no studioGated flag). It requires PROPERTY entitlement
+// (paid OR the single-property unlock — the R1 line), which is strictly
+// weaker than the Studio gate the site-plan and terrain formats now carry.
+// P-104 checked this rather than assuming it: gating the X-ray to Studio
+// would TAKE AWAY a capability Solo is sold. Note the Smart Site MCP
+// disagrees — its STUDIO_EXPORT_KINDS includes "dossier" — so the same
+// artifact is Solo on the web and Studio on the connector. That divergence
+// is recorded in the P-104 close and is not resolved here.
 
 import type { VercelRequest, VercelResponse } from '@vercel/node'
 import { callMcpTool, mcpProductKey } from './_lib/mcp-server-client.js'
@@ -56,7 +67,12 @@ import {
   type SitePlanExportFormat,
 } from './_lib/pe-site-plan-export-core.js'
 
-async function requirePaidSession(
+/**
+ * P-104: renamed from `requirePaidSession`. The old name was accurate about
+ * what the code did (`tier !== 'paid'`) and wrong about what the product
+ * sells: Solo is paid, and Solo does not include site-plan CAD.
+ */
+async function requireStudioSession(
   req: VercelRequest,
   res: VercelResponse,
 ): Promise<{ token: string; devBypass: boolean } | null> {
@@ -101,7 +117,7 @@ async function handleRefresh(
   req: VercelRequest,
   res: VercelResponse,
 ): Promise<void> {
-  const session = await requirePaidSession(req, res)
+  const session = await requireStudioSession(req, res)
   if (!session) return
 
   if (!mcpProductKey()) {
@@ -248,7 +264,7 @@ async function handleDownload(
   req: VercelRequest,
   res: VercelResponse,
 ): Promise<void> {
-  if (!(await requirePaidSession(req, res))) return
+  if (!(await requireStudioSession(req, res))) return
 
   const parcelNodeIdRaw = req.query.parcelNodeId
   const formatRaw = req.query.format

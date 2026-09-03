@@ -14,6 +14,8 @@ import {
   parseTerrainFormat,
   resolveTerrainExportAuth,
   retryableEngineFailureResponse,
+  TERRAIN_STUDIO_REQUIRED_MESSAGE,
+  TERRAIN_STUDIO_UNMEASURED_MESSAGE,
 } from '../../api/_lib/pe-terrain-export-core.js'
 
 describe('terrain export core', () => {
@@ -44,7 +46,7 @@ describe('terrain export core', () => {
   it('denies free tier on auth gate', () => {
     const gate = resolveTerrainExportAuth({
       sessionToken: 'session-token',
-      entitlement: { ok: true, tier: 'free' },
+      entitlement: { ok: true, tier: 'free', studioGranted: false },
     })
     expect(gate.ok).toBe(false)
     if (!gate.ok) {
@@ -53,10 +55,72 @@ describe('terrain export core', () => {
     }
   })
 
+  it('allows a Studio account on auth gate', () => {
+    const gate = resolveTerrainExportAuth({
+      sessionToken: 'session-token',
+      entitlement: { ok: true, tier: 'paid', studioGranted: true },
+    })
+    expect(gate.ok).toBe(true)
+  })
+
+  // -------------------------------------------------------------------------
+  // P-104. Terrain carried `studioGated: true` in the reports catalog, which
+  // drove a lock in the React tree and NOTHING on the server: a direct call
+  // walked past it. That catalog flag was the only artifact anyone would have
+  // found by grepping for "studio", which is how this survived review. There
+  // was no "allows paid tier" test here before P-104 either, so the leak was
+  // never even asserted as intended behaviour.
+  // -------------------------------------------------------------------------
+
+  it('P-104 VIOLATION: a Solo subscriber is paid and is REFUSED', () => {
+    const gate = resolveTerrainExportAuth({
+      sessionToken: 'session-token',
+      entitlement: { ok: true, tier: 'paid', studioGranted: false },
+    })
+    expect(gate.ok).toBe(false)
+    if (!gate.ok) {
+      expect(gate.status).toBe(402)
+      expect(gate.error).toBe('studio_required')
+      expect(gate.message).toBe(TERRAIN_STUDIO_REQUIRED_MESSAGE)
+      expect(gate.message).toMatch(/Studio/)
+    }
+  })
+
+  it('P-104: the Solo refusal is DISTINGUISHABLE from the free-tier refusal', () => {
+    const free = resolveTerrainExportAuth({
+      sessionToken: 'session-token',
+      entitlement: { ok: true, tier: 'free', studioGranted: false },
+    })
+    const solo = resolveTerrainExportAuth({
+      sessionToken: 'session-token',
+      entitlement: { ok: true, tier: 'paid', studioGranted: false },
+    })
+    expect(free.ok).toBe(false)
+    expect(solo.ok).toBe(false)
+    if (!free.ok && !solo.ok) {
+      expect(free.error).toBe('payment_required')
+      expect(solo.error).toBe('studio_required')
+      expect(free.error).not.toBe(solo.error)
+    }
+  })
+
+  it('P-104 VIOLATION: an UNMEASURED grant is refused, and NOT as a paywall', () => {
+    const gate = resolveTerrainExportAuth({
+      sessionToken: 'session-token',
+      entitlement: { ok: true, tier: 'paid', studioGranted: null },
+    })
+    expect(gate.ok).toBe(false)
+    if (!gate.ok) {
+      expect(gate.status).toBe(503)
+      expect(gate.error).toBe('entitlement_contract_incomplete')
+      expect(gate.message).toBe(TERRAIN_STUDIO_UNMEASURED_MESSAGE)
+    }
+  })
+
   it('allows signed-in free tier when operator/dev bypass is armed', () => {
     const gate = resolveTerrainExportAuth({
       sessionToken: 'session-token',
-      entitlement: { ok: true, tier: 'free' },
+      entitlement: { ok: true, tier: 'free', studioGranted: false },
       devBypass: true,
     })
     expect(gate.ok).toBe(true)

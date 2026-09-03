@@ -7,6 +7,7 @@
 // using grantor ids from the row, then render HTML / markdown / JSON.
 
 import type { VercelRequest, VercelResponse } from '@vercel/node'
+import { deployOrigin } from './_lib/oidc-config.js'
 import {
   isBrowserShareNavigation,
   isShareGrantId,
@@ -175,7 +176,12 @@ export async function handlePeShareGrant(
   const compose = deps.compose ?? composeShareInstrument
   let instrument: ShareInstrument
   try {
-    instrument = await compose({ grant: access.row })
+    // P-105 item 3. Every link in every format is absolute, so the origin
+    // this share is being served from has to reach the composer. compose
+    // throws on a non-absolute origin rather than degrading to `/share?g=`,
+    // and that throw lands in the 502 below — a refusal, not a body whose
+    // links a foreign model cannot resolve.
+    instrument = await compose({ grant: access.row, origin: deployOrigin(req) })
   } catch (err) {
     res.status(502).json({
       error: 'share_compose_failed',

@@ -76,8 +76,12 @@ import {
 
 export const REPORTS_LOCKED_VALUE_LINE =
   "Professional reports on this property — the cited site-plan export (layered DXF/IFC + PDF sheet with setbacks, contours, and provenance), the flood & drainage study drawn on the map with its PDF sheet, and every report that ships next.";
+/** SITE PLAN IS STUDIO-ONLY (P-104): never claimed by the $15 property
+ *  unlock, and never by Solo. Until P-104 this row carried no studioGated
+ *  flag and the server gated it on bare `paid`, so a $49 Solo subscriber was
+ *  served the $129 Studio deliverable. */
 export const SITE_PLAN_PAYWALL_MESSAGE =
-  "Cited site-plan export — layered DXF/IFC plus a PDF sheet with setbacks, contours, and provenance.";
+  "Cited site-plan export (layered DXF/IFC plus a PDF sheet with setbacks, contours, and provenance) is a Studio feature — it is not part of the single-property unlock.";
 /** TERRAIN IS STUDIO-ONLY: never claimed by the $15 property unlock. */
 export const TERRAIN_PAYWALL_MESSAGE =
   "Multi-format terrain export (GLB, IFC, DXF) is a Studio feature — it is not part of the single-property unlock.";
@@ -1051,13 +1055,31 @@ function SelectedEngine({
   }
 
   if (doc.engine === "site-plan") {
+    // P-104: site plan is Studio, exactly like terrain. The catalog flag now
+    // says so and the server now enforces it; this renders the honest locked
+    // panel instead of an export control that would 402 on click.
+    if (terrainProLocked) {
+      return (
+        <LockedToolPanel
+          valueLine="Site plan export — the drawn sheet and the layered DXF/IFC a drafter can open."
+          proOnly
+          proOnlyNote={SITE_PLAN_PAYWALL_MESSAGE}
+          testId="site-plan-studio-lock"
+        />
+      );
+    }
     return (
       <SitePlanExportSection
         key={`site-plan:${parcelNodeId}`}
         parcelNodeId={parcelNodeId}
         address={facts.address}
         countyName={facts.countyName}
-        onPaymentRequired={() => onPaymentRequired(SITE_PLAN_PAYWALL_MESSAGE)}
+        onPaymentRequired={() =>
+          onPaymentRequired(SITE_PLAN_PAYWALL_MESSAGE, {
+            studioOnly: true,
+            highlightTier: "studio",
+          })
+        }
         initialState={
           sitePlan ?? {
             format: "pdf-site-plan",

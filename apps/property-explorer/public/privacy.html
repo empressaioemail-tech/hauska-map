@@ -94,10 +94,13 @@
       </p>
       <h2>Accounts and sign-in</h2>
       <p>
-        You sign in with Google or Microsoft through WorkOS AuthKit. WorkOS
-        returns the identity those providers share for that sign-in, typically
-        name and email, so we can open or resume your Smart Site account. The
-        same sign-in is used on the workbench and on the agent connector.
+        You sign in with Google or Microsoft. The app talks to those providers
+        directly and receives the identity they return for that sign-in: a
+        provider account id, and typically your name and email, so we can open
+        or resume your Smart Site account. Smart Site has no password of its
+        own and never receives one. The same account is used on the workbench
+        and on the agent connector; connecting an AI client adds one OAuth step
+        handled by WorkOS, which is not part of signing in to the app itself.
       </p>
       <h2>Billing</h2>
       <p>
@@ -119,11 +122,92 @@
         A signed-in session uses a cookie on smartsite.cloud so the workbench
         can stay signed in.
       </p>
+      <p>
+        A saved property carries everything you attached to it: your notes, your
+        research threads and their summary, anything you drew on the map, and a
+        record of the exports you ran for that place.
+      </p>
+      <h2>What never reaches our servers</h2>
+      <ul>
+        <li>
+          Files you attach to a research thread stay in your browser. Only the
+          text your browser could read out of a file is sent along with your
+          question, so the assistant can reason about it. The file itself is
+          never uploaded and we do not store it.
+        </li>
+        <li>
+          Card numbers. Stripe holds the payment method. We keep the Stripe
+          customer reference and the plan tier, and nothing else about payment.
+        </li>
+        <li>
+          A transcript of your research chat. Your question and the answer are
+          not written to our database.
+        </li>
+      </ul>
+      <p>
+        Composing an answer does send your question, the property records it
+        needs, and any text read out of a file you attached, to a third-party
+        AI model provider. That is the one place it goes.
+      </p>
       <h2>Shares you create</h2>
       <p>
         A share you mint is a grant you chose to publish. Pasting a share URL
         into a chat logs that URL. Do not treat a pasted link as confined to
-        that chat. Grants expire. See the product terms for use of the service.
+        that chat. A share link stops working 30 days after you create it.
+        There is no revoke control in the product today; a link can be revoked
+        on request. See the product terms for use of the service.
+      </p>
+      <h2>Anonymous browsing</h2>
+      <p>
+        Before you sign in, the app keeps a random id in your browser and
+        records what you did against it: that a browse started, which parcel you
+        opened, and, when you search by address rather than tapping the map, the
+        text you typed. That id is not linked to any account, and it goes away
+        if you clear your browser storage. The records already written stay; see
+        below.
+      </p>
+      <h2>How long we keep things</h2>
+      <p>
+        This section describes what the system does today, not what we intend it
+        to do. Where nothing removes a record, this page says so rather than
+        naming a retention period we do not enforce. An unenforced promise would
+        be worse than no promise.
+      </p>
+      <p><strong>What you can remove yourself.</strong>
+        Removing a saved property deletes it, along with the notes, research
+        threads, chat summary, drawings and export record stored on it. That is
+        a real delete, not a hidden flag. Removing a team member or an
+        invitation deletes that row too. Signing out clears the session cookie
+        in your browser.
+      </p>
+      <p><strong>What stops working on its own.</strong>
+        A share link stops resolving 30 days after it is created. A signed-in
+        session lasts 7 days, after which you sign in again. Both are enforced
+        when the link or the session is used. Neither deletes anything: the
+        share grant record remains in our database after the link stops working.
+      </p>
+      <p><strong>What we keep until you ask us to remove it.</strong>
+        Everything else, for as long as the account exists. That means your
+        account identity, plan tier and Stripe customer reference, your screens
+        and the properties on them, the list of AI clients that have connected,
+        the per-property free-message counters, any records request you ran
+        together with the documents it retrieved, and the anonymous browse
+        records described above. We do not run a job that deletes any of this on
+        a schedule, and we would rather say so than name a period nothing
+        enforces.
+      </p>
+      <p><strong>Deleting your account.</strong>
+        There is no delete-my-account button in the product today. Email
+        <a href="mailto:support@empressa.io">support@empressa.io</a> and we will
+        remove your account. Removing the account record automatically removes,
+        by a database constraint, your sign-in identity, your plan and Stripe
+        reference, your share grants, the record of connected AI clients, your
+        chat counters and your team membership. It does not automatically
+        remove your saved properties or your screens, which are keyed to your
+        account but not linked to it by a constraint; those are removed
+        separately as part of the same request. The anonymous browse records
+        described above carry no account link and cannot be matched back to
+        you, so they are not part of an account deletion.
       </p>
       <h2>What we do not do</h2>
       <ul>
@@ -138,7 +222,7 @@
         Product site: <a href="https://smartsite.cloud">smartsite.cloud</a>.
         Agent connector: <a href="https://mcp.smartsite.cloud">mcp.smartsite.cloud</a>.
       </p>
-      <p>Effective 28 August 2026. We will update this page when the practices above change.</p>
+      <p>Effective 2 September 2026. We will update this page when the practices above change.</p>
     </main>
     <footer>
       Empressa / Legacy Group ATX LLC.
