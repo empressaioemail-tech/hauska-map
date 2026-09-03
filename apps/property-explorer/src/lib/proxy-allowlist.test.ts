@@ -17,6 +17,9 @@ import { ACTIVATION_EVENTS_PATH } from './activationEvents'
 // the constant the client builds its URL from, compared against the server
 // allowlist rather than against a transcription of itself.
 import { ACCOUNT_ENTITLEMENT_PATH } from './accountEntitlementClient'
+// A-062: the billing-portal POST. Same reasoning again — the constant the
+// client builds its URL from, compared against the server allowlist.
+import { BILLING_PORTAL_PATH } from './portalClient'
 
 function isCortexBrowsePathAllowed(method: string, upstreamPath: string): boolean {
   if (method === 'GET' || method === 'HEAD') {
@@ -244,6 +247,12 @@ describe('every deep path a shipped client calls is allowlisted', () => {
     'api/property-explorer/v1/records-request',
     // P-98 activation instrumentation — read from the client module.
     ACTIVATION_EVENTS_PATH,
+    // A-062 billing portal — read from the client module. THIS IS THE PROOF
+    // THE CARD ASKED FOR, and it is deliberately not a production probe: the
+    // deep proxy checks the session cookie before the allowlist, so a
+    // signed-out caller gets 401 whether or not the path is listed and a
+    // green probe would prove nothing at all.
+    BILLING_PORTAL_PATH,
   ]
 
   it.each(SHIPPED_DEEP_GETS)('allows GET %s', (path) => {
@@ -270,6 +279,25 @@ describe('every deep path a shipped client calls is allowlisted', () => {
     expect(isDeepPathAllowed('POST', ACCOUNT_ENTITLEMENT_PATH)).toBe(false)
     expect(isDeepPathAllowed('DELETE', ACCOUNT_ENTITLEMENT_PATH)).toBe(false)
     expect(isDeepPathAllowed('GET', `${ACCOUNT_ENTITLEMENT_PATH}/account`)).toBe(false)
+  })
+
+  it('A-062: the billing portal POST is listed, and listed NARROWLY', () => {
+    // The path the client posts to, spelled once here as the second
+    // derivation. A rename on either side without the other fails this rather
+    // than 403ing a Cancel button in production.
+    expect(BILLING_PORTAL_PATH).toBe('api/property-explorer/v1/billing/portal')
+    expect(isDeepPathAllowed('POST', BILLING_PORTAL_PATH)).toBe(true)
+    // NOT VACUOUS. A set-membership check passes on any string that was
+    // added; these prove the addition is narrow. The portal is a POST and
+    // nothing else, and the neighbours it sits beside stay refused.
+    expect(isDeepPathAllowed('GET', BILLING_PORTAL_PATH)).toBe(false)
+    expect(isDeepPathAllowed('DELETE', BILLING_PORTAL_PATH)).toBe(false)
+    expect(isDeepPathAllowed('POST', `${BILLING_PORTAL_PATH}/session`)).toBe(false)
+    expect(isDeepPathAllowed('POST', 'api/property-explorer/v1/billing')).toBe(false)
+    // The install-scoped brokerage portal is a DIFFERENT seam on a different
+    // subject and is explicitly out of this card. It must not be reachable
+    // through the deep proxy as a side effect of listing the PE one.
+    expect(isDeepPathAllowed('POST', 'api/brokerage/v1/billing/portal')).toBe(false)
   })
 
   it('P-98 paths are the ones the clients actually fetch', () => {

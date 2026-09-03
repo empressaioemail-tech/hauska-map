@@ -23,8 +23,15 @@
 //                UNKNOWN, never a default: nothing backfills the billing
 //                interval, so a test-mode subscriber genuinely reads null and
 //                the row says so. Renewal date is not on that wire at all.
-//                Payment method, invoices and cancel need a billing portal
-//                that does not exist and say Not built.
+//                Payment method, invoices and cancel are now ONE REAL CONTROL
+//                (A-062): they are three doors into the same Stripe Customer
+//                Portal, so the panel opens the portal rather than pretending
+//                to own three features Stripe owns. The control renders only
+//                when the account HAS a Stripe customer; otherwise the row
+//                says so and stays honest. Renewal date is still Not read
+//                because it is still not on the wire — this card licensed a
+//                control where one now works, not a sweep turning every Not
+//                built into a button.
 //   Connections  REAL. Renders CLAUDE_SYNC_VENDORS, the same list the Claude
 //                Sync rail bubble renders, so the two cannot drift. Claude-only
 //                since the 2026-08-31 operator ruling: Cursor Connect still
@@ -56,6 +63,10 @@ import {
   type AccountEntitlementRead,
 } from "../lib/useAccountEntitlement";
 import { PE_PRICING } from "../lib/pricing";
+import {
+  startBillingPortal,
+  type BillingPortalOutcome,
+} from "../lib/portalClient";
 import {
   CLAUDE_CUSTOMIZE_CONNECTORS_URL,
   CLAUDE_SYNC_VENDORS,
@@ -223,6 +234,51 @@ const OPEN_GLYPH = "↗";
  * say something softer than the others.
  */
 const NOT_READ = "Not read";
+
+/**
+ * BILLING MANAGEMENT — the row A-062 built, and the rule it turns on.
+ *
+ * PURE, EXPORTED AND TESTED WITHOUT RENDERING, for the same reason
+ * `ladderEntitlementFromAccount` is: this is the only place where a wire value
+ * decides whether a person is shown a control that takes them to their own
+ * money, and it is where "if in doubt, show the button" would be written if
+ * anyone ever wrote it.
+ *
+ * THREE STATES, AND ONLY ONE OF THEM RENDERS A CONTROL:
+ *
+ *   unread     the read has not resolved, or resolved to sign-in / blocked /
+ *              not-built / error, or came back for an unauthenticated caller.
+ *              We do not know whether there is a billing account, so we do not
+ *              claim one either way and we do not offer a door.
+ *   none       the server said, positively, that this account has no Stripe
+ *              customer. The ORDINARY state of a free account and of anyone
+ *              who abandoned a checkout. It gets a sentence, not a button.
+ *   manage     the server said there IS a Stripe customer. This is the only
+ *              arm that renders the portal control.
+ *
+ * `unread` and `none` are deliberately not merged even though both withhold
+ * the button, because they say different things to the reader: one is "we
+ * could not read your account", the other is "you have never been billed".
+ * Collapsing them would print a fact we did not read.
+ *
+ * NOTHING IS DERIVED FROM TIER. A paid account whose customer id never landed
+ * is a real state and gets `none` honestly; a FREE account that subscribed
+ * once and cancelled still has a portal, and it is precisely the person most
+ * likely to want it. Reading the tier here instead of the bit would get both
+ * of those backwards.
+ */
+export type BillingManagementState = "unread" | "none" | "manage";
+
+export function billingManagementState(
+  read: AccountEntitlementRead,
+): BillingManagementState {
+  if (read === null || read.kind !== "ready") return "unread";
+  const { account } = read;
+  // Signed out is not an account state. The server answers anonymous callers
+  // with a 200, so this is reachable without an error.
+  if (!account.authenticated) return "unread";
+  return account.hasBillingAccount ? "manage" : "none";
+}
 
 /**
  * ACCESS, off the ACCOUNT read.
@@ -414,13 +470,14 @@ export function SettingsModal({
   // own null, and the reasoning for each lives on its function above rather
   // than in a ternary here.
   //
-  // "Renewal date", "Payment method", "Invoices" and "Cancel subscription" are
-  // NOT touched by this card. Renewal is genuinely not on this wire and the
-  // other three need a billing portal that does not exist; they stay "Not
-  // read" and "Not built" because those are still the true answers.
+  // "Renewal date" is still NOT touched: it is genuinely not on this wire.
+  // Payment method, invoices and cancellation WERE the three "Not built" rows
+  // and are now one real control (A-062) — see billingManagementState above
+  // for why they collapsed into one and when it renders.
   const access = accessLabel(account);
   const tierName = tierNameLabel(account);
   const billingInterval = billingIntervalLabel(account);
+  const billingManagement = billingManagementState(account);
 
   // THE LADDER'S ENTITLEMENT INPUT, derived by a pure exported function so the
   // rule that matters is testable without rendering anything. Every non-ready
@@ -461,6 +518,41 @@ export function SettingsModal({
   });
   // Not runnable here means not rendered here. See SETTINGS_RUNNABLE.
   const action = proposed && SETTINGS_RUNNABLE.has(proposed.id) ? proposed : null;
+
+  // A-062 — the portal open. `null` before any attempt; a refusal or a
+  // transport failure is HELD and rendered rather than swallowed, because the
+  // one thing worse than no cancel button is one that appears to do nothing.
+  //
+  // THE `portal` ARM IS EXCLUDED BY THE TYPE, not by a convention. A success
+  // navigates away, so there is no state in which this holds one — and saying
+  // so with Exclude<> means the render below cannot read a field that arm
+  // lacks. The compiler enforces at the one call site what a comment would
+  // only have asked for.
+  const [portal, setPortal] = useState<Exclude<
+    BillingPortalOutcome,
+    { kind: "portal" }
+  > | null>(null);
+  const [portalBusy, setPortalBusy] = useState(false);
+
+  const openBillingPortal = () => {
+    if (portalBusy) return;
+    setPortalBusy(true);
+    setPortal(null);
+    void startBillingPortal().then((outcome) => {
+      setPortalBusy(false);
+      if (outcome.kind === "portal") {
+        // Stripe's own host, already checked by portalClient — a 200 carrying
+        // a non-Stripe URL never reaches here as `portal`.
+        if (typeof window !== "undefined") {
+          window.location.href = outcome.portalUrl;
+        }
+        return;
+      }
+      // EVERY OTHER OUTCOME IS SHOWN. sign-in, blocked, not-built, unavailable
+      // and error each say something different and none of them is silence.
+      setPortal(outcome);
+    });
+  };
 
   const runAction = (a: NextAction) => {
     switch (a.id) {
@@ -665,21 +757,89 @@ export function SettingsModal({
                     }
                   />
                   {/*
-                    UNTOUCHED BY P-98b, and each for its own reason. Renewal
-                    date is not on the entitlement wire at all. The last three
-                    need a billing portal that has not been built. Lighting any
-                    of them up would mean inventing the value.
+                    RENEWAL DATE IS STILL NOT READ, and stays that way. It is
+                    genuinely not on the entitlement wire, and A-062 licensed a
+                    control where one now works — not a sweep turning every
+                    honest "Not built" into a button.
                   */}
                   <Row label="Renewal date" value={NOT_READ} />
-                  <Row label="Payment method" value="Not built" />
-                  <Row label="Invoices" value="Not built" />
-                  <Row label="Cancel subscription" value="Not built" last />
+                  {/*
+                    A-062. Payment method, invoices and cancellation were three
+                    separate "Not built" rows. They are three doors into the
+                    SAME Stripe Customer Portal, which is Stripe's surface and
+                    not ours, so they are one row that opens it rather than
+                    three we would have to build and keep true.
+
+                    THE CONTROL RENDERS ONLY ON `manage`. On `none` the row
+                    states, positively, that there is no billing history — the
+                    ordinary state of a free account, and a different sentence
+                    from "we could not read your account", which is what
+                    `unread` says. Rendering the button on either of those
+                    would put a customer one click from a refusal at the exact
+                    moment they are trying to stop paying us.
+                  */}
+                  <Row
+                    label="Payment, invoices and cancellation"
+                    last
+                    value={
+                      billingManagement === "manage" ? (
+                        <Button
+                          variant="secondary"
+                          glyph={OPEN_GLYPH}
+                          data-testid="settings-billing-portal"
+                          onClick={openBillingPortal}
+                        >
+                          {portalBusy ? "Opening…" : "Manage billing"}
+                        </Button>
+                      ) : billingManagement === "none" ? (
+                        <span data-testid="settings-billing-none">
+                          No billing history
+                        </span>
+                      ) : (
+                        <span data-testid="settings-billing-not-read">
+                          {NOT_READ}
+                        </span>
+                      )
+                    }
+                    note={
+                      billingManagement === "manage"
+                        ? "Opens the Stripe billing portal, where payment method, invoices and cancellation live."
+                        : billingManagement === "none"
+                          ? "This account has never been billed, so there is no billing portal to open."
+                          : undefined
+                    }
+                  />
                 </Panel>
-                <Aside>
-                  Payment method, invoices and cancelling need a billing portal
-                  that has not been built. Until then, use the email receipt
-                  from checkout.
-                </Aside>
+                {/*
+                  THE REFUSAL IS SHOWN, never swallowed. A cancel control that
+                  appears to do nothing is worse than the Not built row it
+                  replaced, so every non-portal outcome from the client is
+                  rendered here with its own words.
+                */}
+                {portal ? (
+                  <Aside>
+                    <span data-testid="settings-billing-portal-refusal">
+                      {portal.kind === "sign-in"
+                        ? "Your session has expired. Sign in again to manage billing."
+                        : portal.kind === "blocked"
+                          ? "The billing portal was refused by our own proxy. That is a defect on our side, not a fact about your account."
+                          : portal.message}
+                    </span>
+                  </Aside>
+                ) : billingManagement === "manage" ? (
+                  <Aside>
+                    Cancelling, changing the payment method and downloading
+                    invoices all happen in the Stripe billing portal. Smart Site
+                    does not keep a second copy of any of them.
+                  </Aside>
+                ) : (
+                  <Aside>
+                    A paid plan bought on this account opens a Stripe billing
+                    portal, where payment method, invoices and cancellation
+                    live. Until then the receipt email from checkout is the
+                    record.
+                  </Aside>
+                )}
               </div>
             ) : null}
 
