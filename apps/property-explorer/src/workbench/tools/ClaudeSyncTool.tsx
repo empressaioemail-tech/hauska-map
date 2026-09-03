@@ -405,6 +405,16 @@ export function ClaudeSetupPanel({
  *
  * When one of the three goes live, it moves from CLAUDE_NOT_YET to
  * CLAUDE_CAN_DO. The test pins that the two sets never overlap.
+ *
+ * P-101, 2026-09-02. The same rule bites on ENTITLEMENT, not only on
+ * readiness. "Screen a pasted list" and "Keep a screen" promised every
+ * connected user a capability that, since the 2026-08-31 ladder re-cut, is
+ * Studio and Team: `create_screen` and `add_to_screen` are refused at the
+ * api-server screens routes for Solo and free accounts. An unqualified card
+ * row is the same broken promise this file's header already refuses to make,
+ * discovered the same way -- by asking Claude and getting a refusal. Both rows
+ * now name the rung. `list_screens` stays open, so reopening a screen is not
+ * qualified.
  */
 export const CLAUDE_CAN_DO: { title: string; line: string }[] = [
   {
@@ -425,11 +435,11 @@ export const CLAUDE_CAN_DO: { title: string; line: string }[] = [
   },
   {
     title: "Screen a pasted list",
-    line: "Paste addresses and Claude opens a screening board with a rail state per property.",
+    line: "Paste addresses and Claude opens a screening board with a rail state per property. Studio and Team.",
   },
   {
     title: "Keep a screen",
-    line: "Add properties to a screen and reopen it later by name.",
+    line: "Add properties to a screen on Studio or Team; reopen a screen by name on any plan.",
   },
   {
     title: "Save and track",

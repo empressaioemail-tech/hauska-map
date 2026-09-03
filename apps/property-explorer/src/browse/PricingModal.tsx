@@ -58,11 +58,22 @@ const DISPLAY =
 
 const TIERS: PeCheckoutTier[] = ["solo", "studio", "team"];
 
-const GROUPS = [
-  { key: "answer", testId: "pricing-group-answer", ...PE_PRICING.groups.answer },
-  { key: "handoff", testId: "pricing-group-handoff", ...PE_PRICING.groups.handoff },
-  { key: "firm", testId: "pricing-group-firm", ...PE_PRICING.groups.firm },
-] as const;
+/**
+ * P-101. This was a hand-written three-entry array naming answer / handoff /
+ * firm, and NOTHING iterated PE_PRICING.groups. That made the comparison
+ * STRUCTURE code while the prices were config: a fourth group added to
+ * pricing.ts rendered nowhere, and the modal test still passed, because it
+ * asserted the three groups it knew about. The regroup this card ships would
+ * have silently done nothing.
+ *
+ * Derived now, so config and render cannot diverge: key order is render order,
+ * and the testid is the key. Adding a group to pricing.ts renders it.
+ */
+const GROUPS = Object.entries(PE_PRICING.groups).map(([key, group]) => ({
+  key,
+  testId: `pricing-group-${key}`,
+  ...group,
+}));
 
 export function PricingModal({
   parcelNodeId,
