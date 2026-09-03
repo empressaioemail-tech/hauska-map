@@ -40,7 +40,16 @@ describe('PE legal pages (item 21 B3)', () => {
     expect(looksLikeLegalPage(PRIVACY, 'privacy')).toBe(true)
     expect(PRIVACY).toMatch(/<h1>[^<]*Privacy/)
     expect(paragraphCount(PRIVACY)).toBeGreaterThanOrEqual(4)
-    expect(PRIVACY).toMatch(/WorkOS AuthKit/)
+    // P-108 correction. This line used to be `toMatch(/WorkOS AuthKit/)`, and
+    // it was asserting a value the page produced rather than one the source
+    // authority recognises: api/auth.ts signs the workbench in DIRECTLY against
+    // Google OIDC (fetchIdTokenClaims) and Microsoft Graph (fetchMicrosoftProfile)
+    // with PKCE. WorkOS appears once, in api/_lib/workos-complete.ts, reached
+    // only when pending.externalAuthId is set, which only happens for an MCP
+    // client arriving at /api/auth/mcp-login. The page must therefore name
+    // WorkOS in the connector role and must NOT say you sign in through it.
+    expect(PRIVACY).toMatch(/WorkOS/)
+    expect(PRIVACY).not.toMatch(/sign in with Google or Microsoft through WorkOS/)
     expect(PRIVACY).toMatch(/Google/)
     expect(PRIVACY).toMatch(/Microsoft/)
     expect(PRIVACY).toMatch(/Stripe/)

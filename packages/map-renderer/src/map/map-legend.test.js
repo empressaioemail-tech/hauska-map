@@ -12,7 +12,7 @@ import { legendPanelHtml, legendSectionsFor } from "./map-legend.js";
 import { LAND_USE_LEGEND } from "./land-use-classes.js";
 import { FEMA_LEGEND } from "./fema-zones.js";
 import {
-  CARTO_LABELS_TILES,
+  cartoLabelsTiles,
   SATELLITE_LABELS_ATTRIBUTION,
   SATELLITE_LABELS_LAYER_ID,
   SATELLITE_LABELS_SOURCE_ID,
@@ -93,10 +93,11 @@ describe("map legend (W3)", () => {
 });
 
 describe("satellite street labels (W3)", () => {
-  it("uses the CARTO labels-only raster on all three subdomains", () => {
-    assert.equal(CARTO_LABELS_TILES.length, 3);
-    for (const url of CARTO_LABELS_TILES) {
-      assert.match(url, /^https:\/\/[abc]\.basemaps\.cartocdn\.com\/light_only_labels\/\{z\}\/\{x\}\/\{y\}@2x\.png$/);
+  it("uses the CARTO labels-only raster on all three subdomains, keyed (MAP-BASEMAP-KEY: CARTO retired keyless raster tiles)", () => {
+    const tiles = cartoLabelsTiles();
+    assert.equal(tiles.length, 3);
+    for (const url of tiles) {
+      assert.match(url, /^https:\/\/[abc]\.basemaps\.cartocdn\.com\/light_only_labels\/\{z\}\/\{x\}\/\{y\}@2x\.png(\?key=.+)?$/);
     }
     // Same provider as the basemap, so the credit obligation does not change.
     assert.match(SATELLITE_LABELS_ATTRIBUTION, /openstreetmap\.org/);
