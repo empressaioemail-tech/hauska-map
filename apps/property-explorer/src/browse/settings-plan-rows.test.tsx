@@ -176,15 +176,27 @@ describe("first paint, and the rows this card did not touch", () => {
     );
   });
 
-  it("the four untouched rows still say exactly what they said", () => {
-    // Renewal date is genuinely not on the entitlement wire; the other three
-    // need a billing portal that has not been built. This card lit up three
-    // rows and it must not have quietly lit up a fourth.
+  it("A-062: Renewal date is STILL untouched, and the other three are now one row", () => {
+    // WHAT THIS ASSERTED BEFORE A-062. Renewal date was genuinely not on the
+    // entitlement wire and the other three needed a billing portal that did
+    // not exist, so all four read "Not built"/"Not read" and this test counted
+    // exactly three "Not built"s to catch a fourth being lit up by accident.
+    //
+    // A-062 BUILT THE PORTAL. Payment method, invoices and cancellation are
+    // three doors into the same Stripe Customer Portal and are now one row.
+    // The guard the old count provided is preserved in a stronger form: there
+    // is now NO "Not built" anywhere on this tab, so a future card cannot add
+    // one back without failing here, and Renewal date is still checked by name
+    // as the row that stayed honest.
     const html = render("plan");
     expect(html).toContain("Renewal date");
-    expect(html).toContain("Payment method");
-    expect(html).toContain("Invoices");
-    expect(html).toContain("Cancel subscription");
-    expect(html.match(/Not built/g)?.length).toBe(3);
+    expect(html).toContain("Payment, invoices and cancellation");
+    expect(html.match(/Not built/g)?.length ?? 0).toBe(0);
+
+    // AND IT DID NOT QUIETLY LIGHT UP RENEWAL DATE. That value is still not on
+    // the wire, so its row must still say Not read rather than having acquired
+    // a control alongside the portal one.
+    expect(html).toContain(">Renewal date</span><span");
+    expect(html).not.toContain('data-testid="settings-renewal-date-control"');
   });
 });

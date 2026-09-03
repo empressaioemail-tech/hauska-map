@@ -66,6 +66,18 @@ export const DEEP_POST_EXACT = new Set([
   // missing line here would 403 every event and the rail would look measured
   // while measuring nothing, which is the starved-mechanism defect exactly.
   'api/property-explorer/v1/activation-events',
+  // A-062 billing portal — the Stripe Customer Portal session terms.html has
+  // promised customers all along. Listed in the SAME change that added the
+  // client (src/lib/portalClient.ts), because the two are independently
+  // authored halves and a missing line here is a 403 that a signed-out probe
+  // cannot see: spine-deep.ts checks the session cookie BEFORE the allowlist.
+  // Omitting it would ship a Cancel button that fails for every paying
+  // customer and reads to them as "cancellation is broken", which is worse
+  // than the honest Not built row it replaces.
+  //
+  // The POST carries { returnUrl } and NO customer id — the server resolves
+  // the Stripe customer from the session and refuses a supplied one.
+  'api/property-explorer/v1/billing/portal',
 ])
 
 // W4 My Properties: PUT (upsert) / DELETE on exactly ONE path segment after

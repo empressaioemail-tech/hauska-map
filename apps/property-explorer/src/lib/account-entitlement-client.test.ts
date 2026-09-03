@@ -112,6 +112,7 @@ describe("parseAccountEntitlement", () => {
         devRole: false,
         seatsPurchased: 3,
         billingInterval: "month",
+        hasBillingAccount: true,
       }),
     ).toEqual({
       authenticated: true,
@@ -122,7 +123,43 @@ describe("parseAccountEntitlement", () => {
       seatsPurchased: 3,
       billingInterval: "month",
       preContract: false,
+      hasBillingAccount: true,
     });
+  });
+
+  it("A-062: hasBillingAccount is ONLY an explicit true", () => {
+    // The asymmetry argued on the field: a false negative shows the honest
+    // "no billing history" row to somebody who does have one, which is
+    // recoverable. A false POSITIVE puts a Cancel button in front of somebody
+    // who will get a 409 at the exact moment they are trying to stop paying
+    // us. So absent, null, "true", 1 and {} all read FALSE.
+    const withBit = (v: unknown) =>
+      parseAccountEntitlement({ authenticated: true, hasBillingAccount: v })
+        ?.hasBillingAccount;
+    expect(withBit(true)).toBe(true);
+    for (const truthyButNotTrue of ["true", 1, {}, [], "yes"]) {
+      expect(withBit(truthyButNotTrue)).toBe(false);
+    }
+    expect(withBit(null)).toBe(false);
+    expect(withBit(undefined)).toBe(false);
+    // A server that predates A-062 omits the key entirely — the exact
+    // false-positive risk, and it reads false.
+    expect(
+      parseAccountEntitlement({ authenticated: true })?.hasBillingAccount,
+    ).toBe(false);
+  });
+
+  it("A-062: the Stripe customer id is not something this parser can even hold", () => {
+    // The wire carries a bit, never the id. A server that (wrongly) sent one
+    // must not have it end up on a client object where a future edit could
+    // put it back on a request the portal route refuses.
+    const parsed = parseAccountEntitlement({
+      authenticated: true,
+      hasBillingAccount: true,
+      stripeCustomerId: "cus_should_never_travel",
+    });
+    expect(JSON.stringify(parsed)).not.toContain("cus_should_never_travel");
+    expect(JSON.stringify(parsed)).not.toContain("stripeCustomerId");
   });
 
   it("accepts `tier` as well as `accessTier` — the deploy window has both", () => {
@@ -172,6 +209,10 @@ describe("parseAccountEntitlement", () => {
       entitlementSource: "stripe_sub",
       devRole: false,
       preContract: true,
+      // A-062 joins the same list of things a pre-contract server cannot tell
+      // us. False here is a REFUSAL to show a control, not a claim that the
+      // account has no billing — see the asymmetry note on the field.
+      hasBillingAccount: false,
     });
   });
 

@@ -16,8 +16,12 @@
 //
 //   GET api/property-explorer/v1/entitlement          (NO parcelNodeId)
 //   200 { accessTier, subscriptionTier, entitlementSource, devRole,
-//         seatsPurchased, billingInterval }
+//         seatsPurchased, billingInterval, hasBillingAccount }
 //       — and the `property` block OMITTED ENTIRELY.
+//
+//   hasBillingAccount (A-062) is a BOOLEAN and the Stripe customer id is
+//   never on this wire. It gates whether Settings > Plan renders a real
+//   Manage-billing control or the honest "no billing history" row.
 //   With a parcelNodeId the response is byte-identical to today, which is why
 //   the per-property caller above is untouched.
 //
@@ -128,6 +132,26 @@ export interface AccountEntitlement {
    * the two apart in a console, not so the UI can.
    */
   preContract: boolean;
+  /**
+   * A-062 — does this account have a Stripe customer at all?
+   *
+   * A BOOLEAN ON THE WIRE, and the customer id itself is never on it. The
+   * portal route resolves the id from the session and REFUSES a
+   * caller-supplied one, so shipping the real id to the browser would hand
+   * every caller the exact string that route exists to reject. One bit is all
+   * the Plan tab needs: is there a billing account to manage.
+   *
+   * ABSENT READS FALSE, and false is the safe direction here, unlike
+   * `accessTier` where absent must read unknown. The consequence of a false
+   * negative is the honest "no billing history" row on an account that does
+   * have one — recoverable, and the customer can still reach Stripe from
+   * their receipt email. The consequence of a false POSITIVE is a Cancel
+   * button that 409s in the customer's face at the moment they are trying to
+   * stop paying us, which reads as "cancellation is broken". A server that
+   * predates this field is exactly that false-positive risk, so it reads
+   * false.
+   */
+  hasBillingAccount: boolean;
 }
 
 export type AccountEntitlementOutcome =
@@ -223,6 +247,10 @@ export function parseAccountEntitlement(body: unknown): AccountEntitlement | nul
     entitlementSource: typeof sourceRaw === "string" ? sourceRaw : null,
     devRole,
     seatsPurchased: parseSeats(pick("seatsPurchased")),
+    // ONLY an explicit `true`. A pre-A-062 server omits the key entirely, a
+    // truthy string would be a coercion, and both must read false — see the
+    // asymmetry argument on the field above.
+    hasBillingAccount: pick("hasBillingAccount") === true,
     billingInterval: parseBillingInterval(pick("billingInterval")),
     preContract:
       !Object.prototype.hasOwnProperty.call(b, "billingInterval") &&
