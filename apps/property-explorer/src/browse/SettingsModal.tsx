@@ -43,6 +43,14 @@
 //                is 404 -> `not-built`, which renders the drop's own Not read
 //                state. There are NO fixture rows in this file. When the
 //                endpoint lands, this lights up unchanged.
+//   Affiliate    P-117. Static explainer, not a design-drop translation: the
+//                locked terms (20%, recurring, twelve-month cap, PromoteKit,
+//                PayPal, opt-in by application) stated plainly, in
+//                AffiliateSection.tsx. Reads no account state and proposes no
+//                next action, because the GoHighLevel application pipeline
+//                this tab would point to has not been created (OPS-16 A-081,
+//                blocked on a credential this build cannot reach). It says so
+//                rather than shipping a control that opens nothing.
 
 import { useEffect, useState, type ReactNode } from "react";
 import { Modal } from "../components/Modal";
@@ -81,6 +89,7 @@ import {
   type TeamOutcome,
 } from "../lib/teamClient";
 import { NextActionCard } from "../components/NextActionCard";
+import { AffiliateSection } from "./AffiliateSection";
 import { fetchAiConnections } from "../lib/aiConnectionClient";
 import { fetchAccountUnlocks } from "../lib/unlockClient";
 import {
@@ -93,13 +102,19 @@ import {
   type UnlocksRead,
 } from "../lib/nextAction";
 
-export type SettingsSection = "account" | "plan" | "connections" | "team";
+export type SettingsSection =
+  | "account"
+  | "plan"
+  | "connections"
+  | "team"
+  | "affiliate";
 
 const SECTIONS: { id: SettingsSection; label: string }[] = [
   { id: "account", label: "Account" },
   { id: "plan", label: "Plan" },
   { id: "connections", label: "Connections" },
   { id: "team", label: "Team" },
+  { id: "affiliate", label: "Affiliate" },
 ];
 
 /**
@@ -138,7 +153,9 @@ const SETTINGS_RUNNABLE: ReadonlySet<NextActionId> = new Set<NextActionId>([
   "annual_upgrade",
 ]);
 
-function Eyebrow({ children }: { children: ReactNode }) {
+// Exported so AffiliateSection (P-117) can build its panel from the same
+// primitives rather than keeping a second copy of this layout.
+export function Eyebrow({ children }: { children: ReactNode }) {
   return (
     <div
       style={{
@@ -154,7 +171,7 @@ function Eyebrow({ children }: { children: ReactNode }) {
   );
 }
 
-function Aside({ children }: { children: ReactNode }) {
+export function Aside({ children }: { children: ReactNode }) {
   return (
     <div
       style={{
@@ -170,7 +187,7 @@ function Aside({ children }: { children: ReactNode }) {
   );
 }
 
-function Panel({ children }: { children: ReactNode }) {
+export function Panel({ children }: { children: ReactNode }) {
   return (
     <div
       style={{
@@ -186,7 +203,7 @@ function Panel({ children }: { children: ReactNode }) {
   );
 }
 
-function Row({
+export function Row({
   label,
   value,
   note,
@@ -508,14 +525,24 @@ export function SettingsModal({
   // No clock is passed. The only rung that needs one reads the `asOf` the
   // server stamped on the same response as the expiries, so the rail and the
   // server cannot disagree about what "four days" means.
-  const proposed = nextAction(section, {
-    // A session that has not been read yet is not a signed-in one.
-    authenticated: authed === true,
-    claude,
-    entitlement,
-    unlocks,
-    seats,
-  });
+  //
+  // AFFILIATE IS EXCLUDED BY THE TYPE, not by a convention. nextAction.ts's
+  // NextActionContext is the original four-tab union and does not carry
+  // "affiliate" — narrowing `section` here rather than widening that union
+  // is the choice, because the ladder has nothing to propose on a tab
+  // explaining a program nobody can join yet, and going quiet is exactly
+  // what P-98's own acceptance test requires of an empty context.
+  const proposed =
+    section === "affiliate"
+      ? null
+      : nextAction(section, {
+          // A session that has not been read yet is not a signed-in one.
+          authenticated: authed === true,
+          claude,
+          entitlement,
+          unlocks,
+          seats,
+        });
   // Not runnable here means not rendered here. See SETTINGS_RUNNABLE.
   const action = proposed && SETTINGS_RUNNABLE.has(proposed.id) ? proposed : null;
 
@@ -904,6 +931,10 @@ export function SettingsModal({
                 onRetry={() => setTeam(null)}
               />
             ) : null}
+
+            {/* P-117. Explains the program; reads no account state and
+                proposes nothing — see AffiliateSection.tsx. */}
+            {section === "affiliate" ? <AffiliateSection /> : null}
           </div>
 
           {/* NEXT ACTION — one state-derived step, or nothing. */}

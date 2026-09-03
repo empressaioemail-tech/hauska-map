@@ -35,10 +35,13 @@ const render = (section?: "account" | "plan" | "connections" | "team") =>
   );
 
 describe("SettingsModal — the shell", () => {
-  it("is a standalone modal with all four sections", () => {
+  it("is a standalone modal with all five sections", () => {
+    // P-117 added the fifth tab, Affiliate. Terms and mechanics for that tab
+    // are pinned in settings-affiliate.test.tsx; this file only guards that
+    // the tab is reachable.
     const html = render();
     expect(html).toContain('data-testid="settings-modal"');
-    for (const id of ["account", "plan", "connections", "team"]) {
+    for (const id of ["account", "plan", "connections", "team", "affiliate"]) {
       expect(html).toContain(`data-testid="settings-tab-${id}"`);
     }
   });
