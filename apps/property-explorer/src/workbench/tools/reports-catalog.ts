@@ -112,6 +112,13 @@ export const REPORTS_CATALOG: readonly ReportDocDef[] = [
     promise: "The drawn sheet and the layers a drafter can open.",
     formatLabel: "PDF, DXF, IFC",
     engine: "site-plan",
+    // P-104: site-plan CAD is a Studio deliverable and always was on the
+    // pricing table; this flag was missing, so the row rendered unlocked.
+    // The flag is the SURFACE half only. The enforcing half is the server
+    // gate in api/_lib/pe-site-plan-export-core.ts, which now requires the
+    // server-computed studioGranted. Landing this line alone would have been
+    // the defect P-104 exists to remove: a lock a direct call walks past.
+    studioGated: true,
   },
   {
     id: "TERRAIN",
@@ -182,6 +189,7 @@ export const REPORTS_CATALOG: readonly ReportDocDef[] = [
     formatLabel: "PDF",
     engine: "site-plan",
     sitePlanFormat: "pdf-site-plan",
+    studioGated: true,
   },
   {
     id: "SPDXF",
@@ -194,6 +202,7 @@ export const REPORTS_CATALOG: readonly ReportDocDef[] = [
     formatLabel: "DXF",
     engine: "site-plan",
     sitePlanFormat: "dxf-site-plan",
+    studioGated: true,
   },
   {
     id: "SPIFC",
@@ -206,6 +215,7 @@ export const REPORTS_CATALOG: readonly ReportDocDef[] = [
     formatLabel: "IFC",
     engine: "site-plan",
     sitePlanFormat: "ifc-site-plan",
+    studioGated: true,
   },
   {
     id: "TERGLB",

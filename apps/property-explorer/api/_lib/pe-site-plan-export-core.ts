@@ -392,12 +392,35 @@ export type SitePlanExportAuthResult =
   | { ok: true; devBypass?: boolean }
   | { ok: false; status: 401 | 402 | 503; error: string; message?: string }
 
-/** Mirrors BFF session + entitlement gate (testable without Vercel). Same
- * public-paid entitlement tier as terrain export — no new tier this wave. */
+/** Refusal reason when the account is paid but not Studio (P-104). Distinct
+ *  from the free-tier `payment_required` so the surface can offer the right
+ *  upgrade instead of a generic paywall. */
+export const STUDIO_REQUIRED_MESSAGE =
+  'Site-plan CAD export is a Studio deliverable. Your plan does not include it.'
+
+/** Refusal reason when the entitlement server did not report `studioGranted`
+ *  at all — UNMEASURED, not denied. Never shown as a paywall. */
+export const STUDIO_UNMEASURED_MESSAGE =
+  'Studio entitlement could not be determined: the entitlement service did not report studioGranted. Site-plan export is refused rather than served unverified.'
+
+/**
+ * Mirrors BFF session + entitlement gate (testable without Vercel).
+ *
+ * P-104: this gate used to read `tier !== 'paid'`, which a $49 Solo
+ * subscriber passes, so the web served the $129 Studio deliverable while the
+ * pricing table sold it as Studio. It now requires the SERVER-COMPUTED
+ * `studioGranted`. Terrain carries the identical change in
+ * `resolveTerrainExportAuth` — the two share one product rule and must not
+ * diverge.
+ *
+ * `studioGranted` is deliberately REQUIRED, not optional: an optional field
+ * would let a call site omit it and fall through to the old behaviour
+ * silently. The compiler now demands an answer at every call site.
+ */
 export function resolveSitePlanExportAuth(input: {
   sessionToken: string | null
   entitlement:
-    | { ok: true; tier: 'free' | 'paid' }
+    | { ok: true; tier: 'free' | 'paid'; studioGranted: boolean | null }
     | { ok: false; status: 401 | 402 | 503; message?: string }
   /** Operator/dev bypass — session still required; skips paid check. */
   devBypass?: boolean
@@ -433,6 +456,23 @@ export function resolveSitePlanExportAuth(input: {
       status: 402,
       error: 'payment_required',
       message: 'Pro entitlement required.',
+    }
+  }
+  // P-104. Paid is necessary and NOT sufficient: Solo is paid.
+  if (input.entitlement.studioGranted === null) {
+    return {
+      ok: false,
+      status: 503,
+      error: 'entitlement_contract_incomplete',
+      message: STUDIO_UNMEASURED_MESSAGE,
+    }
+  }
+  if (input.entitlement.studioGranted !== true) {
+    return {
+      ok: false,
+      status: 402,
+      error: 'studio_required',
+      message: STUDIO_REQUIRED_MESSAGE,
     }
   }
   return { ok: true }

@@ -1,6 +1,14 @@
 /**
  * P-86 items 2, 5, 7 — grant-scoped share instrument.
  * A check observed only passing is not a check: each named case has a violation.
+ *
+ * P-105 amended three shapes here and the amendments are deliberate, not
+ * accommodation: `withholdings` is a structured entry list rather than bare
+ * strings (so the reason is stated once and a model reads a state rather
+ * than parsing English), a withheld artifact carries a classified `absence`
+ * rather than a raw upstream `reason` string, and compose now REQUIRES an
+ * absolute origin. The P-105 items themselves are covered in
+ * src/lib/pe-share-handoff.test.ts.
  */
 
 import { describe, expect, it } from 'vitest'
@@ -8,8 +16,10 @@ import type { VercelRequest, VercelResponse } from '@vercel/node'
 import { handlePeShareGrant } from '../../api/pe-share-grant.js'
 import { createMemoryShareGrantStore } from '../../api/_lib/pe-share-grant-store.js'
 import type { ShareGrantRow } from '../../api/_lib/pe-share-grant.js'
+import { shareAbsence } from '../../api/_lib/pe-share-absence.js'
 import type { ShareBriefPayload } from '../../api/_lib/pe-share-brief.js'
 import type { ShareDossierPayload } from '../../api/_lib/pe-share-dossier.js'
+import { buildShareConnectorOffer } from '../../api/_lib/pe-share-handoff.js'
 import {
   agreementFromRenderedBody,
   claimsAnonymousBakeIsTheShare,
@@ -21,6 +31,8 @@ import {
   shareFreshnessLine,
   type ShareInstrument,
 } from '../../api/_lib/pe-share-instrument.js'
+
+const ORIGIN = 'https://smartsite.cloud'
 
 const GRANT: ShareGrantRow = {
   id: '2c1a9d4e-7b11-4f0a-9c3d-0a1b2c3d4e5f',
@@ -83,7 +95,14 @@ const DOSSIER: ShareDossierPayload = {
   notes: 'Gold share notes',
 }
 
+const OWNER_REASON =
+  'Owner data withheld: owner-fact is identified-session only. This grant carries grantor scope for dossier compose; this plane does not invent a second owner store, and the anonymous bake is owner-stripped.'
+
 function fixtureCompose(overrides: Partial<ShareInstrument> = {}): ShareInstrument {
+  const links = {
+    liveView: `${ORIGIN}/share?g=${GRANT.id}`,
+    share: `${ORIGIN}/s/${GRANT.id}`,
+  }
   return {
     kind: 'grant-scoped-share-instrument',
     grantId: GRANT.id,
@@ -96,6 +115,12 @@ function fixtureCompose(overrides: Partial<ShareInstrument> = {}): ShareInstrume
       situsAddress: '801 Pine St, Bastrop, TX',
       countyName: 'Bastrop',
     },
+    links,
+    connectorOffer: buildShareConnectorOffer({
+      parcelNodeId: GRANT.parcelNodeId,
+      liveViewUrl: links.liveView,
+      shareUrl: links.share,
+    }),
     verdicts: [
       { id: 'zoning', title: 'Zoning', line: 'Zoning district P-2' },
       { id: 'flood', title: 'Flood', line: 'Flood in-sfha (zone AE)' },
@@ -109,12 +134,19 @@ function fixtureCompose(overrides: Partial<ShareInstrument> = {}): ShareInstrume
       terrain: { state: 'exported', kind: 'terrain' },
       owner: {
         state: 'withheld',
-        reason:
-          'Owner data withheld: owner-fact is identified-session only. This grant carries grantor scope for dossier compose; this plane does not invent a second owner store, and the anonymous bake is owner-stripped.',
+        reason: OWNER_REASON,
+        absence: shareAbsence('unread'),
       },
     },
     withholdings: [
-      'Owner data withheld: owner-fact is identified-session only. This grant carries grantor scope for dossier compose; this plane does not invent a second owner store, and the anonymous bake is owner-stripped.',
+      {
+        subject: 'Owner',
+        state: 'unread',
+        disposition: 'unread',
+        display: OWNER_REASON,
+        agentGuidance: shareAbsence('unread').agentGuidance,
+        line: `${OWNER_REASON} ${shareAbsence('unread').agentGuidance}`,
+      },
     ],
     fidelity: {
       claim:
@@ -201,6 +233,7 @@ describe('three Accept/format probes agree (item 2)', () => {
   it('HTML, markdown, and JSON bodies agree on parcel id, verdicts, citations', async () => {
     const instrument = await composeShareInstrument({
       grant: GRANT,
+      origin: ORIGIN,
       loadBrief: async () => ({
         ok: true,
         property: {
@@ -253,6 +286,7 @@ describe('locked fidelity (item 5)', () => {
   it('labels withholdings and does not present the anonymous bake as the share', async () => {
     const instrument = await composeShareInstrument({
       grant: GRANT,
+      origin: ORIGIN,
       loadBrief: async () => ({
         ok: true,
         property: {
@@ -271,7 +305,7 @@ describe('locked fidelity (item 5)', () => {
       probeArtifact: async (kind) => ({
         state: 'withheld',
         kind,
-        reason: 'Not exported by the sharer.',
+        absence: shareAbsence('absent-for-parcel'),
       }),
     })
     const html = renderShareInstrument(instrument, 'html')
@@ -279,9 +313,11 @@ describe('locked fidelity (item 5)', () => {
     const json = renderShareInstrument(instrument, 'json')
     expect(instrument.brief?.source).toBe('baked-snapshot')
     expect(instrument.fidelity.anonymousBakeIsNotTheShare).toBe(true)
-    expect(instrument.withholdings.some((w) => /dossier/i.test(w))).toBe(true)
-    expect(instrument.withholdings.some((w) => /X-ray/i.test(w))).toBe(true)
-    expect(instrument.withholdings.some((w) => /Owner data withheld/i.test(w))).toBe(
+    expect(instrument.withholdings.some((w) => /dossier/i.test(w.line))).toBe(true)
+    expect(instrument.withholdings.some((w) => /X-ray/i.test(w.line))).toBe(true)
+    expect(
+      instrument.withholdings.some((w) => /Owner data withheld/i.test(w.line)),
+    ).toBe(
       true,
     )
     expect(claimsAnonymousBakeIsTheShare(html)).toBe(false)
@@ -305,6 +341,7 @@ describe('locked fidelity (item 5)', () => {
     }
     const instrument = await composeShareInstrument({
       grant: noGrantor,
+      origin: ORIGIN,
       loadBrief: async () => ({
         ok: true,
         property: {
@@ -320,7 +357,11 @@ describe('locked fidelity (item 5)', () => {
         error: 'dossier_not_available',
         message: 'This share link does not carry a dossier.',
       }),
-      probeArtifact: async (kind) => ({ state: 'withheld', kind, reason: 'n/a' }),
+      probeArtifact: async (kind) => ({
+        state: 'withheld',
+        kind,
+        absence: shareAbsence('unread'),
+      }),
     })
     expect(instrument.artifacts.owner.state).toBe('withheld')
     expect(instrument.artifacts.owner.reason).toMatch(/no grantor scope/)
