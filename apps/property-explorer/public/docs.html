@@ -222,6 +222,22 @@
         Records is a request tool, not a report. It asks the county for the
         recorded documents behind a parcel and returns what it retrieves.
       </p>
+      <p>
+        This is a real connection to county clerk systems, not a form that
+        emails someone. Where a county's clerk portal permits automated search,
+        Smart Site queries that portal directly. The terms of each portal are
+        read and recorded before any request is allowed to run against it, and a
+        portal whose terms do not permit automated search is not queried at all.
+        That reading is a deliberate step, not an assumption: the permission is
+        recorded per county, with the date it was reviewed.
+      </p>
+      <p>
+        What comes back is what the county actually holds. Where a document is
+        not on file, or the portal answers with nothing, Records says so rather
+        than returning an empty result that reads like an answer. Retrieval is
+        also not instant: a request is a job, and the tool reports honestly
+        while it is still running rather than implying it has finished.
+      </p>
 
       <h2>Coverage</h2>
       <p>
