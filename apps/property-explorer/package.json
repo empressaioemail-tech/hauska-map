@@ -8,9 +8,10 @@
     "dev": "pnpm run build:renderer && vite --port 5175",
     "build": "pnpm run build:renderer && tsc --noEmit && vite build",
     "preview": "vite preview --port 5175",
-    "test": "node scripts/pe-chrome-kit-gate.mjs && node scripts/seam-retired-guard.mjs && vitest run",
+    "test": "node scripts/pe-chrome-kit-gate.mjs && node scripts/seam-retired-guard.mjs && node scripts/pe-public-pages-guard.mjs && vitest run",
     "gate:chrome-kit": "node scripts/pe-chrome-kit-gate.mjs",
     "gate:seam-retired": "node scripts/seam-retired-guard.mjs",
+    "gate:public-pages": "node scripts/pe-public-pages-guard.mjs",
     "smoke:extension-handoff": "node scripts/extension-handoff-smoke.mjs"
   },
   "dependencies": {
