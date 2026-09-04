@@ -54,6 +54,31 @@ describe("checkout landing — /checkout pathname is consumed into the map", () 
     expect(page).not.toMatch(/Card number|ZIP|Name on card|4242/);
     expect(page).not.toMatch(/createPaymentIntent/);
   });
+
+  // The email field's visibility depends on mount.session, which only
+  // populates once Stripe.js's async initCheckout resolves inside a
+  // useEffect — and useEffect never runs under renderToStaticMarkup (no
+  // commit phase in SSR; verified directly, not assumed). So the gating
+  // logic itself (checkoutNeedsEmail) gets full behavioral coverage in
+  // stripe-checkout-mount.test.ts, and this reads the source to confirm
+  // CheckoutPage actually wires that logic to the field and to the submit
+  // sequence — the same technique the "wires the Stripe mount hook" test
+  // above already uses for exactly this reason.
+  it("CheckoutPage wires the email field to checkoutNeedsEmail and calls updateEmail before submit", () => {
+    const page = readFileSync(resolve(__dirname, "CheckoutPage.tsx"), "utf8");
+    expect(page).toMatch(/from ["'].*stripeCheckoutMount["']/);
+    expect(page).toContain("checkoutNeedsEmail(mount.session)");
+    expect(page).toContain('data-testid="checkout-email-input"');
+    expect(page).toContain('data-testid="checkout-email-error"');
+    expect(page).toContain("mount.updateEmail(email)");
+    // The email step must be awaited and checked before submit is ever
+    // reached — assert the ordering, not just that both calls exist.
+    const updateEmailIdx = page.indexOf("mount.updateEmail(email)");
+    const submitIdx = page.indexOf("mount.submit(checkoutReturnUrl");
+    expect(updateEmailIdx).toBeGreaterThan(-1);
+    expect(submitIdx).toBeGreaterThan(updateEmailIdx);
+    expect(page).toMatch(/if\s*\(!result\.ok\)\s*return;/);
+  });
 });
 
 const SESSION = {
@@ -86,6 +111,14 @@ describe("CheckoutPage — left column from PE_PRICING + frame 3b", () => {
     for (const line of includedLinesForTier("studio")) {
       expect(html).toContain(line.replace(/&/g, "&amp;"));
     }
+  });
+
+  it("does not show the email field before the session is known — mount.session is null until Stripe.js resolves, and asking upfront would be a regression for the common case", () => {
+    const html = renderToStaticMarkup(
+      <CheckoutPage search="?tier=solo&interval=month" session={SESSION} />,
+    );
+    expect(html).not.toContain('data-testid="checkout-email-input"');
+    expect(html).not.toContain('data-testid="checkout-email-error"');
   });
 
   it("promo code form is wired and the payment mount is not a nested scroll box", () => {
