@@ -1,6 +1,7 @@
 import { StrictMode } from "react";
 import { createRoot } from "react-dom/client";
 import { App } from "./App";
+import { AppErrorBoundary } from "./components/AppErrorBoundary";
 // Smart Site design tokens (brand / semantic / atom / button) — adds to the
 // app's existing chrome, does not replace it. Must load app-wide so the
 // var(--*) references in inline styles and the .pe-btn focus ring resolve.
@@ -16,6 +17,8 @@ globalThis.__HAUSKA_BUILD__ = __HAUSKA_BUILD__;
 
 createRoot(document.getElementById("root")!).render(
   <StrictMode>
-    <App />
+    <AppErrorBoundary>
+      <App />
+    </AppErrorBoundary>
   </StrictMode>,
 );
