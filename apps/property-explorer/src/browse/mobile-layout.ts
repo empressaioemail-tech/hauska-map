@@ -155,10 +155,14 @@ export function workbenchClusterStyle(isMobile: boolean): CSSProperties {
     return { display: "none" };
   }
   // KIT 04 CAPSULE. The rail is no longer seven separate bubbles each carrying
-  // its own border and shadow — it is ONE floating glass container holding
-  // seven transparent circles. That is why the bubbles below have no edge of
-  // their own: the capsule owns the edge, so the rail reads as a single object
+  // its own border and shadow — it is ONE floating container holding seven
+  // transparent circles. That is why the bubbles below have no edge of their
+  // own: the capsule owns the edge, so the rail reads as a single object
   // instead of a column of seven.
+  //
+  // FLAT, NOT GLASS, by operator ruling 2026-09-03. The capsule shipped with a
+  // blurred, translucent-edge "glass" treatment; it is now an opaque chrome
+  // fill with a hairline edge, matching every other surface in the app.
   //
   // TOP-ANCHORED, DIRECTLY UNDER THE MAPLIBRE ZOOM CONTROL, and sharing a
   // centre line with it (operator, 2026-08-27 — back where it sat before the
@@ -184,10 +188,8 @@ export function workbenchClusterStyle(isMobile: boolean): CSSProperties {
     padding: "8px 6px",
     borderRadius: 999,
     background: "var(--ss-ink-92)",
-    border: "1px solid rgba(255,255,255,.09)",
+    border: "1px solid var(--ss-line-14)",
     boxShadow: "0 10px 34px rgba(0,0,0,.5)",
-    backdropFilter: "blur(14px)",
-    WebkitBackdropFilter: "blur(14px)",
   };
 }
 

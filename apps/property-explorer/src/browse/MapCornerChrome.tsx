@@ -87,16 +87,18 @@ export function SmartSiteBadge({
         gap: 10,
         height: 34,
         padding: "0 13px",
-        // Kit 04 gives the chip a plate back, as GLASS. The v2 text-shadow
-        // solved legibility over satellite but left the mark floating; the
-        // pill sits it on the same glass language as the rails and the
-        // tooltips, and holds against imagery without a hard fill.
+        // Kit 04 gave the chip a plate back. It was drawn as GLASS — the
+        // same blurred, translucent-edge language as the rails and the
+        // tooltips — and that language is retired by operator ruling
+        // 2026-09-03 ("i dont like the glass"): every chrome surface reads
+        // as the app's own flat opaque grey, not a frosted pane over the
+        // map. The plate still solves the legibility problem the v2
+        // text-shadow left open, it just does it with a solid fill instead
+        // of a blur.
         borderRadius: 999,
         background: PE.bubbleRest,
-        border: "1px solid rgba(255,255,255,.09)",
+        border: `1px solid ${PE.line14}`,
         boxShadow: "0 10px 34px rgba(0,0,0,.5)",
-        backdropFilter: "blur(14px)",
-        WebkitBackdropFilter: "blur(14px)",
         pointerEvents: "none",
         userSelect: "none",
       }}
@@ -135,7 +137,7 @@ export function SmartSiteBadge({
             style={{
               width: 1,
               height: 12,
-              background: "rgba(255,255,255,.16)",
+              background: PE.line06,
               flex: "none",
             }}
           />
