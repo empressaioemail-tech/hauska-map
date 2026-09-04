@@ -1,6 +1,8 @@
 import { describe, expect, it, vi } from "vitest";
 import {
+  applyPromotionCode,
   CHECKOUT_SESSION_MISSING,
+  removeStripePromotionCode,
   STRIPE_MOUNT_LOAD_FAILED,
   STRIPE_MOUNT_MISSING_ELEMENT,
   STRIPE_MOUNT_MISSING_KEY,
@@ -158,6 +160,71 @@ describe("confirmStripeCheckout", () => {
     };
     const result = await confirmStripeCheckout(checkout);
     expect(result).toEqual({ ok: false, error: "Your card was declined." });
+  });
+});
+
+describe("applyPromotionCode", () => {
+  const fakeSession = {
+    total: { total: { amount: "$0.00", minorUnitsAmount: 0 } },
+    discountAmounts: [
+      { displayName: "SMARTSITEQA", promotionCode: "SMARTSITEQA" },
+    ],
+  };
+
+  it("throws when checkout is missing", async () => {
+    await expect(applyPromotionCode(null, "SMARTSITEQA")).rejects.toThrow(
+      "Stripe Checkout cannot confirm without a mounted session",
+    );
+  });
+
+  it("refuses a blank code without calling Stripe", async () => {
+    const applyPromotionCodeFn = vi.fn();
+    const checkout = { applyPromotionCode: applyPromotionCodeFn } as never;
+    const result = await applyPromotionCode(checkout, "   ");
+    expect(result).toEqual({ ok: false, error: "Enter a promo code first." });
+    expect(applyPromotionCodeFn).not.toHaveBeenCalled();
+  });
+
+  it("trims the code and returns the updated session on success", async () => {
+    const applyPromotionCodeFn = vi.fn(async () => ({
+      type: "success" as const,
+      session: fakeSession,
+    }));
+    const checkout = { applyPromotionCode: applyPromotionCodeFn } as never;
+    const result = await applyPromotionCode(checkout, "  SMARTSITEQA  ");
+    expect(applyPromotionCodeFn).toHaveBeenCalledWith("SMARTSITEQA");
+    expect(result).toEqual({ ok: true, session: fakeSession });
+  });
+
+  it("surfaces a Stripe error and never claims success", async () => {
+    const checkout = {
+      applyPromotionCode: vi.fn(async () => ({
+        type: "error" as const,
+        error: { message: "This code doesn't exist." },
+      })),
+    } as never;
+    const result = await applyPromotionCode(checkout, "BOGUS");
+    expect(result).toEqual({ ok: false, error: "This code doesn't exist." });
+  });
+});
+
+describe("removeStripePromotionCode", () => {
+  it("throws when checkout is missing", async () => {
+    await expect(removeStripePromotionCode(null)).rejects.toThrow(
+      "Stripe Checkout cannot confirm without a mounted session",
+    );
+  });
+
+  it("returns the updated session on success", async () => {
+    const fakeSession = { total: { total: { amount: "$129.00", minorUnitsAmount: 12900 } }, discountAmounts: null };
+    const checkout = {
+      removePromotionCode: vi.fn(async () => ({
+        type: "success" as const,
+        session: fakeSession,
+      })),
+    } as never;
+    const result = await removeStripePromotionCode(checkout);
+    expect(result).toEqual({ ok: true, session: fakeSession });
   });
 });
 

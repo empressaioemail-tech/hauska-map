@@ -4,11 +4,14 @@
 
 import { useEffect, useRef, useState } from "react";
 import {
+  applyPromotionCode,
   CHECKOUT_SESSION_MISSING,
   checkoutSubmitEnabled,
   confirmStripeCheckout,
   mountStripeCheckout,
+  removeStripePromotionCode,
   resolveCheckoutMountCredentials,
+  type CheckoutSessionSummary,
   type MountedCheckout,
   type StripeJsLoader,
 } from "./stripeCheckoutMount";
@@ -36,6 +39,11 @@ export function useStripeCheckoutMount(input: {
   const [error, setError] = useState<string | null>(
     creds.ok ? null : CHECKOUT_SESSION_MISSING,
   );
+  const [promoStatus, setPromoStatus] = useState<
+    "idle" | "applying" | "applied" | "error"
+  >("idle");
+  const [promoError, setPromoError] = useState<string | null>(null);
+  const [session, setSession] = useState<CheckoutSessionSummary | null>(null);
 
   useEffect(() => {
     if (!creds.ok) {
@@ -101,11 +109,60 @@ export function useStripeCheckoutMount(input: {
     }
   };
 
+  const applyPromo = async (code: string) => {
+    setPromoStatus("applying");
+    setPromoError(null);
+    try {
+      const result = await applyPromotionCode(checkoutRef.current, code);
+      if (!result.ok) {
+        setPromoStatus("error");
+        setPromoError(result.error);
+        return result;
+      }
+      setSession(result.session);
+      setPromoStatus("applied");
+      return result;
+    } catch (err) {
+      const message =
+        err instanceof Error ? err.message : CHECKOUT_SESSION_MISSING;
+      setPromoStatus("error");
+      setPromoError(message);
+      return { ok: false as const, error: message };
+    }
+  };
+
+  const removePromo = async () => {
+    setPromoStatus("applying");
+    setPromoError(null);
+    try {
+      const result = await removeStripePromotionCode(checkoutRef.current);
+      if (!result.ok) {
+        setPromoStatus("applied");
+        setPromoError(result.error);
+        return result;
+      }
+      setSession(result.session);
+      setPromoStatus("idle");
+      return result;
+    } catch (err) {
+      const message =
+        err instanceof Error ? err.message : CHECKOUT_SESSION_MISSING;
+      setPromoStatus("applied");
+      setPromoError(message);
+      return { ok: false as const, error: message };
+    }
+  };
+
   return {
     mountRef,
     status,
     error,
     canSubmit: checkoutSubmitEnabled(status),
     submit,
+    session,
+    promoStatus,
+    promoError,
+    applyPromo,
+    removePromo,
   } as const;
 }
