@@ -36,6 +36,15 @@ export type Persona = "homeowner" | "investor" | "architect";
  * BROWSER landings only. That exclusion travels with the number in the
  * readout rather than living here as a comment.
  */
+/**
+ * P-118. The ungated Help widget's own usage feeds this SAME funnel-event
+ * pipe — no second analytics mechanism. `pe_help_widget_opened` fires when
+ * the panel opens; `pe_help_widget_message_sent` fires per message sent.
+ * Server allowlist: PROPERTY_EXPLORER_FUNNEL_EVENT_TYPES in
+ * legacy-design-tools artifacts/api-server/src/lib/gtmPropertyExplorerFunnelTypes.ts
+ * — both lists are edited together, same convention share_created/
+ * share_viewed already established.
+ */
 export type PeFunnelEventType =
   | "pe_browse_started"
   | "pe_cold_open_dismissed"
@@ -45,7 +54,9 @@ export type PeFunnelEventType =
   | "pe_paywall_hit"
   | "pe_upgrade_started"
   | "share_created"
-  | "share_viewed";
+  | "share_viewed"
+  | "pe_help_widget_opened"
+  | "pe_help_widget_message_sent";
 
 /** Milestones an account can reach for the first time (P-100 item 4). */
 export type PeActivationMilestone =
