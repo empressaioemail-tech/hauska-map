@@ -583,16 +583,18 @@ export type OverlayDistrictsFactWire = {
  * Cortex inspect GET sibling (acquire-wave12 / ag-valuation-fact).
  * Copied from the cortex JSON ROOT only.
  *
- * OPEN QUESTION (lower confidence than the utility-service / overlay
- * rails — likely a legitimate product simplification, not a shape bug):
- * factory close records carry an ag-use code and acreage on this rail;
- * this type keeps only hasAgValuation/exemptionType. Worth a product
- * call before cutover on whether those are worth surfacing.
+ * CONFIRMED SHAPE (2026-09-04), verified first-hand against
+ * legacy-design-tools `artifacts/api-server/src/lib/agValuationFactRead.ts`
+ * on branch `feat/b-acquire-wave12-serve-agvaluation` (PR #602, OPEN — not
+ * yet merged, caught before it could go live). `entries` is an ARRAY —
+ * plural, not a picked lead, since a parcel can carry several distinct
+ * land-record segments. Superseded an earlier flat
+ * hasAgValuation/exemptionType guess that predated reading the real
+ * served type.
  */
 export type AgValuationFactWire = {
   state: "present" | "absent" | "refused";
-  hasAgValuation?: unknown;
-  exemptionType?: unknown;
+  entries?: unknown;
   absence?: { kind?: string; reason?: string } | null;
   code?: unknown;
   reason?: unknown;
@@ -609,10 +611,21 @@ export type AgValuationFactWire = {
  * Cortex inspect GET sibling (acquire-wave12 / max-impervious-cover-fact).
  * Copied from the cortex JSON ROOT only. Distinct from the per-axis setback
  * rule's own `maxImperviousPct` sub-field — never derived from that.
+ *
+ * CONFIRMED SHAPE (2026-09-04), verified first-hand against
+ * legacy-design-tools
+ * `artifacts/api-server/src/lib/maxImperviousCoverPctFactRead.ts` on branch
+ * `feat/b-acquire-wave12-serve-maximperviouscoverpct` (PR #604, OPEN — not
+ * yet merged, caught before it could go live). The real key is `percent`,
+ * not `maxImperviousCoverPct` — superseded an earlier guess that the inner
+ * key would echo the outer rail name.
  */
 export type MaxImperviousCoverPctFactWire = {
   state: "present" | "absent" | "refused";
-  maxImperviousCoverPct?: unknown;
+  percent?: unknown;
+  watershedType?: unknown;
+  inRechargeZone?: unknown;
+  crosswalkCitation?: unknown;
   absence?: { kind?: string; reason?: string } | null;
   code?: unknown;
   reason?: unknown;

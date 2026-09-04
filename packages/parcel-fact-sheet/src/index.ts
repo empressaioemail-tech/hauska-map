@@ -468,6 +468,15 @@ export interface ParcelFactSheet {
    * schoolDistrictFact. Optional so existing sealed stubs stay valid.
    * Missing means the inspect payload did not carry the field (hide the
    * row). Never invent a district name. Never populated from bake / CAD.
+   *
+   * VERIFIED (2026-09-04) against legacy-design-tools
+   * `artifacts/api-server/src/lib/schoolDistrictFactRead.ts` on branch
+   * `feat/b-acquire-wave12-serve-schooldistrict` (PR #603, OPEN): the real
+   * `districtName: string` key matches this resolver's parsing exactly —
+   * no shape bug here, unlike utilityService/agValuation/
+   * maxImperviousCoverPct. The real type also carries `districtCode`
+   * (hyphenated CCC-DDD) and `geoid`, not currently surfaced on this
+   * field — an enrichment opportunity, not a defect.
    */
   schoolDistrict?: Fact<{
     districtName: string | null;
@@ -537,17 +546,31 @@ export interface ParcelFactSheet {
    * valid. Missing means the inspect payload did not carry the field (hide
    * the row). Never invented from a bake / CAD ag-exemption flag.
    *
-   * OPEN QUESTION (2026-09-04, lower confidence than the two above — this
-   * may be an intentional product simplification, not a bug): factory-side
-   * close records carry an ag-use code and acreage on this rail, not just
-   * a boolean + exemption type. This type keeps only
-   * {hasAgValuation, exemptionType}. Worth a product call on whether the
-   * use code / acreage are worth surfacing before cutover, or whether this
-   * flat summary is the intended card-row treatment.
+   * CONFIRMED SHAPE (2026-09-04), verified first-hand against
+   * legacy-design-tools `artifacts/api-server/src/lib/agValuationFactRead.ts`
+   * on branch `feat/b-acquire-wave12-serve-agvaluation` (PR #602, OPEN — not
+   * yet merged as of this fix, caught before it could go live). PLURAL, NOT
+   * A PICKED LEAD: a parcel can carry several distinct land-record
+   * segments (each its own companion row) — WCAD routinely does, TCAD is
+   * "virtually always rowCount:1" but the shape is an array for both. This
+   * superseded an earlier flat {hasAgValuation, exemptionType} model that
+   * predated reading the real served type. Williamson (48491) and Travis
+   * (48453) counties only; every other county resolves to the same
+   * not-cut-over refusal as an unslated pair.
    */
   agValuation?: Fact<{
-    hasAgValuation: boolean | null;
-    exemptionType: string | null;
+    entries: Array<{
+      statecode: string | null;
+      landType: string | null;
+      description: string | null;
+      acres: number | null;
+      value: number | null;
+      currValue: number | null;
+      agFlag: boolean;
+      apprMethod: string | null;
+      agYear: string | null;
+      propertyNumber: string | null;
+    }>;
     display: string;
   }>;
   /**
@@ -556,9 +579,24 @@ export interface ParcelFactSheet {
    * stubs stay valid. Missing means the inspect payload did not carry the
    * field (hide the row). Distinct from the per-axis setback rule's own
    * `maxImperviousPct` sub-field — never derived from that.
+   *
+   * CONFIRMED SHAPE (2026-09-04), verified first-hand against
+   * legacy-design-tools
+   * `artifacts/api-server/src/lib/maxImperviousCoverPctFactRead.ts` on
+   * branch `feat/b-acquire-wave12-serve-maximperviouscoverpct` (PR #604,
+   * OPEN — not yet merged as of this fix, caught before it could go live).
+   * The real wire key is `percent`, not `maxImperviousCoverPct` — this
+   * superseded an earlier model that guessed the inner key would echo the
+   * outer rail name, which it does not. Travis/Austin only, and only
+   * within it for parcels whose centroid resolves to a Water Supply
+   * Suburban watershed classification; every other watershed
+   * classification is a genuine crosswalk gap (unresolved, not absent).
    */
   maxImperviousCoverPct?: Fact<{
-    maxImperviousCoverPct: number | null;
+    percent: number | null;
+    watershedType: string | null;
+    inRechargeZone: boolean | null;
+    crosswalkCitation: string | null;
     display: string;
   }>;
   site: SiteConditions;
