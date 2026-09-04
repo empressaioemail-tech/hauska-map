@@ -1097,13 +1097,15 @@ function utilityServiceEntryDisplay(
  *
  * CONFIRMED SHAPE (2026-09-04), verified first-hand against
  * legacy-design-tools `artifacts/api-server/src/lib/utilityServiceFactRead.ts`
- * on main as of the PR #600 merge (212f09f0): `water` and `sewer` are
- * independent companion-row slots, either or both null, never both null on
- * a `present` fact. No electric slot exists — never invent one. This
- * function previously read nonexistent `provider`/`serviceType` keys,
- * which silently mischaracterized every real `present` fact as absent
- * rather than hiding the row — a live data-mapping defect, not a
- * fail-closed gap. Fixed to read the real `water`/`sewer` keys.
+ * on main as of the PR #608 merge (83fb2a1e): `water`, `sewer`, and
+ * `electric` are independent companion-row slots, any or all null, never
+ * all three null on a `present` fact. Electric (rowIndex 2) was added in
+ * PARCEL wave 2 (PR #608) — its HIFLD source tiles the entire state, so it
+ * is populated for effectively every parcel; this function previously had
+ * no code path for it, same class of live data-mapping defect as the
+ * earlier water/sewer-key bug this module doc used to describe (this
+ * function once read nonexistent `provider`/`serviceType` keys instead of
+ * the real companion-row slots at all).
  */
 function utilityServiceFromInspectWire(
   utilityServiceFact: unknown,
@@ -1111,6 +1113,7 @@ function utilityServiceFromInspectWire(
   | Fact<{
       water: ReturnType<typeof utilityServiceEntryFromWire>;
       sewer: ReturnType<typeof utilityServiceEntryFromWire>;
+      electric: ReturnType<typeof utilityServiceEntryFromWire>;
       display: string;
     }>
   | undefined {
@@ -1152,19 +1155,24 @@ function utilityServiceFromInspectWire(
 
   const water = utilityServiceEntryFromWire(fact.water);
   const sewer = utilityServiceEntryFromWire(fact.sewer);
-  if (!water && !sewer) {
+  const electric = utilityServiceEntryFromWire(fact.electric);
+  if (!water && !sewer && !electric) {
     return absentCovered(
-      "utility-service-fact present with no water or sewer entry",
+      "utility-service-fact present with no water, sewer, or electric entry",
       prov,
     );
   }
   const display =
-    [utilityServiceEntryDisplay("Water", water), utilityServiceEntryDisplay("Sewer", sewer)]
+    [
+      utilityServiceEntryDisplay("Water", water),
+      utilityServiceEntryDisplay("Sewer", sewer),
+      utilityServiceEntryDisplay("Electric", electric),
+    ]
       .filter((d): d is string => !!d)
       .join(" · ") || "utility service present";
   return {
     state: "present",
-    value: { water, sewer, display },
+    value: { water, sewer, electric, display },
     provenance: prov,
   };
 }

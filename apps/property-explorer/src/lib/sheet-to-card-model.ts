@@ -451,6 +451,7 @@ export function utilityServiceFacetFromSheet(
     | Fact<{
         water: UtilityServiceEntry;
         sewer: UtilityServiceEntry;
+        electric: UtilityServiceEntry;
         display: string;
       }>
     | undefined,

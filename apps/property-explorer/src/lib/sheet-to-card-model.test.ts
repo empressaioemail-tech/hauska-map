@@ -1055,6 +1055,7 @@ describe("utilityServiceFact inspect row (acquire-wave12)", () => {
               ccnType: "water",
             },
             sewer: null,
+            electric: null,
             display: "Water — Aqua Texas WSC · Active",
           },
           provenance: {
@@ -1069,7 +1070,7 @@ describe("utilityServiceFact inspect row (acquire-wave12)", () => {
     expect(model.utilityService.value).toContain("Aqua Texas WSC");
   });
 
-  it("present fixture with both water and sewer joins both slots", () => {
+  it("present fixture with water, sewer, and electric joins all three slots", () => {
     const model = bakedCardModelFromSheet(
       sheet({
         utilityService: {
@@ -1087,7 +1088,14 @@ describe("utilityServiceFact inspect row (acquire-wave12)", () => {
               status: "Active",
               ccnType: "sewer",
             },
-            display: "Water — Aqua Texas WSC · Active · Sewer — Bastrop County MUD · Active",
+            electric: {
+              ccnNo: "4213",
+              utility: "Bluebonnet Electric",
+              status: "Active",
+              ccnType: "electric",
+            },
+            display:
+              "Water — Aqua Texas WSC · Active · Sewer — Bastrop County MUD · Active · Electric — Bluebonnet Electric · Active",
           },
           provenance: {
             ...prov(),
@@ -1099,7 +1107,7 @@ describe("utilityServiceFact inspect row (acquire-wave12)", () => {
     );
     expect(model.utilityService.value).toContain("Aqua Texas WSC");
     expect(model.utilityService.value).toContain("Bastrop County MUD");
-    expect(model.utilityService.value).not.toMatch(/electric/i);
+    expect(model.utilityService.value).toContain("Bluebonnet Electric");
   });
 
   it("gold-shaped absent fixture does not render a utility name", () => {

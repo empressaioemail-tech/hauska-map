@@ -358,6 +358,7 @@ export type UtilityServiceFactCardInput = {
   state?: string;
   water?: unknown;
   sewer?: unknown;
+  electric?: unknown;
   absence?: { kind?: string; reason?: string } | null;
   code?: unknown;
   source?: unknown;

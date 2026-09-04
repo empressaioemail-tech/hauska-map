@@ -519,21 +519,24 @@ export type SchoolDistrictFactWire = {
  *
  * CONFIRMED SHAPE (2026-09-04), verified first-hand against
  * legacy-design-tools `artifacts/api-server/src/lib/utilityServiceFactRead.ts`
- * on main as of the PR #600 merge (212f09f0). `state` stays top-level on a
+ * on main as of the PR #608 merge (83fb2a1e). `state` stays top-level on a
  * flat object exactly as `isUtilityServiceFactWire` below already expects
  * — the field is NOT list-shaped or array-wrapped at the wire boundary, so
  * that guard never rejected it. The actual defect was one layer down: the
  * resolver (fact-sheet-resolver.ts) previously read nonexistent
  * `provider`/`serviceType` keys instead of the real `water`/`sewer`
  * companion-row slots, so a `present` fact was silently mischaracterized
- * as absent rather than hidden. Water and sewer are independent slots —
- * see the real source file's module doc — either or both `null`, never
- * both null on `present`. No electric slot exists; never invent one.
+ * as absent rather than hidden. Water, sewer, and electric are independent
+ * slots — see the real source file's module doc — any or all `null`, never
+ * all three null on `present`. Electric was added in PARCEL wave 2 (PR
+ * #608, merged after this fact was first modeled here); it tiles the
+ * entire state so it is present for effectively every parcel.
  */
 export type UtilityServiceFactWire = {
   state: "present" | "absent" | "refused";
   water?: unknown;
   sewer?: unknown;
+  electric?: unknown;
   absence?: { kind?: string; reason?: string } | null;
   code?: unknown;
   reason?: unknown;

@@ -1637,6 +1637,12 @@ const goldUtilityServiceFact = {
     ccnType: "water",
   },
   sewer: null,
+  electric: {
+    ccnNo: "4213",
+    utility: "Bluebonnet Electric",
+    status: "Active",
+    ccnType: "electric",
+  },
 };
 
 const goldOverlayDistrictsFact = {
@@ -1721,6 +1727,12 @@ describe("mergeBakedBaseFacts — utilityServiceFact from cortex JSON ROOT (acqu
       utility: "Aqua Texas WSC",
       status: "Active",
       ccnType: "water",
+    });
+    expect(merged.utilityServiceFact?.electric).toEqual({
+      ccnNo: "4213",
+      utility: "Bluebonnet Electric",
+      status: "Active",
+      ccnType: "electric",
     });
   });
 

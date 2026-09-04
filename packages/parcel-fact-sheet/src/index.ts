@@ -491,14 +491,16 @@ export interface ParcelFactSheet {
    *
    * CONFIRMED SHAPE (2026-09-04), verified first-hand against
    * legacy-design-tools `artifacts/api-server/src/lib/utilityServiceFactRead.ts`
-   * on main as of the PR #600 merge (212f09f0). Water and sewer are
-   * independent companion-row slots (parcel-utility-service.mjs's own fixed
-   * rowIndex 0 = water, rowIndex 1 = sewer), not competing candidates — a
-   * parcel served by both carries both slots, either or both `null`, never
-   * both null on a `present` fact (that is `absent` instead). No electric
-   * slot exists on the served type; never invent one. This superseded an
-   * earlier flat {provider, serviceType} model that predated reading the
-   * real served type — see git history on this field for that mistake.
+   * on main as of the PR #608 merge (83fb2a1e). Water, sewer, and electric
+   * are independent companion-row slots (parcel-utility-service.mjs's own
+   * fixed rowIndex 0 = water, rowIndex 1 = sewer, rowIndex 2 = electric —
+   * electric added in PARCEL wave 2, PR #608), not competing candidates — a
+   * parcel served by more than one carries all three slots, any or all
+   * `null`, never all three null on a `present` fact (that is `absent`
+   * instead). This superseded an earlier flat {provider, serviceType} model
+   * that predated reading the real served type, and then a water/sewer-only
+   * model that predated wave 2's electric slot — see git history on this
+   * field for both mistakes.
    */
   utilityService?: Fact<{
     water: {
@@ -508,6 +510,12 @@ export interface ParcelFactSheet {
       ccnType: string | null;
     } | null;
     sewer: {
+      ccnNo: string | null;
+      utility: string | null;
+      status: string | null;
+      ccnType: string | null;
+    } | null;
+    electric: {
       ccnNo: string | null;
       utility: string | null;
       status: string | null;
