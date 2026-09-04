@@ -389,23 +389,47 @@ describe("the wirings that had no test until they broke", () => {
     expect(src).toMatch(/openWorkbenchTool !== "reports"/);
   });
 
-  it("opening Reports ALSO marks filed reports seen, so the dot's other half can go dark", () => {
-    // The toolbar dot used to be fed by useRecordsUnread alone, which only
-    // counts courthouse records-request completions — not a Flood &
-    // Drainage study, X-ray, or Feasibility Study finishing. Those are
-    // tracked by reports-seen.ts (the same store that drives the "not
-    // opened yet" pip in My Reports) via useReportsUnread /
-    // markReportsSeenNow. Same effect, same guard, extended rather than
-    // duplicated.
-    const src = codeOf("../../browse/ExplorerMap.tsx");
-    expect(src).toMatch(/void\s+markReportsSeenNow\(\)/);
-    expect(src).toMatch(/openWorkbenchTool !== "reports"/);
-  });
-
   it("the toolbar dot combines BOTH sources, not records alone", () => {
     // Guards against a regression back to `if (recordsUnread <= 0) return
     // base;`, which would silently drop the reports-seen half again.
     const src = codeOf("../../browse/ExplorerMap.tsx");
     expect(src).toMatch(/shouldLightReportsDot\(\s*recordsUnread,\s*reportsUnread\s*\)/);
+  });
+
+  it("opening Reports does NOT bulk-clear the reports-seen half of the dot", () => {
+    // Corrected 2026-09-04: an earlier version of this fix called a bulk
+    // markReportsSeenNow() from this same effect, mirroring the records
+    // side. That was wrong for reports specifically — unlike records, a
+    // filed report has per-row read state (the "not opened yet" pip below),
+    // so clearing it just because the PANEL opened would announce reports
+    // as looked-at that nobody looked at. Pin the absence, not just the
+    // presence of the correct behavior, so this cannot silently regress.
+    const src = codeOf("../../browse/ExplorerMap.tsx");
+    expect(src).not.toMatch(/markReportsSeenNow/);
+  });
+
+  it("viewing a report is what clears THAT report's unread state", () => {
+    // markSeen -> markOneSeen, not markAllSeen: acting on one row must
+    // never announce a different row as seen.
+    const src = codeOf("ReportsTool.tsx");
+    expect(src).toMatch(
+      /onClick=\{\(\)\s*=>\s*\{\s*markSeen\(row\);\s*setViewing\(row\);/,
+    );
+  });
+
+  it("downloading a report ALSO clears THAT report's unread state", () => {
+    // The correction: View was already wired to markSeen; Download (a plain
+    // <a href> with no prior handler) was not, so a report the reader only
+    // ever downloaded — never clicked "View" on — could never clear.
+    const src = codeOf("ReportsTool.tsx");
+    expect(src).toMatch(
+      /data-testid="reports-library-download"\s*\n\s*onClick=\{\(\)\s*=>\s*markSeen\(row\)\}/,
+    );
+  });
+
+  it("markSeen persists via markOneSeen and notifies the toolbar hook", () => {
+    const src = codeOf("ReportsTool.tsx");
+    expect(src).toMatch(/markOneSeen\(row,\s*cur\s*\?\?\s*new Set<string>\(\)\)/);
+    expect(src).toMatch(/notifyReportsSeenChanged\(\)/);
   });
 });

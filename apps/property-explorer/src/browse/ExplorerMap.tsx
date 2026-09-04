@@ -65,7 +65,7 @@ import { getPropertyEntitlementSnapshot, isEntitled } from "../lib/entitlementCl
 import { Workbench } from "../workbench/Workbench";
 import { WORKBENCH_TOOLS } from "../workbench/registry";
 import { markRecordsSeenNow, useRecordsUnread } from "../lib/useRecordsUnread";
-import { markReportsSeenNow, useReportsUnread } from "../lib/useReportsUnread";
+import { useReportsUnread } from "../lib/useReportsUnread";
 import { shouldLightReportsDot } from "./reports-dot";
 import type { WorkbenchHostActions } from "../workbench/types";
 import {
@@ -1403,20 +1403,27 @@ function ExplorerMapSurface({
   //     (reports-seen.ts), just asked before that panel is ever open.
   // shouldLightReportsDot combines them as a plain OR — never a sum, per the
   // rail's "one dot, never a count" rule.
+  //
+  // THE TWO SOURCES CLEAR DIFFERENTLY, ON PURPOSE. Records has no per-run
+  // granularity, so OPENING the dock is the honest "you looked" signal for
+  // it (markRecordsSeenNow below). Reports DOES have per-report granularity
+  // — the My Reports library's own "not opened yet" pip — so bulk-clearing
+  // every filed report just because the tool opened would announce reports
+  // as looked-at that were not. The reports half instead clears per row,
+  // from ReportsTool.tsx's View/Download handlers (markOneSeen in
+  // reports-seen.ts), never from this effect.
   const recordsUnread = useRecordsUnread();
   const reportsUnread = useReportsUnread();
 
-  // OPENING REPORTS IS WHAT CLEARS THE DOT. Before this nothing could clear
-  // the records half: the rule was "a run has finished", which stays true
-  // forever, so the dot was permanently lit and meant nothing. Both sources
-  // are cleared here — markRecordsSeenNow for finished records-request runs,
-  // markReportsSeenNow for filed reports — keyed on the open tool rather
-  // than a click handler so it covers programmatic opens too, and both are
-  // idempotent.
+  // OPENING REPORTS IS WHAT CLEARS THE RECORDS HALF OF THE DOT. Before this
+  // nothing could: the rule was "a run has finished", which stays true
+  // forever, so the dot was permanently lit and meant nothing. Keyed on the
+  // open tool rather than a click handler so it covers programmatic opens
+  // too, and it is idempotent. Deliberately does NOT also mark reports
+  // seen — see the comment above.
   useEffect(() => {
     if (openWorkbenchTool !== "reports") return;
     void markRecordsSeenNow();
-    void markReportsSeenNow();
   }, [openWorkbenchTool]);
   // Lifted out of MapSourceInfo so its bubble and its panel can sit in the
   // capsule and the column respectively.
