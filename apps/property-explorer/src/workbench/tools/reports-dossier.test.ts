@@ -97,6 +97,9 @@ describe("W3.2 first report auto-saves the property", () => {
   it("Flood on an unsaved parcel saves then files (violate: attach-only no-op)", async () => {
     expect(isAutoSaveReportKind("flood-drainage")).toBe(true);
     expect(isAutoSaveReportKind("xray")).toBe(true);
+    // P32 wave 2: Feasibility Study is a Report (reports-catalog.ts FEAS),
+    // same as X-ray and Flood, so it carries the same auto-save behavior.
+    expect(isAutoSaveReportKind("feasibility")).toBe(true);
     expect(isAutoSaveReportKind("site-plan")).toBe(false);
 
     const save = vi.fn(async () => ({ kind: "ok" }) as const);

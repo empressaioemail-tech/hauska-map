@@ -83,7 +83,9 @@ function exportLabel(entry: DossierExportEntry): string {
         ? "Flood & drainage"
         : entry.kind === "xray"
           ? "X-ray"
-          : "Terrain";
+          : entry.kind === "feasibility"
+            ? "Feasibility Study"
+            : "Terrain";
   return `${kindLabel} · ${entry.format}`;
 }
 

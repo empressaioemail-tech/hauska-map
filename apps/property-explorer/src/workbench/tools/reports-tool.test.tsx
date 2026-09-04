@@ -127,9 +127,13 @@ describe("reports tool — Option D picker, not the stacked wall", () => {
     expect(html).toContain("Flood and Drainage");
     expect(html).toContain("Site plan");
     expect(html).toContain("Terrain");
-    expect(html).not.toContain('data-testid="reports-doc-option-FEAS"');
+    // P32 wave 2: Feasibility Study flipped from a coming-soon placeholder to
+    // a real, purchasable report row — it now belongs in the picker menu
+    // exactly like X-ray/Flood/Site plan/Terrain above. Comparison report
+    // stays a frozen, not-sold placeholder and must still be absent.
+    expect(html).toContain('data-testid="reports-doc-option-FEAS"');
+    expect(html).toContain("Feasibility Study");
     expect(html).not.toContain('data-testid="reports-doc-option-COMP"');
-    expect(html).not.toContain("Feasibility Study");
     expect(html).not.toContain("Comparison report");
     expect(html).not.toContain("ready of");
     expect(html).not.toContain("10 ready");

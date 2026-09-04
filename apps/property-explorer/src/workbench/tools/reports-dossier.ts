@@ -21,9 +21,11 @@ import {
   type PropertyDossier,
 } from "../../lib/propertyDossier";
 
-/** Reports auto-save the property (W3.2). Exports do not. */
+/** Reports auto-save the property (W3.2). Exports do not. Feasibility Study
+ *  is a Report (reports-catalog.ts FEAS, kind "Report"), like X-ray and
+ *  Flood & drainage, so it carries the same auto-save behavior. */
 export function isAutoSaveReportKind(kind: DossierExportKind): boolean {
-  return kind === "xray" || kind === "flood-drainage";
+  return kind === "xray" || kind === "flood-drainage" || kind === "feasibility";
 }
 
 export function isPdfExportFormat(format: string): boolean {

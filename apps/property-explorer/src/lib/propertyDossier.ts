@@ -85,7 +85,12 @@ export interface DossierChatThread {
   turns: DossierChatTurn[];
 }
 
-export type DossierExportKind = "site-plan" | "terrain" | "flood-drainage" | "xray";
+export type DossierExportKind =
+  | "site-plan"
+  | "terrain"
+  | "flood-drainage"
+  | "xray"
+  | "feasibility";
 
 /**
  * WB7c: the property's map-pin coordinate, captured ONCE at save time from the
@@ -366,7 +371,8 @@ function sanitizeExports(value: unknown): DossierExportEntry[] {
       rec.kind === "site-plan" ||
       rec.kind === "terrain" ||
       rec.kind === "flood-drainage" ||
-      rec.kind === "xray"
+      rec.kind === "xray" ||
+      rec.kind === "feasibility"
         ? rec.kind
         : null;
     const format = str(rec.format);
