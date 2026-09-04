@@ -463,6 +463,102 @@ export interface ParcelFactSheet {
     display: string;
     etjStatus: string;
   }>;
+  /**
+   * ADDITIVE (acquire-wave12 / 2026-09-04). School district from cortex-root
+   * schoolDistrictFact. Optional so existing sealed stubs stay valid.
+   * Missing means the inspect payload did not carry the field (hide the
+   * row). Never invent a district name. Never populated from bake / CAD.
+   */
+  schoolDistrict?: Fact<{
+    districtName: string | null;
+    display: string;
+  }>;
+  /**
+   * ADDITIVE (acquire-wave12 / 2026-09-04). Utility service from
+   * cortex-root utilityServiceFact. Optional so existing sealed stubs stay
+   * valid. Missing means the inspect payload did not carry the field (hide
+   * the row). Distinct from `whoServes` (a separate, already-shipped
+   * utility-territory lookup) — never merged with it. Never invented.
+   *
+   * OPEN QUESTION (2026-09-04, unverified against the LDT projector — the
+   * cutover PRs that serve this field are not merged yet): factory-side
+   * close records for this rail show utilityService as LIST-shaped —
+   * multiple companion rows per parcel, one per provider/service type
+   * (electric: {utility, ccnNo, ccnType, status}; sewer: same shape,
+   * separate row), not a single provider/serviceType pair. This type
+   * models a single flat fact. If the served payload is actually a list
+   * (either `utilityServiceFact` itself is an array, or it wraps an array
+   * field), `isUtilityServiceFactWire` in atom-chain-to-facets.ts will
+   * reject it outright (it requires a flat object with a top-level
+   * `state`) and this row will stay hidden even once real, well-formed
+   * data lands — a shape mismatch, not a missing-field absence, so it
+   * will never self-correct. Whoever finishes the LDT-side projector:
+   * please either (a) collapse the companion rows into this flat shape
+   * server-side, or (b) tell this lane the real shape so `utilityService`
+   * can be remodeled to `Fact<{ services: Array<{...}>; display: string }>`
+   * before cutover, so the two sides converge without a trial-and-error
+   * round after the fact.
+   */
+  utilityService?: Fact<{
+    provider: string | null;
+    serviceType: string | null;
+    display: string;
+  }>;
+  /**
+   * ADDITIVE (acquire-wave12 / 2026-09-04). Overlay districts from
+   * cortex-root overlayDistrictsFact. Optional so existing sealed stubs
+   * stay valid. Missing means the inspect payload did not carry the field
+   * (hide the row). Never invented from zoning-district code alone.
+   *
+   * OPEN QUESTION (2026-09-04, unverified against the LDT projector — same
+   * caveat as utilityService above): factory-side close records show this
+   * rail as LIST-shaped too — multiple companion rows per parcel, each
+   * carrying real per-district content beyond a bare name (e.g. Bastrop's
+   * Character-District rows carry CD_Name / CD_Desc / Shape__Area). This
+   * type's `names: string[]` captures the list MULTIPLICITY but discards
+   * everything but the name — no description, no area. Depending on the
+   * served shape, `isOverlayDistrictsFactWire` may also reject a genuinely
+   * list-shaped payload outright the same way utilityService's guard
+   * would, hiding the row permanently rather than showing partial data.
+   * Whoever finishes the LDT-side projector: please confirm the served
+   * shape against this before cutover — if per-district description/area
+   * matters here, `overlayDistricts` should become
+   * `Fact<{ districts: Array<{ name, description, areaSqFt }>; display }>`.
+   */
+  overlayDistricts?: Fact<{
+    names: string[];
+    display: string;
+  }>;
+  /**
+   * ADDITIVE (acquire-wave12 / 2026-09-04). Agricultural valuation from
+   * cortex-root agValuationFact. Optional so existing sealed stubs stay
+   * valid. Missing means the inspect payload did not carry the field (hide
+   * the row). Never invented from a bake / CAD ag-exemption flag.
+   *
+   * OPEN QUESTION (2026-09-04, lower confidence than the two above — this
+   * may be an intentional product simplification, not a bug): factory-side
+   * close records carry an ag-use code and acreage on this rail, not just
+   * a boolean + exemption type. This type keeps only
+   * {hasAgValuation, exemptionType}. Worth a product call on whether the
+   * use code / acreage are worth surfacing before cutover, or whether this
+   * flat summary is the intended card-row treatment.
+   */
+  agValuation?: Fact<{
+    hasAgValuation: boolean | null;
+    exemptionType: string | null;
+    display: string;
+  }>;
+  /**
+   * ADDITIVE (acquire-wave12 / 2026-09-04). Max impervious cover percentage
+   * from cortex-root maxImperviousCoverPctFact. Optional so existing sealed
+   * stubs stay valid. Missing means the inspect payload did not carry the
+   * field (hide the row). Distinct from the per-axis setback rule's own
+   * `maxImperviousPct` sub-field — never derived from that.
+   */
+  maxImperviousCoverPct?: Fact<{
+    maxImperviousCoverPct: number | null;
+    display: string;
+  }>;
   site: SiteConditions;
 
   /**

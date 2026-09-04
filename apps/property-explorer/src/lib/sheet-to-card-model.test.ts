@@ -26,10 +26,20 @@ import {
   boundaryFacetFromSheet,
   ownerFacetFromSheet,
   cityLimitsFacetFromSheet,
+  schoolDistrictFacetFromSheet,
+  utilityServiceFacetFromSheet,
+  overlayDistrictsFacetFromSheet,
+  agValuationFacetFromSheet,
+  maxImperviousCoverPctFacetFromSheet,
 } from "./sheet-to-card-model";
 import {
   FLOOD_HAZARD_FACT_MISSING_REASON,
   CITY_LIMITS_FACT_MISSING_REASON,
+  SCHOOL_DISTRICT_FACT_MISSING_REASON,
+  UTILITY_SERVICE_FACT_MISSING_REASON,
+  OVERLAY_DISTRICTS_FACT_MISSING_REASON,
+  AG_VALUATION_FACT_MISSING_REASON,
+  MAX_IMPERVIOUS_COVER_PCT_FACT_MISSING_REASON,
 } from "./baked-facets";
 
 function prov(atomDids: AtomRef[] = []): Provenance {
@@ -982,5 +992,250 @@ describe("cityLimitsFact inspect row (P-76)", () => {
         reason: CITY_LIMITS_FACT_MISSING_REASON,
       }),
     ).toEqual({ state: "unknown", value: null });
+  });
+});
+
+describe("schoolDistrictFact inspect row (acquire-wave12)", () => {
+  it("present fixture shows the district name", () => {
+    const model = bakedCardModelFromSheet(
+      sheet({
+        schoolDistrict: {
+          state: "present",
+          value: { districtName: "Bastrop ISD", display: "Bastrop ISD" },
+          provenance: {
+            ...prov(),
+            source: "school-district-fact",
+            sourceLabel: "school-district-fact atom",
+          },
+        },
+      }),
+    );
+    expect(model.schoolDistrict).toEqual({ state: "present", value: "Bastrop ISD" });
+  });
+
+  it("gold-shaped absent fixture does not render a district name", () => {
+    const facet = schoolDistrictFacetFromSheet({
+      state: "absent-covered",
+      reason: "no school-district-fact atom on this parcel",
+      provenance: prov(),
+    });
+    expect(facet.state).toBe("absent");
+    expect(JSON.stringify(facet)).not.toMatch(/Bastrop ISD/);
+  });
+
+  it("missing field hides the row (unknown)", () => {
+    expect(schoolDistrictFacetFromSheet(undefined)).toEqual({
+      state: "unknown",
+      value: null,
+    });
+    expect(
+      schoolDistrictFacetFromSheet({
+        state: "absent-uncovered",
+        reason: SCHOOL_DISTRICT_FACT_MISSING_REASON,
+      }),
+    ).toEqual({ state: "unknown", value: null });
+    expect(bakedCardModelFromSheet(sheet()).schoolDistrict).toEqual({
+      state: "unknown",
+      value: null,
+    });
+  });
+});
+
+describe("utilityServiceFact inspect row (acquire-wave12)", () => {
+  it("present fixture shows provider and service type", () => {
+    const model = bakedCardModelFromSheet(
+      sheet({
+        utilityService: {
+          state: "present",
+          value: {
+            provider: "Bluebonnet Electric",
+            serviceType: "electric",
+            display: "electric — Bluebonnet Electric",
+          },
+          provenance: {
+            ...prov(),
+            source: "utility-service-fact",
+            sourceLabel: "utility-service-fact atom",
+          },
+        },
+      }),
+    );
+    expect(model.utilityService.state).toBe("present");
+    expect(model.utilityService.value).toContain("Bluebonnet Electric");
+  });
+
+  it("gold-shaped absent fixture does not render a provider", () => {
+    const facet = utilityServiceFacetFromSheet({
+      state: "absent-covered",
+      reason: "no utility-service-fact atom on this parcel",
+      provenance: prov(),
+    });
+    expect(facet.state).toBe("absent");
+    expect(JSON.stringify(facet)).not.toMatch(/Bluebonnet/);
+  });
+
+  it("missing field hides the row (unknown)", () => {
+    expect(utilityServiceFacetFromSheet(undefined)).toEqual({
+      state: "unknown",
+      value: null,
+    });
+    expect(
+      utilityServiceFacetFromSheet({
+        state: "absent-uncovered",
+        reason: UTILITY_SERVICE_FACT_MISSING_REASON,
+      }),
+    ).toEqual({ state: "unknown", value: null });
+    expect(bakedCardModelFromSheet(sheet()).utilityService).toEqual({
+      state: "unknown",
+      value: null,
+    });
+  });
+});
+
+describe("overlayDistrictsFact inspect row (acquire-wave12)", () => {
+  it("present fixture joins district names", () => {
+    const model = bakedCardModelFromSheet(
+      sheet({
+        overlayDistricts: {
+          state: "present",
+          value: {
+            names: ["Historic Overlay", "Airport Compatibility"],
+            display: "Historic Overlay, Airport Compatibility",
+          },
+          provenance: {
+            ...prov(),
+            source: "overlay-districts-fact",
+            sourceLabel: "overlay-districts-fact atom",
+          },
+        },
+      }),
+    );
+    expect(model.overlayDistricts.state).toBe("present");
+    expect(model.overlayDistricts.value).toContain("Historic Overlay");
+    expect(model.overlayDistricts.value).toContain("Airport Compatibility");
+  });
+
+  it("gold-shaped absent fixture does not render a district name", () => {
+    const facet = overlayDistrictsFacetFromSheet({
+      state: "absent-covered",
+      reason: "no overlay-districts-fact atom on this parcel",
+      provenance: prov(),
+    });
+    expect(facet.state).toBe("absent");
+    expect(JSON.stringify(facet)).not.toMatch(/Historic Overlay/);
+  });
+
+  it("missing field hides the row (unknown)", () => {
+    expect(overlayDistrictsFacetFromSheet(undefined)).toEqual({
+      state: "unknown",
+      value: null,
+    });
+    expect(
+      overlayDistrictsFacetFromSheet({
+        state: "absent-uncovered",
+        reason: OVERLAY_DISTRICTS_FACT_MISSING_REASON,
+      }),
+    ).toEqual({ state: "unknown", value: null });
+    expect(bakedCardModelFromSheet(sheet()).overlayDistricts).toEqual({
+      state: "unknown",
+      value: null,
+    });
+  });
+});
+
+describe("agValuationFact inspect row (acquire-wave12)", () => {
+  it("present fixture shows the exemption type", () => {
+    const model = bakedCardModelFromSheet(
+      sheet({
+        agValuation: {
+          state: "present",
+          value: {
+            hasAgValuation: true,
+            exemptionType: "1-d-1 open space",
+            display: "Ag valuation — 1-d-1 open space",
+          },
+          provenance: {
+            ...prov(),
+            source: "ag-valuation-fact",
+            sourceLabel: "ag-valuation-fact atom",
+          },
+        },
+      }),
+    );
+    expect(model.agValuation.state).toBe("present");
+    expect(model.agValuation.value).toContain("1-d-1 open space");
+  });
+
+  it("gold-shaped absent fixture does not render an exemption type", () => {
+    const facet = agValuationFacetFromSheet({
+      state: "absent-covered",
+      reason: "no ag-valuation-fact atom on this parcel",
+      provenance: prov(),
+    });
+    expect(facet.state).toBe("absent");
+    expect(JSON.stringify(facet)).not.toMatch(/1-d-1/);
+  });
+
+  it("missing field hides the row (unknown)", () => {
+    expect(agValuationFacetFromSheet(undefined)).toEqual({
+      state: "unknown",
+      value: null,
+    });
+    expect(
+      agValuationFacetFromSheet({
+        state: "absent-uncovered",
+        reason: AG_VALUATION_FACT_MISSING_REASON,
+      }),
+    ).toEqual({ state: "unknown", value: null });
+    expect(bakedCardModelFromSheet(sheet()).agValuation).toEqual({
+      state: "unknown",
+      value: null,
+    });
+  });
+});
+
+describe("maxImperviousCoverPctFact inspect row (acquire-wave12)", () => {
+  it("present fixture shows the percentage", () => {
+    const model = bakedCardModelFromSheet(
+      sheet({
+        maxImperviousCoverPct: {
+          state: "present",
+          value: { maxImperviousCoverPct: 45, display: "45%" },
+          provenance: {
+            ...prov(),
+            source: "max-impervious-cover-fact",
+            sourceLabel: "max-impervious-cover-fact atom",
+          },
+        },
+      }),
+    );
+    expect(model.maxImperviousCoverPct).toEqual({ state: "present", value: "45%" });
+  });
+
+  it("gold-shaped absent fixture does not render a percentage", () => {
+    const facet = maxImperviousCoverPctFacetFromSheet({
+      state: "absent-covered",
+      reason: "no max-impervious-cover-fact atom on this parcel",
+      provenance: prov(),
+    });
+    expect(facet.state).toBe("absent");
+    expect(JSON.stringify(facet)).not.toMatch(/45/);
+  });
+
+  it("missing field hides the row (unknown)", () => {
+    expect(maxImperviousCoverPctFacetFromSheet(undefined)).toEqual({
+      state: "unknown",
+      value: null,
+    });
+    expect(
+      maxImperviousCoverPctFacetFromSheet({
+        state: "absent-uncovered",
+        reason: MAX_IMPERVIOUS_COVER_PCT_FACT_MISSING_REASON,
+      }),
+    ).toEqual({ state: "unknown", value: null });
+    expect(bakedCardModelFromSheet(sheet()).maxImperviousCoverPct).toEqual({
+      state: "unknown",
+      value: null,
+    });
   });
 });

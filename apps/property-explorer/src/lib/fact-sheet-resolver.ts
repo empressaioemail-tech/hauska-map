@@ -1000,6 +1000,319 @@ function cityLimitsFromInspectWire(
   };
 }
 
+/**
+ * School district from cortex-root schoolDistrictFact (acquire-wave12).
+ *
+ * Prefer the cortex field. Never adopt bake / CAD. Typed absence stays
+ * visible. A missing field is omitted so the card hides the row.
+ */
+function schoolDistrictFromInspectWire(
+  schoolDistrictFact: unknown,
+): Fact<{ districtName: string | null; display: string }> | undefined {
+  if (
+    !schoolDistrictFact ||
+    typeof schoolDistrictFact !== "object" ||
+    Array.isArray(schoolDistrictFact)
+  ) {
+    return undefined;
+  }
+  const fact = rec(schoolDistrictFact);
+  if (!fact) return undefined;
+  const state = str(fact.state);
+  if (state !== "present" && state !== "absent" && state !== "refused") {
+    return undefined;
+  }
+  const source = str(fact.source);
+  const prov = provenance({
+    source: source ?? "school-district-fact",
+    sourceLabel: "school-district-fact atom",
+    vintage: str(fact.sourceVintage) ?? str(fact.evaluatedAt),
+    sourceUrl: str(rec(fact.provenance)?.url),
+  });
+
+  if (state === "refused") {
+    const code = str(fact.code) ?? "refused";
+    return { state: "unresolved", reason: code, retryable: false };
+  }
+  if (state === "absent") {
+    const absence = rec(fact.absence);
+    const reason =
+      str(absence?.reason) ?? str(absence?.kind) ?? "typed absence";
+    return absentCovered(reason, prov);
+  }
+
+  const districtName = str(fact.districtName);
+  if (!districtName) {
+    return absentCovered(
+      "school-district-fact present with no districtName",
+      prov,
+    );
+  }
+  return {
+    state: "present",
+    value: { districtName, display: districtName },
+    provenance: prov,
+  };
+}
+
+/**
+ * Utility service from cortex-root utilityServiceFact (acquire-wave12).
+ *
+ * Prefer the cortex field. Distinct from `whoServes` — never merged with
+ * that lookup. Typed absence stays visible. A missing field is omitted so
+ * the card hides the row.
+ */
+function utilityServiceFromInspectWire(
+  utilityServiceFact: unknown,
+):
+  | Fact<{
+      provider: string | null;
+      serviceType: string | null;
+      display: string;
+    }>
+  | undefined {
+  if (
+    !utilityServiceFact ||
+    typeof utilityServiceFact !== "object" ||
+    Array.isArray(utilityServiceFact)
+  ) {
+    return undefined;
+  }
+  const fact = rec(utilityServiceFact);
+  if (!fact) return undefined;
+  const state = str(fact.state);
+  if (state !== "present" && state !== "absent" && state !== "refused") {
+    return undefined;
+  }
+  const source = str(fact.source);
+  const prov = provenance({
+    source: source ?? "utility-service-fact",
+    sourceLabel: "utility-service-fact atom",
+    vintage: str(fact.sourceVintage) ?? str(fact.evaluatedAt),
+    sourceUrl: str(rec(fact.provenance)?.url),
+  });
+
+  if (state === "refused") {
+    const code = str(fact.code) ?? "refused";
+    return { state: "unresolved", reason: code, retryable: false };
+  }
+  if (state === "absent") {
+    const absence = rec(fact.absence);
+    const reason =
+      str(absence?.reason) ?? str(absence?.kind) ?? "typed absence";
+    return absentCovered(reason, prov);
+  }
+
+  const provider = str(fact.provider);
+  const serviceType = str(fact.serviceType);
+  if (!provider && !serviceType) {
+    return absentCovered(
+      "utility-service-fact present with no provider or serviceType",
+      prov,
+    );
+  }
+  const display =
+    provider && serviceType
+      ? `${serviceType} — ${provider}`
+      : (provider ?? serviceType ?? "");
+  return {
+    state: "present",
+    value: { provider, serviceType, display },
+    provenance: prov,
+  };
+}
+
+/**
+ * Overlay districts from cortex-root overlayDistrictsFact (acquire-wave12).
+ *
+ * Prefer the cortex field. Never invent overlay names from the zoning
+ * district code alone. Typed absence stays visible. A missing field is
+ * omitted so the card hides the row.
+ */
+function overlayDistrictsFromInspectWire(
+  overlayDistrictsFact: unknown,
+): Fact<{ names: string[]; display: string }> | undefined {
+  if (
+    !overlayDistrictsFact ||
+    typeof overlayDistrictsFact !== "object" ||
+    Array.isArray(overlayDistrictsFact)
+  ) {
+    return undefined;
+  }
+  const fact = rec(overlayDistrictsFact);
+  if (!fact) return undefined;
+  const state = str(fact.state);
+  if (state !== "present" && state !== "absent" && state !== "refused") {
+    return undefined;
+  }
+  const source = str(fact.source);
+  const prov = provenance({
+    source: source ?? "overlay-districts-fact",
+    sourceLabel: "overlay-districts-fact atom",
+    vintage: str(fact.sourceVintage) ?? str(fact.evaluatedAt),
+    sourceUrl: str(rec(fact.provenance)?.url),
+  });
+
+  if (state === "refused") {
+    const code = str(fact.code) ?? "refused";
+    return { state: "unresolved", reason: code, retryable: false };
+  }
+  if (state === "absent") {
+    const absence = rec(fact.absence);
+    const reason =
+      str(absence?.reason) ?? str(absence?.kind) ?? "typed absence";
+    return absentCovered(reason, prov);
+  }
+
+  const rawNames = Array.isArray(fact.names) ? fact.names : [];
+  const names = rawNames
+    .filter((n): n is string => typeof n === "string" && n.trim().length > 0)
+    .map((n) => n.trim());
+  if (names.length === 0) {
+    return absentCovered(
+      "overlay-districts-fact present with no names",
+      prov,
+    );
+  }
+  return {
+    state: "present",
+    value: { names, display: names.join(", ") },
+    provenance: prov,
+  };
+}
+
+/**
+ * Ag valuation from cortex-root agValuationFact (acquire-wave12).
+ *
+ * Prefer the cortex field. Never adopt a bake / CAD ag-exemption flag.
+ * Typed absence stays visible. A missing field is omitted so the card
+ * hides the row.
+ */
+function agValuationFromInspectWire(
+  agValuationFact: unknown,
+):
+  | Fact<{
+      hasAgValuation: boolean | null;
+      exemptionType: string | null;
+      display: string;
+    }>
+  | undefined {
+  if (
+    !agValuationFact ||
+    typeof agValuationFact !== "object" ||
+    Array.isArray(agValuationFact)
+  ) {
+    return undefined;
+  }
+  const fact = rec(agValuationFact);
+  if (!fact) return undefined;
+  const state = str(fact.state);
+  if (state !== "present" && state !== "absent" && state !== "refused") {
+    return undefined;
+  }
+  const source = str(fact.source);
+  const prov = provenance({
+    source: source ?? "ag-valuation-fact",
+    sourceLabel: "ag-valuation-fact atom",
+    vintage: str(fact.sourceVintage) ?? str(fact.evaluatedAt),
+    sourceUrl: str(rec(fact.provenance)?.url),
+  });
+
+  if (state === "refused") {
+    const code = str(fact.code) ?? "refused";
+    return { state: "unresolved", reason: code, retryable: false };
+  }
+  if (state === "absent") {
+    const absence = rec(fact.absence);
+    const reason =
+      str(absence?.reason) ?? str(absence?.kind) ?? "typed absence";
+    return absentCovered(reason, prov);
+  }
+
+  const hasAgValuation =
+    typeof fact.hasAgValuation === "boolean" ? fact.hasAgValuation : null;
+  const exemptionType = str(fact.exemptionType);
+  if (hasAgValuation === null && !exemptionType) {
+    return absentCovered(
+      "ag-valuation-fact present with no hasAgValuation or exemptionType",
+      prov,
+    );
+  }
+  const display =
+    hasAgValuation === true
+      ? exemptionType
+        ? `Ag valuation — ${exemptionType}`
+        : "Ag valuation"
+      : hasAgValuation === false
+        ? "No ag valuation"
+        : (exemptionType ?? "");
+  return {
+    state: "present",
+    value: { hasAgValuation, exemptionType, display },
+    provenance: prov,
+  };
+}
+
+/**
+ * Max impervious cover percentage from cortex-root
+ * maxImperviousCoverPctFact (acquire-wave12).
+ *
+ * Prefer the cortex field. Distinct from the per-axis setback rule's own
+ * `maxImperviousPct` — never derived from that. Typed absence stays
+ * visible. A missing field is omitted so the card hides the row.
+ */
+function maxImperviousCoverPctFromInspectWire(
+  maxImperviousCoverPctFact: unknown,
+): Fact<{ maxImperviousCoverPct: number | null; display: string }> | undefined {
+  if (
+    !maxImperviousCoverPctFact ||
+    typeof maxImperviousCoverPctFact !== "object" ||
+    Array.isArray(maxImperviousCoverPctFact)
+  ) {
+    return undefined;
+  }
+  const fact = rec(maxImperviousCoverPctFact);
+  if (!fact) return undefined;
+  const state = str(fact.state);
+  if (state !== "present" && state !== "absent" && state !== "refused") {
+    return undefined;
+  }
+  const source = str(fact.source);
+  const prov = provenance({
+    source: source ?? "max-impervious-cover-fact",
+    sourceLabel: "max-impervious-cover-fact atom",
+    vintage: str(fact.sourceVintage) ?? str(fact.evaluatedAt),
+    sourceUrl: str(rec(fact.provenance)?.url),
+  });
+
+  if (state === "refused") {
+    const code = str(fact.code) ?? "refused";
+    return { state: "unresolved", reason: code, retryable: false };
+  }
+  if (state === "absent") {
+    const absence = rec(fact.absence);
+    const reason =
+      str(absence?.reason) ?? str(absence?.kind) ?? "typed absence";
+    return absentCovered(reason, prov);
+  }
+
+  const maxImperviousCoverPct = num(fact.maxImperviousCoverPct);
+  if (maxImperviousCoverPct === null) {
+    return absentCovered(
+      "max-impervious-cover-fact present with no maxImperviousCoverPct",
+      prov,
+    );
+  }
+  return {
+    state: "present",
+    value: {
+      maxImperviousCoverPct,
+      display: `${maxImperviousCoverPct}%`,
+    },
+    provenance: prov,
+  };
+}
+
 function zoningFact(facets: BakedFacetPayload, countyFips: string): Fact<ZoningDistrict> {
   const declineReason = facets.envelope?.status === "declined"
     ? str(facets.envelope.declineReason)
@@ -1673,6 +1986,20 @@ export class PeFactSheetResolver implements FactSheetResolver {
     const ownerFact = wire.ownerFact ?? facetsResult.data.ownerFact ?? null;
     const cityLimitsFact =
       wire.cityLimitsFact ?? facetsResult.data.cityLimitsFact ?? null;
+    const schoolDistrictFact =
+      wire.schoolDistrictFact ?? facetsResult.data.schoolDistrictFact ?? null;
+    const utilityServiceFact =
+      wire.utilityServiceFact ?? facetsResult.data.utilityServiceFact ?? null;
+    const overlayDistrictsFact =
+      wire.overlayDistrictsFact ??
+      facetsResult.data.overlayDistrictsFact ??
+      null;
+    const agValuationFact =
+      wire.agValuationFact ?? facetsResult.data.agValuationFact ?? null;
+    const maxImperviousCoverPctFact =
+      wire.maxImperviousCoverPctFact ??
+      facetsResult.data.maxImperviousCoverPctFact ??
+      null;
 
     const fips = str(facets.countyFips) ?? parcelNodeId.split(":")[0] ?? "";
     const countyName =
@@ -1724,6 +2051,15 @@ export class PeFactSheetResolver implements FactSheetResolver {
     const boundary = boundaryFromInspectWire(boundaryEdgeFact);
     const owner = ownerFromInspectWire(ownerFact);
     const cityLimits = cityLimitsFromInspectWire(cityLimitsFact);
+    const schoolDistrict = schoolDistrictFromInspectWire(schoolDistrictFact);
+    const utilityService = utilityServiceFromInspectWire(utilityServiceFact);
+    const overlayDistricts = overlayDistrictsFromInspectWire(
+      overlayDistrictsFact,
+    );
+    const agValuation = agValuationFromInspectWire(agValuationFact);
+    const maxImperviousCoverPct = maxImperviousCoverPctFromInspectWire(
+      maxImperviousCoverPctFact,
+    );
     const verdictLayers = verdictLayersFromFacets(facets);
 
     const site: ParcelFactSheet["site"] = {
@@ -1753,6 +2089,11 @@ export class PeFactSheetResolver implements FactSheetResolver {
       boundary,
       owner,
       cityLimits,
+      schoolDistrict,
+      utilityService,
+      overlayDistricts,
+      agValuation,
+      maxImperviousCoverPct,
       site,
       county: { fips, name: countyName },
     });
@@ -1775,6 +2116,11 @@ export class PeFactSheetResolver implements FactSheetResolver {
       ...(boundary ? { boundary } : {}),
       ...(owner ? { owner } : {}),
       ...(cityLimits ? { cityLimits } : {}),
+      ...(schoolDistrict ? { schoolDistrict } : {}),
+      ...(utilityService ? { utilityService } : {}),
+      ...(overlayDistricts ? { overlayDistricts } : {}),
+      ...(agValuation ? { agValuation } : {}),
+      ...(maxImperviousCoverPct ? { maxImperviousCoverPct } : {}),
       ...(verdictLayers ? { verdictLayers } : {}),
       site,
       // Composed ONCE, by the one composer, from the fields above.
