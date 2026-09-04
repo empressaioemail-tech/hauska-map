@@ -200,6 +200,31 @@ export interface BakedFacetsResponse {
    * not copy it. Never populated from situsCity / bake city.
    */
   cityLimitsFact?: CityLimitsFactCardInput;
+  /**
+   * School district from school-district-fact atoms (acquire-wave12).
+   * Absent when the BFF did not copy it.
+   */
+  schoolDistrictFact?: SchoolDistrictFactCardInput;
+  /**
+   * Utility service from utility-service-fact atoms (acquire-wave12).
+   * Absent when the BFF did not copy it. Distinct from `whoServes`.
+   */
+  utilityServiceFact?: UtilityServiceFactCardInput;
+  /**
+   * Overlay districts from overlay-districts-fact atoms (acquire-wave12).
+   * Absent when the BFF did not copy it.
+   */
+  overlayDistrictsFact?: OverlayDistrictsFactCardInput;
+  /**
+   * Agricultural valuation from ag-valuation-fact atoms (acquire-wave12).
+   * Absent when the BFF did not copy it.
+   */
+  agValuationFact?: AgValuationFactCardInput;
+  /**
+   * Max impervious cover percentage from max-impervious-cover-fact atoms
+   * (acquire-wave12). Absent when the BFF did not copy it.
+   */
+  maxImperviousCoverPctFact?: MaxImperviousCoverPctFactCardInput;
 }
 
 /** Cortex inspect GET flood determination (PR 449). Root sibling of facets. */
@@ -318,6 +343,58 @@ export type CityLimitsFactCardInput = {
   gnis?: string | null;
 };
 
+/** Cortex inspect GET school district determination (acquire-wave12). Root sibling. */
+export type SchoolDistrictFactCardInput = {
+  state?: string;
+  districtName?: unknown;
+  absence?: { kind?: string; reason?: string } | null;
+  code?: unknown;
+  source?: unknown;
+  entityId?: unknown;
+};
+
+/** Cortex inspect GET utility service determination (acquire-wave12). Root sibling. */
+export type UtilityServiceFactCardInput = {
+  state?: string;
+  provider?: unknown;
+  serviceType?: unknown;
+  absence?: { kind?: string; reason?: string } | null;
+  code?: unknown;
+  source?: unknown;
+  entityId?: unknown;
+};
+
+/** Cortex inspect GET overlay districts determination (acquire-wave12). Root sibling. */
+export type OverlayDistrictsFactCardInput = {
+  state?: string;
+  names?: unknown;
+  absence?: { kind?: string; reason?: string } | null;
+  code?: unknown;
+  source?: unknown;
+  entityId?: unknown;
+};
+
+/** Cortex inspect GET ag valuation determination (acquire-wave12). Root sibling. */
+export type AgValuationFactCardInput = {
+  state?: string;
+  hasAgValuation?: unknown;
+  exemptionType?: unknown;
+  absence?: { kind?: string; reason?: string } | null;
+  code?: unknown;
+  source?: unknown;
+  entityId?: unknown;
+};
+
+/** Cortex inspect GET max impervious cover determination (acquire-wave12). Root sibling. */
+export type MaxImperviousCoverPctFactCardInput = {
+  state?: string;
+  maxImperviousCoverPct?: unknown;
+  absence?: { kind?: string; reason?: string } | null;
+  code?: unknown;
+  source?: unknown;
+  entityId?: unknown;
+};
+
 /**
  * Reason on sheet.specialDistrict when the inspect payload had no
  * specialDistrictFact. sheet-to-card-model maps this to CardFacet unknown
@@ -371,6 +448,46 @@ export const OWNER_FACT_MISSING_REASON =
  */
 export const CITY_LIMITS_FACT_MISSING_REASON =
   "cityLimitsFact was not on the inspect payload";
+
+/**
+ * Reason on sheet.schoolDistrict when the inspect payload had no
+ * schoolDistrictFact. sheet-to-card-model maps this to CardFacet unknown
+ * so InspectCard hides the row.
+ */
+export const SCHOOL_DISTRICT_FACT_MISSING_REASON =
+  "schoolDistrictFact was not on the inspect payload";
+
+/**
+ * Reason on sheet.utilityService when the inspect payload had no
+ * utilityServiceFact. sheet-to-card-model maps this to CardFacet unknown
+ * so InspectCard hides the row.
+ */
+export const UTILITY_SERVICE_FACT_MISSING_REASON =
+  "utilityServiceFact was not on the inspect payload";
+
+/**
+ * Reason on sheet.overlayDistricts when the inspect payload had no
+ * overlayDistrictsFact. sheet-to-card-model maps this to CardFacet unknown
+ * so InspectCard hides the row.
+ */
+export const OVERLAY_DISTRICTS_FACT_MISSING_REASON =
+  "overlayDistrictsFact was not on the inspect payload";
+
+/**
+ * Reason on sheet.agValuation when the inspect payload had no
+ * agValuationFact. sheet-to-card-model maps this to CardFacet unknown so
+ * InspectCard hides the row.
+ */
+export const AG_VALUATION_FACT_MISSING_REASON =
+  "agValuationFact was not on the inspect payload";
+
+/**
+ * Reason on sheet.maxImperviousCoverPct when the inspect payload had no
+ * maxImperviousCoverPctFact. sheet-to-card-model maps this to CardFacet
+ * unknown so InspectCard hides the row.
+ */
+export const MAX_IMPERVIOUS_COVER_PCT_FACT_MISSING_REASON =
+  "maxImperviousCoverPctFact was not on the inspect payload";
 
 /**
  * Reason on sheet.flood when the inspect payload had no floodHazardFact.
@@ -471,6 +588,36 @@ export interface BakedCardModel {
    * ETJ unresolved is typed absence, not a buffer ring.
    */
   cityLimits: CardFacet<string>;
+  /**
+   * School district row from schoolDistrictFact only. `unknown` when the
+   * field is missing (FactRow hides it). Never derived from bake / CAD.
+   */
+  schoolDistrict: CardFacet<string>;
+  /**
+   * Utility service row from utilityServiceFact only. `unknown` when the
+   * field is missing (FactRow hides it). Distinct from `whoServes` — never
+   * derived from that lookup.
+   */
+  utilityService: CardFacet<string>;
+  /**
+   * Overlay districts row from overlayDistrictsFact only. `unknown` when
+   * the field is missing (FactRow hides it). Never derived from the zoning
+   * district code alone.
+   */
+  overlayDistricts: CardFacet<string>;
+  /**
+   * Ag valuation row from agValuationFact only. `unknown` when the field is
+   * missing (FactRow hides it). Never derived from a bake / CAD ag-exemption
+   * flag.
+   */
+  agValuation: CardFacet<string>;
+  /**
+   * Max impervious cover row from maxImperviousCoverPctFact only. `unknown`
+   * when the field is missing (FactRow hides it). Distinct from the
+   * per-axis setback rule's own `maxImperviousPct` — never derived from
+   * that.
+   */
+  maxImperviousCoverPct: CardFacet<string>;
   /** True whenever an envelope facet is present — the card must then render the
    *  "approximate / not survey grade" treatment (honesty commitment #1). */
   envelopeApproximate: boolean;
@@ -756,6 +903,11 @@ export function deriveBakedCardModel(payload: BakedFacetPayload): BakedCardModel
     boundary: { state: "unknown", value: null },
     owner: { state: "unknown", value: null },
     cityLimits: { state: "unknown", value: null },
+    schoolDistrict: { state: "unknown", value: null },
+    utilityService: { state: "unknown", value: null },
+    overlayDistricts: { state: "unknown", value: null },
+    agValuation: { state: "unknown", value: null },
+    maxImperviousCoverPct: { state: "unknown", value: null },
     // Any present envelope is Tier-1 (shape-only, no roads) — always approximate.
     envelopeApproximate: hasEnvelope,
     envelopeStatus: env?.status ?? null,

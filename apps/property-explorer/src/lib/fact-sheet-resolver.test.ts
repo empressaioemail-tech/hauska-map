@@ -1971,3 +1971,170 @@ describe("cityLimitsFact only (P-76)", () => {
     expect(sheet.cityLimits).toBeUndefined();
   });
 });
+
+describe("schoolDistrictFact only (acquire-wave12)", () => {
+  it("present fixture shows the district name from schoolDistrictFact", async () => {
+    const wire = facetsWire() as unknown as Record<string, unknown>;
+    wire.schoolDistrictFact = {
+      state: "present",
+      source: "school-district-fact",
+      districtName: "Bastrop ISD",
+    };
+    const stub = installFetchStub({ facets: wire, gisFeatures: [SUBJECT_FEATURE] });
+    const sheet = await sheetOf(makeResolver(stub), NODE_ID);
+    expect(sheet.schoolDistrict?.state).toBe("present");
+    if (sheet.schoolDistrict?.state !== "present") throw new Error("unreachable");
+    expect(sheet.schoolDistrict.value.districtName).toBe("Bastrop ISD");
+    expect(sheet.schoolDistrict.provenance.source).toBe("school-district-fact");
+  });
+
+  it("bake parked on the root without state is not adopted", async () => {
+    const wire = facetsWire() as unknown as Record<string, unknown>;
+    wire.schoolDistrictFact = { districtName: "BAKE ISD" };
+    const stub = installFetchStub({ facets: wire, gisFeatures: [SUBJECT_FEATURE] });
+    const sheet = await sheetOf(makeResolver(stub), NODE_ID);
+    expect(sheet.schoolDistrict).toBeUndefined();
+  });
+
+  it("missing field stays missing — no invented district", async () => {
+    const wire = facetsWire() as unknown as Record<string, unknown>;
+    delete wire.schoolDistrictFact;
+    const stub = installFetchStub({ facets: wire, gisFeatures: [SUBJECT_FEATURE] });
+    const sheet = await sheetOf(makeResolver(stub), NODE_ID);
+    expect(sheet.schoolDistrict).toBeUndefined();
+  });
+});
+
+describe("utilityServiceFact only (acquire-wave12)", () => {
+  it("present fixture shows provider and serviceType from utilityServiceFact", async () => {
+    const wire = facetsWire() as unknown as Record<string, unknown>;
+    wire.utilityServiceFact = {
+      state: "present",
+      source: "utility-service-fact",
+      provider: "Bluebonnet Electric",
+      serviceType: "electric",
+    };
+    const stub = installFetchStub({ facets: wire, gisFeatures: [SUBJECT_FEATURE] });
+    const sheet = await sheetOf(makeResolver(stub), NODE_ID);
+    expect(sheet.utilityService?.state).toBe("present");
+    if (sheet.utilityService?.state !== "present") throw new Error("unreachable");
+    expect(sheet.utilityService.value.provider).toBe("Bluebonnet Electric");
+    expect(sheet.utilityService.provenance.source).toBe("utility-service-fact");
+  });
+
+  it("bake parked on the root without state is not adopted", async () => {
+    const wire = facetsWire() as unknown as Record<string, unknown>;
+    wire.utilityServiceFact = { provider: "BAKE UTILITY" };
+    const stub = installFetchStub({ facets: wire, gisFeatures: [SUBJECT_FEATURE] });
+    const sheet = await sheetOf(makeResolver(stub), NODE_ID);
+    expect(sheet.utilityService).toBeUndefined();
+  });
+
+  it("missing field stays missing — no invented provider", async () => {
+    const wire = facetsWire() as unknown as Record<string, unknown>;
+    delete wire.utilityServiceFact;
+    const stub = installFetchStub({ facets: wire, gisFeatures: [SUBJECT_FEATURE] });
+    const sheet = await sheetOf(makeResolver(stub), NODE_ID);
+    expect(sheet.utilityService).toBeUndefined();
+  });
+});
+
+describe("overlayDistrictsFact only (acquire-wave12)", () => {
+  it("present fixture lists district names from overlayDistrictsFact", async () => {
+    const wire = facetsWire() as unknown as Record<string, unknown>;
+    wire.overlayDistrictsFact = {
+      state: "present",
+      source: "overlay-districts-fact",
+      names: ["Historic Overlay", "Airport Compatibility"],
+    };
+    const stub = installFetchStub({ facets: wire, gisFeatures: [SUBJECT_FEATURE] });
+    const sheet = await sheetOf(makeResolver(stub), NODE_ID);
+    expect(sheet.overlayDistricts?.state).toBe("present");
+    if (sheet.overlayDistricts?.state !== "present") throw new Error("unreachable");
+    expect(sheet.overlayDistricts.value.names).toEqual([
+      "Historic Overlay",
+      "Airport Compatibility",
+    ]);
+  });
+
+  it("bake parked on the root without state is not adopted", async () => {
+    const wire = facetsWire() as unknown as Record<string, unknown>;
+    wire.overlayDistrictsFact = { names: ["BAKE OVERLAY"] };
+    const stub = installFetchStub({ facets: wire, gisFeatures: [SUBJECT_FEATURE] });
+    const sheet = await sheetOf(makeResolver(stub), NODE_ID);
+    expect(sheet.overlayDistricts).toBeUndefined();
+  });
+
+  it("missing field stays missing — no invented districts", async () => {
+    const wire = facetsWire() as unknown as Record<string, unknown>;
+    delete wire.overlayDistrictsFact;
+    const stub = installFetchStub({ facets: wire, gisFeatures: [SUBJECT_FEATURE] });
+    const sheet = await sheetOf(makeResolver(stub), NODE_ID);
+    expect(sheet.overlayDistricts).toBeUndefined();
+  });
+});
+
+describe("agValuationFact only (acquire-wave12)", () => {
+  it("present fixture shows the exemption type from agValuationFact", async () => {
+    const wire = facetsWire() as unknown as Record<string, unknown>;
+    wire.agValuationFact = {
+      state: "present",
+      source: "ag-valuation-fact",
+      hasAgValuation: true,
+      exemptionType: "1-d-1 open space",
+    };
+    const stub = installFetchStub({ facets: wire, gisFeatures: [SUBJECT_FEATURE] });
+    const sheet = await sheetOf(makeResolver(stub), NODE_ID);
+    expect(sheet.agValuation?.state).toBe("present");
+    if (sheet.agValuation?.state !== "present") throw new Error("unreachable");
+    expect(sheet.agValuation.value.exemptionType).toBe("1-d-1 open space");
+  });
+
+  it("bake parked on the root without state is not adopted", async () => {
+    const wire = facetsWire() as unknown as Record<string, unknown>;
+    wire.agValuationFact = { hasAgValuation: true };
+    const stub = installFetchStub({ facets: wire, gisFeatures: [SUBJECT_FEATURE] });
+    const sheet = await sheetOf(makeResolver(stub), NODE_ID);
+    expect(sheet.agValuation).toBeUndefined();
+  });
+
+  it("missing field stays missing — no invented exemption", async () => {
+    const wire = facetsWire() as unknown as Record<string, unknown>;
+    delete wire.agValuationFact;
+    const stub = installFetchStub({ facets: wire, gisFeatures: [SUBJECT_FEATURE] });
+    const sheet = await sheetOf(makeResolver(stub), NODE_ID);
+    expect(sheet.agValuation).toBeUndefined();
+  });
+});
+
+describe("maxImperviousCoverPctFact only (acquire-wave12)", () => {
+  it("present fixture shows the percentage from maxImperviousCoverPctFact", async () => {
+    const wire = facetsWire() as unknown as Record<string, unknown>;
+    wire.maxImperviousCoverPctFact = {
+      state: "present",
+      source: "max-impervious-cover-fact",
+      maxImperviousCoverPct: 45,
+    };
+    const stub = installFetchStub({ facets: wire, gisFeatures: [SUBJECT_FEATURE] });
+    const sheet = await sheetOf(makeResolver(stub), NODE_ID);
+    expect(sheet.maxImperviousCoverPct?.state).toBe("present");
+    if (sheet.maxImperviousCoverPct?.state !== "present") throw new Error("unreachable");
+    expect(sheet.maxImperviousCoverPct.value.maxImperviousCoverPct).toBe(45);
+  });
+
+  it("bake parked on the root without state is not adopted", async () => {
+    const wire = facetsWire() as unknown as Record<string, unknown>;
+    wire.maxImperviousCoverPctFact = { maxImperviousCoverPct: 45 };
+    const stub = installFetchStub({ facets: wire, gisFeatures: [SUBJECT_FEATURE] });
+    const sheet = await sheetOf(makeResolver(stub), NODE_ID);
+    expect(sheet.maxImperviousCoverPct).toBeUndefined();
+  });
+
+  it("missing field stays missing — no invented percentage", async () => {
+    const wire = facetsWire() as unknown as Record<string, unknown>;
+    delete wire.maxImperviousCoverPctFact;
+    const stub = installFetchStub({ facets: wire, gisFeatures: [SUBJECT_FEATURE] });
+    const sheet = await sheetOf(makeResolver(stub), NODE_ID);
+    expect(sheet.maxImperviousCoverPct).toBeUndefined();
+  });
+});
