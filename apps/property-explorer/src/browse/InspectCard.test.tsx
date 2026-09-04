@@ -1155,13 +1155,13 @@ describe("InspectCard School district row — schoolDistrictFact (acquire-wave12
 });
 
 describe("InspectCard Utility service row — utilityServiceFact (acquire-wave12)", () => {
-  it("present fixture shows provider and service type", () => {
+  it("present fixture shows the water/sewer slot summary", () => {
     const html = renderToStaticMarkup(
       <dl>
         <FactRow
           label="Utility service"
           fact={toFactPresentation(
-            { state: "present", value: "electric — Bluebonnet Electric" },
+            { state: "present", value: "Water — Aqua Texas WSC · Active" },
             ROW_SPECS.utilityService,
           )}
           testid="inspect-utility-service"
@@ -1169,7 +1169,7 @@ describe("InspectCard Utility service row — utilityServiceFact (acquire-wave12
       </dl>,
     );
     expect(html).toContain('data-testid="inspect-utility-service"');
-    expect(html).toContain("Bluebonnet Electric");
+    expect(html).toContain("Aqua Texas WSC");
   });
 
   it("missing utilityServiceFact hides the Utility service row", () => {

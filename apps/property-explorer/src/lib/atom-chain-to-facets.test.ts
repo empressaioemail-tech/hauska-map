@@ -1629,8 +1629,14 @@ const goldSchoolDistrictFact = {
 const goldUtilityServiceFact = {
   state: "present" as const,
   source: "utility-service-fact",
-  provider: "Bluebonnet Electric",
-  serviceType: "electric",
+  entityId: "48021:36521:utility-service",
+  water: {
+    ccnNo: "10375",
+    utility: "Aqua Texas WSC",
+    status: "Active",
+    ccnType: "water",
+  },
+  sewer: null,
 };
 
 const goldOverlayDistrictsFact = {
@@ -1688,14 +1694,19 @@ describe("mergeBakedBaseFacts — utilityServiceFact from cortex JSON ROOT (acqu
       utilityServiceFact: goldUtilityServiceFact,
     });
     expect(merged.utilityServiceFact).toEqual(goldUtilityServiceFact);
-    expect(merged.utilityServiceFact?.provider).toBe("Bluebonnet Electric");
+    expect(merged.utilityServiceFact?.water).toEqual({
+      ccnNo: "10375",
+      utility: "Aqua Texas WSC",
+      status: "Active",
+      ccnType: "water",
+    });
   });
 
   it("does not adopt a bake object with no state parked on the root", () => {
     const adapted = adaptAtomChainToBakedFacets(haysChain)!;
     const merged = mergeBakedBaseFacts(adapted, {
       ...bakedCortexBody,
-      utilityServiceFact: { provider: "Bluebonnet Electric" },
+      utilityServiceFact: { water: { utility: "Bluebonnet Electric" } },
     });
     expect("utilityServiceFact" in merged).toBe(false);
     expect(merged.utilityServiceFact).toBeUndefined();

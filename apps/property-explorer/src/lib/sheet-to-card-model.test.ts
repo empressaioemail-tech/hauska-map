@@ -1042,15 +1042,20 @@ describe("schoolDistrictFact inspect row (acquire-wave12)", () => {
 });
 
 describe("utilityServiceFact inspect row (acquire-wave12)", () => {
-  it("present fixture shows provider and service type", () => {
+  it("present fixture shows the water slot", () => {
     const model = bakedCardModelFromSheet(
       sheet({
         utilityService: {
           state: "present",
           value: {
-            provider: "Bluebonnet Electric",
-            serviceType: "electric",
-            display: "electric — Bluebonnet Electric",
+            water: {
+              ccnNo: "10375",
+              utility: "Aqua Texas WSC",
+              status: "Active",
+              ccnType: "water",
+            },
+            sewer: null,
+            display: "Water — Aqua Texas WSC · Active",
           },
           provenance: {
             ...prov(),
@@ -1061,17 +1066,50 @@ describe("utilityServiceFact inspect row (acquire-wave12)", () => {
       }),
     );
     expect(model.utilityService.state).toBe("present");
-    expect(model.utilityService.value).toContain("Bluebonnet Electric");
+    expect(model.utilityService.value).toContain("Aqua Texas WSC");
   });
 
-  it("gold-shaped absent fixture does not render a provider", () => {
+  it("present fixture with both water and sewer joins both slots", () => {
+    const model = bakedCardModelFromSheet(
+      sheet({
+        utilityService: {
+          state: "present",
+          value: {
+            water: {
+              ccnNo: "10375",
+              utility: "Aqua Texas WSC",
+              status: "Active",
+              ccnType: "water",
+            },
+            sewer: {
+              ccnNo: "20481",
+              utility: "Bastrop County MUD",
+              status: "Active",
+              ccnType: "sewer",
+            },
+            display: "Water — Aqua Texas WSC · Active · Sewer — Bastrop County MUD · Active",
+          },
+          provenance: {
+            ...prov(),
+            source: "utility-service-fact",
+            sourceLabel: "utility-service-fact atom",
+          },
+        },
+      }),
+    );
+    expect(model.utilityService.value).toContain("Aqua Texas WSC");
+    expect(model.utilityService.value).toContain("Bastrop County MUD");
+    expect(model.utilityService.value).not.toMatch(/electric/i);
+  });
+
+  it("gold-shaped absent fixture does not render a utility name", () => {
     const facet = utilityServiceFacetFromSheet({
       state: "absent-covered",
       reason: "no utility-service-fact atom on this parcel",
       provenance: prov(),
     });
     expect(facet.state).toBe("absent");
-    expect(JSON.stringify(facet)).not.toMatch(/Bluebonnet/);
+    expect(JSON.stringify(facet)).not.toMatch(/Aqua Texas/);
   });
 
   it("missing field hides the row (unknown)", () => {
