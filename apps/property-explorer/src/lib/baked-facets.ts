@@ -377,8 +377,7 @@ export type OverlayDistrictsFactCardInput = {
 /** Cortex inspect GET ag valuation determination (acquire-wave12). Root sibling. */
 export type AgValuationFactCardInput = {
   state?: string;
-  hasAgValuation?: unknown;
-  exemptionType?: unknown;
+  entries?: unknown;
   absence?: { kind?: string; reason?: string } | null;
   code?: unknown;
   source?: unknown;
@@ -388,7 +387,10 @@ export type AgValuationFactCardInput = {
 /** Cortex inspect GET max impervious cover determination (acquire-wave12). Root sibling. */
 export type MaxImperviousCoverPctFactCardInput = {
   state?: string;
-  maxImperviousCoverPct?: unknown;
+  percent?: unknown;
+  watershedType?: unknown;
+  inRechargeZone?: unknown;
+  crosswalkCitation?: unknown;
   absence?: { kind?: string; reason?: string } | null;
   code?: unknown;
   source?: unknown;

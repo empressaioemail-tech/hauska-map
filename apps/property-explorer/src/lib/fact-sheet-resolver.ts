@@ -1228,19 +1228,94 @@ function overlayDistrictsFromInspectWire(
   };
 }
 
+/** One WCAD/TCAD land-record segment off agValuationFact's `entries` array. All-empty entries are dropped, not invented as zero/false. */
+function agValuationEntryFromWire(
+  value: unknown,
+): {
+  statecode: string | null;
+  landType: string | null;
+  description: string | null;
+  acres: number | null;
+  value: number | null;
+  currValue: number | null;
+  agFlag: boolean;
+  apprMethod: string | null;
+  agYear: string | null;
+  propertyNumber: string | null;
+} | null {
+  const entry = rec(value);
+  if (!entry) return null;
+  const statecode = str(entry.statecode);
+  const landType = str(entry.landType);
+  const description = str(entry.description);
+  const acres = num(entry.acres);
+  const entryValue = num(entry.value);
+  const currValue = num(entry.currValue);
+  const agFlag = entry.agFlag === true;
+  const apprMethod = str(entry.apprMethod);
+  const agYear = entry.agYear == null ? null : String(entry.agYear);
+  const propertyNumber = str(entry.propertyNumber);
+  if (
+    !statecode &&
+    !landType &&
+    !description &&
+    acres === null &&
+    entryValue === null &&
+    currValue === null &&
+    !agFlag &&
+    !apprMethod &&
+    !agYear &&
+    !propertyNumber
+  ) {
+    return null;
+  }
+  return {
+    statecode,
+    landType,
+    description,
+    acres,
+    value: entryValue,
+    currValue,
+    agFlag,
+    apprMethod,
+    agYear,
+    propertyNumber,
+  };
+}
+
+/** One entry's fragment of the display string, e.g. "Ag — Native pasture · 42.3 ac". */
+function agValuationEntryDisplay(
+  entry: NonNullable<ReturnType<typeof agValuationEntryFromWire>>,
+): string {
+  const label = entry.landType ?? entry.description ?? (entry.agFlag ? "Ag valuation" : "Land record");
+  const acresText = entry.acres !== null ? `${entry.acres} ac` : null;
+  const bits = [label, acresText].filter((b): b is string => !!b);
+  const base = bits.join(" · ");
+  return entry.agFlag ? `Ag — ${base}` : base;
+}
+
 /**
  * Ag valuation from cortex-root agValuationFact (acquire-wave12).
  *
  * Prefer the cortex field. Never adopt a bake / CAD ag-exemption flag.
  * Typed absence stays visible. A missing field is omitted so the card
  * hides the row.
+ *
+ * CONFIRMED SHAPE (2026-09-04), verified first-hand against
+ * legacy-design-tools `artifacts/api-server/src/lib/agValuationFactRead.ts`
+ * on branch `feat/b-acquire-wave12-serve-agvaluation` (PR #602, OPEN — not
+ * yet merged, caught before it could go live). `entries` is a PLURAL
+ * array — a parcel can carry several distinct land-record segments, none
+ * of them a "picked lead" the way a single well is. This function
+ * previously read nonexistent `hasAgValuation`/`exemptionType` keys,
+ * which would have silently mischaracterized every real `present` fact as
+ * absent the moment PR #602 merged — fixed before that could happen.
  */
 function agValuationFromInspectWire(
   agValuationFact: unknown,
 ):
   | Fact<{
-      hasAgValuation: boolean | null;
-      exemptionType: string | null;
+      entries: NonNullable<ReturnType<typeof agValuationEntryFromWire>>[];
       display: string;
     }>
   | undefined {
@@ -1266,8 +1341,11 @@ function agValuationFromInspectWire(
   });
 
   if (state === "refused") {
+    // The real refusal type always carries a human-readable `reason`; prefer
+    // it over the bare code for the pending text (same fix as utilityService).
     const code = str(fact.code) ?? "refused";
-    return { state: "unresolved", reason: code, retryable: false };
+    const reason = str(fact.reason) ?? code;
+    return { state: "unresolved", reason, retryable: false };
   }
   if (state === "absent") {
     const absence = rec(fact.absence);
@@ -1276,26 +1354,22 @@ function agValuationFromInspectWire(
     return absentCovered(reason, prov);
   }
 
-  const hasAgValuation =
-    typeof fact.hasAgValuation === "boolean" ? fact.hasAgValuation : null;
-  const exemptionType = str(fact.exemptionType);
-  if (hasAgValuation === null && !exemptionType) {
-    return absentCovered(
-      "ag-valuation-fact present with no hasAgValuation or exemptionType",
-      prov,
+  const rawEntries = Array.isArray(fact.entries) ? fact.entries : [];
+  const entries = rawEntries
+    .map(agValuationEntryFromWire)
+    .filter(
+      (e): e is NonNullable<ReturnType<typeof agValuationEntryFromWire>> =>
+        e !== null,
     );
+  if (entries.length === 0) {
+    return absentCovered("ag-valuation-fact present with no entries", prov);
   }
-  const display =
-    hasAgValuation === true
-      ? exemptionType
-        ? `Ag valuation — ${exemptionType}`
-        : "Ag valuation"
-      : hasAgValuation === false
-        ? "No ag valuation"
-        : (exemptionType ?? "");
   return {
     state: "present",
-    value: { hasAgValuation, exemptionType, display },
+    value: {
+      entries,
+      display: entries.map(agValuationEntryDisplay).join("; "),
+    },
     provenance: prov,
   };
 }
@@ -1307,10 +1381,28 @@ function agValuationFromInspectWire(
  * Prefer the cortex field. Distinct from the per-axis setback rule's own
  * `maxImperviousPct` — never derived from that. Typed absence stays
  * visible. A missing field is omitted so the card hides the row.
+ *
+ * CONFIRMED SHAPE (2026-09-04), verified first-hand against
+ * legacy-design-tools
+ * `artifacts/api-server/src/lib/maxImperviousCoverPctFactRead.ts` on
+ * branch `feat/b-acquire-wave12-serve-maximperviouscoverpct` (PR #604,
+ * OPEN — not yet merged, caught before it could go live). The real key is
+ * `percent`, not `maxImperviousCoverPct` — this function previously read
+ * the latter, which does not exist on the wire, and would have silently
+ * mischaracterized every real `present` fact as absent the moment PR #604
+ * merged — fixed before that could happen.
  */
 function maxImperviousCoverPctFromInspectWire(
   maxImperviousCoverPctFact: unknown,
-): Fact<{ maxImperviousCoverPct: number | null; display: string }> | undefined {
+):
+  | Fact<{
+      percent: number | null;
+      watershedType: string | null;
+      inRechargeZone: boolean | null;
+      crosswalkCitation: string | null;
+      display: string;
+    }>
+  | undefined {
   if (
     !maxImperviousCoverPctFact ||
     typeof maxImperviousCoverPctFact !== "object" ||
@@ -1326,15 +1418,16 @@ function maxImperviousCoverPctFromInspectWire(
   }
   const source = str(fact.source);
   const prov = provenance({
-    source: source ?? "max-impervious-cover-fact",
-    sourceLabel: "max-impervious-cover-fact atom",
+    source: source ?? "max-impervious-cover-pct-fact",
+    sourceLabel: "max-impervious-cover-pct-fact atom",
     vintage: str(fact.sourceVintage) ?? str(fact.evaluatedAt),
     sourceUrl: str(rec(fact.provenance)?.url),
   });
 
   if (state === "refused") {
     const code = str(fact.code) ?? "refused";
-    return { state: "unresolved", reason: code, retryable: false };
+    const reason = str(fact.reason) ?? code;
+    return { state: "unresolved", reason, retryable: false };
   }
   if (state === "absent") {
     const absence = rec(fact.absence);
@@ -1343,18 +1436,25 @@ function maxImperviousCoverPctFromInspectWire(
     return absentCovered(reason, prov);
   }
 
-  const maxImperviousCoverPct = num(fact.maxImperviousCoverPct);
-  if (maxImperviousCoverPct === null) {
+  const percent = num(fact.percent);
+  if (percent === null) {
     return absentCovered(
-      "max-impervious-cover-fact present with no maxImperviousCoverPct",
+      "max-impervious-cover-pct-fact present with no percent",
       prov,
     );
   }
+  const watershedType = str(fact.watershedType);
+  const inRechargeZone =
+    typeof fact.inRechargeZone === "boolean" ? fact.inRechargeZone : null;
+  const crosswalkCitation = str(fact.crosswalkCitation);
   return {
     state: "present",
     value: {
-      maxImperviousCoverPct,
-      display: `${maxImperviousCoverPct}%`,
+      percent,
+      watershedType,
+      inRechargeZone,
+      crosswalkCitation,
+      display: `${percent}%`,
     },
     provenance: prov,
   };

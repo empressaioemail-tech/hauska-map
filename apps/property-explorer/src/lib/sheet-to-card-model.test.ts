@@ -1182,15 +1182,27 @@ describe("overlayDistrictsFact inspect row (acquire-wave12)", () => {
 });
 
 describe("agValuationFact inspect row (acquire-wave12)", () => {
-  it("present fixture shows the exemption type", () => {
+  it("present fixture shows the single-entry ag land record", () => {
     const model = bakedCardModelFromSheet(
       sheet({
         agValuation: {
           state: "present",
           value: {
-            hasAgValuation: true,
-            exemptionType: "1-d-1 open space",
-            display: "Ag valuation — 1-d-1 open space",
+            entries: [
+              {
+                statecode: "D1",
+                landType: "Native pasture",
+                description: "Open space ag use",
+                acres: 42.3,
+                value: 210000,
+                currValue: 8460,
+                agFlag: true,
+                apprMethod: "income",
+                agYear: "2025",
+                propertyNumber: "R12345",
+              },
+            ],
+            display: "Ag — Native pasture · 42.3 ac",
           },
           provenance: {
             ...prov(),
@@ -1201,17 +1213,64 @@ describe("agValuationFact inspect row (acquire-wave12)", () => {
       }),
     );
     expect(model.agValuation.state).toBe("present");
-    expect(model.agValuation.value).toContain("1-d-1 open space");
+    expect(model.agValuation.value).toContain("Native pasture");
+    expect(model.agValuation.value).toContain("42.3 ac");
   });
 
-  it("gold-shaped absent fixture does not render an exemption type", () => {
+  it("present fixture with multiple entries joins each land-record segment", () => {
+    const model = bakedCardModelFromSheet(
+      sheet({
+        agValuation: {
+          state: "present",
+          value: {
+            entries: [
+              {
+                statecode: "D1",
+                landType: "Native pasture",
+                description: null,
+                acres: 42.3,
+                value: 210000,
+                currValue: 8460,
+                agFlag: true,
+                apprMethod: "income",
+                agYear: "2025",
+                propertyNumber: "R12345",
+              },
+              {
+                statecode: "A1",
+                landType: "Residential homesite",
+                description: null,
+                acres: 1.2,
+                value: 95000,
+                currValue: 95000,
+                agFlag: false,
+                apprMethod: "market",
+                agYear: null,
+                propertyNumber: "R12345",
+              },
+            ],
+            display: "Ag — Native pasture · 42.3 ac; Residential homesite · 1.2 ac",
+          },
+          provenance: {
+            ...prov(),
+            source: "ag-valuation-fact",
+            sourceLabel: "ag-valuation-fact atom",
+          },
+        },
+      }),
+    );
+    expect(model.agValuation.value).toContain("Native pasture");
+    expect(model.agValuation.value).toContain("Residential homesite");
+  });
+
+  it("gold-shaped absent fixture does not render a land record", () => {
     const facet = agValuationFacetFromSheet({
       state: "absent-covered",
       reason: "no ag-valuation-fact atom on this parcel",
       provenance: prov(),
     });
     expect(facet.state).toBe("absent");
-    expect(JSON.stringify(facet)).not.toMatch(/1-d-1/);
+    expect(JSON.stringify(facet)).not.toMatch(/Native pasture/);
   });
 
   it("missing field hides the row (unknown)", () => {
@@ -1238,11 +1297,17 @@ describe("maxImperviousCoverPctFact inspect row (acquire-wave12)", () => {
       sheet({
         maxImperviousCoverPct: {
           state: "present",
-          value: { maxImperviousCoverPct: 45, display: "45%" },
+          value: {
+            percent: 45,
+            watershedType: "Water Supply Suburban",
+            inRechargeZone: false,
+            crosswalkCitation: "Austin LDC 25-8-342",
+            display: "45%",
+          },
           provenance: {
             ...prov(),
-            source: "max-impervious-cover-fact",
-            sourceLabel: "max-impervious-cover-fact atom",
+            source: "max-impervious-cover-pct-fact",
+            sourceLabel: "max-impervious-cover-pct-fact atom",
           },
         },
       }),
@@ -1253,7 +1318,7 @@ describe("maxImperviousCoverPctFact inspect row (acquire-wave12)", () => {
   it("gold-shaped absent fixture does not render a percentage", () => {
     const facet = maxImperviousCoverPctFacetFromSheet({
       state: "absent-covered",
-      reason: "no max-impervious-cover-fact atom on this parcel",
+      reason: "no max-impervious-cover-pct-fact atom on this parcel",
       provenance: prov(),
     });
     expect(facet.state).toBe("absent");

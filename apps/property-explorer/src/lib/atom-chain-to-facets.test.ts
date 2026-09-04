@@ -1648,14 +1648,30 @@ const goldOverlayDistrictsFact = {
 const goldAgValuationFact = {
   state: "present" as const,
   source: "ag-valuation-fact",
-  hasAgValuation: true,
-  exemptionType: "1-d-1 open space",
+  entityId: "48491:12345:ag-valuation",
+  entries: [
+    {
+      statecode: "D1",
+      landType: "Native pasture",
+      description: "Open space ag use",
+      acres: 42.3,
+      value: 210000,
+      currValue: 8460,
+      agFlag: true,
+      apprMethod: "income",
+      agYear: 2025,
+      propertyNumber: "R12345",
+    },
+  ],
 };
 
 const goldMaxImperviousCoverPctFact = {
   state: "present" as const,
-  source: "max-impervious-cover-fact",
-  maxImperviousCoverPct: 45,
+  source: "max-impervious-cover-pct-fact",
+  percent: 45,
+  watershedType: "Water Supply Suburban",
+  inRechargeZone: false,
+  crosswalkCitation: "Austin LDC 25-8-342",
 };
 
 describe("mergeBakedBaseFacts — schoolDistrictFact from cortex JSON ROOT (acquire-wave12)", () => {
@@ -1758,14 +1774,15 @@ describe("mergeBakedBaseFacts — agValuationFact from cortex JSON ROOT (acquire
       agValuationFact: goldAgValuationFact,
     });
     expect(merged.agValuationFact).toEqual(goldAgValuationFact);
-    expect(merged.agValuationFact?.hasAgValuation).toBe(true);
+    expect(merged.agValuationFact?.entries).toHaveLength(1);
+    expect((merged.agValuationFact?.entries as Array<{ agFlag: boolean }>)[0].agFlag).toBe(true);
   });
 
   it("does not adopt a bake object with no state parked on the root", () => {
     const adapted = adaptAtomChainToBakedFacets(haysChain)!;
     const merged = mergeBakedBaseFacts(adapted, {
       ...bakedCortexBody,
-      agValuationFact: { hasAgValuation: true },
+      agValuationFact: { entries: [{ agFlag: true }] },
     });
     expect("agValuationFact" in merged).toBe(false);
     expect(merged.agValuationFact).toBeUndefined();
@@ -1786,14 +1803,14 @@ describe("mergeBakedBaseFacts — maxImperviousCoverPctFact from cortex JSON ROO
       maxImperviousCoverPctFact: goldMaxImperviousCoverPctFact,
     });
     expect(merged.maxImperviousCoverPctFact).toEqual(goldMaxImperviousCoverPctFact);
-    expect(merged.maxImperviousCoverPctFact?.maxImperviousCoverPct).toBe(45);
+    expect(merged.maxImperviousCoverPctFact?.percent).toBe(45);
   });
 
   it("does not adopt a bake object with no state parked on the root", () => {
     const adapted = adaptAtomChainToBakedFacets(haysChain)!;
     const merged = mergeBakedBaseFacts(adapted, {
       ...bakedCortexBody,
-      maxImperviousCoverPctFact: { maxImperviousCoverPct: 45 },
+      maxImperviousCoverPctFact: { percent: 45 },
     });
     expect("maxImperviousCoverPctFact" in merged).toBe(false);
     expect(merged.maxImperviousCoverPctFact).toBeUndefined();

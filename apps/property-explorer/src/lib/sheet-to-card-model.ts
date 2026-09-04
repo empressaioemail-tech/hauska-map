@@ -504,11 +504,23 @@ export function overlayDistrictsFacetFromSheet(
  * agValuationFact only. Missing field → unknown (InspectCard hides the
  * row). Never derived from a bake / CAD ag-exemption flag.
  */
+type AgValuationEntry = {
+  statecode: string | null;
+  landType: string | null;
+  description: string | null;
+  acres: number | null;
+  value: number | null;
+  currValue: number | null;
+  agFlag: boolean;
+  apprMethod: string | null;
+  agYear: string | null;
+  propertyNumber: string | null;
+};
+
 export function agValuationFacetFromSheet(
   agValuation:
     | Fact<{
-        hasAgValuation: boolean | null;
-        exemptionType: string | null;
+        entries: AgValuationEntry[];
         display: string;
       }>
     | undefined,
@@ -538,7 +550,13 @@ export function agValuationFacetFromSheet(
  */
 export function maxImperviousCoverPctFacetFromSheet(
   maxImperviousCoverPct:
-    | Fact<{ maxImperviousCoverPct: number | null; display: string }>
+    | Fact<{
+        percent: number | null;
+        watershedType: string | null;
+        inRechargeZone: boolean | null;
+        crosswalkCitation: string | null;
+        display: string;
+      }>
     | undefined,
 ): CardFacet<string> {
   if (!maxImperviousCoverPct) {
@@ -554,7 +572,7 @@ export function maxImperviousCoverPctFacetFromSheet(
   if (maxImperviousCoverPct.state === "present") {
     const display = (maxImperviousCoverPct.value.display ?? "").trim();
     if (display) return present(display);
-    return absent("max-impervious-cover-fact present with no display");
+    return absent("max-impervious-cover-pct-fact present with no display");
   }
   return facetFrom(maxImperviousCoverPct, () => "");
 }

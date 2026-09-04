@@ -1225,13 +1225,13 @@ describe("InspectCard Overlay districts row — overlayDistrictsFact (acquire-wa
 });
 
 describe("InspectCard Ag valuation row — agValuationFact (acquire-wave12)", () => {
-  it("present fixture shows the exemption type", () => {
+  it("present fixture shows the land-record summary", () => {
     const html = renderToStaticMarkup(
       <dl>
         <FactRow
           label="Ag valuation"
           fact={toFactPresentation(
-            { state: "present", value: "Ag valuation — 1-d-1 open space" },
+            { state: "present", value: "Ag — Native pasture · 42.3 ac" },
             ROW_SPECS.agValuation,
           )}
           testid="inspect-ag-valuation"
@@ -1239,7 +1239,7 @@ describe("InspectCard Ag valuation row — agValuationFact (acquire-wave12)", ()
       </dl>,
     );
     expect(html).toContain('data-testid="inspect-ag-valuation"');
-    expect(html).toContain("1-d-1 open space");
+    expect(html).toContain("Native pasture");
   });
 
   it("missing agValuationFact hides the Ag valuation row", () => {
