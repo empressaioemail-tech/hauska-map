@@ -1,4 +1,6 @@
-// Property Explorer OIDC BFF — Google + Microsoft PKCE (no Clerk, no Auth.js).
+// Property Explorer OIDC BFF — Google + Microsoft PKCE, plus P-112 email
+// magic-link (no Clerk, no Auth.js, no WorkOS as a sign-in broker — ruling
+// `_decisions/2026-09-04_p112_auth_options_ruling.md`, doc_repo).
 //
 // Routes (via vercel rewrite /api/auth/(.*) -> /api/auth?upath=$1):
 //   GET  /api/auth/status
@@ -7,11 +9,20 @@
 //   GET  /api/auth/google/callback
 //   GET  /api/auth/microsoft/start
 //   GET  /api/auth/microsoft/callback
+//   POST /api/auth/email/request      P-112 — mint + email a magic link
+//   GET  /api/auth/email/verify       P-112 — the link target; signs in
 //   GET  /api/auth/session
 //   POST /api/auth/logout
 //
 // Vercel env: WORKOS_API_KEY — WorkOS sk_… key for AuthKit Standalone Connect
 // completion (POST api.workos.com/authkit/oauth2/complete) after MCP OIDC.
+//
+// The email/* routes hold no secrets of their own beyond the same
+// PE_SESSION_EXCHANGE_SECRET every provider already needs to reach Cortex —
+// they are thin proxies. Cortex owns the token table, the rate limit, the
+// Resend call, and the account creation (same upsertPeOidcIdentity/
+// completePeSignIn path OAuth uses), so a magic-link account is
+// indistinguishable from an OAuth one everywhere downstream.
 //
 // WDLL items 12, 13, 16 — honest degrade when secrets missing.
 
@@ -42,6 +53,8 @@ import {
   exchangeSessionWithCortex,
   fetchIdTokenClaims,
   fetchMicrosoftProfile,
+  requestMagicLinkEmail,
+  verifyMagicLinkToken,
 } from './_lib/cortex-exchange.js'
 import { completeWorkosExternalAuth } from './_lib/workos-complete.js'
 import { renderMcpLoginPage } from './_lib/mcp-login-page.js'
@@ -68,13 +81,13 @@ function notConfigured(res: VercelResponse, provider: OidcProvider): void {
 function handleStatus(req: VercelRequest, res: VercelResponse): void {
   const cfg = authConfigured()
   const origin = oidcRedirectOrigin(req)
+  const anyProvider = cfg.google || cfg.microsoft || cfg.email
   res.status(200).json({
     configured: cfg,
-    anyProvider: cfg.google || cfg.microsoft,
-    message:
-      cfg.google || cfg.microsoft
-        ? 'Sign-in available for configured providers.'
-        : 'Sign-in not configured — browse anonymously.',
+    anyProvider,
+    message: anyProvider
+      ? 'Sign-in available for configured providers.'
+      : 'Sign-in not configured — browse anonymously.',
     redirectUris: {
       google: cfg.google ? redirectUri('google', origin) : null,
       microsoft: cfg.microsoft ? redirectUri('microsoft', origin) : null,
@@ -273,6 +286,85 @@ async function handleCallback(
   }
 }
 
+function safeParse(s: string): Record<string, unknown> | null {
+  try {
+    const v: unknown = JSON.parse(s)
+    return v !== null && typeof v === 'object' ? (v as Record<string, unknown>) : null
+  } catch {
+    return null
+  }
+}
+
+function jsonBody(req: VercelRequest): Record<string, unknown> {
+  const raw = typeof req.body === 'string' ? safeParse(req.body) : req.body
+  return raw && typeof raw === 'object' ? (raw as Record<string, unknown>) : {}
+}
+
+/**
+ * P-112 email leg — POST /api/auth/email/request. Proxies to Cortex, which
+ * owns the token table, the rate limit, and the Resend call. Never a fake
+ * success: a send failure or an unconfigured deploy comes back as an honest
+ * non-2xx the caller must show, not a "check your email" message that
+ * wasn't true.
+ */
+async function handleEmailRequest(req: VercelRequest, res: VercelResponse): Promise<void> {
+  const body = jsonBody(req)
+  const email = typeof body.email === 'string' ? body.email.trim() : ''
+  if (!email) {
+    res.status(400).json({ error: 'invalid_input', message: 'email is required' })
+    return
+  }
+  try {
+    const result = await requestMagicLinkEmail(email)
+    if (!result.ok) {
+      res.status(result.status).json({
+        error: result.error,
+        message: result.message,
+        retryAfterSeconds: result.retryAfterSeconds,
+      })
+      return
+    }
+    res.status(200).json({ ok: true, expiresAt: result.expiresAt })
+  } catch (err) {
+    res.status(502).json({
+      error: 'magic_link_request_failed',
+      message: err instanceof Error ? err.message : String(err),
+    })
+  }
+}
+
+/**
+ * P-112 email leg — GET /api/auth/email/verify?token=... (the link target
+ * the user clicks). Mirrors handleCallback's shape: verify, set the same
+ * pe_session cookie an OAuth sign-in sets, redirect signed in. Each
+ * rejection reason maps to a distinct `auth_error` so the app can show an
+ * honest, specific message instead of one generic failure.
+ */
+async function handleEmailVerify(req: VercelRequest, res: VercelResponse): Promise<void> {
+  const token = typeof req.query.token === 'string' ? req.query.token : null
+  if (!token) {
+    res.redirect(302, '/?auth_error=email_link_missing_token')
+    return
+  }
+  try {
+    const result = await verifyMagicLinkToken(token)
+    if (!result.ok) {
+      res.redirect(302, `/?auth_error=email_link_${result.error}`)
+      return
+    }
+    const secure = isProduction()
+    applySessionRedirectCookies(res, result.token, secure)
+    res.statusCode = 302
+    res.setHeader('Location', '/?signed_in=1')
+    res.end()
+  } catch (err) {
+    res.status(502).json({
+      error: 'magic_link_verify_failed',
+      message: err instanceof Error ? err.message : String(err),
+    })
+  }
+}
+
 function handleSession(req: VercelRequest, res: VercelResponse): void {
   const token = readPeSessionCookie(req.headers.cookie)
   if (!token) {
@@ -315,6 +407,16 @@ export default async function handler(req: VercelRequest, res: VercelResponse): 
 
   if (parts[0] === 'mcp-login' && method === 'GET') {
     handleMcpLogin(req, res)
+    return
+  }
+
+  if (parts[0] === 'email' && parts[1] === 'request' && method === 'POST') {
+    await handleEmailRequest(req, res)
+    return
+  }
+
+  if (parts[0] === 'email' && parts[1] === 'verify' && method === 'GET') {
+    await handleEmailVerify(req, res)
     return
   }
 

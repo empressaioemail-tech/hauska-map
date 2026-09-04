@@ -85,6 +85,78 @@ export async function exchangeCodeForTokens(
   return (await res.json()) as { id_token?: string; access_token?: string }
 }
 
+// ---------------------------------------------------------------------------
+// P-112 email leg — magic-link request/verify proxy to Cortex. Unlike OAuth,
+// there is no third-party identity provider for this BFF to talk to itself;
+// both calls are server-to-server passthroughs to Cortex's
+// `/api/auth/email/*` routes (same PE_SESSION_EXCHANGE_SECRET bearer auth as
+// exchangeSessionWithCortex above). The raw magic-link token passes through
+// this hop exactly once per direction and is never logged here.
+// ---------------------------------------------------------------------------
+
+export type MagicLinkRequestResult =
+  | { ok: true; expiresAt: string }
+  | { ok: false; status: number; error: string; message?: string; retryAfterSeconds?: number }
+
+export async function requestMagicLinkEmail(
+  email: string,
+): Promise<MagicLinkRequestResult> {
+  const secret = peSessionExchangeSecret()
+  if (!secret) {
+    return { ok: false, status: 503, error: 'sign_in_not_configured' }
+  }
+  const res = await fetch(`${cortexApiUrl()}/api/auth/email/request`, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      Authorization: `Bearer ${secret}`,
+    },
+    body: JSON.stringify({ email }),
+  })
+  const body = (await res.json().catch(() => ({}))) as Record<string, unknown>
+  if (!res.ok) {
+    return {
+      ok: false,
+      status: res.status,
+      error: typeof body.error === 'string' ? body.error : 'request_failed',
+      message: typeof body.message === 'string' ? body.message : undefined,
+      retryAfterSeconds:
+        typeof body.retryAfterSeconds === 'number' ? body.retryAfterSeconds : undefined,
+    }
+  }
+  return { ok: true, expiresAt: String(body.expiresAt ?? '') }
+}
+
+export type MagicLinkVerifyResult =
+  | (ExchangeResult & { ok: true })
+  | { ok: false; status: number; error: string }
+
+export async function verifyMagicLinkToken(
+  token: string,
+): Promise<MagicLinkVerifyResult> {
+  const secret = peSessionExchangeSecret()
+  if (!secret) {
+    return { ok: false, status: 503, error: 'sign_in_not_configured' }
+  }
+  const res = await fetch(`${cortexApiUrl()}/api/auth/email/verify`, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      Authorization: `Bearer ${secret}`,
+    },
+    body: JSON.stringify({ token }),
+  })
+  const body = (await res.json().catch(() => ({}))) as Record<string, unknown>
+  if (!res.ok) {
+    return {
+      ok: false,
+      status: res.status,
+      error: typeof body.error === 'string' ? body.error : 'verify_failed',
+    }
+  }
+  return { ok: true, ...(body as unknown as ExchangeResult) }
+}
+
 export async function fetchMicrosoftProfile(
   accessToken: string,
 ): Promise<{ id: string; mail?: string; userPrincipalName?: string; displayName?: string }> {

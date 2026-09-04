@@ -92,10 +92,26 @@ export function providerConfig(provider: OidcProvider): OidcProviderConfig | nul
   return provider === 'google' ? googleOidcConfig() : microsoftOidcConfig()
 }
 
-export function authConfigured(): { google: boolean; microsoft: boolean } {
+export function authConfigured(): {
+  google: boolean
+  microsoft: boolean
+  email: boolean
+} {
   return {
     google: googleOidcConfig() !== null && !!oidcStateSecret(),
     microsoft: microsoftOidcConfig() !== null && !!oidcStateSecret(),
+    // Email (magic link, P-112) has no OIDC state/PKCE dance — its only BFF
+    // precondition is the same secret every provider already needs to reach
+    // Cortex's session-exchange family (peSessionExchangeSecret()). The
+    // deeper precondition (Cortex's own RESEND_API_KEY) lives in a
+    // different deploy/secret store this process cannot read, so it is not
+    // mirrored into a second env var here — that would drift the moment one
+    // side changed without the other (exactly the "capability reports as
+    // missing" failure mode P-112's own scoping doc flags for Microsoft).
+    // Instead Cortex enforces that precondition authoritatively at request
+    // time and returns an honest "not configured" error the BFF passes
+    // through — see handleEmailRequest in ../auth.ts.
+    email: !!peSessionExchangeSecret(),
   }
 }
 
