@@ -517,24 +517,23 @@ export type SchoolDistrictFactWire = {
  * Copied from the cortex JSON ROOT only. Distinct from the `whoServes`
  * lookup — never merged with it.
  *
- * OPEN QUESTION, unverified against the LDT projector (cutover PRs not
- * merged yet): factory close records show this rail as LIST-shaped —
- * one companion row per provider/service type (electric, sewer, ...),
- * each with its own {utility, ccnNo, ccnType, status} — not the single
- * provider/serviceType pair modeled here. `isUtilityServiceFactWire`
- * below requires a flat, non-array object with a top-level `state`; a
- * genuinely list-shaped payload (an array, or an array-wrapping object
- * with no top-level `state`) fails that guard and this field is treated
- * as absent from the wire — permanently, not just until data lands,
- * since it is a shape mismatch, not a missing-field gap. Confirm the
- * served shape before cutover so this type (and ParcelFactSheet's
- * `utilityService`) can be remodeled to a list before the two sides
- * converge by trial and error after the fact.
+ * CONFIRMED SHAPE (2026-09-04), verified first-hand against
+ * legacy-design-tools `artifacts/api-server/src/lib/utilityServiceFactRead.ts`
+ * on main as of the PR #600 merge (212f09f0). `state` stays top-level on a
+ * flat object exactly as `isUtilityServiceFactWire` below already expects
+ * — the field is NOT list-shaped or array-wrapped at the wire boundary, so
+ * that guard never rejected it. The actual defect was one layer down: the
+ * resolver (fact-sheet-resolver.ts) previously read nonexistent
+ * `provider`/`serviceType` keys instead of the real `water`/`sewer`
+ * companion-row slots, so a `present` fact was silently mischaracterized
+ * as absent rather than hidden. Water and sewer are independent slots —
+ * see the real source file's module doc — either or both `null`, never
+ * both null on `present`. No electric slot exists; never invent one.
  */
 export type UtilityServiceFactWire = {
   state: "present" | "absent" | "refused";
-  provider?: unknown;
-  serviceType?: unknown;
+  water?: unknown;
+  sewer?: unknown;
   absence?: { kind?: string; reason?: string } | null;
   code?: unknown;
   reason?: unknown;

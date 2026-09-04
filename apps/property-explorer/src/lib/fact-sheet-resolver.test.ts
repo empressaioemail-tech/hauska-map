@@ -2006,31 +2006,74 @@ describe("schoolDistrictFact only (acquire-wave12)", () => {
 });
 
 describe("utilityServiceFact only (acquire-wave12)", () => {
-  it("present fixture shows provider and serviceType from utilityServiceFact", async () => {
+  it("present fixture shows the water slot from utilityServiceFact", async () => {
     const wire = facetsWire() as unknown as Record<string, unknown>;
     wire.utilityServiceFact = {
       state: "present",
       source: "utility-service-fact",
-      provider: "Bluebonnet Electric",
-      serviceType: "electric",
+      entityId: "48021:36521:utility-service",
+      water: {
+        ccnNo: "10375",
+        utility: "Aqua Texas WSC",
+        status: "Active",
+        ccnType: "water",
+      },
+      sewer: null,
     };
     const stub = installFetchStub({ facets: wire, gisFeatures: [SUBJECT_FEATURE] });
     const sheet = await sheetOf(makeResolver(stub), NODE_ID);
     expect(sheet.utilityService?.state).toBe("present");
     if (sheet.utilityService?.state !== "present") throw new Error("unreachable");
-    expect(sheet.utilityService.value.provider).toBe("Bluebonnet Electric");
+    expect(sheet.utilityService.value.water?.utility).toBe("Aqua Texas WSC");
+    expect(sheet.utilityService.value.sewer).toBeNull();
     expect(sheet.utilityService.provenance.source).toBe("utility-service-fact");
+  });
+
+  it("present fixture with both water and sewer slots keeps both independently", async () => {
+    const wire = facetsWire() as unknown as Record<string, unknown>;
+    wire.utilityServiceFact = {
+      state: "present",
+      source: "utility-service-fact",
+      entityId: "48021:36521:utility-service",
+      water: { ccnNo: "10375", utility: "Aqua Texas WSC", status: "Active", ccnType: "water" },
+      sewer: { ccnNo: "20481", utility: "Bastrop County MUD", status: "Active", ccnType: "sewer" },
+    };
+    const stub = installFetchStub({ facets: wire, gisFeatures: [SUBJECT_FEATURE] });
+    const sheet = await sheetOf(makeResolver(stub), NODE_ID);
+    expect(sheet.utilityService?.state).toBe("present");
+    if (sheet.utilityService?.state !== "present") throw new Error("unreachable");
+    expect(sheet.utilityService.value.water?.utility).toBe("Aqua Texas WSC");
+    expect(sheet.utilityService.value.sewer?.utility).toBe("Bastrop County MUD");
+    expect(sheet.utilityService.value.display).not.toMatch(/electric/i);
+  });
+
+  it("refused not-cut-over carries the real human-readable reason, never invents service", async () => {
+    const wire = facetsWire() as unknown as Record<string, unknown>;
+    wire.utilityServiceFact = {
+      state: "refused",
+      source: "utility-service-fact",
+      code: "not-cut-over",
+      entityId: "48021:36521",
+      reason:
+        "utilityService has no legacy serve path -- it is served only from parcel_record, and only once this (county, rail) pair is slated with a passing gate verdict. Not there yet for this parcel.",
+    };
+    const stub = installFetchStub({ facets: wire, gisFeatures: [SUBJECT_FEATURE] });
+    const sheet = await sheetOf(makeResolver(stub), NODE_ID);
+    expect(sheet.utilityService?.state).toBe("unresolved");
+    if (sheet.utilityService?.state !== "unresolved") throw new Error("unreachable");
+    expect(sheet.utilityService.reason).toMatch(/not there yet for this parcel/i);
+    expect(sheet.utilityService.retryable).toBe(false);
   });
 
   it("bake parked on the root without state is not adopted", async () => {
     const wire = facetsWire() as unknown as Record<string, unknown>;
-    wire.utilityServiceFact = { provider: "BAKE UTILITY" };
+    wire.utilityServiceFact = { water: { utility: "BAKE UTILITY" } };
     const stub = installFetchStub({ facets: wire, gisFeatures: [SUBJECT_FEATURE] });
     const sheet = await sheetOf(makeResolver(stub), NODE_ID);
     expect(sheet.utilityService).toBeUndefined();
   });
 
-  it("missing field stays missing — no invented provider", async () => {
+  it("missing field stays missing — no invented water/sewer", async () => {
     const wire = facetsWire() as unknown as Record<string, unknown>;
     delete wire.utilityServiceFact;
     const stub = installFetchStub({ facets: wire, gisFeatures: [SUBJECT_FEATURE] });

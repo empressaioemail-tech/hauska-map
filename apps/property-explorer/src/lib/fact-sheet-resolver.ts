@@ -1055,19 +1055,62 @@ function schoolDistrictFromInspectWire(
   };
 }
 
+/** One water/sewer companion-row slot off utilityServiceFact. Either slot may be absent independently — that is not itself an absence. */
+function utilityServiceEntryFromWire(
+  value: unknown,
+): {
+  ccnNo: string | null;
+  utility: string | null;
+  status: string | null;
+  ccnType: string | null;
+} | null {
+  const entry = rec(value);
+  if (!entry) return null;
+  const ccnNo = str(entry.ccnNo);
+  const utility = str(entry.utility);
+  const status = str(entry.status);
+  const ccnType = str(entry.ccnType);
+  if (!ccnNo && !utility && !status && !ccnType) return null;
+  return { ccnNo, utility, status, ccnType };
+}
+
+/** One slot's fragment of the display string, e.g. "Water — Aqua Texas WSC · Active". Null when the slot carries nothing to show. */
+function utilityServiceEntryDisplay(
+  label: string,
+  entry: ReturnType<typeof utilityServiceEntryFromWire>,
+): string | null {
+  if (!entry) return null;
+  const bits = [entry.utility, entry.status].filter(
+    (b): b is string => !!b && b.trim().length > 0,
+  );
+  const detail =
+    bits.length > 0 ? bits.join(" · ") : entry.ccnNo ? `CCN ${entry.ccnNo}` : null;
+  return detail ? `${label} — ${detail}` : label;
+}
+
 /**
  * Utility service from cortex-root utilityServiceFact (acquire-wave12).
  *
  * Prefer the cortex field. Distinct from `whoServes` — never merged with
  * that lookup. Typed absence stays visible. A missing field is omitted so
  * the card hides the row.
+ *
+ * CONFIRMED SHAPE (2026-09-04), verified first-hand against
+ * legacy-design-tools `artifacts/api-server/src/lib/utilityServiceFactRead.ts`
+ * on main as of the PR #600 merge (212f09f0): `water` and `sewer` are
+ * independent companion-row slots, either or both null, never both null on
+ * a `present` fact. No electric slot exists — never invent one. This
+ * function previously read nonexistent `provider`/`serviceType` keys,
+ * which silently mischaracterized every real `present` fact as absent
+ * rather than hiding the row — a live data-mapping defect, not a
+ * fail-closed gap. Fixed to read the real `water`/`sewer` keys.
  */
 function utilityServiceFromInspectWire(
   utilityServiceFact: unknown,
 ):
   | Fact<{
-      provider: string | null;
-      serviceType: string | null;
+      water: ReturnType<typeof utilityServiceEntryFromWire>;
+      sewer: ReturnType<typeof utilityServiceEntryFromWire>;
       display: string;
     }>
   | undefined {
@@ -1093,8 +1136,12 @@ function utilityServiceFromInspectWire(
   });
 
   if (state === "refused") {
+    // The real refusal type always carries a human-readable `reason`
+    // (e.g. "utilityService has no legacy serve path -- ... Not there yet
+    // for this parcel."); prefer it over the bare code for the pending text.
     const code = str(fact.code) ?? "refused";
-    return { state: "unresolved", reason: code, retryable: false };
+    const reason = str(fact.reason) ?? code;
+    return { state: "unresolved", reason, retryable: false };
   }
   if (state === "absent") {
     const absence = rec(fact.absence);
@@ -1103,21 +1150,21 @@ function utilityServiceFromInspectWire(
     return absentCovered(reason, prov);
   }
 
-  const provider = str(fact.provider);
-  const serviceType = str(fact.serviceType);
-  if (!provider && !serviceType) {
+  const water = utilityServiceEntryFromWire(fact.water);
+  const sewer = utilityServiceEntryFromWire(fact.sewer);
+  if (!water && !sewer) {
     return absentCovered(
-      "utility-service-fact present with no provider or serviceType",
+      "utility-service-fact present with no water or sewer entry",
       prov,
     );
   }
   const display =
-    provider && serviceType
-      ? `${serviceType} — ${provider}`
-      : (provider ?? serviceType ?? "");
+    [utilityServiceEntryDisplay("Water", water), utilityServiceEntryDisplay("Sewer", sewer)]
+      .filter((d): d is string => !!d)
+      .join(" · ") || "utility service present";
   return {
     state: "present",
-    value: { provider, serviceType, display },
+    value: { water, sewer, display },
     provenance: prov,
   };
 }

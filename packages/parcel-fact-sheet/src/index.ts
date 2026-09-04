@@ -480,28 +480,30 @@ export interface ParcelFactSheet {
    * the row). Distinct from `whoServes` (a separate, already-shipped
    * utility-territory lookup) — never merged with it. Never invented.
    *
-   * OPEN QUESTION (2026-09-04, unverified against the LDT projector — the
-   * cutover PRs that serve this field are not merged yet): factory-side
-   * close records for this rail show utilityService as LIST-shaped —
-   * multiple companion rows per parcel, one per provider/service type
-   * (electric: {utility, ccnNo, ccnType, status}; sewer: same shape,
-   * separate row), not a single provider/serviceType pair. This type
-   * models a single flat fact. If the served payload is actually a list
-   * (either `utilityServiceFact` itself is an array, or it wraps an array
-   * field), `isUtilityServiceFactWire` in atom-chain-to-facets.ts will
-   * reject it outright (it requires a flat object with a top-level
-   * `state`) and this row will stay hidden even once real, well-formed
-   * data lands — a shape mismatch, not a missing-field absence, so it
-   * will never self-correct. Whoever finishes the LDT-side projector:
-   * please either (a) collapse the companion rows into this flat shape
-   * server-side, or (b) tell this lane the real shape so `utilityService`
-   * can be remodeled to `Fact<{ services: Array<{...}>; display: string }>`
-   * before cutover, so the two sides converge without a trial-and-error
-   * round after the fact.
+   * CONFIRMED SHAPE (2026-09-04), verified first-hand against
+   * legacy-design-tools `artifacts/api-server/src/lib/utilityServiceFactRead.ts`
+   * on main as of the PR #600 merge (212f09f0). Water and sewer are
+   * independent companion-row slots (parcel-utility-service.mjs's own fixed
+   * rowIndex 0 = water, rowIndex 1 = sewer), not competing candidates — a
+   * parcel served by both carries both slots, either or both `null`, never
+   * both null on a `present` fact (that is `absent` instead). No electric
+   * slot exists on the served type; never invent one. This superseded an
+   * earlier flat {provider, serviceType} model that predated reading the
+   * real served type — see git history on this field for that mistake.
    */
   utilityService?: Fact<{
-    provider: string | null;
-    serviceType: string | null;
+    water: {
+      ccnNo: string | null;
+      utility: string | null;
+      status: string | null;
+      ccnType: string | null;
+    } | null;
+    sewer: {
+      ccnNo: string | null;
+      utility: string | null;
+      status: string | null;
+      ccnType: string | null;
+    } | null;
     display: string;
   }>;
   /**

@@ -439,11 +439,18 @@ export function schoolDistrictFacetFromSheet(
  * from utilityServiceFact only. Missing field → unknown (InspectCard hides
  * the row). Distinct from `whoServes` — never derived from that lookup.
  */
+type UtilityServiceEntry = {
+  ccnNo: string | null;
+  utility: string | null;
+  status: string | null;
+  ccnType: string | null;
+} | null;
+
 export function utilityServiceFacetFromSheet(
   utilityService:
     | Fact<{
-        provider: string | null;
-        serviceType: string | null;
+        water: UtilityServiceEntry;
+        sewer: UtilityServiceEntry;
         display: string;
       }>
     | undefined,

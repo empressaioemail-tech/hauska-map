@@ -356,8 +356,8 @@ export type SchoolDistrictFactCardInput = {
 /** Cortex inspect GET utility service determination (acquire-wave12). Root sibling. */
 export type UtilityServiceFactCardInput = {
   state?: string;
-  provider?: unknown;
-  serviceType?: unknown;
+  water?: unknown;
+  sewer?: unknown;
   absence?: { kind?: string; reason?: string } | null;
   code?: unknown;
   source?: unknown;
