@@ -179,20 +179,6 @@ export function ReportsTool() {
     [],
   );
 
-  if (ent.signedOut && reportsTab === "mine") {
-    return (
-      <div data-testid="reports-tool">
-        <ReportsTabs tab={reportsTab} onTab={setReportsTab} />
-        <LockedToolPanel
-          valueLine={REPORTS_LOCKED_VALUE_LINE}
-          signedOut
-          signInLine="Sign in to run reports and exports on this parcel."
-          testId="reports-locked"
-        />
-      </div>
-    );
-  }
-
   if (sitePlan?.result && !attachedRef.current.has(`${activeParcelNodeId}:site-plan`)) {
     attachedRef.current.set(`${activeParcelNodeId}:site-plan`, sitePlan.result);
   }
@@ -258,6 +244,31 @@ export function ReportsTool() {
     setSelectedRaw(pendingDoc);
     setPendingDoc(null);
   }, [activeParcelNodeId, pendingDoc, setSelectedRaw]);
+
+  // MUST come after every hook above (Rules of Hooks): this used to sit
+  // right after usePropertyEntitlement, before the useEffect a few lines up
+  // — so a mounted ReportsTool that transitioned into ent.signedOut (a
+  // session lapsing, or the app-wide invalidatePropertyEntitlement() that
+  // usePostCheckoutRefresh fires on every checkout return) took this return
+  // on a LATER render than the one that first mounted it, having called one
+  // fewer hook than the render before. That is React invariant #300,
+  // "Rendered fewer hooks than expected... an accidental early return
+  // statement" — verbatim what happened here. BriefTool.tsx / ShareTool.tsx /
+  // ClaudeSyncTool.tsx already put their own locked-state early return after
+  // all of their hooks; this now matches them.
+  if (ent.signedOut && reportsTab === "mine") {
+    return (
+      <div data-testid="reports-tool">
+        <ReportsTabs tab={reportsTab} onTab={setReportsTab} />
+        <LockedToolPanel
+          valueLine={REPORTS_LOCKED_VALUE_LINE}
+          signedOut
+          signInLine="Sign in to run reports and exports on this parcel."
+          testId="reports-locked"
+        />
+      </div>
+    );
+  }
 
   const generatedLabel = selected
     ? generatedLabelFor(selected, sitePlan, terrain, dossier, feasibility)
