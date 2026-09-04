@@ -1169,16 +1169,49 @@ function utilityServiceFromInspectWire(
   };
 }
 
+/** One overlay-district entry off overlayDistrictsFact's `districts` array. `attributes` is intentionally left as a pass-through bag — see the CONFIRMED SHAPE note on the wire type: it is heterogeneous by design across overlay kinds, never coerced into a guessed schema. */
+function overlayDistrictEntryFromWire(
+  value: unknown,
+): { city: string; attributes: Record<string, unknown> } | null {
+  const entry = rec(value);
+  if (!entry) return null;
+  const city = str(entry.city);
+  if (!city) return null;
+  const attributes =
+    entry.attributes && typeof entry.attributes === "object" && !Array.isArray(entry.attributes)
+      ? (entry.attributes as Record<string, unknown>)
+      : {};
+  return { city, attributes };
+}
+
 /**
  * Overlay districts from cortex-root overlayDistrictsFact (acquire-wave12).
  *
  * Prefer the cortex field. Never invent overlay names from the zoning
  * district code alone. Typed absence stays visible. A missing field is
  * omitted so the card hides the row.
+ *
+ * CONFIRMED SHAPE (2026-09-04), verified first-hand against
+ * legacy-design-tools
+ * `artifacts/api-server/src/lib/overlayDistrictsFactRead.ts` on branch
+ * `feat/b-acquire-wave12-serve-utilityservice`, HEAD `f3ca65e8` (not
+ * reachable from `main` — a separate git-process defect on PR #601, not
+ * this lane's to fix). The real key is `districts`, an array of
+ * `{city, attributes}` — this function previously read a nonexistent
+ * `names` key, which would have silently mischaracterized every real
+ * `present` fact as absent the moment that upstream mistake is corrected
+ * and this genuinely reaches `main` — fixed now regardless of timing.
+ * `attributes` is a generic bag by the source's own design (heterogeneous
+ * per overlay kind); never coerced into a guessed per-field schema here.
  */
 function overlayDistrictsFromInspectWire(
   overlayDistrictsFact: unknown,
-): Fact<{ names: string[]; display: string }> | undefined {
+):
+  | Fact<{
+      districts: Array<{ city: string; attributes: Record<string, unknown> }>;
+      display: string;
+    }>
+  | undefined {
   if (
     !overlayDistrictsFact ||
     typeof overlayDistrictsFact !== "object" ||
@@ -1202,7 +1235,8 @@ function overlayDistrictsFromInspectWire(
 
   if (state === "refused") {
     const code = str(fact.code) ?? "refused";
-    return { state: "unresolved", reason: code, retryable: false };
+    const reason = str(fact.reason) ?? code;
+    return { state: "unresolved", reason, retryable: false };
   }
   if (state === "absent") {
     const absence = rec(fact.absence);
@@ -1211,19 +1245,24 @@ function overlayDistrictsFromInspectWire(
     return absentCovered(reason, prov);
   }
 
-  const rawNames = Array.isArray(fact.names) ? fact.names : [];
-  const names = rawNames
-    .filter((n): n is string => typeof n === "string" && n.trim().length > 0)
-    .map((n) => n.trim());
-  if (names.length === 0) {
+  const rawDistricts = Array.isArray(fact.districts) ? fact.districts : [];
+  const districts = rawDistricts
+    .map(overlayDistrictEntryFromWire)
+    .filter((d): d is { city: string; attributes: Record<string, unknown> } => d !== null);
+  if (districts.length === 0) {
     return absentCovered(
-      "overlay-districts-fact present with no names",
+      "overlay-districts-fact present with no districts",
       prov,
     );
   }
+  const cities = Array.from(new Set(districts.map((d) => d.city)));
+  const display =
+    districts.length === 1
+      ? `${districts[0].city} overlay district`
+      : `${cities.join(", ")} — ${districts.length} overlay districts`;
   return {
     state: "present",
-    value: { names, display: names.join(", ") },
+    value: { districts, display },
     provenance: prov,
   };
 }

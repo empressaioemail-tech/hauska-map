@@ -479,7 +479,10 @@ export function utilityServiceFacetFromSheet(
  */
 export function overlayDistrictsFacetFromSheet(
   overlayDistricts:
-    | Fact<{ names: string[]; display: string }>
+    | Fact<{
+        districts: Array<{ city: string; attributes: Record<string, unknown> }>;
+        display: string;
+      }>
     | undefined,
 ): CardFacet<string> {
   if (!overlayDistricts) {

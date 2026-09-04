@@ -1642,7 +1642,13 @@ const goldUtilityServiceFact = {
 const goldOverlayDistrictsFact = {
   state: "present" as const,
   source: "overlay-districts-fact",
-  names: ["Historic Overlay", "Airport Compatibility"],
+  entityId: "48021:36521:overlay-districts",
+  districts: [
+    {
+      city: "Bastrop",
+      attributes: { CD_Name: "Character District 3", CD_Desc: "Downtown core" },
+    },
+  ],
 };
 
 const goldAgValuationFact = {
@@ -1743,17 +1749,16 @@ describe("mergeBakedBaseFacts — overlayDistrictsFact from cortex JSON ROOT (ac
       overlayDistrictsFact: goldOverlayDistrictsFact,
     });
     expect(merged.overlayDistrictsFact).toEqual(goldOverlayDistrictsFact);
-    expect(merged.overlayDistrictsFact?.names).toEqual([
-      "Historic Overlay",
-      "Airport Compatibility",
-    ]);
+    expect((merged.overlayDistrictsFact?.districts as Array<{ city: string }>)[0].city).toBe(
+      "Bastrop",
+    );
   });
 
   it("does not adopt a bake object with no state parked on the root", () => {
     const adapted = adaptAtomChainToBakedFacets(haysChain)!;
     const merged = mergeBakedBaseFacts(adapted, {
       ...bakedCortexBody,
-      overlayDistrictsFact: { names: ["Historic Overlay"] },
+      overlayDistrictsFact: { districts: [{ city: "Bastrop" }] },
     });
     expect("overlayDistrictsFact" in merged).toBe(false);
     expect(merged.overlayDistrictsFact).toBeUndefined();

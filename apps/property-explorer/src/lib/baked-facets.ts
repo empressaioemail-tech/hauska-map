@@ -367,7 +367,7 @@ export type UtilityServiceFactCardInput = {
 /** Cortex inspect GET overlay districts determination (acquire-wave12). Root sibling. */
 export type OverlayDistrictsFactCardInput = {
   state?: string;
-  names?: unknown;
+  districts?: unknown;
   absence?: { kind?: string; reason?: string } | null;
   code?: unknown;
   source?: unknown;

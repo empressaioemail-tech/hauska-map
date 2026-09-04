@@ -1190,13 +1190,13 @@ describe("InspectCard Utility service row — utilityServiceFact (acquire-wave12
 });
 
 describe("InspectCard Overlay districts row — overlayDistrictsFact (acquire-wave12)", () => {
-  it("present fixture lists district names", () => {
+  it("present fixture shows the district city summary", () => {
     const html = renderToStaticMarkup(
       <dl>
         <FactRow
           label="Overlay districts"
           fact={toFactPresentation(
-            { state: "present", value: "Historic Overlay, Airport Compatibility" },
+            { state: "present", value: "Bastrop — 2 overlay districts" },
             ROW_SPECS.overlayDistricts,
           )}
           testid="inspect-overlay-districts"
@@ -1204,7 +1204,7 @@ describe("InspectCard Overlay districts row — overlayDistrictsFact (acquire-wa
       </dl>,
     );
     expect(html).toContain('data-testid="inspect-overlay-districts"');
-    expect(html).toContain("Historic Overlay");
+    expect(html).toContain("Bastrop");
   });
 
   it("missing overlayDistrictsFact hides the Overlay districts row", () => {

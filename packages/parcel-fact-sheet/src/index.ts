@@ -521,23 +521,39 @@ export interface ParcelFactSheet {
    * stay valid. Missing means the inspect payload did not carry the field
    * (hide the row). Never invented from zoning-district code alone.
    *
-   * OPEN QUESTION (2026-09-04, unverified against the LDT projector — same
-   * caveat as utilityService above): factory-side close records show this
-   * rail as LIST-shaped too — multiple companion rows per parcel, each
-   * carrying real per-district content beyond a bare name (e.g. Bastrop's
-   * Character-District rows carry CD_Name / CD_Desc / Shape__Area). This
-   * type's `names: string[]` captures the list MULTIPLICITY but discards
-   * everything but the name — no description, no area. Depending on the
-   * served shape, `isOverlayDistrictsFactWire` may also reject a genuinely
-   * list-shaped payload outright the same way utilityService's guard
-   * would, hiding the row permanently rather than showing partial data.
-   * Whoever finishes the LDT-side projector: please confirm the served
-   * shape against this before cutover — if per-district description/area
-   * matters here, `overlayDistricts` should become
-   * `Fact<{ districts: Array<{ name, description, areaSqFt }>; display }>`.
+   * CONFIRMED SHAPE (2026-09-04), verified first-hand against
+   * legacy-design-tools
+   * `artifacts/api-server/src/lib/overlayDistrictsFactRead.ts` on branch
+   * `feat/b-acquire-wave12-serve-utilityservice`, HEAD `f3ca65e8` — NOT on
+   * `main`: PR #601 (`feat/b-acquire-wave12-serve-overlaydistricts`) shows
+   * as merged on GitHub, but its base branch was that stale feature branch
+   * rather than `main`, so this code has never actually reached `main`
+   * (confirmed via `compare/main...feat/b-acquire-wave12-serve-utilityservice`
+   * — 3 files ahead, all overlayDistricts-only). No live exposure right
+   * now for that reason (a separate factory-side/PR-process defect, not
+   * this lane's to fix), but the shape bug below is real and would have
+   * hit production the moment that git mistake is corrected and this
+   * genuinely lands on `main`, so it is fixed here regardless.
+   *
+   * `districts` is a PLURAL array of `{city, attributes}` — the prior
+   * `names: string[]` model both undercounted (real key is `districts`,
+   * not `names`, so the resolver read a key that does not exist at all)
+   * and underrepresented (each entry carries a heterogeneous `attributes`
+   * bag, not a bare name). `attributes` is INTENTIONALLY untyped by the
+   * source: the real module doc states it is "whatever
+   * tx_city_overlay.payload carried," heterogeneous by design across
+   * different overlay kinds (a Character District payload looks nothing
+   * like a historic-district payload) — inventing a rigid per-field
+   * schema here would either drop real fields or wrongly coerce different
+   * overlay kinds into one shape neither has. Kept as
+   * `Record<string, unknown>` pass-through rather than guessing specific
+   * keys (e.g. never assume `CD_Name`/`CD_Desc` apply universally).
    */
   overlayDistricts?: Fact<{
-    names: string[];
+    districts: Array<{
+      city: string;
+      attributes: Record<string, unknown>;
+    }>;
     display: string;
   }>;
   /**
