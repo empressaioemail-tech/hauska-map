@@ -49,6 +49,24 @@ export function isUnseen(row: SeenKeyed, seen: ReadonlySet<string>): boolean {
   return !seen.has(reportKey(row));
 }
 
+/**
+ * Mark exactly ONE row seen — the report the reader just viewed or
+ * downloaded. Deliberately NOT bulk: opening the Reports tool must not
+ * clear reports the reader has not actually looked at, unlike the
+ * records-request side (whose dot has no row-level granularity, so
+ * `markRunsSeen` clearing everything on dock-open is the honest signal
+ * there). Here the row IS the unit of "seen", so only that row's key
+ * changes; every other unseen row in `seen` is untouched.
+ */
+export function markOneSeen(
+  row: SeenKeyed,
+  seen: ReadonlySet<string>,
+): Set<string> {
+  const next = new Set(seen);
+  next.add(reportKey(row));
+  return next;
+}
+
 /** How many rows are new. Drives the dock's ambient count. */
 export function unseenCount(
   rows: readonly SeenKeyed[],
@@ -76,5 +94,35 @@ export function saveSeen(seen: ReadonlySet<string>): void {
     window.localStorage.setItem(STORAGE_KEY, JSON.stringify([...seen]));
   } catch {
     // Read-state is a convenience. Losing it must never break the list.
+  }
+}
+
+// ---------------------------------------------------------------------------
+// A tiny notify so the toolbar dot darkens the MOMENT a report is actually
+// viewed or downloaded, rather than waiting for whatever poll/refetch
+// cadence its consumer runs on. The caller (ReportsTool.tsx) fires this
+// right after `markOneSeen` + `saveSeen` for the row the reader just acted
+// on — never on tool-open, since opening the panel is not "looking at a
+// report". Same shape as records-seen's own notify pair; kept separate
+// because the subject is different and one listener set for two unrelated
+// facts is how a signal stops meaning anything.
+// ---------------------------------------------------------------------------
+
+const seenListeners = new Set<() => void>();
+
+export function subscribeReportsSeenChanged(listener: () => void): () => void {
+  seenListeners.add(listener);
+  return () => {
+    seenListeners.delete(listener);
+  };
+}
+
+export function notifyReportsSeenChanged(): void {
+  for (const fn of [...seenListeners]) {
+    try {
+      fn();
+    } catch {
+      // One bad subscriber must not stop the others.
+    }
   }
 }

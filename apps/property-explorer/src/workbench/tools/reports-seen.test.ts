@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import {
   isUnseen,
+  markOneSeen,
   reportKey,
   resolveSeen,
   unseenCount,
@@ -61,5 +62,42 @@ describe("unseenCount — the ambient number", () => {
   it("is zero on an empty library, never a guess", () => {
     expect(unseenCount([], resolveSeen([], null))).toBe(0);
     expect(unseenCount([], new Set())).toBe(0);
+  });
+});
+
+describe("markOneSeen — viewing or downloading ONE report clears only that report", () => {
+  it("clears the row that was acted on", () => {
+    const seen = markOneSeen(A, new Set<string>());
+    expect(isUnseen(A, seen)).toBe(false);
+  });
+
+  it("does NOT clear any other still-unread report", () => {
+    // The correction this exists for: opening the Reports tool, or acting
+    // on one report, must never announce a DIFFERENT report as looked-at.
+    const seen = markOneSeen(A, new Set<string>());
+    expect(isUnseen(B, seen)).toBe(true);
+    expect(unseenCount([A, B], seen)).toBe(1);
+  });
+
+  it("stacks — marking each report seen in turn clears the dot only once all are done", () => {
+    let seen = markOneSeen(A, new Set<string>());
+    expect(unseenCount([A, B], seen)).toBe(1);
+    seen = markOneSeen(B, seen);
+    expect(unseenCount([A, B], seen)).toBe(0);
+  });
+
+  it("a report filed AFTER it was marked seen lights the dot again", () => {
+    // The whole point: the dot means "something new", not "something
+    // exists". If it could not come back on it would be as useless as one
+    // that could not go off.
+    const afterViewing = markOneSeen(A, new Set<string>());
+    const C = row("48021:1", "feasibility", "2026-08-29T09:00:00Z");
+    expect(unseenCount([A, C], afterViewing)).toBe(1);
+  });
+
+  it("does not mutate the set it was handed", () => {
+    const before = new Set<string>();
+    markOneSeen(A, before);
+    expect(before.size).toBe(0);
   });
 });

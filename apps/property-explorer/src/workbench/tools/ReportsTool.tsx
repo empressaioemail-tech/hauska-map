@@ -49,7 +49,8 @@ import {
 import {
   isUnseen,
   loadSeen,
-  reportKey,
+  markOneSeen,
+  notifyReportsSeenChanged,
   resolveSeen,
   saveSeen,
 } from "./reports-seen";
@@ -388,14 +389,20 @@ function ReportsLibrary() {
   // null until the rows land: the seed decision needs the rows to seed WITH.
   const [seen, setSeen] = useState<ReadonlySet<string> | null>(null);
 
-  /** Opening a report is what marks it read. Nothing else does. */
+  /**
+   * Viewing OR downloading a report is what marks it read — nothing else
+   * does, and it affects only THIS row. This is also what clears the
+   * toolbar dot's reports-side half (useReportsUnread, ExplorerMap.tsx):
+   * opening the Reports tool does not bulk-clear it, only actually looking
+   * at a specific report does, so notify after persisting.
+   */
   const markSeen = (row: FiledReportRow) => {
     setSeen((cur) => {
-      const next = new Set(cur ?? []);
-      next.add(reportKey(row));
+      const next = markOneSeen(row, cur ?? new Set<string>());
       saveSeen(next);
       return next;
     });
+    notifyReportsSeenChanged();
   };
 
   // SUBSCRIBED, not fetch-once. This effect had an EMPTY dep array, so the
@@ -541,6 +548,7 @@ function ReportsLibrary() {
           <a
             href={row.downloadPath}
             data-testid="reports-library-download"
+            onClick={() => markSeen(row)}
             style={{ color: BLUE, fontSize: 12.5, fontWeight: 600 }}
           >
             Download
