@@ -1,15 +1,18 @@
 // apps/property-explorer/src/coldopen/SignUpCard.tsx
 //
 // Cold-open sign-up card over the live dimmed map. Google + Microsoft OIDC
-// when env is configured; honest "sign-in not configured" when secrets missing.
-// "Just browse" stays anonymous — no auth required.
+// and P-112 email magic-link when env is configured; honest "sign-in not
+// configured" when secrets missing. "Just browse" stays anonymous — no auth
+// required, and no password is ever requested by any option here.
 
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState, type FormEvent } from "react";
 import { useDialogFocus } from "../components/useDialogFocus";
 import {
   fetchAuthStatus,
   googleSignInUrl,
+  isPlausibleEmail,
   microsoftSignInUrl,
+  requestMagicLinkEmail,
   type AuthStatus,
 } from "../lib/auth";
 import { Button } from "../components/Button";
@@ -19,10 +22,15 @@ import { PE } from "../styles/pe-chrome";
 
 const CARD_BG = PE.modalBg;
 
+type EmailStage = "idle" | "sending" | "sent" | "error";
+
 export function SignUpCard({ onDismiss }: { onDismiss: () => void }) {
   const [busy, setBusy] = useState<"google" | "microsoft" | null>(null);
   const [authStatus, setAuthStatus] = useState<AuthStatus | null>(null);
   const [loadError, setLoadError] = useState<string | null>(null);
+  const [email, setEmail] = useState("");
+  const [emailStage, setEmailStage] = useState<EmailStage>("idle");
+  const [emailMessage, setEmailMessage] = useState<string | null>(null);
 
   useEffect(() => {
     fetchAuthStatus()
@@ -48,6 +56,34 @@ export function SignUpCard({ onDismiss }: { onDismiss: () => void }) {
     void recordPeGtmEvent({ eventType: "pe_signup_intent" });
     window.location.href = microsoftSignInUrl();
   };
+
+  const submitEmail = useCallback(
+    async (e: FormEvent) => {
+      e.preventDefault();
+      if (!authStatus?.configured.email) return;
+      if (!isPlausibleEmail(email)) {
+        setEmailStage("error");
+        setEmailMessage("Enter a valid email address.");
+        return;
+      }
+      setEmailStage("sending");
+      setEmailMessage(null);
+      void recordPeGtmEvent({ eventType: "pe_signup_intent" });
+      const result = await requestMagicLinkEmail(email.trim());
+      if (!result.ok) {
+        setEmailStage("error");
+        setEmailMessage(
+          result.error === "rate_limited"
+            ? "Too many requests for this address — try again in a few minutes."
+            : result.message || "Could not send the sign-in email. Please try again.",
+        );
+        return;
+      }
+      setEmailStage("sent");
+      setEmailMessage(`Check ${email.trim()} for a sign-in link. It expires soon and works once.`);
+    },
+    [authStatus, email],
+  );
 
   const signInConfigured = authStatus?.anyProvider ?? false;
   const dialogRef = useRef<HTMLDivElement>(null);
@@ -202,6 +238,97 @@ export function SignUpCard({ onDismiss }: { onDismiss: () => void }) {
             <MicrosoftGlyph />
             {busy === "microsoft" ? "Redirecting…" : "Continue with Microsoft"}
           </Button>
+        )}
+
+        {authStatus?.configured.email && (
+          <div style={{ marginTop: authStatus?.configured.google || authStatus?.configured.microsoft ? 14 : 0 }}>
+            {(authStatus?.configured.google || authStatus?.configured.microsoft) && (
+              <div
+                aria-hidden
+                style={{
+                  display: "flex",
+                  alignItems: "center",
+                  gap: 10,
+                  margin: "0 0 12px",
+                  fontSize: 12.5,
+                  color: PE.t5,
+                }}
+              >
+                <span style={{ flex: 1, height: 1, background: PE.line14 }} />
+                or
+                <span style={{ flex: 1, height: 1, background: PE.line14 }} />
+              </div>
+            )}
+            {emailStage === "sent" ? (
+              <p
+                data-testid="email-link-sent"
+                style={{
+                  fontSize: 14.5,
+                  lineHeight: 1.45,
+                  color: PE.t3,
+                  margin: 0,
+                  padding: "12px 13px",
+                  borderRadius: PE.rTip,
+                  border: `1px solid ${PE.line28}`,
+                }}
+              >
+                {emailMessage}
+              </p>
+            ) : (
+              <form
+                data-testid="email-signin-form"
+                onSubmit={(e) => {
+                  void submitEmail(e);
+                }}
+                style={{ display: "flex", flexDirection: "column", gap: 8 }}
+              >
+                <input
+                  data-testid="email-input"
+                  type="email"
+                  inputMode="email"
+                  autoComplete="email"
+                  placeholder="you@example.com"
+                  aria-label="Email address"
+                  value={email}
+                  onChange={(e) => {
+                    setEmail(e.target.value);
+                    if (emailStage === "error") setEmailStage("idle");
+                  }}
+                  disabled={emailStage === "sending"}
+                  style={{
+                    height: 44,
+                    padding: "0 13px",
+                    borderRadius: 10,
+                    border: `1px solid ${PE.line28}`,
+                    background: "transparent",
+                    color: PE.t1,
+                    fontFamily: PE.ui,
+                    fontSize: 15.5,
+                  }}
+                />
+                <Button
+                  type="submit"
+                  data-testid="continue-email"
+                  disabled={emailStage === "sending" || !email}
+                  fullWidth
+                  style={{ height: 44, fontSize: 15.5 }}
+                >
+                  {emailStage === "sending" ? "Sending…" : "Continue with email"}
+                </Button>
+                {emailStage === "error" && emailMessage && (
+                  <p
+                    data-testid="email-link-error"
+                    style={{ fontSize: 12.5, color: PE.err, margin: 0 }}
+                  >
+                    {emailMessage}
+                  </p>
+                )}
+                <p style={{ fontSize: 12.5, color: PE.t5, margin: 0 }}>
+                  We'll email you a link — no password, ever.
+                </p>
+              </form>
+            )}
+          </div>
         )}
 
         <Button

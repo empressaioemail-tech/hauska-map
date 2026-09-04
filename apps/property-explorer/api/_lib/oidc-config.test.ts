@@ -1,8 +1,58 @@
 import { describe, expect, it } from 'vitest'
 import {
+  authConfigured,
   oidcRedirectOrigin,
   redirectUri,
 } from './oidc-config.js'
+
+function withEnv(vars: Record<string, string | undefined>, fn: () => void): void {
+  const prev: Record<string, string | undefined> = {}
+  for (const key of Object.keys(vars)) {
+    prev[key] = process.env[key]
+    if (vars[key] === undefined) delete process.env[key]
+    else process.env[key] = vars[key]
+  }
+  try {
+    fn()
+  } finally {
+    for (const key of Object.keys(prev)) {
+      if (prev[key] === undefined) delete process.env[key]
+      else process.env[key] = prev[key]
+    }
+  }
+}
+
+describe('authConfigured — email leg (P-112)', () => {
+  it('email is configured exactly when PE_SESSION_EXCHANGE_SECRET (or SESSION_SECRET) is set, independent of OIDC state secret', () => {
+    withEnv(
+      {
+        PE_SESSION_EXCHANGE_SECRET: 'a-real-secret',
+        SESSION_SECRET: undefined,
+        OIDC_STATE_SECRET: undefined,
+        GOOGLE_OIDC_CLIENT_ID: undefined,
+        GOOGLE_OIDC_CLIENT_SECRET: undefined,
+        MICROSOFT_OIDC_CLIENT_ID: undefined,
+        MICROSOFT_OIDC_CLIENT_SECRET: undefined,
+      },
+      () => {
+        const cfg = authConfigured()
+        expect(cfg.email).toBe(true)
+        // Google/Microsoft need OIDC_STATE_SECRET too; email does not.
+        expect(cfg.google).toBe(false)
+        expect(cfg.microsoft).toBe(false)
+      },
+    )
+  })
+
+  it('email is not configured when neither exchange secret is set', () => {
+    withEnv(
+      { PE_SESSION_EXCHANGE_SECRET: undefined, SESSION_SECRET: undefined },
+      () => {
+        expect(authConfigured().email).toBe(false)
+      },
+    )
+  })
+})
 
 describe('oidcRedirectOrigin', () => {
   const req = {
