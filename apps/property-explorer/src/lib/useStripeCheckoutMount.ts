@@ -11,6 +11,7 @@ import {
   mountStripeCheckout,
   removeStripePromotionCode,
   resolveCheckoutMountCredentials,
+  updateStripeCheckoutEmail,
   type CheckoutSessionSummary,
   type MountedCheckout,
   type StripeJsLoader,
@@ -44,6 +45,10 @@ export function useStripeCheckoutMount(input: {
   >("idle");
   const [promoError, setPromoError] = useState<string | null>(null);
   const [session, setSession] = useState<CheckoutSessionSummary | null>(null);
+  const [emailStatus, setEmailStatus] = useState<
+    "idle" | "updating" | "updated" | "error"
+  >("idle");
+  const [emailError, setEmailError] = useState<string | null>(null);
 
   useEffect(() => {
     if (!creds.ok) {
@@ -76,6 +81,7 @@ export function useStripeCheckoutMount(input: {
         checkoutRef.current = result.checkout;
         setStatus("ready");
         setError(null);
+        setSession(result.session);
       } catch (err) {
         if (cancelled) return;
         setStatus("error");
@@ -153,6 +159,28 @@ export function useStripeCheckoutMount(input: {
     }
   };
 
+  const updateEmail = async (email: string) => {
+    setEmailStatus("updating");
+    setEmailError(null);
+    try {
+      const result = await updateStripeCheckoutEmail(checkoutRef.current, email);
+      if (!result.ok) {
+        setEmailStatus("error");
+        setEmailError(result.error);
+        return result;
+      }
+      setSession(result.session);
+      setEmailStatus("updated");
+      return result;
+    } catch (err) {
+      const message =
+        err instanceof Error ? err.message : CHECKOUT_SESSION_MISSING;
+      setEmailStatus("error");
+      setEmailError(message);
+      return { ok: false as const, error: message };
+    }
+  };
+
   return {
     mountRef,
     status,
@@ -164,5 +192,8 @@ export function useStripeCheckoutMount(input: {
     promoError,
     applyPromo,
     removePromo,
+    emailStatus,
+    emailError,
+    updateEmail,
   } as const;
 }

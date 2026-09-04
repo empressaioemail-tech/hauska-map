@@ -27,18 +27,30 @@ export const CHECKOUT_SESSION_MISSING =
 export type StripeJsLoader = (publishableKey: string) => Promise<Stripe | null>;
 
 /** Trimmed down from Stripe's `StripeCheckoutSession` (7.9.0) to the fields the
- *  promo-code UI actually reads — total due and the applied discount, if any. */
+ *  promo-code and email-collection UI actually read — total due, the applied
+ *  discount if any, and the email Stripe has on file (or null when this
+ *  account's own record has none — see updateEmail below). */
 export type CheckoutSessionSummary = {
   total: { total: { amount: string; minorUnitsAmount: number } };
   discountAmounts: Array<{
     displayName: string;
     promotionCode: string | null;
   }> | null;
+  email: string | null;
 };
 
 export type PromotionCodeResult =
   | { type: "success"; session: CheckoutSessionSummary }
   | { type: "error"; error: { message: string } };
+
+/** Mirrors Stripe's `StripeCheckoutUpdateEmailResult` (7.9.0): the `code` is
+ *  the source of truth for what went wrong, not any client-side regex. */
+export type UpdateEmailResult =
+  | { type: "success"; session: CheckoutSessionSummary }
+  | {
+      type: "error";
+      error: { message: string; code: "incompleteEmail" | "invalidEmail" };
+    };
 
 export type MountedCheckout = {
   createPaymentElement: () => {
@@ -53,12 +65,13 @@ export type MountedCheckout = {
   }>;
   applyPromotionCode: (promotionCode: string) => Promise<PromotionCodeResult>;
   removePromotionCode: () => Promise<PromotionCodeResult>;
+  updateEmail: (email: string) => Promise<UpdateEmailResult>;
   session: () => CheckoutSessionSummary;
 };
 
 export type StripeMountResult =
   | { ok: false; error: string }
-  | { ok: true; checkout: MountedCheckout };
+  | { ok: true; checkout: MountedCheckout; session: CheckoutSessionSummary };
 
 export type CheckoutMountCredentials =
   | { ok: true; clientSecret: string; publishableKey: string }
@@ -85,6 +98,19 @@ export function checkoutSubmitEnabled(
   status: "blocked" | "mounting" | "ready" | "confirming" | "error",
 ): boolean {
   return status === "ready";
+}
+
+/**
+ * True only once the session is known AND it still has no email — never
+ * while the session hasn't loaded yet, and never once Stripe has an email on
+ * file (the common case now that legacy-design-tools #599 attaches whatever
+ * is on the user record). Showing this field when it isn't needed would be a
+ * regression on its own.
+ */
+export function checkoutNeedsEmail(
+  session: CheckoutSessionSummary | null | undefined,
+): boolean {
+  return session != null && !session.email;
 }
 
 export async function mountStripeCheckout(input: {
@@ -114,7 +140,12 @@ export async function mountStripeCheckout(input: {
     });
     const paymentElement = checkout.createPaymentElement();
     paymentElement.mount(input.element);
-    return { ok: true, checkout };
+    // Read the session Stripe already has (it knows the account's email, if
+    // any, from the moment the Checkout Session was created) so callers know
+    // immediately — without waiting on a promo-code round trip — whether this
+    // account needs to be asked for an email before it can confirm.
+    const session = checkout.session();
+    return { ok: true, checkout, session };
   } catch (err) {
     return {
       ok: false,
@@ -155,6 +186,40 @@ export async function removeStripePromotionCode(
     return {
       ok: false,
       error: result.error?.message?.trim() || "Could not remove the code. Nothing was charged.",
+    };
+  }
+  return { ok: true, session: result.session };
+}
+
+export const CHECKOUT_EMAIL_REQUIRED = "Enter your email address first.";
+
+/**
+ * Some accounts reach checkout with a blank `email` on the user record (both
+ * OAuth paths request the scope and extract it with a fallback — this is not
+ * a parsing bug here, and may be identity-provider-side). Stripe requires an
+ * email to confirm a Checkout Session, so when `session.email` is null the
+ * UI shows a field and calls this before confirmStripeCheckout.
+ *
+ * Only an empty/whitespace string is rejected client-side — real format
+ * validation is Stripe's job (`incompleteEmail` / `invalidEmail` on the
+ * result), not duplicated here.
+ */
+export async function updateStripeCheckoutEmail(
+  checkout: MountedCheckout | null | undefined,
+  email: string,
+): Promise<{ ok: true; session: CheckoutSessionSummary } | { ok: false; error: string }> {
+  if (!checkout) {
+    throw new Error("Stripe Checkout cannot confirm without a mounted session");
+  }
+  const trimmed = email.trim();
+  if (!trimmed) {
+    return { ok: false, error: CHECKOUT_EMAIL_REQUIRED };
+  }
+  const result = await checkout.updateEmail(trimmed);
+  if (result.type === "error") {
+    return {
+      ok: false,
+      error: result.error?.message?.trim() || "That email didn't work. Nothing was charged.",
     };
   }
   return { ok: true, session: result.session };

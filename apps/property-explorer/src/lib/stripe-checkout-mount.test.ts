@@ -1,16 +1,19 @@
 import { describe, expect, it, vi } from "vitest";
 import {
   applyPromotionCode,
+  CHECKOUT_EMAIL_REQUIRED,
   CHECKOUT_SESSION_MISSING,
   removeStripePromotionCode,
   STRIPE_MOUNT_LOAD_FAILED,
   STRIPE_MOUNT_MISSING_ELEMENT,
   STRIPE_MOUNT_MISSING_KEY,
   STRIPE_MOUNT_MISSING_SECRET,
+  checkoutNeedsEmail,
   checkoutSubmitEnabled,
   confirmStripeCheckout,
   mountStripeCheckout,
   resolveCheckoutMountCredentials,
+  updateStripeCheckoutEmail,
 } from "./stripeCheckoutMount";
 import { STRIPE_APPEARANCE } from "./stripeAppearance";
 
@@ -18,18 +21,26 @@ function fakeElement(): HTMLElement {
   return { tagName: "DIV" } as HTMLElement;
 }
 
+const DEFAULT_FAKE_SESSION = {
+  total: { total: { amount: "$129.00", minorUnitsAmount: 12900 } },
+  discountAmounts: null,
+  email: null,
+};
+
 function fakeStripe(opts?: {
   stripe?: null;
   initError?: Error;
   confirm?: ReturnType<typeof vi.fn>;
+  session?: ReturnType<typeof vi.fn>;
 }) {
   const mount = vi.fn();
   const createPaymentElement = vi.fn(() => ({ mount }));
   const confirm = opts?.confirm ?? vi.fn(async () => ({ type: "success" as const }));
-  const initCheckout = vi.fn(async () => ({ createPaymentElement, confirm }));
+  const session = opts?.session ?? vi.fn(() => DEFAULT_FAKE_SESSION);
+  const initCheckout = vi.fn(async () => ({ createPaymentElement, confirm, session }));
   const stripe = opts?.stripe === null ? null : { initCheckout };
   const loadStripe = vi.fn(async () => stripe);
-  return { loadStripe, initCheckout, createPaymentElement, mount, confirm };
+  return { loadStripe, initCheckout, createPaymentElement, mount, confirm, session };
 }
 
 describe("resolveCheckoutMountCredentials — fail closed (WDLL item 7)", () => {
@@ -141,6 +152,26 @@ describe("mountStripeCheckout — refuse before loadStripe", () => {
     expect(createPaymentElement).toHaveBeenCalledTimes(1);
     expect(mount).toHaveBeenCalledWith(el);
   });
+
+  it("returns the initial session from checkout.session() — not just after a promo round trip — so callers can tell right away whether this account needs an email", async () => {
+    const fakeSession = {
+      total: { total: { amount: "$129.00", minorUnitsAmount: 12900 } },
+      discountAmounts: null,
+      email: null,
+    };
+    const { loadStripe, session } = fakeStripe({ session: vi.fn(() => fakeSession) });
+    const result = await mountStripeCheckout({
+      clientSecret: "cs_test_secret",
+      publishableKey: "pk_test_123",
+      element: fakeElement(),
+      loadStripe,
+    });
+    expect(session).toHaveBeenCalledTimes(1);
+    expect(result.ok).toBe(true);
+    if (result.ok) {
+      expect(result.session).toEqual(fakeSession);
+    }
+  });
 });
 
 describe("confirmStripeCheckout", () => {
@@ -238,6 +269,108 @@ describe("removeStripePromotionCode", () => {
   });
 });
 
+describe("updateStripeCheckoutEmail", () => {
+  const fakeSession = {
+    total: { total: { amount: "$0.00", minorUnitsAmount: 0 } },
+    discountAmounts: [
+      { displayName: "SMARTSITEQA", promotionCode: "SMARTSITEQA" },
+    ],
+    email: "buyer@example.com",
+  };
+
+  it("throws when checkout is missing", async () => {
+    await expect(updateStripeCheckoutEmail(null, "buyer@example.com")).rejects.toThrow(
+      "Stripe Checkout cannot confirm without a mounted session",
+    );
+  });
+
+  it("refuses a blank email without calling Stripe", async () => {
+    const updateEmailFn = vi.fn();
+    const checkout = { updateEmail: updateEmailFn } as never;
+    const result = await updateStripeCheckoutEmail(checkout, "   ");
+    expect(result).toEqual({ ok: false, error: CHECKOUT_EMAIL_REQUIRED });
+    expect(updateEmailFn).not.toHaveBeenCalled();
+  });
+
+  it("trims the email and returns the updated session on success", async () => {
+    const updateEmailFn = vi.fn(async () => ({
+      type: "success" as const,
+      session: fakeSession,
+    }));
+    const checkout = { updateEmail: updateEmailFn } as never;
+    const result = await updateStripeCheckoutEmail(checkout, "  buyer@example.com  ");
+    expect(updateEmailFn).toHaveBeenCalledWith("buyer@example.com");
+    expect(result).toEqual({ ok: true, session: fakeSession });
+  });
+
+  it("does not duplicate Stripe's format validation — an obviously non-blank but malformed string is still sent to Stripe", async () => {
+    const updateEmailFn = vi.fn(async () => ({
+      type: "error" as const,
+      error: { message: "Your email address is incomplete.", code: "incompleteEmail" as const },
+    }));
+    const checkout = { updateEmail: updateEmailFn } as never;
+    const result = await updateStripeCheckoutEmail(checkout, "not-an-email");
+    expect(updateEmailFn).toHaveBeenCalledWith("not-an-email");
+    expect(result).toEqual({ ok: false, error: "Your email address is incomplete." });
+  });
+
+  it("surfaces Stripe's invalidEmail error and never claims success", async () => {
+    const checkout = {
+      updateEmail: vi.fn(async () => ({
+        type: "error" as const,
+        error: { message: "Your email address is invalid.", code: "invalidEmail" as const },
+      })),
+    } as never;
+    const result = await updateStripeCheckoutEmail(checkout, "bogus@@nope");
+    expect(result).toEqual({ ok: false, error: "Your email address is invalid." });
+  });
+});
+
+describe("updateEmail-then-confirm sequencing — confirm() must never fire on a failed updateEmail()", () => {
+  it("does not call confirm when updateEmail fails", async () => {
+    const confirm = vi.fn(async () => ({ type: "success" as const }));
+    const updateEmailFn = vi.fn(async () => ({
+      type: "error" as const,
+      error: { message: "Your email address is invalid.", code: "invalidEmail" as const },
+    }));
+    const checkout = {
+      createPaymentElement: () => ({ mount: () => {} }),
+      confirm,
+      updateEmail: updateEmailFn,
+    };
+
+    const emailResult = await updateStripeCheckoutEmail(checkout, "bogus@@nope");
+    expect(emailResult.ok).toBe(false);
+    // The caller (the checkout page's submit handler) is required to check
+    // this before calling confirmStripeCheckout — assert the precondition
+    // it relies on: confirm was never reached.
+    expect(confirm).not.toHaveBeenCalled();
+  });
+
+  it("proceeds to confirm only once updateEmail succeeds", async () => {
+    const confirm = vi.fn(async () => ({ type: "success" as const }));
+    const updateEmailFn = vi.fn(async () => ({
+      type: "success" as const,
+      session: {
+        total: { total: { amount: "$129.00", minorUnitsAmount: 12900 } },
+        discountAmounts: null,
+        email: "buyer@example.com",
+      },
+    }));
+    const checkout = {
+      createPaymentElement: () => ({ mount: () => {} }),
+      confirm,
+      updateEmail: updateEmailFn,
+    };
+
+    const emailResult = await updateStripeCheckoutEmail(checkout, "buyer@example.com");
+    expect(emailResult.ok).toBe(true);
+    const confirmResult = await confirmStripeCheckout(checkout);
+    expect(confirmResult).toEqual({ ok: true });
+    expect(confirm).toHaveBeenCalledTimes(1);
+  });
+});
+
 describe("checkoutSubmitEnabled", () => {
   it("only ready can submit", () => {
     expect(checkoutSubmitEnabled("ready")).toBe(true);
@@ -245,6 +378,33 @@ describe("checkoutSubmitEnabled", () => {
     expect(checkoutSubmitEnabled("error")).toBe(false);
     expect(checkoutSubmitEnabled("blocked")).toBe(false);
     expect(checkoutSubmitEnabled("confirming")).toBe(false);
+  });
+});
+
+describe("checkoutNeedsEmail — gates the CheckoutPage / UnlockCheckoutModal email field", () => {
+  it("is false while the session hasn't loaded yet (never shows the field before we know)", () => {
+    expect(checkoutNeedsEmail(null)).toBe(false);
+    expect(checkoutNeedsEmail(undefined)).toBe(false);
+  });
+
+  it("is true once the session is known and its email is null — the blank-user-record case", () => {
+    expect(
+      checkoutNeedsEmail({
+        total: { total: { amount: "$129.00", minorUnitsAmount: 12900 } },
+        discountAmounts: null,
+        email: null,
+      }),
+    ).toBe(true);
+  });
+
+  it("is false once Stripe already has an email — never shows a redundant field", () => {
+    expect(
+      checkoutNeedsEmail({
+        total: { total: { amount: "$129.00", minorUnitsAmount: 12900 } },
+        discountAmounts: null,
+        email: "buyer@example.com",
+      }),
+    ).toBe(false);
   });
 });
 

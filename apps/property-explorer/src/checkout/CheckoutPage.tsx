@@ -13,7 +13,10 @@ import {
   readCustomCheckoutSession,
   type CustomCheckoutSession,
 } from "../lib/checkoutOrigin";
-import { resolveCheckoutMountCredentials } from "../lib/stripeCheckoutMount";
+import {
+  checkoutNeedsEmail,
+  resolveCheckoutMountCredentials,
+} from "../lib/stripeCheckoutMount";
 import { useStripeCheckoutMount } from "../lib/useStripeCheckoutMount";
 import {
   includedLinesForTier,
@@ -77,8 +80,14 @@ export function CheckoutPage({
     publishableKey: resolvedSession?.publishableKey,
   });
   const [promoCode, setPromoCode] = useState("");
+  const [email, setEmail] = useState("");
   const appliedDiscount = mount.session?.discountAmounts?.[0] ?? null;
   const liveTotal = mount.session?.total?.total?.amount ?? null;
+  // Stripe already has an email for most accounts now that the checkout
+  // session attaches whatever is on the user record (legacy-design-tools
+  // #599). Only ask when the session is known AND it's still blank — never
+  // show a redundant box once Stripe has one.
+  const needsEmail = checkoutNeedsEmail(mount.session);
 
   return (
     <div
@@ -314,6 +323,28 @@ export function CheckoutPage({
               {mount.error}
             </div>
           ) : null}
+          {creds.ok && needsEmail ? (
+            <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
+              <Input
+                data-testid="checkout-email-input"
+                type="email"
+                value={email}
+                onChange={(e) => setEmail(e.target.value)}
+                placeholder="Email"
+                aria-label="Email"
+                invalid={mount.emailStatus === "error"}
+                disabled={mount.emailStatus === "updating"}
+              />
+              {mount.emailStatus === "error" && mount.emailError ? (
+                <div
+                  data-testid="checkout-email-error"
+                  style={{ fontSize: 12.5, color: PE.warn }}
+                >
+                  {mount.emailError}
+                </div>
+              ) : null}
+            </div>
+          ) : null}
           {creds.ok ? (
             <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
               {appliedDiscount ? (
@@ -441,9 +472,19 @@ export function CheckoutPage({
           <button
             type="button"
             data-testid="checkout-submit"
-            disabled={!mount.canSubmit}
+            disabled={!mount.canSubmit || mount.emailStatus === "updating"}
             onClick={() => {
-              void mount.submit(checkoutReturnUrl(q.parcelNodeId));
+              void (async () => {
+                // Stripe cannot confirm a Checkout Session without an email
+                // on it. When this account's own record has none, collect
+                // it here first — confirm() must never fire if updateEmail()
+                // failed, or we'd charge a session Stripe is about to reject.
+                if (needsEmail) {
+                  const result = await mount.updateEmail(email);
+                  if (!result.ok) return;
+                }
+                void mount.submit(checkoutReturnUrl(q.parcelNodeId));
+              })();
             }}
             className="pe-btn"
             style={{

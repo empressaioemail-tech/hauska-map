@@ -1,3 +1,5 @@
+import { readFileSync } from "node:fs";
+import { resolve } from "node:path";
 import { describe, expect, it } from "vitest";
 import { renderToStaticMarkup } from "react-dom/server";
 import { UnlockCheckoutModal } from "./UnlockCheckoutModal";
@@ -35,6 +37,39 @@ describe("UnlockCheckoutModal — situs + $15.00 + 30 days + Pay $15.00", () => 
     expect(html).toContain("Nothing was charged");
     expect(html).not.toContain('data-testid="stripe-payment-element"');
     expect(html).toContain(UNLOCK_SUBMIT);
+  });
+
+  it("does not show the email field before the session is known — same gap and same fix as CheckoutPage, not left behind", () => {
+    const html = renderToStaticMarkup(
+      <UnlockCheckoutModal
+        situs="906 Farm St"
+        clientSecret="cs_unlock"
+        publishableKey="pk_test"
+        onClose={() => {}}
+      />,
+    );
+    expect(html).not.toContain('data-testid="checkout-email-input"');
+    expect(html).not.toContain('data-testid="checkout-email-error"');
+  });
+
+  // Same SSR/useEffect limitation as checkout-page.test.tsx (verified there,
+  // not assumed): mount.session never populates under renderToStaticMarkup,
+  // so the positive "field shows" case is covered behaviorally by
+  // checkoutNeedsEmail's own tests in stripe-checkout-mount.test.ts, and this
+  // confirms UnlockCheckoutModal actually wires that logic — the exact same
+  // gap CheckoutPage has, fixed the same way, not left behind.
+  it("wires the email field to checkoutNeedsEmail and calls updateEmail before submit", () => {
+    const modal = readFileSync(resolve(__dirname, "UnlockCheckoutModal.tsx"), "utf8");
+    expect(modal).toMatch(/from ["'].*stripeCheckoutMount["']/);
+    expect(modal).toContain("checkoutNeedsEmail(mount.session)");
+    expect(modal).toContain('data-testid="checkout-email-input"');
+    expect(modal).toContain('data-testid="checkout-email-error"');
+    expect(modal).toContain("mount.updateEmail(email)");
+    const updateEmailIdx = modal.indexOf("mount.updateEmail(email)");
+    const submitIdx = modal.indexOf("mount.submit(unlockReturnUrl");
+    expect(updateEmailIdx).toBeGreaterThan(-1);
+    expect(submitIdx).toBeGreaterThan(updateEmailIdx);
+    expect(modal).toMatch(/if\s*\(!result\.ok\)\s*return;/);
   });
 });
 

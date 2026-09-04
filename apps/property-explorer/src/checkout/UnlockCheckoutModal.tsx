@@ -1,14 +1,21 @@
 // $15 unlock modal chrome (WDLL item 5). Stripe Payment Element in the
-// slot. Do not invent card/email/ZIP fields.
+// slot. Do not invent card/ZIP fields. The one deliberate exception is the
+// email field below: it only renders when Stripe's own session says this
+// account's record has no email on file, and it calls Stripe's updateEmail()
+// rather than inventing a parallel collection path — see stripeCheckoutMount.ts.
 
 import { PE_PRICING } from "../lib/pricing";
-import { resolveCheckoutMountCredentials } from "../lib/stripeCheckoutMount";
+import {
+  checkoutNeedsEmail,
+  resolveCheckoutMountCredentials,
+} from "../lib/stripeCheckoutMount";
 import { useStripeCheckoutMount } from "../lib/useStripeCheckoutMount";
 import { UNLOCK_PRICE, UNLOCK_SUBMIT } from "./checkoutCopy";
 
-import { useRef } from "react";
+import { useRef, useState } from "react";
 import { useDialogFocus } from "../components/useDialogFocus";
 import { PE } from "../styles/pe-chrome";
+import { Input } from "../components/Input";
 
 const TEXT = PE.t1;
 const MUTED = PE.t5;
@@ -43,6 +50,10 @@ export function UnlockCheckoutModal({
   const mount = useStripeCheckoutMount({ clientSecret, publishableKey });
   const dialogRef = useRef<HTMLDivElement>(null);
   useDialogFocus(dialogRef, onClose);
+  const [email, setEmail] = useState("");
+  // Same gap as CheckoutPage: only ask when Stripe's session is known and
+  // still has no email on the account (see stripeCheckoutMount.ts).
+  const needsEmail = checkoutNeedsEmail(mount.session);
 
   return (
     <div
@@ -165,6 +176,28 @@ export function UnlockCheckoutModal({
               {mount.error}
             </div>
           ) : null}
+          {creds.ok && needsEmail ? (
+            <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
+              <Input
+                data-testid="checkout-email-input"
+                type="email"
+                value={email}
+                onChange={(e) => setEmail(e.target.value)}
+                placeholder="Email"
+                aria-label="Email"
+                invalid={mount.emailStatus === "error"}
+                disabled={mount.emailStatus === "updating"}
+              />
+              {mount.emailStatus === "error" && mount.emailError ? (
+                <div
+                  data-testid="checkout-email-error"
+                  style={{ fontSize: 13, color: "#FBBF24" }}
+                >
+                  {mount.emailError}
+                </div>
+              ) : null}
+            </div>
+          ) : null}
           <p
             data-testid="unlock-wallet-note"
             style={{ margin: 0, fontSize: 14.5, color: MUTED, lineHeight: 1.45 }}
@@ -174,9 +207,17 @@ export function UnlockCheckoutModal({
           <button
             type="button"
             data-testid="unlock-checkout-submit"
-            disabled={!mount.canSubmit}
+            disabled={!mount.canSubmit || mount.emailStatus === "updating"}
             onClick={() => {
-              void mount.submit(unlockReturnUrl(parcelNodeId ?? null));
+              void (async () => {
+                // Same sequencing as CheckoutPage: confirm() must never fire
+                // if updateEmail() failed.
+                if (needsEmail) {
+                  const result = await mount.updateEmail(email);
+                  if (!result.ok) return;
+                }
+                void mount.submit(unlockReturnUrl(parcelNodeId ?? null));
+              })();
             }}
             style={{
               height: 44,
