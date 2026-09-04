@@ -1000,6 +1000,466 @@ function cityLimitsFromInspectWire(
   };
 }
 
+/**
+ * School district from cortex-root schoolDistrictFact (acquire-wave12).
+ *
+ * Prefer the cortex field. Never adopt bake / CAD. Typed absence stays
+ * visible. A missing field is omitted so the card hides the row.
+ */
+function schoolDistrictFromInspectWire(
+  schoolDistrictFact: unknown,
+): Fact<{ districtName: string | null; display: string }> | undefined {
+  if (
+    !schoolDistrictFact ||
+    typeof schoolDistrictFact !== "object" ||
+    Array.isArray(schoolDistrictFact)
+  ) {
+    return undefined;
+  }
+  const fact = rec(schoolDistrictFact);
+  if (!fact) return undefined;
+  const state = str(fact.state);
+  if (state !== "present" && state !== "absent" && state !== "refused") {
+    return undefined;
+  }
+  const source = str(fact.source);
+  const prov = provenance({
+    source: source ?? "school-district-fact",
+    sourceLabel: "school-district-fact atom",
+    vintage: str(fact.sourceVintage) ?? str(fact.evaluatedAt),
+    sourceUrl: str(rec(fact.provenance)?.url),
+  });
+
+  if (state === "refused") {
+    const code = str(fact.code) ?? "refused";
+    return { state: "unresolved", reason: code, retryable: false };
+  }
+  if (state === "absent") {
+    const absence = rec(fact.absence);
+    const reason =
+      str(absence?.reason) ?? str(absence?.kind) ?? "typed absence";
+    return absentCovered(reason, prov);
+  }
+
+  const districtName = str(fact.districtName);
+  if (!districtName) {
+    return absentCovered(
+      "school-district-fact present with no districtName",
+      prov,
+    );
+  }
+  return {
+    state: "present",
+    value: { districtName, display: districtName },
+    provenance: prov,
+  };
+}
+
+/** One water/sewer companion-row slot off utilityServiceFact. Either slot may be absent independently — that is not itself an absence. */
+function utilityServiceEntryFromWire(
+  value: unknown,
+): {
+  ccnNo: string | null;
+  utility: string | null;
+  status: string | null;
+  ccnType: string | null;
+} | null {
+  const entry = rec(value);
+  if (!entry) return null;
+  const ccnNo = str(entry.ccnNo);
+  const utility = str(entry.utility);
+  const status = str(entry.status);
+  const ccnType = str(entry.ccnType);
+  if (!ccnNo && !utility && !status && !ccnType) return null;
+  return { ccnNo, utility, status, ccnType };
+}
+
+/** One slot's fragment of the display string, e.g. "Water — Aqua Texas WSC · Active". Null when the slot carries nothing to show. */
+function utilityServiceEntryDisplay(
+  label: string,
+  entry: ReturnType<typeof utilityServiceEntryFromWire>,
+): string | null {
+  if (!entry) return null;
+  const bits = [entry.utility, entry.status].filter(
+    (b): b is string => !!b && b.trim().length > 0,
+  );
+  const detail =
+    bits.length > 0 ? bits.join(" · ") : entry.ccnNo ? `CCN ${entry.ccnNo}` : null;
+  return detail ? `${label} — ${detail}` : label;
+}
+
+/**
+ * Utility service from cortex-root utilityServiceFact (acquire-wave12).
+ *
+ * Prefer the cortex field. Distinct from `whoServes` — never merged with
+ * that lookup. Typed absence stays visible. A missing field is omitted so
+ * the card hides the row.
+ *
+ * CONFIRMED SHAPE (2026-09-04), verified first-hand against
+ * legacy-design-tools `artifacts/api-server/src/lib/utilityServiceFactRead.ts`
+ * on main as of the PR #600 merge (212f09f0): `water` and `sewer` are
+ * independent companion-row slots, either or both null, never both null on
+ * a `present` fact. No electric slot exists — never invent one. This
+ * function previously read nonexistent `provider`/`serviceType` keys,
+ * which silently mischaracterized every real `present` fact as absent
+ * rather than hiding the row — a live data-mapping defect, not a
+ * fail-closed gap. Fixed to read the real `water`/`sewer` keys.
+ */
+function utilityServiceFromInspectWire(
+  utilityServiceFact: unknown,
+):
+  | Fact<{
+      water: ReturnType<typeof utilityServiceEntryFromWire>;
+      sewer: ReturnType<typeof utilityServiceEntryFromWire>;
+      display: string;
+    }>
+  | undefined {
+  if (
+    !utilityServiceFact ||
+    typeof utilityServiceFact !== "object" ||
+    Array.isArray(utilityServiceFact)
+  ) {
+    return undefined;
+  }
+  const fact = rec(utilityServiceFact);
+  if (!fact) return undefined;
+  const state = str(fact.state);
+  if (state !== "present" && state !== "absent" && state !== "refused") {
+    return undefined;
+  }
+  const source = str(fact.source);
+  const prov = provenance({
+    source: source ?? "utility-service-fact",
+    sourceLabel: "utility-service-fact atom",
+    vintage: str(fact.sourceVintage) ?? str(fact.evaluatedAt),
+    sourceUrl: str(rec(fact.provenance)?.url),
+  });
+
+  if (state === "refused") {
+    // The real refusal type always carries a human-readable `reason`
+    // (e.g. "utilityService has no legacy serve path -- ... Not there yet
+    // for this parcel."); prefer it over the bare code for the pending text.
+    const code = str(fact.code) ?? "refused";
+    const reason = str(fact.reason) ?? code;
+    return { state: "unresolved", reason, retryable: false };
+  }
+  if (state === "absent") {
+    const absence = rec(fact.absence);
+    const reason =
+      str(absence?.reason) ?? str(absence?.kind) ?? "typed absence";
+    return absentCovered(reason, prov);
+  }
+
+  const water = utilityServiceEntryFromWire(fact.water);
+  const sewer = utilityServiceEntryFromWire(fact.sewer);
+  if (!water && !sewer) {
+    return absentCovered(
+      "utility-service-fact present with no water or sewer entry",
+      prov,
+    );
+  }
+  const display =
+    [utilityServiceEntryDisplay("Water", water), utilityServiceEntryDisplay("Sewer", sewer)]
+      .filter((d): d is string => !!d)
+      .join(" · ") || "utility service present";
+  return {
+    state: "present",
+    value: { water, sewer, display },
+    provenance: prov,
+  };
+}
+
+/**
+ * Overlay districts from cortex-root overlayDistrictsFact (acquire-wave12).
+ *
+ * Prefer the cortex field. Never invent overlay names from the zoning
+ * district code alone. Typed absence stays visible. A missing field is
+ * omitted so the card hides the row.
+ */
+function overlayDistrictsFromInspectWire(
+  overlayDistrictsFact: unknown,
+): Fact<{ names: string[]; display: string }> | undefined {
+  if (
+    !overlayDistrictsFact ||
+    typeof overlayDistrictsFact !== "object" ||
+    Array.isArray(overlayDistrictsFact)
+  ) {
+    return undefined;
+  }
+  const fact = rec(overlayDistrictsFact);
+  if (!fact) return undefined;
+  const state = str(fact.state);
+  if (state !== "present" && state !== "absent" && state !== "refused") {
+    return undefined;
+  }
+  const source = str(fact.source);
+  const prov = provenance({
+    source: source ?? "overlay-districts-fact",
+    sourceLabel: "overlay-districts-fact atom",
+    vintage: str(fact.sourceVintage) ?? str(fact.evaluatedAt),
+    sourceUrl: str(rec(fact.provenance)?.url),
+  });
+
+  if (state === "refused") {
+    const code = str(fact.code) ?? "refused";
+    return { state: "unresolved", reason: code, retryable: false };
+  }
+  if (state === "absent") {
+    const absence = rec(fact.absence);
+    const reason =
+      str(absence?.reason) ?? str(absence?.kind) ?? "typed absence";
+    return absentCovered(reason, prov);
+  }
+
+  const rawNames = Array.isArray(fact.names) ? fact.names : [];
+  const names = rawNames
+    .filter((n): n is string => typeof n === "string" && n.trim().length > 0)
+    .map((n) => n.trim());
+  if (names.length === 0) {
+    return absentCovered(
+      "overlay-districts-fact present with no names",
+      prov,
+    );
+  }
+  return {
+    state: "present",
+    value: { names, display: names.join(", ") },
+    provenance: prov,
+  };
+}
+
+/** One WCAD/TCAD land-record segment off agValuationFact's `entries` array. All-empty entries are dropped, not invented as zero/false. */
+function agValuationEntryFromWire(
+  value: unknown,
+): {
+  statecode: string | null;
+  landType: string | null;
+  description: string | null;
+  acres: number | null;
+  value: number | null;
+  currValue: number | null;
+  agFlag: boolean;
+  apprMethod: string | null;
+  agYear: string | null;
+  propertyNumber: string | null;
+} | null {
+  const entry = rec(value);
+  if (!entry) return null;
+  const statecode = str(entry.statecode);
+  const landType = str(entry.landType);
+  const description = str(entry.description);
+  const acres = num(entry.acres);
+  const entryValue = num(entry.value);
+  const currValue = num(entry.currValue);
+  const agFlag = entry.agFlag === true;
+  const apprMethod = str(entry.apprMethod);
+  const agYear = entry.agYear == null ? null : String(entry.agYear);
+  const propertyNumber = str(entry.propertyNumber);
+  if (
+    !statecode &&
+    !landType &&
+    !description &&
+    acres === null &&
+    entryValue === null &&
+    currValue === null &&
+    !agFlag &&
+    !apprMethod &&
+    !agYear &&
+    !propertyNumber
+  ) {
+    return null;
+  }
+  return {
+    statecode,
+    landType,
+    description,
+    acres,
+    value: entryValue,
+    currValue,
+    agFlag,
+    apprMethod,
+    agYear,
+    propertyNumber,
+  };
+}
+
+/** One entry's fragment of the display string, e.g. "Ag — Native pasture · 42.3 ac". */
+function agValuationEntryDisplay(
+  entry: NonNullable<ReturnType<typeof agValuationEntryFromWire>>,
+): string {
+  const label = entry.landType ?? entry.description ?? (entry.agFlag ? "Ag valuation" : "Land record");
+  const acresText = entry.acres !== null ? `${entry.acres} ac` : null;
+  const bits = [label, acresText].filter((b): b is string => !!b);
+  const base = bits.join(" · ");
+  return entry.agFlag ? `Ag — ${base}` : base;
+}
+
+/**
+ * Ag valuation from cortex-root agValuationFact (acquire-wave12).
+ *
+ * Prefer the cortex field. Never adopt a bake / CAD ag-exemption flag.
+ * Typed absence stays visible. A missing field is omitted so the card
+ * hides the row.
+ *
+ * CONFIRMED SHAPE (2026-09-04), verified first-hand against
+ * legacy-design-tools `artifacts/api-server/src/lib/agValuationFactRead.ts`
+ * on branch `feat/b-acquire-wave12-serve-agvaluation` (PR #602, OPEN — not
+ * yet merged, caught before it could go live). `entries` is a PLURAL
+ * array — a parcel can carry several distinct land-record segments, none
+ * of them a "picked lead" the way a single well is. This function
+ * previously read nonexistent `hasAgValuation`/`exemptionType` keys,
+ * which would have silently mischaracterized every real `present` fact as
+ * absent the moment PR #602 merged — fixed before that could happen.
+ */
+function agValuationFromInspectWire(
+  agValuationFact: unknown,
+):
+  | Fact<{
+      entries: NonNullable<ReturnType<typeof agValuationEntryFromWire>>[];
+      display: string;
+    }>
+  | undefined {
+  if (
+    !agValuationFact ||
+    typeof agValuationFact !== "object" ||
+    Array.isArray(agValuationFact)
+  ) {
+    return undefined;
+  }
+  const fact = rec(agValuationFact);
+  if (!fact) return undefined;
+  const state = str(fact.state);
+  if (state !== "present" && state !== "absent" && state !== "refused") {
+    return undefined;
+  }
+  const source = str(fact.source);
+  const prov = provenance({
+    source: source ?? "ag-valuation-fact",
+    sourceLabel: "ag-valuation-fact atom",
+    vintage: str(fact.sourceVintage) ?? str(fact.evaluatedAt),
+    sourceUrl: str(rec(fact.provenance)?.url),
+  });
+
+  if (state === "refused") {
+    // The real refusal type always carries a human-readable `reason`; prefer
+    // it over the bare code for the pending text (same fix as utilityService).
+    const code = str(fact.code) ?? "refused";
+    const reason = str(fact.reason) ?? code;
+    return { state: "unresolved", reason, retryable: false };
+  }
+  if (state === "absent") {
+    const absence = rec(fact.absence);
+    const reason =
+      str(absence?.reason) ?? str(absence?.kind) ?? "typed absence";
+    return absentCovered(reason, prov);
+  }
+
+  const rawEntries = Array.isArray(fact.entries) ? fact.entries : [];
+  const entries = rawEntries
+    .map(agValuationEntryFromWire)
+    .filter(
+      (e): e is NonNullable<ReturnType<typeof agValuationEntryFromWire>> =>
+        e !== null,
+    );
+  if (entries.length === 0) {
+    return absentCovered("ag-valuation-fact present with no entries", prov);
+  }
+  return {
+    state: "present",
+    value: {
+      entries,
+      display: entries.map(agValuationEntryDisplay).join("; "),
+    },
+    provenance: prov,
+  };
+}
+
+/**
+ * Max impervious cover percentage from cortex-root
+ * maxImperviousCoverPctFact (acquire-wave12).
+ *
+ * Prefer the cortex field. Distinct from the per-axis setback rule's own
+ * `maxImperviousPct` — never derived from that. Typed absence stays
+ * visible. A missing field is omitted so the card hides the row.
+ *
+ * CONFIRMED SHAPE (2026-09-04), verified first-hand against
+ * legacy-design-tools
+ * `artifacts/api-server/src/lib/maxImperviousCoverPctFactRead.ts` on
+ * branch `feat/b-acquire-wave12-serve-maximperviouscoverpct` (PR #604,
+ * OPEN — not yet merged, caught before it could go live). The real key is
+ * `percent`, not `maxImperviousCoverPct` — this function previously read
+ * the latter, which does not exist on the wire, and would have silently
+ * mischaracterized every real `present` fact as absent the moment PR #604
+ * merged — fixed before that could happen.
+ */
+function maxImperviousCoverPctFromInspectWire(
+  maxImperviousCoverPctFact: unknown,
+):
+  | Fact<{
+      percent: number | null;
+      watershedType: string | null;
+      inRechargeZone: boolean | null;
+      crosswalkCitation: string | null;
+      display: string;
+    }>
+  | undefined {
+  if (
+    !maxImperviousCoverPctFact ||
+    typeof maxImperviousCoverPctFact !== "object" ||
+    Array.isArray(maxImperviousCoverPctFact)
+  ) {
+    return undefined;
+  }
+  const fact = rec(maxImperviousCoverPctFact);
+  if (!fact) return undefined;
+  const state = str(fact.state);
+  if (state !== "present" && state !== "absent" && state !== "refused") {
+    return undefined;
+  }
+  const source = str(fact.source);
+  const prov = provenance({
+    source: source ?? "max-impervious-cover-pct-fact",
+    sourceLabel: "max-impervious-cover-pct-fact atom",
+    vintage: str(fact.sourceVintage) ?? str(fact.evaluatedAt),
+    sourceUrl: str(rec(fact.provenance)?.url),
+  });
+
+  if (state === "refused") {
+    const code = str(fact.code) ?? "refused";
+    const reason = str(fact.reason) ?? code;
+    return { state: "unresolved", reason, retryable: false };
+  }
+  if (state === "absent") {
+    const absence = rec(fact.absence);
+    const reason =
+      str(absence?.reason) ?? str(absence?.kind) ?? "typed absence";
+    return absentCovered(reason, prov);
+  }
+
+  const percent = num(fact.percent);
+  if (percent === null) {
+    return absentCovered(
+      "max-impervious-cover-pct-fact present with no percent",
+      prov,
+    );
+  }
+  const watershedType = str(fact.watershedType);
+  const inRechargeZone =
+    typeof fact.inRechargeZone === "boolean" ? fact.inRechargeZone : null;
+  const crosswalkCitation = str(fact.crosswalkCitation);
+  return {
+    state: "present",
+    value: {
+      percent,
+      watershedType,
+      inRechargeZone,
+      crosswalkCitation,
+      display: `${percent}%`,
+    },
+    provenance: prov,
+  };
+}
+
 function zoningFact(facets: BakedFacetPayload, countyFips: string): Fact<ZoningDistrict> {
   const declineReason = facets.envelope?.status === "declined"
     ? str(facets.envelope.declineReason)
@@ -1673,6 +2133,20 @@ export class PeFactSheetResolver implements FactSheetResolver {
     const ownerFact = wire.ownerFact ?? facetsResult.data.ownerFact ?? null;
     const cityLimitsFact =
       wire.cityLimitsFact ?? facetsResult.data.cityLimitsFact ?? null;
+    const schoolDistrictFact =
+      wire.schoolDistrictFact ?? facetsResult.data.schoolDistrictFact ?? null;
+    const utilityServiceFact =
+      wire.utilityServiceFact ?? facetsResult.data.utilityServiceFact ?? null;
+    const overlayDistrictsFact =
+      wire.overlayDistrictsFact ??
+      facetsResult.data.overlayDistrictsFact ??
+      null;
+    const agValuationFact =
+      wire.agValuationFact ?? facetsResult.data.agValuationFact ?? null;
+    const maxImperviousCoverPctFact =
+      wire.maxImperviousCoverPctFact ??
+      facetsResult.data.maxImperviousCoverPctFact ??
+      null;
 
     const fips = str(facets.countyFips) ?? parcelNodeId.split(":")[0] ?? "";
     const countyName =
@@ -1724,6 +2198,15 @@ export class PeFactSheetResolver implements FactSheetResolver {
     const boundary = boundaryFromInspectWire(boundaryEdgeFact);
     const owner = ownerFromInspectWire(ownerFact);
     const cityLimits = cityLimitsFromInspectWire(cityLimitsFact);
+    const schoolDistrict = schoolDistrictFromInspectWire(schoolDistrictFact);
+    const utilityService = utilityServiceFromInspectWire(utilityServiceFact);
+    const overlayDistricts = overlayDistrictsFromInspectWire(
+      overlayDistrictsFact,
+    );
+    const agValuation = agValuationFromInspectWire(agValuationFact);
+    const maxImperviousCoverPct = maxImperviousCoverPctFromInspectWire(
+      maxImperviousCoverPctFact,
+    );
     const verdictLayers = verdictLayersFromFacets(facets);
 
     const site: ParcelFactSheet["site"] = {
@@ -1753,6 +2236,11 @@ export class PeFactSheetResolver implements FactSheetResolver {
       boundary,
       owner,
       cityLimits,
+      schoolDistrict,
+      utilityService,
+      overlayDistricts,
+      agValuation,
+      maxImperviousCoverPct,
       site,
       county: { fips, name: countyName },
     });
@@ -1775,6 +2263,11 @@ export class PeFactSheetResolver implements FactSheetResolver {
       ...(boundary ? { boundary } : {}),
       ...(owner ? { owner } : {}),
       ...(cityLimits ? { cityLimits } : {}),
+      ...(schoolDistrict ? { schoolDistrict } : {}),
+      ...(utilityService ? { utilityService } : {}),
+      ...(overlayDistricts ? { overlayDistricts } : {}),
+      ...(agValuation ? { agValuation } : {}),
+      ...(maxImperviousCoverPct ? { maxImperviousCoverPct } : {}),
       ...(verdictLayers ? { verdictLayers } : {}),
       site,
       // Composed ONCE, by the one composer, from the fields above.

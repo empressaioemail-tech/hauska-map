@@ -1620,6 +1620,209 @@ describe("mergeBakedBaseFacts — cityLimitsFact from cortex JSON ROOT (P-76)", 
   });
 });
 
+const goldSchoolDistrictFact = {
+  state: "present" as const,
+  source: "school-district-fact",
+  districtName: "Bastrop ISD",
+};
+
+const goldUtilityServiceFact = {
+  state: "present" as const,
+  source: "utility-service-fact",
+  entityId: "48021:36521:utility-service",
+  water: {
+    ccnNo: "10375",
+    utility: "Aqua Texas WSC",
+    status: "Active",
+    ccnType: "water",
+  },
+  sewer: null,
+};
+
+const goldOverlayDistrictsFact = {
+  state: "present" as const,
+  source: "overlay-districts-fact",
+  names: ["Historic Overlay", "Airport Compatibility"],
+};
+
+const goldAgValuationFact = {
+  state: "present" as const,
+  source: "ag-valuation-fact",
+  entityId: "48491:12345:ag-valuation",
+  entries: [
+    {
+      statecode: "D1",
+      landType: "Native pasture",
+      description: "Open space ag use",
+      acres: 42.3,
+      value: 210000,
+      currValue: 8460,
+      agFlag: true,
+      apprMethod: "income",
+      agYear: 2025,
+      propertyNumber: "R12345",
+    },
+  ],
+};
+
+const goldMaxImperviousCoverPctFact = {
+  state: "present" as const,
+  source: "max-impervious-cover-pct-fact",
+  percent: 45,
+  watershedType: "Water Supply Suburban",
+  inRechargeZone: false,
+  crosswalkCitation: "Austin LDC 25-8-342",
+};
+
+describe("mergeBakedBaseFacts — schoolDistrictFact from cortex JSON ROOT (acquire-wave12)", () => {
+  it("copies a fixture schoolDistrictFact from the cortex root onto the atom-chain payload", () => {
+    const adapted = adaptAtomChainToBakedFacets(haysChain)!;
+    const merged = mergeBakedBaseFacts(adapted, {
+      ...bakedCortexBody,
+      schoolDistrictFact: goldSchoolDistrictFact,
+    });
+    expect(merged.schoolDistrictFact).toEqual(goldSchoolDistrictFact);
+    expect(merged.schoolDistrictFact?.districtName).toBe("Bastrop ISD");
+  });
+
+  it("does not adopt a bake object with no state parked on the root", () => {
+    const adapted = adaptAtomChainToBakedFacets(haysChain)!;
+    const merged = mergeBakedBaseFacts(adapted, {
+      ...bakedCortexBody,
+      schoolDistrictFact: { districtName: "Bastrop ISD" },
+    });
+    expect("schoolDistrictFact" in merged).toBe(false);
+    expect(merged.schoolDistrictFact).toBeUndefined();
+  });
+
+  it("leaves schoolDistrictFact absent when cortex has no root field", () => {
+    const adapted = adaptAtomChainToBakedFacets(haysChain)!;
+    const merged = mergeBakedBaseFacts(adapted, bakedCortexBody);
+    expect("schoolDistrictFact" in merged).toBe(false);
+  });
+});
+
+describe("mergeBakedBaseFacts — utilityServiceFact from cortex JSON ROOT (acquire-wave12)", () => {
+  it("copies a fixture utilityServiceFact from the cortex root onto the atom-chain payload", () => {
+    const adapted = adaptAtomChainToBakedFacets(haysChain)!;
+    const merged = mergeBakedBaseFacts(adapted, {
+      ...bakedCortexBody,
+      utilityServiceFact: goldUtilityServiceFact,
+    });
+    expect(merged.utilityServiceFact).toEqual(goldUtilityServiceFact);
+    expect(merged.utilityServiceFact?.water).toEqual({
+      ccnNo: "10375",
+      utility: "Aqua Texas WSC",
+      status: "Active",
+      ccnType: "water",
+    });
+  });
+
+  it("does not adopt a bake object with no state parked on the root", () => {
+    const adapted = adaptAtomChainToBakedFacets(haysChain)!;
+    const merged = mergeBakedBaseFacts(adapted, {
+      ...bakedCortexBody,
+      utilityServiceFact: { water: { utility: "Bluebonnet Electric" } },
+    });
+    expect("utilityServiceFact" in merged).toBe(false);
+    expect(merged.utilityServiceFact).toBeUndefined();
+  });
+
+  it("leaves utilityServiceFact absent when cortex has no root field", () => {
+    const adapted = adaptAtomChainToBakedFacets(haysChain)!;
+    const merged = mergeBakedBaseFacts(adapted, bakedCortexBody);
+    expect("utilityServiceFact" in merged).toBe(false);
+  });
+});
+
+describe("mergeBakedBaseFacts — overlayDistrictsFact from cortex JSON ROOT (acquire-wave12)", () => {
+  it("copies a fixture overlayDistrictsFact from the cortex root onto the atom-chain payload", () => {
+    const adapted = adaptAtomChainToBakedFacets(haysChain)!;
+    const merged = mergeBakedBaseFacts(adapted, {
+      ...bakedCortexBody,
+      overlayDistrictsFact: goldOverlayDistrictsFact,
+    });
+    expect(merged.overlayDistrictsFact).toEqual(goldOverlayDistrictsFact);
+    expect(merged.overlayDistrictsFact?.names).toEqual([
+      "Historic Overlay",
+      "Airport Compatibility",
+    ]);
+  });
+
+  it("does not adopt a bake object with no state parked on the root", () => {
+    const adapted = adaptAtomChainToBakedFacets(haysChain)!;
+    const merged = mergeBakedBaseFacts(adapted, {
+      ...bakedCortexBody,
+      overlayDistrictsFact: { names: ["Historic Overlay"] },
+    });
+    expect("overlayDistrictsFact" in merged).toBe(false);
+    expect(merged.overlayDistrictsFact).toBeUndefined();
+  });
+
+  it("leaves overlayDistrictsFact absent when cortex has no root field", () => {
+    const adapted = adaptAtomChainToBakedFacets(haysChain)!;
+    const merged = mergeBakedBaseFacts(adapted, bakedCortexBody);
+    expect("overlayDistrictsFact" in merged).toBe(false);
+  });
+});
+
+describe("mergeBakedBaseFacts — agValuationFact from cortex JSON ROOT (acquire-wave12)", () => {
+  it("copies a fixture agValuationFact from the cortex root onto the atom-chain payload", () => {
+    const adapted = adaptAtomChainToBakedFacets(haysChain)!;
+    const merged = mergeBakedBaseFacts(adapted, {
+      ...bakedCortexBody,
+      agValuationFact: goldAgValuationFact,
+    });
+    expect(merged.agValuationFact).toEqual(goldAgValuationFact);
+    expect(merged.agValuationFact?.entries).toHaveLength(1);
+    expect((merged.agValuationFact?.entries as Array<{ agFlag: boolean }>)[0].agFlag).toBe(true);
+  });
+
+  it("does not adopt a bake object with no state parked on the root", () => {
+    const adapted = adaptAtomChainToBakedFacets(haysChain)!;
+    const merged = mergeBakedBaseFacts(adapted, {
+      ...bakedCortexBody,
+      agValuationFact: { entries: [{ agFlag: true }] },
+    });
+    expect("agValuationFact" in merged).toBe(false);
+    expect(merged.agValuationFact).toBeUndefined();
+  });
+
+  it("leaves agValuationFact absent when cortex has no root field", () => {
+    const adapted = adaptAtomChainToBakedFacets(haysChain)!;
+    const merged = mergeBakedBaseFacts(adapted, bakedCortexBody);
+    expect("agValuationFact" in merged).toBe(false);
+  });
+});
+
+describe("mergeBakedBaseFacts — maxImperviousCoverPctFact from cortex JSON ROOT (acquire-wave12)", () => {
+  it("copies a fixture maxImperviousCoverPctFact from the cortex root onto the atom-chain payload", () => {
+    const adapted = adaptAtomChainToBakedFacets(haysChain)!;
+    const merged = mergeBakedBaseFacts(adapted, {
+      ...bakedCortexBody,
+      maxImperviousCoverPctFact: goldMaxImperviousCoverPctFact,
+    });
+    expect(merged.maxImperviousCoverPctFact).toEqual(goldMaxImperviousCoverPctFact);
+    expect(merged.maxImperviousCoverPctFact?.percent).toBe(45);
+  });
+
+  it("does not adopt a bake object with no state parked on the root", () => {
+    const adapted = adaptAtomChainToBakedFacets(haysChain)!;
+    const merged = mergeBakedBaseFacts(adapted, {
+      ...bakedCortexBody,
+      maxImperviousCoverPctFact: { percent: 45 },
+    });
+    expect("maxImperviousCoverPctFact" in merged).toBe(false);
+    expect(merged.maxImperviousCoverPctFact).toBeUndefined();
+  });
+
+  it("leaves maxImperviousCoverPctFact absent when cortex has no root field", () => {
+    const adapted = adaptAtomChainToBakedFacets(haysChain)!;
+    const merged = mergeBakedBaseFacts(adapted, bakedCortexBody);
+    expect("maxImperviousCoverPctFact" in merged).toBe(false);
+  });
+});
+
 describe("adaptAtomChainToBakedFacets — warm verify honest decline (141364 / superseded-prop-id)", () => {
   it("surfaces named superseded-prop-id decline instead of setback-rule-pending", () => {
     const chain: PropertyAtomChain = {

@@ -493,6 +493,151 @@ export type OwnerFactWire = {
   extractedAt?: unknown;
 };
 
+/**
+ * Cortex inspect GET sibling (acquire-wave12 / school-district-fact).
+ * Copied from the cortex JSON ROOT only.
+ */
+export type SchoolDistrictFactWire = {
+  state: "present" | "absent" | "refused";
+  districtName?: unknown;
+  absence?: { kind?: string; reason?: string } | null;
+  code?: unknown;
+  reason?: unknown;
+  source?: unknown;
+  sourceVintage?: unknown;
+  evaluatedAt?: unknown;
+  boundAs?: unknown;
+  tried?: unknown;
+  entityId?: unknown;
+  sourceAdapter?: unknown;
+};
+
+/**
+ * Cortex inspect GET sibling (acquire-wave12 / utility-service-fact).
+ * Copied from the cortex JSON ROOT only. Distinct from the `whoServes`
+ * lookup — never merged with it.
+ *
+ * CONFIRMED SHAPE (2026-09-04), verified first-hand against
+ * legacy-design-tools `artifacts/api-server/src/lib/utilityServiceFactRead.ts`
+ * on main as of the PR #600 merge (212f09f0). `state` stays top-level on a
+ * flat object exactly as `isUtilityServiceFactWire` below already expects
+ * — the field is NOT list-shaped or array-wrapped at the wire boundary, so
+ * that guard never rejected it. The actual defect was one layer down: the
+ * resolver (fact-sheet-resolver.ts) previously read nonexistent
+ * `provider`/`serviceType` keys instead of the real `water`/`sewer`
+ * companion-row slots, so a `present` fact was silently mischaracterized
+ * as absent rather than hidden. Water and sewer are independent slots —
+ * see the real source file's module doc — either or both `null`, never
+ * both null on `present`. No electric slot exists; never invent one.
+ */
+export type UtilityServiceFactWire = {
+  state: "present" | "absent" | "refused";
+  water?: unknown;
+  sewer?: unknown;
+  absence?: { kind?: string; reason?: string } | null;
+  code?: unknown;
+  reason?: unknown;
+  source?: unknown;
+  sourceVintage?: unknown;
+  evaluatedAt?: unknown;
+  boundAs?: unknown;
+  tried?: unknown;
+  entityId?: unknown;
+  sourceAdapter?: unknown;
+};
+
+/**
+ * Cortex inspect GET sibling (acquire-wave12 / overlay-districts-fact).
+ * Copied from the cortex JSON ROOT only.
+ *
+ * OPEN QUESTION, unverified against the LDT projector (cutover PRs not
+ * merged yet): factory close records show this rail as LIST-shaped too —
+ * multiple companion rows per parcel, each carrying real per-district
+ * content (e.g. Bastrop Character-District rows carry CD_Name / CD_Desc /
+ * Shape__Area), not just a bare name. `names?: unknown` below only keeps
+ * room for a flat array of strings; if the served shape is instead an
+ * array of richer per-district records (or the fact itself is an array
+ * rather than an object with a top-level `state`), `isOverlayDistrictsFactWire`
+ * rejects it outright and this field is treated as absent from the wire —
+ * permanently, since it is a shape mismatch, not a missing-field gap.
+ * Confirm the served shape before cutover so this type (and
+ * ParcelFactSheet's `overlayDistricts`) can carry per-district
+ * name/description/area if that data is meant to surface.
+ */
+export type OverlayDistrictsFactWire = {
+  state: "present" | "absent" | "refused";
+  names?: unknown;
+  absence?: { kind?: string; reason?: string } | null;
+  code?: unknown;
+  reason?: unknown;
+  source?: unknown;
+  sourceVintage?: unknown;
+  evaluatedAt?: unknown;
+  boundAs?: unknown;
+  tried?: unknown;
+  entityId?: unknown;
+  sourceAdapter?: unknown;
+};
+
+/**
+ * Cortex inspect GET sibling (acquire-wave12 / ag-valuation-fact).
+ * Copied from the cortex JSON ROOT only.
+ *
+ * CONFIRMED SHAPE (2026-09-04), verified first-hand against
+ * legacy-design-tools `artifacts/api-server/src/lib/agValuationFactRead.ts`
+ * on branch `feat/b-acquire-wave12-serve-agvaluation` (PR #602, OPEN — not
+ * yet merged, caught before it could go live). `entries` is an ARRAY —
+ * plural, not a picked lead, since a parcel can carry several distinct
+ * land-record segments. Superseded an earlier flat
+ * hasAgValuation/exemptionType guess that predated reading the real
+ * served type.
+ */
+export type AgValuationFactWire = {
+  state: "present" | "absent" | "refused";
+  entries?: unknown;
+  absence?: { kind?: string; reason?: string } | null;
+  code?: unknown;
+  reason?: unknown;
+  source?: unknown;
+  sourceVintage?: unknown;
+  evaluatedAt?: unknown;
+  boundAs?: unknown;
+  tried?: unknown;
+  entityId?: unknown;
+  sourceAdapter?: unknown;
+};
+
+/**
+ * Cortex inspect GET sibling (acquire-wave12 / max-impervious-cover-fact).
+ * Copied from the cortex JSON ROOT only. Distinct from the per-axis setback
+ * rule's own `maxImperviousPct` sub-field — never derived from that.
+ *
+ * CONFIRMED SHAPE (2026-09-04), verified first-hand against
+ * legacy-design-tools
+ * `artifacts/api-server/src/lib/maxImperviousCoverPctFactRead.ts` on branch
+ * `feat/b-acquire-wave12-serve-maximperviouscoverpct` (PR #604, OPEN — not
+ * yet merged, caught before it could go live). The real key is `percent`,
+ * not `maxImperviousCoverPct` — superseded an earlier guess that the inner
+ * key would echo the outer rail name.
+ */
+export type MaxImperviousCoverPctFactWire = {
+  state: "present" | "absent" | "refused";
+  percent?: unknown;
+  watershedType?: unknown;
+  inRechargeZone?: unknown;
+  crosswalkCitation?: unknown;
+  absence?: { kind?: string; reason?: string } | null;
+  code?: unknown;
+  reason?: unknown;
+  source?: unknown;
+  sourceVintage?: unknown;
+  evaluatedAt?: unknown;
+  boundAs?: unknown;
+  tried?: unknown;
+  entityId?: unknown;
+  sourceAdapter?: unknown;
+};
+
 export interface PeBakedFacetsResponse {
   parcelNodeId: string;
   adapterKey: string;
@@ -555,6 +700,31 @@ export interface PeBakedFacetsResponse {
    * ROOT only. Never upgraded lookup-failed → absent-verified in transit.
    */
   structuralFact?: StructuralFactWire;
+  /**
+   * School district from school-district-fact atoms (acquire-wave12).
+   * Copied from the cortex JSON ROOT only.
+   */
+  schoolDistrictFact?: SchoolDistrictFactWire;
+  /**
+   * Utility service from utility-service-fact atoms (acquire-wave12).
+   * Copied from the cortex JSON ROOT only. Distinct from `whoServes`.
+   */
+  utilityServiceFact?: UtilityServiceFactWire;
+  /**
+   * Overlay districts from overlay-districts-fact atoms (acquire-wave12).
+   * Copied from the cortex JSON ROOT only.
+   */
+  overlayDistrictsFact?: OverlayDistrictsFactWire;
+  /**
+   * Agricultural valuation from ag-valuation-fact atoms (acquire-wave12).
+   * Copied from the cortex JSON ROOT only.
+   */
+  agValuationFact?: AgValuationFactWire;
+  /**
+   * Max impervious cover percentage from max-impervious-cover-fact atoms
+   * (acquire-wave12). Copied from the cortex JSON ROOT only.
+   */
+  maxImperviousCoverPctFact?: MaxImperviousCoverPctFactWire;
 }
 
 /** Cortex inspect GET sibling — P-63 verdict layer serve. */
@@ -943,6 +1113,160 @@ function withOwnerFact(
   return { ...atomResponse, ownerFact: fact };
 }
 
+/** Cortex inspect GET sibling (acquire-wave12 / school-district-fact). */
+export function isSchoolDistrictFactWire(
+  value: unknown,
+): value is SchoolDistrictFactWire {
+  if (!value || typeof value !== "object" || Array.isArray(value)) return false;
+  const state = (value as { state?: unknown }).state;
+  return state === "present" || state === "absent" || state === "refused";
+}
+
+/** Cortex JSON ROOT only. A nested facets copy has no state and is rejected. */
+export function schoolDistrictFactFromCortexRoot(
+  bakedBody: unknown,
+): SchoolDistrictFactWire | undefined {
+  if (!bakedBody || typeof bakedBody !== "object" || Array.isArray(bakedBody)) {
+    return undefined;
+  }
+  const fact = (bakedBody as { schoolDistrictFact?: unknown }).schoolDistrictFact;
+  return isSchoolDistrictFactWire(fact) ? fact : undefined;
+}
+
+function withSchoolDistrictFact(
+  atomResponse: PeBakedFacetsResponse,
+  bakedBody: unknown,
+): PeBakedFacetsResponse {
+  const fact = schoolDistrictFactFromCortexRoot(bakedBody);
+  if (fact === undefined) return atomResponse;
+  return { ...atomResponse, schoolDistrictFact: fact };
+}
+
+/** Cortex inspect GET sibling (acquire-wave12 / utility-service-fact). */
+export function isUtilityServiceFactWire(
+  value: unknown,
+): value is UtilityServiceFactWire {
+  if (!value || typeof value !== "object" || Array.isArray(value)) return false;
+  const state = (value as { state?: unknown }).state;
+  return state === "present" || state === "absent" || state === "refused";
+}
+
+/**
+ * Cortex JSON ROOT only. A nested facets copy has no state and is rejected.
+ * Distinct from `whoServes` — never reads that field as this one.
+ */
+export function utilityServiceFactFromCortexRoot(
+  bakedBody: unknown,
+): UtilityServiceFactWire | undefined {
+  if (!bakedBody || typeof bakedBody !== "object" || Array.isArray(bakedBody)) {
+    return undefined;
+  }
+  const fact = (bakedBody as { utilityServiceFact?: unknown }).utilityServiceFact;
+  return isUtilityServiceFactWire(fact) ? fact : undefined;
+}
+
+function withUtilityServiceFact(
+  atomResponse: PeBakedFacetsResponse,
+  bakedBody: unknown,
+): PeBakedFacetsResponse {
+  const fact = utilityServiceFactFromCortexRoot(bakedBody);
+  if (fact === undefined) return atomResponse;
+  return { ...atomResponse, utilityServiceFact: fact };
+}
+
+/** Cortex inspect GET sibling (acquire-wave12 / overlay-districts-fact). */
+export function isOverlayDistrictsFactWire(
+  value: unknown,
+): value is OverlayDistrictsFactWire {
+  if (!value || typeof value !== "object" || Array.isArray(value)) return false;
+  const state = (value as { state?: unknown }).state;
+  return state === "present" || state === "absent" || state === "refused";
+}
+
+/** Cortex JSON ROOT only. A nested facets copy has no state and is rejected. */
+export function overlayDistrictsFactFromCortexRoot(
+  bakedBody: unknown,
+): OverlayDistrictsFactWire | undefined {
+  if (!bakedBody || typeof bakedBody !== "object" || Array.isArray(bakedBody)) {
+    return undefined;
+  }
+  const fact = (bakedBody as { overlayDistrictsFact?: unknown })
+    .overlayDistrictsFact;
+  return isOverlayDistrictsFactWire(fact) ? fact : undefined;
+}
+
+function withOverlayDistrictsFact(
+  atomResponse: PeBakedFacetsResponse,
+  bakedBody: unknown,
+): PeBakedFacetsResponse {
+  const fact = overlayDistrictsFactFromCortexRoot(bakedBody);
+  if (fact === undefined) return atomResponse;
+  return { ...atomResponse, overlayDistrictsFact: fact };
+}
+
+/** Cortex inspect GET sibling (acquire-wave12 / ag-valuation-fact). */
+export function isAgValuationFactWire(
+  value: unknown,
+): value is AgValuationFactWire {
+  if (!value || typeof value !== "object" || Array.isArray(value)) return false;
+  const state = (value as { state?: unknown }).state;
+  return state === "present" || state === "absent" || state === "refused";
+}
+
+/** Cortex JSON ROOT only. A nested facets copy has no state and is rejected. */
+export function agValuationFactFromCortexRoot(
+  bakedBody: unknown,
+): AgValuationFactWire | undefined {
+  if (!bakedBody || typeof bakedBody !== "object" || Array.isArray(bakedBody)) {
+    return undefined;
+  }
+  const fact = (bakedBody as { agValuationFact?: unknown }).agValuationFact;
+  return isAgValuationFactWire(fact) ? fact : undefined;
+}
+
+function withAgValuationFact(
+  atomResponse: PeBakedFacetsResponse,
+  bakedBody: unknown,
+): PeBakedFacetsResponse {
+  const fact = agValuationFactFromCortexRoot(bakedBody);
+  if (fact === undefined) return atomResponse;
+  return { ...atomResponse, agValuationFact: fact };
+}
+
+/** Cortex inspect GET sibling (acquire-wave12 / max-impervious-cover-fact). */
+export function isMaxImperviousCoverPctFactWire(
+  value: unknown,
+): value is MaxImperviousCoverPctFactWire {
+  if (!value || typeof value !== "object" || Array.isArray(value)) return false;
+  const state = (value as { state?: unknown }).state;
+  return state === "present" || state === "absent" || state === "refused";
+}
+
+/**
+ * Cortex JSON ROOT only. A nested facets copy has no state and is rejected.
+ * Distinct from the per-axis setback rule's own `maxImperviousPct` — never
+ * reads that field as this one.
+ */
+export function maxImperviousCoverPctFactFromCortexRoot(
+  bakedBody: unknown,
+): MaxImperviousCoverPctFactWire | undefined {
+  if (!bakedBody || typeof bakedBody !== "object" || Array.isArray(bakedBody)) {
+    return undefined;
+  }
+  const fact = (bakedBody as { maxImperviousCoverPctFact?: unknown })
+    .maxImperviousCoverPctFact;
+  return isMaxImperviousCoverPctFactWire(fact) ? fact : undefined;
+}
+
+function withMaxImperviousCoverPctFact(
+  atomResponse: PeBakedFacetsResponse,
+  bakedBody: unknown,
+): PeBakedFacetsResponse {
+  const fact = maxImperviousCoverPctFactFromCortexRoot(bakedBody);
+  if (fact === undefined) return atomResponse;
+  return { ...atomResponse, maxImperviousCoverPctFact: fact };
+}
+
 /** Travis/CAD sentinels (`, TX`) are not situs. Same rule as fact-sheet-resolver. */
 export function isUsableSitusAddress(raw: string | null | undefined): boolean {
   if (!raw || typeof raw !== "string") return false;
@@ -1074,17 +1398,32 @@ function withRootFacts(
   atomResponse: PeBakedFacetsResponse,
   bakedBody: unknown,
 ): PeBakedFacetsResponse {
-  return withVerdictLayerFields(
-    withStructuralFact(
-      withCityLimitsFact(
-        withOwnerFact(
-          withBoundaryEdgeFact(
-            withBuildingFootprintFact(
-              withWellFact(
-                withPipelineFact(
-                  withSpecialDistrictFact(
-                    withLandUseFact(
-                      withFloodHazardFact(atomResponse, bakedBody),
+  return withMaxImperviousCoverPctFact(
+    withAgValuationFact(
+      withOverlayDistrictsFact(
+        withUtilityServiceFact(
+          withSchoolDistrictFact(
+            withVerdictLayerFields(
+              withStructuralFact(
+                withCityLimitsFact(
+                  withOwnerFact(
+                    withBoundaryEdgeFact(
+                      withBuildingFootprintFact(
+                        withWellFact(
+                          withPipelineFact(
+                            withSpecialDistrictFact(
+                              withLandUseFact(
+                                withFloodHazardFact(atomResponse, bakedBody),
+                                bakedBody,
+                              ),
+                              bakedBody,
+                            ),
+                            bakedBody,
+                          ),
+                          bakedBody,
+                        ),
+                        bakedBody,
+                      ),
                       bakedBody,
                     ),
                     bakedBody,

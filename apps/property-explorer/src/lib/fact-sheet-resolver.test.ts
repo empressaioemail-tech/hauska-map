@@ -1971,3 +1971,269 @@ describe("cityLimitsFact only (P-76)", () => {
     expect(sheet.cityLimits).toBeUndefined();
   });
 });
+
+describe("schoolDistrictFact only (acquire-wave12)", () => {
+  it("present fixture shows the district name from schoolDistrictFact", async () => {
+    const wire = facetsWire() as unknown as Record<string, unknown>;
+    wire.schoolDistrictFact = {
+      state: "present",
+      source: "school-district-fact",
+      districtName: "Bastrop ISD",
+    };
+    const stub = installFetchStub({ facets: wire, gisFeatures: [SUBJECT_FEATURE] });
+    const sheet = await sheetOf(makeResolver(stub), NODE_ID);
+    expect(sheet.schoolDistrict?.state).toBe("present");
+    if (sheet.schoolDistrict?.state !== "present") throw new Error("unreachable");
+    expect(sheet.schoolDistrict.value.districtName).toBe("Bastrop ISD");
+    expect(sheet.schoolDistrict.provenance.source).toBe("school-district-fact");
+  });
+
+  it("bake parked on the root without state is not adopted", async () => {
+    const wire = facetsWire() as unknown as Record<string, unknown>;
+    wire.schoolDistrictFact = { districtName: "BAKE ISD" };
+    const stub = installFetchStub({ facets: wire, gisFeatures: [SUBJECT_FEATURE] });
+    const sheet = await sheetOf(makeResolver(stub), NODE_ID);
+    expect(sheet.schoolDistrict).toBeUndefined();
+  });
+
+  it("missing field stays missing — no invented district", async () => {
+    const wire = facetsWire() as unknown as Record<string, unknown>;
+    delete wire.schoolDistrictFact;
+    const stub = installFetchStub({ facets: wire, gisFeatures: [SUBJECT_FEATURE] });
+    const sheet = await sheetOf(makeResolver(stub), NODE_ID);
+    expect(sheet.schoolDistrict).toBeUndefined();
+  });
+});
+
+describe("utilityServiceFact only (acquire-wave12)", () => {
+  it("present fixture shows the water slot from utilityServiceFact", async () => {
+    const wire = facetsWire() as unknown as Record<string, unknown>;
+    wire.utilityServiceFact = {
+      state: "present",
+      source: "utility-service-fact",
+      entityId: "48021:36521:utility-service",
+      water: {
+        ccnNo: "10375",
+        utility: "Aqua Texas WSC",
+        status: "Active",
+        ccnType: "water",
+      },
+      sewer: null,
+    };
+    const stub = installFetchStub({ facets: wire, gisFeatures: [SUBJECT_FEATURE] });
+    const sheet = await sheetOf(makeResolver(stub), NODE_ID);
+    expect(sheet.utilityService?.state).toBe("present");
+    if (sheet.utilityService?.state !== "present") throw new Error("unreachable");
+    expect(sheet.utilityService.value.water?.utility).toBe("Aqua Texas WSC");
+    expect(sheet.utilityService.value.sewer).toBeNull();
+    expect(sheet.utilityService.provenance.source).toBe("utility-service-fact");
+  });
+
+  it("present fixture with both water and sewer slots keeps both independently", async () => {
+    const wire = facetsWire() as unknown as Record<string, unknown>;
+    wire.utilityServiceFact = {
+      state: "present",
+      source: "utility-service-fact",
+      entityId: "48021:36521:utility-service",
+      water: { ccnNo: "10375", utility: "Aqua Texas WSC", status: "Active", ccnType: "water" },
+      sewer: { ccnNo: "20481", utility: "Bastrop County MUD", status: "Active", ccnType: "sewer" },
+    };
+    const stub = installFetchStub({ facets: wire, gisFeatures: [SUBJECT_FEATURE] });
+    const sheet = await sheetOf(makeResolver(stub), NODE_ID);
+    expect(sheet.utilityService?.state).toBe("present");
+    if (sheet.utilityService?.state !== "present") throw new Error("unreachable");
+    expect(sheet.utilityService.value.water?.utility).toBe("Aqua Texas WSC");
+    expect(sheet.utilityService.value.sewer?.utility).toBe("Bastrop County MUD");
+    expect(sheet.utilityService.value.display).not.toMatch(/electric/i);
+  });
+
+  it("refused not-cut-over carries the real human-readable reason, never invents service", async () => {
+    const wire = facetsWire() as unknown as Record<string, unknown>;
+    wire.utilityServiceFact = {
+      state: "refused",
+      source: "utility-service-fact",
+      code: "not-cut-over",
+      entityId: "48021:36521",
+      reason:
+        "utilityService has no legacy serve path -- it is served only from parcel_record, and only once this (county, rail) pair is slated with a passing gate verdict. Not there yet for this parcel.",
+    };
+    const stub = installFetchStub({ facets: wire, gisFeatures: [SUBJECT_FEATURE] });
+    const sheet = await sheetOf(makeResolver(stub), NODE_ID);
+    expect(sheet.utilityService?.state).toBe("unresolved");
+    if (sheet.utilityService?.state !== "unresolved") throw new Error("unreachable");
+    expect(sheet.utilityService.reason).toMatch(/not there yet for this parcel/i);
+    expect(sheet.utilityService.retryable).toBe(false);
+  });
+
+  it("bake parked on the root without state is not adopted", async () => {
+    const wire = facetsWire() as unknown as Record<string, unknown>;
+    wire.utilityServiceFact = { water: { utility: "BAKE UTILITY" } };
+    const stub = installFetchStub({ facets: wire, gisFeatures: [SUBJECT_FEATURE] });
+    const sheet = await sheetOf(makeResolver(stub), NODE_ID);
+    expect(sheet.utilityService).toBeUndefined();
+  });
+
+  it("missing field stays missing — no invented water/sewer", async () => {
+    const wire = facetsWire() as unknown as Record<string, unknown>;
+    delete wire.utilityServiceFact;
+    const stub = installFetchStub({ facets: wire, gisFeatures: [SUBJECT_FEATURE] });
+    const sheet = await sheetOf(makeResolver(stub), NODE_ID);
+    expect(sheet.utilityService).toBeUndefined();
+  });
+});
+
+describe("overlayDistrictsFact only (acquire-wave12)", () => {
+  it("present fixture lists district names from overlayDistrictsFact", async () => {
+    const wire = facetsWire() as unknown as Record<string, unknown>;
+    wire.overlayDistrictsFact = {
+      state: "present",
+      source: "overlay-districts-fact",
+      names: ["Historic Overlay", "Airport Compatibility"],
+    };
+    const stub = installFetchStub({ facets: wire, gisFeatures: [SUBJECT_FEATURE] });
+    const sheet = await sheetOf(makeResolver(stub), NODE_ID);
+    expect(sheet.overlayDistricts?.state).toBe("present");
+    if (sheet.overlayDistricts?.state !== "present") throw new Error("unreachable");
+    expect(sheet.overlayDistricts.value.names).toEqual([
+      "Historic Overlay",
+      "Airport Compatibility",
+    ]);
+  });
+
+  it("bake parked on the root without state is not adopted", async () => {
+    const wire = facetsWire() as unknown as Record<string, unknown>;
+    wire.overlayDistrictsFact = { names: ["BAKE OVERLAY"] };
+    const stub = installFetchStub({ facets: wire, gisFeatures: [SUBJECT_FEATURE] });
+    const sheet = await sheetOf(makeResolver(stub), NODE_ID);
+    expect(sheet.overlayDistricts).toBeUndefined();
+  });
+
+  it("missing field stays missing — no invented districts", async () => {
+    const wire = facetsWire() as unknown as Record<string, unknown>;
+    delete wire.overlayDistrictsFact;
+    const stub = installFetchStub({ facets: wire, gisFeatures: [SUBJECT_FEATURE] });
+    const sheet = await sheetOf(makeResolver(stub), NODE_ID);
+    expect(sheet.overlayDistricts).toBeUndefined();
+  });
+});
+
+describe("agValuationFact only (acquire-wave12)", () => {
+  it("present fixture shows the entries array from agValuationFact", async () => {
+    const wire = facetsWire() as unknown as Record<string, unknown>;
+    wire.agValuationFact = {
+      state: "present",
+      source: "ag-valuation-fact",
+      entityId: "48491:12345:ag-valuation",
+      entries: [
+        {
+          statecode: "D1",
+          landType: "Native pasture",
+          description: "Open space ag use",
+          acres: 42.3,
+          value: 210000,
+          currValue: 8460,
+          agFlag: true,
+          apprMethod: "income",
+          agYear: 2025,
+          propertyNumber: "R12345",
+        },
+      ],
+    };
+    const stub = installFetchStub({ facets: wire, gisFeatures: [SUBJECT_FEATURE] });
+    const sheet = await sheetOf(makeResolver(stub), NODE_ID);
+    expect(sheet.agValuation?.state).toBe("present");
+    if (sheet.agValuation?.state !== "present") throw new Error("unreachable");
+    expect(sheet.agValuation.value.entries).toHaveLength(1);
+    expect(sheet.agValuation.value.entries[0].landType).toBe("Native pasture");
+    expect(sheet.agValuation.value.entries[0].agFlag).toBe(true);
+  });
+
+  it("present fixture with multiple entries keeps every land-record segment, not a picked lead", async () => {
+    const wire = facetsWire() as unknown as Record<string, unknown>;
+    wire.agValuationFact = {
+      state: "present",
+      source: "ag-valuation-fact",
+      entityId: "48491:12345:ag-valuation",
+      entries: [
+        { statecode: "D1", landType: "Native pasture", acres: 42.3, agFlag: true },
+        { statecode: "A1", landType: "Residential homesite", acres: 1.2, agFlag: false },
+      ],
+    };
+    const stub = installFetchStub({ facets: wire, gisFeatures: [SUBJECT_FEATURE] });
+    const sheet = await sheetOf(makeResolver(stub), NODE_ID);
+    expect(sheet.agValuation?.state).toBe("present");
+    if (sheet.agValuation?.state !== "present") throw new Error("unreachable");
+    expect(sheet.agValuation.value.entries).toHaveLength(2);
+    expect(sheet.agValuation.value.display).toContain("Native pasture");
+    expect(sheet.agValuation.value.display).toContain("Residential homesite");
+  });
+
+  it("refused not-cut-over carries the real human-readable reason", async () => {
+    const wire = facetsWire() as unknown as Record<string, unknown>;
+    wire.agValuationFact = {
+      state: "refused",
+      source: "ag-valuation-fact",
+      code: "not-cut-over",
+      entityId: "48021:36521",
+      reason:
+        "agValuation has no legacy serve path -- it is served only from parcel_record (Williamson and Travis counties only), and only once this (county, rail) pair is slated with a passing gate verdict. Not there yet for this parcel.",
+    };
+    const stub = installFetchStub({ facets: wire, gisFeatures: [SUBJECT_FEATURE] });
+    const sheet = await sheetOf(makeResolver(stub), NODE_ID);
+    expect(sheet.agValuation?.state).toBe("unresolved");
+    if (sheet.agValuation?.state !== "unresolved") throw new Error("unreachable");
+    expect(sheet.agValuation.reason).toMatch(/not there yet for this parcel/i);
+  });
+
+  it("bake parked on the root without state is not adopted", async () => {
+    const wire = facetsWire() as unknown as Record<string, unknown>;
+    wire.agValuationFact = { entries: [{ agFlag: true }] };
+    const stub = installFetchStub({ facets: wire, gisFeatures: [SUBJECT_FEATURE] });
+    const sheet = await sheetOf(makeResolver(stub), NODE_ID);
+    expect(sheet.agValuation).toBeUndefined();
+  });
+
+  it("missing field stays missing — no invented land record", async () => {
+    const wire = facetsWire() as unknown as Record<string, unknown>;
+    delete wire.agValuationFact;
+    const stub = installFetchStub({ facets: wire, gisFeatures: [SUBJECT_FEATURE] });
+    const sheet = await sheetOf(makeResolver(stub), NODE_ID);
+    expect(sheet.agValuation).toBeUndefined();
+  });
+});
+
+describe("maxImperviousCoverPctFact only (acquire-wave12)", () => {
+  it("present fixture shows the percentage from the real `percent` key", async () => {
+    const wire = facetsWire() as unknown as Record<string, unknown>;
+    wire.maxImperviousCoverPctFact = {
+      state: "present",
+      source: "max-impervious-cover-pct-fact",
+      percent: 45,
+      watershedType: "Water Supply Suburban",
+      inRechargeZone: false,
+      crosswalkCitation: "Austin LDC 25-8-342",
+    };
+    const stub = installFetchStub({ facets: wire, gisFeatures: [SUBJECT_FEATURE] });
+    const sheet = await sheetOf(makeResolver(stub), NODE_ID);
+    expect(sheet.maxImperviousCoverPct?.state).toBe("present");
+    if (sheet.maxImperviousCoverPct?.state !== "present") throw new Error("unreachable");
+    expect(sheet.maxImperviousCoverPct.value.percent).toBe(45);
+    expect(sheet.maxImperviousCoverPct.value.watershedType).toBe("Water Supply Suburban");
+  });
+
+  it("bake parked on the root without state is not adopted", async () => {
+    const wire = facetsWire() as unknown as Record<string, unknown>;
+    wire.maxImperviousCoverPctFact = { percent: 45 };
+    const stub = installFetchStub({ facets: wire, gisFeatures: [SUBJECT_FEATURE] });
+    const sheet = await sheetOf(makeResolver(stub), NODE_ID);
+    expect(sheet.maxImperviousCoverPct).toBeUndefined();
+  });
+
+  it("missing field stays missing — no invented percentage", async () => {
+    const wire = facetsWire() as unknown as Record<string, unknown>;
+    delete wire.maxImperviousCoverPctFact;
+    const stub = installFetchStub({ facets: wire, gisFeatures: [SUBJECT_FEATURE] });
+    const sheet = await sheetOf(makeResolver(stub), NODE_ID);
+    expect(sheet.maxImperviousCoverPct).toBeUndefined();
+  });
+});

@@ -463,6 +463,142 @@ export interface ParcelFactSheet {
     display: string;
     etjStatus: string;
   }>;
+  /**
+   * ADDITIVE (acquire-wave12 / 2026-09-04). School district from cortex-root
+   * schoolDistrictFact. Optional so existing sealed stubs stay valid.
+   * Missing means the inspect payload did not carry the field (hide the
+   * row). Never invent a district name. Never populated from bake / CAD.
+   *
+   * VERIFIED (2026-09-04) against legacy-design-tools
+   * `artifacts/api-server/src/lib/schoolDistrictFactRead.ts` on branch
+   * `feat/b-acquire-wave12-serve-schooldistrict` (PR #603, OPEN): the real
+   * `districtName: string` key matches this resolver's parsing exactly —
+   * no shape bug here, unlike utilityService/agValuation/
+   * maxImperviousCoverPct. The real type also carries `districtCode`
+   * (hyphenated CCC-DDD) and `geoid`, not currently surfaced on this
+   * field — an enrichment opportunity, not a defect.
+   */
+  schoolDistrict?: Fact<{
+    districtName: string | null;
+    display: string;
+  }>;
+  /**
+   * ADDITIVE (acquire-wave12 / 2026-09-04). Utility service from
+   * cortex-root utilityServiceFact. Optional so existing sealed stubs stay
+   * valid. Missing means the inspect payload did not carry the field (hide
+   * the row). Distinct from `whoServes` (a separate, already-shipped
+   * utility-territory lookup) — never merged with it. Never invented.
+   *
+   * CONFIRMED SHAPE (2026-09-04), verified first-hand against
+   * legacy-design-tools `artifacts/api-server/src/lib/utilityServiceFactRead.ts`
+   * on main as of the PR #600 merge (212f09f0). Water and sewer are
+   * independent companion-row slots (parcel-utility-service.mjs's own fixed
+   * rowIndex 0 = water, rowIndex 1 = sewer), not competing candidates — a
+   * parcel served by both carries both slots, either or both `null`, never
+   * both null on a `present` fact (that is `absent` instead). No electric
+   * slot exists on the served type; never invent one. This superseded an
+   * earlier flat {provider, serviceType} model that predated reading the
+   * real served type — see git history on this field for that mistake.
+   */
+  utilityService?: Fact<{
+    water: {
+      ccnNo: string | null;
+      utility: string | null;
+      status: string | null;
+      ccnType: string | null;
+    } | null;
+    sewer: {
+      ccnNo: string | null;
+      utility: string | null;
+      status: string | null;
+      ccnType: string | null;
+    } | null;
+    display: string;
+  }>;
+  /**
+   * ADDITIVE (acquire-wave12 / 2026-09-04). Overlay districts from
+   * cortex-root overlayDistrictsFact. Optional so existing sealed stubs
+   * stay valid. Missing means the inspect payload did not carry the field
+   * (hide the row). Never invented from zoning-district code alone.
+   *
+   * OPEN QUESTION (2026-09-04, unverified against the LDT projector — same
+   * caveat as utilityService above): factory-side close records show this
+   * rail as LIST-shaped too — multiple companion rows per parcel, each
+   * carrying real per-district content beyond a bare name (e.g. Bastrop's
+   * Character-District rows carry CD_Name / CD_Desc / Shape__Area). This
+   * type's `names: string[]` captures the list MULTIPLICITY but discards
+   * everything but the name — no description, no area. Depending on the
+   * served shape, `isOverlayDistrictsFactWire` may also reject a genuinely
+   * list-shaped payload outright the same way utilityService's guard
+   * would, hiding the row permanently rather than showing partial data.
+   * Whoever finishes the LDT-side projector: please confirm the served
+   * shape against this before cutover — if per-district description/area
+   * matters here, `overlayDistricts` should become
+   * `Fact<{ districts: Array<{ name, description, areaSqFt }>; display }>`.
+   */
+  overlayDistricts?: Fact<{
+    names: string[];
+    display: string;
+  }>;
+  /**
+   * ADDITIVE (acquire-wave12 / 2026-09-04). Agricultural valuation from
+   * cortex-root agValuationFact. Optional so existing sealed stubs stay
+   * valid. Missing means the inspect payload did not carry the field (hide
+   * the row). Never invented from a bake / CAD ag-exemption flag.
+   *
+   * CONFIRMED SHAPE (2026-09-04), verified first-hand against
+   * legacy-design-tools `artifacts/api-server/src/lib/agValuationFactRead.ts`
+   * on branch `feat/b-acquire-wave12-serve-agvaluation` (PR #602, OPEN — not
+   * yet merged as of this fix, caught before it could go live). PLURAL, NOT
+   * A PICKED LEAD: a parcel can carry several distinct land-record
+   * segments (each its own companion row) — WCAD routinely does, TCAD is
+   * "virtually always rowCount:1" but the shape is an array for both. This
+   * superseded an earlier flat {hasAgValuation, exemptionType} model that
+   * predated reading the real served type. Williamson (48491) and Travis
+   * (48453) counties only; every other county resolves to the same
+   * not-cut-over refusal as an unslated pair.
+   */
+  agValuation?: Fact<{
+    entries: Array<{
+      statecode: string | null;
+      landType: string | null;
+      description: string | null;
+      acres: number | null;
+      value: number | null;
+      currValue: number | null;
+      agFlag: boolean;
+      apprMethod: string | null;
+      agYear: string | null;
+      propertyNumber: string | null;
+    }>;
+    display: string;
+  }>;
+  /**
+   * ADDITIVE (acquire-wave12 / 2026-09-04). Max impervious cover percentage
+   * from cortex-root maxImperviousCoverPctFact. Optional so existing sealed
+   * stubs stay valid. Missing means the inspect payload did not carry the
+   * field (hide the row). Distinct from the per-axis setback rule's own
+   * `maxImperviousPct` sub-field — never derived from that.
+   *
+   * CONFIRMED SHAPE (2026-09-04), verified first-hand against
+   * legacy-design-tools
+   * `artifacts/api-server/src/lib/maxImperviousCoverPctFactRead.ts` on
+   * branch `feat/b-acquire-wave12-serve-maximperviouscoverpct` (PR #604,
+   * OPEN — not yet merged as of this fix, caught before it could go live).
+   * The real wire key is `percent`, not `maxImperviousCoverPct` — this
+   * superseded an earlier model that guessed the inner key would echo the
+   * outer rail name, which it does not. Travis/Austin only, and only
+   * within it for parcels whose centroid resolves to a Water Supply
+   * Suburban watershed classification; every other watershed
+   * classification is a genuine crosswalk gap (unresolved, not absent).
+   */
+  maxImperviousCoverPct?: Fact<{
+    percent: number | null;
+    watershedType: string | null;
+    inRechargeZone: boolean | null;
+    crosswalkCitation: string | null;
+    display: string;
+  }>;
   site: SiteConditions;
 
   /**
