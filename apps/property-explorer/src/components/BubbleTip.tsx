@@ -15,11 +15,14 @@ const SHOW_MS = 60;
  * tooltip doing the job the panel should do, and it made the rail feel heavy
  * on hover.
  *
- * Kit 04 glass: 10% white over a 14px blur with an 18% edge, and a small
- * arrow pointing back at the bubble. It flies INWARD toward the map — a rail
- * on the right throws its tips leftward — 8px of travel in 180ms with the
- * opacity arriving in 100ms, and it is `pointer-events: none` at every moment
- * so it can never eat a click meant for the bubble under it.
+ * Kit 04 drew this as glass: 10% white over a 14px blur with an 18% edge.
+ * That reading is retired by operator ruling 2026-09-03 ("i dont like the
+ * glass") — the tip is now the same flat opaque tooltip fill as every other
+ * chrome surface, with a small arrow pointing back at the bubble. It flies
+ * INWARD toward the map — a rail on the right throws its tips leftward — 8px
+ * of travel in 180ms with the opacity arriving in 100ms, and it is
+ * `pointer-events: none` at every moment so it can never eat a click meant
+ * for the bubble under it.
  */
 export function BubbleTip({
   label,
@@ -57,13 +60,13 @@ export function BubbleTip({
     side === "left"
       ? {
           right: -5,
-          borderRight: "1px solid rgba(255,255,255,.18)",
-          borderTop: "1px solid rgba(255,255,255,.18)",
+          borderRight: `1px solid ${PE.line14}`,
+          borderTop: `1px solid ${PE.line14}`,
         }
       : {
           left: -5,
-          borderLeft: "1px solid rgba(255,255,255,.18)",
-          borderBottom: "1px solid rgba(255,255,255,.18)",
+          borderLeft: `1px solid ${PE.line14}`,
+          borderBottom: `1px solid ${PE.line14}`,
         };
 
   return (
@@ -116,10 +119,8 @@ export function BubbleTip({
               gap: 9,
               padding: "7px 12px",
               borderRadius: PE.rTip,
-              background: "rgba(255,255,255,.10)",
-              border: "1px solid rgba(255,255,255,.18)",
-              backdropFilter: "blur(14px)",
-              WebkitBackdropFilter: "blur(14px)",
+              background: PE.tipBg,
+              border: `1px solid ${PE.line14}`,
               whiteSpace: "nowrap",
               fontFamily: PE.ui,
               fontSize: 14.5,
@@ -133,7 +134,7 @@ export function BubbleTip({
                 style={{
                   fontFamily: PE.mono,
                   fontSize: 11.5,
-                  color: "rgba(255,255,255,.6)",
+                  color: PE.t6,
                 }}
               >
                 {shortcut}
@@ -146,7 +147,7 @@ export function BubbleTip({
                 top: "50%",
                 width: 9,
                 height: 9,
-                background: "rgba(255,255,255,.10)",
+                background: PE.tipBg,
                 transform: "translateY(-50%) rotate(45deg)",
                 ...arrow,
               }}
