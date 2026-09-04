@@ -162,15 +162,20 @@ export async function removeStripePromotionCode(
 
 export async function confirmStripeCheckout(
   checkout: MountedCheckout | null | undefined,
-  opts?: { returnUrl?: string },
+  // `returnUrl` is accepted for backward-compatible call sites but never
+  // forwarded to Stripe: the server already sets `return_url` on the
+  // Checkout Session at creation (createPeSubscriptionCheckoutSession /
+  // createPePropertyUnlockCheckoutSession both call applyPeCheckoutUiMode,
+  // which sets it from the same value this app computes here). Passing it
+  // again at confirm() is not a harmless duplicate — Stripe rejects it:
+  // "You cannot provide `returnUrl` to confirm() when `return_url` was
+  // already provided when creating the Checkout Session."
+  _opts?: { returnUrl?: string },
 ): Promise<{ ok: true } | { ok: false; error: string }> {
   if (!checkout) {
     throw new Error("Stripe Checkout cannot confirm without a mounted session");
   }
-  const result = await checkout.confirm({
-    redirect: "always",
-    ...(opts?.returnUrl ? { returnUrl: opts.returnUrl } : {}),
-  });
+  const result = await checkout.confirm({ redirect: "always" });
   if (result.type === "error") {
     return {
       ok: false,
