@@ -2,6 +2,7 @@
 // markup. Right column mounts Stripe Payment Element. No invented card fields.
 // Mounted inside SubscriptionCheckoutModal so the map stays mounted.
 
+import { useState } from "react";
 import {
   PE_PRICING,
   teamMonthlyTotalLabel,
@@ -21,6 +22,7 @@ import {
 } from "./checkoutCopy";
 import { parseCheckoutQuery } from "./checkoutLanding";
 import { PE } from "../styles/pe-chrome";
+import { Input } from "../components/Input";
 
 const TEXT = PE.t1;
 const MUTED = PE.t5;
@@ -74,6 +76,9 @@ export function CheckoutPage({
     clientSecret: resolvedSession?.clientSecret,
     publishableKey: resolvedSession?.publishableKey,
   });
+  const [promoCode, setPromoCode] = useState("");
+  const appliedDiscount = mount.session?.discountAmounts?.[0] ?? null;
+  const liveTotal = mount.session?.total?.total?.amount ?? null;
 
   return (
     <div
@@ -285,14 +290,12 @@ export function CheckoutPage({
               ref={mount.mountRef}
               data-testid="stripe-payment-element"
               aria-label="Stripe payment mount"
-              className="pe-scroll"
               style={{
                 minHeight: 220,
-                maxHeight: "min(420px, 50dvh)",
-                overflowY: "auto",
                 borderRadius: PE.rTouch,
-                border: `1px dashed ${PE.line28}`,
-                background: PE.ink,
+                border: `1px solid ${PE.line14}`,
+                background: "rgba(255,255,255,.02)",
+                padding: 16,
               }}
             />
           ) : (
@@ -311,6 +314,92 @@ export function CheckoutPage({
               {mount.error}
             </div>
           ) : null}
+          {creds.ok ? (
+            <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
+              {appliedDiscount ? (
+                <div
+                  style={{
+                    display: "flex",
+                    alignItems: "center",
+                    justifyContent: "space-between",
+                    fontSize: 13.5,
+                  }}
+                >
+                  <span style={{ color: PE.ok }}>
+                    {appliedDiscount.promotionCode ?? appliedDiscount.displayName} applied
+                  </span>
+                  <button
+                    type="button"
+                    data-testid="checkout-promo-remove"
+                    onClick={() => void mount.removePromo()}
+                    disabled={mount.promoStatus === "applying"}
+                    style={{
+                      fontSize: 13,
+                      color: ABSENCE,
+                      background: "transparent",
+                      border: "none",
+                      cursor: "pointer",
+                      padding: 0,
+                      fontFamily: FONT,
+                    }}
+                  >
+                    Remove
+                  </button>
+                </div>
+              ) : (
+                <form
+                  data-testid="checkout-promo-form"
+                  onSubmit={(e) => {
+                    e.preventDefault();
+                    if (promoCode.trim()) void mount.applyPromo(promoCode);
+                  }}
+                  style={{ display: "flex", gap: 8 }}
+                >
+                  <Input
+                    data-testid="checkout-promo-input"
+                    value={promoCode}
+                    onChange={(e) => setPromoCode(e.target.value)}
+                    placeholder="Promo code"
+                    aria-label="Promo code"
+                    invalid={mount.promoStatus === "error"}
+                    disabled={mount.promoStatus === "applying"}
+                    style={{ flex: 1 }}
+                  />
+                  <button
+                    type="submit"
+                    data-testid="checkout-promo-apply"
+                    disabled={mount.promoStatus === "applying" || !promoCode.trim()}
+                    style={{
+                      height: PE.hField,
+                      padding: "0 16px",
+                      borderRadius: PE.rTouch,
+                      border: `1px solid ${PE.line28}`,
+                      background: "transparent",
+                      color: TEXT,
+                      fontSize: 13.5,
+                      fontFamily: FONT,
+                      cursor:
+                        mount.promoStatus === "applying" || !promoCode.trim()
+                          ? "default"
+                          : "pointer",
+                      opacity:
+                        mount.promoStatus === "applying" || !promoCode.trim() ? 0.5 : 1,
+                    }}
+                  >
+                    Apply
+                  </button>
+                </form>
+              )}
+              {mount.promoStatus === "error" && mount.promoError ? (
+                <div
+                  data-testid="checkout-promo-error"
+                  style={{ fontSize: 12.5, color: PE.warn }}
+                >
+                  {mount.promoError}
+                </div>
+              ) : null}
+            </div>
+          ) : null}
           <div
             style={{
               display: "flex",
@@ -321,11 +410,26 @@ export function CheckoutPage({
             }}
           >
             <span style={{ fontSize: 14.5, color: MUTED }}>Total due today</span>
-            <span
-              data-testid="checkout-total"
-              style={{ fontFamily: PE.mono, fontWeight: 400, fontSize: 26, color: PE.t1 }}
-            >
-              {dueToday}
+            <span style={{ display: "flex", alignItems: "baseline", gap: 8 }}>
+              {liveTotal && appliedDiscount ? (
+                <span
+                  data-testid="checkout-total-precode"
+                  style={{
+                    fontFamily: PE.mono,
+                    fontSize: 15.5,
+                    color: ABSENCE,
+                    textDecoration: "line-through",
+                  }}
+                >
+                  {dueToday}
+                </span>
+              ) : null}
+              <span
+                data-testid="checkout-total"
+                style={{ fontFamily: PE.mono, fontWeight: 400, fontSize: 26, color: PE.t1 }}
+              >
+                {liveTotal ?? dueToday}
+              </span>
             </span>
           </div>
           <p
@@ -364,7 +468,7 @@ export function CheckoutPage({
                 about to be charged, so neither half is a surprise. */}
             <span>{submit}</span>
             <span style={{ fontFamily: PE.mono, fontWeight: 400, opacity: 0.9 }}>
-              {dueToday}
+              {liveTotal ?? dueToday}
             </span>
           </button>
         </section>

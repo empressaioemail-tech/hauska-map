@@ -26,6 +26,20 @@ export const CHECKOUT_SESSION_MISSING =
 
 export type StripeJsLoader = (publishableKey: string) => Promise<Stripe | null>;
 
+/** Trimmed down from Stripe's `StripeCheckoutSession` (7.9.0) to the fields the
+ *  promo-code UI actually reads — total due and the applied discount, if any. */
+export type CheckoutSessionSummary = {
+  total: { total: { amount: string; minorUnitsAmount: number } };
+  discountAmounts: Array<{
+    displayName: string;
+    promotionCode: string | null;
+  }> | null;
+};
+
+export type PromotionCodeResult =
+  | { type: "success"; session: CheckoutSessionSummary }
+  | { type: "error"; error: { message: string } };
+
 export type MountedCheckout = {
   createPaymentElement: () => {
     mount: (el: string | HTMLElement) => void;
@@ -37,6 +51,9 @@ export type MountedCheckout = {
     type: "success" | "error";
     error?: { message: string };
   }>;
+  applyPromotionCode: (promotionCode: string) => Promise<PromotionCodeResult>;
+  removePromotionCode: () => Promise<PromotionCodeResult>;
+  session: () => CheckoutSessionSummary;
 };
 
 export type StripeMountResult =
@@ -104,6 +121,43 @@ export async function mountStripeCheckout(input: {
       error: err instanceof Error ? err.message : STRIPE_MOUNT_LOAD_FAILED,
     };
   }
+}
+
+export async function applyPromotionCode(
+  checkout: MountedCheckout | null | undefined,
+  code: string,
+): Promise<{ ok: true; session: CheckoutSessionSummary } | { ok: false; error: string }> {
+  if (!checkout) {
+    throw new Error("Stripe Checkout cannot confirm without a mounted session");
+  }
+  const trimmed = code.trim();
+  if (!trimmed) {
+    return { ok: false, error: "Enter a promo code first." };
+  }
+  const result = await checkout.applyPromotionCode(trimmed);
+  if (result.type === "error") {
+    return {
+      ok: false,
+      error: result.error?.message?.trim() || "That code didn't work. Nothing was charged.",
+    };
+  }
+  return { ok: true, session: result.session };
+}
+
+export async function removeStripePromotionCode(
+  checkout: MountedCheckout | null | undefined,
+): Promise<{ ok: true; session: CheckoutSessionSummary } | { ok: false; error: string }> {
+  if (!checkout) {
+    throw new Error("Stripe Checkout cannot confirm without a mounted session");
+  }
+  const result = await checkout.removePromotionCode();
+  if (result.type === "error") {
+    return {
+      ok: false,
+      error: result.error?.message?.trim() || "Could not remove the code. Nothing was charged.",
+    };
+  }
+  return { ok: true, session: result.session };
 }
 
 export async function confirmStripeCheckout(

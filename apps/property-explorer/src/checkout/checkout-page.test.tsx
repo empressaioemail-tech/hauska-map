@@ -88,6 +88,25 @@ describe("CheckoutPage — left column from PE_PRICING + frame 3b", () => {
     }
   });
 
+  it("promo code form is wired and the payment mount is not a nested scroll box", () => {
+    const html = renderToStaticMarkup(
+      <CheckoutPage search="?tier=solo&interval=month" session={SESSION} />,
+    );
+    // The mount slot must not carry its own independent scroll region — the
+    // page-level `.pe-scroll` wrapper already scrolls, and stacking a second
+    // fixed-height scrollbar inside it clipped the promo/order-summary area
+    // out of view (customer-reported: "no where to put a promo code").
+    expect(html).not.toContain("overflow-y:auto");
+    expect(html).not.toMatch(/border:1px dashed/);
+    expect(html).toContain('data-testid="checkout-promo-form"');
+    expect(html).toContain('data-testid="checkout-promo-input"');
+    expect(html).toContain('placeholder="Promo code"');
+    expect(html).toContain('data-testid="checkout-promo-apply"');
+    // No session applied yet in a static render — the "applied" state (with
+    // its Remove control) must not show until a real discount exists.
+    expect(html).not.toContain('data-testid="checkout-promo-remove"');
+  });
+
   it("modal wrapper mounts the Payment Element when clientSecret exists", () => {
     const html = renderToStaticMarkup(
       <SubscriptionCheckoutModal
@@ -168,7 +187,6 @@ describe("CheckoutPage — left column from PE_PRICING + frame 3b", () => {
     expect(html).not.toContain("$704");
     expect(html).not.toContain("$349");
     expect(html).not.toContain("$45");
-    expect(html).toContain("overflow-y:auto");
     expect(html).toContain('data-testid="checkout-wallet-note"');
   });
 });
