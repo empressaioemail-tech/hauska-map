@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import {
   isUnseen,
+  markAllSeen,
   reportKey,
   resolveSeen,
   unseenCount,
@@ -61,5 +62,27 @@ describe("unseenCount — the ambient number", () => {
   it("is zero on an empty library, never a guess", () => {
     expect(unseenCount([], resolveSeen([], null))).toBe(0);
     expect(unseenCount([], new Set())).toBe(0);
+  });
+});
+
+describe("markAllSeen — opening the Reports tool is what clears the toolbar dot", () => {
+  it("darkens everything currently filed", () => {
+    const seen = markAllSeen([A, B], new Set<string>());
+    expect(unseenCount([A, B], seen)).toBe(0);
+  });
+
+  it("a report filed AFTER you opened the tool lights it again", () => {
+    // The whole point: the dot means "something new", not "something
+    // exists". If it could not come back on it would be as useless as one
+    // that could not go off.
+    const afterOpening = markAllSeen([A, B], new Set<string>());
+    const C = row("48021:1", "feasibility", "2026-08-29T09:00:00Z");
+    expect(unseenCount([A, B, C], afterOpening)).toBe(1);
+  });
+
+  it("does not mutate the set it was handed", () => {
+    const before = new Set<string>();
+    markAllSeen([A], before);
+    expect(before.size).toBe(0);
   });
 });

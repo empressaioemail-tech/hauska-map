@@ -361,11 +361,11 @@ describe("picking a report BEFORE picking a property", () => {
   });
 });
 
-describe("the two wirings that had no test until they broke", () => {
-  // Source-level pins. This repo has no click harness, and neither of these is
-  // observable in static markup: one is a subscription, the other is an effect
-  // in another file. Both were verified by violation and BOTH PLANTS PASSED
-  // before these existed, which is the whole reason they do.
+describe("the wirings that had no test until they broke", () => {
+  // Source-level pins. This repo has no click harness, and none of these is
+  // observable in static markup: each is a subscription or an effect in
+  // another file. All were verified by violation and every one PASSED before
+  // its own pin existed, which is the whole reason these do.
   const codeOf = (rel: string) =>
     readFileSync(resolve(__dirname, rel), "utf8")
       .replace(/\/\*[\s\S]*?\*\//g, "")
@@ -387,5 +387,25 @@ describe("the two wirings that had no test until they broke", () => {
     // the import, so removing the call still passed.
     expect(src).toMatch(/void\s+markRecordsSeenNow\(\)/);
     expect(src).toMatch(/openWorkbenchTool !== "reports"/);
+  });
+
+  it("opening Reports ALSO marks filed reports seen, so the dot's other half can go dark", () => {
+    // The toolbar dot used to be fed by useRecordsUnread alone, which only
+    // counts courthouse records-request completions — not a Flood &
+    // Drainage study, X-ray, or Feasibility Study finishing. Those are
+    // tracked by reports-seen.ts (the same store that drives the "not
+    // opened yet" pip in My Reports) via useReportsUnread /
+    // markReportsSeenNow. Same effect, same guard, extended rather than
+    // duplicated.
+    const src = codeOf("../../browse/ExplorerMap.tsx");
+    expect(src).toMatch(/void\s+markReportsSeenNow\(\)/);
+    expect(src).toMatch(/openWorkbenchTool !== "reports"/);
+  });
+
+  it("the toolbar dot combines BOTH sources, not records alone", () => {
+    // Guards against a regression back to `if (recordsUnread <= 0) return
+    // base;`, which would silently drop the reports-seen half again.
+    const src = codeOf("../../browse/ExplorerMap.tsx");
+    expect(src).toMatch(/shouldLightReportsDot\(\s*recordsUnread,\s*reportsUnread\s*\)/);
   });
 });

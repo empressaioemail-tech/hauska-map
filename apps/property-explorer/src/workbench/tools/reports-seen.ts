@@ -49,6 +49,24 @@ export function isUnseen(row: SeenKeyed, seen: ReadonlySet<string>): boolean {
   return !seen.has(reportKey(row));
 }
 
+/**
+ * Mark every row currently in the list as seen. This is the bulk
+ * equivalent of the per-row `markSeen` the library uses when a report is
+ * actually viewed — it is what lets OPENING the Reports tool (not opening
+ * each PDF) clear the rail's toolbar dot, the same way `markRunsSeen`
+ * clears the records-side dot when that dock opens. A report filed AFTER
+ * this call still lights the dot again; only what was in `rows` at call
+ * time is affected.
+ */
+export function markAllSeen(
+  rows: readonly SeenKeyed[],
+  seen: ReadonlySet<string>,
+): Set<string> {
+  const next = new Set(seen);
+  for (const row of rows) next.add(reportKey(row));
+  return next;
+}
+
 /** How many rows are new. Drives the dock's ambient count. */
 export function unseenCount(
   rows: readonly SeenKeyed[],
@@ -76,5 +94,32 @@ export function saveSeen(seen: ReadonlySet<string>): void {
     window.localStorage.setItem(STORAGE_KEY, JSON.stringify([...seen]));
   } catch {
     // Read-state is a convenience. Losing it must never break the list.
+  }
+}
+
+// ---------------------------------------------------------------------------
+// A tiny notify so the toolbar dot darkens the MOMENT the Reports tool opens,
+// rather than waiting for whatever poll/refetch cadence its consumer runs on.
+// Same shape as records-seen's own notify pair; kept separate because the
+// subject is different and one listener set for two unrelated facts is how a
+// signal stops meaning anything.
+// ---------------------------------------------------------------------------
+
+const seenListeners = new Set<() => void>();
+
+export function subscribeReportsSeenChanged(listener: () => void): () => void {
+  seenListeners.add(listener);
+  return () => {
+    seenListeners.delete(listener);
+  };
+}
+
+export function notifyReportsSeenChanged(): void {
+  for (const fn of [...seenListeners]) {
+    try {
+      fn();
+    } catch {
+      // One bad subscriber must not stop the others.
+    }
   }
 }

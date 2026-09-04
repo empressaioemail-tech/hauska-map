@@ -65,6 +65,8 @@ import { getPropertyEntitlementSnapshot, isEntitled } from "../lib/entitlementCl
 import { Workbench } from "../workbench/Workbench";
 import { WORKBENCH_TOOLS } from "../workbench/registry";
 import { markRecordsSeenNow, useRecordsUnread } from "../lib/useRecordsUnread";
+import { markReportsSeenNow, useReportsUnread } from "../lib/useReportsUnread";
+import { shouldLightReportsDot } from "./reports-dot";
 import type { WorkbenchHostActions } from "../workbench/types";
 import {
   SHARED_ANALYSIS_TOOL_ID,
@@ -1390,21 +1392,31 @@ function ExplorerMapSurface({
   // The workbench cluster: share landings get the read-only shared-analysis
   // tool PREPENDED (top bubble); everything else is the standard registry —
   // outside the share grant the app behaves exactly as anonymous.
-  // The rail's gold unread dot. Fed by the ONE count in this app that can
-  // honestly supply it — records-request jobs that finished cleanly and are
-  // waiting for the user. Zero when signed out, unwired, or unreachable, and
-  // zero renders no dot at all: an absent dot is the honest answer to "we do
-  // not know", and a dot lit by a failed fetch would be worse than none.
+  // The rail's gold unread dot. Fed by TWO counts, each honestly derived and
+  // each zero when signed out, unwired/errored, or unreachable — zero
+  // renders no dot at all: an absent dot is the honest answer to "we do not
+  // know", and a dot lit by a failed fetch would be worse than none.
+  //   - records-request jobs that finished cleanly and are waiting.
+  //   - filed reports (X-ray, Flood & Drainage, Feasibility Study, and the
+  //     Studio exports) the reader has not opened — the same signal that
+  //     already drives the "not opened yet" pip in the My Reports library
+  //     (reports-seen.ts), just asked before that panel is ever open.
+  // shouldLightReportsDot combines them as a plain OR — never a sum, per the
+  // rail's "one dot, never a count" rule.
   const recordsUnread = useRecordsUnread();
+  const reportsUnread = useReportsUnread();
 
-  // OPENING REPORTS IS WHAT CLEARS THE DOT. Before this nothing could: the
-  // rule was "a run has finished", which stays true forever, so the dot was
-  // permanently lit and meant nothing. Keyed on the open tool rather than on
-  // a click handler so it covers the programmatic opens too, and it is
+  // OPENING REPORTS IS WHAT CLEARS THE DOT. Before this nothing could clear
+  // the records half: the rule was "a run has finished", which stays true
+  // forever, so the dot was permanently lit and meant nothing. Both sources
+  // are cleared here — markRecordsSeenNow for finished records-request runs,
+  // markReportsSeenNow for filed reports — keyed on the open tool rather
+  // than a click handler so it covers programmatic opens too, and both are
   // idempotent.
   useEffect(() => {
     if (openWorkbenchTool !== "reports") return;
     void markRecordsSeenNow();
+    void markReportsSeenNow();
   }, [openWorkbenchTool]);
   // Lifted out of MapSourceInfo so its bubble and its panel can sit in the
   // capsule and the column respectively.
@@ -1416,11 +1428,11 @@ function ExplorerMapSurface({
     const base = share
       ? [sharedAnalysisToolDef(share), ...WORKBENCH_TOOLS]
       : WORKBENCH_TOOLS;
-    if (recordsUnread <= 0) return base;
+    if (!shouldLightReportsDot(recordsUnread, reportsUnread)) return base;
     return base.map((tool) =>
       tool.id === "reports" ? { ...tool, unread: true } : tool,
     );
-  }, [share, recordsUnread]);
+  }, [share, recordsUnread, reportsUnread]);
 
   // Live-GIS overlay parcel click -> inspect-in-place. Fold the clicked parcel
   // into the ported node store as `inspected` and draw the InspectCard.
