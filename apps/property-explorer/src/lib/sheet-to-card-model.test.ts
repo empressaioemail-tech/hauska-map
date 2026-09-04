@@ -1131,14 +1131,19 @@ describe("utilityServiceFact inspect row (acquire-wave12)", () => {
 });
 
 describe("overlayDistrictsFact inspect row (acquire-wave12)", () => {
-  it("present fixture joins district names", () => {
+  it("present fixture with one district shows the city", () => {
     const model = bakedCardModelFromSheet(
       sheet({
         overlayDistricts: {
           state: "present",
           value: {
-            names: ["Historic Overlay", "Airport Compatibility"],
-            display: "Historic Overlay, Airport Compatibility",
+            districts: [
+              {
+                city: "Bastrop",
+                attributes: { CD_Name: "Character District 3", CD_Desc: "Downtown core" },
+              },
+            ],
+            display: "Bastrop overlay district",
           },
           provenance: {
             ...prov(),
@@ -1149,18 +1154,40 @@ describe("overlayDistrictsFact inspect row (acquire-wave12)", () => {
       }),
     );
     expect(model.overlayDistricts.state).toBe("present");
-    expect(model.overlayDistricts.value).toContain("Historic Overlay");
-    expect(model.overlayDistricts.value).toContain("Airport Compatibility");
+    expect(model.overlayDistricts.value).toContain("Bastrop");
   });
 
-  it("gold-shaped absent fixture does not render a district name", () => {
+  it("present fixture with multiple districts joins cities and shows the count, not a picked lead", () => {
+    const model = bakedCardModelFromSheet(
+      sheet({
+        overlayDistricts: {
+          state: "present",
+          value: {
+            districts: [
+              { city: "Bastrop", attributes: { CD_Name: "Character District 3" } },
+              { city: "Bastrop", attributes: { CD_Name: "Airport Compatibility" } },
+            ],
+            display: "Bastrop — 2 overlay districts",
+          },
+          provenance: {
+            ...prov(),
+            source: "overlay-districts-fact",
+            sourceLabel: "overlay-districts-fact atom",
+          },
+        },
+      }),
+    );
+    expect(model.overlayDistricts.value).toContain("2 overlay districts");
+  });
+
+  it("gold-shaped absent fixture does not render a district", () => {
     const facet = overlayDistrictsFacetFromSheet({
       state: "absent-covered",
       reason: "no overlay-districts-fact atom on this parcel",
       provenance: prov(),
     });
     expect(facet.state).toBe("absent");
-    expect(JSON.stringify(facet)).not.toMatch(/Historic Overlay/);
+    expect(JSON.stringify(facet)).not.toMatch(/Bastrop/);
   });
 
   it("missing field hides the row (unknown)", () => {

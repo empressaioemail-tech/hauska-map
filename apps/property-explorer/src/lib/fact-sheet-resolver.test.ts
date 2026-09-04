@@ -2083,26 +2083,66 @@ describe("utilityServiceFact only (acquire-wave12)", () => {
 });
 
 describe("overlayDistrictsFact only (acquire-wave12)", () => {
-  it("present fixture lists district names from overlayDistrictsFact", async () => {
+  it("present fixture shows the districts array from overlayDistrictsFact", async () => {
     const wire = facetsWire() as unknown as Record<string, unknown>;
     wire.overlayDistrictsFact = {
       state: "present",
       source: "overlay-districts-fact",
-      names: ["Historic Overlay", "Airport Compatibility"],
+      entityId: "48021:36521:overlay-districts",
+      districts: [
+        { city: "Bastrop", attributes: { CD_Name: "Character District 3", CD_Desc: "Downtown core" } },
+      ],
     };
     const stub = installFetchStub({ facets: wire, gisFeatures: [SUBJECT_FEATURE] });
     const sheet = await sheetOf(makeResolver(stub), NODE_ID);
     expect(sheet.overlayDistricts?.state).toBe("present");
     if (sheet.overlayDistricts?.state !== "present") throw new Error("unreachable");
-    expect(sheet.overlayDistricts.value.names).toEqual([
-      "Historic Overlay",
-      "Airport Compatibility",
-    ]);
+    expect(sheet.overlayDistricts.value.districts).toHaveLength(1);
+    expect(sheet.overlayDistricts.value.districts[0].city).toBe("Bastrop");
+    expect(sheet.overlayDistricts.value.districts[0].attributes.CD_Name).toBe(
+      "Character District 3",
+    );
+  });
+
+  it("present fixture with multiple districts keeps every entry, not a picked lead", async () => {
+    const wire = facetsWire() as unknown as Record<string, unknown>;
+    wire.overlayDistrictsFact = {
+      state: "present",
+      source: "overlay-districts-fact",
+      entityId: "48021:36521:overlay-districts",
+      districts: [
+        { city: "Bastrop", attributes: { CD_Name: "Character District 3" } },
+        { city: "Bastrop", attributes: { CD_Name: "Airport Compatibility" } },
+      ],
+    };
+    const stub = installFetchStub({ facets: wire, gisFeatures: [SUBJECT_FEATURE] });
+    const sheet = await sheetOf(makeResolver(stub), NODE_ID);
+    expect(sheet.overlayDistricts?.state).toBe("present");
+    if (sheet.overlayDistricts?.state !== "present") throw new Error("unreachable");
+    expect(sheet.overlayDistricts.value.districts).toHaveLength(2);
+    expect(sheet.overlayDistricts.value.display).toContain("2 overlay districts");
+  });
+
+  it("refused not-cut-over carries the real human-readable reason", async () => {
+    const wire = facetsWire() as unknown as Record<string, unknown>;
+    wire.overlayDistrictsFact = {
+      state: "refused",
+      source: "overlay-districts-fact",
+      code: "not-cut-over",
+      entityId: "48021:36521",
+      reason:
+        "overlayDistricts has no legacy serve path -- it is served only from parcel_record, and only once this (county, rail) pair is slated with a passing gate verdict. Not there yet for this parcel.",
+    };
+    const stub = installFetchStub({ facets: wire, gisFeatures: [SUBJECT_FEATURE] });
+    const sheet = await sheetOf(makeResolver(stub), NODE_ID);
+    expect(sheet.overlayDistricts?.state).toBe("unresolved");
+    if (sheet.overlayDistricts?.state !== "unresolved") throw new Error("unreachable");
+    expect(sheet.overlayDistricts.reason).toMatch(/not there yet for this parcel/i);
   });
 
   it("bake parked on the root without state is not adopted", async () => {
     const wire = facetsWire() as unknown as Record<string, unknown>;
-    wire.overlayDistrictsFact = { names: ["BAKE OVERLAY"] };
+    wire.overlayDistrictsFact = { districts: [{ city: "BAKE OVERLAY" }] };
     const stub = installFetchStub({ facets: wire, gisFeatures: [SUBJECT_FEATURE] });
     const sheet = await sheetOf(makeResolver(stub), NODE_ID);
     expect(sheet.overlayDistricts).toBeUndefined();

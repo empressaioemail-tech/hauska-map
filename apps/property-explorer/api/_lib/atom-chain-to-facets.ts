@@ -550,23 +550,21 @@ export type UtilityServiceFactWire = {
  * Cortex inspect GET sibling (acquire-wave12 / overlay-districts-fact).
  * Copied from the cortex JSON ROOT only.
  *
- * OPEN QUESTION, unverified against the LDT projector (cutover PRs not
- * merged yet): factory close records show this rail as LIST-shaped too —
- * multiple companion rows per parcel, each carrying real per-district
- * content (e.g. Bastrop Character-District rows carry CD_Name / CD_Desc /
- * Shape__Area), not just a bare name. `names?: unknown` below only keeps
- * room for a flat array of strings; if the served shape is instead an
- * array of richer per-district records (or the fact itself is an array
- * rather than an object with a top-level `state`), `isOverlayDistrictsFactWire`
- * rejects it outright and this field is treated as absent from the wire —
- * permanently, since it is a shape mismatch, not a missing-field gap.
- * Confirm the served shape before cutover so this type (and
- * ParcelFactSheet's `overlayDistricts`) can carry per-district
- * name/description/area if that data is meant to surface.
+ * CONFIRMED SHAPE (2026-09-04), verified first-hand against
+ * legacy-design-tools
+ * `artifacts/api-server/src/lib/overlayDistrictsFactRead.ts` on branch
+ * `feat/b-acquire-wave12-serve-utilityservice`, HEAD `f3ca65e8` — this
+ * code is NOT reachable from `main` despite PR #601 showing as merged (it
+ * merged into that stale feature branch instead, a separate git-process
+ * defect outside this lane; confirmed via `compare/main...` diff). No
+ * live exposure today, but the real key is `districts` (an array of
+ * `{city, attributes}`), not `names` — the prior model read a key that
+ * does not exist on the real wire at all, so this is fixed now regardless
+ * of when/whether that merge-target mistake gets corrected upstream.
  */
 export type OverlayDistrictsFactWire = {
   state: "present" | "absent" | "refused";
-  names?: unknown;
+  districts?: unknown;
   absence?: { kind?: string; reason?: string } | null;
   code?: unknown;
   reason?: unknown;
