@@ -161,6 +161,16 @@ describe("confirmStripeCheckout", () => {
     const result = await confirmStripeCheckout(checkout);
     expect(result).toEqual({ ok: false, error: "Your card was declined." });
   });
+
+  it("never forwards returnUrl — the session already carries return_url from creation, and Stripe rejects a duplicate", async () => {
+    const confirm = vi.fn(async () => ({ type: "success" as const }));
+    const checkout = {
+      createPaymentElement: () => ({ mount: () => {} }),
+      confirm,
+    };
+    await confirmStripeCheckout(checkout, { returnUrl: "https://smartsite.cloud/?checkout=success" });
+    expect(confirm).toHaveBeenCalledWith({ redirect: "always" });
+  });
 });
 
 describe("applyPromotionCode", () => {
