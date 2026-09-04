@@ -63,6 +63,11 @@ import {
   dossierExportNotice,
   requestDossierExport,
 } from "./dossier-export";
+import {
+  assembleFeasibilityExportBody,
+  feasibilityExportNotice,
+  requestFeasibilityExport,
+} from "./feasibility-export";
 import { runBriefResearch } from "./brief-research";
 import {
   findReportDoc,
@@ -90,6 +95,10 @@ export const TERRAIN_PAYWALL_MESSAGE =
   "Multi-format terrain export (GLB, IFC, DXF) is a Studio feature — it is not part of the single-property unlock.";
 export const DOSSIER_PAYWALL_MESSAGE =
   "The property X-ray PDF — verdict, cited brief facts, your notes and AI research summary, with the site-plan sheets appended.";
+/** FEASIBILITY STUDY IS STUDIO-ONLY (P32 tier ruling): the same product
+ *  rule as site-plan and terrain, never the single-property unlock. */
+export const FEASIBILITY_PAYWALL_MESSAGE =
+  "The composed Feasibility Study PDF — zoning envelope, flood, terrain, utilities, wells, and open items, with the site plan appended — is a Studio feature. It is not part of the single-property unlock.";
 
 const MUTED = PE.muted2;
 const TEXT = PE.text;
@@ -99,6 +108,12 @@ const BLUE = PE.accent;
 const AMBER = PE.warning;
 
 export interface DossierDockState {
+  notice: string | null;
+  downloadUrl: string | null;
+  generatedAt: string | null;
+}
+
+export interface FeasibilityDockState {
   notice: string | null;
   downloadUrl: string | null;
   generatedAt: string | null;
@@ -130,6 +145,8 @@ export function ReportsTool() {
     useDockToolState<string>("reports.selectedDoc");
   const [dossier, setDossier] =
     useDockToolState<DossierDockState>("reports.dossier");
+  const [feasibility, setFeasibility] =
+    useDockToolState<FeasibilityDockState>("reports.feasibility");
   const [pickerOpen, setPickerOpen] = useState(false);
   // PRE-PARCEL PICK. useDockToolState refuses a write with no active parcel
   // ("no phantom-property writes" in WorkbenchContext) — correctly, since that
@@ -242,7 +259,7 @@ export function ReportsTool() {
   }, [activeParcelNodeId, pendingDoc, setSelectedRaw]);
 
   const generatedLabel = selected
-    ? generatedLabelFor(selected, sitePlan, terrain, dossier)
+    ? generatedLabelFor(selected, sitePlan, terrain, dossier, feasibility)
     : null;
   const status = selected
     ? reportDocStatus(selected, {
@@ -303,6 +320,7 @@ export function ReportsTool() {
               sitePlan={sitePlan}
               terrain={terrain}
               dossier={dossier}
+              feasibility={feasibility}
               terrainProLocked={
                 selected.studioGated ? terrainProLocked : false
               }
@@ -315,6 +333,7 @@ export function ReportsTool() {
                 maybeAttach(activeParcelNodeId, "terrain", next.result);
               }}
               onDossier={setDossier}
+              onFeasibility={setFeasibility}
               onPaymentRequired={paywall}
               onOpenBrief={() => host.openTool?.("brief")}
             />
@@ -356,6 +375,7 @@ function filedKindLabel(kind: FiledReportRow["kind"]): string {
   if (kind === "flood-drainage") return "Flood & drainage";
   if (kind === "xray") return "X-ray";
   if (kind === "site-plan") return "Site plan";
+  if (kind === "feasibility") return "Feasibility Study";
   return "Terrain";
 }
 
@@ -666,6 +686,7 @@ function generatedLabelFor(
   sitePlan: SitePlanExportSectionState | null,
   terrain: TerrainExportSectionState | null,
   dossier: DossierDockState | null,
+  feasibility: FeasibilityDockState | null,
 ): string | null {
   if (doc.engine === "site-plan") {
     return generatedDay(sitePlan?.result?.atom.fetchedAt);
@@ -675,6 +696,9 @@ function generatedLabelFor(
   }
   if (doc.engine === "dossier") {
     return generatedDay(dossier?.generatedAt);
+  }
+  if (doc.engine === "feasibility") {
+    return generatedDay(feasibility?.generatedAt);
   }
   return null;
 }
@@ -978,10 +1002,12 @@ function SelectedEngine({
   sitePlan,
   terrain,
   dossier,
+  feasibility,
   terrainProLocked,
   onSitePlan,
   onTerrain,
   onDossier,
+  onFeasibility,
   onPaymentRequired,
   onOpenBrief,
 }: {
@@ -991,10 +1017,12 @@ function SelectedEngine({
   sitePlan: SitePlanExportSectionState | null;
   terrain: TerrainExportSectionState | null;
   dossier: DossierDockState | null;
+  feasibility: FeasibilityDockState | null;
   terrainProLocked: boolean;
   onSitePlan: (next: SitePlanExportSectionState) => void;
   onTerrain: (next: TerrainExportSectionState) => void;
   onDossier: (next: DossierDockState) => void;
+  onFeasibility: (next: FeasibilityDockState) => void;
   onPaymentRequired: (
     message: string,
     opts?: { studioOnly?: boolean; highlightTier?: "solo" | "studio" | "team" },
@@ -1037,6 +1065,37 @@ function SelectedEngine({
 
   if (doc.engine === "flood") {
     return <FloodDrainageSection embed />;
+  }
+
+  if (doc.engine === "feasibility") {
+    // P32 wave 2: Feasibility Study is Studio-gated exactly like site-plan
+    // and terrain (NOT the property-unlock-or-Pro gate X-ray/Flood use), so
+    // it renders the same honest locked panel instead of a control that
+    // would 402 on click.
+    if (terrainProLocked) {
+      return (
+        <LockedToolPanel
+          valueLine="Feasibility Study — the composed zoning envelope, flood, terrain, utilities, wells, and open-items PDF, with the site plan appended."
+          proOnly
+          proOnlyNote={FEASIBILITY_PAYWALL_MESSAGE}
+          testId="feasibility-studio-lock"
+        />
+      );
+    }
+    return (
+      <FeasibilityExportAction
+        parcelNodeId={parcelNodeId}
+        facts={facts}
+        state={feasibility}
+        onStateChange={onFeasibility}
+        onPaymentRequired={() =>
+          onPaymentRequired(FEASIBILITY_PAYWALL_MESSAGE, {
+            studioOnly: true,
+            highlightTier: "studio",
+          })
+        }
+      />
+    );
   }
 
   if (doc.engine === "records") {
@@ -1226,6 +1285,103 @@ function DossierExportAction({
         variant={hasFile ? "secondary" : "primary"}
         fullWidth
         data-testid="reports-dossier-run"
+        disabled={busy}
+        onClick={() => void run()}
+        style={{ marginTop: hasFile || busy || state?.notice ? 8 : 0 }}
+      >
+        {busy ? "Building…" : hasFile ? "Re-run" : "Generate"}
+      </Button>
+    </div>
+  );
+}
+
+function FeasibilityExportAction({
+  parcelNodeId,
+  facts,
+  state,
+  onStateChange,
+  onPaymentRequired,
+}: {
+  parcelNodeId: string;
+  facts: { address: string | null; countyName: string | null };
+  state: FeasibilityDockState | null;
+  onStateChange: (next: FeasibilityDockState) => void;
+  onPaymentRequired: () => void;
+}) {
+  const [busy, setBusy] = useState(false);
+
+  const run = async () => {
+    setBusy(true);
+    const body = assembleFeasibilityExportBody({ parcelNodeId, facts });
+    const result = await requestFeasibilityExport(body);
+    setBusy(false);
+    if (!result.ok && result.status === 402) {
+      onPaymentRequired();
+      onStateChange({
+        notice: feasibilityExportNotice(result),
+        downloadUrl: null,
+        generatedAt: null,
+      });
+      return;
+    }
+    if (!result.ok) {
+      onStateChange({
+        notice: feasibilityExportNotice(result),
+        downloadUrl: null,
+        generatedAt: state?.generatedAt ?? null,
+      });
+      return;
+    }
+    // P-100 item 4 (see DossierExportAction above): fired on the SUCCESS
+    // path only, once per account via the composite primary key.
+    void recordPeActivationMilestone("first_report_opened", "reports-tool");
+    onStateChange({
+      notice: feasibilityExportNotice(result),
+      downloadUrl: result.downloadUrl,
+      generatedAt: new Date().toISOString(),
+    });
+    void fileReportOnProperty(
+      parcelNodeId,
+      "feasibility",
+      {
+        selectedFormat: "pdf-feasibility",
+        downloadUrl: result.downloadUrl,
+      },
+      { label: facts.address, address: facts.address },
+    );
+  };
+
+  const hasFile = !!state?.downloadUrl;
+
+  return (
+    <div data-testid="reports-feasibility-action">
+      {hasFile ? (
+        <DownloadFileButton
+          href={state.downloadUrl}
+          label="Download PDF"
+          testId="reports-feasibility-download"
+          parcelNodeId={parcelNodeId}
+        />
+      ) : busy ? (
+        <DownloadFileButton
+          label="Download PDF"
+          state="generating"
+          testId="reports-feasibility-download"
+        />
+      ) : null}
+      {state?.notice ? (
+        <div
+          data-testid="reports-feasibility-notice"
+          style={{ marginTop: 8, fontSize: 12.5, color: MUTED, lineHeight: 1.45 }}
+        >
+          {state.notice}
+        </div>
+      ) : null}
+      <Button
+        type="button"
+        variant={hasFile ? "secondary" : "primary"}
+        fullWidth
+        data-testid="reports-feasibility-run"
         disabled={busy}
         onClick={() => void run()}
         style={{ marginTop: hasFile || busy || state?.notice ? 8 : 0 }}

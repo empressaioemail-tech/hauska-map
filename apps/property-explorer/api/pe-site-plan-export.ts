@@ -34,6 +34,22 @@
 // disagrees — its STUDIO_EXPORT_KINDS includes "dossier" — so the same
 // artifact is Solo on the web and Studio on the connector. That divergence
 // is recorded in the P-104 close and is not resolved here.
+//
+// FEASIBILITY FOLD-IN (P32 wave 2 — engine PR #380, hauska-engine): `?kind=
+// feasibility` routes the SAME function to the composed Feasibility Study
+// PDF (16-section report + appended site-plan sheet) — a THIRD leg on this
+// dispatcher, still no new serverless function. POST ?kind=feasibility
+// refreshes ({ parcelNodeId, address?, countyName?, liveViewUrl? }) and GET
+// ?kind=feasibility&action=download streams the pdf-feasibility bytes.
+// TRANSPORT DIFFERENCE FROM THE DOSSIER LEG ABOVE, AND IT IS FORCED, NOT
+// CHOSEN: there is no feasibility-export MCP tool (hauska-mcp-server is a
+// different seat's repo; adding one there is out of scope for this wiring),
+// so BOTH legs call engine-api directly with gate-front headers — the same
+// transport pe-flood-drainage-handler.ts already uses for its two legs; see
+// pe-feasibility-export-handler.ts. GATE: Studio/Team ONLY (the P32 tier
+// ruling), reusing the server-computed studioGranted the SAME way
+// resolveSitePlanExportAuth already does for site-plan/terrain — NOT the
+// property-unlock-or-Pro gate the dossier/flood legs use.
 
 import type { VercelRequest, VercelResponse } from '@vercel/node'
 import { callMcpTool, mcpProductKey } from './_lib/mcp-server-client.js'
@@ -52,6 +68,7 @@ import {
   isPeExportDevBypassArmed,
   PE_EXPORT_DEV_BYPASS_HEADER,
 } from './_lib/pe-export-dev-bypass.js'
+import { handleFeasibilityExportRequest } from './_lib/pe-feasibility-export-handler.js'
 import { handleFloodDrainageRequest } from './_lib/pe-flood-drainage-handler.js'
 import { readPeSessionCookie } from './_lib/session-cookie.js'
 import {
@@ -631,6 +648,11 @@ export default async function handler(
       return
     }
     res.status(405).json({ error: 'method_not_allowed' })
+    return
+  }
+
+  if (kind === 'feasibility') {
+    await handleFeasibilityExportRequest(req, res)
     return
   }
 

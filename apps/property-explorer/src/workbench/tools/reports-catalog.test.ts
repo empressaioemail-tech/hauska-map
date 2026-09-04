@@ -19,7 +19,7 @@ describe("reports catalog — W7 purchase surface", () => {
     expect(purchase.some((d) => d.catalogStatus === "coming")).toBe(false);
     expect(purchase.some((d) => /coming soon/i.test(d.name))).toBe(false);
     expect(purchase.map((d) => d.id).sort()).toEqual(
-      ["BRIEF", "DOSS", "FLOOD", "REC", "SITEPLAN", "TERRAIN"].sort(),
+      ["BRIEF", "DOSS", "FEAS", "FLOOD", "REC", "SITEPLAN", "TERRAIN"].sort(),
     );
     const groups = reportCatalogGroups();
     const htmlish = groups
@@ -50,7 +50,6 @@ describe("reports catalog — W7 purchase surface", () => {
   it("locked extras stay as live verbs, not new report SKUs", () => {
     expect(findReportDoc("REC").kind).toBe("Tool");
     expect(findReportDoc("BRIEF").kind).toBe("Tool");
-    expect(findReportDoc("FEAS").purchaseSurface).toBe(false);
     expect(findReportDoc("COMP").purchaseSurface).toBe(false);
   });
 
@@ -152,6 +151,35 @@ describe("reports catalog — W7 purchase surface", () => {
       const doc = findReportDoc(id);
       expect(doc.studioGated).toBeUndefined();
       expect(reportDocIsGeneratable(doc, false)).toBe(true);
+    }
+  });
+
+  // ---------------------------------------------------------------------------
+  // P32 wave 2. Feasibility Study flips from a coming-soon placeholder
+  // (engine "none", purchaseSurface false) to a real Studio+Team report.
+  // ---------------------------------------------------------------------------
+
+  it("P32: Feasibility Study is a real, Studio-gated report row", () => {
+    const feas = findReportDoc("FEAS");
+    expect(feas.catalogStatus).toBe("ready");
+    expect(feas.purchaseSurface).toBe(true);
+    expect(feas.engine).toBe("feasibility");
+    expect(feas.group).toBe("Reports");
+    expect(feas.studioGated).toBe(true);
+    expect(reportDocIsGeneratable(feas, false)).toBe(false);
+    expect(reportDocIsGeneratable(feas, true)).toBe(true);
+    const locked = reportDocLockChip(feas, { studioGranted: false });
+    expect(locked?.text).toBe("Studio, $129/mo");
+    expect(reportDocLockChip(feas, { studioGranted: true })).toBeNull();
+  });
+
+  it("P32: Feasibility Study is gated identically to site-plan and terrain (same product rule)", () => {
+    const feas = findReportDoc("FEAS");
+    const sitePlan = findReportDoc("SITEPLAN");
+    for (const studioGranted of [true, false]) {
+      expect(reportDocIsGeneratable(feas, studioGranted)).toBe(
+        reportDocIsGeneratable(sitePlan, studioGranted),
+      );
     }
   });
 });

@@ -100,6 +100,21 @@ describe("composeMessageWithUserWork — the transport that actually reaches the
     expect(out).toContain("2026-08-28");
   });
 
+  it("labels a feasibility export correctly (P32 wave 2 — not the raw kind string)", () => {
+    const feasWork = chatUserWorkFrom(
+      [
+        row("48021:1", {
+          exports: [
+            { kind: "feasibility", format: "pdf-feasibility", savedAt: "2026-09-03T00:00:00Z" },
+          ],
+        }),
+      ],
+      "48021:1",
+    );
+    const out = composeMessageWithUserWork("what reports do I have?", feasWork);
+    expect(out).toContain("Feasibility Study report");
+  });
+
   it("carries the user's notes verbatim", () => {
     const out = composeMessageWithUserWork("anything?", work);
     expect(out).toContain("Seller wants a quick close.");

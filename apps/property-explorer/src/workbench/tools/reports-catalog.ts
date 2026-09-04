@@ -1,6 +1,7 @@
-// Purchase-surface catalog (W7). Reports are X-ray + Flood. Site plan and
-// terrain are exports. Coming-soon rows stay in the file so live verbs are
-// not deleted, but they never appear on the picker.
+// Purchase-surface catalog (W7). Reports are X-ray + Flood + Feasibility
+// Study (P32 wave 2). Site plan and terrain are exports. Coming-soon rows
+// stay in the file so live verbs are not deleted, but they never appear on
+// the picker.
 
 import type { SitePlanExportFormat } from "../../lib/sitePlanExportClient";
 import type { TerrainExportFormat } from "../../lib/terrainExportClient";
@@ -31,6 +32,7 @@ export type ReportEngine =
   | "terrain"
   | "flood"
   | "dossier"
+  | "feasibility"
   | "brief"
   | "records";
 
@@ -161,11 +163,18 @@ export const REPORTS_CATALOG: readonly ReportDocDef[] = [
     group: "Reports",
     name: "Feasibility Study",
     kind: "Report",
-    catalogStatus: "coming",
-    purchaseSurface: false,
-    promise: "Not sold. Not a report SKU.",
+    catalogStatus: "ready",
+    purchaseSurface: true,
+    promise:
+      "Zoning envelope, flood, terrain, utilities, wells, and every open item — one composed PDF, site plan appended.",
     formatLabel: "PDF",
-    engine: "none",
+    engine: "feasibility",
+    // P32 wave 2 / tier ruling (_decisions/2026-09-03_p32_feasibility_tier_ruling.md):
+    // Studio + Team, same rule as site-plan and terrain. The flag is the
+    // SURFACE half only. The enforcing half is the server gate in
+    // api/_lib/pe-feasibility-export-core.ts, which requires the
+    // server-computed studioGranted — never a new, independent check.
+    studioGated: true,
   },
   {
     id: "COMP",

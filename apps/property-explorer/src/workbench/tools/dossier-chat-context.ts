@@ -65,6 +65,7 @@ function labelForKind(kind: string): string {
   if (kind === "xray") return "X-ray report";
   if (kind === "site-plan") return "Site plan export";
   if (kind === "terrain") return "Terrain export";
+  if (kind === "feasibility") return "Feasibility Study report";
   return kind;
 }
 
