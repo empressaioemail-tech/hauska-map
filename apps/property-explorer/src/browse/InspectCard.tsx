@@ -560,6 +560,26 @@ export const ROW_SPECS: Record<string, FactRowSpec> = {
     wouldBeFilledBy: "utility territory staging loaded for this coordinate",
     labelledAbsenceIsCovered: true,
   },
+  schoolDistrict: {
+    wouldBeFilledBy: "a school-district-fact atom on this parcel",
+    labelledAbsenceIsCovered: true,
+  },
+  utilityService: {
+    wouldBeFilledBy: "a utility-service-fact atom on this parcel",
+    labelledAbsenceIsCovered: true,
+  },
+  overlayDistricts: {
+    wouldBeFilledBy: "an overlay-districts-fact atom on this parcel",
+    labelledAbsenceIsCovered: true,
+  },
+  agValuation: {
+    wouldBeFilledBy: "an ag-valuation-fact atom on this parcel",
+    labelledAbsenceIsCovered: true,
+  },
+  maxImperviousCoverPct: {
+    wouldBeFilledBy: "a max-impervious-cover-fact atom on this parcel",
+    labelledAbsenceIsCovered: true,
+  },
 };
 
 /** High-level inspect facts (address is the title). Zone / flood / lot. */
@@ -1108,6 +1128,36 @@ export function InspectCard({
           label: "Who serves",
           fact: whoServesFactPresentation(whoServes),
           testid: "inspect-who-serves",
+        },
+        {
+          key: "schoolDistrict",
+          label: "School district",
+          fact: toFactPresentation(baked.schoolDistrict, ROW_SPECS.schoolDistrict),
+          testid: "inspect-school-district",
+        },
+        {
+          key: "utilityService",
+          label: "Utility service",
+          fact: toFactPresentation(baked.utilityService, ROW_SPECS.utilityService),
+          testid: "inspect-utility-service",
+        },
+        {
+          key: "overlayDistricts",
+          label: "Overlay districts",
+          fact: toFactPresentation(baked.overlayDistricts, ROW_SPECS.overlayDistricts),
+          testid: "inspect-overlay-districts",
+        },
+        {
+          key: "agValuation",
+          label: "Ag valuation",
+          fact: toFactPresentation(baked.agValuation, ROW_SPECS.agValuation),
+          testid: "inspect-ag-valuation",
+        },
+        {
+          key: "maxImperviousCoverPct",
+          label: "Max impervious cover",
+          fact: toFactPresentation(baked.maxImperviousCoverPct, ROW_SPECS.maxImperviousCoverPct),
+          testid: "inspect-max-impervious-cover",
         },
       ]
     : [];

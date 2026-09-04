@@ -26,10 +26,20 @@ import {
   boundaryFacetFromSheet,
   ownerFacetFromSheet,
   cityLimitsFacetFromSheet,
+  schoolDistrictFacetFromSheet,
+  utilityServiceFacetFromSheet,
+  overlayDistrictsFacetFromSheet,
+  agValuationFacetFromSheet,
+  maxImperviousCoverPctFacetFromSheet,
 } from "./sheet-to-card-model";
 import {
   FLOOD_HAZARD_FACT_MISSING_REASON,
   CITY_LIMITS_FACT_MISSING_REASON,
+  SCHOOL_DISTRICT_FACT_MISSING_REASON,
+  UTILITY_SERVICE_FACT_MISSING_REASON,
+  OVERLAY_DISTRICTS_FACT_MISSING_REASON,
+  AG_VALUATION_FACT_MISSING_REASON,
+  MAX_IMPERVIOUS_COVER_PCT_FACT_MISSING_REASON,
 } from "./baked-facets";
 
 function prov(atomDids: AtomRef[] = []): Provenance {
@@ -982,5 +992,380 @@ describe("cityLimitsFact inspect row (P-76)", () => {
         reason: CITY_LIMITS_FACT_MISSING_REASON,
       }),
     ).toEqual({ state: "unknown", value: null });
+  });
+});
+
+describe("schoolDistrictFact inspect row (acquire-wave12)", () => {
+  it("present fixture shows the district name", () => {
+    const model = bakedCardModelFromSheet(
+      sheet({
+        schoolDistrict: {
+          state: "present",
+          value: { districtName: "Bastrop ISD", display: "Bastrop ISD" },
+          provenance: {
+            ...prov(),
+            source: "school-district-fact",
+            sourceLabel: "school-district-fact atom",
+          },
+        },
+      }),
+    );
+    expect(model.schoolDistrict).toEqual({ state: "present", value: "Bastrop ISD" });
+  });
+
+  it("gold-shaped absent fixture does not render a district name", () => {
+    const facet = schoolDistrictFacetFromSheet({
+      state: "absent-covered",
+      reason: "no school-district-fact atom on this parcel",
+      provenance: prov(),
+    });
+    expect(facet.state).toBe("absent");
+    expect(JSON.stringify(facet)).not.toMatch(/Bastrop ISD/);
+  });
+
+  it("missing field hides the row (unknown)", () => {
+    expect(schoolDistrictFacetFromSheet(undefined)).toEqual({
+      state: "unknown",
+      value: null,
+    });
+    expect(
+      schoolDistrictFacetFromSheet({
+        state: "absent-uncovered",
+        reason: SCHOOL_DISTRICT_FACT_MISSING_REASON,
+      }),
+    ).toEqual({ state: "unknown", value: null });
+    expect(bakedCardModelFromSheet(sheet()).schoolDistrict).toEqual({
+      state: "unknown",
+      value: null,
+    });
+  });
+});
+
+describe("utilityServiceFact inspect row (acquire-wave12)", () => {
+  it("present fixture shows the water slot", () => {
+    const model = bakedCardModelFromSheet(
+      sheet({
+        utilityService: {
+          state: "present",
+          value: {
+            water: {
+              ccnNo: "10375",
+              utility: "Aqua Texas WSC",
+              status: "Active",
+              ccnType: "water",
+            },
+            sewer: null,
+            display: "Water — Aqua Texas WSC · Active",
+          },
+          provenance: {
+            ...prov(),
+            source: "utility-service-fact",
+            sourceLabel: "utility-service-fact atom",
+          },
+        },
+      }),
+    );
+    expect(model.utilityService.state).toBe("present");
+    expect(model.utilityService.value).toContain("Aqua Texas WSC");
+  });
+
+  it("present fixture with both water and sewer joins both slots", () => {
+    const model = bakedCardModelFromSheet(
+      sheet({
+        utilityService: {
+          state: "present",
+          value: {
+            water: {
+              ccnNo: "10375",
+              utility: "Aqua Texas WSC",
+              status: "Active",
+              ccnType: "water",
+            },
+            sewer: {
+              ccnNo: "20481",
+              utility: "Bastrop County MUD",
+              status: "Active",
+              ccnType: "sewer",
+            },
+            display: "Water — Aqua Texas WSC · Active · Sewer — Bastrop County MUD · Active",
+          },
+          provenance: {
+            ...prov(),
+            source: "utility-service-fact",
+            sourceLabel: "utility-service-fact atom",
+          },
+        },
+      }),
+    );
+    expect(model.utilityService.value).toContain("Aqua Texas WSC");
+    expect(model.utilityService.value).toContain("Bastrop County MUD");
+    expect(model.utilityService.value).not.toMatch(/electric/i);
+  });
+
+  it("gold-shaped absent fixture does not render a utility name", () => {
+    const facet = utilityServiceFacetFromSheet({
+      state: "absent-covered",
+      reason: "no utility-service-fact atom on this parcel",
+      provenance: prov(),
+    });
+    expect(facet.state).toBe("absent");
+    expect(JSON.stringify(facet)).not.toMatch(/Aqua Texas/);
+  });
+
+  it("missing field hides the row (unknown)", () => {
+    expect(utilityServiceFacetFromSheet(undefined)).toEqual({
+      state: "unknown",
+      value: null,
+    });
+    expect(
+      utilityServiceFacetFromSheet({
+        state: "absent-uncovered",
+        reason: UTILITY_SERVICE_FACT_MISSING_REASON,
+      }),
+    ).toEqual({ state: "unknown", value: null });
+    expect(bakedCardModelFromSheet(sheet()).utilityService).toEqual({
+      state: "unknown",
+      value: null,
+    });
+  });
+});
+
+describe("overlayDistrictsFact inspect row (acquire-wave12)", () => {
+  it("present fixture with one district shows the city", () => {
+    const model = bakedCardModelFromSheet(
+      sheet({
+        overlayDistricts: {
+          state: "present",
+          value: {
+            districts: [
+              {
+                city: "Bastrop",
+                attributes: { CD_Name: "Character District 3", CD_Desc: "Downtown core" },
+              },
+            ],
+            display: "Bastrop overlay district",
+          },
+          provenance: {
+            ...prov(),
+            source: "overlay-districts-fact",
+            sourceLabel: "overlay-districts-fact atom",
+          },
+        },
+      }),
+    );
+    expect(model.overlayDistricts.state).toBe("present");
+    expect(model.overlayDistricts.value).toContain("Bastrop");
+  });
+
+  it("present fixture with multiple districts joins cities and shows the count, not a picked lead", () => {
+    const model = bakedCardModelFromSheet(
+      sheet({
+        overlayDistricts: {
+          state: "present",
+          value: {
+            districts: [
+              { city: "Bastrop", attributes: { CD_Name: "Character District 3" } },
+              { city: "Bastrop", attributes: { CD_Name: "Airport Compatibility" } },
+            ],
+            display: "Bastrop — 2 overlay districts",
+          },
+          provenance: {
+            ...prov(),
+            source: "overlay-districts-fact",
+            sourceLabel: "overlay-districts-fact atom",
+          },
+        },
+      }),
+    );
+    expect(model.overlayDistricts.value).toContain("2 overlay districts");
+  });
+
+  it("gold-shaped absent fixture does not render a district", () => {
+    const facet = overlayDistrictsFacetFromSheet({
+      state: "absent-covered",
+      reason: "no overlay-districts-fact atom on this parcel",
+      provenance: prov(),
+    });
+    expect(facet.state).toBe("absent");
+    expect(JSON.stringify(facet)).not.toMatch(/Bastrop/);
+  });
+
+  it("missing field hides the row (unknown)", () => {
+    expect(overlayDistrictsFacetFromSheet(undefined)).toEqual({
+      state: "unknown",
+      value: null,
+    });
+    expect(
+      overlayDistrictsFacetFromSheet({
+        state: "absent-uncovered",
+        reason: OVERLAY_DISTRICTS_FACT_MISSING_REASON,
+      }),
+    ).toEqual({ state: "unknown", value: null });
+    expect(bakedCardModelFromSheet(sheet()).overlayDistricts).toEqual({
+      state: "unknown",
+      value: null,
+    });
+  });
+});
+
+describe("agValuationFact inspect row (acquire-wave12)", () => {
+  it("present fixture shows the single-entry ag land record", () => {
+    const model = bakedCardModelFromSheet(
+      sheet({
+        agValuation: {
+          state: "present",
+          value: {
+            entries: [
+              {
+                statecode: "D1",
+                landType: "Native pasture",
+                description: "Open space ag use",
+                acres: 42.3,
+                value: 210000,
+                currValue: 8460,
+                agFlag: true,
+                apprMethod: "income",
+                agYear: "2025",
+                propertyNumber: "R12345",
+              },
+            ],
+            display: "Ag — Native pasture · 42.3 ac",
+          },
+          provenance: {
+            ...prov(),
+            source: "ag-valuation-fact",
+            sourceLabel: "ag-valuation-fact atom",
+          },
+        },
+      }),
+    );
+    expect(model.agValuation.state).toBe("present");
+    expect(model.agValuation.value).toContain("Native pasture");
+    expect(model.agValuation.value).toContain("42.3 ac");
+  });
+
+  it("present fixture with multiple entries joins each land-record segment", () => {
+    const model = bakedCardModelFromSheet(
+      sheet({
+        agValuation: {
+          state: "present",
+          value: {
+            entries: [
+              {
+                statecode: "D1",
+                landType: "Native pasture",
+                description: null,
+                acres: 42.3,
+                value: 210000,
+                currValue: 8460,
+                agFlag: true,
+                apprMethod: "income",
+                agYear: "2025",
+                propertyNumber: "R12345",
+              },
+              {
+                statecode: "A1",
+                landType: "Residential homesite",
+                description: null,
+                acres: 1.2,
+                value: 95000,
+                currValue: 95000,
+                agFlag: false,
+                apprMethod: "market",
+                agYear: null,
+                propertyNumber: "R12345",
+              },
+            ],
+            display: "Ag — Native pasture · 42.3 ac; Residential homesite · 1.2 ac",
+          },
+          provenance: {
+            ...prov(),
+            source: "ag-valuation-fact",
+            sourceLabel: "ag-valuation-fact atom",
+          },
+        },
+      }),
+    );
+    expect(model.agValuation.value).toContain("Native pasture");
+    expect(model.agValuation.value).toContain("Residential homesite");
+  });
+
+  it("gold-shaped absent fixture does not render a land record", () => {
+    const facet = agValuationFacetFromSheet({
+      state: "absent-covered",
+      reason: "no ag-valuation-fact atom on this parcel",
+      provenance: prov(),
+    });
+    expect(facet.state).toBe("absent");
+    expect(JSON.stringify(facet)).not.toMatch(/Native pasture/);
+  });
+
+  it("missing field hides the row (unknown)", () => {
+    expect(agValuationFacetFromSheet(undefined)).toEqual({
+      state: "unknown",
+      value: null,
+    });
+    expect(
+      agValuationFacetFromSheet({
+        state: "absent-uncovered",
+        reason: AG_VALUATION_FACT_MISSING_REASON,
+      }),
+    ).toEqual({ state: "unknown", value: null });
+    expect(bakedCardModelFromSheet(sheet()).agValuation).toEqual({
+      state: "unknown",
+      value: null,
+    });
+  });
+});
+
+describe("maxImperviousCoverPctFact inspect row (acquire-wave12)", () => {
+  it("present fixture shows the percentage", () => {
+    const model = bakedCardModelFromSheet(
+      sheet({
+        maxImperviousCoverPct: {
+          state: "present",
+          value: {
+            percent: 45,
+            watershedType: "Water Supply Suburban",
+            inRechargeZone: false,
+            crosswalkCitation: "Austin LDC 25-8-342",
+            display: "45%",
+          },
+          provenance: {
+            ...prov(),
+            source: "max-impervious-cover-pct-fact",
+            sourceLabel: "max-impervious-cover-pct-fact atom",
+          },
+        },
+      }),
+    );
+    expect(model.maxImperviousCoverPct).toEqual({ state: "present", value: "45%" });
+  });
+
+  it("gold-shaped absent fixture does not render a percentage", () => {
+    const facet = maxImperviousCoverPctFacetFromSheet({
+      state: "absent-covered",
+      reason: "no max-impervious-cover-pct-fact atom on this parcel",
+      provenance: prov(),
+    });
+    expect(facet.state).toBe("absent");
+    expect(JSON.stringify(facet)).not.toMatch(/45/);
+  });
+
+  it("missing field hides the row (unknown)", () => {
+    expect(maxImperviousCoverPctFacetFromSheet(undefined)).toEqual({
+      state: "unknown",
+      value: null,
+    });
+    expect(
+      maxImperviousCoverPctFacetFromSheet({
+        state: "absent-uncovered",
+        reason: MAX_IMPERVIOUS_COVER_PCT_FACT_MISSING_REASON,
+      }),
+    ).toEqual({ state: "unknown", value: null });
+    expect(bakedCardModelFromSheet(sheet()).maxImperviousCoverPct).toEqual({
+      state: "unknown",
+      value: null,
+    });
   });
 });

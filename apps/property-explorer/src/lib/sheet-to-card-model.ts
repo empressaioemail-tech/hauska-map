@@ -42,6 +42,11 @@ import {
   BOUNDARY_EDGE_FACT_MISSING_REASON,
   OWNER_FACT_MISSING_REASON,
   CITY_LIMITS_FACT_MISSING_REASON,
+  SCHOOL_DISTRICT_FACT_MISSING_REASON,
+  UTILITY_SERVICE_FACT_MISSING_REASON,
+  OVERLAY_DISTRICTS_FACT_MISSING_REASON,
+  AG_VALUATION_FACT_MISSING_REASON,
+  MAX_IMPERVIOUS_COVER_PCT_FACT_MISSING_REASON,
   type BakedCardModel,
   type BakedFacetPayload,
   type CardFacet,
@@ -402,6 +407,179 @@ export function cityLimitsFacetFromSheet(
   return facetFrom(cityLimits, () => "");
 }
 
+/**
+ * School district row from sheet.schoolDistrict, which the resolver fills
+ * from schoolDistrictFact only. Missing field → unknown (InspectCard hides
+ * the row). Never invented from bake / CAD.
+ */
+export function schoolDistrictFacetFromSheet(
+  schoolDistrict:
+    | Fact<{ districtName: string | null; display: string }>
+    | undefined,
+): CardFacet<string> {
+  if (!schoolDistrict) {
+    return { state: "unknown", value: null };
+  }
+  if (
+    schoolDistrict.state === "absent-uncovered" &&
+    schoolDistrict.reason === SCHOOL_DISTRICT_FACT_MISSING_REASON
+  ) {
+    return { state: "unknown", value: null };
+  }
+  if (schoolDistrict.state === "present") {
+    const display = (schoolDistrict.value.display ?? "").trim();
+    if (display) return present(display);
+    return absent("school-district-fact present with no display");
+  }
+  return facetFrom(schoolDistrict, () => "");
+}
+
+/**
+ * Utility service row from sheet.utilityService, which the resolver fills
+ * from utilityServiceFact only. Missing field → unknown (InspectCard hides
+ * the row). Distinct from `whoServes` — never derived from that lookup.
+ */
+type UtilityServiceEntry = {
+  ccnNo: string | null;
+  utility: string | null;
+  status: string | null;
+  ccnType: string | null;
+} | null;
+
+export function utilityServiceFacetFromSheet(
+  utilityService:
+    | Fact<{
+        water: UtilityServiceEntry;
+        sewer: UtilityServiceEntry;
+        display: string;
+      }>
+    | undefined,
+): CardFacet<string> {
+  if (!utilityService) {
+    return { state: "unknown", value: null };
+  }
+  if (
+    utilityService.state === "absent-uncovered" &&
+    utilityService.reason === UTILITY_SERVICE_FACT_MISSING_REASON
+  ) {
+    return { state: "unknown", value: null };
+  }
+  if (utilityService.state === "present") {
+    const display = (utilityService.value.display ?? "").trim();
+    if (display) return present(display);
+    return absent("utility-service-fact present with no display");
+  }
+  return facetFrom(utilityService, () => "");
+}
+
+/**
+ * Overlay districts row from sheet.overlayDistricts, which the resolver
+ * fills from overlayDistrictsFact only. Missing field → unknown (InspectCard
+ * hides the row). Never invented from the zoning district code alone.
+ */
+export function overlayDistrictsFacetFromSheet(
+  overlayDistricts:
+    | Fact<{
+        districts: Array<{ city: string; attributes: Record<string, unknown> }>;
+        display: string;
+      }>
+    | undefined,
+): CardFacet<string> {
+  if (!overlayDistricts) {
+    return { state: "unknown", value: null };
+  }
+  if (
+    overlayDistricts.state === "absent-uncovered" &&
+    overlayDistricts.reason === OVERLAY_DISTRICTS_FACT_MISSING_REASON
+  ) {
+    return { state: "unknown", value: null };
+  }
+  if (overlayDistricts.state === "present") {
+    const display = (overlayDistricts.value.display ?? "").trim();
+    if (display) return present(display);
+    return absent("overlay-districts-fact present with no display");
+  }
+  return facetFrom(overlayDistricts, () => "");
+}
+
+/**
+ * Ag valuation row from sheet.agValuation, which the resolver fills from
+ * agValuationFact only. Missing field → unknown (InspectCard hides the
+ * row). Never derived from a bake / CAD ag-exemption flag.
+ */
+type AgValuationEntry = {
+  statecode: string | null;
+  landType: string | null;
+  description: string | null;
+  acres: number | null;
+  value: number | null;
+  currValue: number | null;
+  agFlag: boolean;
+  apprMethod: string | null;
+  agYear: string | null;
+  propertyNumber: string | null;
+};
+
+export function agValuationFacetFromSheet(
+  agValuation:
+    | Fact<{
+        entries: AgValuationEntry[];
+        display: string;
+      }>
+    | undefined,
+): CardFacet<string> {
+  if (!agValuation) {
+    return { state: "unknown", value: null };
+  }
+  if (
+    agValuation.state === "absent-uncovered" &&
+    agValuation.reason === AG_VALUATION_FACT_MISSING_REASON
+  ) {
+    return { state: "unknown", value: null };
+  }
+  if (agValuation.state === "present") {
+    const display = (agValuation.value.display ?? "").trim();
+    if (display) return present(display);
+    return absent("ag-valuation-fact present with no display");
+  }
+  return facetFrom(agValuation, () => "");
+}
+
+/**
+ * Max impervious cover row from sheet.maxImperviousCoverPct, which the
+ * resolver fills from maxImperviousCoverPctFact only. Missing field →
+ * unknown (InspectCard hides the row). Distinct from the per-axis setback
+ * rule's own `maxImperviousPct` — never derived from that.
+ */
+export function maxImperviousCoverPctFacetFromSheet(
+  maxImperviousCoverPct:
+    | Fact<{
+        percent: number | null;
+        watershedType: string | null;
+        inRechargeZone: boolean | null;
+        crosswalkCitation: string | null;
+        display: string;
+      }>
+    | undefined,
+): CardFacet<string> {
+  if (!maxImperviousCoverPct) {
+    return { state: "unknown", value: null };
+  }
+  if (
+    maxImperviousCoverPct.state === "absent-uncovered" &&
+    maxImperviousCoverPct.reason ===
+      MAX_IMPERVIOUS_COVER_PCT_FACT_MISSING_REASON
+  ) {
+    return { state: "unknown", value: null };
+  }
+  if (maxImperviousCoverPct.state === "present") {
+    const display = (maxImperviousCoverPct.value.display ?? "").trim();
+    if (display) return present(display);
+    return absent("max-impervious-cover-pct-fact present with no display");
+  }
+  return facetFrom(maxImperviousCoverPct, () => "");
+}
+
 /** A setback axis -> the card's own display fragment. */
 function axisText(axis: SetbackAxis, label: string): string {
   // AMENDMENT 2: a NOT-SPECIFIED axis carries a NULL distance. The absence is
@@ -548,6 +726,13 @@ export function bakedCardModelFromSheet(
     boundary: boundaryFacetFromSheet(sheet.boundary),
     owner: ownerFacetFromSheet(sheet.owner),
     cityLimits: cityLimitsFacetFromSheet(sheet.cityLimits),
+    schoolDistrict: schoolDistrictFacetFromSheet(sheet.schoolDistrict),
+    utilityService: utilityServiceFacetFromSheet(sheet.utilityService),
+    overlayDistricts: overlayDistrictsFacetFromSheet(sheet.overlayDistricts),
+    agValuation: agValuationFacetFromSheet(sheet.agValuation),
+    maxImperviousCoverPct: maxImperviousCoverPctFacetFromSheet(
+      sheet.maxImperviousCoverPct,
+    ),
     envelopeApproximate: env.kind === "derived" ? env.approximate : env.kind === "consumed",
     envelopeStatus:
       env.kind === "derived" ? "ok" : env.kind === "consumed" ? "no-buildable-area" : "declined",

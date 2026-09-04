@@ -1119,6 +1119,181 @@ describe("InspectCard City limits row — cityLimitsFact (P-76)", () => {
   });
 });
 
+describe("InspectCard School district row — schoolDistrictFact (acquire-wave12)", () => {
+  it("present fixture shows the district name", () => {
+    const html = renderToStaticMarkup(
+      <dl>
+        <FactRow
+          label="School district"
+          fact={toFactPresentation(
+            { state: "present", value: "Bastrop ISD" },
+            ROW_SPECS.schoolDistrict,
+          )}
+          testid="inspect-school-district"
+        />
+      </dl>,
+    );
+    expect(html).toContain('data-testid="inspect-school-district"');
+    expect(html).toContain("Bastrop ISD");
+  });
+
+  it("missing schoolDistrictFact hides the School district row", () => {
+    const html = renderToStaticMarkup(
+      <dl>
+        <FactRow
+          label="School district"
+          fact={toFactPresentation(
+            { state: "unknown", value: null },
+            ROW_SPECS.schoolDistrict,
+          )}
+          testid="inspect-school-district"
+        />
+      </dl>,
+    );
+    expect(html).not.toContain("inspect-school-district");
+  });
+});
+
+describe("InspectCard Utility service row — utilityServiceFact (acquire-wave12)", () => {
+  it("present fixture shows the water/sewer slot summary", () => {
+    const html = renderToStaticMarkup(
+      <dl>
+        <FactRow
+          label="Utility service"
+          fact={toFactPresentation(
+            { state: "present", value: "Water — Aqua Texas WSC · Active" },
+            ROW_SPECS.utilityService,
+          )}
+          testid="inspect-utility-service"
+        />
+      </dl>,
+    );
+    expect(html).toContain('data-testid="inspect-utility-service"');
+    expect(html).toContain("Aqua Texas WSC");
+  });
+
+  it("missing utilityServiceFact hides the Utility service row", () => {
+    const html = renderToStaticMarkup(
+      <dl>
+        <FactRow
+          label="Utility service"
+          fact={toFactPresentation(
+            { state: "unknown", value: null },
+            ROW_SPECS.utilityService,
+          )}
+          testid="inspect-utility-service"
+        />
+      </dl>,
+    );
+    expect(html).not.toContain("inspect-utility-service");
+  });
+});
+
+describe("InspectCard Overlay districts row — overlayDistrictsFact (acquire-wave12)", () => {
+  it("present fixture shows the district city summary", () => {
+    const html = renderToStaticMarkup(
+      <dl>
+        <FactRow
+          label="Overlay districts"
+          fact={toFactPresentation(
+            { state: "present", value: "Bastrop — 2 overlay districts" },
+            ROW_SPECS.overlayDistricts,
+          )}
+          testid="inspect-overlay-districts"
+        />
+      </dl>,
+    );
+    expect(html).toContain('data-testid="inspect-overlay-districts"');
+    expect(html).toContain("Bastrop");
+  });
+
+  it("missing overlayDistrictsFact hides the Overlay districts row", () => {
+    const html = renderToStaticMarkup(
+      <dl>
+        <FactRow
+          label="Overlay districts"
+          fact={toFactPresentation(
+            { state: "unknown", value: null },
+            ROW_SPECS.overlayDistricts,
+          )}
+          testid="inspect-overlay-districts"
+        />
+      </dl>,
+    );
+    expect(html).not.toContain("inspect-overlay-districts");
+  });
+});
+
+describe("InspectCard Ag valuation row — agValuationFact (acquire-wave12)", () => {
+  it("present fixture shows the land-record summary", () => {
+    const html = renderToStaticMarkup(
+      <dl>
+        <FactRow
+          label="Ag valuation"
+          fact={toFactPresentation(
+            { state: "present", value: "Ag — Native pasture · 42.3 ac" },
+            ROW_SPECS.agValuation,
+          )}
+          testid="inspect-ag-valuation"
+        />
+      </dl>,
+    );
+    expect(html).toContain('data-testid="inspect-ag-valuation"');
+    expect(html).toContain("Native pasture");
+  });
+
+  it("missing agValuationFact hides the Ag valuation row", () => {
+    const html = renderToStaticMarkup(
+      <dl>
+        <FactRow
+          label="Ag valuation"
+          fact={toFactPresentation(
+            { state: "unknown", value: null },
+            ROW_SPECS.agValuation,
+          )}
+          testid="inspect-ag-valuation"
+        />
+      </dl>,
+    );
+    expect(html).not.toContain("inspect-ag-valuation");
+  });
+});
+
+describe("InspectCard Max impervious cover row — maxImperviousCoverPctFact (acquire-wave12)", () => {
+  it("present fixture shows the percentage", () => {
+    const html = renderToStaticMarkup(
+      <dl>
+        <FactRow
+          label="Max impervious cover"
+          fact={toFactPresentation(
+            { state: "present", value: "45%" },
+            ROW_SPECS.maxImperviousCoverPct,
+          )}
+          testid="inspect-max-impervious-cover"
+        />
+      </dl>,
+    );
+    expect(html).toContain('data-testid="inspect-max-impervious-cover"');
+    expect(html).toContain("45%");
+  });
+
+  it("missing maxImperviousCoverPctFact hides the Max impervious cover row", () => {
+    const html = renderToStaticMarkup(
+      <dl>
+        <FactRow
+          label="Max impervious cover"
+          fact={toFactPresentation(
+            { state: "unknown", value: null },
+            ROW_SPECS.maxImperviousCoverPct,
+          )}
+          testid="inspect-max-impervious-cover"
+        />
+      </dl>,
+    );
+    expect(html).not.toContain("inspect-max-impervious-cover");
+  });
+});
+
 describe("InspectCard Who serves row — who-serves BFF (P-75)", () => {
   it("measured fixture shows holder summary and residual", () => {
     const html = renderToStaticMarkup(
