@@ -2047,6 +2047,55 @@ describe("utilityServiceFact only (acquire-wave12)", () => {
     expect(sheet.utilityService.value.display).not.toMatch(/electric/i);
   });
 
+  it("present fixture with only the electric slot populated shows it, not an absence (PR #608 regression)", async () => {
+    const wire = facetsWire() as unknown as Record<string, unknown>;
+    wire.utilityServiceFact = {
+      state: "present",
+      source: "utility-service-fact",
+      entityId: "48491:12345:utility-service",
+      water: null,
+      sewer: null,
+      electric: {
+        ccnNo: "4213",
+        utility: "Bluebonnet Electric",
+        status: "Active",
+        ccnType: "electric",
+      },
+    };
+    const stub = installFetchStub({ facets: wire, gisFeatures: [SUBJECT_FEATURE] });
+    const sheet = await sheetOf(makeResolver(stub), NODE_ID);
+    expect(sheet.utilityService?.state).toBe("present");
+    if (sheet.utilityService?.state !== "present") throw new Error("unreachable");
+    expect(sheet.utilityService.value.water).toBeNull();
+    expect(sheet.utilityService.value.sewer).toBeNull();
+    expect(sheet.utilityService.value.electric?.utility).toBe("Bluebonnet Electric");
+    expect(sheet.utilityService.value.display).toBe("Electric — Bluebonnet Electric · Active");
+  });
+
+  it("present fixture with water, sewer, and electric joins all three", async () => {
+    const wire = facetsWire() as unknown as Record<string, unknown>;
+    wire.utilityServiceFact = {
+      state: "present",
+      source: "utility-service-fact",
+      entityId: "48021:36521:utility-service",
+      water: { ccnNo: "10375", utility: "Aqua Texas WSC", status: "Active", ccnType: "water" },
+      sewer: { ccnNo: "20481", utility: "Bastrop County MUD", status: "Active", ccnType: "sewer" },
+      electric: {
+        ccnNo: "4213",
+        utility: "Bluebonnet Electric",
+        status: "Active",
+        ccnType: "electric",
+      },
+    };
+    const stub = installFetchStub({ facets: wire, gisFeatures: [SUBJECT_FEATURE] });
+    const sheet = await sheetOf(makeResolver(stub), NODE_ID);
+    expect(sheet.utilityService?.state).toBe("present");
+    if (sheet.utilityService?.state !== "present") throw new Error("unreachable");
+    expect(sheet.utilityService.value.display).toBe(
+      "Water — Aqua Texas WSC · Active · Sewer — Bastrop County MUD · Active · Electric — Bluebonnet Electric · Active",
+    );
+  });
+
   it("refused not-cut-over carries the real human-readable reason, never invents service", async () => {
     const wire = facetsWire() as unknown as Record<string, unknown>;
     wire.utilityServiceFact = {
