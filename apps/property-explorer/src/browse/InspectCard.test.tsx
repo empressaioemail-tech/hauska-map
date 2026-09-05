@@ -1076,6 +1076,48 @@ describe("InspectCard Owner row — ownerFact (P-54)", () => {
     expect(html).not.toContain(OWNER_STUDIO_UPGRADE_CUE);
   });
 
+  it("Property-Unlock fixture (subscriptionTier null) with ownerFact.ownerName may render it too (widened 2026-09-05: owner needs to be a part of unlock too)", () => {
+    const html = renderToStaticMarkup(
+      <dl>
+        <FactRow
+          label="Owner"
+          fact={gateOwnerPresentation(
+            toFactPresentation(
+              { state: "present", value: "GEAUXNU HOLDINGS LLC" },
+              ROW_SPECS.owner,
+            ),
+            null,
+            true,
+          )}
+          testid="inspect-owner"
+        />
+      </dl>,
+    );
+    expect(html).toContain("GEAUXNU HOLDINGS LLC");
+    expect(html).not.toContain(OWNER_STUDIO_UPGRADE_CUE);
+  });
+
+  it("Solo fixture WITHOUT a Property Unlock on this parcel still refuses — the tier-graduation lever is unchanged", () => {
+    const html = renderToStaticMarkup(
+      <dl>
+        <FactRow
+          label="Owner"
+          fact={gateOwnerPresentation(
+            toFactPresentation(
+              { state: "present", value: "GEAUXNU HOLDINGS LLC" },
+              ROW_SPECS.owner,
+            ),
+            "solo",
+            false,
+          )}
+          testid="inspect-owner"
+        />
+      </dl>,
+    );
+    expect(html).toContain(OWNER_STUDIO_UPGRADE_CUE);
+    expect(html).not.toContain("GEAUXNU");
+  });
+
   it("InspectCard wires the studio gate and never paints card.owner", () => {
     const src = readFileSync(resolve(__dirname, "InspectCard.tsx"), "utf8");
     expect(src).toContain("gateOwnerPresentation");
@@ -1143,7 +1185,7 @@ describe("InspectCard Tax-assessed value row — taxValuation (OPS-16 A-103 item
     expect(html).not.toContain("Tax-assessed value");
   });
 
-  it("free/Solo/Property-Unlock fixture (subscriptionTier null) does not render the real dollar figures", () => {
+  it("free/anonymous fixture (subscriptionTier null, no Property Unlock) does not render the real dollar figures", () => {
     const html = renderToStaticMarkup(
       <dl>
         <FactRow
@@ -1162,6 +1204,28 @@ describe("InspectCard Tax-assessed value row — taxValuation (OPS-16 A-103 item
     expect(html).toContain('data-testid="inspect-tax-valuation"');
     expect(html).toContain(TAX_VALUATION_STUDIO_UPGRADE_CUE);
     expect(html).not.toContain("397,260");
+  });
+
+  it("Property-Unlock fixture (subscriptionTier null, active unlock on this parcel) DOES render the real dollar figures (widened 2026-09-05: owner needs to be a part of unlock too)", () => {
+    const html = renderToStaticMarkup(
+      <dl>
+        <FactRow
+          label="Tax-assessed value"
+          fact={gateTaxValuationPresentation(
+            toFactPresentation(
+              { state: "present", value: "Market $397,260 · Land $80,000" },
+              ROW_SPECS.taxValuation,
+            ),
+            null,
+            true,
+          )}
+          testid="inspect-tax-valuation"
+        />
+      </dl>,
+    );
+    expect(html).toContain('data-testid="inspect-tax-valuation"');
+    expect(html).toContain("397,260");
+    expect(html).not.toContain(TAX_VALUATION_STUDIO_UPGRADE_CUE);
   });
 
   it("Solo fixture does not render the real dollar figures", () => {

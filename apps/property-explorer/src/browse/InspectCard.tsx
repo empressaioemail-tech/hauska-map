@@ -1120,6 +1120,7 @@ export function InspectCard({
           fact: gateOwnerPresentation(
             toFactPresentation(baked.owner, ROW_SPECS.owner),
             entitlement.status === "ready" ? entitlement.subscriptionTier : null,
+            entitlement.status === "ready" ? entitlement.propertyUnlocked : false,
           ),
           testid: "inspect-owner",
         },
@@ -1131,6 +1132,7 @@ export function InspectCard({
           fact: gateTaxValuationPresentation(
             toFactPresentation(baked.taxValuation, ROW_SPECS.taxValuation),
             entitlement.status === "ready" ? entitlement.subscriptionTier : null,
+            entitlement.status === "ready" ? entitlement.propertyUnlocked : false,
           ),
           testid: "inspect-tax-valuation",
         },

@@ -19,6 +19,21 @@ describe("ownerPaintAllowed", () => {
     expect(ownerPaintAllowed("solo")).toBe(false);
     expect(ownerPaintAllowed(null)).toBe(false);
   });
+
+  it("an active Property Unlock on this parcel grants, even for Solo/Free/anonymous (widened 2026-09-05: owner needs to be a part of unlock too)", () => {
+    expect(ownerPaintAllowed(null, true)).toBe(true);
+    expect(ownerPaintAllowed("solo", true)).toBe(true);
+  });
+
+  it("Solo WITHOUT a Property Unlock still refuses — the tier-graduation lever is unchanged", () => {
+    expect(ownerPaintAllowed("solo", false)).toBe(false);
+    expect(ownerPaintAllowed("solo")).toBe(false);
+  });
+
+  it("no Property Unlock (default/omitted) behaves exactly as before the widening", () => {
+    expect(ownerPaintAllowed(null)).toBe(false);
+    expect(ownerPaintAllowed(null, false)).toBe(false);
+  });
 });
 
 describe("resolveOwnerPaint — second gate + no CAD fallback", () => {
@@ -38,6 +53,17 @@ describe("resolveOwnerPaint — second gate + no CAD fallback", () => {
     const painted = resolveOwnerPaint({
       ownerFact: LEAKY,
       subscriptionTier: "studio",
+      cadOwnerName: "BAKE CAD OWNER",
+    });
+    expect(painted).toEqual({ kind: "name", display: "GEAUXNU HOLDINGS LLC" });
+    expect(JSON.stringify(painted)).not.toMatch(/BAKE CAD OWNER/);
+  });
+
+  it("Property-Unlock fixture (subscriptionTier null) with ownerFact.ownerName may render it too", () => {
+    const painted = resolveOwnerPaint({
+      ownerFact: LEAKY,
+      subscriptionTier: null,
+      propertyUnlocked: true,
       cadOwnerName: "BAKE CAD OWNER",
     });
     expect(painted).toEqual({ kind: "name", display: "GEAUXNU HOLDINGS LLC" });
@@ -75,5 +101,28 @@ describe("gateOwnerPresentation", () => {
       "studio",
     );
     expect(gated).toEqual({ state: "present", value: "GEAUXNU HOLDINGS LLC" });
+  });
+
+  it("passes a present name on an active Property Unlock for this parcel, even with subscriptionTier null", () => {
+    const gated = gateOwnerPresentation(
+      { state: "present", value: "GEAUXNU HOLDINGS LLC" },
+      null,
+      true,
+    );
+    expect(gated).toEqual({ state: "present", value: "GEAUXNU HOLDINGS LLC" });
+  });
+
+  it("still strips a present name on Solo without a Property Unlock", () => {
+    const gated = gateOwnerPresentation(
+      { state: "present", value: "GEAUXNU HOLDINGS LLC" },
+      "solo",
+      false,
+    );
+    expect(gated).toEqual({
+      state: "absent-covered",
+      reason: OWNER_STUDIO_UPGRADE_CUE,
+      provenance: null,
+    });
+    expect(JSON.stringify(gated)).not.toMatch(/GEAUXNU/);
   });
 });
