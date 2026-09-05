@@ -50,6 +50,17 @@ export interface ReportDocDef {
   sitePlanFormat?: SitePlanExportFormat;
   terrainFormat?: TerrainExportFormat;
   studioGated?: boolean;
+  /**
+   * P-119 (2026-09-05, the operator's authoritative Smart Site package
+   * table): on a `studioGated` row, an active Property Unlock is a SECOND
+   * door that opens it, alongside Studio/Team — true for site plan, terrain,
+   * and Feasibility Study (and their format aliases), because the Property
+   * Unlock row explicitly includes them. Records request is ALSO
+   * `studioGated` but is NOT in the Property Unlock row (out of scope for
+   * this ruling) and must NOT set this flag — leaving it `undefined` there
+   * keeps Records studio-only, unchanged.
+   */
+  propertyUnlockGrants?: boolean;
   covers?: string;
 }
 
@@ -121,6 +132,8 @@ export const REPORTS_CATALOG: readonly ReportDocDef[] = [
     // server-computed studioGranted. Landing this line alone would have been
     // the defect P-104 exists to remove: a lock a direct call walks past.
     studioGated: true,
+    // P-119: also included in the Property Unlock row — see propertyUnlockGrants doc above.
+    propertyUnlockGrants: true,
   },
   {
     id: "TERRAIN",
@@ -133,6 +146,7 @@ export const REPORTS_CATALOG: readonly ReportDocDef[] = [
     formatLabel: "DXF, IFC, GLB",
     engine: "terrain",
     studioGated: true,
+    propertyUnlockGrants: true,
   },
   {
     id: "REC",
@@ -175,6 +189,8 @@ export const REPORTS_CATALOG: readonly ReportDocDef[] = [
     // api/_lib/pe-feasibility-export-core.ts, which requires the
     // server-computed studioGranted — never a new, independent check.
     studioGated: true,
+    // P-119: also included in the Property Unlock row — see propertyUnlockGrants doc above.
+    propertyUnlockGrants: true,
   },
   {
     id: "COMP",
@@ -199,6 +215,7 @@ export const REPORTS_CATALOG: readonly ReportDocDef[] = [
     engine: "site-plan",
     sitePlanFormat: "pdf-site-plan",
     studioGated: true,
+    propertyUnlockGrants: true,
   },
   {
     id: "SPDXF",
@@ -212,6 +229,7 @@ export const REPORTS_CATALOG: readonly ReportDocDef[] = [
     engine: "site-plan",
     sitePlanFormat: "dxf-site-plan",
     studioGated: true,
+    propertyUnlockGrants: true,
   },
   {
     id: "SPIFC",
@@ -225,6 +243,7 @@ export const REPORTS_CATALOG: readonly ReportDocDef[] = [
     engine: "site-plan",
     sitePlanFormat: "ifc-site-plan",
     studioGated: true,
+    propertyUnlockGrants: true,
   },
   {
     id: "TERGLB",
@@ -238,6 +257,7 @@ export const REPORTS_CATALOG: readonly ReportDocDef[] = [
     engine: "terrain",
     terrainFormat: "glb",
     studioGated: true,
+    propertyUnlockGrants: true,
   },
   {
     id: "TERIFC",
@@ -251,6 +271,7 @@ export const REPORTS_CATALOG: readonly ReportDocDef[] = [
     engine: "terrain",
     terrainFormat: "ifc",
     studioGated: true,
+    propertyUnlockGrants: true,
   },
   {
     id: "TERDXF",
@@ -264,6 +285,7 @@ export const REPORTS_CATALOG: readonly ReportDocDef[] = [
     engine: "terrain",
     terrainFormat: "dxf-contour",
     studioGated: true,
+    propertyUnlockGrants: true,
   },
 ];
 
@@ -301,12 +323,21 @@ export function reportCatalogGroups(): Array<{
   }));
 }
 
+/**
+ * P-119: a `studioGated` row opens on Studio/Team OR (when the row carries
+ * `propertyUnlockGrants`) an active Property Unlock. `propertyUnlocked`
+ * defaults to false so every existing positional call keeps its prior
+ * answer unchanged; Records request (`studioGated` with no
+ * `propertyUnlockGrants`) is unaffected regardless of this argument.
+ */
 export function reportDocIsGeneratable(
   doc: ReportDocDef,
   studioGranted: boolean,
+  propertyUnlocked = false,
 ): boolean {
   if (doc.catalogStatus === "coming") return false;
-  if (doc.studioGated && !studioGranted) return false;
+  const propertyUnlockOpensThis = doc.propertyUnlockGrants === true && propertyUnlocked;
+  if (doc.studioGated && !studioGranted && !propertyUnlockOpensThis) return false;
   return true;
 }
 
@@ -317,10 +348,12 @@ const SLATE = PE_CHROME.muted;
 
 export function reportDocLockChip(
   doc: ReportDocDef,
-  opts: { studioGranted: boolean },
+  opts: { studioGranted: boolean; propertyUnlocked?: boolean },
 ): { text: string; color: string } | null {
   if (doc.catalogStatus === "coming") return null;
-  if (doc.studioGated && !opts.studioGranted) {
+  const propertyUnlockOpensThis =
+    doc.propertyUnlockGrants === true && opts.propertyUnlocked === true;
+  if (doc.studioGated && !opts.studioGranted && !propertyUnlockOpensThis) {
     return {
       text: `${PE_PRICING.studio.title}, ${PE_PRICING.studio.priceLabel}`,
       color: WARN,
@@ -331,7 +364,11 @@ export function reportDocLockChip(
 
 export function reportDocStatus(
   doc: ReportDocDef,
-  opts: { studioGranted: boolean; generatedLabel?: string | null },
+  opts: {
+    studioGranted: boolean;
+    propertyUnlocked?: boolean;
+    generatedLabel?: string | null;
+  },
 ): { text: string; color: string } {
   const lock = reportDocLockChip(doc, opts);
   if (lock) return lock;

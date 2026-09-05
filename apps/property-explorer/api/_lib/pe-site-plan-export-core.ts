@@ -392,11 +392,12 @@ export type SitePlanExportAuthResult =
   | { ok: true; devBypass?: boolean }
   | { ok: false; status: 401 | 402 | 503; error: string; message?: string }
 
-/** Refusal reason when the account is paid but not Studio (P-104). Distinct
- *  from the free-tier `payment_required` so the surface can offer the right
- *  upgrade instead of a generic paywall. */
+/** Refusal reason when the account is paid but not Studio, and holds no
+ *  Property Unlock either (P-104, extended by P-119). Distinct from the
+ *  free-tier `payment_required` so the surface can offer the right upgrade
+ *  instead of a generic paywall. */
 export const STUDIO_REQUIRED_MESSAGE =
-  'Site-plan CAD export is a Studio deliverable. Your plan does not include it.'
+  'Site-plan CAD export requires Studio, Team, or an active Property Unlock on this parcel. Your plan does not include it.'
 
 /** Refusal reason when the entitlement server did not report `studioGranted`
  *  at all — UNMEASURED, not denied. Never shown as a paywall. */
@@ -413,14 +414,32 @@ export const STUDIO_UNMEASURED_MESSAGE =
  * `resolveTerrainExportAuth` — the two share one product rule and must not
  * diverge.
  *
- * `studioGranted` is deliberately REQUIRED, not optional: an optional field
- * would let a call site omit it and fall through to the old behaviour
- * silently. The compiler now demands an answer at every call site.
+ * P-119 (2026-09-05): the operator's authoritative package table adds a
+ * SECOND door — the Property Unlock product (X-ray, Flood, Feasibility,
+ * site-plan CAD, and terrain, but explicitly NOT screens/boards) — alongside
+ * Studio/Team. `propertyUnlocked` is checked FIRST and short-circuits: a
+ * Property Unlock account may hold no subscription at all (`tier: 'free'`)
+ * and must still pass, exactly as the dossier/flood-drainage gates already
+ * treat property-unlock-or-Pro as sufficient. This is the SAME
+ * `propertyUnlocked` field `resolveDossierExportAuth` /
+ * `resolveFloodDrainageAuth` already consume (fetchPeEntitlementDetail),
+ * reused here rather than a new predicate — same discipline as
+ * `studioGranted` above.
+ *
+ * `studioGranted` and `propertyUnlocked` are deliberately REQUIRED, not
+ * optional: an optional field would let a call site omit it and fall through
+ * to the old behaviour silently. The compiler now demands an answer at every
+ * call site.
  */
 export function resolveSitePlanExportAuth(input: {
   sessionToken: string | null
   entitlement:
-    | { ok: true; tier: 'free' | 'paid'; studioGranted: boolean | null }
+    | {
+        ok: true
+        tier: 'free' | 'paid'
+        studioGranted: boolean | null
+        propertyUnlocked: boolean | null
+      }
     | { ok: false; status: 401 | 402 | 503; message?: string }
   /** Operator/dev bypass — session still required; skips paid check. */
   devBypass?: boolean
@@ -449,6 +468,12 @@ export function resolveSitePlanExportAuth(input: {
             : 'entitlement_unavailable',
       message: denied.message,
     }
+  }
+  // P-119: Property Unlock is a distinct entitlement path from Studio/Team
+  // (A-068) — check it before the tier/studio ladder below so an account
+  // with an active unlock but no subscription (tier 'free') still passes.
+  if (input.entitlement.propertyUnlocked === true) {
+    return { ok: true }
   }
   if (input.entitlement.tier !== 'paid') {
     return {
