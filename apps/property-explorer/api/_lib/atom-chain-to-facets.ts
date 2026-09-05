@@ -8,7 +8,10 @@
 // not_specified: live setback-rule atoms currently drop the flag; we re-attach
 // B3 provenance by district so silent axes never render as real 0′ / "consume lot".
 
-import { resolveCodifiedSetbacksForStamp } from "./codified-setback-from-zoning.js";
+import {
+  resolveCodifiedSetbacksForStamp,
+  type CodifiedSetbackScalars,
+} from "./codified-setback-from-zoning.js";
 import {
   anyNotSpecified,
   buildToLineDisclosure,
@@ -825,7 +828,7 @@ function countyFipsFromNodeId(parcelNodeId: string): string | undefined {
   return fips && /^\d{5}$/.test(fips) ? fips : undefined;
 }
 
-function apnFromNodeId(parcelNodeId: string): string | undefined {
+export function apnFromNodeId(parcelNodeId: string): string | undefined {
   const rest = parcelNodeId.split(":")[1]?.trim();
   return rest || undefined;
 }
@@ -1758,6 +1761,10 @@ function mapWarmVerifyDeclineEnvelope(
 
 export function adaptAtomChainToBakedFacets(
   chain: PropertyAtomChain | null | undefined,
+  opts?: {
+    /** Live layer-23 scalars for a per-parcel-only jurisdiction (e.g. Bastrop city), pre-fetched by the caller. */
+    perParcelSetback?: CodifiedSetbackScalars | null;
+  },
 ): PeBakedFacetsResponse | null {
   if (!atomChainIsUsable(chain)) return null;
   const c = chain as PropertyAtomChain;
@@ -1798,7 +1805,11 @@ export function adaptAtomChainToBakedFacets(
   const tableSetbacks =
     setbacks ??
     (hasDistrict && jurisdictionKey
-      ? resolveCodifiedSetbacksForStamp(jurisdictionKey, district)
+      ? resolveCodifiedSetbacksForStamp(
+          jurisdictionKey,
+          district,
+          opts?.perParcelSetback,
+        )
       : null);
   const effectiveSetbacks = setbacks ?? tableSetbacks ?? undefined;
   const liveSetback = hasLiveAtomChainSetbackRule(
