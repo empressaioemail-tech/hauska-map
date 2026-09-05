@@ -581,6 +581,44 @@ export function maxImperviousCoverPctFacetFromSheet(
   return facetFrom(maxImperviousCoverPct, () => "");
 }
 
+/**
+ * County tax-assessed CAD roll value row from sheet.taxValuation (OPS-16
+ * A-103 item 5 / A-104). Unlike every other optional fact above,
+ * `unresolved` here is not a transient load failure or a genuine absence —
+ * it is the server's `studio-gated` entitlement refusal (see
+ * `taxValuationFromCadRoll` in fact-sheet-resolver.ts), so it is mapped to
+ * `pending` via the shared `facetFrom` the same way every other
+ * `unresolved` Fact is, and then the CARD applies a second, explicit gate
+ * (`gateTaxValuationPresentation`) that turns that into the correct
+ * upgrade-cue presentation — the exact same two-step InspectCard already
+ * uses for `owner` (`gateOwnerPresentation`).
+ *
+ * A REAL, SOURCED FIGURE FROM THE COUNTY APPRAISAL DISTRICT, NOT AN OPINION
+ * OF WORTH — the display string is composed entirely from values the CAD
+ * roll actually reported, never a computed total.
+ */
+export function taxValuationFacetFromSheet(
+  taxValuation:
+    | Fact<{
+        marketValue: number | null;
+        assessedValue: number | null;
+        landValue: number | null;
+        improvementValue: number | null;
+        display: string;
+      }>
+    | undefined,
+): CardFacet<string> {
+  if (!taxValuation) {
+    return { state: "unknown", value: null };
+  }
+  if (taxValuation.state === "present") {
+    const display = taxValuation.value.display.trim();
+    if (display) return present(display);
+    return absent("cad-roll-valuation present with no display");
+  }
+  return facetFrom(taxValuation, () => "");
+}
+
 /** A setback axis -> the card's own display fragment. */
 function axisText(axis: SetbackAxis, label: string): string {
   // AMENDMENT 2: a NOT-SPECIFIED axis carries a NULL distance. The absence is
@@ -734,6 +772,7 @@ export function bakedCardModelFromSheet(
     maxImperviousCoverPct: maxImperviousCoverPctFacetFromSheet(
       sheet.maxImperviousCoverPct,
     ),
+    taxValuation: taxValuationFacetFromSheet(sheet.taxValuation),
     envelopeApproximate: env.kind === "derived" ? env.approximate : env.kind === "consumed",
     envelopeStatus:
       env.kind === "derived" ? "ok" : env.kind === "consumed" ? "no-buildable-area" : "declined",

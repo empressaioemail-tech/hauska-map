@@ -64,6 +64,25 @@ export interface BakedFacetPayload {
       vintage?: string;
     } | null;
     acreage?: { value: number; sqft?: number; method?: string } | null;
+    /**
+     * County tax-assessed CAD roll figures (OPS-16 A-103 item 5 / A-104).
+     * Each field is EITHER the offline-baked shape ({v, source, vintage,
+     * valueBasis?}, no `state` key) OR the live-overlay wire shape
+     * ({state: "present"|"zero"|"absent", v?, ...}) OR, when the caller is
+     * not entitled, the gated refusal ({state: "refused", code:
+     * "studio-gated", reason}) — the backend does not normalize these to
+     * one shape today (see `cadRollFieldToWire` vs the raw baked write in
+     * legacy-design-tools), so this type is intentionally loose and the
+     * reader (fact-sheet-resolver.ts's `taxValuationFromCadRoll`) parses
+     * all three defensively. A REAL, SOURCED FIGURE, NOT AN OPINION OF
+     * WORTH — see the `taxValuation` field doc on `ParcelFactSheet`.
+     */
+    cadRoll?: {
+      marketValue?: unknown;
+      assessedValue?: unknown;
+      landValue?: unknown;
+      improvementValue?: unknown;
+    } | null;
   };
   zoning?: { district: string; jurisdictionKey?: string } | LayerAbsenceWire | null;
   envelope?: {
@@ -621,6 +640,16 @@ export interface BakedCardModel {
    * that.
    */
   maxImperviousCoverPct: CardFacet<string>;
+  /**
+   * County tax-assessed CAD roll value row (OPS-16 A-103 item 5 / A-104)
+   * from `taxValuation` only. `unknown` when the field is missing (FactRow
+   * hides it). Gated Studio|Team, same tier as `owner` — the card applies
+   * the same second client-side gate (`gateTaxValuationPresentation`,
+   * mirroring `gateOwnerPresentation`) on top of this facet. A REAL,
+   * SOURCED FIGURE FROM THE COUNTY APPRAISAL DISTRICT, NOT AN OPINION OF
+   * WORTH — never labelled "valuation" or "worth" at render time.
+   */
+  taxValuation: CardFacet<string>;
   /** True whenever an envelope facet is present — the card must then render the
    *  "approximate / not survey grade" treatment (honesty commitment #1). */
   envelopeApproximate: boolean;
@@ -911,6 +940,7 @@ export function deriveBakedCardModel(payload: BakedFacetPayload): BakedCardModel
     overlayDistricts: { state: "unknown", value: null },
     agValuation: { state: "unknown", value: null },
     maxImperviousCoverPct: { state: "unknown", value: null },
+    taxValuation: { state: "unknown", value: null },
     // Any present envelope is Tier-1 (shape-only, no roads) — always approximate.
     envelopeApproximate: hasEnvelope,
     envelopeStatus: env?.status ?? null,

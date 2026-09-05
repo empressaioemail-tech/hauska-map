@@ -12,6 +12,10 @@ import { describe, expect, it } from "vitest";
 import { renderToStaticMarkup } from "react-dom/server";
 import { gateOwnerPresentation, OWNER_STUDIO_UPGRADE_CUE } from "../lib/owner-paint";
 import {
+  gateTaxValuationPresentation,
+  TAX_VALUATION_STUDIO_UPGRADE_CUE,
+} from "../lib/tax-valuation-paint";
+import {
   FacetRow,
   FactRow,
   FacetsLoadErrorBanner,
@@ -1076,6 +1080,157 @@ describe("InspectCard Owner row — ownerFact (P-54)", () => {
     const src = readFileSync(resolve(__dirname, "InspectCard.tsx"), "utf8");
     expect(src).toContain("gateOwnerPresentation");
     expect(src).not.toMatch(/card\.owner/);
+  });
+});
+
+describe("InspectCard Tax-assessed value row — taxValuation (OPS-16 A-103 item 5 / A-104)", () => {
+  it("present CAD roll fixture renders the composed dollar-figure display", () => {
+    const html = renderToStaticMarkup(
+      <dl>
+        <FactRow
+          label="Tax-assessed value"
+          fact={toFactPresentation(
+            {
+              state: "present",
+              value: "Market $397,260 · Land $80,000 · Improvement $317,260",
+            },
+            ROW_SPECS.taxValuation,
+          )}
+          testid="inspect-tax-valuation"
+        />
+      </dl>,
+    );
+    expect(html).toContain('data-testid="inspect-tax-valuation"');
+    expect(html).toContain("Tax-assessed value");
+    expect(html).toContain("397,260");
+    // Never rendered as an opinion of worth — the operator's own distinction.
+    expect(html).not.toContain("Valuation");
+    expect(html).not.toContain("Worth");
+  });
+
+  it("server studio-gated refusal (unresolved) stays visible with its reason before the client gate runs", () => {
+    const html = renderToStaticMarkup(
+      <dl>
+        <FactRow
+          label="Tax-assessed value"
+          fact={toFactPresentation(
+            { state: "pending", value: "cad-roll-valuation studio-gated" },
+            ROW_SPECS.taxValuation,
+          )}
+          testid="inspect-tax-valuation"
+        />
+      </dl>,
+    );
+    expect(html).toContain('data-testid="inspect-tax-valuation"');
+    expect(html).toContain("cad-roll-valuation");
+    expect(html).toContain("studio-gated");
+  });
+
+  it("missing taxValuation hides the row (unknown, not invented)", () => {
+    const html = renderToStaticMarkup(
+      <dl>
+        <FactRow
+          label="Tax-assessed value"
+          fact={toFactPresentation(
+            { state: "unknown", value: null },
+            ROW_SPECS.taxValuation,
+          )}
+          testid="inspect-tax-valuation"
+        />
+      </dl>,
+    );
+    expect(html).not.toContain("inspect-tax-valuation");
+    expect(html).not.toContain("Tax-assessed value");
+  });
+
+  it("free/Solo/Property-Unlock fixture (subscriptionTier null) does not render the real dollar figures", () => {
+    const html = renderToStaticMarkup(
+      <dl>
+        <FactRow
+          label="Tax-assessed value"
+          fact={gateTaxValuationPresentation(
+            toFactPresentation(
+              { state: "present", value: "Market $397,260 · Land $80,000" },
+              ROW_SPECS.taxValuation,
+            ),
+            null,
+          )}
+          testid="inspect-tax-valuation"
+        />
+      </dl>,
+    );
+    expect(html).toContain('data-testid="inspect-tax-valuation"');
+    expect(html).toContain(TAX_VALUATION_STUDIO_UPGRADE_CUE);
+    expect(html).not.toContain("397,260");
+  });
+
+  it("Solo fixture does not render the real dollar figures", () => {
+    const html = renderToStaticMarkup(
+      <dl>
+        <FactRow
+          label="Tax-assessed value"
+          fact={gateTaxValuationPresentation(
+            toFactPresentation(
+              { state: "present", value: "Market $397,260" },
+              ROW_SPECS.taxValuation,
+            ),
+            "solo",
+          )}
+          testid="inspect-tax-valuation"
+        />
+      </dl>,
+    );
+    expect(html).toContain(TAX_VALUATION_STUDIO_UPGRADE_CUE);
+    expect(html).not.toContain("397,260");
+  });
+
+  it("Studio fixture renders the real dollar figures", () => {
+    const html = renderToStaticMarkup(
+      <dl>
+        <FactRow
+          label="Tax-assessed value"
+          fact={gateTaxValuationPresentation(
+            toFactPresentation(
+              {
+                state: "present",
+                value: "Market $397,260 · Land $80,000 · Improvement $317,260",
+              },
+              ROW_SPECS.taxValuation,
+            ),
+            "studio",
+          )}
+          testid="inspect-tax-valuation"
+        />
+      </dl>,
+    );
+    expect(html).toContain("397,260");
+    expect(html).not.toContain(TAX_VALUATION_STUDIO_UPGRADE_CUE);
+  });
+
+  it("Team fixture also renders the real dollar figures", () => {
+    const html = renderToStaticMarkup(
+      <dl>
+        <FactRow
+          label="Tax-assessed value"
+          fact={gateTaxValuationPresentation(
+            toFactPresentation(
+              { state: "present", value: "Market $397,260" },
+              ROW_SPECS.taxValuation,
+            ),
+            "team",
+          )}
+          testid="inspect-tax-valuation"
+        />
+      </dl>,
+    );
+    expect(html).toContain("397,260");
+    expect(html).not.toContain(TAX_VALUATION_STUDIO_UPGRADE_CUE);
+  });
+
+  it("InspectCard wires the studio gate for taxValuation and labels it honestly (never 'valuation'/'worth' in the row label)", () => {
+    const src = readFileSync(resolve(__dirname, "InspectCard.tsx"), "utf8");
+    expect(src).toContain("gateTaxValuationPresentation");
+    expect(src).toContain('"Tax-assessed value"');
   });
 });
 
