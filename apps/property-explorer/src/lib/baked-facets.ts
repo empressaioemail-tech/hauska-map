@@ -47,6 +47,17 @@ export type { EnvelopeProvenanceRefs, SetbackFieldProvenance, SetbackFieldNotes 
 export type { LayerAbsenceVerdict, LayerAbsenceWire, LayerWire } from "./layer-absence";
 export { isSilentEmptyStructuralLayer } from "./layer-absence";
 
+/**
+ * A cad-roll dollar/sqft field's three-state wire, mirrored from
+ * legacy-design-tools' cadRollValue.ts CadRollValueWire. "present" (v>0),
+ * "zero" (a real stored $0, e.g. vacant land), "absent" (no value) — never
+ * collapse zero into absent.
+ */
+export type CadRollValueWire =
+  | { state: "present"; v: number; source?: string; vintage?: string | null; valueBasis?: string }
+  | { state: "zero"; v: 0; source?: string; vintage?: string | null; valueBasis?: string; basis?: string }
+  | { state: "absent"; source?: string; vintage?: string | null; basis?: string };
+
 /** The baked Tier-1 facet payload, mirrored from the backend contract. */
 export interface BakedFacetPayload {
   parcelNodeId?: string;
@@ -64,6 +75,18 @@ export interface BakedFacetPayload {
       vintage?: string;
     } | null;
     acreage?: { value: number; sqft?: number; method?: string } | null;
+    /**
+     * PARCEL-B-SLATE2 cad-roll dollar-rail overlay. Three-state wire per
+     * field (present/zero/absent — a stored $0 is real data, never
+     * collapsed to absent). No UI reads `.v` off this yet; kept type-parity
+     * with the API contract (atom-chain-to-facets.ts) rather than dropped.
+     */
+    cadRoll?: {
+      marketValue?: CadRollValueWire | null;
+      assessedValue?: CadRollValueWire | null;
+      landValue?: CadRollValueWire | null;
+      improvementValue?: CadRollValueWire | null;
+    } | null;
   };
   zoning?: { district: string; jurisdictionKey?: string } | LayerAbsenceWire | null;
   envelope?: {
