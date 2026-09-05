@@ -15,13 +15,19 @@
 // download GET), BOTH the refresh POST and the download GET call engine-api
 // directly here.
 //
-// GATE: Studio/Team ONLY — the P32 tier ruling
-// (doc_repo/_decisions/2026-09-03_p32_feasibility_tier_ruling.md): reuse the
-// server-computed studioGranted, never a new independent check. This is the
-// SAME decision structure resolveSitePlanExportAuth already enforces for
-// site-plan/terrain (P-104) — NOT the property-unlock-or-Pro gate
-// flood-drainage and X-ray use. The structure is intentionally re-declared
-// here (not imported) because its refusal copy is feasibility-specific;
+// GATE: Studio/Team OR an active Property Unlock — the P32 tier ruling
+// (doc_repo/_decisions/2026-09-03_p32_feasibility_tier_ruling.md) reuses the
+// server-computed studioGranted, never a new independent check, and P-119
+// (doc_repo/OPS-16 A-103 item 3 / P-119, 2026-09-05 — the operator's
+// authoritative package table) adds Property Unlock as a second door: the
+// Property Unlock row explicitly includes Feasibility Studies alongside
+// X-ray/Flood/site-plan-CAD/terrain, excluding only screens/boards. This is
+// the SAME decision structure resolveSitePlanExportAuth/
+// resolveTerrainExportAuth already enforce (P-104 studioGranted, P-119
+// propertyUnlocked) — NOT the plain property-unlock-or-Pro gate
+// flood-drainage and X-ray use (which grants on ANY paid tier, not just
+// Studio/Team). The structure is intentionally re-declared here (not
+// imported) because its refusal copy is feasibility-specific;
 // pe-feasibility-export.test.ts binds the two gates to answer identically
 // on every tier, the same cross-check pattern
 // pe-site-plan-export-bff.test.ts already runs between site-plan and
@@ -66,12 +72,14 @@ export function buildFeasibilityEngineGateHeaders(opts?: {
 }
 
 // ---------------------------------------------------------------------------
-// Auth — session + STUDIO/TEAM entitlement (P-104's rule, reused verbatim;
-// NOT the property-unlock-or-Pro gate).
+// Auth — session + STUDIO/TEAM-or-Property-Unlock entitlement (P-104's
+// studioGranted rule, reused verbatim, PLUS P-119's propertyUnlocked door —
+// NOT the plain property-unlock-or-Pro gate flood-drainage/X-ray use, which
+// grants on any paid tier).
 // ---------------------------------------------------------------------------
 
 export const FEASIBILITY_STUDIO_REQUIRED_MESSAGE =
-  'Feasibility Study is a Studio deliverable. Your plan does not include it.'
+  'Feasibility Study requires Studio, Team, or an active Property Unlock on this parcel. Your plan does not include it.'
 
 /** Refusal reason when the entitlement server did not report `studioGranted`
  *  at all — UNMEASURED, not denied. Never shown as a paywall. */
@@ -84,14 +92,20 @@ export type FeasibilityExportAuthResult =
 
 /**
  * Mirrors resolveSitePlanExportAuth's decision structure exactly — one
- * product rule (Studio or Team via the server-computed studioGranted),
- * `studioGranted` deliberately REQUIRED (not optional) so no call site can
- * omit it and fall through silently — with feasibility's own refusal copy.
+ * product rule (Studio or Team via the server-computed studioGranted, OR an
+ * active Property Unlock per P-119), `studioGranted` and `propertyUnlocked`
+ * deliberately REQUIRED (not optional) so no call site can omit either and
+ * fall through silently — with feasibility's own refusal copy.
  */
 export function resolveFeasibilityExportAuth(input: {
   sessionToken: string | null
   entitlement:
-    | { ok: true; tier: 'free' | 'paid'; studioGranted: boolean | null }
+    | {
+        ok: true
+        tier: 'free' | 'paid'
+        studioGranted: boolean | null
+        propertyUnlocked: boolean | null
+      }
     | { ok: false; status: 401 | 402 | 503; message?: string }
   /** Operator/dev bypass — session still required; skips paid check. */
   devBypass?: boolean
@@ -120,6 +134,13 @@ export function resolveFeasibilityExportAuth(input: {
             : 'entitlement_unavailable',
       message: denied.message,
     }
+  }
+  // P-119: Property Unlock explicitly includes Feasibility Studies — checked
+  // before the tier/studio ladder so an unlock-only account (tier 'free')
+  // still passes, same shape as resolveSitePlanExportAuth/
+  // resolveTerrainExportAuth.
+  if (input.entitlement.propertyUnlocked === true) {
+    return { ok: true }
   }
   if (input.entitlement.tier !== 'paid') {
     return {
