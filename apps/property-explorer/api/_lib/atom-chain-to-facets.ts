@@ -210,6 +210,13 @@ export interface PeBakedFacetPayload {
     situsState?: string | null;
     landUse?: { code: string; description?: string | null } | null;
     acreage?: { value: number; sqft?: number; method?: string } | null;
+    /** PARCEL-B-SLATE2 cad-roll dollar-rail overlay (marketValue/assessedValue/landValue/improvementValue only — yearBuilt is sourced separately and not part of this shape). */
+    cadRoll?: {
+      marketValue?: number | null;
+      assessedValue?: number | null;
+      landValue?: number | null;
+      improvementValue?: number | null;
+    } | null;
   };
   zoning?: { district: string; jurisdictionKey?: string } | null;
   envelope?: {
@@ -1533,6 +1540,22 @@ export function mergeBakedBaseFacts(
     (typeof atomBase.apn === "string" && atomBase.apn.trim() ? atomBase.apn : null) ??
     (typeof bakedBase.apn === "string" && bakedBase.apn.trim() ? bakedBase.apn : null);
 
+  // PARCEL-B-SLATE2 cad-roll dollar rails. Cortex writes baseFacts.cadRoll.*
+  // only when a value resolved (never a bare null key), so a finite-number
+  // check is the honest-absence guard — same shape as landUse/acreage above.
+  // yearBuilt is deliberately NOT carried here: its live provenance is
+  // ambiguous between this overlay and the older structuralFact atom path,
+  // and conflating the two here would risk masking that open question.
+  const bakedCadRoll = bakedBase.cadRoll ?? null;
+  const cadRollDollarValue = (key: keyof NonNullable<typeof bakedCadRoll>): number | null =>
+    bakedCadRoll && typeof bakedCadRoll[key] === "number" && Number.isFinite(bakedCadRoll[key])
+      ? (bakedCadRoll[key] as number)
+      : null;
+  const marketValue = cadRollDollarValue("marketValue");
+  const assessedValue = cadRollDollarValue("assessedValue");
+  const landValue = cadRollDollarValue("landValue");
+  const improvementValue = cadRollDollarValue("improvementValue");
+
   const merged: PeBakedFacetsResponse = {
     ...atomResponse,
     baseFactsMerged: true,
@@ -1550,6 +1573,10 @@ export function mergeBakedBaseFacts(
         situsState: bakedBase.situsState ?? null,
         landUse,
         acreage,
+        cadRoll:
+          marketValue != null || assessedValue != null || landValue != null || improvementValue != null
+            ? { marketValue, assessedValue, landValue, improvementValue }
+            : null,
       },
       facetCoverage: {
         ...atomFacets.facetCoverage,
