@@ -623,6 +623,38 @@ export interface ParcelFactSheet {
     crosswalkCitation: string | null;
     display: string;
   }>;
+  /**
+   * ADDITIVE (OPS-16 A-103 item 5 / A-104, 2026-09-05). County tax-assessed
+   * valuation (market/land/improvement/assessed value) from the CAD roll,
+   * `baseFacts.cadRoll.*` on the inspect payload — NOT a root-sibling fact
+   * atom like owner/agValuation/etc, since it is baked straight onto
+   * baseFacts by the bake / offline patch job. Optional so existing sealed
+   * stubs stay valid. Missing means the inspect payload carried no cadRoll
+   * object at all (hide the row).
+   *
+   * A REAL, SOURCED FIGURE — NOT AN OPINION OF WORTH. Operator: "tax
+   * ssesment data is differnt than offering market related valuation data."
+   * Masters 06's "not a valuation tool" stance is about market-opinion
+   * estimates and is UNCHANGED; this field is the county appraisal
+   * district's own recorded number, cleared to display. Label it
+   * accordingly wherever it renders — never "valuation" or "worth" alone.
+   *
+   * GATED, same tier as owner info (Studio|Team only, per the operator's
+   * own ruling to co-gate with owner display) — `state: "unresolved"` when
+   * the server refused with `studio-gated`. This is a materially different
+   * reason than every other optional fact above: those refuse for
+   * coverage/atom-miss; this one refuses for ENTITLEMENT. A consumer that
+   * treats `unresolved` here as a transient load failure (the vocabulary's
+   * usual meaning) rather than a permanent tier gate is the bug the
+   * client-side paint gate (mirroring ownerPaint) exists to prevent.
+   */
+  taxValuation?: Fact<{
+    marketValue: number | null;
+    assessedValue: number | null;
+    landValue: number | null;
+    improvementValue: number | null;
+    display: string;
+  }>;
   site: SiteConditions;
 
   /**

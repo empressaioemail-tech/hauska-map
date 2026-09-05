@@ -63,6 +63,7 @@ import type { LayerAbsenceProvenance } from "../lib/layer-absence";
 import { factSheetResolver, FactSheetResolveError, isUsableSitusAddress } from "../lib/fact-sheet-resolver";
 import { usePropertyEntitlement } from "../lib/usePropertyEntitlement";
 import { gateOwnerPresentation } from "../lib/owner-paint";
+import { gateTaxValuationPresentation } from "../lib/tax-valuation-paint";
 import {
   loadWhoServesPresentation,
   whoServesQueryPointFromCentroid,
@@ -550,6 +551,11 @@ export const ROW_SPECS: Record<string, FactRowSpec> = {
   },
   owner: {
     wouldBeFilledBy: "an owner-fact atom on this parcel for a Studio or Team session",
+    labelledAbsenceIsCovered: true,
+  },
+  taxValuation: {
+    wouldBeFilledBy:
+      "a county tax-assessed CAD roll value on this parcel for a Studio or Team session",
     labelledAbsenceIsCovered: true,
   },
   cityLimits: {
@@ -1114,8 +1120,21 @@ export function InspectCard({
           fact: gateOwnerPresentation(
             toFactPresentation(baked.owner, ROW_SPECS.owner),
             entitlement.status === "ready" ? entitlement.subscriptionTier : null,
+            entitlement.status === "ready" ? entitlement.propertyUnlocked : false,
           ),
           testid: "inspect-owner",
+        },
+        {
+          key: "taxValuation",
+          // Deliberately "Tax-assessed value", never "Valuation" / "Worth" —
+          // a sourced county figure, not a market opinion (A-103 item 5).
+          label: "Tax-assessed value",
+          fact: gateTaxValuationPresentation(
+            toFactPresentation(baked.taxValuation, ROW_SPECS.taxValuation),
+            entitlement.status === "ready" ? entitlement.subscriptionTier : null,
+            entitlement.status === "ready" ? entitlement.propertyUnlocked : false,
+          ),
+          testid: "inspect-tax-valuation",
         },
         {
           key: "cityLimits",
