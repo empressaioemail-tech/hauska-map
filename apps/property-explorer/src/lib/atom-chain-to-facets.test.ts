@@ -505,6 +505,52 @@ describe("mergeBakedBaseFacts — atom path + baked base facts (item 6)", () => 
     expect(mergeBakedBaseFacts(adapted, "oops")).toBe(adapted);
     expect(mergeBakedBaseFacts(adapted, {})).toBe(adapted);
   });
+
+  it("carries the four cad-roll dollar rails through from cortex baseFacts.cadRoll (OPS-16 A-104)", () => {
+    const adapted = adaptAtomChainToBakedFacets(haysChain)!;
+    const merged = mergeBakedBaseFacts(adapted, {
+      ...bakedCortexBody,
+      facets: {
+        ...bakedCortexBody.facets,
+        baseFacts: {
+          ...bakedCortexBody.facets.baseFacts,
+          cadRoll: { marketValue: 245000, assessedValue: 198500, landValue: 52000, improvementValue: 146500 },
+        },
+      },
+    });
+    expect(merged.facets.baseFacts?.cadRoll).toEqual({
+      marketValue: 245000,
+      assessedValue: 198500,
+      landValue: 52000,
+      improvementValue: 146500,
+    });
+  });
+
+  it("cad-roll stays honestly null when cortex resolved nothing (no bare-null-key coverage lie)", () => {
+    const adapted = adaptAtomChainToBakedFacets(haysChain)!;
+    const merged = mergeBakedBaseFacts(adapted, bakedCortexBody);
+    expect(merged.facets.baseFacts?.cadRoll).toBeNull();
+  });
+
+  it("a partially-populated cad-roll (only market + assessed resolved) carries exactly what resolved, nulls for the rest", () => {
+    const adapted = adaptAtomChainToBakedFacets(haysChain)!;
+    const merged = mergeBakedBaseFacts(adapted, {
+      ...bakedCortexBody,
+      facets: {
+        ...bakedCortexBody.facets,
+        baseFacts: {
+          ...bakedCortexBody.facets.baseFacts,
+          cadRoll: { marketValue: 300000, assessedValue: 275000 },
+        },
+      },
+    });
+    expect(merged.facets.baseFacts?.cadRoll).toEqual({
+      marketValue: 300000,
+      assessedValue: 275000,
+      landValue: null,
+      improvementValue: null,
+    });
+  });
 });
 
 describe("attachBuildablePctFromKnownLotArea — C4 (F-06)", () => {
