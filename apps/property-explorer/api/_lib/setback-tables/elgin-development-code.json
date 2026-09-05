@@ -1,0 +1,617 @@
+{
+  "$schema": "./schema.json",
+  "jurisdictionKey": "elgin-development-code",
+  "jurisdictionDisplayName": "City of Elgin, TX (Code of Ordinances, Chapter 46 - Zoning)",
+  "note": "RATIFIED 2026-08-04 by operator (planner row-verification vs corpus atoms; operator directives: governed_by routing in display, rule details in the X-ray -- see doc_repo _decisions/2026-08-04_elgin_setback_table_ratified). Originally authored 2026-08-03 from corpus atoms. Elgin onboarding pass (Bastrop-county-side Elgin_Zoning layer 0 only; the ~500-parcel Travis-side sliver, layer 1 / fips 48453, is a named follow-on and out of this pass). SOURCE: Elgin Code of Ordinances (current supplement), Chapter 46 Zoning, corpus atoms elgin_tx/elgin-code-of-ordinances-current-supplement/46-XXX (accessPolicy platform-internal per services/retrieval-api/corpus/snapshot.json jurisdiction-corpus entityId 'elgin_tx'). Rows for all 8 Euclidean districts named in Sec. 46-203 (R-1, R-2, R-3, R-4, C-1, C-2, C-3, I). PDD and Downtown Overlay are NOT districts in Elgin's Chapter 46 roster (unlike Bastrop) and are not present here; if a future Elgin overlay/PD ordinance is adopted, follow the Bastrop precedent (EXCLUDE conditional/arrangement-based districts from this flat scalar table, honest-decline to per-parcel record). District naming: R-4 is the ordinance's OWN canonical name (Sec. 46-203(1)d 'R-4 Multiple-Family Residential District'); the GIS layer's Zone_Code domain stamps this same district 'A' (a legacy code letter) -- confirmed by Sec. 46-391 and Sec. 46-417, both of which read residential uses in C-2/C-3 as governed 'the same as the requirements of the A-Multiple-Family Residential District.' The registry row's districtValueByPrefix carries the R-4 -> 'A' GIS-domain mapping (packages/engine-core/src/registry/jurisdiction-registry.ts ELGIN_REGISTRY_ROW); this table's district_name is the canonical 'R-4 Multiple-Family Residential District' throughout. Do not invent scalars for conditional/formula-only fields -- see not_specified cells below with verbatim source text in the note field.",
+  "districts": [
+    {
+      "district_name": "R-1 Single-Family Dwelling District",
+      "front_ft": 25,
+      "rear_ft": 10,
+      "side_ft": 7.5,
+      "side_corner_ft": 15,
+      "max_height_ft": 35,
+      "max_lot_coverage_pct": 0,
+      "max_impervious_pct": 45,
+      "citation_url": "https://library.municode.com/tx/elgin/codes/code_of_ordinances",
+      "provenance": {
+        "front_ft": {
+          "atom_did": "elgin_tx/elgin-code-of-ordinances-current-supplement/46-233",
+          "section_number": "46-233",
+          "quote": "Front yard. The minimum depth of the front yard shall be 25 feet. ... this regulation shall not require a front yard of greater depth than 40 feet.",
+          "confidence": 0.9,
+          "verification_state": "transcribed"
+        },
+        "rear_ft": {
+          "atom_did": "elgin_tx/elgin-code-of-ordinances-current-supplement/46-233",
+          "section_number": "46-233",
+          "quote": "Rear yard. There shall be a rear yard for a main building and accessory dwelling units of not less than ten feet.",
+          "confidence": 0.9,
+          "verification_state": "transcribed"
+        },
+        "side_ft": {
+          "atom_did": "elgin_tx/elgin-code-of-ordinances-current-supplement/46-233",
+          "section_number": "46-233",
+          "quote": "For all dwellings located on interior lots there shall be a side yard on each side of the main building of not less than seven and one-half feet for dwellings of one story, and of not less than ten feet for dwellings or more than one story.",
+          "confidence": 0.85,
+          "verification_state": "transcribed",
+          "note": "Value modeled is the one-story minimum (7.5 ft); multi-story interior side yard is 10 ft per the same subsection -- not modeled as a second scalar."
+        },
+        "side_corner_ft": {
+          "atom_did": "elgin_tx/elgin-code-of-ordinances-current-supplement/46-233",
+          "section_number": "46-233",
+          "quote": "For dwellings and accessory buildings located on corner lots there shall be a side yard from the intersecting street of not less than 15 feet in case such lot is back to back with another corner lot, and 25 feet in every other case.",
+          "confidence": 0.85,
+          "verification_state": "transcribed",
+          "note": "Value modeled is the back-to-back-corner-lot minimum (15 ft); the general-case corner side yard is 25 ft per the same subsection -- not modeled as a second scalar."
+        },
+        "max_height_ft": {
+          "atom_did": "elgin_tx/elgin-code-of-ordinances-current-supplement/46-232",
+          "section_number": "46-232",
+          "quote": "No building in the R-1 Single-Family Dwelling District shall exceed 2½ stories or 35 in height except as provided in article V, division 3 of this chapter.",
+          "confidence": 0.95,
+          "verification_state": "transcribed"
+        },
+        "max_lot_coverage_pct": {
+          "atom_did": "elgin_tx/elgin-code-of-ordinances-current-supplement/46-233",
+          "section_number": "46-233",
+          "quote": "Sec. 46-233 has no distinct 'lot coverage' percentage separate from the impervious-coverage subsection (6); a separate lot-coverage scalar is not modeled here.",
+          "confidence": 0.8,
+          "verification_state": "transcribed",
+          "not_specified": true
+        },
+        "max_impervious_pct": {
+          "atom_did": "elgin_tx/elgin-code-of-ordinances-current-supplement/46-233",
+          "section_number": "46-233",
+          "quote": "Impervious coverage. Main buildings, accessory dwelling units, and accessory buildings and other impervious cover shall not cover more than 45 percent of lot area on interior lots, and 50 percent of the lot area on corner lots.",
+          "confidence": 0.85,
+          "verification_state": "transcribed",
+          "note": "Value modeled is the interior-lot maximum (45%); corner lots may cover up to 50% per the same subsection -- not modeled as a second scalar."
+        }
+      }
+    },
+    {
+      "district_name": "R-2 Single-Family and Duplex Dwelling District",
+      "front_ft": 25,
+      "rear_ft": 10,
+      "side_ft": 5,
+      "side_corner_ft": 15,
+      "max_height_ft": 35,
+      "max_lot_coverage_pct": 0,
+      "max_impervious_pct": 45,
+      "citation_url": "https://library.municode.com/tx/elgin/codes/code_of_ordinances",
+      "provenance": {
+        "front_ft": {
+          "atom_did": "elgin_tx/elgin-code-of-ordinances-current-supplement/46-265",
+          "section_number": "46-265",
+          "quote": "Front yard. The minimum depth of the front yard shall be 25 feet. ... this regulation shall not require a front yard of greater depth than 40 feet.",
+          "confidence": 0.9,
+          "verification_state": "transcribed"
+        },
+        "rear_ft": {
+          "atom_did": "elgin_tx/elgin-code-of-ordinances-current-supplement/46-265",
+          "section_number": "46-265",
+          "quote": "Rear yard. There shall be a rear yard for a main building and accessory dwelling units of not less than ten feet.",
+          "confidence": 0.9,
+          "verification_state": "transcribed"
+        },
+        "side_ft": {
+          "atom_did": "elgin_tx/elgin-code-of-ordinances-current-supplement/46-265",
+          "section_number": "46-265",
+          "quote": "For all dwellings located on interior lots there shall be a side yard on each of the main building of not less than five feet for dwellings of one story, and of not less than ten feet for dwellings of more than one story.",
+          "confidence": 0.85,
+          "verification_state": "transcribed",
+          "note": "Value modeled is the one-story minimum (5 ft); multi-story interior side yard is 10 ft per the same subsection -- not modeled as a second scalar."
+        },
+        "side_corner_ft": {
+          "atom_did": "elgin_tx/elgin-code-of-ordinances-current-supplement/46-265",
+          "section_number": "46-265",
+          "quote": "For dwellings and accessory buildings located on corner lots there shall be a side yard setback from the intersecting street of not less than 15 feet in case such lot is back with another corner lot, and 25 feet in every other case.",
+          "confidence": 0.85,
+          "verification_state": "transcribed",
+          "note": "Value modeled is the back-to-back-corner-lot minimum (15 ft); the general-case corner side yard is 25 ft per the same subsection -- not modeled as a second scalar."
+        },
+        "max_height_ft": {
+          "atom_did": "elgin_tx/elgin-code-of-ordinances-current-supplement/46-264",
+          "section_number": "46-264",
+          "quote": "No building in the R-2 Single-Family and Duplex Dwelling District shall exceed two and one-half stories or 35 feet in height except as provided in article V, division 3 of this chapter.",
+          "confidence": 0.95,
+          "verification_state": "transcribed"
+        },
+        "max_lot_coverage_pct": {
+          "atom_did": "elgin_tx/elgin-code-of-ordinances-current-supplement/46-265",
+          "section_number": "46-265",
+          "quote": "Sec. 46-265 has no distinct 'lot coverage' percentage separate from the impervious-coverage subsection (6); a separate lot-coverage scalar is not modeled here.",
+          "confidence": 0.8,
+          "verification_state": "transcribed",
+          "not_specified": true
+        },
+        "max_impervious_pct": {
+          "atom_did": "elgin_tx/elgin-code-of-ordinances-current-supplement/46-265",
+          "section_number": "46-265",
+          "quote": "Impervious coverage. Main buildings, accessory dwelling units, and accessory buildings and other impervious cover shall not cover more than 45 percent of lot area on interior lots, and 50 percent of the lot area on corner lots.",
+          "confidence": 0.85,
+          "verification_state": "transcribed",
+          "note": "Value modeled is the interior-lot maximum (45%); corner lots may cover up to 50% per the same subsection -- not modeled as a second scalar."
+        }
+      }
+    },
+    {
+      "district_name": "R-3 Single-Family Dwelling District",
+      "front_ft": 15,
+      "rear_ft": 10,
+      "side_ft": 7.5,
+      "side_corner_ft": 15,
+      "max_height_ft": 35,
+      "max_lot_coverage_pct": 0,
+      "max_impervious_pct": 45,
+      "citation_url": "https://library.municode.com/tx/elgin/codes/code_of_ordinances",
+      "provenance": {
+        "front_ft": {
+          "atom_did": "elgin_tx/elgin-code-of-ordinances-current-supplement/46-303",
+          "section_number": "46-303",
+          "quote": "Front yard. The minimum depth of the front yard shall be 15 feet. ... this regulation shall not require a front yard of greater depth than 25 feet.",
+          "confidence": 0.9,
+          "verification_state": "transcribed"
+        },
+        "rear_ft": {
+          "atom_did": "elgin_tx/elgin-code-of-ordinances-current-supplement/46-303",
+          "section_number": "46-303",
+          "quote": "Rear yard. There shall be a rear yard for a main building and accessory dwelling units of not less than ten feet.",
+          "confidence": 0.9,
+          "verification_state": "transcribed"
+        },
+        "side_ft": {
+          "atom_did": "elgin_tx/elgin-code-of-ordinances-current-supplement/46-303",
+          "section_number": "46-303",
+          "quote": "For all dwellings located on interior lots there shall be a side yard on each side of the main building of not less than seven and one-half feet for dwellings of one story, and of not less than ten feet for dwellings or more than one story.",
+          "confidence": 0.85,
+          "verification_state": "transcribed",
+          "note": "Value modeled is the one-story minimum (7.5 ft); multi-story interior side yard is 10 ft per the same subsection -- not modeled as a second scalar."
+        },
+        "side_corner_ft": {
+          "atom_did": "elgin_tx/elgin-code-of-ordinances-current-supplement/46-303",
+          "section_number": "46-303",
+          "quote": "For dwellings and accessory buildings located on corner lots there shall be a side yard from the intersecting street of not less than 15 feet in case such lot is back to back with another corner lot, and 25 feet in every other case.",
+          "confidence": 0.85,
+          "verification_state": "transcribed",
+          "note": "Value modeled is the back-to-back-corner-lot minimum (15 ft); the general-case corner side yard is 25 ft per the same subsection -- not modeled as a second scalar."
+        },
+        "max_height_ft": {
+          "atom_did": "elgin_tx/elgin-code-of-ordinances-current-supplement/46-302",
+          "section_number": "46-302",
+          "quote": "The following are the height regulations in R-3 Single-Family Dwelling District: No building shall exceed two and one-half stories or 35 feet in height.",
+          "confidence": 0.95,
+          "verification_state": "transcribed"
+        },
+        "max_lot_coverage_pct": {
+          "atom_did": "elgin_tx/elgin-code-of-ordinances-current-supplement/46-303",
+          "section_number": "46-303",
+          "quote": "Sec. 46-303 has no distinct 'lot coverage' percentage separate from the impervious-coverage subsection (6); a separate lot-coverage scalar is not modeled here.",
+          "confidence": 0.8,
+          "verification_state": "transcribed",
+          "not_specified": true
+        },
+        "max_impervious_pct": {
+          "atom_did": "elgin_tx/elgin-code-of-ordinances-current-supplement/46-303",
+          "section_number": "46-303",
+          "quote": "Impervious coverage. Main buildings, accessory dwelling units, and accessory buildings and other impervious cover shall not cover more than 45 percent of lot area on interior lots, and 50 percent of the lot area on corner lots.",
+          "confidence": 0.85,
+          "verification_state": "transcribed",
+          "note": "Value modeled is the interior-lot maximum (45%); corner lots may cover up to 50% per the same subsection -- not modeled as a second scalar."
+        }
+      }
+    },
+    {
+      "district_name": "R-4 Multiple-Family Residential District",
+      "front_ft": 25,
+      "rear_ft": 0,
+      "side_ft": 10,
+      "side_corner_ft": 0,
+      "max_height_ft": 50,
+      "max_lot_coverage_pct": 0,
+      "max_impervious_pct": 0,
+      "citation_url": "https://library.municode.com/tx/elgin/codes/code_of_ordinances",
+      "provenance": {
+        "front_ft": {
+          "atom_did": "elgin_tx/elgin-code-of-ordinances-current-supplement/46-333",
+          "section_number": "46-333",
+          "quote": "Front yard. There shall be a front yard having a minimum depth of not less than 25 feet.",
+          "confidence": 0.9,
+          "verification_state": "transcribed"
+        },
+        "rear_ft": {
+          "atom_did": "elgin_tx/elgin-code-of-ordinances-current-supplement/46-333",
+          "section_number": "46-333",
+          "quote": "Rear yard. For multiple-family dwellings, same as side yard except where property backs up to residentially zoned property the rear yard must have a depth of 50 feet including parking areas.",
+          "confidence": 0.7,
+          "verification_state": "transcribed",
+          "not_specified": true,
+          "note": "Rear yard is DEFINED AS 'same as side yard' (a formula reference, D = 12 + L/15, see side_ft note) except a flat 50 ft override when backing residentially zoned property. Not a clean standalone scalar -- genuinely conditional on the formula's L (building length) input and on adjacency. Per planner instruction: not_specified rather than resolving the formula or picking one branch.",
+          "governed_by": {
+            "conditions": [
+              { "condition": "default", "note": "same as side yard (formula D = 12 + L/15)" },
+              { "condition": "backs-to-residential", "value_ft": 50 }
+            ],
+            "section_number": "46-333"
+          }
+        },
+        "side_ft": {
+          "atom_did": "elgin_tx/elgin-code-of-ordinances-current-supplement/46-333",
+          "section_number": "46-333",
+          "quote": "Side yard. For multiple-family dwellings the side yard shall be ten feet where no windows or other openings for light face the side yard. In all other cases the minimum depth shall be not less than 12 feet, plus one foot for each 15 feet in length (L). D = 12 + L/15. In all cases, where the side yard is adjacent to a side street, the side yard shall not be less than ten feet.",
+          "confidence": 0.8,
+          "verification_state": "transcribed",
+          "note": "Value modeled is the flat windowless-wall case (10 ft) and the side-street-adjacent floor (10 ft, both coincide). The general case is the formula D = 12 + L/15 (feet), which depends on building length L and is NOT a fixed scalar -- not resolved to a number here, consistent with planner instruction to carry the verbatim rule rather than estimate."
+        },
+        "side_corner_ft": {
+          "atom_did": "elgin_tx/elgin-code-of-ordinances-current-supplement/46-333",
+          "section_number": "46-333",
+          "quote": "In all cases, where the side yard is adjacent to a side street, the side yard shall not be less than ten feet. Where the corner lot is a key lot, the required front yard shall be provided in both streets.",
+          "confidence": 0.6,
+          "verification_state": "transcribed",
+          "not_specified": true,
+          "note": "R-4 has no separate named 'corner side yard' scalar distinct from the side-street-adjacent floor (10 ft, already carried in side_ft) and the key-lot double-front-yard rule; not modeled as a second scalar."
+        },
+        "max_height_ft": {
+          "atom_did": "elgin_tx/elgin-code-of-ordinances-current-supplement/46-334",
+          "section_number": "46-334",
+          "quote": "The following are height regulations for the R-4-Multiple-Family Residential District: no buildings shall exceed 50 feet in height.",
+          "confidence": 0.95,
+          "verification_state": "transcribed"
+        },
+        "max_lot_coverage_pct": {
+          "atom_did": "elgin_tx/elgin-code-of-ordinances-current-supplement/46-333",
+          "section_number": "46-333",
+          "quote": "Lot coverage. A lot on which there is erected or converted a multiple-family dwelling shall contain a total lot area according to the following schedule: Any room other than a living room, bathroom, dining room and kitchen shall be counted as a bedroom.",
+          "confidence": 0.5,
+          "verification_state": "transcribed",
+          "not_specified": true,
+          "note": "Subsection (5) references 'the following schedule' (a bedroom-count-keyed lot-area table) but the table itself is NOT present as extractable text in the corpus bodyText for 46-333 (municode-html scrape did not preserve the table structure). Per planner instruction: genuinely not extractable as clean text, so not_specified rather than estimated."
+        },
+        "max_impervious_pct": {
+          "atom_did": "elgin_tx/elgin-code-of-ordinances-current-supplement/46-333",
+          "section_number": "46-333",
+          "quote": "Sec. 46-333 has no impervious-coverage subsection (unlike R-1/R-2/R-3); it instead names 'livability open space' -- no less than 30 percent of the total gross land area used for people, planting and visual appeal -- a distinct concept not modeled as max_impervious_pct.",
+          "confidence": 0.7,
+          "verification_state": "transcribed",
+          "not_specified": true
+        }
+      }
+    },
+    {
+      "district_name": "C-1 Neighborhood Shopping District",
+      "front_ft": 25,
+      "rear_ft": 10,
+      "side_ft": 10,
+      "side_corner_ft": 25,
+      "max_height_ft": 50,
+      "max_lot_coverage_pct": 0,
+      "max_impervious_pct": 0,
+      "citation_url": "https://library.municode.com/tx/elgin/codes/code_of_ordinances",
+      "provenance": {
+        "front_ft": {
+          "atom_did": "elgin_tx/elgin-code-of-ordinances-current-supplement/46-363",
+          "section_number": "46-363",
+          "quote": "Front yard. All buildings shall set back from the street right-of-way line to provide a front yard having not less than 25 feet in depth.",
+          "confidence": 0.9,
+          "verification_state": "transcribed"
+        },
+        "rear_ft": {
+          "atom_did": "elgin_tx/elgin-code-of-ordinances-current-supplement/46-363",
+          "section_number": "46-363",
+          "quote": "Rear yard. The rear of a lot adjoining a dwelling district there shall be a rear yard of not less than ten feet, same as the requirements for a side yard.",
+          "confidence": 0.7,
+          "verification_state": "transcribed",
+          "note": "Rule is conditional on adjoining a dwelling district; no rear-yard requirement is stated for non-adjoining lots. Value modeled is the adjoining-dwelling-district minimum (10 ft), the only scalar the section states."
+        },
+        "side_ft": {
+          "atom_did": "elgin_tx/elgin-code-of-ordinances-current-supplement/46-363",
+          "section_number": "46-363",
+          "quote": "Side yard. On the side of a lot adjoining a dwelling district there shall be a side yard of not less than ten feet.",
+          "confidence": 0.7,
+          "verification_state": "transcribed",
+          "note": "Rule is conditional on adjoining a dwelling district; no side-yard requirement is stated for non-adjoining lots. Value modeled is the adjoining-dwelling-district minimum (10 ft), the only scalar the section states."
+        },
+        "side_corner_ft": {
+          "atom_did": "elgin_tx/elgin-code-of-ordinances-current-supplement/46-363",
+          "section_number": "46-363",
+          "quote": "There shall be a side yard setback from an intersecting street of not less than 25 feet.",
+          "confidence": 0.85,
+          "verification_state": "transcribed"
+        },
+        "max_height_ft": {
+          "atom_did": "elgin_tx/elgin-code-of-ordinances-current-supplement/46-364",
+          "section_number": "46-364",
+          "quote": "In the C-1 Neighborhood Shopping District no building shall exceed 50 feet in height.",
+          "confidence": 0.95,
+          "verification_state": "transcribed"
+        },
+        "max_lot_coverage_pct": {
+          "atom_did": "elgin_tx/elgin-code-of-ordinances-current-supplement/46-363",
+          "section_number": "46-363",
+          "quote": "Sec. 46-363 states only front/side/rear yard minimums for uses adjoining a dwelling district; no lot-coverage percentage is stated for C-1.",
+          "confidence": 0.7,
+          "verification_state": "transcribed",
+          "not_specified": true
+        },
+        "max_impervious_pct": {
+          "atom_did": "elgin_tx/elgin-code-of-ordinances-current-supplement/46-363",
+          "section_number": "46-363",
+          "quote": "Sec. 46-363 states only front/side/rear yard minimums for uses adjoining a dwelling district; no impervious-coverage percentage is stated for C-1.",
+          "confidence": 0.7,
+          "verification_state": "transcribed",
+          "not_specified": true
+        }
+      }
+    },
+    {
+      "district_name": "C-2 General Commercial District",
+      "front_ft": 0,
+      "rear_ft": 0,
+      "side_ft": 0,
+      "side_corner_ft": 0,
+      "max_height_ft": 50,
+      "max_lot_coverage_pct": 0,
+      "max_impervious_pct": 0,
+      "citation_url": "https://library.municode.com/tx/elgin/codes/code_of_ordinances",
+      "provenance": {
+        "front_ft": {
+          "atom_did": "elgin_tx/elgin-code-of-ordinances-current-supplement/46-391",
+          "section_number": "46-391",
+          "quote": "Front, side and rear yards. There are no specific front, side or rear yard requirements for uses other than dwellings, except where the property is adjacent to residential property, then the yard requirements shall be the same as in the C-1 Neighborhood Shopping District.",
+          "confidence": 0.7,
+          "verification_state": "transcribed",
+          "not_specified": true,
+          "note": "Non-dwelling uses in C-2 have NO yard requirement unless adjacent to residential property, in which case the C-1 table (this file's C-1 row) applies. Dwelling uses in C-2 are instead governed by the A-Multiple-Family Residential (this file's R-4) district's area regulations per this same section -- confirming the R-4/'A' district-naming mapping used in the registry row. Genuinely conditional; carrying verbatim rule text rather than inventing a scalar.",
+          "governed_by": {
+            "condition": "adjacent-to-residential",
+            "district": "C-1",
+            "section_number": "46-391",
+            "note": "no yard requirement for non-dwelling uses unless adjacent to residential property; then C-1's yard requirements govern. Dwelling uses are governed by R-4 (A-Multiple-Family) area regulations per the same section."
+          },
+          "governed_by_dwellings": {
+            "district": "R-4",
+            "section_number": "46-391"
+          }
+        },
+        "rear_ft": {
+          "atom_did": "elgin_tx/elgin-code-of-ordinances-current-supplement/46-391",
+          "section_number": "46-391",
+          "quote": "Front, side and rear yards. There are no specific front, side or rear yard requirements for uses other than dwellings, except where the property is adjacent to residential property, then the yard requirements shall be the same as in the C-1 Neighborhood Shopping District.",
+          "confidence": 0.7,
+          "verification_state": "transcribed",
+          "not_specified": true,
+          "note": "Same conditional rule as front_ft; see that field's note.",
+          "governed_by": {
+            "condition": "adjacent-to-residential",
+            "district": "C-1",
+            "section_number": "46-391",
+            "note": "no yard requirement for non-dwelling uses unless adjacent to residential property; then C-1's yard requirements govern. Dwelling uses are governed by R-4 (A-Multiple-Family) area regulations per the same section."
+          },
+          "governed_by_dwellings": {
+            "district": "R-4",
+            "section_number": "46-391"
+          }
+        },
+        "side_ft": {
+          "atom_did": "elgin_tx/elgin-code-of-ordinances-current-supplement/46-391",
+          "section_number": "46-391",
+          "quote": "Front, side and rear yards. There are no specific front, side or rear yard requirements for uses other than dwellings, except where the property is adjacent to residential property, then the yard requirements shall be the same as in the C-1 Neighborhood Shopping District.",
+          "confidence": 0.7,
+          "verification_state": "transcribed",
+          "not_specified": true,
+          "note": "Same conditional rule as front_ft; see that field's note.",
+          "governed_by": {
+            "condition": "adjacent-to-residential",
+            "district": "C-1",
+            "section_number": "46-391",
+            "note": "no yard requirement for non-dwelling uses unless adjacent to residential property; then C-1's yard requirements govern. Dwelling uses are governed by R-4 (A-Multiple-Family) area regulations per the same section."
+          },
+          "governed_by_dwellings": {
+            "district": "R-4",
+            "section_number": "46-391"
+          }
+        },
+        "side_corner_ft": {
+          "atom_did": "elgin_tx/elgin-code-of-ordinances-current-supplement/46-391",
+          "section_number": "46-391",
+          "quote": "Front, side and rear yards. There are no specific front, side or rear yard requirements for uses other than dwellings, except where the property is adjacent to residential property, then the yard requirements shall be the same as in the C-1 Neighborhood Shopping District.",
+          "confidence": 0.7,
+          "verification_state": "transcribed",
+          "not_specified": true,
+          "note": "Same conditional rule as front_ft; see that field's note.",
+          "governed_by": {
+            "condition": "adjacent-to-residential",
+            "district": "C-1",
+            "section_number": "46-391",
+            "note": "no yard requirement for non-dwelling uses unless adjacent to residential property; then C-1's yard requirements govern. Dwelling uses are governed by R-4 (A-Multiple-Family) area regulations per the same section."
+          },
+          "governed_by_dwellings": {
+            "district": "R-4",
+            "section_number": "46-391"
+          }
+        },
+        "max_height_ft": {
+          "atom_did": "elgin_tx/elgin-code-of-ordinances-current-supplement/46-392",
+          "section_number": "46-392",
+          "quote": "No building in the C-2 General Commercial District shall exceed 50 feet in height.",
+          "confidence": 0.95,
+          "verification_state": "transcribed"
+        },
+        "max_lot_coverage_pct": {
+          "atom_did": "elgin_tx/elgin-code-of-ordinances-current-supplement/46-391",
+          "section_number": "46-391",
+          "quote": "Sec. 46-391 states only the dwelling-use carve-out (A-district area regs) and the conditional non-dwelling yard rule; no lot-coverage percentage is stated for C-2.",
+          "confidence": 0.7,
+          "verification_state": "transcribed",
+          "not_specified": true
+        },
+        "max_impervious_pct": {
+          "atom_did": "elgin_tx/elgin-code-of-ordinances-current-supplement/46-391",
+          "section_number": "46-391",
+          "quote": "Sec. 46-391 states only the dwelling-use carve-out (A-district area regs) and the conditional non-dwelling yard rule; no impervious-coverage percentage is stated for C-2.",
+          "confidence": 0.7,
+          "verification_state": "transcribed",
+          "not_specified": true
+        }
+      }
+    },
+    {
+      "district_name": "C-3 Highway Commercial District",
+      "front_ft": 25,
+      "rear_ft": 10,
+      "side_ft": 10,
+      "side_corner_ft": 25,
+      "max_height_ft": 50,
+      "max_lot_coverage_pct": 0,
+      "max_impervious_pct": 0,
+      "citation_url": "https://library.municode.com/tx/elgin/codes/code_of_ordinances",
+      "provenance": {
+        "front_ft": {
+          "atom_did": "elgin_tx/elgin-code-of-ordinances-current-supplement/46-417",
+          "section_number": "46-417",
+          "quote": "Front yard. All buildings shall be setback from the street right-of-way line to provide a front yard having not less than 25 feet in depth.",
+          "confidence": 0.9,
+          "verification_state": "transcribed"
+        },
+        "rear_ft": {
+          "atom_did": "elgin_tx/elgin-code-of-ordinances-current-supplement/46-417",
+          "section_number": "46-417",
+          "quote": "Rear yard. On the rear yard of a lot adjoining a dwelling district there shall be a rear yard of not less than ten feet. There shall be a side yard setback from an intersecting street of not less than 25 feet. In all other cases requirement will be the same as side yards.",
+          "confidence": 0.7,
+          "verification_state": "transcribed",
+          "note": "Rule is conditional on adjoining a dwelling district; value modeled is the adjoining-dwelling-district minimum (10 ft), the clearest scalar the section states."
+        },
+        "side_ft": {
+          "atom_did": "elgin_tx/elgin-code-of-ordinances-current-supplement/46-417",
+          "section_number": "46-417",
+          "quote": "Side yard. On the side of a lot adjoining a dwelling district there shall be a side yard of not less than ten feet.",
+          "confidence": 0.7,
+          "verification_state": "transcribed",
+          "note": "Rule is conditional on adjoining a dwelling district; no side-yard requirement is stated for non-adjoining lots. Value modeled is the adjoining-dwelling-district minimum (10 ft), the only scalar the section states."
+        },
+        "side_corner_ft": {
+          "atom_did": "elgin_tx/elgin-code-of-ordinances-current-supplement/46-417",
+          "section_number": "46-417",
+          "quote": "There shall be a side yard setback from an intersecting street of not less than 25 feet.",
+          "confidence": 0.85,
+          "verification_state": "transcribed"
+        },
+        "max_height_ft": {
+          "atom_did": "elgin_tx/elgin-code-of-ordinances-current-supplement/46-418",
+          "section_number": "46-418",
+          "quote": "No building in the C-3 Highway Commercial District shall exceed 50 feet in height.",
+          "confidence": 0.95,
+          "verification_state": "transcribed"
+        },
+        "max_lot_coverage_pct": {
+          "atom_did": "elgin_tx/elgin-code-of-ordinances-current-supplement/46-417",
+          "section_number": "46-417",
+          "quote": "Sec. 46-417 states only the dwelling-use carve-out (A-district area regs) and front/side/rear yard minimums for uses adjoining a dwelling district; no lot-coverage percentage is stated for C-3.",
+          "confidence": 0.7,
+          "verification_state": "transcribed",
+          "not_specified": true
+        },
+        "max_impervious_pct": {
+          "atom_did": "elgin_tx/elgin-code-of-ordinances-current-supplement/46-417",
+          "section_number": "46-417",
+          "quote": "Sec. 46-417 states only the dwelling-use carve-out (A-district area regs) and front/side/rear yard minimums for uses adjoining a dwelling district; no impervious-coverage percentage is stated for C-3.",
+          "confidence": 0.7,
+          "verification_state": "transcribed",
+          "not_specified": true
+        }
+      }
+    },
+    {
+      "district_name": "I General Industrial District",
+      "front_ft": 0,
+      "rear_ft": 0,
+      "side_ft": 0,
+      "side_corner_ft": 0,
+      "max_height_ft": 90,
+      "max_lot_coverage_pct": 0,
+      "max_impervious_pct": 0,
+      "citation_url": "https://library.municode.com/tx/elgin/codes/code_of_ordinances",
+      "provenance": {
+        "front_ft": {
+          "atom_did": "elgin_tx/elgin-code-of-ordinances-current-supplement/46-441",
+          "section_number": "46-441",
+          "quote": "Front and side yards. There are no specific front or side yard requirements for uses in the I General Industrial District; however, that a building shall set back a distance of not less than 25 feet from the side lot line that adjoins a dwelling district.",
+          "confidence": 0.7,
+          "verification_state": "transcribed",
+          "not_specified": true,
+          "note": "No front-yard requirement unless adjoining a dwelling district (then covered by the side-yard 25 ft rule, not a distinct front rule). None-unless-adjoining, per planner summary; carrying verbatim rule text rather than inventing a scalar.",
+          "governed_by": {
+            "condition": "adjoins-dwelling-district",
+            "value_ft": 25,
+            "section_number": "46-441",
+            "note": "no requirement unless the lot line adjoins a dwelling district; then 25 ft."
+          }
+        },
+        "rear_ft": {
+          "atom_did": "elgin_tx/elgin-code-of-ordinances-current-supplement/46-441",
+          "section_number": "46-441",
+          "quote": "Rear yard. Where a building is to be serviced from the rear there shall be provided an alley, service court, rear yard or combination thereof of not less than 30 feet in width ... In all other cases no rear yard is required; provided, however, that a building shall set back a distance of not less than 25 feet from the rear lot line that adjoins a dwelling district.",
+          "confidence": 0.7,
+          "verification_state": "transcribed",
+          "not_specified": true,
+          "note": "No rear-yard requirement unless serviced from the rear (30 ft) or adjoining a dwelling district (25 ft) -- two different conditional floors, no unconditional scalar. None-unless-adjoining; carrying verbatim rule text rather than inventing a scalar.",
+          "governed_by": {
+            "conditions": [
+              { "condition": "serviced-from-rear", "value_ft": 30 },
+              { "condition": "adjoins-dwelling-district", "value_ft": 25 }
+            ],
+            "section_number": "46-441"
+          }
+        },
+        "side_ft": {
+          "atom_did": "elgin_tx/elgin-code-of-ordinances-current-supplement/46-441",
+          "section_number": "46-441",
+          "quote": "Front and side yards. There are no specific front or side yard requirements for uses in the I General Industrial District; however, that a building shall set back a distance of not less than 25 feet from the side lot line that adjoins a dwelling district.",
+          "confidence": 0.7,
+          "verification_state": "transcribed",
+          "not_specified": true,
+          "note": "No side-yard requirement unless adjoining a dwelling district (then 25 ft). None-unless-adjoining; carrying verbatim rule text rather than inventing a scalar.",
+          "governed_by": {
+            "condition": "adjoins-dwelling-district",
+            "value_ft": 25,
+            "section_number": "46-441",
+            "note": "no requirement unless the lot line adjoins a dwelling district; then 25 ft."
+          }
+        },
+        "side_corner_ft": {
+          "atom_did": "elgin_tx/elgin-code-of-ordinances-current-supplement/46-441",
+          "section_number": "46-441",
+          "quote": "Sec. 46-441 states no distinct corner-side-yard rule; only the side-lot-line-adjoining-a-dwelling-district floor (25 ft, already carried in side_ft) applies.",
+          "confidence": 0.6,
+          "verification_state": "transcribed",
+          "not_specified": true
+        },
+        "max_height_ft": {
+          "atom_did": "elgin_tx/elgin-code-of-ordinances-current-supplement/46-442",
+          "section_number": "46-442",
+          "quote": "No building in the I General Industrial District shall exceed 90 feet in height.",
+          "confidence": 0.95,
+          "verification_state": "transcribed"
+        },
+        "max_lot_coverage_pct": {
+          "atom_did": "elgin_tx/elgin-code-of-ordinances-current-supplement/46-441",
+          "section_number": "46-441",
+          "quote": "Sec. 46-441 states only conditional front/side/rear yard rules keyed to dwelling-district adjacency and rear-service configuration; no lot-coverage percentage is stated for I.",
+          "confidence": 0.7,
+          "verification_state": "transcribed",
+          "not_specified": true
+        },
+        "max_impervious_pct": {
+          "atom_did": "elgin_tx/elgin-code-of-ordinances-current-supplement/46-441",
+          "section_number": "46-441",
+          "quote": "Sec. 46-441 states only conditional front/side/rear yard rules keyed to dwelling-district adjacency and rear-service configuration; no impervious-coverage percentage is stated for I.",
+          "confidence": 0.7,
+          "verification_state": "transcribed",
+          "not_specified": true
+        }
+      }
+    }
+  ]
+}

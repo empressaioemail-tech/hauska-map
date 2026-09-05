@@ -8,6 +8,8 @@
 
 import austinTx from "./setback-tables/austin-tx.json" with { type: "json" };
 import pflugervilleTx from "./setback-tables/pflugerville-tx.json" with { type: "json" };
+import elginDevelopmentCode from "./setback-tables/elgin-development-code.json" with { type: "json" };
+import sanAntonioTx from "./setback-tables/san-antonio-tx.json" with { type: "json" };
 
 export type CodifiedSetbackScalars = {
   front_ft: number;
@@ -40,12 +42,22 @@ const PER_PARCEL_RECORD_ONLY_SETBACK_KEYS = new Set([
 const SETBACK_TABLES: Readonly<Record<string, AdapterSetbackTable>> = {
   "austin-tx": austinTx as AdapterSetbackTable,
   "pflugerville-tx": pflugervilleTx as AdapterSetbackTable,
+  "elgin-development-code": elginDevelopmentCode as AdapterSetbackTable,
+  "san-antonio-tx": sanAntonioTx as AdapterSetbackTable,
 };
 
 function normalizeCityKey(raw: string | null | undefined): string | null {
   if (typeof raw !== "string") return null;
   const t = raw.trim().toLowerCase().replace(/_/g, "-");
   return t.length > 0 ? t : null;
+}
+
+/** Exported so callers (e.g. the PE facets BFF) can decide whether to fetch a live per-parcel record before resolving. */
+export function jurisdictionRequiresPerParcelSetbackRecord(
+  jurisdictionKey: string | null | undefined,
+): boolean {
+  const key = normalizeCityKey(jurisdictionKey);
+  return key != null && PER_PARCEL_RECORD_ONLY_SETBACK_KEYS.has(key);
 }
 
 function requiresPerParcelSetbackRecord(jurisdictionKey: string): boolean {
@@ -70,17 +82,25 @@ function findDistrictRow(
 
 /**
  * Resolve codified table scalars for a stamped jurisdiction + district.
- * Returns null when no table, per-parcel-only jurisdiction, or no row match.
+ * Returns null when no table, per-parcel-only jurisdiction (and no live
+ * record supplied), or no row match.
+ *
+ * `perParcelRecord` mirrors hauska-engine's `getSetbackTableForZoning`
+ * optional `bastropPerParcelRecord` param: a per-parcel-only jurisdiction
+ * (e.g. bastrop-city-tx) has no static table row to serve, but a caller
+ * that already fetched the live layer-23 record can pass its scalars here
+ * to serve them instead of hard-declining.
  */
 export function resolveCodifiedSetbacksForStamp(
   jurisdictionKey: string | null | undefined,
   district: string | null | undefined,
+  perParcelRecord?: CodifiedSetbackScalars | null,
 ): CodifiedSetbackScalars | null {
   const cityKey = normalizeCityKey(jurisdictionKey);
   const districtCode =
     typeof district === "string" && district.trim() ? district.trim() : null;
   if (!cityKey || !districtCode) return null;
-  if (requiresPerParcelSetbackRecord(cityKey)) return null;
+  if (requiresPerParcelSetbackRecord(cityKey)) return perParcelRecord ?? null;
 
   const table = SETBACK_TABLES[cityKey];
   if (!table) return null;
