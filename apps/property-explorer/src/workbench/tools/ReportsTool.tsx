@@ -85,21 +85,24 @@ import {
 
 export const REPORTS_LOCKED_VALUE_LINE =
   "Professional reports on this property — the cited site-plan export (layered DXF/IFC + PDF sheet with setbacks, contours, and provenance), the flood & drainage study drawn on the map with its PDF sheet, and every report that ships next.";
-/** SITE PLAN IS STUDIO-ONLY (P-104): never claimed by the $15 property
- *  unlock, and never by Solo. Until P-104 this row carried no studioGated
- *  flag and the server gated it on bare `paid`, so a $49 Solo subscriber was
- *  served the $129 Studio deliverable. */
+/** SITE PLAN opens on Studio/Team OR an active Property Unlock (P-104,
+ *  extended by P-119 2026-09-05 — the operator's authoritative package
+ *  table put site-plan CAD in the Property Unlock row); never by Solo alone.
+ *  Until P-104 this row carried no studioGated flag and the server gated it
+ *  on bare `paid`, so a $49 Solo subscriber was served the $129 Studio
+ *  deliverable. Until P-119 an active Property Unlock did not open it
+ *  either, though the operator's table always included it there. */
 export const SITE_PLAN_PAYWALL_MESSAGE =
-  "Cited site-plan export (layered DXF/IFC plus a PDF sheet with setbacks, contours, and provenance) is a Studio feature — it is not part of the single-property unlock.";
-/** TERRAIN IS STUDIO-ONLY: never claimed by the $15 property unlock. */
+  "Cited site-plan export (layered DXF/IFC plus a PDF sheet with setbacks, contours, and provenance) is included with Studio, Team, or an active Property Unlock on this parcel.";
+/** TERRAIN — same P-104/P-119 rule as site plan above. */
 export const TERRAIN_PAYWALL_MESSAGE =
-  "Multi-format terrain export (GLB, IFC, DXF) is a Studio feature — it is not part of the single-property unlock.";
+  "Multi-format terrain export (GLB, IFC, DXF) is included with Studio, Team, or an active Property Unlock on this parcel.";
 export const DOSSIER_PAYWALL_MESSAGE =
   "The property X-ray PDF — verdict, cited brief facts, your notes and AI research summary, with the site-plan sheets appended.";
-/** FEASIBILITY STUDY IS STUDIO-ONLY (P32 tier ruling): the same product
- *  rule as site-plan and terrain, never the single-property unlock. */
+/** FEASIBILITY STUDY — same P-104/P-119 rule as site plan and terrain
+ *  (P32 tier ruling, extended by P-119). */
 export const FEASIBILITY_PAYWALL_MESSAGE =
-  "The composed Feasibility Study PDF — zoning envelope, flood, terrain, utilities, wells, and open items, with the site plan appended — is a Studio feature. It is not part of the single-property unlock.";
+  "The composed Feasibility Study PDF — zoning envelope, flood, terrain, utilities, wells, and open items, with the site plan appended — is included with Studio, Team, or an active Property Unlock on this parcel.";
 
 const MUTED = PE.muted2;
 const TEXT = PE.text;
@@ -211,7 +214,19 @@ export function ReportsTool() {
 
   const studioGranted =
     ent.status === "ready" && studioGrantedForEntitlement(ent);
-  const terrainProLocked = ent.status === "ready" && !studioGranted;
+  const propertyUnlocked = ent.status === "ready" && ent.propertyUnlocked;
+  // P-119 (2026-09-05 operator package table): site plan, terrain, and
+  // Feasibility Study are ALSO included in the Property Unlock row, so an
+  // active unlock opens them exactly like Studio/Team does — this is the
+  // client half of the server fix in resolveSitePlanExportAuth /
+  // resolveTerrainExportAuth / resolveFeasibilityExportAuth. Records request
+  // is Studio/Team-only (Property Unlock is explicitly absent from that row)
+  // and MUST keep the old studio-only lock — see recordsLocked below and its
+  // use at the SelectedEngine call site.
+  const studioOrPropertyUnlockLocked =
+    ent.status === "ready" && !studioGranted && !propertyUnlocked;
+  const recordsLocked = ent.status === "ready" && !studioGranted;
+  const terrainProLocked = studioOrPropertyUnlockLocked;
   const locked = ent.locked;
 
   const effectiveRaw = effectiveSelectedDoc(activeParcelNodeId, selectedRaw, pendingDoc);
@@ -276,6 +291,7 @@ export function ReportsTool() {
   const status = selected
     ? reportDocStatus(selected, {
         studioGranted,
+        propertyUnlocked,
         generatedLabel,
       })
     : null;
@@ -299,6 +315,7 @@ export function ReportsTool() {
             status={status}
             generatedLabel={generatedLabel}
             studioGranted={false}
+            propertyUnlocked={false}
             onTogglePicker={() => setPickerOpen((v) => !v)}
             onPick={pick}
             onChange={() => {
@@ -317,6 +334,7 @@ export function ReportsTool() {
           status={status}
           generatedLabel={generatedLabel}
             studioGranted={studioGranted}
+            propertyUnlocked={propertyUnlocked}
           onTogglePicker={() => setPickerOpen((v) => !v)}
           onPick={pick}
           onChange={() => {
@@ -334,7 +352,17 @@ export function ReportsTool() {
               dossier={dossier}
               feasibility={feasibility}
               terrainProLocked={
-                selected.studioGated ? terrainProLocked : false
+                // P-119: Records request keeps the OLD studio-only lock
+                // (Property Unlock is explicitly absent from that row);
+                // site-plan/terrain/feasibility use the property-unlock-aware
+                // lock. Both collapse to the same value on every OTHER
+                // studioGated row today (there are none), so this is a
+                // conditional on Records specifically, not a general rule.
+                selected.studioGated
+                  ? selected.engine === "records"
+                    ? recordsLocked
+                    : terrainProLocked
+                  : false
               }
               onSitePlan={(next) => {
                 setSitePlan(next);
@@ -729,6 +757,7 @@ function OptionDChrome({
   status,
   generatedLabel,
   studioGranted,
+  propertyUnlocked,
   onTogglePicker,
   onPick,
   onChange,
@@ -742,6 +771,8 @@ function OptionDChrome({
   status: { text: string; color: string } | null;
   generatedLabel: string | null;
   studioGranted: boolean;
+  /** P-119: property-unlock-aware picker chips (site-plan/terrain/feasibility only — see reports-catalog.ts's propertyUnlockGrants). */
+  propertyUnlocked: boolean;
   onTogglePicker: () => void;
   onPick: (id: ReportDocId) => void;
   onChange: () => void;
@@ -825,8 +856,9 @@ function OptionDChrome({
               {g.group}
             </div>
             {g.rows.map((row) => {
-              const lock = reportDocLockChip(row, { studioGranted });
-              const rowStatus = lock ?? reportDocStatus(row, { studioGranted });
+              const lock = reportDocLockChip(row, { studioGranted, propertyUnlocked });
+              const rowStatus =
+                lock ?? reportDocStatus(row, { studioGranted, propertyUnlocked });
               const isSel = selected?.id === row.id;
               return (
                 <Button

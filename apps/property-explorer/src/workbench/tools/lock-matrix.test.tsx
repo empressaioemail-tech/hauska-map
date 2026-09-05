@@ -169,15 +169,15 @@ describe("REPORTS bubble (Option D picker; TERRAIN Studio-only when selected)", 
     expect(html).not.toContain('data-testid="terrain-export-section"');
   });
 
-  it("property-unlocked + TERGLB selected → STUDIO-ONLY lock (View-pricing, no inline checkout)", () => {
+  // P-119 (2026-09-05 operator package table): terrain export is now ALSO in
+  // the Property Unlock row, alongside Studio/Team. This reverses the prior
+  // "STUDIO-ONLY lock" expectation below — a property-unlocked account now
+  // gets the real export section, not a lock.
+  it("property-unlocked + TERGLB selected → the real terrain export section, no lock (P-119)", () => {
     primePropertyEntitlement(PARCEL, PROPERTY_UNLOCKED);
     const html = renderTool("reports", { selectedDoc: "TERGLB" });
-    expect(html).toContain('data-testid="terrain-pro-lock"');
-    expect(html).toContain('data-testid="view-pricing-button"');
-    expect(html).toContain("not part of the single-property unlock");
-    expect(html).not.toContain('data-testid="unlock-property-choice"');
-    expect(html).not.toContain('data-testid="unlock-studio-choice"');
-    expect(html).not.toContain('data-testid="terrain-export-section"');
+    expect(html).not.toContain('data-testid="terrain-pro-lock"');
+    expect(html).toContain('data-testid="terrain-export-section"');
   });
 
   it("STUDIO + TERGLB → the real terrain export section, no lock", () => {
@@ -257,7 +257,10 @@ describe("REPORTS bubble (Option D picker; TERRAIN Studio-only when selected)", 
     expect(html).not.toContain('data-testid="reports-locked"');
     expect(html).toContain('data-testid="site-plan-studio-lock"');
     expect(html).toContain('data-testid="view-pricing-button"');
-    expect(html).toContain("not part of the single-property unlock");
+    // P-119: the copy was corrected (it no longer says the property unlock
+    // never applies, since it now does) — a Solo account genuinely has
+    // neither Studio/Team nor an active unlock, so it still sees the lock.
+    expect(html).toContain("Studio, Team, or an active Property Unlock");
     expect(html).not.toContain('data-testid="site-plan-export-section"');
   });
 
@@ -276,14 +279,17 @@ describe("REPORTS bubble (Option D picker; TERRAIN Studio-only when selected)", 
     expect(html).toContain('data-testid="site-plan-export-section"');
   });
 
-  it("P-104: the $15 property unlock does NOT buy site plan", () => {
-    // The unlock buys every REPORT on the parcel. Site-plan CAD is a Studio
-    // deliverable, not a report, and the server agrees: fetchPeEntitlement
-    // maps a free tier to 402 regardless of the per-property unlock.
+  it("P-119 (2026-09-05, supersedes the P-104 reading below): the Property Unlock DOES now buy site plan", () => {
+    // REVERSED from the original P-104-era reading. The operator's
+    // authoritative package table (P-119) explicitly puts site-plan CAD in
+    // the Property Unlock row alongside Studio/Team, and the server agrees:
+    // resolveSitePlanExportAuth now grants on propertyUnlocked === true
+    // regardless of tier. See pe-site-plan-export-bff.test.ts for the
+    // server-side proof.
     primePropertyEntitlement(PARCEL, PROPERTY_UNLOCKED);
     const html = renderTool("reports", { selectedDoc: "SITEPLAN" });
-    expect(html).toContain('data-testid="site-plan-studio-lock"');
-    expect(html).not.toContain('data-testid="site-plan-export-section"');
+    expect(html).not.toContain('data-testid="site-plan-studio-lock"');
+    expect(html).toContain('data-testid="site-plan-export-section"');
   });
 
   it("P-104 FAIL CLOSED: a paid row with NO subscriptionTier gates site plan CLOSED", () => {
@@ -332,6 +338,61 @@ describe("REPORTS bubble (Option D picker; TERRAIN Studio-only when selected)", 
   });
 });
 
+// ---------------------------------------------------------------------------
+// P-119 (2026-09-05 operator package table) / P32 wave 2. Feasibility Study
+// is gated exactly like site-plan/terrain (Studio/Team OR an active
+// Property Unlock), never a bare property-unlock-or-Pro gate. No prior
+// lock-matrix coverage existed for FEAS at all before this block.
+// ---------------------------------------------------------------------------
+describe("FEASIBILITY STUDY bubble (Studio/Team or Property Unlock when selected — P32 wave 2, P-119)", () => {
+  it("SOLO (paid, no unlock) → studio lock (View-pricing, no inline checkout)", () => {
+    primePropertyEntitlement(PARCEL, SOLO);
+    const html = renderTool("reports", { selectedDoc: "FEAS" });
+    expect(html).not.toContain('data-testid="reports-locked"');
+    expect(html).toContain('data-testid="feasibility-studio-lock"');
+    expect(html).toContain('data-testid="view-pricing-button"');
+    expect(html).not.toContain('data-testid="reports-feasibility-action"');
+  });
+
+  it("FREE signed-in (no unlock) → reports bubble locked; Feasibility withheld", () => {
+    primePropertyEntitlement(PARCEL, FREE);
+    const html = renderTool("reports", { selectedDoc: "FEAS" });
+    expect(html).toContain('data-testid="reports-locked"');
+    expect(html).not.toContain('data-testid="reports-feasibility-action"');
+    expect(html).not.toContain('data-testid="feasibility-studio-lock"');
+  });
+
+  it("STUDIO → the real Feasibility action, no lock", () => {
+    primePropertyEntitlement(PARCEL, STUDIO);
+    const html = renderTool("reports", { selectedDoc: "FEAS" });
+    expect(html).not.toContain('data-testid="reports-locked"');
+    expect(html).not.toContain('data-testid="feasibility-studio-lock"');
+    expect(html).toContain('data-testid="reports-feasibility-action"');
+  });
+
+  it("TEAM → the real Feasibility action, no lock", () => {
+    primePropertyEntitlement(PARCEL, TEAM);
+    const html = renderTool("reports", { selectedDoc: "FEAS" });
+    expect(html).not.toContain('data-testid="feasibility-studio-lock"');
+    expect(html).toContain('data-testid="reports-feasibility-action"');
+  });
+
+  it("P-119: an active Property Unlock ALSO opens Feasibility Study, no lock", () => {
+    primePropertyEntitlement(PARCEL, PROPERTY_UNLOCKED);
+    const html = renderTool("reports", { selectedDoc: "FEAS" });
+    expect(html).not.toContain('data-testid="feasibility-studio-lock"');
+    expect(html).toContain('data-testid="reports-feasibility-action"');
+  });
+
+  it("anon → sign-in-first; Feasibility withheld until authenticated", () => {
+    primePropertyEntitlement(PARCEL, ANON);
+    const html = renderTool("reports", { selectedDoc: "FEAS" });
+    expect(html).toContain('data-testid="reports-locked-sign-in"');
+    expect(html).not.toContain('data-testid="reports-feasibility-action"');
+    expect(html).not.toContain('data-testid="feasibility-studio-lock"');
+  });
+});
+
 describe("RECORDS REQUEST bubble (Studio-only when selected — P-85 item 13)", () => {
   it("STUDIO → records-request-section visible, not studio-locked", () => {
     primePropertyEntitlement(PARCEL, STUDIO);
@@ -372,6 +433,18 @@ describe("RECORDS REQUEST bubble (Studio-only when selected — P-85 item 13)", 
     expect(html).toContain('data-testid="reports-locked-sign-in"');
     expect(html).not.toContain('data-testid="records-request-section"');
     expect(html).not.toContain('data-testid="records-studio-lock"');
+  });
+
+  // P-119 (2026-09-05): Property Unlock is explicitly ABSENT from the
+  // Property Unlock row for multi-property/records-adjacent tools — this is
+  // the one row this task must NOT touch. A property-unlocked account still
+  // sees the studio lock here, unlike SITEPLAN/TERRAIN/FEAS above.
+  it("P-119 REGRESSION: property-unlocked (no Studio) still sees the studio lock on Records — UNCHANGED", () => {
+    primePropertyEntitlement(PARCEL, PROPERTY_UNLOCKED);
+    const html = renderTool("reports", { selectedDoc: "REC" });
+    expect(html).not.toContain('data-testid="reports-locked"');
+    expect(html).toContain('data-testid="records-studio-lock"');
+    expect(html).not.toContain('data-testid="records-request-section"');
   });
 });
 

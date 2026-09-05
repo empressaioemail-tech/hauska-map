@@ -182,4 +182,47 @@ describe("reports catalog — W7 purchase surface", () => {
       );
     }
   });
+
+  // ---------------------------------------------------------------------------
+  // P-119 (2026-09-05, operator's authoritative package table). Property
+  // Unlock is a SECOND door on site-plan/terrain/Feasibility alongside
+  // Studio/Team — but explicitly NOT on Records request (absent from the
+  // Property Unlock row) or on screens/boards (not part of this catalog at
+  // all). These pin the propertyUnlockGrants flag and its effect.
+  // ---------------------------------------------------------------------------
+
+  it("P-119: site-plan, terrain, and Feasibility Study all carry propertyUnlockGrants", () => {
+    for (const id of ["SITEPLAN", "TERRAIN", "FEAS"] as const) {
+      expect(findReportDoc(id).propertyUnlockGrants).toBe(true);
+    }
+  });
+
+  it("P-119: Records request does NOT carry propertyUnlockGrants — out of the Property Unlock row", () => {
+    expect(findReportDoc("REC").propertyUnlockGrants).toBeUndefined();
+  });
+
+  it("P-119: an active Property Unlock alone (studioGranted false) opens site-plan/terrain/Feasibility", () => {
+    for (const id of ["SITEPLAN", "TERRAIN", "FEAS"] as const) {
+      const doc = findReportDoc(id);
+      expect(reportDocIsGeneratable(doc, false, true)).toBe(true);
+      expect(reportDocLockChip(doc, { studioGranted: false, propertyUnlocked: true })).toBeNull();
+    }
+  });
+
+  it("P-119: an active Property Unlock does NOT open Records request (studio-only, no alternate door)", () => {
+    const rec = findReportDoc("REC");
+    expect(reportDocIsGeneratable(rec, false, true)).toBe(false);
+    expect(
+      reportDocLockChip(rec, { studioGranted: false, propertyUnlocked: true })?.text,
+    ).toBe("Studio, $129/mo");
+  });
+
+  it("P-119 REGRESSION: with no Property Unlock (default), gating is unchanged from P-104", () => {
+    for (const id of ["SITEPLAN", "TERRAIN", "FEAS", "REC"] as const) {
+      const doc = findReportDoc(id);
+      expect(reportDocIsGeneratable(doc, false)).toBe(false);
+      expect(reportDocIsGeneratable(doc, false, false)).toBe(false);
+      expect(reportDocIsGeneratable(doc, true)).toBe(true);
+    }
+  });
 });
