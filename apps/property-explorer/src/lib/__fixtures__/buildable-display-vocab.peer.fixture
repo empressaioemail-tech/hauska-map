@@ -21,7 +21,9 @@ export type BuildableDisplayKind =
   | "provisional"
   | "buildable-with-area"
   | "declined-consume"
-  | "not_specified";
+  | "not_specified"
+  /** Unincorporated land — no zoning ordinance to derive a setback from. */
+  | "not-applicable";
 
 export type EnvelopeStatusInput = "ok" | "no-buildable-area" | "declined" | null | undefined;
 
@@ -29,6 +31,7 @@ export type WarmEnvelopeKind =
   | "buildable"
   | "no-buildable-area"
   | "provisional-front-edge"
+  | "not-applicable"
   | null
   | undefined;
 
@@ -147,6 +150,20 @@ export function mapBuildableDisplay(input: BuildableDisplayInput): BuildableDisp
       cardLabel: null,
       pdfLabel: `unavailable — ${decline ?? "envelope declined"}`,
       agreementToken: `absent:${decline ?? "declined"}`,
+    };
+  }
+
+  // Unincorporated land — no zoning ordinance to derive a setback from.
+  // Checked before the drawable/consume-lot branches: there is no area
+  // signal to have an opinion on here, and "setbacks consume lot" would be
+  // a false claim (no setback assessment happened at all).
+  if (input.warmEnvelopeKind === "not-applicable") {
+    return {
+      kind: "not-applicable",
+      cardState: "absent",
+      cardLabel: "Not zoned — no setback requirements",
+      pdfLabel: "not applicable — unincorporated, no zoning ordinance",
+      agreementToken: "not-applicable",
     };
   }
 
