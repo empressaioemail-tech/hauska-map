@@ -10,6 +10,35 @@ import {
   type BuildableDisplayInput,
 } from "./buildable-display-vocab";
 
+describe("mapBuildableDisplay — unincorporated not-applicable (2026-09-06)", () => {
+  it("warmEnvelopeKind not-applicable → not-applicable, never declined-consume or buildable", () => {
+    const input: BuildableDisplayInput = {
+      warmEnvelopeKind: "not-applicable",
+    };
+    const vocab = mapBuildableDisplay(input);
+    expect(vocab.kind).toBe("not-applicable");
+    expect(vocab.cardState).toBe("absent");
+    expect(vocab.cardLabel?.toLowerCase()).toMatch(/not zoned/);
+    expect(vocab.pdfLabel.toLowerCase()).toMatch(/not applicable/);
+    expect(vocab.pdfLabel.toLowerCase()).not.toMatch(/consumes/);
+    expect(vocab.agreementToken).toBe("not-applicable");
+  });
+
+  it("not-applicable wins even when a stray area/offset signal is also present", () => {
+    // Falsifier: not-applicable must be checked before the consume-lot /
+    // drawable branches, or a stray signal would produce a misleading
+    // "setbacks consume lot" claim for land that was never assessed at all.
+    const input: BuildableDisplayInput = {
+      warmEnvelopeKind: "not-applicable",
+      offsetDegenerate: true,
+      offsetDegenerateReason: "setback-consumes-lot: inward offset collapsed",
+    };
+    const vocab = mapBuildableDisplay(input);
+    expect(vocab.kind).toBe("not-applicable");
+    expect(vocab.pdfLabel.toLowerCase()).not.toMatch(/consumes/);
+  });
+});
+
 describe("mapBuildableDisplay — historical disagreement class (B3)", () => {
   it("envelope area present → no surface says consumes-lot or bare pending %", () => {
     // 48021:34785 class: depth-warm ~13641 sqft, pct may be omitted on facets
