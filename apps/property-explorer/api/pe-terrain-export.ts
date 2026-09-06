@@ -2,7 +2,8 @@
 //
 // POST /api/pe-terrain-export
 //   Body: { parcelNodeId: "48021:27303", format?: "glb"|"ifc"|"dxf-3dface"|"dxf-contour" }
-//   Requires PE session + STUDIO entitlement (P-104). Calls MCP
+//   Requires PE session + (STUDIO/TEAM entitlement OR an active Property
+//   Unlock on this parcel — P-104, extended by P-119). Calls MCP
 //   refresh_parcel_terrain_export
 //   with server-side MCP_PRODUCT_KEY (one SDK meter per request at MCP).
 //
@@ -10,10 +11,16 @@
 //   Streams artifact bytes from engine-api with full gate-front headers
 //   (service token + x-hauska-* seam). Same auth gate. Prefer MCP inline
 //   base64 from POST when available (no second hop).
+//
+// P-119 (doc_repo OPS-16 A-103 item 3 / P-119, 2026-09-05): terrain export
+// is in the Property Unlock row of the operator's authoritative package
+// table, which the web app never enforced (Studio/Team ONLY). See the
+// matching P-119 comment in pe-site-plan-export.ts — the two share one
+// product rule and this file carries the identical fix.
 
 import type { VercelRequest, VercelResponse } from '@vercel/node'
 import { callMcpTool, mcpProductKey } from './_lib/mcp-server-client.js'
-import { fetchPeEntitlement } from './_lib/pe-entitlement.js'
+import { fetchPeEntitlementDetail } from './_lib/pe-entitlement.js'
 import {
   isPeExportDevBypassArmed,
   PE_EXPORT_DEV_BYPASS_HEADER,
@@ -37,16 +44,30 @@ import {
  * what the code did (`tier !== 'paid'`) and wrong about what the product
  * sells: Solo is paid, and Solo does not include terrain. The rename is not
  * cosmetic - it is what a reader would have needed to catch this by reading.
+ *
+ * P-119: now takes `parcelNodeId` and reads `fetchPeEntitlementDetail` (not
+ * the parcel-blind `fetchPeEntitlement`) so `propertyUnlocked` is on the
+ * entitlement snapshot resolveTerrainExportAuth checks.
  */
 async function requireStudioSession(
   req: VercelRequest,
   res: VercelResponse,
+  parcelNodeId: string,
 ): Promise<{ token: string; devBypass: boolean } | null> {
   const token = readPeSessionCookie(req.headers.cookie)
-  const entitlement = token ? await fetchPeEntitlement(token) : { ok: false as const, status: 401 as const }
+  const detail = token
+    ? await fetchPeEntitlementDetail(token, parcelNodeId)
+    : { ok: false as const, status: 401 as const }
   const gate = resolveTerrainExportAuth({
     sessionToken: token,
-    entitlement,
+    entitlement: detail.ok
+      ? {
+          ok: true,
+          tier: detail.tier,
+          studioGranted: detail.studioGranted,
+          propertyUnlocked: detail.propertyUnlocked,
+        }
+      : detail,
     devBypass: isPeExportDevBypassArmed({
       headerValue: req.headers[PE_EXPORT_DEV_BYPASS_HEADER],
     }),
@@ -82,7 +103,24 @@ async function handleRefresh(
   req: VercelRequest,
   res: VercelResponse,
 ): Promise<void> {
-  const session = await requireStudioSession(req, res)
+  const body = (typeof req.body === 'string' ? JSON.parse(req.body) : req.body) as {
+    parcelNodeId?: unknown
+    factSheetId?: unknown
+    format?: unknown
+  }
+
+  // P-119: parcelNodeId parsed and validated BEFORE the entitlement gate —
+  // the Property Unlock check is per-parcel (mirrors pe-site-plan-export.ts).
+  const parcelNodeId = body?.parcelNodeId
+  if (!isValidParcelNodeId(parcelNodeId)) {
+    res.status(400).json({
+      error: 'invalid_parcel_node_id',
+      message: 'parcelNodeId must match {fips}:{propId}, e.g. 48021:27303.',
+    })
+    return
+  }
+
+  const session = await requireStudioSession(req, res, parcelNodeId)
   if (!session) return
 
   if (!mcpProductKey()) {
@@ -93,27 +131,12 @@ async function handleRefresh(
     return
   }
 
-  const body = (typeof req.body === 'string' ? JSON.parse(req.body) : req.body) as {
-    parcelNodeId?: unknown
-    factSheetId?: unknown
-    format?: unknown
-  }
-
   // I1: the export is keyed on the SUBJECT'S sealed sheet id, forwarded so the
   // rendered artifact prints it and echoed back so the client can compare.
   const factSheetId =
     typeof body?.factSheetId === 'string' && body.factSheetId.trim()
       ? body.factSheetId.trim()
       : undefined
-
-  const parcelNodeId = body?.parcelNodeId
-  if (!isValidParcelNodeId(parcelNodeId)) {
-    res.status(400).json({
-      error: 'invalid_parcel_node_id',
-      message: 'parcelNodeId must match {fips}:{propId}, e.g. 48021:27303.',
-    })
-    return
-  }
 
   const format: TerrainExportFormat = parseTerrainFormat(body?.format) ?? 'glb'
 
@@ -209,8 +232,6 @@ async function handleDownload(
   req: VercelRequest,
   res: VercelResponse,
 ): Promise<void> {
-  if (!(await requireStudioSession(req, res))) return
-
   const parcelNodeIdRaw = req.query.parcelNodeId
   const formatRaw = req.query.format
   const parcelNodeId = Array.isArray(parcelNodeIdRaw)
@@ -218,10 +239,12 @@ async function handleDownload(
     : parcelNodeIdRaw
   const format = parseTerrainFormat(Array.isArray(formatRaw) ? formatRaw[0] : formatRaw)
 
+  // P-119: parcelNodeId validated before the (now per-parcel) gate.
   if (!isValidParcelNodeId(parcelNodeId)) {
     res.status(400).json({ error: 'invalid_parcel_node_id' })
     return
   }
+  if (!(await requireStudioSession(req, res, parcelNodeId))) return
   if (!format) {
     res.status(400).json({ error: 'invalid_format' })
     return

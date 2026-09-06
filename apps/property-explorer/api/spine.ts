@@ -21,6 +21,12 @@
 //                                       Bearer-gates every other route per its DEPLOY.md.
 //                                       Browse allowlist: health probes,
 //                                       property-nodes/:id/atom-chain, atoms/:did.
+//   /api/spine/cortex/api/pe-help/chat
+//                                    -> POST-only, allowlisted below. The
+//                                       ungated Help widget's backend
+//                                       (routes/peHelp.ts) — no session, no
+//                                       API key, no install id required on
+//                                       either side of this proxy.
 //   /api/spine/property-atoms/:id/facets
 //                                    -> dual-serve PE facets BFF (PROPERTY_ATOM_PATH flag):
 //                                       flag=1 prefer retrieval atom-chain (adapt to PE
@@ -146,6 +152,11 @@ function isCortexBrowsePathAllowed(method: string, upstreamPath: string): boolea
       'api/brokerage/v1/map-data',
       'api/brokerage/v1/map-data/gis-layer',
       'api/brokerage/v1/map-data/composite-layer',
+      // P-118 — the ungated Help widget's chat backend. Deliberately its
+      // OWN top-level cortex route (routes/peHelp.ts), never under
+      // api/brokerage/v1/gtm or api/brokerage/v1/research — reachable here
+      // with zero auth, same as the rest of this browse allowlist.
+      'api/pe-help/chat',
     ]
     return exact.includes(upstreamPath)
   }
@@ -321,6 +332,11 @@ export default async function handler(req: VercelRequest, res: VercelResponse): 
       'api/brokerage/v1/map-data',
       'api/brokerage/v1/map-data/gis-layer',
       'api/brokerage/v1/map-data/composite-layer',
+      // P-118 — kept in sync with isCortexBrowsePathAllowed's own exact
+      // list above; this second list is what actually admits the method
+      // into `allowedMethods` below, so a path present in one but not the
+      // other 403s despite reading like an allowed path.
+      'api/pe-help/chat',
     ]
     if (cortexBrowsePostExact.includes(upstreamPath)) {
       allowedMethods.push('POST')

@@ -505,6 +505,85 @@ describe("mergeBakedBaseFacts — atom path + baked base facts (item 6)", () => 
     expect(mergeBakedBaseFacts(adapted, "oops")).toBe(adapted);
     expect(mergeBakedBaseFacts(adapted, {})).toBe(adapted);
   });
+
+  it("carries the four cad-roll dollar rails through from cortex baseFacts.cadRoll as three-state wires, unflattened (OPS-16 A-104)", () => {
+    const adapted = adaptAtomChainToBakedFacets(haysChain)!;
+    const marketValue = { state: "present" as const, v: 245000, source: "cad_property", vintage: "2025", valueBasis: "county-assessed" };
+    const assessedValue = { state: "present" as const, v: 198500, source: "cad_property", vintage: "2025", valueBasis: "county-assessed" };
+    const landValue = { state: "present" as const, v: 52000, source: "cad_property", vintage: "2025", valueBasis: "county-assessed" };
+    const improvementValue = { state: "present" as const, v: 146500, source: "cad_property", vintage: "2025", valueBasis: "county-assessed" };
+    const merged = mergeBakedBaseFacts(adapted, {
+      ...bakedCortexBody,
+      facets: {
+        ...bakedCortexBody.facets,
+        baseFacts: {
+          ...bakedCortexBody.facets.baseFacts,
+          cadRoll: { marketValue, assessedValue, landValue, improvementValue },
+        },
+      },
+    });
+    expect(merged.facets.baseFacts?.cadRoll).toEqual({ marketValue, assessedValue, landValue, improvementValue });
+  });
+
+  it("FALSIFIER: a stored real $0 (state: zero) survives distinctly from absent — never collapsed together", () => {
+    const adapted = adaptAtomChainToBakedFacets(haysChain)!;
+    const landValueZero = { state: "zero" as const, v: 0 as const, source: "cad_property", vintage: "2025", valueBasis: "county-assessed" };
+    const merged = mergeBakedBaseFacts(adapted, {
+      ...bakedCortexBody,
+      facets: {
+        ...bakedCortexBody.facets,
+        baseFacts: {
+          ...bakedCortexBody.facets.baseFacts,
+          cadRoll: { landValue: landValueZero },
+        },
+      },
+    });
+    expect(merged.facets.baseFacts?.cadRoll?.landValue).toEqual(landValueZero);
+    expect(merged.facets.baseFacts?.cadRoll?.landValue?.state).not.toBe("absent");
+  });
+
+  it("cad-roll stays honestly null when cortex resolved nothing (no bare-null-key coverage lie)", () => {
+    const adapted = adaptAtomChainToBakedFacets(haysChain)!;
+    const merged = mergeBakedBaseFacts(adapted, bakedCortexBody);
+    expect(merged.facets.baseFacts?.cadRoll).toBeNull();
+  });
+
+  it("a partially-populated cad-roll (only market + assessed resolved) carries exactly what resolved, nulls for the rest", () => {
+    const adapted = adaptAtomChainToBakedFacets(haysChain)!;
+    const marketValue = { state: "present" as const, v: 300000, source: "cad_property", vintage: "2025" };
+    const assessedValue = { state: "absent" as const, source: "cad_property", vintage: null, basis: "48209:156346: cad_property.assessedValue is absent" };
+    const merged = mergeBakedBaseFacts(adapted, {
+      ...bakedCortexBody,
+      facets: {
+        ...bakedCortexBody.facets,
+        baseFacts: {
+          ...bakedCortexBody.facets.baseFacts,
+          cadRoll: { marketValue, assessedValue },
+        },
+      },
+    });
+    expect(merged.facets.baseFacts?.cadRoll).toEqual({
+      marketValue,
+      assessedValue,
+      landValue: null,
+      improvementValue: null,
+    });
+  });
+
+  it("a malformed cad-roll field (wrong shape) is dropped to an honest null rather than passed through unvalidated", () => {
+    const adapted = adaptAtomChainToBakedFacets(haysChain)!;
+    const merged = mergeBakedBaseFacts(adapted, {
+      ...bakedCortexBody,
+      facets: {
+        ...bakedCortexBody.facets,
+        baseFacts: {
+          ...bakedCortexBody.facets.baseFacts,
+          cadRoll: { marketValue: 245000 }, // legacy/malformed: bare number, not a wire object
+        },
+      },
+    });
+    expect(merged.facets.baseFacts?.cadRoll).toBeNull();
+  });
 });
 
 describe("attachBuildablePctFromKnownLotArea — C4 (F-06)", () => {

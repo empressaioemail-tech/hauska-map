@@ -16,9 +16,12 @@
 import type { VercelRequest, VercelResponse } from "@vercel/node";
 import {
   adaptAtomChainToBakedFacets,
+  apnFromNodeId,
   atomChainIsUsable,
   floodHazardFactFromCortexRoot,
+  hasLiveAtomChainSetbackRule,
   isPropertyAtomPathEnabled,
+  jurisdictionKeyFromSourceAdapter,
   landUseFactFromCortexRoot,
   attachBuildablePctFromKnownLotArea,
   mergeBakedBaseFacts,
@@ -33,6 +36,11 @@ import {
   type PropertyAtomChain,
   shouldSkipColdDerive,
 } from "./atom-chain-to-facets.js";
+import {
+  jurisdictionRequiresPerParcelSetbackRecord,
+  type CodifiedSetbackScalars,
+} from "./codified-setback-from-zoning.js";
+import { fetchBastropPerParcelSetback } from "./pe-bastrop-per-parcel-setback.js";
 import {
   echoRequestedParcelNodeId,
   parcelGrammarAlias,
@@ -493,6 +501,35 @@ function honestAtomPendingResponse(parcelNodeId: string): PeBakedFacetsResponse 
   };
 }
 
+/**
+ * Bastrop city has no static setback table (per-parcel record only). When the
+ * atom-chain doesn't already carry a trustworthy live layer-23 rule
+ * (hasLiveAtomChainSetbackRule false — e.g. ingest hasn't baked one yet, or
+ * it's stale), fetch the live record here so
+ * resolveCodifiedSetbacksForStamp can serve it instead of hard-declining.
+ * Every other jurisdiction short-circuits before any network call.
+ */
+export async function bastropPerParcelSetbackIfNeeded(
+  parcelNodeId: string,
+  chain: PropertyAtomChain,
+): Promise<CodifiedSetbackScalars | null> {
+  const zf = chain.zoningFact ?? null;
+  const zoningSourceAdapter =
+    zf && typeof zf.sourceAdapter === "string" ? zf.sourceAdapter : null;
+  const jurisdictionKey = jurisdictionKeyFromSourceAdapter(zoningSourceAdapter);
+  const district = typeof zf?.district === "string" ? zf.district.trim() : "";
+  if (!district || !jurisdictionRequiresPerParcelSetbackRecord(jurisdictionKey)) {
+    return null;
+  }
+  if (hasLiveAtomChainSetbackRule(parcelNodeId, chain.setbackRule ?? null, zoningSourceAdapter)) {
+    return null;
+  }
+  const propId = apnFromNodeId(parcelNodeId);
+  if (!propId) return null;
+  const result = await fetchBastropPerParcelSetback(propId, { districtCode: district });
+  return result.kind === "ok" ? result.scalars : null;
+}
+
 export async function handlePropertyAtomsFacets(
   req: VercelRequest,
   res: VercelResponse,
@@ -570,7 +607,11 @@ export async function handlePropertyAtomsFacets(
   }));
   const atom = await fetchAtomChainWithAlias(parcelNodeId);
   if (atom.ok) {
-    const adapted = adaptAtomChainToBakedFacets(atom.chain);
+    const perParcelSetback = await bastropPerParcelSetbackIfNeeded(
+      parcelNodeId,
+      atom.chain,
+    );
+    const adapted = adaptAtomChainToBakedFacets(atom.chain, { perParcelSetback });
     if (adapted) {
       // Merge baked base facts (never zoning/envelope — those stay atom-owned).
       // A failed/unusable cortex read serves the atom response unmerged: base

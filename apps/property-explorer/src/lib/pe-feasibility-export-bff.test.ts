@@ -46,7 +46,7 @@ describe('feasibility export auth gate (Studio/Team — P-104 rule reused)', () 
   it('signed-in free tier -> 402 payment_required', () => {
     const gate = resolveFeasibilityExportAuth({
       sessionToken: 'session-token',
-      entitlement: { ok: true, tier: 'free', studioGranted: false },
+      entitlement: { ok: true, tier: 'free', studioGranted: false, propertyUnlocked: false },
     })
     expect(gate.ok).toBe(false)
     if (!gate.ok) {
@@ -58,8 +58,9 @@ describe('feasibility export auth gate (Studio/Team — P-104 rule reused)', () 
   it('signed-in paid but NOT Studio -> 402 studio_required, distinct from the free refusal', () => {
     const gate = resolveFeasibilityExportAuth({
       sessionToken: 'session-token',
-      // Exactly what /entitlement returns for a $49 Solo account.
-      entitlement: { ok: true, tier: 'paid', studioGranted: false },
+      // Exactly what /entitlement returns for a $49 Solo account with no
+      // active unlock.
+      entitlement: { ok: true, tier: 'paid', studioGranted: false, propertyUnlocked: false },
     })
     expect(gate.ok).toBe(false)
     if (!gate.ok) {
@@ -73,7 +74,7 @@ describe('feasibility export auth gate (Studio/Team — P-104 rule reused)', () 
   it('UNMEASURED studioGranted (null) is refused, and NOT as a paywall', () => {
     const gate = resolveFeasibilityExportAuth({
       sessionToken: 'session-token',
-      entitlement: { ok: true, tier: 'paid', studioGranted: null },
+      entitlement: { ok: true, tier: 'paid', studioGranted: null, propertyUnlocked: false },
     })
     expect(gate.ok).toBe(false)
     if (!gate.ok) {
@@ -88,7 +89,7 @@ describe('feasibility export auth gate (Studio/Team — P-104 rule reused)', () 
   it('Studio account passes', () => {
     const gate = resolveFeasibilityExportAuth({
       sessionToken: 'session-token',
-      entitlement: { ok: true, tier: 'paid', studioGranted: true },
+      entitlement: { ok: true, tier: 'paid', studioGranted: true, propertyUnlocked: false },
     })
     expect(gate.ok).toBe(true)
   })
@@ -108,7 +109,7 @@ describe('feasibility export auth gate (Studio/Team — P-104 rule reused)', () 
   it('dev bypass skips the paid/Studio check but still requires a session', () => {
     const bypassed = resolveFeasibilityExportAuth({
       sessionToken: 'session-token',
-      entitlement: { ok: true, tier: 'free', studioGranted: false },
+      entitlement: { ok: true, tier: 'free', studioGranted: false, propertyUnlocked: false },
       devBypass: true,
     })
     expect(bypassed.ok).toBe(true)
@@ -128,10 +129,14 @@ describe('feasibility export auth gate (Studio/Team — P-104 rule reused)', () 
     // between site-plan and terrain: if a later change fixes one gate and
     // not the other, this fails.
     const cases = [
-      { tier: 'free' as const, studioGranted: false },
-      { tier: 'paid' as const, studioGranted: false },
-      { tier: 'paid' as const, studioGranted: true },
-      { tier: 'paid' as const, studioGranted: null },
+      { tier: 'free' as const, studioGranted: false, propertyUnlocked: false },
+      { tier: 'paid' as const, studioGranted: false, propertyUnlocked: false },
+      { tier: 'paid' as const, studioGranted: true, propertyUnlocked: false },
+      { tier: 'paid' as const, studioGranted: null, propertyUnlocked: false },
+      // P-119 cases in the same divergence check.
+      { tier: 'free' as const, studioGranted: false, propertyUnlocked: true },
+      { tier: 'paid' as const, studioGranted: false, propertyUnlocked: true },
+      { tier: 'paid' as const, studioGranted: null, propertyUnlocked: true },
     ]
     for (const ent of cases) {
       const feas = resolveFeasibilityExportAuth({
@@ -148,6 +153,61 @@ describe('feasibility export auth gate (Studio/Team — P-104 rule reused)', () 
         expect(feas.error).toBe(sitePlan.error)
       }
     }
+  })
+
+  // -------------------------------------------------------------------------
+  // P-119 (2026-09-05 operator package table). Feasibility Study is
+  // explicitly in the Property Unlock row alongside site-plan/terrain.
+  // -------------------------------------------------------------------------
+
+  it('P-119: an active Property Unlock passes even on tier "free"', () => {
+    const gate = resolveFeasibilityExportAuth({
+      sessionToken: 'session-token',
+      entitlement: { ok: true, tier: 'free', studioGranted: false, propertyUnlocked: true },
+    })
+    expect(gate.ok).toBe(true)
+  })
+
+  it('P-119: an active Property Unlock passes a Solo (paid, not Studio) account', () => {
+    const gate = resolveFeasibilityExportAuth({
+      sessionToken: 'session-token',
+      entitlement: { ok: true, tier: 'paid', studioGranted: false, propertyUnlocked: true },
+    })
+    expect(gate.ok).toBe(true)
+  })
+
+  it('P-119: Property Unlock passes even when studioGranted is UNMEASURED (null)', () => {
+    const gate = resolveFeasibilityExportAuth({
+      sessionToken: 'session-token',
+      entitlement: { ok: true, tier: 'paid', studioGranted: null, propertyUnlocked: true },
+    })
+    expect(gate.ok).toBe(true)
+  })
+
+  it('P-119 REGRESSION: Solo with NO active unlock still refuses studio_required', () => {
+    const gate = resolveFeasibilityExportAuth({
+      sessionToken: 'session-token',
+      entitlement: { ok: true, tier: 'paid', studioGranted: false, propertyUnlocked: false },
+    })
+    expect(gate.ok).toBe(false)
+    if (!gate.ok) expect(gate.error).toBe('studio_required')
+  })
+
+  it('P-119 REGRESSION: Free with NO active unlock still refuses payment_required', () => {
+    const gate = resolveFeasibilityExportAuth({
+      sessionToken: 'session-token',
+      entitlement: { ok: true, tier: 'free', studioGranted: false, propertyUnlocked: false },
+    })
+    expect(gate.ok).toBe(false)
+    if (!gate.ok) expect(gate.error).toBe('payment_required')
+  })
+
+  it('P-119 REGRESSION: Team (studioGranted true) still passes with propertyUnlocked false', () => {
+    const gate = resolveFeasibilityExportAuth({
+      sessionToken: 'session-token',
+      entitlement: { ok: true, tier: 'paid', studioGranted: true, propertyUnlocked: false },
+    })
+    expect(gate.ok).toBe(true)
   })
 })
 

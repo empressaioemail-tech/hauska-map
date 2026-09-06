@@ -47,6 +47,17 @@ export type { EnvelopeProvenanceRefs, SetbackFieldProvenance, SetbackFieldNotes 
 export type { LayerAbsenceVerdict, LayerAbsenceWire, LayerWire } from "./layer-absence";
 export { isSilentEmptyStructuralLayer } from "./layer-absence";
 
+/**
+ * A cad-roll dollar/sqft field's three-state wire, mirrored from
+ * legacy-design-tools' cadRollValue.ts CadRollValueWire. "present" (v>0),
+ * "zero" (a real stored $0, e.g. vacant land), "absent" (no value) — never
+ * collapse zero into absent.
+ */
+export type CadRollValueWire =
+  | { state: "present"; v: number; source?: string; vintage?: string | null; valueBasis?: string }
+  | { state: "zero"; v: 0; source?: string; vintage?: string | null; valueBasis?: string; basis?: string }
+  | { state: "absent"; source?: string; vintage?: string | null; basis?: string };
+
 /** The baked Tier-1 facet payload, mirrored from the backend contract. */
 export interface BakedFacetPayload {
   parcelNodeId?: string;
@@ -64,6 +75,34 @@ export interface BakedFacetPayload {
       vintage?: string;
     } | null;
     acreage?: { value: number; sqft?: number; method?: string } | null;
+    /**
+     * County tax-assessed CAD roll figures (OPS-16 A-103 item 5 / A-104;
+     * PARCEL-B-SLATE2 dollar-rail overlay). Each field can arrive as ONE OF
+     * THREE real shapes, and this type is intentionally loose rather than
+     * narrowed to `CadRollValueWire` alone:
+     *   - `CadRollValueWire` (present/zero/absent) — the normalized shape
+     *     this repo's own atom-chain merge (atom-chain-to-facets.ts) and
+     *     legacy-design-tools' live overlay (`cadRollFieldToWire`) write. A
+     *     stored $0 is real data (e.g. vacant land) and must never collapse
+     *     into "absent".
+     *   - the OFFLINE-BAKED shape (`{v, source, vintage, valueBasis?}`, NO
+     *     `state` key) — written straight onto `baseFacts.cadRoll` by
+     *     legacy-design-tools' bake / offline patch job whenever no live
+     *     overlay ever ran for that county.
+     *   - the gated refusal (`{state: "refused", code: "studio-gated",
+     *     reason}`) once the caller is not entitled (A-104).
+     * The backend does not normalize these to one shape on every path, so
+     * the reader (fact-sheet-resolver.ts's `taxValuationFromCadRoll` /
+     * `cadRollFieldState`) parses all three defensively rather than
+     * assuming one. A REAL, SOURCED FIGURE, NOT AN OPINION OF WORTH — see
+     * the `taxValuation` field doc on `ParcelFactSheet`.
+     */
+    cadRoll?: {
+      marketValue?: unknown;
+      assessedValue?: unknown;
+      landValue?: unknown;
+      improvementValue?: unknown;
+    } | null;
   };
   zoning?: { district: string; jurisdictionKey?: string } | LayerAbsenceWire | null;
   envelope?: {
@@ -621,6 +660,16 @@ export interface BakedCardModel {
    * that.
    */
   maxImperviousCoverPct: CardFacet<string>;
+  /**
+   * County tax-assessed CAD roll value row (OPS-16 A-103 item 5 / A-104)
+   * from `taxValuation` only. `unknown` when the field is missing (FactRow
+   * hides it). Gated Studio|Team, same tier as `owner` — the card applies
+   * the same second client-side gate (`gateTaxValuationPresentation`,
+   * mirroring `gateOwnerPresentation`) on top of this facet. A REAL,
+   * SOURCED FIGURE FROM THE COUNTY APPRAISAL DISTRICT, NOT AN OPINION OF
+   * WORTH — never labelled "valuation" or "worth" at render time.
+   */
+  taxValuation: CardFacet<string>;
   /** True whenever an envelope facet is present — the card must then render the
    *  "approximate / not survey grade" treatment (honesty commitment #1). */
   envelopeApproximate: boolean;
@@ -912,6 +961,7 @@ export function deriveBakedCardModel(payload: BakedFacetPayload): BakedCardModel
     overlayDistricts: { state: "unknown", value: null },
     agValuation: { state: "unknown", value: null },
     maxImperviousCoverPct: { state: "unknown", value: null },
+    taxValuation: { state: "unknown", value: null },
     // Any present envelope is Tier-1 (shape-only, no roads) — always approximate.
     envelopeApproximate: hasEnvelope,
     envelopeStatus: env?.status ?? null,

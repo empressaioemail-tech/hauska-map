@@ -46,7 +46,7 @@ describe('terrain export core', () => {
   it('denies free tier on auth gate', () => {
     const gate = resolveTerrainExportAuth({
       sessionToken: 'session-token',
-      entitlement: { ok: true, tier: 'free', studioGranted: false },
+      entitlement: { ok: true, tier: 'free', studioGranted: false, propertyUnlocked: false },
     })
     expect(gate.ok).toBe(false)
     if (!gate.ok) {
@@ -58,7 +58,62 @@ describe('terrain export core', () => {
   it('allows a Studio account on auth gate', () => {
     const gate = resolveTerrainExportAuth({
       sessionToken: 'session-token',
-      entitlement: { ok: true, tier: 'paid', studioGranted: true },
+      entitlement: { ok: true, tier: 'paid', studioGranted: true, propertyUnlocked: false },
+    })
+    expect(gate.ok).toBe(true)
+  })
+
+  // -------------------------------------------------------------------------
+  // P-119 (2026-09-05 operator package table). Same Property Unlock door as
+  // site-plan — see pe-site-plan-export-bff.test.ts for the full rationale.
+  // -------------------------------------------------------------------------
+
+  it('P-119: an active Property Unlock passes even on tier "free"', () => {
+    const gate = resolveTerrainExportAuth({
+      sessionToken: 'session-token',
+      entitlement: { ok: true, tier: 'free', studioGranted: false, propertyUnlocked: true },
+    })
+    expect(gate.ok).toBe(true)
+  })
+
+  it('P-119: an active Property Unlock passes a Solo (paid, not Studio) account', () => {
+    const gate = resolveTerrainExportAuth({
+      sessionToken: 'session-token',
+      entitlement: { ok: true, tier: 'paid', studioGranted: false, propertyUnlocked: true },
+    })
+    expect(gate.ok).toBe(true)
+  })
+
+  it('P-119: Property Unlock passes even when studioGranted is UNMEASURED (null)', () => {
+    const gate = resolveTerrainExportAuth({
+      sessionToken: 'session-token',
+      entitlement: { ok: true, tier: 'paid', studioGranted: null, propertyUnlocked: true },
+    })
+    expect(gate.ok).toBe(true)
+  })
+
+  it('P-119 REGRESSION: Solo with NO active unlock still refuses studio_required', () => {
+    const gate = resolveTerrainExportAuth({
+      sessionToken: 'session-token',
+      entitlement: { ok: true, tier: 'paid', studioGranted: false, propertyUnlocked: false },
+    })
+    expect(gate.ok).toBe(false)
+    if (!gate.ok) expect(gate.error).toBe('studio_required')
+  })
+
+  it('P-119 REGRESSION: Free with NO active unlock still refuses payment_required', () => {
+    const gate = resolveTerrainExportAuth({
+      sessionToken: 'session-token',
+      entitlement: { ok: true, tier: 'free', studioGranted: false, propertyUnlocked: false },
+    })
+    expect(gate.ok).toBe(false)
+    if (!gate.ok) expect(gate.error).toBe('payment_required')
+  })
+
+  it('P-119 REGRESSION: Studio still passes with propertyUnlocked explicitly false', () => {
+    const gate = resolveTerrainExportAuth({
+      sessionToken: 'session-token',
+      entitlement: { ok: true, tier: 'paid', studioGranted: true, propertyUnlocked: false },
     })
     expect(gate.ok).toBe(true)
   })
@@ -75,7 +130,7 @@ describe('terrain export core', () => {
   it('P-104 VIOLATION: a Solo subscriber is paid and is REFUSED', () => {
     const gate = resolveTerrainExportAuth({
       sessionToken: 'session-token',
-      entitlement: { ok: true, tier: 'paid', studioGranted: false },
+      entitlement: { ok: true, tier: 'paid', studioGranted: false, propertyUnlocked: false },
     })
     expect(gate.ok).toBe(false)
     if (!gate.ok) {
@@ -89,11 +144,11 @@ describe('terrain export core', () => {
   it('P-104: the Solo refusal is DISTINGUISHABLE from the free-tier refusal', () => {
     const free = resolveTerrainExportAuth({
       sessionToken: 'session-token',
-      entitlement: { ok: true, tier: 'free', studioGranted: false },
+      entitlement: { ok: true, tier: 'free', studioGranted: false, propertyUnlocked: false },
     })
     const solo = resolveTerrainExportAuth({
       sessionToken: 'session-token',
-      entitlement: { ok: true, tier: 'paid', studioGranted: false },
+      entitlement: { ok: true, tier: 'paid', studioGranted: false, propertyUnlocked: false },
     })
     expect(free.ok).toBe(false)
     expect(solo.ok).toBe(false)
@@ -107,7 +162,7 @@ describe('terrain export core', () => {
   it('P-104 VIOLATION: an UNMEASURED grant is refused, and NOT as a paywall', () => {
     const gate = resolveTerrainExportAuth({
       sessionToken: 'session-token',
-      entitlement: { ok: true, tier: 'paid', studioGranted: null },
+      entitlement: { ok: true, tier: 'paid', studioGranted: null, propertyUnlocked: false },
     })
     expect(gate.ok).toBe(false)
     if (!gate.ok) {
@@ -120,7 +175,7 @@ describe('terrain export core', () => {
   it('allows signed-in free tier when operator/dev bypass is armed', () => {
     const gate = resolveTerrainExportAuth({
       sessionToken: 'session-token',
-      entitlement: { ok: true, tier: 'free', studioGranted: false },
+      entitlement: { ok: true, tier: 'free', studioGranted: false, propertyUnlocked: false },
       devBypass: true,
     })
     expect(gate.ok).toBe(true)

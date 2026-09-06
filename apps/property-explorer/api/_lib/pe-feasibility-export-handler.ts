@@ -20,13 +20,15 @@
 // so BOTH legs below call engine-api directly; unlike the dossier fold-in,
 // which hops through MCP for its refresh POST.
 //
-// GATE: PE session + STUDIO/TEAM entitlement (P-104's rule, reused — see
-// pe-feasibility-export-core.ts) — the usePropertyEntitlement-adjacent but
-// NON-property-scoped gate site-plan/terrain already enforce. The
-// operator/dev bypass header works exactly as on the sibling exports.
+// GATE: PE session + (STUDIO/TEAM entitlement OR an active Property Unlock
+// on this parcel — P-104's rule, reused, extended by P-119; see
+// pe-feasibility-export-core.ts) — the SAME per-parcel
+// fetchPeEntitlementDetail read site-plan/terrain now use (P-119), not the
+// old parcel-blind fetchPeEntitlement. The operator/dev bypass header works
+// exactly as on the sibling exports.
 
 import type { VercelRequest, VercelResponse } from '@vercel/node'
-import { fetchPeEntitlement } from './pe-entitlement.js'
+import { fetchPeEntitlementDetail } from './pe-entitlement.js'
 import {
   isPeExportDevBypassArmed,
   PE_EXPORT_DEV_BYPASS_HEADER,
@@ -58,18 +60,34 @@ import {
  */
 const FEASIBILITY_ENGINE_TIMEOUT_MS = 55_000
 
-/** Session + Studio/Team entitlement gate. Writes the failure response itself. */
+/**
+ * Session + (Studio/Team OR Property Unlock) entitlement gate. Writes the
+ * failure response itself.
+ *
+ * P-119: takes `parcelNodeId` so `fetchPeEntitlementDetail` can report
+ * `propertyUnlocked` for THIS parcel — the property-unlock check is
+ * per-parcel, unlike the old parcel-blind `fetchPeEntitlement` this used to
+ * call.
+ */
 async function requireStudioSession(
   req: VercelRequest,
   res: VercelResponse,
+  parcelNodeId: string,
 ): Promise<{ token: string; devBypass: boolean } | null> {
   const token = readPeSessionCookie(req.headers.cookie)
-  const entitlement = token
-    ? await fetchPeEntitlement(token)
+  const detail = token
+    ? await fetchPeEntitlementDetail(token, parcelNodeId)
     : { ok: false as const, status: 401 as const }
   const gate = resolveFeasibilityExportAuth({
     sessionToken: token,
-    entitlement,
+    entitlement: detail.ok
+      ? {
+          ok: true,
+          tier: detail.tier,
+          studioGranted: detail.studioGranted,
+          propertyUnlocked: detail.propertyUnlocked,
+        }
+      : detail,
     devBypass: isPeExportDevBypassArmed({
       headerValue: req.headers[PE_EXPORT_DEV_BYPASS_HEADER],
     }),
@@ -116,7 +134,7 @@ async function handleRefresh(req: VercelRequest, res: VercelResponse): Promise<v
     res.status(400).json({ error: 'invalid_request', message: parsed.message })
     return
   }
-  if (!(await requireStudioSession(req, res))) return
+  if (!(await requireStudioSession(req, res, parsed.request.parcelNodeId))) return
 
   const gateToken = engineApiGateToken()
   if (!gateToken) {
@@ -180,7 +198,7 @@ async function handleDownload(req: VercelRequest, res: VercelResponse): Promise<
     res.status(400).json({ error: 'invalid_parcel_node_id' })
     return
   }
-  if (!(await requireStudioSession(req, res))) return
+  if (!(await requireStudioSession(req, res, parcelNodeId))) return
 
   const gateToken = engineApiGateToken()
   if (!gateToken) {

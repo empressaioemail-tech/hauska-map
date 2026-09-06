@@ -170,6 +170,87 @@ describe('handleFeasibilityExportRequest', () => {
     expect((res.body as { message: string }).message).toBe(FEASIBILITY_STUDIO_REQUIRED_MESSAGE)
   })
 
+  // ---------------------------------------------------------------------------
+  // P-119 (2026-09-05 operator package table): Feasibility Study is also in
+  // the Property Unlock row. These prove the handler-level wiring end to
+  // end, not just the pure gate function (already covered exhaustively in
+  // src/lib/pe-feasibility-export-bff.test.ts).
+  // ---------------------------------------------------------------------------
+
+  it('P-119: reads the PER-PARCEL entitlement (fetchPeEntitlementDetail) — the entitlement URL carries parcelNodeId', async () => {
+    const fetchMock = stubFetch({
+      entitlement: () => jsonResponse(200, { tier: 'paid', studioGranted: true }),
+      refresh: () =>
+        jsonResponse(201, {
+          atom: { parcelNodeId: PARCEL },
+          artifacts: { 'pdf-feasibility': { format: 'pdf-feasibility', ref: 'gcs://bucket/x' } },
+        }),
+    })
+    const req = makeReq({ method: 'POST', body: { parcelNodeId: PARCEL } })
+    const res = makeRes()
+    await handleFeasibilityExportRequest(req, res)
+    const entitlementCall = fetchMock.mock.calls.find(([url]) =>
+      String(url).includes('/entitlement'),
+    )
+    expect(entitlementCall).toBeTruthy()
+    expect(String(entitlementCall![0])).toContain(`parcelNodeId=${encodeURIComponent(PARCEL)}`)
+  })
+
+  it('P-119: a Property-Unlock session (tier free, no subscription) PASSES — 200, not the paywall', async () => {
+    stubFetch({
+      entitlement: () =>
+        jsonResponse(200, { tier: 'free', studioGranted: false, property: { unlocked: true } }),
+      refresh: () =>
+        jsonResponse(201, {
+          atom: { parcelNodeId: PARCEL },
+          artifacts: { 'pdf-feasibility': { format: 'pdf-feasibility', ref: 'gcs://bucket/x' } },
+        }),
+    })
+    const req = makeReq({ method: 'POST', body: { parcelNodeId: PARCEL } })
+    const res = makeRes()
+    await handleFeasibilityExportRequest(req, res)
+    expect(res.statusCode).toBe(200)
+    expect((res.body as { ok: boolean }).ok).toBe(true)
+  })
+
+  it('P-119: a Property-Unlock session on the DOWNLOAD leg also passes (streams the PDF)', async () => {
+    const bytes = new TextEncoder().encode('%PDF-1.4 fake bytes')
+    stubFetch({
+      entitlement: () =>
+        jsonResponse(200, { tier: 'free', studioGranted: false, property: { unlocked: true } }),
+      download: () => bufferResponse(200, bytes),
+    })
+    const req = makeReq({ method: 'GET', query: { action: 'download', parcelNodeId: PARCEL } })
+    const res = makeRes()
+    await handleFeasibilityExportRequest(req, res)
+    expect(res.statusCode).toBe(200)
+    expect(res.headersSet['Content-Type']).toBe('application/pdf')
+  })
+
+  it('P-119 REGRESSION: Solo (paid, NO Property Unlock) still refuses studio_required', async () => {
+    stubFetch({
+      entitlement: () =>
+        jsonResponse(200, { tier: 'paid', studioGranted: false, property: { unlocked: false } }),
+    })
+    const req = makeReq({ method: 'POST', body: { parcelNodeId: PARCEL } })
+    const res = makeRes()
+    await handleFeasibilityExportRequest(req, res)
+    expect(res.statusCode).toBe(402)
+    expect((res.body as { error: string }).error).toBe('studio_required')
+  })
+
+  it('P-119 REGRESSION: Free (no subscription, NO Property Unlock) still refuses payment_required', async () => {
+    stubFetch({
+      entitlement: () =>
+        jsonResponse(200, { tier: 'free', studioGranted: false, property: { unlocked: false } }),
+    })
+    const req = makeReq({ method: 'POST', body: { parcelNodeId: PARCEL } })
+    const res = makeRes()
+    await handleFeasibilityExportRequest(req, res)
+    expect(res.statusCode).toBe(402)
+    expect((res.body as { error: string }).error).toBe('payment_required')
+  })
+
   it('400s a malformed refresh body before ever touching entitlement or the engine', async () => {
     const fetchMock = stubFetch({})
     const req = makeReq({ method: 'POST', body: { parcelNodeId: 'not-a-parcel-id' } })

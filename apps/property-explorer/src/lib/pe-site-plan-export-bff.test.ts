@@ -50,7 +50,7 @@ describe('site-plan export core', () => {
   it('denies free tier on auth gate', () => {
     const gate = resolveSitePlanExportAuth({
       sessionToken: 'session-token',
-      entitlement: { ok: true, tier: 'free', studioGranted: false },
+      entitlement: { ok: true, tier: 'free', studioGranted: false, propertyUnlocked: false },
     })
     expect(gate.ok).toBe(false)
     if (!gate.ok) {
@@ -62,9 +62,93 @@ describe('site-plan export core', () => {
   it('allows a Studio account on auth gate', () => {
     const gate = resolveSitePlanExportAuth({
       sessionToken: 'session-token',
-      entitlement: { ok: true, tier: 'paid', studioGranted: true },
+      entitlement: { ok: true, tier: 'paid', studioGranted: true, propertyUnlocked: false },
     })
     expect(gate.ok).toBe(true)
+  })
+
+  // -------------------------------------------------------------------------
+  // P-119 (2026-09-05 operator package table). Property Unlock is a SECOND
+  // door alongside Studio/Team: it explicitly includes site-plan CAD and
+  // terrain export. Cases below prove the new door opens, that Solo/Free
+  // WITHOUT an active unlock still refuse, and that Studio/Team keep working
+  // exactly as before (the P-104 regression basis above, now with
+  // propertyUnlocked stated explicitly rather than omitted).
+  // -------------------------------------------------------------------------
+
+  it('P-119: an active Property Unlock passes even on tier "free" (no subscription at all)', () => {
+    const gate = resolveSitePlanExportAuth({
+      sessionToken: 'session-token',
+      entitlement: { ok: true, tier: 'free', studioGranted: false, propertyUnlocked: true },
+    })
+    expect(gate.ok).toBe(true)
+  })
+
+  it('P-119: an active Property Unlock passes a paid-but-not-Studio (Solo) account too', () => {
+    const gate = resolveSitePlanExportAuth({
+      sessionToken: 'session-token',
+      entitlement: { ok: true, tier: 'paid', studioGranted: false, propertyUnlocked: true },
+    })
+    expect(gate.ok).toBe(true)
+  })
+
+  it('P-119: Property Unlock passes even when studioGranted is UNMEASURED (null) — it is an independent door', () => {
+    const gate = resolveSitePlanExportAuth({
+      sessionToken: 'session-token',
+      entitlement: { ok: true, tier: 'paid', studioGranted: null, propertyUnlocked: true },
+    })
+    expect(gate.ok).toBe(true)
+  })
+
+  it('P-119 REGRESSION: Solo with NO active unlock still refuses studio_required (the door did not become "any paid tier")', () => {
+    const gate = resolveSitePlanExportAuth({
+      sessionToken: 'session-token',
+      entitlement: { ok: true, tier: 'paid', studioGranted: false, propertyUnlocked: false },
+    })
+    expect(gate.ok).toBe(false)
+    if (!gate.ok) {
+      expect(gate.status).toBe(402)
+      expect(gate.error).toBe('studio_required')
+    }
+  })
+
+  it('P-119 REGRESSION: Free with NO active unlock still refuses payment_required', () => {
+    const gate = resolveSitePlanExportAuth({
+      sessionToken: 'session-token',
+      entitlement: { ok: true, tier: 'free', studioGranted: false, propertyUnlocked: false },
+    })
+    expect(gate.ok).toBe(false)
+    if (!gate.ok) {
+      expect(gate.status).toBe(402)
+      expect(gate.error).toBe('payment_required')
+    }
+  })
+
+  it('P-119 REGRESSION: Studio still passes with propertyUnlocked explicitly false (unrelated to the new door)', () => {
+    const gate = resolveSitePlanExportAuth({
+      sessionToken: 'session-token',
+      entitlement: { ok: true, tier: 'paid', studioGranted: true, propertyUnlocked: false },
+    })
+    expect(gate.ok).toBe(true)
+  })
+
+  it('P-119 REGRESSION: Team (studioGranted true) still passes with propertyUnlocked false', () => {
+    const gate = resolveSitePlanExportAuth({
+      sessionToken: 'session-token',
+      entitlement: { ok: true, tier: 'paid', studioGranted: true, propertyUnlocked: false },
+    })
+    expect(gate.ok).toBe(true)
+  })
+
+  it('P-119: does NOT reintroduce the A-068 class of bug — an active unlock is required, "any paid tier" is not enough on its own without it', () => {
+    // A paid-but-not-Studio, not-unlocked account must still refuse. This is
+    // the exact shape A-068 fixed (tier !== 'paid' was too broad); P-119 adds
+    // a second door without loosening the first one back open.
+    const gate = resolveSitePlanExportAuth({
+      sessionToken: 'session-token',
+      entitlement: { ok: true, tier: 'paid', studioGranted: false, propertyUnlocked: false },
+    })
+    expect(gate.ok).toBe(false)
   })
 
   // -------------------------------------------------------------------------
@@ -77,9 +161,10 @@ describe('site-plan export core', () => {
   it('P-104 VIOLATION: a Solo subscriber is paid and is REFUSED', () => {
     const gate = resolveSitePlanExportAuth({
       sessionToken: 'session-token',
-      // Exactly what /entitlement returns for a $49 Solo account: tier
-      // "paid", studioGranted false. The old gate passed it.
-      entitlement: { ok: true, tier: 'paid', studioGranted: false },
+      // Exactly what /entitlement returns for a $49 Solo account with no
+      // active unlock: tier "paid", studioGranted false, propertyUnlocked
+      // false. The old gate passed it.
+      entitlement: { ok: true, tier: 'paid', studioGranted: false, propertyUnlocked: false },
     })
     expect(gate.ok).toBe(false)
     if (!gate.ok) {
@@ -93,11 +178,11 @@ describe('site-plan export core', () => {
   it('P-104: the Solo refusal is DISTINGUISHABLE from the free-tier refusal', () => {
     const free = resolveSitePlanExportAuth({
       sessionToken: 'session-token',
-      entitlement: { ok: true, tier: 'free', studioGranted: false },
+      entitlement: { ok: true, tier: 'free', studioGranted: false, propertyUnlocked: false },
     })
     const solo = resolveSitePlanExportAuth({
       sessionToken: 'session-token',
-      entitlement: { ok: true, tier: 'paid', studioGranted: false },
+      entitlement: { ok: true, tier: 'paid', studioGranted: false, propertyUnlocked: false },
     })
     expect(free.ok).toBe(false)
     expect(solo.ok).toBe(false)
@@ -120,7 +205,7 @@ describe('site-plan export core', () => {
     // be a false statement about their account.
     const gate = resolveSitePlanExportAuth({
       sessionToken: 'session-token',
-      entitlement: { ok: true, tier: 'paid', studioGranted: null },
+      entitlement: { ok: true, tier: 'paid', studioGranted: null, propertyUnlocked: false },
     })
     expect(gate.ok).toBe(false)
     if (!gate.ok) {
@@ -136,10 +221,15 @@ describe('site-plan export core', () => {
     // They are one product rule. A divergence test, not two careful edits:
     // if a later change fixes one and not the other, this fails.
     const cases = [
-      { tier: 'free' as const, studioGranted: false },
-      { tier: 'paid' as const, studioGranted: false },
-      { tier: 'paid' as const, studioGranted: true },
-      { tier: 'paid' as const, studioGranted: null },
+      { tier: 'free' as const, studioGranted: false, propertyUnlocked: false },
+      { tier: 'paid' as const, studioGranted: false, propertyUnlocked: false },
+      { tier: 'paid' as const, studioGranted: true, propertyUnlocked: false },
+      { tier: 'paid' as const, studioGranted: null, propertyUnlocked: false },
+      // P-119 cases in the same divergence check: Property Unlock must open
+      // both gates identically too.
+      { tier: 'free' as const, studioGranted: false, propertyUnlocked: true },
+      { tier: 'paid' as const, studioGranted: false, propertyUnlocked: true },
+      { tier: 'paid' as const, studioGranted: null, propertyUnlocked: true },
     ]
     for (const ent of cases) {
       const sp = resolveSitePlanExportAuth({
@@ -161,7 +251,7 @@ describe('site-plan export core', () => {
   it('mirrors terrain: signed-in free tier allowed when operator/dev bypass armed', () => {
     const gate = resolveSitePlanExportAuth({
       sessionToken: 'session-token',
-      entitlement: { ok: true, tier: 'free', studioGranted: false },
+      entitlement: { ok: true, tier: 'free', studioGranted: false, propertyUnlocked: false },
       devBypass: true,
     })
     expect(gate.ok).toBe(true)

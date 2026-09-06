@@ -8,7 +8,10 @@
 // not_specified: live setback-rule atoms currently drop the flag; we re-attach
 // B3 provenance by district so silent axes never render as real 0′ / "consume lot".
 
-import { resolveCodifiedSetbacksForStamp } from "./codified-setback-from-zoning.js";
+import {
+  resolveCodifiedSetbacksForStamp,
+  type CodifiedSetbackScalars,
+} from "./codified-setback-from-zoning.js";
 import {
   anyNotSpecified,
   buildToLineDisclosure,
@@ -198,6 +201,26 @@ export interface PropertyAtomChain {
   atoms?: unknown[] | null;
 }
 
+/**
+ * A cad-roll dollar/sqft field's three-state wire, mirrored from
+ * legacy-design-tools' cadRollValue.ts CadRollValueWire. "present" (v>0),
+ * "zero" (a real stored $0, e.g. vacant land), "absent" (no value) — never
+ * collapse zero into absent.
+ */
+export type CadRollValueWire =
+  | { state: "present"; v: number; source?: string; vintage?: string | null; valueBasis?: string }
+  | { state: "zero"; v: 0; source?: string; vintage?: string | null; valueBasis?: string; basis?: string }
+  | { state: "absent"; source?: string; vintage?: string | null; basis?: string };
+
+function isCadRollValueWire(v: unknown): v is CadRollValueWire {
+  if (v === null || typeof v !== "object" || Array.isArray(v)) return false;
+  const r = v as Record<string, unknown>;
+  if (r.state === "present" || r.state === "zero") {
+    return typeof r.v === "number" && Number.isFinite(r.v);
+  }
+  return r.state === "absent";
+}
+
 /** Mirrors apps/property-explorer/src/lib/baked-facets.ts BakedFacetPayload. */
 export interface PeBakedFacetPayload {
   parcelNodeId?: string;
@@ -210,6 +233,23 @@ export interface PeBakedFacetPayload {
     situsState?: string | null;
     landUse?: { code: string; description?: string | null } | null;
     acreage?: { value: number; sqft?: number; method?: string } | null;
+    /**
+     * PARCEL-B-SLATE2 cad-roll dollar-rail overlay (marketValue/assessedValue/
+     * landValue/improvementValue only — yearBuilt is sourced separately and
+     * not part of this shape). Mirrors legacy-design-tools'
+     * artifacts/api-server/src/lib/cadRollValue.ts CadRollValueWire — a
+     * three-state wire, not a bare number: "present" (v>0), "zero" (a real
+     * stored $0, e.g. vacant land — never collapsed to absent), "absent"
+     * (no value). Carried through unflattened so a future consumer can
+     * render the distinction; this repo does not read `.v` directly anywhere
+     * today, so flattening here would only destroy information for no gain.
+     */
+    cadRoll?: {
+      marketValue?: CadRollValueWire | null;
+      assessedValue?: CadRollValueWire | null;
+      landValue?: CadRollValueWire | null;
+      improvementValue?: CadRollValueWire | null;
+    } | null;
   };
   zoning?: { district: string; jurisdictionKey?: string } | null;
   envelope?: {
@@ -788,7 +828,7 @@ function countyFipsFromNodeId(parcelNodeId: string): string | undefined {
   return fips && /^\d{5}$/.test(fips) ? fips : undefined;
 }
 
-function apnFromNodeId(parcelNodeId: string): string | undefined {
+export function apnFromNodeId(parcelNodeId: string): string | undefined {
   const rest = parcelNodeId.split(":")[1]?.trim();
   return rest || undefined;
 }
@@ -1533,6 +1573,24 @@ export function mergeBakedBaseFacts(
     (typeof atomBase.apn === "string" && atomBase.apn.trim() ? atomBase.apn : null) ??
     (typeof bakedBase.apn === "string" && bakedBase.apn.trim() ? bakedBase.apn : null);
 
+  // PARCEL-B-SLATE2 cad-roll dollar rails. Each field is cortex's own
+  // three-state CadRollValueWire (present/zero/absent), NOT a bare number —
+  // carried through unflattened (isCadRollValueWire guards malformed input
+  // to an honest null, same shape as landUse/acreage above) so "zero" (a
+  // real stored $0) is never conflated with "absent" (no value). yearBuilt
+  // is deliberately NOT carried here: its live provenance is ambiguous
+  // between this overlay and the older structuralFact atom path, and
+  // conflating the two here would risk masking that open question.
+  const bakedCadRoll = bakedBase.cadRoll ?? null;
+  const cadRollField = (key: keyof NonNullable<typeof bakedCadRoll>): CadRollValueWire | null => {
+    const v = bakedCadRoll?.[key];
+    return isCadRollValueWire(v) ? v : null;
+  };
+  const marketValue = cadRollField("marketValue");
+  const assessedValue = cadRollField("assessedValue");
+  const landValue = cadRollField("landValue");
+  const improvementValue = cadRollField("improvementValue");
+
   const merged: PeBakedFacetsResponse = {
     ...atomResponse,
     baseFactsMerged: true,
@@ -1550,6 +1608,10 @@ export function mergeBakedBaseFacts(
         situsState: bakedBase.situsState ?? null,
         landUse,
         acreage,
+        cadRoll:
+          marketValue != null || assessedValue != null || landValue != null || improvementValue != null
+            ? { marketValue, assessedValue, landValue, improvementValue }
+            : null,
       },
       facetCoverage: {
         ...atomFacets.facetCoverage,
@@ -1699,6 +1761,10 @@ function mapWarmVerifyDeclineEnvelope(
 
 export function adaptAtomChainToBakedFacets(
   chain: PropertyAtomChain | null | undefined,
+  opts?: {
+    /** Live layer-23 scalars for a per-parcel-only jurisdiction (e.g. Bastrop city), pre-fetched by the caller. */
+    perParcelSetback?: CodifiedSetbackScalars | null;
+  },
 ): PeBakedFacetsResponse | null {
   if (!atomChainIsUsable(chain)) return null;
   const c = chain as PropertyAtomChain;
@@ -1739,7 +1805,11 @@ export function adaptAtomChainToBakedFacets(
   const tableSetbacks =
     setbacks ??
     (hasDistrict && jurisdictionKey
-      ? resolveCodifiedSetbacksForStamp(jurisdictionKey, district)
+      ? resolveCodifiedSetbacksForStamp(
+          jurisdictionKey,
+          district,
+          opts?.perParcelSetback,
+        )
       : null);
   const effectiveSetbacks = setbacks ?? tableSetbacks ?? undefined;
   const liveSetback = hasLiveAtomChainSetbackRule(

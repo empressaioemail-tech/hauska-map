@@ -455,6 +455,135 @@ function landUseFromInspectWire(
 }
 
 /**
+ * One CAD roll dollar field's state, read defensively across every shape the
+ * backend may serve it in (OPS-16 A-103 item 5 / A-104):
+ *
+ *   - `null` / missing                         -> absent
+ *   - `{v, source, vintage, valueBasis?}`       -> the OFFLINE-BAKED shape
+ *     (no `state` key at all) written straight onto `baseFacts.cadRoll` by
+ *     the bake / offline patch job -- present when v>0, zero when v===0.
+ *   - `{state: "present"|"zero", v, ...}`       -> the LIVE-OVERLAY wire
+ *     shape (`cadRollFieldToWire` in legacy-design-tools).
+ *   - `{state: "absent", ...}`                  -> the live-overlay wire's
+ *     own absence.
+ *   - `{state: "refused", code: "studio-gated", reason}` -> the caller's
+ *     tier does not clear the co-gate with owner info. This is an
+ *     ENTITLEMENT refusal, not a data absence -- callers must not conflate
+ *     it with "absent".
+ *
+ * The backend does not normalize these to one shape on the wire today (see
+ * the module doc on `BakedFacetPayload.baseFacts.cadRoll`), so this reader
+ * has to recognise all of them rather than assuming one.
+ */
+export function cadRollFieldState(
+  raw: unknown,
+): { kind: "present" | "zero" | "absent" | "refused"; v: number | null } {
+  const f = rec(raw);
+  if (!f) return { kind: "absent", v: null };
+  if (f.state === "refused") return { kind: "refused", v: null };
+  if (f.state === "absent") return { kind: "absent", v: null };
+  if (f.state === "present" || f.state === "zero") {
+    return { kind: f.state, v: num(f.v) };
+  }
+  // No `.state` key at all: the offline-baked shape. A stored 0 is a real
+  // recorded $0 (e.g. vacant-lot improvement value), never collapsed to
+  // absent -- same three-state honesty rule the backend's own
+  // cadRollFieldToWire applies.
+  const v = num(f.v);
+  if (v === null) return { kind: "absent", v: null };
+  return { kind: v === 0 ? "zero" : "present", v };
+}
+
+/**
+ * County tax-assessed CAD roll valuation, read from `baseFacts.cadRoll`
+ * (OPS-16 A-103 item 5 / A-104) -- NOT a cortex-root sibling fact atom like
+ * owner/agValuation/etc, since this rail is baked straight onto baseFacts,
+ * the same place identityFacts/landUseFromCadRoll already read.
+ *
+ * A REAL, SOURCED FIGURE FROM THE COUNTY APPRAISAL DISTRICT, NOT AN OPINION
+ * OF WORTH. Masters 06's "not a valuation tool" stance refuses market-value
+ * OPINIONS; this is the county's own recorded number and is a different,
+ * cleared class of data (operator ruling, A-103 item 5).
+ *
+ * GATED the same tier as owner info: the server replaces all four dollar
+ * fields with a `{state: "refused", code: "studio-gated"}` refusal when the
+ * caller is below Studio. That reaches this function as `unresolved` — a
+ * DELIBERATE choice (not `absent-covered`): this is a permanent entitlement
+ * gate, not a transient load failure OR a genuine "county has no record"
+ * absence, and `unresolved`'s own vocabulary already carries a `reason`
+ * string for exactly this. The client-side paint gate
+ * (`gateTaxValuationPresentation`, mirroring `gateOwnerPresentation`)
+ * converts this into the correct upgrade-cue presentation, same as owner.
+ */
+export function taxValuationFromCadRoll(
+  facets: BakedFacetPayload,
+): Fact<{
+  marketValue: number | null;
+  assessedValue: number | null;
+  landValue: number | null;
+  improvementValue: number | null;
+  display: string;
+}> {
+  const cadRoll = facets.baseFacts?.cadRoll;
+  const prov = cadProvenance(facets);
+  if (!cadRoll) {
+    return absentUncovered(
+      "no CAD tax-assessed valuation on the county roll for this parcel",
+      "a county appraisal-district valuation record",
+    );
+  }
+  const fields = [
+    ["marketValue", "Market"],
+    ["landValue", "Land"],
+    ["improvementValue", "Improvement"],
+    ["assessedValue", "Assessed"],
+  ] as const;
+
+  // The server gates all four dollar fields together (never a partial
+  // grant) — checking any one is enough, but check all defensively rather
+  // than assume the invariant holds forever.
+  const anyRefused = fields.some(
+    ([key]) => cadRollFieldState(cadRoll[key]).kind === "refused",
+  );
+  if (anyRefused) {
+    return {
+      state: "unresolved",
+      reason: "cad-roll-valuation studio-gated",
+      retryable: false,
+    };
+  }
+
+  const values: Record<string, number | null> = {};
+  const entries: string[] = [];
+  for (const [key, label] of fields) {
+    const { kind, v } = cadRollFieldState(cadRoll[key]);
+    if ((kind === "present" || kind === "zero") && v !== null) {
+      values[key] = v;
+      entries.push(`${label} $${v.toLocaleString("en-US")}`);
+    } else {
+      values[key] = null;
+    }
+  }
+  if (entries.length === 0) {
+    return absentCovered(
+      "no CAD tax-assessed value on record for this parcel",
+      prov,
+    );
+  }
+  return {
+    state: "present",
+    value: {
+      marketValue: values.marketValue ?? null,
+      assessedValue: values.assessedValue ?? null,
+      landValue: values.landValue ?? null,
+      improvementValue: values.improvementValue ?? null,
+      display: entries.join(" · "),
+    },
+    provenance: prov,
+  };
+}
+
+/**
  * Special district from cortex-root specialDistrictFact (P-48 / WDLL 1).
  *
  * Prefer the cortex field. Never adopt bake / CAD / mud-pid. Never invent a
@@ -2254,6 +2383,10 @@ export class PeFactSheetResolver implements FactSheetResolver {
     const maxImperviousCoverPct = maxImperviousCoverPctFromInspectWire(
       maxImperviousCoverPctFact,
     );
+    // County tax-assessed CAD roll valuation (OPS-16 A-103 item 5 / A-104).
+    // Read from baseFacts.cadRoll (like landUseFromCadRoll above), NOT a
+    // root-sibling wire field -- there is no `*Fact` sibling for this rail.
+    const taxValuation = taxValuationFromCadRoll(facets);
     const verdictLayers = verdictLayersFromFacets(facets);
 
     const site: ParcelFactSheet["site"] = {
@@ -2288,6 +2421,7 @@ export class PeFactSheetResolver implements FactSheetResolver {
       overlayDistricts,
       agValuation,
       maxImperviousCoverPct,
+      taxValuation,
       site,
       county: { fips, name: countyName },
     });
@@ -2315,6 +2449,7 @@ export class PeFactSheetResolver implements FactSheetResolver {
       ...(overlayDistricts ? { overlayDistricts } : {}),
       ...(agValuation ? { agValuation } : {}),
       ...(maxImperviousCoverPct ? { maxImperviousCoverPct } : {}),
+      ...(taxValuation ? { taxValuation } : {}),
       ...(verdictLayers ? { verdictLayers } : {}),
       site,
       // Composed ONCE, by the one composer, from the fields above.

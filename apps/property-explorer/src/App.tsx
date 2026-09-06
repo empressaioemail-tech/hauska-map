@@ -11,6 +11,7 @@
 
 import { useEffect, useState } from "react";
 import { ExplorerMap } from "./browse/ExplorerMap";
+import { HelpWidget } from "./components/HelpWidget";
 import { SignUpCard } from "./coldopen/SignUpCard";
 import { ShareFunnelApp } from "./share/ShareFunnelApp";
 import {
@@ -242,6 +243,12 @@ function MapApp() {
       {/* The live map is ALWAYS mounted underneath — it boots first. */}
       <ExplorerMap />
       <CheckoutDeepLinkHost />
+
+      {/* P-118 — ungated Help widget. Persistent bottom-right, rendered
+          unconditionally (no entitlement/session gate of any kind): visible
+          and functional for cold-open, anonymous browse, and signed-in
+          alike. */}
+      <HelpWidget />
 
       {checkoutStatus === "checking" && (
         <div

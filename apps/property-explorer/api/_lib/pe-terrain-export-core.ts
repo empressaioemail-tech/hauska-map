@@ -333,11 +333,12 @@ export type TerrainExportAuthResult =
   | { ok: true; devBypass?: boolean }
   | { ok: false; status: 401 | 402 | 503; error: string; message?: string }
 
-/** Refusal reason when the account is paid but not Studio (P-104). Distinct
- *  from the free-tier `payment_required` so the surface can offer the right
- *  upgrade instead of a generic paywall. */
+/** Refusal reason when the account is paid but not Studio, and holds no
+ *  Property Unlock either (P-104, extended by P-119). Distinct from the
+ *  free-tier `payment_required` so the surface can offer the right upgrade
+ *  instead of a generic paywall. */
 export const TERRAIN_STUDIO_REQUIRED_MESSAGE =
-  'Terrain export is a Studio deliverable. Your plan does not include it.'
+  'Terrain export requires Studio, Team, or an active Property Unlock on this parcel. Your plan does not include it.'
 
 /** Refusal reason when the entitlement server did not report `studioGranted`
  *  at all — UNMEASURED, not denied. Never shown as a paywall. */
@@ -353,11 +354,22 @@ export const TERRAIN_STUDIO_UNMEASURED_MESSAGE =
  * call skips. It now requires the SERVER-COMPUTED `studioGranted`. Site plan
  * carries the identical change in `resolveSitePlanExportAuth` — the two share
  * one product rule and must not diverge.
+ *
+ * P-119 (2026-09-05): adds the Property Unlock door alongside Studio/Team —
+ * see the matching comment on `resolveSitePlanExportAuth`, which this
+ * mirrors exactly (checked FIRST, short-circuits even when `tier` is
+ * 'free', reuses the same `propertyUnlocked` field the dossier/flood gates
+ * already consume).
  */
 export function resolveTerrainExportAuth(input: {
   sessionToken: string | null
   entitlement:
-    | { ok: true; tier: 'free' | 'paid'; studioGranted: boolean | null }
+    | {
+        ok: true
+        tier: 'free' | 'paid'
+        studioGranted: boolean | null
+        propertyUnlocked: boolean | null
+      }
     | { ok: false; status: 401 | 402 | 503; message?: string }
   /** Operator/dev bypass — session still required; skips paid check. */
   devBypass?: boolean
@@ -386,6 +398,12 @@ export function resolveTerrainExportAuth(input: {
             : 'entitlement_unavailable',
       message: denied.message,
     }
+  }
+  // P-119: Property Unlock is a distinct entitlement path from Studio/Team
+  // (A-068) — checked before the tier/studio ladder so an unlock-only
+  // account (tier 'free') still passes.
+  if (input.entitlement.propertyUnlocked === true) {
+    return { ok: true }
   }
   if (input.entitlement.tier !== 'paid') {
     return {
