@@ -199,7 +199,7 @@ export const ThreeLayerPanel: React.FC<ThreeLayerPanelProps> = ({
         <LayerCard
           layer="written"
           sev={written?.tally ? 'ok' : 'info'}
-          origin={written ? (written.tally ? 'LIVE — read from retrieval-api' : 'NOT SERVED') : 'not probed yet'}
+          origin={written ? (written.tally ? 'LIVE: read from retrieval-api' : 'NOT SERVED') : 'not probed yet'}
           locator={written?.locator ?? '/stats/central-tx-node-graph'}
           observedAt={written?.tally?.generatedAt ?? null}
           measured={writtenCov.measured}
@@ -220,12 +220,12 @@ export const ThreeLayerPanel: React.FC<ThreeLayerPanelProps> = ({
         <LayerCard
           layer="scored"
           sev="ok"
-          origin="LIVE — read from cortex-api"
+          origin="LIVE: read from cortex-api"
           locator="/api/county-ledger"
           observedAt={computedAt}
           measured={scoredCov.measured}
           rowsExamined={scoredCov.rowsExamined}
-          note="a materialized snapshot, not a live recompute — the console can re-read it but nothing here can move computedAt"
+          note="a materialized snapshot, not a live recompute. The console can re-read it but nothing here can move computedAt"
         />
         <LayerCard
           layer="served"
@@ -238,7 +238,7 @@ export const ThreeLayerPanel: React.FC<ThreeLayerPanelProps> = ({
           note={
             sweep?.notServedReason
               ? `not served: ${sweep.notServedReason}`
-              : 'what Smart Site resolves for every parcel — never sampled'
+              : 'what Smart Site resolves for every parcel, never sampled'
           }
           action={
             <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
@@ -295,7 +295,7 @@ export const ThreeLayerPanel: React.FC<ThreeLayerPanelProps> = ({
             <>
               {' '}
               {railsUnwritten.length} of {railKeys.length} rails have no written signal at all (
-              <span style={mono}>{railsUnwritten.join(', ')}</span>) — unmeasured by the store instrument,
+              <span style={mono}>{railsUnwritten.join(', ')}</span>), unmeasured by the store instrument,
               which is not the same as unwritten.
             </>
           ) : null}
@@ -351,9 +351,9 @@ export const ThreeLayerPanel: React.FC<ThreeLayerPanelProps> = ({
             <tr style={sectionHeader as React.CSSProperties}>
               <th style={{ textAlign: 'left', padding: '4px 8px' }}>County</th>
               <th style={{ textAlign: 'left', padding: '4px 8px' }}>Rail</th>
-              <th style={{ textAlign: 'left', padding: '4px 8px' }}>Written — in the store</th>
-              <th style={{ textAlign: 'left', padding: '4px 8px' }}>Scored — the ledger</th>
-              <th style={{ textAlign: 'left', padding: '4px 8px' }}>Served — Smart Site</th>
+              <th style={{ textAlign: 'left', padding: '4px 8px' }}>Written: in the store</th>
+              <th style={{ textAlign: 'left', padding: '4px 8px' }}>Scored: the ledger</th>
+              <th style={{ textAlign: 'left', padding: '4px 8px' }}>Served: Smart Site</th>
               <th style={{ textAlign: 'left', padding: '4px 8px' }}>Divergence</th>
             </tr>
           </thead>

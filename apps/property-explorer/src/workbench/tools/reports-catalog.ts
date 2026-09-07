@@ -180,7 +180,7 @@ export const REPORTS_CATALOG: readonly ReportDocDef[] = [
     catalogStatus: "ready",
     purchaseSurface: true,
     promise:
-      "Zoning envelope, flood, terrain, utilities, wells, and every open item — one composed PDF, site plan appended.",
+      "Zoning envelope, flood, terrain, utilities, wells, and every open item: one composed PDF, site plan appended.",
     formatLabel: "PDF",
     engine: "feasibility",
     // P32 wave 2 / tier ruling (_decisions/2026-09-03_p32_feasibility_tier_ruling.md):

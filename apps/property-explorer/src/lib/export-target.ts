@@ -58,7 +58,7 @@ export function resolveExportTarget(
   if (!subject) {
     throw new ExportTargetError(
       "no-subject",
-      "No property is selected — open a parcel before exporting.",
+      "No property is selected. Open a parcel before exporting.",
     );
   }
   const sheet = subject.sheet;

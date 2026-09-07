@@ -68,7 +68,7 @@ export function LockedToolPanel({
           title="Sign in to use this tool"
           basis={
             signInLine ??
-            "Browsing the map and reading the inspect card stays free — an account is what carries a tool's work between sessions."
+            "Browsing the map and reading the inspect card stays free. An account is what carries a tool's work between sessions."
           }
           action={
             <GoogleSignInButton size="md" testId={`${testId}-sign-in-link`} />

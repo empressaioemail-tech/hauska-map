@@ -73,7 +73,7 @@ function ConfigBar() {
         <>
           <input
             type="password"
-            placeholder={hasAuthKey(config) ? 'key set — paste to replace' : 'X-Hauska-Key'}
+            placeholder={hasAuthKey(config) ? 'key set, paste to replace' : 'X-Hauska-Key'}
             value={keyInput}
             onChange={(e) => setKeyInput(e.target.value)}
             onKeyDown={(e) => {

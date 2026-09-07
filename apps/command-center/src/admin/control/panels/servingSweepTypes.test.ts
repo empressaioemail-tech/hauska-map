@@ -177,10 +177,10 @@ describe('parseStatewideSweep — proven able to reject', () => {
     const parsed = parseStatewideSweep(mkSweep([county]))
     expect(parsed.ok).toBe(false)
     expect(parsed.problems).toContain(
-      'counties[0].fields.zoning: missing — the frozen record requires every FieldKey',
+      'counties[0].fields.zoning: missing. The frozen record requires every FieldKey',
     )
     expect(parsed.problems).toContain(
-      'counties[0].fields.setbacks: missing — the frozen record requires every FieldKey',
+      'counties[0].fields.setbacks: missing. The frozen record requires every FieldKey',
     )
     // Partial parse: what did survive is still rendered.
     expect(parsed.sweep?.counties[0].fields.geometry.present).toBe(80)
@@ -244,7 +244,7 @@ describe('parseStatewideSweep — proven able to reject', () => {
     delete (county as Partial<CountyServingSweep>).singleFamily
     const parsed = parseStatewideSweep(mkSweep([county]))
     expect(parsed.problems).toContain(
-      'counties[0].singleFamily: missing — the frozen record requires the single-family break-out',
+      'counties[0].singleFamily: missing. The frozen record requires the single-family break-out',
     )
   })
 
@@ -253,7 +253,7 @@ describe('parseStatewideSweep — proven able to reject', () => {
     sweep.countiesSwept = 42
     const parsed = parseStatewideSweep(sweep)
     expect(parsed.problems).toContain(
-      'root.countiesSwept: says 42 but counties[] carries 1 — two numbers that should agree and do not',
+      'root.countiesSwept: says 42 but counties[] carries 1, two numbers that should agree and do not',
     )
   })
 })

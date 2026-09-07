@@ -555,7 +555,7 @@ export function AtomCardView({
         </p>
       ) : !model?.claim && !loading ? (
         <p style={{ margin: "3px 0 0", fontSize: 12.5, color: MUTED }}>
-          No excerpt for this source — open the property brief for full code
+          No excerpt for this source. Open the property brief for full code
           context.
         </p>
       ) : null}
@@ -574,7 +574,7 @@ export function AtomCardView({
           data-testid="atom-card-unavailable"
           style={{ margin: "3px 0 0", fontSize: 11.5, color: MUTED }}
         >
-          Full record unavailable — showing the cited excerpt.
+          Full record unavailable. Showing the cited excerpt.
         </p>
       )}
 
@@ -608,7 +608,7 @@ export function AtomCardView({
         <div data-testid="atom-card-full">
           {model?.calibrated == null && model?.confidence != null && (
             <p style={{ margin: "4px 0 0", fontSize: 11.5, color: MUTED }}>
-              Calibration not yet earned for this atom — the figure above is
+              Calibration not yet earned for this atom. The figure above is
               an asserted basis, not an outcome-calibrated one.
             </p>
           )}
@@ -1078,7 +1078,7 @@ export function AttachmentChips({
         <span
           key={a.id}
           data-testid="chat-attachment-chip"
-          title={a.note ?? `${a.name} — passed to the AI as context`}
+          title={a.note ?? `${a.name}: passed to the AI as context`}
           style={{
             display: "inline-flex",
             alignItems: "center",
@@ -1365,7 +1365,7 @@ export function ChatTool() {
               text:
                 saved.kind === "sign-in"
                   ? "Sign in to save properties."
-                  : "Could not save the property — try again.",
+                  : "Could not save the property. Try again.",
               tone: "amber",
             });
             return;
@@ -1387,7 +1387,7 @@ export function ChatTool() {
               outcome.summarized
                 ? { text: "Saved to property with an AI summary.", tone: "muted" }
                 : {
-                    text: `Thread saved — no summary (${outcome.summaryNote ?? "summary generation failed"}).`,
+                    text: `Thread saved. No summary (${outcome.summaryNote ?? "summary generation failed"}).`,
                     tone: "muted",
                   },
             );
@@ -1571,7 +1571,7 @@ export function ChatTool() {
         {turns.length === 0 && (
           <div data-testid="chat-starter">
             <p style={{ margin: "0 0 6px", fontSize: 12.5, color: MUTED }}>
-              Ask about this property — answers cite the municipal-code atoms
+              Ask about this property. Answers cite the municipal-code atoms
               they rest on. Start with a question or a starter:
             </p>
             <div style={{ display: "flex", flexWrap: "wrap", gap: 5 }}>
@@ -1803,7 +1803,7 @@ export function ChatTool() {
             data-testid="chat-sign-in-first"
             style={{ margin: 0, fontSize: 12.5, color: MUTED }}
           >
-            Sign in free to chat — {ent.freeMessagesLimit} free messages on every
+            Sign in free to chat: {ent.freeMessagesLimit} free messages on every
             property.
           </p>
           <div style={{ marginTop: 8 }}>

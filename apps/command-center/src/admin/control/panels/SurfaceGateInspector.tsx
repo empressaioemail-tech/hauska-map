@@ -112,7 +112,7 @@ export const SurfaceGateInspector: React.FC = () => {
       {loading ? (
         <Loading />
       ) : err ? (
-        <ErrorState msg={`${err} — is the Empressa MCP admin surface reachable?`} />
+        <ErrorState msg={`${err}. Is the Empressa MCP admin surface reachable?`} />
       ) : !data ? (
         <Empty>No introspection data.</Empty>
       ) : (

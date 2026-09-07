@@ -84,7 +84,7 @@ import {
 } from "./reports-catalog";
 
 export const REPORTS_LOCKED_VALUE_LINE =
-  "Professional reports on this property — the cited site-plan export (layered DXF/IFC + PDF sheet with setbacks, contours, and provenance), the flood & drainage study drawn on the map with its PDF sheet, and every report that ships next.";
+  "Professional reports on this property: the cited site-plan export (layered DXF/IFC + PDF sheet with setbacks, contours, and provenance), the flood & drainage study drawn on the map with its PDF sheet, and every report that ships next.";
 /** SITE PLAN opens on Studio/Team OR an active Property Unlock (P-104,
  *  extended by P-119 2026-09-05 — the operator's authoritative package
  *  table put site-plan CAD in the Property Unlock row); never by Solo alone.
@@ -98,11 +98,11 @@ export const SITE_PLAN_PAYWALL_MESSAGE =
 export const TERRAIN_PAYWALL_MESSAGE =
   "Multi-format terrain export (GLB, IFC, DXF) is included with Studio, Team, or an active Property Unlock on this parcel.";
 export const DOSSIER_PAYWALL_MESSAGE =
-  "The property X-ray PDF — verdict, cited brief facts, your notes and AI research summary, with the site-plan sheets appended.";
+  "The property X-ray PDF: verdict, cited brief facts, your notes and AI research summary, with the site-plan sheets appended.";
 /** FEASIBILITY STUDY — same P-104/P-119 rule as site plan and terrain
  *  (P32 tier ruling, extended by P-119). */
 export const FEASIBILITY_PAYWALL_MESSAGE =
-  "The composed Feasibility Study PDF — zoning envelope, flood, terrain, utilities, wells, and open items, with the site plan appended — is included with Studio, Team, or an active Property Unlock on this parcel.";
+  "The composed Feasibility Study PDF (zoning envelope, flood, terrain, utilities, wells, and open items, with the site plan appended) is included with Studio, Team, or an active Property Unlock on this parcel.";
 
 const MUTED = PE.muted2;
 const TEXT = PE.text;
@@ -1126,7 +1126,7 @@ function SelectedEngine({
     if (terrainProLocked) {
       return (
         <LockedToolPanel
-          valueLine="Feasibility Study — the composed zoning envelope, flood, terrain, utilities, wells, and open-items PDF, with the site plan appended."
+          valueLine="Feasibility Study: the composed zoning envelope, flood, terrain, utilities, wells, and open-items PDF, with the site plan appended."
           proOnly
           proOnlyNote={FEASIBILITY_PAYWALL_MESSAGE}
           testId="feasibility-studio-lock"
@@ -1174,7 +1174,7 @@ function SelectedEngine({
     if (terrainProLocked) {
       return (
         <LockedToolPanel
-          valueLine="Site plan export — the drawn sheet and the layered DXF/IFC a drafter can open."
+          valueLine="Site plan export: the drawn sheet and the layered DXF/IFC a drafter can open."
           proOnly
           proOnlyNote={SITE_PLAN_PAYWALL_MESSAGE}
           testId="site-plan-studio-lock"
@@ -1210,7 +1210,7 @@ function SelectedEngine({
     if (terrainProLocked) {
       return (
         <LockedToolPanel
-          valueLine="Terrain export — the parcel's real terrain as GLB, IFC, or DXF for modeling tools."
+          valueLine="Terrain export: the parcel's real terrain as GLB, IFC, or DXF for modeling tools."
           proOnly
           proOnlyNote={TERRAIN_PAYWALL_MESSAGE}
           testId="terrain-pro-lock"

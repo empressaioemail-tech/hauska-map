@@ -325,7 +325,7 @@ function LiveMapTileInner() {
     chips.push({ key: 'loading', sev: 'info', text: 'Loading live layers…' })
   }
   if (parcels.fetch.status === 'ok' && parcels.fetch.response.truncated) {
-    chips.push({ key: 'truncated', sev: 'warn', text: 'Parcel set truncated — zoom in for full coverage' })
+    chips.push({ key: 'truncated', sev: 'warn', text: 'Parcel set truncated, zoom in for full coverage' })
   }
   if (parcels.fetch.status === 'no-coverage') {
     chips.push({ key: 'parcels-nc', sev: 'warn', text: 'No parcel coverage for this area' })
@@ -334,10 +334,10 @@ function LiveMapTileInner() {
     chips.push({ key: 'fema-nc', sev: 'warn', text: 'No FEMA flood coverage for this area' })
   }
   if (parcels.fetch.status === 'error') {
-    chips.push({ key: 'parcels-err', sev: 'error', text: `Parcels failed — ${parcels.fetch.message}` })
+    chips.push({ key: 'parcels-err', sev: 'error', text: `Parcels failed: ${parcels.fetch.message}` })
   }
   if (fema.fetch.status === 'error') {
-    chips.push({ key: 'fema-err', sev: 'error', text: `FEMA failed — ${fema.fetch.message}` })
+    chips.push({ key: 'fema-err', sev: 'error', text: `FEMA failed: ${fema.fetch.message}` })
   }
   const attribution =
     parcels.fetch.status === 'ok' && parcels.fetch.response.provider
@@ -462,7 +462,7 @@ function LiveMapTileInner() {
                   data-testid={`overlay-chip-${r.id}`}
                   style={chipStyle('warn')}
                 >
-                  {r.label} — empty (nothing to draw)
+                  {r.label}: empty (nothing to draw)
                 </span>
               ) : (
                 <button

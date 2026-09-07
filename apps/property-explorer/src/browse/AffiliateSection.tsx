@@ -88,7 +88,7 @@ export function AffiliateSection() {
               <StatusChip tone="provisional">Not yet open</StatusChip>
             </span>
           }
-          note="Opt-in by application — every subscriber does not receive a link automatically. A referral of your own account is not payable."
+          note="Opt-in by application: every subscriber does not receive a link automatically. A referral of your own account is not payable."
           last
         />
       </Panel>

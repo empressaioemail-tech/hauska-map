@@ -50,7 +50,7 @@ export function pinAccent(status: DossierStatus | null): string {
 
 /** Legend line — surfaced as the layer row's tooltip (LayerStateBadge note). */
 export const SAVED_PINS_LEGEND =
-  "Saved-property pins — gold: researching · green: offer · gray: passed · blue: no status";
+  "Saved-property pins. Gold: researching · green: offer · gray: passed · blue: no status";
 
 // ---------------------------------------------------------------------------
 // Pins from the saved list.
@@ -138,7 +138,7 @@ export function savedPinElement(
 ): PinElementLike {
   const el = doc.createElement("button");
   el.innerHTML = pinSvgMarkup(pinAccent(pin.status));
-  el.title = `${pin.title} — open saved property`;
+  el.title = `${pin.title}: open saved property`;
   el.setAttribute("type", "button");
   el.setAttribute("aria-label", `Open saved property ${pin.title}`);
   el.setAttribute("data-testid", "saved-property-pin");

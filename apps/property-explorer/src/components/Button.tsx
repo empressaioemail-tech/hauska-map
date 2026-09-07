@@ -9,7 +9,15 @@ import { PE, MOTION } from "../styles/pe-chrome";
 // glyph inside a button, the find bar's focus ring, map selection geometry,
 // and inline text actions — never as the ground of a control.
 //
-// The strong action is now a quiet one: a hairline box at 3% white with a t1
+// SOLID FILL, NOT TRANSLUCENT. Operator ruling 2026-09-07
+// (doc_repo _decisions/2026-09-07_button_fill_translucent_to_solid.md):
+// the translucent/glass wash read as inconsistent against surfaces that
+// already used a true dark fill. Primary and subtle now sit on the Stone
+// "raised" plane, solid, instead of a white-alpha wash. This reverses only
+// the opacity choice, not the no-blue-fill rule above: the fill hue still
+// comes from the neutral/ink ramp, never --ss-blue.
+//
+// The strong action is now a quiet one: a solid raised box with a t1
 // label and a BLUE GLYPH doing the pointing. It reads as the primary because
 // it is the only thing on the surface wearing a glyph and a full-strength
 // label, not because it shouts.
@@ -18,10 +26,10 @@ import { PE, MOTION } from "../styles/pe-chrome";
 //   default  32 tall, 14 padding-x, label 12 / 600, radius 6
 //   dense    26 tall, 10 padding-x, label 11.5 / 600, radius 6
 //
-//   primary   — 3% white fill, line-28 edge, t1 label, blue glyph slot
+//   primary   — solid raised fill, line-28 edge, t1 label, blue glyph slot
 //   secondary — transparent, line-14 edge, t3 label
 //   ghost     — transparent, no edge, blue label (inline actions: Retry, links)
-//   subtle    — 5% white fill, no edge, t2 label (segment rows, toolbars)
+//   subtle    — solid raised fill, no edge, t2 label (segment rows, toolbars)
 //
 // Gold is the brand mark and the rail's unread dot, and is never a button.
 // Press, hover, focus and the disabled .45 opacity live on `.pe-btn` in
@@ -46,7 +54,7 @@ interface ButtonProps extends ButtonHTMLAttributes<HTMLButtonElement> {
 const VARIANT_STYLE: Record<ButtonVariant, CSSProperties> = {
   primary: {
     color: PE.t1,
-    background: "rgba(255,255,255,.03)",
+    background: PE.raised,
     border: `1px solid ${PE.line28}`,
   },
   secondary: {
@@ -61,7 +69,7 @@ const VARIANT_STYLE: Record<ButtonVariant, CSSProperties> = {
   },
   subtle: {
     color: PE.t2,
-    background: "rgba(255,255,255,.05)",
+    background: PE.raised,
     border: "1px solid transparent",
   },
 };

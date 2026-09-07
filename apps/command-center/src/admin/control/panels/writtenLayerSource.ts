@@ -95,7 +95,7 @@ export async function fetchWrittenLayer(config: SpineConfig): Promise<WrittenSou
       locator,
       httpStatus: res.status,
       notServedReason:
-        'the endpoint answered but reported no counties — an empty coverage set is not an empty store',
+        'the endpoint answered but reported no counties. An empty coverage set is not an empty store',
       readAt,
     }
   }

@@ -38,7 +38,7 @@ import type {
 } from "./records-request-types";
 
 export const RECORDS_PAYWALL_MESSAGE =
-  "Records request — recorded documents from the county clerk's index, read and cited.";
+  "Records request: recorded documents from the county clerk's index, read and cited.";
 
 const APP_INK = PE.ink;
 const TEXT = PE.textStrong;
@@ -419,7 +419,7 @@ export function RecordsRequestSection({
             color: MUTED,
           }}
         >
-          Scaffold preview — structure only until API wires
+          Scaffold preview. Structure only until API wires
         </div>
       ) : null}
 
@@ -434,10 +434,10 @@ export function RecordsRequestSection({
           verdicts={verdicts}
           pendingMessage={
             resultsPending
-              ? "Search in progress — instrument rows will appear when the clerk run completes."
+              ? "Search in progress. Instrument rows will appear when the clerk run completes."
               : resultsEmptyComplete
                 ? (merged.run?.instrumentCount ?? 0) > 0
-                  ? "Run finished — refresh to load instrument rows."
+                  ? "Run finished. Refresh to load instrument rows."
                   : "Clerk index search finished with no index hits for the owner and legal queries run."
                 : null
           }

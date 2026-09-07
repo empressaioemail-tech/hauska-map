@@ -102,7 +102,7 @@ describe('fetchWrittenLayer', () => {
     mockFetch.mockResolvedValue({ ok: true, status: 200, json: { generatedAt: 'x', centralTx: { counties: [] } } })
     const state = await fetchWrittenLayer(CONFIG)
     expect(state.tally).toBeNull()
-    expect(state.notServedReason).toMatch(/an empty coverage set is not an empty store/)
+    expect(state.notServedReason).toMatch(/An empty coverage set is not an empty store/)
   })
 
   it('says so when no retrieval base is configured instead of probing nothing', async () => {

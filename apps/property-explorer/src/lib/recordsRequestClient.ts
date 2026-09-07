@@ -21,7 +21,7 @@ import type {
 const RECORDS_PATH = "api/property-explorer/v1/records-request";
 
 export const RECORDS_NOT_WIRED_NOTICE =
-  "Records request API is not deployed yet — job routes are not live on this surface.";
+  "Records request API is not deployed yet. Job routes are not live on this surface.";
 
 export const RECORDS_NOT_REQUESTED_NOTICE =
   "No records request has been started for this parcel.";
@@ -374,7 +374,7 @@ export function instrumentsFromIndexHits(
       readDepth: documentUrl ? "header-only" : "not-acquired",
       acquisitionNote: documentUrl
         ? "Captured instrument page"
-        : "Clerk index hit — image not acquired yet",
+        : "Clerk index hit: image not acquired yet",
       documentUrl,
     });
   }

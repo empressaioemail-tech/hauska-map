@@ -38,14 +38,14 @@ export const RAIL_FIELD_PAIRS: readonly RailFieldPair[] = Object.freeze([
   {
     railKey: 'zoning',
     field: 'setbacks',
-    basis: 'setbacks are derived from the zoning rail — the rail is labelled "Zoning + setback"',
+    basis: 'setbacks are derived from the zoning rail: the rail is labelled "Zoning + setback"',
   },
   { railKey: 'envelope', field: 'envelope', basis: 'same subject: buildable envelope' },
   { railKey: 'flood', field: 'flood', basis: 'same subject: flood hazard' },
   {
     railKey: 'roads',
     field: 'frontage',
-    basis: 'frontage is derived from the roads rail — the rail is labelled "Roads / frontage"',
+    basis: 'frontage is derived from the roads rail: the rail is labelled "Roads / frontage"',
   },
 ])
 

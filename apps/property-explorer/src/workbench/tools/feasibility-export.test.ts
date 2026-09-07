@@ -155,7 +155,7 @@ describe("requestFeasibilityExport — BFF fold-in contract", () => {
         sitePlanAppended: false,
         sitePlanUnavailableReason: "parcel geometry could not be resolved for this parcel",
       }),
-    ).toMatch(/Site-plan sheet was not appended — parcel geometry/);
+    ).toMatch(/Site-plan sheet was not appended: parcel geometry/);
   });
 
   it("a network error never crashes the caller — mapped to an honest client-side notice", async () => {

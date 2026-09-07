@@ -1110,7 +1110,7 @@ function cityLimitsFromInspectWire(
   if (status === "incorporated") {
     const cityName = str(fact.cityName);
     const display = cityName
-      ? `Incorporated — ${cityName}${etjSuffix}`
+      ? `Incorporated: ${cityName}${etjSuffix}`
       : `Incorporated${etjSuffix}`;
     return {
       state: "present",
@@ -1396,7 +1396,7 @@ function overlayDistrictsFromInspectWire(
   const display =
     districts.length === 1
       ? `${districts[0].city} overlay district`
-      : `${cities.join(", ")} — ${districts.length} overlay districts`;
+      : `${cities.join(", ")}: ${districts.length} overlay districts`;
   return {
     state: "present",
     value: { districts, display },
@@ -1467,7 +1467,7 @@ function agValuationEntryDisplay(
   const acresText = entry.acres !== null ? `${entry.acres} ac` : null;
   const bits = [label, acresText].filter((b): b is string => !!b);
   const base = bits.join(" · ");
-  return entry.agFlag ? `Ag — ${base}` : base;
+  return entry.agFlag ? `Ag: ${base}` : base;
 }
 
 /**
@@ -1864,7 +1864,7 @@ function envelopeValue(
       reason:
         str(env.emptyReason) ??
         str(env.disclosure) ??
-        "setbacks consume the lot — no buildable area remains",
+        "setbacks consume the lot, no buildable area remains",
       setbacksUsed,
       provenance: prov,
     };
@@ -2283,7 +2283,7 @@ export class PeFactSheetResolver implements FactSheetResolver {
       throw new FactSheetResolveError(
         "unresolved",
         facetsResult.kind === "transient"
-          ? `Parcel facts temporarily unreachable for ${parcelNodeId} — retry.`
+          ? `Parcel facts temporarily unreachable for ${parcelNodeId}. Retry.`
           : `Could not load parcel ${parcelNodeId}.`,
         facetsResult.kind === "transient",
       );

@@ -89,7 +89,7 @@ export function RecordsAcknowledgementPanel({
             Searching the {county} clerk index
           </div>
           <div style={{ fontSize: 14.5, lineHeight: 1.6, color: MUTED_2 }}>
-            Runs take 20 minutes to a few hours. You can leave this parcel — the
+            Runs take 20 minutes to a few hours. You can leave this parcel. The
             result lands in its property records and we email you at{" "}
             <span style={{ color: PE.t3 }}>{contact}</span> when the run
             finishes.

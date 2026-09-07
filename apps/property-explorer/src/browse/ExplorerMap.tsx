@@ -1165,7 +1165,7 @@ function ExplorerMapSurface({
           setLookupError(
             err instanceof Error
               ? honestSearchMissReason(err.message, q)
-              : "Lookup failed — try again.",
+              : "Lookup failed, try again.",
           );
         }
         return false;
@@ -1746,7 +1746,7 @@ function ExplorerMapSurface({
   ) {
     const dz = hydrography.data.degraded ? " · degraded" : "";
     sourceLines.push(
-      `${hydrographyProvenanceLabel(hydrography.data)} — ${
+      `${hydrographyProvenanceLabel(hydrography.data)} with ${
         hydrography.data.featureCount ?? 0
       } streams${dz}`,
     );
@@ -1762,7 +1762,7 @@ function ExplorerMapSurface({
     !opportunityZoneHonestReason(opportunityZone.fetch)
   ) {
     sourceLines.push(
-      `${opportunityZoneProvenanceLabel(opportunityZone.data)} — ${
+      `${opportunityZoneProvenanceLabel(opportunityZone.data)} with ${
         opportunityZone.data.featureCount ?? 0
       } tracts`,
     );
@@ -1775,7 +1775,7 @@ function ExplorerMapSurface({
   if (parcels.fetch.status === "error") {
     layerStates["parcel-polygon" as LayerKey] = {
       tone: "error",
-      note: `Parcels failed — ${parcels.fetch.message}`,
+      note: `Parcels failed: ${parcels.fetch.message}`,
     };
   } else if (parcels.fetch.status === "no-coverage") {
     layerStates["parcel-polygon" as LayerKey] = {
@@ -1794,7 +1794,7 @@ function ExplorerMapSurface({
     if (topo.fetch.status === "error") {
       layerStates[TOPO_TOGGLE_KEY] = {
         tone: "warn",
-        note: `Contours degraded — ${topo.fetch.message}`,
+        note: `Contours degraded: ${topo.fetch.message}`,
       };
     } else if (topo.fetch.status === "no-coverage") {
       layerStates[TOPO_TOGGLE_KEY] = { tone: "warn", note: "No contour coverage here" };
@@ -1809,7 +1809,7 @@ function ExplorerMapSurface({
     if (hydrography.fetch.status === "error") {
       layerStates[HYDROGRAPHY_TOGGLE_KEY] = {
         tone: "warn",
-        note: `Hydrography degraded — ${hydrography.fetch.message}`,
+        note: `Hydrography degraded: ${hydrography.fetch.message}`,
       };
     } else if (hydrography.fetch.status === "no-coverage") {
       layerStates[HYDROGRAPHY_TOGGLE_KEY] = {
@@ -1827,10 +1827,10 @@ function ExplorerMapSurface({
       const emptyReason = hydrographyHonestReason(hydrography.fetch);
       // Provenance rides the row tooltip: county source + vintage.
       layerStates[HYDROGRAPHY_TOGGLE_KEY] = emptyReason
-        ? { tone: "info", note: `Hydrography — none: ${emptyReason}` }
+        ? { tone: "info", note: `Hydrography: none (${emptyReason})` }
         : {
             tone: hydrography.data.degraded ? "warn" : "ok",
-            note: `${hydrographyProvenanceLabel(hydrography.data)} — ${
+            note: `${hydrographyProvenanceLabel(hydrography.data)} with ${
               hydrography.data.featureCount ?? 0
             } streams${hydrography.data.degraded ? " · degraded" : ""}`,
           };
@@ -1840,7 +1840,7 @@ function ExplorerMapSurface({
     if (opportunityZone.fetch.status === "error") {
       layerStates[OPPORTUNITY_ZONE_TOGGLE_KEY] = {
         tone: "warn",
-        note: `Opportunity Zone degraded — ${opportunityZone.fetch.message}`,
+        note: `Opportunity Zone degraded: ${opportunityZone.fetch.message}`,
       };
     } else if (opportunityZone.fetch.status === "no-coverage") {
       layerStates[OPPORTUNITY_ZONE_TOGGLE_KEY] = {
@@ -1850,10 +1850,10 @@ function ExplorerMapSurface({
     } else if (opportunityZone.fetch.status === "ok" && opportunityZone.data) {
       const emptyReason = opportunityZoneHonestReason(opportunityZone.fetch);
       layerStates[OPPORTUNITY_ZONE_TOGGLE_KEY] = emptyReason
-        ? { tone: "info", note: `Opportunity Zone — none: ${emptyReason}` }
+        ? { tone: "info", note: `Opportunity Zone: none (${emptyReason})` }
         : {
             tone: "ok",
-            note: `${opportunityZoneProvenanceLabel(opportunityZone.data)} — ${
+            note: `${opportunityZoneProvenanceLabel(opportunityZone.data)} with ${
               opportunityZone.data.featureCount ?? 0
             } tracts`,
           };

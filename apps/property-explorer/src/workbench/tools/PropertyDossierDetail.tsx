@@ -331,7 +331,7 @@ export function PropertyDossierDetail({
                 style={{ margin: "3px 0 0", fontSize: 11.5, color: MUTED }}
               >
                 {chatSummary.disclaimer ??
-                  "AI-generated summary of a research chat — verify against the cited sources before relying on it."}
+                  "AI-generated summary of a research chat. Verify against the cited sources before relying on it."}
               </p>
             </div>
           )}

@@ -188,7 +188,7 @@ export const LayerRegistryView: React.FC = () => {
             }}
           >
             <span style={{ fontSize: 11, color: 'var(--color-text-warning)', fontFamily: 'var(--font-ui)' }}>
-              Backend catalog unavailable — using local LAYER_REGISTRY only. Set cortexApiUrl to enable backend layer
+              Backend catalog unavailable. Using local LAYER_REGISTRY only. Set cortexApiUrl to enable backend layer
               catalog.
             </span>
           </div>

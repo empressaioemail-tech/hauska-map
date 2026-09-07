@@ -265,7 +265,7 @@ export function PropertiesList({
 
       {items.length === 0 ? (
         <p data-testid="properties-empty" style={{ margin: 0, fontSize: 12.5, color: MUTED }}>
-          No saved properties yet. Click a parcel on the map and save it — your
+          No saved properties yet. Click a parcel on the map and save it. Your
           workspace lives on the server, not this browser.
         </p>
       ) : visibleItems.length === 0 ? (
@@ -330,7 +330,7 @@ export function PropertiesList({
                 type="button"
                 data-testid="properties-reopen"
                 onClick={() => onOpen(row.parcelNodeId)}
-                title={`Open ${title} — dossier + map`}
+                title={`Open ${title}: dossier + map`}
                 style={{
                   flex: 1,
                   // LEFT JUSTIFIED, and textAlign alone could not do it.
@@ -609,7 +609,7 @@ export function PropertiesTool() {
       const drawings = sanitizeDrawings(host.getMapDrawings?.() ?? null);
       if (!drawings) {
         setDossierNotice(
-          "Nothing drawn on the map yet — use the map tools (draw / marker / measure) first.",
+          "Nothing drawn on the map yet. Use the map tools (draw / marker / measure) first.",
         );
         return;
       }
@@ -623,7 +623,7 @@ export function PropertiesTool() {
       } else if (outcome.kind === "not-saved") {
         setDossierNotice("This property is no longer saved.");
       } else {
-        setDossierNotice("Could not save drawings — try again.");
+        setDossierNotice("Could not save drawings. Try again.");
         applyMutationOutcome(outcome);
       }
     },
@@ -653,9 +653,9 @@ export function PropertiesTool() {
       }
       const outcome = await updatePropertyDossier(parcelNodeId, { status });
       if (outcome.kind === "not-saved") {
-        setDossierNotice("This property is no longer saved — status not stored.");
+        setDossierNotice("This property is no longer saved. Status not stored.");
       } else if (outcome.kind !== "ok") {
-        setDossierNotice("Status could not be saved — try again.");
+        setDossierNotice("Status could not be saved. Try again.");
         applyMutationOutcome(outcome);
       } else {
         setDossierNotice(null);
@@ -670,9 +670,9 @@ export function PropertiesTool() {
         notes: text.trim() ? text : null,
       });
       if (outcome.kind === "not-saved") {
-        setDossierNotice("This property is no longer saved — notes not stored.");
+        setDossierNotice("This property is no longer saved. Notes not stored.");
       } else if (outcome.kind !== "ok") {
-        setDossierNotice("Notes could not be saved — they are not stored.");
+        setDossierNotice("Notes could not be saved. They are not stored.");
       }
       // Quiet on ok — autosave should not chatter.
     },

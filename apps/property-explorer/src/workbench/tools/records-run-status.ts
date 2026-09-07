@@ -18,7 +18,7 @@ export function liveRecordsRunStatus(run: RecordsRunView): RecordsRunStatusCopy 
       return {
         tone: "idle",
         title: "Queued",
-        body: "Your clerk index search is queued. The portal has not been searched yet — results will appear here when the run finishes.",
+        body: "Your clerk index search is queued. The portal has not been searched yet. Results will appear here when the run finishes.",
       };
     case "running":
       return {
@@ -29,7 +29,7 @@ export function liveRecordsRunStatus(run: RecordsRunView): RecordsRunStatusCopy 
     case "paused-fees":
       return {
         tone: "warn",
-        title: "Paused — county fees need approval",
+        title: "Paused: county fees need approval",
         body:
           run.errorMessage ??
           "The run paused at a county per-page purchase gate. Approve fees to continue, or the run will finish with header-only rows.",
@@ -42,7 +42,7 @@ export function liveRecordsRunStatus(run: RecordsRunView): RecordsRunStatusCopy 
           : "Run failed",
         body:
           run.errorMessage ??
-          "The clerk portal search did not complete. Nothing was invented — try again or contact support.",
+          "The clerk portal search did not complete. Nothing was invented. Try again or contact support.",
       };
     case "complete":
       return {

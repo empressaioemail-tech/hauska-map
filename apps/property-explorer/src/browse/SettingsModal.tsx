@@ -977,7 +977,7 @@ export function SettingsModal({
                 paddingTop: 14,
               }}
             >
-              Every value here names where it was read from — a field with no
+              Every value here names where it was read from: a field with no
               traced source says Not read, and nothing in this popup is a
               control that does nothing.
             </div>
@@ -1146,7 +1146,7 @@ function TeamTab({
         </div>
         <div style={{ display: "flex", flexWrap: "wrap", gap: 14, fontSize: 12.5, color: PE.t5 }}>
           <span>Accepted {counts.accepted}</span>
-          <span>Invited {counts.invited} — an invitation holds a seat</span>
+          <span>Invited {counts.invited}, an invitation holds a seat</span>
           <span>
             Purchased {counts.purchased === null ? "Not read" : counts.purchased} at checkout
           </span>
@@ -1211,7 +1211,7 @@ function TeamTab({
                   </div>
                   <span style={{ fontSize: 12.5, color: PE.t5 }}>
                     {invited
-                      ? `Invited${member.at ? ` ${member.at.slice(0, 10)}` : ""} — holding a seat`
+                      ? `Invited${member.at ? ` ${member.at.slice(0, 10)}` : ""}, holding a seat`
                       : `Joined${member.at ? ` ${member.at.slice(0, 10)}` : ""}`}
                   </span>
                 </div>
@@ -1232,7 +1232,7 @@ function TeamTab({
                       {isSelf
                         ? "You cannot remove yourself"
                         : last
-                          ? "Last owner — cannot be removed or demoted"
+                          ? "Last owner, cannot be removed or demoted"
                           : ""}
                     </span>
                   )}
@@ -1308,7 +1308,7 @@ function TeamTab({
       ) : (
         <Aside>
           You are a member on this account. Billing, invitations and roles
-          belong to the owners listed above — ask one of them. Leaving the
+          belong to the owners listed above, ask one of them. Leaving the
           account is not built; an owner removes you.
         </Aside>
       )}

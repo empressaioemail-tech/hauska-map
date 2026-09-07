@@ -84,9 +84,9 @@ export const SCAFFOLD_ACK_GIS_HITS = [
 /** Artboard B — numbered search scope lines. */
 export const SCAFFOLD_SEARCH_SCOPE = {
   steps: [
-    "Subdivision, lot and block — Pine Grove Add, Lot 7, Block C",
+    "Subdivision, lot and block: Pine Grove Add, Lot 7, Block C",
     "Legal description as printed on the appraisal roll",
-    "Parties on the appraisal roll — Alvarez, R & M; Pine Grove Holdings LLC",
+    "Parties on the appraisal roll: Alvarez, R & M; Pine Grove Holdings LLC",
     "Cross-references found on any instrument the first three return",
   ],
   footer:

@@ -83,7 +83,7 @@ export function SharedDossierDock({ share }: { share: ShareFunnelBinding }) {
         </strong>
         <p style={{ margin: "8px 0 0", color: MUTED, fontSize: 12.5 }}>
           Ask the person who shared it with you for a fresh link. The map stays
-          open — browse any property meanwhile.
+          open. Browse any property meanwhile.
         </p>
       </div>
     );

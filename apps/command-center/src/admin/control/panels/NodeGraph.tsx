@@ -224,7 +224,7 @@ const EdgeRow: React.FC<{
         <span style={{ color: 'var(--color-text-primary)', fontWeight: 700 }}>{edge.type}</span>
         {' · '}
         <span style={{ color: 'var(--color-text-primary)' }}>{target}</span>
-        {edge.label ? <span style={{ color: 'var(--color-text-tertiary)' }}> — {edge.label}</span> : null}
+        {edge.label ? <span style={{ color: 'var(--color-text-tertiary)' }}> · {edge.label}</span> : null}
       </div>
     </Card>
   )
@@ -356,7 +356,7 @@ const NodeInspect: React.FC<{
             ))}
           </div>
           <span style={{ ...typeCaption }}>
-            GIS-approx edge geometry — not a survey. Property-line-tags optional (Amendment 2).
+            GIS-approx edge geometry, not a survey. Property-line-tags optional (Amendment 2).
           </span>
         </div>
       )}
@@ -395,7 +395,7 @@ const NodeInspect: React.FC<{
         {detail.edges_out.length === 0 && detail.edges_in.length === 0 ? (
           <Empty>
             {n.node_type === 'road'
-              ? 'No reverse index on road — walk faces-road from a boundary-edge card.'
+              ? 'No reverse index on road. Walk faces-road from a boundary-edge card.'
               : 'No edges.'}
           </Empty>
         ) : (
@@ -755,7 +755,7 @@ const NodeBrowser: React.FC<{
     <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }} data-testid="node-browser">
       {/* id-entry affordance — the browse the spine CAN honor */}
       <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-        <span style={sectionHeader}>Browse the substrate — inspect by id</span>
+        <span style={sectionHeader}>Browse the substrate: inspect by id</span>
         <div style={{ display: 'flex', gap: 6, alignItems: 'center' }}>
           <input
             style={inputStyle}
@@ -781,7 +781,7 @@ const NodeBrowser: React.FC<{
         </div>
         <span style={{ ...typeCaption }} data-testid="node-browse-honest-empty">
           {nodeListSupported === false
-            ? 'Spine serves no parcel-list endpoint (GET /nodes county list 404 — not live yet on this deploy) — a filterable node list is honest-empty here. Browse by id, by county, or from a named-road sample below.'
+            ? 'Spine serves no parcel-list endpoint (GET /nodes county list 404, not live yet on this deploy). A filterable node list is honest-empty here. Browse by id, by county, or from a named-road sample below.'
             : 'Click a county to open its node list (parcel + road, searchable by propId / address / APN / road name), or inspect directly by id.'}
         </span>
       </div>
@@ -813,7 +813,7 @@ const NodeBrowser: React.FC<{
                 onClick={() => onOpenCounty(c)}
                 title={
                   nodeListSupported === false
-                    ? `Seed ${c.county} (${c.fips}) into the id box — append a propId to inspect`
+                    ? `Seed ${c.county} (${c.fips}) into the id box, append a propId to inspect`
                     : `Open the ${c.county} (${c.fips}) node list`
                 }
                 testId={`county-row-${c.fips}`}
@@ -957,7 +957,7 @@ export const NodeGraph: React.FC = () => {
         if (!cancelled) {
           setTally(json)
           setTallyError(
-            `Live tally unavailable (${live.error || `HTTP ${live.status}`}) — showing committed artifact (STALE).`,
+            `Live tally unavailable (${live.error || `HTTP ${live.status}`}). Showing committed artifact (STALE).`,
           )
           setTallySource('artifact')
         }
@@ -1036,7 +1036,7 @@ export const NodeGraph: React.FC = () => {
         setDegraded(
           `Node resolved, but its atom-chain ${
             chainResult?.error || 'did not load'
-          } — slot pills below are degraded (partial state, not a hard failure). Re-run to retry.`,
+          }. Slot pills below are degraded (partial state, not a hard failure). Re-run to retry.`,
         )
       }
     } else {
@@ -1297,7 +1297,7 @@ export const NodeGraph: React.FC = () => {
                       Inspect
                     </Button>{' '}
                     <code>{r.roadNodeId}</code>
-                    {r.displayName ? ` — ${r.displayName}` : ''}
+                    {r.displayName ? ` · ${r.displayName}` : ''}
                   </li>
                 ))}
               </ul>
@@ -1306,7 +1306,7 @@ export const NodeGraph: React.FC = () => {
         )}
 
         <CollapsibleSection
-          title="Central-TX tally (G1 / WDLL 9 — live re-SELECT)"
+          title="Central-TX tally (G1 / WDLL 9, live re-SELECT)"
           defaultOpen={false}
           testId="central-tx-tally"
         >
@@ -1346,7 +1346,7 @@ export const NodeGraph: React.FC = () => {
                     <th style={{ padding: '4px 6px' }}>Refs</th>
                     <th
                       style={{ padding: '4px 6px', cursor: 'help', textDecoration: 'underline dotted' }}
-                      title="City-zoned share of county parcels. Only cities zone in TX; unincorporated county land is legitimately unzoned — a low % is honest coverage, not missing data."
+                      title="City-zoned share of county parcels. Only cities zone in TX; unincorporated county land is legitimately unzoned. A low % is honest coverage, not missing data."
                     >
                       Zoning breadth %
                     </th>

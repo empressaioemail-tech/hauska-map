@@ -76,7 +76,7 @@ export const WRITTEN_SIGNALS: readonly WrittenSignalDef[] = Object.freeze([
     railKey: 'geometry',
     column: 'nodes',
     label: 'parcel nodes',
-    basis: 'a parcel node exists in the store for this county — the geometry rail scores parcel geometry',
+    basis: 'a parcel node exists in the store for this county, the geometry rail scores parcel geometry',
   },
   {
     railKey: 'zoning',
@@ -396,7 +396,7 @@ export function classifyDivergences(
     out.push({
       kind: 'written-present-scored-absent',
       severity: 'danger',
-      detail: `the store was observed carrying ${counts} at ${writtenStamp}; the ledger computed at ${scoredStamp} reads ${scored.displayState}${scored.coveragePct != null ? ` at ${scored.coveragePct.toFixed(2)}%` : ''}. Counts and percentages are different units and are not differenced — this is presence against an asserted absence.`,
+      detail: `the store was observed carrying ${counts} at ${writtenStamp}; the ledger computed at ${scoredStamp} reads ${scored.displayState}${scored.coveragePct != null ? ` at ${scored.coveragePct.toFixed(2)}%` : ''}. Counts and percentages are different units and are not differenced. This is presence against an asserted absence.`,
     })
   }
 
@@ -446,7 +446,7 @@ export function classifyDivergences(
         out.push({
           kind: 'scored-served-gap',
           severity: 'warn',
-          detail: `scored ${scored.coveragePct.toFixed(1)}% at ${scoredStamp} against served ${f.rate.pct.toFixed(1)}% (${f.rate.numerator.toLocaleString()}/${f.rate.denominator.toLocaleString()}) for ${f.field} at ${servedStamp} — ${gap > 0 ? '+' : ''}${gap.toFixed(1)} points, both percentages of parcels`,
+          detail: `scored ${scored.coveragePct.toFixed(1)}% at ${scoredStamp} against served ${f.rate.pct.toFixed(1)}% (${f.rate.numerator.toLocaleString()}/${f.rate.denominator.toLocaleString()}) for ${f.field} at ${servedStamp}, ${gap > 0 ? '+' : ''}${gap.toFixed(1)} points, both percentages of parcels`,
         })
       }
     }

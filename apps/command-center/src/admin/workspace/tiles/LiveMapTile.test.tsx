@@ -279,7 +279,7 @@ describe('viewport loader', () => {
     act(() => latestMapProps().onViewportChange(SAN_MARCOS_VIEWPORT))
     await waitFor(() =>
       expect(
-        screen.getByText('Parcel set truncated — zoom in for full coverage'),
+        screen.getByText('Parcel set truncated, zoom in for full coverage'),
       ).toBeInTheDocument(),
     )
   })
@@ -303,7 +303,7 @@ describe('error / no-coverage states', () => {
 
     await waitFor(() => {
       expect(screen.getByText('No parcel coverage for this area')).toBeInTheDocument()
-      expect(screen.getByText(/FEMA failed — fema: NFHL unavailable/)).toBeInTheDocument()
+      expect(screen.getByText(/FEMA failed: fema: NFHL unavailable/)).toBeInTheDocument()
     })
     // No live overlays AND no fixture fallback: the map stays honest-empty.
     expect(latestMapProps().overlays).toEqual([])
@@ -404,7 +404,7 @@ describe('report overlay stack', () => {
     fireEvent.click(screen.getByTestId('push-probe'))
 
     const chip = await screen.findByTestId('overlay-chip-drainage-zones')
-    expect(chip).toHaveTextContent('Drainage zones — empty (nothing to draw)')
+    expect(chip).toHaveTextContent('Drainage zones: empty (nothing to draw)')
     // Not a toggle — nothing to toggle.
     expect(chip.tagName).toBe('SPAN')
     // And the map gets NO spec for it (no phantom source).

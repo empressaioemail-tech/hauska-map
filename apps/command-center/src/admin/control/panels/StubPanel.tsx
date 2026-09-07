@@ -10,7 +10,7 @@ import { Panel, sectionHeader } from '../primitives'
 
 export function makeStub(title: string, endpointNote: string): React.FC {
   const Stub: React.FC = () => (
-    <Panel title={title} subtitle="Not yet wired — Phase 2+ backlog">
+    <Panel title={title} subtitle="Not yet wired: Phase 2+ backlog">
       <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
         <span style={sectionHeader}>Planned</span>
         <p style={{ fontSize: 12, lineHeight: 1.5, color: 'var(--color-text-secondary)', fontFamily: 'var(--font-ui)', margin: 0 }}>

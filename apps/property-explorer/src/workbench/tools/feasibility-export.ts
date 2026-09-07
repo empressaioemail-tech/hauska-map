@@ -114,7 +114,7 @@ export function feasibilityExportNotice(
       result.sitePlanAppended === false
         ? ` Site-plan sheet was not appended${
             result.sitePlanUnavailableReason
-              ? ` — ${result.sitePlanUnavailableReason}`
+              ? `: ${result.sitePlanUnavailableReason}`
               : ""
           }.`
         : "";
@@ -126,7 +126,7 @@ export function feasibilityExportNotice(
   if (result.status === 402) {
     return (
       result.message ??
-      "Feasibility Study is a Studio deliverable — upgrade to generate it."
+      "Feasibility Study is a Studio deliverable. Upgrade to generate it."
     );
   }
   if (result.status === 422 || result.error === "feasibility_export_failed") {
@@ -134,5 +134,5 @@ export function feasibilityExportNotice(
       result.message ?? "Feasibility study could not be produced for this parcel."
     );
   }
-  return result.message ?? "Feasibility Study export failed — try again.";
+  return result.message ?? "Feasibility Study export failed. Try again.";
 }

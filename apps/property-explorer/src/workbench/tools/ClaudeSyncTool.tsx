@@ -686,7 +686,7 @@ export function ClaudeSyncBody({
     } catch {
       setCopyPhase({
         kind: "notice",
-        text: "Copy failed — select the address and copy it manually.",
+        text: "Copy failed. Select the address and copy it manually.",
       });
     }
   };

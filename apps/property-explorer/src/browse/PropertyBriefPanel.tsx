@@ -256,7 +256,7 @@ export function PropertyBriefPanel({
   const handleExportPdf = () => {
     const nodeId = parcelNodeId ?? brief.parcelNodeId;
     if (!nodeId) {
-      setExportNotice("Parcel id not recorded — X-ray export unavailable.");
+      setExportNotice("Parcel id not recorded, X-ray export unavailable.");
       return;
     }
     setExportBusy(true);

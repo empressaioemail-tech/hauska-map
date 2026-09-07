@@ -55,7 +55,7 @@ export const PROVENANCE_ROWS: readonly ProvenanceRow[] = Object.freeze([
     subject: 'Rail set and column order',
     provenance: 'derived-api',
     basis: 'railCapabilities[] ordered, falling back to first-appearance order in manifestCells[]',
-    refreshedBy: 'every read — the console asserts no rail set of its own',
+    refreshedBy: 'every read: the console asserts no rail set of its own',
   },
   {
     subject: 'Cell coverage percentage',
@@ -73,14 +73,14 @@ export const PROVENANCE_ROWS: readonly ProvenanceRow[] = Object.freeze([
     subject: 'Rail reachable ceiling',
     provenance: 'derived-api',
     basis: 'railCapabilities[].maxCountiesReachable, from a per-rail source probe',
-    refreshedBy: 'the capability probe, where one is defined — several rails have none',
+    refreshedBy: 'the capability probe, where one is defined; several rails have none',
   },
   {
     subject: 'Rail scoring evidence (NO SCORING EVIDENCE tag)',
     provenance: 'derived-api',
     basis:
       'measured over every cell of a rail: does ANY county carry a coverage number, a source or a verifying instrument. Replaces the hand-declared NO WRITER tag, which was true on every cell and could not fire',
-    refreshedBy: 'every read — it follows the payload',
+    refreshedBy: 'every read: it follows the payload',
   },
   {
     subject: 'Partial (below threshold, zero credit)',
@@ -92,25 +92,25 @@ export const PROVENANCE_ROWS: readonly ProvenanceRow[] = Object.freeze([
   {
     subject: 'hasWriter (control REMOVED)',
     provenance: 'declared-upstream',
-    basis: 'manifestCells[].hasWriter — hand-declared in the engine manifest, not derived from the writer registry. Still shown in the cell drawer as a declared value; it no longer drives any tag or legend entry',
+    basis: 'manifestCells[].hasWriter: hand-declared in the engine manifest, not derived from the writer registry. Still shown in the cell drawer as a declared value; it no longer drives any tag or legend entry',
     refreshedBy: 'nothing. A human edits the declaration; a merged writer does not move it',
   },
   {
     subject: 'atomFamilyState (control REMOVED)',
     provenance: 'declared-upstream',
-    basis: 'manifestCells[].atomFamilyState — hand-declared alongside hasWriter. Still shown in the drawer as declared; it no longer drives any tag or legend entry',
+    basis: 'manifestCells[].atomFamilyState: hand-declared alongside hasWriter. Still shown in the drawer as declared; it no longer drives any tag or legend entry',
     refreshedBy: 'nothing. A published atom family does not move it',
   },
   {
     subject: 'Threshold percentage',
     provenance: 'declared-upstream',
-    basis: 'manifestCells[].thresholdPct — a policy number set per rail',
+    basis: 'manifestCells[].thresholdPct: a policy number set per rail',
     refreshedBy: 'nothing automatic; it is a policy decision',
   },
   {
     subject: 'Rail short labels and long names',
     provenance: 'declared-client',
-    basis: 'RAIL_LABELS in countyManifestTypes.ts — presentation only; an unlabelled rail still renders',
+    basis: 'RAIL_LABELS in countyManifestTypes.ts: presentation only; an unlabelled rail still renders',
     refreshedBy: 'a commit in this repo. Never enters a measurement',
   },
   {
@@ -252,7 +252,7 @@ export function manifestContradictions(cells: ManifestCell[]): ManifestContradic
         kind: 'satisfied-absent-with-no-basis',
         countyFips: c.countyFips,
         railKey: c.railKey,
-        detail: 'established absence with absenceBasis null — an absence must carry its basis',
+        detail: 'established absence with absenceBasis null; an absence must carry its basis',
       })
     }
     if (c.displayState === 'satisfied-present' && !c.isPartial && !c.verifiedByInstrument) {
@@ -397,9 +397,9 @@ export function reReadVerdict(
 
 export const RE_READ_VERDICT_COPY: Readonly<Record<ReReadVerdict, string>> = Object.freeze({
   'first-read': 'first read of this session',
-  'materialization-moved': 'computedAt moved — the server materialized a new snapshot',
+  'materialization-moved': 'computedAt moved: the server materialized a new snapshot',
   'materialization-unchanged':
-    'computedAt did NOT move — the console re-read the same snapshot. Command Center cannot recompute the manifest; a block or scorer run in the engine is what moves it',
+    'computedAt did NOT move: the console re-read the same snapshot. Command Center cannot recompute the manifest; a block or scorer run in the engine is what moves it',
 })
 
 
@@ -466,13 +466,13 @@ export const REMOVED_CONTROLS: readonly RemovedControl[] = Object.freeze([
   {
     control: 'NO WRITER column tag and its legend entry',
     drivenBy: 'manifestCells[].hasWriter, hand-declared upstream',
-    reason: 'constant true across all 3,556 cells on the live payload — the tag could not appear under any data',
+    reason: 'constant true across all 3,556 cells on the live payload: the tag could not appear under any data',
     replacedBy: 'NO SCORING EVIDENCE, derived per rail from coverage / source / instrument presence, which fires on 6 of 14 rails today',
   },
   {
     control: 'NO ATOM column tag and its legend entry',
     drivenBy: 'manifestCells[].atomFamilyState, hand-declared upstream',
-    reason: "constant 'present' across all 3,556 cells — the tag could not appear under any data",
+    reason: "constant 'present' across all 3,556 cells: the tag could not appear under any data",
     replacedBy: 'nothing on the manifest; atom presence is a WRITTEN-layer question and is answered on the Three layers subtab by an instrument that reads the store',
   },
   {

@@ -174,7 +174,7 @@ const TallyRow: React.FC<{
       <td style={{ ...typeCaption, padding: '4px 8px', color: recon.agrees ? 'var(--color-text-tertiary)' : 'var(--color-text-warning)' }}>
         {recon.agrees
           ? `${recon.measured.toLocaleString()} measured`
-          : `${recon.measured.toLocaleString()} measured vs ${recon.claimed.toLocaleString()} claimed — ${recon.unaccounted.toLocaleString()} unaccounted`}
+          : `${recon.measured.toLocaleString()} measured vs ${recon.claimed.toLocaleString()} claimed, ${recon.unaccounted.toLocaleString()} unaccounted`}
       </td>
     </tr>
   )
@@ -412,12 +412,12 @@ const PairingNote: React.FC<{ railKeys: string[] }> = ({ railKeys }) => {
       <div style={{ marginTop: 4 }}>
         {classification.unpairedDeclared.map((u) => (
           <div key={u.railKey}>
-            <span style={mono}>{u.railKey}</span> — {u.reason}
+            <span style={mono}>{u.railKey}</span>: {u.reason}
           </div>
         ))}
         {classification.unclassified.map((r) => (
           <div key={r} style={{ color: 'var(--color-text-warning)' }}>
-            <span style={mono}>{r}</span> — UNCLASSIFIED: a rail was added server-side and railFieldMap.ts
+            <span style={mono}>{r}</span>, UNCLASSIFIED: a rail was added server-side and railFieldMap.ts
             has not been told about it
           </div>
         ))}
@@ -511,7 +511,7 @@ const CountyDetail: React.FC<{ county: CountyServingSweep }> = ({ county }) => {
             contradictionsForField(openAbsenceField).map((c) => (
               <div key={c.kind} style={{ marginBottom: 8 }}>
                 <div style={{ ...typeCaption, fontWeight: 600 }}>
-                  {CONTRADICTION_LABELS[c.kind]} — {c.count.toLocaleString()} parcels,{' '}
+                  {CONTRADICTION_LABELS[c.kind]}: {c.count.toLocaleString()} parcels,{' '}
                   {c.exampleParcelNodeIds.length} examples carried
                 </div>
                 <ParcelIdList ids={c.exampleParcelNodeIds} testId={`sweep-absence-ids-${c.kind}`} />
@@ -520,7 +520,7 @@ const CountyDetail: React.FC<{ county: CountyServingSweep }> = ({ county }) => {
           )}
           {clustersForField(openAbsenceField).map((cluster) => (
             <div key={cluster.label} style={{ ...typeCaption, marginTop: 6 }}>
-              cluster <strong>{cluster.label}</strong> — {cluster.parcelCount.toLocaleString()} parcels, bbox{' '}
+              cluster <strong>{cluster.label}</strong>: {cluster.parcelCount.toLocaleString()} parcels, bbox{' '}
               <span style={mono}>{cluster.bbox.join(', ')}</span>
             </div>
           ))}
@@ -542,7 +542,7 @@ const CountyDetail: React.FC<{ county: CountyServingSweep }> = ({ county }) => {
           county.contradictions.map((c) => (
             <div key={c.kind} style={{ marginBottom: 8 }}>
               <div style={{ ...typeCaption, fontWeight: 600 }}>
-                {CONTRADICTION_LABELS[c.kind]} — {c.count.toLocaleString()}
+                {CONTRADICTION_LABELS[c.kind]}: {c.count.toLocaleString()}
               </div>
               <ParcelIdList ids={c.exampleParcelNodeIds} testId={`sweep-contradiction-ids-${c.kind}`} />
             </div>
@@ -715,7 +715,7 @@ export const ServingSweepPanel: React.FC<ServingSweepPanelProps> = ({
           }}
         >
           <strong>No sweep served.</strong> {source.locator}
-          {source.httpStatus != null ? ` returned HTTP ${source.httpStatus}` : ''} — {source.notServedReason}.
+          {source.httpStatus != null ? ` returned HTTP ${source.httpStatus}` : ''}: {source.notServedReason}.
           {' '}This is a NAMED absence, not an empty panel: lane P-43 emits the statewide sweep and delivers
           it as a dated report artifact first, so load that artifact here until the endpoint exists.
         </div>
@@ -748,7 +748,7 @@ export const ServingSweepPanel: React.FC<ServingSweepPanelProps> = ({
       {!sweep ? (
         <div style={{ ...typeCaption, lineHeight: 1.6 }}>
           The serving sweep resolves a ParcelFactSheet for every parcel in a county and tallies the
-          resulting Fact states. It never samples — sampling is what certified a broken Bastrop once.
+          resulting Fact states. It never samples. Sampling is what certified a broken Bastrop once.
           When a sweep is loaded it renders here beside the rail manifest, and the disagreement between
           the two is the finding.
           <PairingNote railKeys={railKeys} />
@@ -760,7 +760,7 @@ export const ServingSweepPanel: React.FC<ServingSweepPanelProps> = ({
 
           {statewideFields ? (
             <TallyTable
-              title="Statewide — all parcels"
+              title="Statewide: all parcels"
               note={`rolled up across ${sweep.countiesSwept.toLocaleString()} swept counties; each class measured, none derived by subtraction.`}
               fields={statewideFields}
               parcelsClaimed={sweep.parcelsTotal}
@@ -769,7 +769,7 @@ export const ServingSweepPanel: React.FC<ServingSweepPanelProps> = ({
           ) : null}
           {statewideSf ? (
             <TallyTable
-              title="Statewide — single-family residential"
+              title="Statewide: single-family residential"
               note="the class a consumer surface is judged on."
               fields={statewideSf}
               parcelsClaimed={sweep.counties.reduce((n, c) => n + (c.singleFamily?.parcelsTotal ?? 0), 0)}
@@ -785,7 +785,7 @@ export const ServingSweepPanel: React.FC<ServingSweepPanelProps> = ({
               statewideContradictions.map((c) => (
                 <div key={c.kind} style={{ marginBottom: 8 }}>
                   <div style={{ ...typeCaption, fontWeight: 600 }}>
-                    {CONTRADICTION_LABELS[c.kind]} — {c.count.toLocaleString()}
+                    {CONTRADICTION_LABELS[c.kind]}: {c.count.toLocaleString()}
                   </div>
                   <ParcelIdList ids={c.exampleParcelNodeIds} testId={`sweep-statewide-ids-${c.kind}`} />
                 </div>

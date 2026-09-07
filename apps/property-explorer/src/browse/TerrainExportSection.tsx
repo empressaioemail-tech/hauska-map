@@ -121,7 +121,7 @@ export function TerrainExportSection({
 
     settle({
       format,
-      notice: "Terrain export ready — download above.",
+      notice: "Terrain export ready, download above.",
       result: resp.data,
     });
   }, [format, onPaymentRequired, parcelNodeId, settle]);

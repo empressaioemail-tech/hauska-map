@@ -152,7 +152,7 @@ export function DownloadButton({
           kind: "notice",
           text:
             res.status === 404
-              ? `Not available on this link — ${filenameHint} was not exported for this property.`
+              ? `Not available on this link: ${filenameHint} was not exported for this property.`
               : (body.message ?? `Download failed (${res.status}).`),
         });
         return null;
@@ -310,7 +310,7 @@ export function ShareDossierSection({ dossier }: { dossier: ShareDossierData }) 
                 ))}
               </svg>
               <div style={{ marginTop: 4, fontSize: 11.5, color: MUTED }}>
-                Schematic sketch of the sharer&apos;s annotations — not to
+                Schematic sketch of the sharer&apos;s annotations, not to
                 scale, no basemap.
               </div>
             </>
@@ -341,7 +341,7 @@ export function ShareDossierSection({ dossier }: { dossier: ShareDossierData }) 
             style={{ margin: "3px 0 0", fontSize: 11.5, color: MUTED }}
           >
             {dossier.chatSummary.disclaimer ??
-              "AI-generated summary of a research chat — verify against the cited sources before relying on it."}
+              "AI-generated summary of a research chat. Verify against the cited sources before relying on it."}
           </p>
         </div>
       )}
@@ -475,7 +475,7 @@ export function ShareAnalysisContent({
           </div>
         ) : (
           <div style={{ fontSize: 12.5, color: "var(--semantic-absence)" }}>
-            No verified facts to headline — see the brief below for what is and
+            No verified facts to headline. See the brief below for what is and
             is not verified for this parcel.
           </div>
         )}

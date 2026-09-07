@@ -516,7 +516,7 @@ const FacetCoverageRow: React.FC<{ facet: FacetRow }> = ({ facet: f }) => (
     </td>
     <td style={cellStyle} colSpan={2}>
       {f.stalenessFlag ? (
-        <Pill sev="warn" title="stamp rotted — unverified">
+        <Pill sev="warn" title="stamp rotted, unverified">
           stale
         </Pill>
       ) : null}
@@ -625,19 +625,19 @@ export const CountyLedger: React.FC = () => {
   return (
     <Panel
       title="County Ledger"
-      subtitle="the rewarmable-factory performance layer — what's onboarded, certified, stale"
+      subtitle="the rewarmable-factory performance layer: what's onboarded, certified, stale"
       right={
         <span style={{ display: 'flex', gap: 6 }}>
           <Pill sev="ok">
             {totalRows > 0 ? `${certified}/${totalRows} certified` : `${summary.onboardedCount}/${summary.totalCounties} onboarded`}
           </Pill>
           {summary.staleCount > 0 ? (
-            <Pill sev="warn" title="stamps rotted — refresh needed">
+            <Pill sev="warn" title="stamps rotted, refresh needed">
               {summary.staleCount} stale
             </Pill>
           ) : null}
           {summary.rewarmUnsafeCount > 0 ? (
-            <Pill sev="danger" title="unfrozen decision — blocks a safe rewarm">
+            <Pill sev="danger" title="unfrozen decision, blocks a safe rewarm">
               {summary.rewarmUnsafeCount} rewarm-unsafe
             </Pill>
           ) : null}

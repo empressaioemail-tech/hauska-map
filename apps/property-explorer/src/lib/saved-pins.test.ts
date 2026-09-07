@@ -102,7 +102,7 @@ describe('status accents — pins mirror the status language', () => {
   it('W3.6 stars encode status: gold researching, gray passed (violate: swap fills)', () => {
     expect(PIN_STATUS_ACCENTS.researching).toBe('#F59E0B')
     expect(PIN_STATUS_ACCENTS.passed).toBe('#94A3B8')
-    expect(SAVED_PINS_LEGEND).toContain('gold: researching')
+    expect(SAVED_PINS_LEGEND).toContain('Gold: researching')
     expect(SAVED_PINS_LEGEND).toContain('gray: passed')
     expect(pinSvgMarkup(pinAccent('researching'))).toContain('fill="#F59E0B"')
     expect(pinSvgMarkup(pinAccent('passed'))).toContain('fill="#94A3B8"')

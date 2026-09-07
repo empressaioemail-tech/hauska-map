@@ -85,7 +85,7 @@ export function chatRefFromRecordsInstrument(
   const ref = inst.recordingRef.trim();
   const sourceNote =
     inst.source === "index-hit"
-      ? "Clerk index hit — image not acquired yet."
+      ? "Clerk index hit. Image not acquired yet."
       : null;
   const snippetParts = [inst.parties, sourceNote].filter(Boolean);
   return {

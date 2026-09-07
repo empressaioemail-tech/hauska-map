@@ -162,7 +162,7 @@ export async function ingestAttachment(
   if (!kind) {
     return {
       ok: false,
-      error: `Unsupported file type — attach a PDF, image, or text file.`,
+      error: `Unsupported file type. Attach a PDF, image, or text file.`,
     };
   }
   if (file.size > ATTACH_MAX_BYTES) {
@@ -187,15 +187,15 @@ export async function ingestAttachment(
         extractedText = t.slice(0, ATTACH_TEXT_MAX_CHARS);
       } else {
         note =
-          "PDF text could not be read in-browser (likely a scanned or image-only PDF) — attached as a reference; its contents were not extracted.";
+          "PDF text could not be read in-browser (likely a scanned or image-only PDF). Attached as a reference; its contents were not extracted.";
       }
     } else {
       // image — no client-side OCR / vision in v1.
       note =
-        "Image attached as a reference — its contents are not read automatically yet; describe what to look for in your question.";
+        "Image attached as a reference. Its contents are not read automatically yet; describe what to look for in your question.";
     }
   } catch {
-    note = "Could not read this file — attached as a reference only.";
+    note = "Could not read this file. Attached as a reference only.";
   }
 
   return {

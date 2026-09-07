@@ -53,7 +53,7 @@ export class ErrorBoundary extends React.Component<Props, State> {
             textTransform: 'uppercase',
             color: 'var(--color-text-danger)',
           }}>
-            {this.props.tabName} — render error
+            {this.props.tabName}: render error
           </div>
           <div style={{
             fontSize: 11,

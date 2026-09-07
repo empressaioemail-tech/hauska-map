@@ -99,7 +99,7 @@ export type LookupSubjectHint = {
 };
 
 export const HONEST_SEARCH_MISS =
-  "Address not matched to a parcel — search returned no hit.";
+  "Address not matched to a parcel. Search returned no hit.";
 
 export function normalizeFindAddress(raw: string): string {
   return raw
@@ -164,7 +164,7 @@ export async function resolveLookupToParcelNodeId(
   if (looksLikeBarePlaceQuery(classified.value)) {
     return {
       ok: false,
-      reason: "That looks like a city or county — pick a row from the list.",
+      reason: "That looks like a city or county. Pick a row from the list.",
     };
   }
   if (isBareHouseStreetQuery(classified.value)) {

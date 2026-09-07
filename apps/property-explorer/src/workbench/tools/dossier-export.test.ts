@@ -189,7 +189,7 @@ describe("requestDossierExport — BFF fold-in contract", () => {
         sitePlanAppended: false,
         sitePlanUnavailableReason: "parcel geometry could not be resolved for this parcel",
       }),
-    ).toMatch(/Site-plan sheets were not appended — parcel geometry/);
+    ).toMatch(/Site-plan sheets were not appended: parcel geometry/);
   });
 });
 

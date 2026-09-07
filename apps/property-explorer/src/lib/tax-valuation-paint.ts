@@ -35,7 +35,7 @@ import { ownerPaintAllowed } from "./owner-paint";
 import type { PeSubscriptionTier } from "./entitlementClient";
 
 export const TAX_VALUATION_STUDIO_UPGRADE_CUE =
-  "County tax-assessed value is on Studio — upgrade to see the CAD roll figures for this parcel.";
+  "County tax-assessed value is on Studio. Upgrade to see the CAD roll figures for this parcel.";
 
 export const TAX_VALUATION_STUDIO_GATED_REASON = "cad-roll-valuation studio-gated";
 
