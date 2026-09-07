@@ -2241,7 +2241,7 @@ function ExplorerMapSurface({
           situsAddress={cardFactsRef.current.address}
           contextLine={
             paywallMessage ??
-            "The full brief, AI chat, reports, and share links are the paid toolkit on this property — the inspect card and map stay free."
+            "Free covers the map, layers and inspect card on every parcel, plus saving and sharing. Paid covers the reports, unlimited AI, and the work that spans more than one property."
           }
           studioOnly={paywallStudioOnly}
           highlightTier={paywallHighlightTier}
