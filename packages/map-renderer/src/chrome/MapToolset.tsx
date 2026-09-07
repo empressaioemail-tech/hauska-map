@@ -1567,7 +1567,6 @@ export function MapToolset({
                         gap: 8,
                         cursor: "pointer",
                       }}
-                      title={badge?.note}
                     >
                       <input
                         type="checkbox"
@@ -1577,19 +1576,28 @@ export function MapToolset({
                       />
                       <span style={{ flex: 1 }}>{labelOf(key)}</span>
                       {badge && (
-                        <span
-                          data-testid={`layer-state-${key}`}
-                          title={badge.note}
-                          aria-label={badge.note}
-                          style={{
-                            width: 7,
-                            height: 7,
-                            borderRadius: "50%",
-                            flexShrink: 0,
-                            background: BADGE_COLOR[badge.tone],
-                            boxShadow: `0 0 5px ${BADGE_COLOR[badge.tone]}`,
-                          }}
-                        />
+                        // 9-4 UI review: "hovering shows unwanted 'add dot'
+                        // background-info popups." A native `title` on the
+                        // whole row (above) fired on any hover across the
+                        // label, and even scoped to the dot it drew the
+                        // browser's own unstyled tooltip. The underlying
+                        // honesty note (WB7c: pin-layer legend, degraded/
+                        // no-coverage explanations) stays — swapped to the
+                        // app's own MapFlyTip, on the dot only, never the row.
+                        <MapFlyTip side={anchor === "left" ? "right" : "left"} label={badge.note}>
+                          <span
+                            data-testid={`layer-state-${key}`}
+                            aria-label={badge.note}
+                            style={{
+                              width: 7,
+                              height: 7,
+                              borderRadius: "50%",
+                              flexShrink: 0,
+                              background: BADGE_COLOR[badge.tone],
+                              boxShadow: `0 0 5px ${BADGE_COLOR[badge.tone]}`,
+                            }}
+                          />
+                        </MapFlyTip>
                       )}
                     </label>
                     {badge && (badge.tone === "warn" || badge.tone === "error") && (

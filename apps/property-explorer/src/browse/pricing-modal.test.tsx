@@ -20,6 +20,7 @@ import { lockedPanelPaywallArgs } from "../workbench/tools/LockedToolPanel";
 import { clampTeamSeats } from "./useCheckoutActions";
 import {
   PE_PRICING,
+  annualMonthsFreeLabel,
   defaultPricingInterval,
   propertyChoiceLabel,
   propertyUnlockOffer,
@@ -83,12 +84,15 @@ describe("PricingModal — ALL pricing in one popup, every string from config", 
   });
 
   it("team seat input lives in the Team column on monthly; hidden on annual", () => {
-    const monthlyDefault = renderToStaticMarkup(
-      <PricingModal parcelNodeId="48021:1" onClose={noop} />,
+    // 9-4 UI review: the default interval flipped to annual, so this render
+    // must ask for monthly explicitly rather than lean on whatever the
+    // default happens to be — see the dedicated default-is-annual test below.
+    const monthlyExplicit = renderToStaticMarkup(
+      <PricingModal parcelNodeId="48021:1" initialInterval="monthly" onClose={noop} />,
     );
-    expect(monthlyDefault).toContain('data-testid="pricing-team-seats"');
-    expect(monthlyDefault.indexOf('data-testid="pricing-team-card"')).toBeLessThan(
-      monthlyDefault.indexOf('data-testid="pricing-team-seats"'),
+    expect(monthlyExplicit).toContain('data-testid="pricing-team-seats"');
+    expect(monthlyExplicit.indexOf('data-testid="pricing-team-card"')).toBeLessThan(
+      monthlyExplicit.indexOf('data-testid="pricing-team-seats"'),
     );
     expect(teamSeatsControlVisible("annual")).toBe(false);
 
@@ -118,8 +122,7 @@ describe("PricingModal — ALL pricing in one popup, every string from config", 
     );
     expect(annual).not.toContain('data-testid="pricing-team-seats"');
     expect(annual).toContain('data-testid="pricing-team-annual-note"');
-    expect(annual).toContain(PE_PRICING.interval.teamAnnualNote);
-    expect(annual).not.toContain("2 months free");
+    expect(annual).toContain(annualMonthsFreeLabel("team"));
   });
 
   it("Team 12-seat price is $524 (3 included + 9 extras), never leftover $45 (violate: $45 extra-seat math fails)", () => {
@@ -255,45 +258,51 @@ describe("PricingModal — ALL pricing in one popup, every string from config", 
     expect(html).not.toContain('data-testid="pricing-note"');
   });
 
-  it("first paint is monthly (violate: annual selected as default fails)", () => {
-    expect(defaultPricingInterval()).toBe("monthly");
-    expect(defaultPricingInterval()).not.toBe("annual");
-    const monthly = renderToStaticMarkup(
-      <PricingModal parcelNodeId="48021:1" onClose={noop} />,
-    );
-    expect(monthly).toMatch(
-      /data-testid="pricing-interval"[^>]*data-interval="monthly"/,
-    );
-    expect(monthly).not.toMatch(
-      /data-testid="pricing-interval"[^>]*data-interval="annual"/,
-    );
-    expect(monthly).toContain(PE_PRICING.interval.annualLabel);
-    expect(monthly).toContain(PE_PRICING.interval.monthlyLabel);
-    expect(monthly).not.toContain("2 months free");
-    expect(monthly).toContain(tierHeadline("solo", "monthly").amount);
-    expect(monthly).toContain(tierHeadline("studio", "monthly").amount);
-    expect(monthly).toContain(tierHeadline("team", "monthly").amount);
-    expect(monthly).toContain(`data-amount="${PE_PRICING.solo.monthlyAmount}"`);
-    expect(monthly).not.toContain(`data-amount="${PE_PRICING.solo.annualPriceLabel}"`);
-    expect(monthly).toContain(`data-checkout-interval="${toCheckoutInterval("monthly")}"`);
-    expect(monthly).toContain('data-checkout-interval="month"');
-    expect(monthly).not.toContain('data-checkout-interval="year"');
-
+  it("first paint is annual (9-4 UI review; violate: monthly selected as default fails)", () => {
+    expect(defaultPricingInterval()).toBe("annual");
+    expect(defaultPricingInterval()).not.toBe("monthly");
     const annual = renderToStaticMarkup(
-      <PricingModal
-        parcelNodeId="48021:1"
-        initialInterval="annual"
-        onClose={noop}
-      />,
+      <PricingModal parcelNodeId="48021:1" onClose={noop} />,
     );
     expect(annual).toMatch(
       /data-testid="pricing-interval"[^>]*data-interval="annual"/,
     );
+    expect(annual).not.toMatch(
+      /data-testid="pricing-interval"[^>]*data-interval="monthly"/,
+    );
+    expect(annual).toContain(PE_PRICING.interval.annualLabel);
+    expect(annual).toContain(PE_PRICING.interval.monthlyLabel);
     expect(annual).toContain(tierHeadline("solo", "annual").amount);
+    expect(annual).toContain(tierHeadline("studio", "annual").amount);
+    expect(annual).toContain(tierHeadline("team", "annual").amount);
     expect(annual).toContain(`data-amount="${PE_PRICING.solo.annualPriceLabel}"`);
+    expect(annual).not.toContain(`data-amount="${PE_PRICING.solo.monthlyAmount}"`);
+    expect(annual).toContain(`data-checkout-interval="${toCheckoutInterval("annual")}"`);
     expect(annual).toContain('data-checkout-interval="year"');
-    expect(annual).toContain(PE_PRICING.interval.teamAnnualNote);
-    expect(annual).not.toContain("2 months free");
+    expect(annual).not.toContain('data-checkout-interval="month"');
+    // 9-4 UI review: "no '2 months free' messaging shown anywhere" — now
+    // derived per tier from its own monthly/annual prices, not asserted.
+    expect(annual).toContain('data-testid="pricing-solo-annual-note"');
+    expect(annual).toContain(annualMonthsFreeLabel("solo"));
+    expect(annual).toContain('data-testid="pricing-studio-annual-note"');
+    expect(annual).toContain(annualMonthsFreeLabel("studio"));
+    expect(annual).toContain('data-testid="pricing-team-annual-note"');
+    expect(annual).toContain(annualMonthsFreeLabel("team"));
+
+    const monthly = renderToStaticMarkup(
+      <PricingModal
+        parcelNodeId="48021:1"
+        initialInterval="monthly"
+        onClose={noop}
+      />,
+    );
+    expect(monthly).toMatch(
+      /data-testid="pricing-interval"[^>]*data-interval="monthly"/,
+    );
+    expect(monthly).toContain(tierHeadline("solo", "monthly").amount);
+    expect(monthly).toContain(`data-amount="${PE_PRICING.solo.monthlyAmount}"`);
+    expect(monthly).toContain('data-checkout-interval="month"');
+    expect(monthly).not.toContain("2 months free");
   });
 
   it("purchase surface does not carry the ICC I-Code ingest-hold line", () => {

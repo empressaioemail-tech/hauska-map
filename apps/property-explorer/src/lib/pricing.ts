@@ -71,13 +71,16 @@ export const PE_PRICING = {
   },
   /** Monthly is the default selected state (operator 2026-08-27). Annual stays. */
   interval: {
-    default: "monthly" as const,
+    /** 9-4 UI review: the toggle defaulted to Monthly while the intended
+     *  presentation is Annual (the better deal, and the one the marked-up
+     *  monthly price is framed against). */
+    default: "annual" as const,
     annualLabel: "Annual",
     monthlyLabel: "Monthly",
-    /** Retired header chip. Annual math lives on the Team column. */
+    /** Retired header chip. Annual math lives per-tier now: see
+     *  annualMonthsFreeLabel, which replaced this column's old
+     *  "10 × monthly" note with the same fact in plain words. */
     savingsNote: "",
-    /** Team column only, annual toggle. Not a header chip. */
-    teamAnnualNote: "10 × monthly",
   },
   /** The free row — what every account gets at $0. Caption strip, not a column. */
   free: {
@@ -152,7 +155,13 @@ export const PE_PRICING = {
     features: "Everything in Studio for the whole firm: shared saved properties, one bill",
   },
   cells: {
-    included: "✓",
+    // 9-4 UI review: "every included row renders two check glyphs instead of
+    // one." CellGlyph already draws a check icon for "included"; this text
+    // used to repeat it as a literal "✓" character next to its own icon.
+    // Every other kind pairs its icon with text that says something the icon
+    // doesn't (a count, a duration, "Coming soon") — included has nothing
+    // left to add once the icon is there.
+    included: "",
     notIncluded: "—",
     oneSeat: "1",
     comingSoon: "Coming soon",
@@ -370,6 +379,33 @@ export function teamMonthlyTotalLabel(seats: number): string {
 /** Annual is 10 × monthly (2 months free). */
 export function annualFromMonthlyUsd(monthlyUsd: number): number {
   return monthlyUsd * 10;
+}
+
+/** "$1,290" -> 1290. Strips the currency symbol and thousands separator only. */
+function usdToNumber(label: string): number {
+  return Number(label.replace(/[^0-9.]/g, ""));
+}
+
+/**
+ * "2 months free", derived from the tier's own configured prices rather than
+ * asserted as prose (9-4 UI review: this messaging was missing everywhere;
+ * Team alone carried the same fact spelled as "10 × monthly", math the buyer
+ * has to do themselves rather than a claim they can just read).
+ *
+ * Returns null rather than a wrong or fractional claim when the numbers do
+ * not resolve to a clean whole number of months — a savings claim is a
+ * checkable fact, not a vibe, and nothing should print one it cannot derive.
+ */
+export function annualMonthsFreeLabel(tier: PePricedTier): string | null {
+  const t = PE_PRICING[tier];
+  const monthly = usdToNumber(t.monthlyAmount);
+  const annual = usdToNumber(t.annualPriceLabel);
+  if (!Number.isFinite(monthly) || monthly <= 0 || !Number.isFinite(annual)) {
+    return null;
+  }
+  const monthsFree = (monthly * 12 - annual) / monthly;
+  if (!Number.isInteger(monthsFree) || monthsFree <= 0) return null;
+  return `${monthsFree} month${monthsFree === 1 ? "" : "s"} free`;
 }
 
 export function propertyUnlockOffer(): string {

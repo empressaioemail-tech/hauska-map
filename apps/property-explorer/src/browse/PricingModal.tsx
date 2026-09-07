@@ -27,6 +27,7 @@ import { checkoutPageHref } from "../checkout/checkoutLanding";
 import type { PeCheckoutTier } from "../lib/billingClient";
 import {
   PE_PRICING,
+  annualMonthsFreeLabel,
   defaultPricingInterval,
   matrixCellText,
   propertyUnlockOffer,
@@ -589,12 +590,12 @@ function ColumnHead({
         </span>
       </div>
       <div style={{ fontSize: 11.5, color: MUTED }}>{headline.compare}</div>
-      {tier === "team" && interval === "annual" ? (
+      {interval === "annual" && annualMonthsFreeLabel(tier) ? (
         <div
-          data-testid="pricing-team-annual-note"
+          data-testid={`pricing-${tier}-annual-note`}
           style={{ fontSize: 11.5, color: ACCENT }}
         >
-          {PE_PRICING.interval.teamAnnualNote}
+          {annualMonthsFreeLabel(tier)}
         </div>
       ) : null}
       {showSeats ? (
