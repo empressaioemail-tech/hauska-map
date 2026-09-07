@@ -14,6 +14,10 @@ import {
   recordPeGtmEvent,
 } from "../lib/gtmClient";
 import type { ShareLanding } from "./share-landing";
+import {
+  clearPendingShareAttribution,
+  stashPendingShareAttribution,
+} from "./share-attribution-retry";
 import { ShareLandingOverlay } from "./ShareLandingOverlay";
 import type { ShareFunnelBinding } from "./SharedDossierDock";
 import { fetchShareGrant } from "./share-grant-client";
@@ -149,10 +153,18 @@ export function ShareFunnelApp({ landing }: { landing: ShareLanding }) {
       // Called unconditionally on every sign-in return: first-touch is held
       // by the recipient primary key, so a repeat is a no-op that returns the
       // original attribution rather than something this client must remember.
+      //
+      // Stashed BEFORE attempting (durably, in localStorage — this leg's own
+      // sessionStorage grant-id stash is already cleared by share-landing.ts
+      // by the time this runs) so that if every retry in this call still
+      // fails — the tab closes, the network stays down — a later app boot
+      // (App.tsx) retries it instead of the claim being lost the moment this
+      // page unloads. Cleared only once the server confirms it.
       if (landing.grantId) {
-        void claimShareAttribution({
-          grantId: landing.grantId,
-          surface: "share-landing",
+        const pending = { grantId: landing.grantId, surface: "share-landing" };
+        stashPendingShareAttribution(pending);
+        void claimShareAttribution(pending).then((result) => {
+          if (result.ok) clearPendingShareAttribution();
         });
       }
       return;
