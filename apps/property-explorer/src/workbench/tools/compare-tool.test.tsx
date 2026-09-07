@@ -278,7 +278,7 @@ describe("fact table", () => {
     expect(html).toContain("library.municode.com");
     expect(html).toContain("fema-nfhl · 2026-07-20");
     // Inline card provenance for land use / acreage (no double caption).
-    expect(html).toContain("A1 — Single family residence (bastrop-cad · 2025-11-02)");
+    expect(html).toContain("A1: Single family residence (bastrop-cad · 2025-11-02)");
     expect(html).toContain("1.2 ac (cad-roll)");
   });
 

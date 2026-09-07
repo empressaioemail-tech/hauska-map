@@ -187,7 +187,7 @@ describe("deriveCompareColumn — the card's honesty idioms per cell", () => {
     });
     // Land use / acreage carry provenance INLINE (card idiom).
     expect(col.cells.landUse.value).toBe(
-      "A1 — Single family residence (bastrop-cad · 2025-11-02)",
+      "A1: Single family residence (bastrop-cad · 2025-11-02)",
     );
     expect(col.cells.acreage.value).toBe("1.2 ac (cad-roll)");
     expect(col.cells.status).toMatchObject({
