@@ -1,6 +1,6 @@
 // Property Explorer share-view data plane — Workbench W4 SHARE.
 //
-// GET /api/pe-share-view?token=<share-token>&what=brief|siteplan|terrain|dossier
+// GET /api/pe-share-view?token=<share-token>&what=brief|siteplan|terrain|dossier|flood
 //
 // The ONLY data plane a share-link viewer has. No session, no service key in
 // the browser: every request carries the signed one-parcel token, the server
@@ -18,6 +18,19 @@
 //   what=terrain  → MCP download_parcel_terrain_export (format glb|ifc|
 //                   dxf-3dface|dxf-contour, default glb). Same download-only
 //                   rule.
+//   what=flood    → the flood & drainage PDF, direct BFF-to-engine-api (no
+//                   MCP tool exists for this report — see
+//                   pe-flood-drainage-handler.ts). Same download-only rule as
+//                   siteplan/terrain: available whenever the report was
+//                   already generated for this parcel, never triggers a fresh
+//                   engine run. The normal in-app path gates this behind a
+//                   PE session + property entitlement (R3, the first paid
+//                   report); a share viewer has neither, so this route
+//                   deliberately skips that per-viewer gate the same way
+//                   siteplan/terrain already do — the SHARER'S entitlement
+//                   produced the artifact once, and a share link re-serves it
+//                   read-only, same trust model as every other artifact type
+//                   here.
 //   what=dossier  → the SHARER's saved dossier (drawings, AI chat SUMMARY,
 //                   notes) via the cortex service-key route (#362, GET
 //                   /api/property-explorer/v1/internal/share-dossier). The
@@ -36,12 +49,19 @@
 import type { VercelRequest, VercelResponse } from '@vercel/node'
 import { callMcpTool, mcpProductKey } from './_lib/mcp-server-client.js'
 import {
+  buildFloodDrainageGateHeaders,
+  FLOOD_DRAINAGE_FORMAT,
+  floodDrainageFilename,
+} from './_lib/pe-flood-drainage-core.js'
+import {
   peShareSecret,
   resolveShareViewAccess,
   type ShareOwnerScope,
 } from './_lib/pe-share-token.js'
 import { loadShareBrief, loadShareDossier } from './_lib/pe-share-view-compose.js'
 import {
+  engineApiBaseUrl,
+  engineApiGateToken,
   extractInlineDownload as extractSitePlanInline,
   sitePlanFilename,
 } from './_lib/pe-site-plan-export-core.js'
@@ -52,7 +72,7 @@ import {
   type TerrainExportFormat,
 } from './_lib/pe-terrain-export-core.js'
 
-export const SHARE_VIEW_WHAT = ['brief', 'siteplan', 'terrain', 'dossier'] as const
+export const SHARE_VIEW_WHAT = ['brief', 'siteplan', 'terrain', 'dossier', 'flood'] as const
 export type ShareViewWhat = (typeof SHARE_VIEW_WHAT)[number]
 
 export function parseShareViewWhat(value: unknown): ShareViewWhat | null {
@@ -168,6 +188,63 @@ async function serveDownload(
   }
 }
 
+/**
+ * what=flood — direct BFF-to-engine-api download (no MCP tool exists for
+ * this report; see pe-flood-drainage-handler.ts's own transport note).
+ * Download-only, same as serveDownload: a 404/410 from engine is the sharer
+ * never having generated the report, never a trigger to generate one now.
+ */
+async function serveFlood(res: VercelResponse, parcelNodeId: string): Promise<void> {
+  const gateToken = engineApiGateToken()
+  if (!gateToken) {
+    res.status(503).json({ error: 'proxy not configured', missing: 'HAUSKA_ENGINE_API_KEY' })
+    return
+  }
+  const target = `${engineApiBaseUrl()}/v1/property-nodes/${encodeURIComponent(parcelNodeId)}/flood-drainage/download?format=${FLOOD_DRAINAGE_FORMAT}`
+  try {
+    const upstream = await fetch(target, {
+      headers: {
+        Authorization: `Bearer ${gateToken}`,
+        ...buildFloodDrainageGateHeaders(),
+      },
+      signal: AbortSignal.timeout(30_000),
+    })
+    if (upstream.status === 404 || upstream.status === 410) {
+      // Honest availability: the sharer never ran this report for this
+      // parcel. Download-only — a share viewer cannot trigger a fresh run.
+      const body = (await upstream.json().catch(() => ({}))) as {
+        error?: string
+        message?: string
+      }
+      res.status(404).json({
+        error: body.error ?? 'artifact_not_available',
+        message: body.message ?? 'Download declined.',
+      })
+      return
+    }
+    if (!upstream.ok) {
+      const text = await upstream.text().catch(() => '')
+      res.status(502).json({
+        error: 'download_failed',
+        message: text || `engine ${upstream.status}`,
+      })
+      return
+    }
+    const bytes = Buffer.from(await upstream.arrayBuffer())
+    res.setHeader('Content-Type', 'application/pdf')
+    res.setHeader(
+      'Content-Disposition',
+      `attachment; filename="${floodDrainageFilename(parcelNodeId)}"`,
+    )
+    res.status(200).send(bytes)
+  } catch (err) {
+    res.status(502).json({
+      error: 'download_failed',
+      message: err instanceof Error ? err.message : String(err),
+    })
+  }
+}
+
 export default async function handler(
   req: VercelRequest,
   res: VercelResponse,
@@ -191,7 +268,7 @@ export default async function handler(
   if (!what) {
     res.status(400).json({
       error: 'invalid_what',
-      message: 'what must be one of brief, siteplan, terrain, dossier.',
+      message: 'what must be one of brief, siteplan, terrain, dossier, flood.',
     })
     return
   }
@@ -207,6 +284,11 @@ export default async function handler(
 
   if (what === 'dossier') {
     await serveDossier(res, parcelNodeId, access.ownerScope, access.expiresAt)
+    return
+  }
+
+  if (what === 'flood') {
+    await serveFlood(res, parcelNodeId)
     return
   }
 

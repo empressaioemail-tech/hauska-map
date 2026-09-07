@@ -140,6 +140,29 @@ describe("ShareDossierSection render states", () => {
     expect(downloadsAt).toBeGreaterThan(dossierAt);
   });
 
+  it("the downloads section offers the flood & drainage report alongside site plan and terrain", () => {
+    const data: ShareBriefResponse = {
+      property: {
+        parcelNodeId: "48021:34177",
+        situsAddress: "1127 N Pine St",
+        countyName: "Bastrop",
+      },
+      report: ZONED_BRIEF,
+      share: { expiresAt: "2026-08-15T00:00:00.000Z" },
+    };
+    const html = renderToStaticMarkup(
+      <ShareAnalysisContent token="tok" data={data} dossier={null} />,
+    );
+    const downloadsAt = html.indexOf('data-testid="share-downloads"');
+    const sitePlanAt = html.indexOf("Download site plan");
+    const terrainAt = html.indexOf("Download terrain model");
+    const floodAt = html.indexOf("Download flood");
+    expect(downloadsAt).toBeGreaterThan(-1);
+    expect(sitePlanAt).toBeGreaterThan(downloadsAt);
+    expect(terrainAt).toBeGreaterThan(sitePlanAt);
+    expect(floodAt).toBeGreaterThan(terrainAt);
+  });
+
   it("labels a summary WITHOUT a stored disclaimer with the standing one", () => {
     const html = renderToStaticMarkup(
       <ShareDossierSection

@@ -679,22 +679,6 @@ export function PropertiesTool() {
     [],
   );
 
-  const handleToggleShareReport = useCallback(
-    async (parcelNodeId: string, report: "xray" | "flood", included: boolean) => {
-      const outcome = await updatePropertyDossier(parcelNodeId, (current) => ({
-        shareReportSelection: {
-          xray: report === "xray" ? included : current.shareReportSelection?.xray === true,
-          flood: report === "flood" ? included : current.shareReportSelection?.flood === true,
-        },
-      }));
-      if (outcome.kind !== "ok") {
-        setDossierNotice("Report include/exclude could not be saved.");
-        applyMutationOutcome(outcome);
-      }
-    },
-    [applyMutationOutcome],
-  );
-
   const handleMintShare = useCallback(
     async (parcelNodeId: string, pkg: PropertyShareMint) => {
       setBusy(true);
@@ -792,9 +776,6 @@ export function PropertiesTool() {
         onSaveNotes={(text) => void handleSaveNotes(row.parcelNodeId, text)}
         onSetStatus={(status) => void handleSetStatus(row.parcelNodeId, status)}
         onMintShare={(pkg) => void handleMintShare(row.parcelNodeId, pkg)}
-        onToggleShareReport={(report, included) =>
-          void handleToggleShareReport(row.parcelNodeId, report, included)
-        }
         shareUrl={shareUrl}
       />
     );
