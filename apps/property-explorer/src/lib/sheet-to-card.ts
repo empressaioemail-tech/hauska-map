@@ -41,3 +41,32 @@ export function cardFromSheet(sheet: ParcelFactSheet): ParcelCardData {
     lng: geometry.centroid.lng,
   };
 }
+
+/**
+ * cardFromSheet, with the searched address kept as a display fallback when
+ * the county's own record carries none.
+ *
+ * 9-4 UI review: "typing a real street address lands on the correct parcel
+ * but the page header shows a parcel number instead of the street address."
+ * cardFromSheet correctly nulls situsAddress on an honest county absence
+ * (most rural/unaddressed parcels), but Find already has a strictly better
+ * label sitting right there: the address the user just typed, which the
+ * geocoder already confirmed resolves to this exact parcel. Discarding it in
+ * favor of "Parcel 48021:34177" throws away real information to make room for
+ * a worse one.
+ *
+ * This changes the CARD HEADING only, never a fact. There is no separate
+ * "situs address" fact row in the inspect card — situsAddress exists here
+ * purely as a navigation label — so this asserts nothing the county didn't;
+ * every fact row still reads the sheet directly and reports the address gap
+ * as absent where it genuinely is.
+ */
+export function cardFromSheetWithSearchFallback(
+  sheet: ParcelFactSheet,
+  searchedAddress: string | null,
+): ParcelCardData {
+  const card = cardFromSheet(sheet);
+  return card.situsAddress != null
+    ? card
+    : { ...card, situsAddress: searchedAddress };
+}

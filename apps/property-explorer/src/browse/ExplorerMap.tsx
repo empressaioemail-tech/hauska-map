@@ -102,7 +102,7 @@ import {
 } from "../lib/parcel-lookup";
 import { factSheetResolver } from "../lib/fact-sheet-resolver";
 import { setSubjectByParcelNodeId, subjectStore } from "../lib/subject-store";
-import { cardFromSheet } from "../lib/sheet-to-card";
+import { cardFromSheetWithSearchFallback } from "../lib/sheet-to-card";
 import {
   inspectAsSoonAsIdKnown,
   pendingInspectFromLookup,
@@ -972,7 +972,13 @@ function ExplorerMapSurface({
           // Implementer A added `stale` on SubjectOutcome. Do not rewrite the
           // card from a race loser. Leave subject-store.ts to A.
           if (outcome.kind !== "subject") return;
-          const next = cardFromSheet(outcome.subject.sheet);
+          // Keep the click's own address (live-GIS feature property) as the
+          // heading fallback if the sealed sheet's county record has none —
+          // same reasoning as cardFromSheetWithSearchFallback's search path.
+          const next = cardFromSheetWithSearchFallback(
+            outcome.subject.sheet,
+            inspectedRef.current?.card?.situsAddress ?? null,
+          );
           inspectedRef.current = { card: next, parcelNodeId };
           setCard(next);
           // Sheet sealed for the STILL-inspected parcel: swap the highlight
@@ -1114,8 +1120,12 @@ function ExplorerMapSurface({
         }
 
         // 3. The card RENDERS the sheet — it is a projection, not a re-lookup.
+        // See cardFromSheetWithSearchFallback: keeps the searched address as
+        // the heading when the county record has none of its own (9-4 UI
+        // review — "the page header shows a parcel number instead of the
+        // street address").
         inspectInPlace(
-          cardFromSheet(sheet),
+          cardFromSheetWithSearchFallback(sheet, pending.card.situsAddress),
           sheet.identity.parcelNodeId,
           sheet.geometry.rings.length
             ? {
