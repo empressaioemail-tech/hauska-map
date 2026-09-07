@@ -528,6 +528,13 @@ export function ShareAnalysisContent({
           parcelNodeId={property.parcelNodeId}
           grantId={grantId}
         />
+        <DownloadButton
+          label="Download flood & drainage report (PDF)"
+          href={`${downloadBase}&what=flood`}
+          filenameHint="the flood & drainage report"
+          parcelNodeId={property.parcelNodeId}
+          grantId={grantId}
+        />
       </section>
     </div>
   );

@@ -158,7 +158,6 @@ export function PropertyDossierDetail({
   onSaveNotes,
   onSetStatus,
   onMintShare,
-  onToggleShareReport,
   shareUrl,
 }: {
   row: SavedPropertyRow;
@@ -176,7 +175,6 @@ export function PropertyDossierDetail({
   onSetStatus: (status: DossierStatus | null) => void;
   /** On-property share mint (W3.3). Optional for older render tests. */
   onMintShare?: (pkg: PropertyShareMint) => void;
-  onToggleShareReport?: (report: "xray" | "flood", included: boolean) => void;
   shareUrl?: string | null;
 }) {
   const dossier = row.snapshot ?? {};
@@ -262,7 +260,6 @@ export function PropertyDossierDetail({
         busy={busy}
         shareUrl={shareUrl ?? null}
         onMintShare={onMintShare}
-        onToggleShareReport={onToggleShareReport}
       />
 
       {/* DRAWINGS — capture current map annotations / redraw saved ones. */}
@@ -535,47 +532,33 @@ export function DossierChatThreads({
   );
 }
 
+/**
+ * NOT interactive. X-ray/flood/site plan/terrain reports are all served the
+ * same way on a share link — included automatically whenever the sharer
+ * already generated them for this property, same as the site plan and
+ * terrain downloads already work (see api/pe-share-grant.ts's what=flood).
+ * This used to be a pair of checkboxes that looked like a per-share
+ * include/exclude choice; they never actually gated anything server-side
+ * (mintShareLink dropped both flags before the request), so keeping them
+ * interactive would tell the sharer their choice does something it does
+ * not. A real per-share opt-out needs a column on the grant row, which
+ * lives in cortex's own store (pe-share-grant-store.ts) — out of this
+ * repo's reach without a legacy-design-tools change; flagged, not built.
+ */
 export function PropertyRowReports({
   selection,
-  onToggle,
-  disabled,
 }: {
   selection: ShareReportSelection | null;
-  onToggle?: (report: "xray" | "flood", included: boolean) => void;
-  disabled?: boolean;
 }) {
-  const xray = selection?.xray === true;
-  const flood = selection?.flood === true;
+  void selection;
   return (
-    <div data-testid="properties-row-reports" style={{ display: "flex", gap: 6 }}>
-      <label
-        data-testid="properties-row-report-xray"
-        style={{ fontSize: 11.5, color: TEXT, cursor: disabled ? "default" : "pointer" }}
-      >
-        <input
-          type="checkbox"
-          className="ss-focusable"
-          checked={xray}
-          disabled={disabled}
-          onChange={(e) => onToggle?.("xray", e.target.checked)}
-          onClick={(e) => e.stopPropagation()}
-        />{" "}
-        X-ray
-      </label>
-      <label
-        data-testid="properties-row-report-flood"
-        style={{ fontSize: 11.5, color: TEXT, cursor: disabled ? "default" : "pointer" }}
-      >
-        <input
-          type="checkbox"
-          className="ss-focusable"
-          checked={flood}
-          disabled={disabled}
-          onChange={(e) => onToggle?.("flood", e.target.checked)}
-          onClick={(e) => e.stopPropagation()}
-        />{" "}
-        Flood
-      </label>
+    <div
+      data-testid="properties-row-reports"
+      style={{ display: "flex", gap: 6, fontSize: 11.5, color: MUTED }}
+    >
+      <span data-testid="properties-row-report-xray">
+        X-ray &amp; flood report included automatically when available
+      </span>
     </div>
   );
 }
@@ -586,14 +569,12 @@ export function PropertySharePicker({
   busy,
   shareUrl,
   onMintShare,
-  onToggleShareReport,
 }: {
   notesPresent: boolean;
   reportSelection: ShareReportSelection | null;
   busy: boolean;
   shareUrl: string | null;
   onMintShare?: (pkg: PropertyShareMint) => void;
-  onToggleShareReport?: (report: "xray" | "flood", included: boolean) => void;
 }) {
   const [persona, setPersona] = useState<SharePersona>("agent");
   const [message, setMessage] = useState(defaultShareMessage("agent"));
@@ -733,11 +714,7 @@ export function PropertySharePicker({
         />
         Include notes
       </label>
-      <PropertyRowReports
-        selection={reportSelection}
-        onToggle={onToggleShareReport}
-        disabled={busy}
-      />
+      <PropertyRowReports selection={reportSelection} />
       {shareUrl ? (
         <div
           data-testid="dossier-share-url"

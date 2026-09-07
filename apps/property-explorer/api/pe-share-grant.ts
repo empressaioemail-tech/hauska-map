@@ -3,8 +3,17 @@
 // Server-visible share instrument (P-86 items 2, 5, 7). The grant id is in
 // the path the server receives. HMAC is never accepted here. Expired and
 // revoked are distinct 403s. After the grant row resolves, compose the same
-// instrument as pe-share-view (brief / dossier / siteplan / terrain / xray)
-// using grantor ids from the row, then render HTML / markdown / JSON.
+// instrument as pe-share-view (brief / dossier / siteplan / terrain / xray /
+// flood) using grantor ids from the row, then render HTML / markdown / JSON.
+//
+// what=flood mirrors siteplan/terrain's download-only rule: available
+// whenever the sharer already ran the report for this parcel (direct
+// BFF-to-engine-api, no MCP tool exists for this report), never a trigger to
+// run it now. No per-share include/exclude flag — same as siteplan/terrain,
+// this is served whenever it exists. A true per-share opt-in would need a
+// column on the grant row, which lives in cortex's own Neon store
+// (pe-share-grant-store.ts) — out of this repo's reach without a
+// legacy-design-tools schema/route change; not attempted here.
 
 import type { VercelRequest, VercelResponse } from '@vercel/node'
 import { deployOrigin } from './_lib/oidc-config.js'
@@ -25,6 +34,13 @@ import {
 } from './_lib/pe-share-instrument.js'
 import { callMcpTool, mcpProductKey } from './_lib/mcp-server-client.js'
 import {
+  buildFloodDrainageGateHeaders,
+  FLOOD_DRAINAGE_FORMAT,
+  floodDrainageFilename,
+} from './_lib/pe-flood-drainage-core.js'
+import {
+  engineApiBaseUrl,
+  engineApiGateToken,
   extractInlineDownload as extractSitePlanInline,
   sitePlanFilename,
 } from './_lib/pe-site-plan-export-core.js'
@@ -36,6 +52,57 @@ import {
 
 function first(v: string | string[] | undefined): string | undefined {
   return Array.isArray(v) ? v[0] : v
+}
+
+/**
+ * what=flood on the grant-id link — mirrors pe-share-view.ts's serveFlood
+ * (same direct BFF-to-engine-api transport; no MCP tool exists for this
+ * report). Download-only: a 404/410 from engine means the sharer never ran
+ * the report for this parcel, never a trigger to run it now.
+ */
+async function serveGrantFlood(res: VercelResponse, parcelNodeId: string): Promise<void> {
+  const gateToken = engineApiGateToken()
+  if (!gateToken) {
+    res.status(503).json({ error: 'proxy not configured', missing: 'HAUSKA_ENGINE_API_KEY' })
+    return
+  }
+  const target = `${engineApiBaseUrl()}/v1/property-nodes/${encodeURIComponent(parcelNodeId)}/flood-drainage/download?format=${FLOOD_DRAINAGE_FORMAT}`
+  try {
+    const upstream = await fetch(target, {
+      headers: {
+        Authorization: `Bearer ${gateToken}`,
+        ...buildFloodDrainageGateHeaders(),
+      },
+      signal: AbortSignal.timeout(30_000),
+    })
+    if (upstream.status === 404 || upstream.status === 410) {
+      res.status(404).json({
+        error: 'artifact_not_available',
+        message: 'Not available on this link — the sharer did not run this report.',
+      })
+      return
+    }
+    if (!upstream.ok) {
+      const text = await upstream.text().catch(() => '')
+      res.status(502).json({
+        error: 'download_failed',
+        message: text || `engine ${upstream.status}`,
+      })
+      return
+    }
+    const bytes = Buffer.from(await upstream.arrayBuffer())
+    res.setHeader('Content-Type', 'application/pdf')
+    res.setHeader(
+      'Content-Disposition',
+      `inline; filename="${floodDrainageFilename(parcelNodeId)}"`,
+    )
+    res.status(200).send(bytes)
+  } catch (err) {
+    res.status(502).json({
+      error: 'download_failed',
+      message: err instanceof Error ? err.message : String(err),
+    })
+  }
 }
 
 export type ShareGrantHandlerDeps = {
@@ -94,6 +161,11 @@ export async function handlePeShareGrant(
   }
 
   const what = first(req.query.what)?.trim().toLowerCase()
+  if (what === 'flood') {
+    await serveGrantFlood(res, access.row.parcelNodeId)
+    return
+  }
+
   if (what === 'siteplan' || what === 'terrain') {
     if (!mcpProductKey()) {
       res.status(503).json({ error: 'proxy not configured', missing: 'MCP_PRODUCT_KEY' })
