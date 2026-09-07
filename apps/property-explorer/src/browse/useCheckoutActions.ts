@@ -88,6 +88,25 @@ export function resolveSubscriptionNavigation(
   return { action: "idle" };
 }
 
+/**
+ * Pure decision for the defense-in-depth plan-change confirmation (see
+ * useCheckoutActions' currentPlan doc comment). True exactly once per
+ * requested tier: a real change (different tier and/or interval) that
+ * hasn't already been confirmed by a repeat click on the SAME tier.
+ */
+export function planChangeNeedsConfirmation(
+  currentPlan: { tier: PeCheckoutTier; interval: PeCheckoutInterval } | null | undefined,
+  requestedTier: PeCheckoutTier,
+  requestedInterval: PeCheckoutInterval,
+  pendingConfirmTier: PeCheckoutTier | null,
+): boolean {
+  if (!currentPlan) return false;
+  const isChange =
+    currentPlan.tier !== requestedTier || currentPlan.interval !== requestedInterval;
+  if (!isChange) return false;
+  return pendingConfirmTier !== requestedTier;
+}
+
 export function resolveUnlockNavigation(
   result: Extract<PropertyUnlockResult, { kind: "checkout" }>,
 ): { action: "custom" } | { action: "hosted"; url: string } | { action: "error"; message: string } {
@@ -107,6 +126,21 @@ export function useCheckoutActions(
     /** Fires only on a REAL unlock (dev-bypass server unlock) — never faked. */
     onUnlocked?: () => void;
     situsAddress?: string | null;
+    /**
+     * The account's current active plan, when known (useAccountEntitlement).
+     * DEFENSE IN DEPTH ONLY (Smart Site UI review 2026-09-04: an account held
+     * two simultaneously-active billing plans). This warns before starting a
+     * checkout that would change an already-active plan and requires a
+     * second click on the same tier to confirm. It does NOT close the actual
+     * gap — the real guard has to live where the subscription is created
+     * (legacy-design-tools' checkout-session/webhook handling), which this
+     * repo does not own and this change does not touch. Two browser tabs, or
+     * anything hitting the checkout endpoint directly, still isn't caught by
+     * this. Absent/undefined (e.g. account read still loading, or not
+     * signed in) never blocks a checkout — an unread state must not read as
+     * "no current plan" any more confidently than it reads as one.
+     */
+    currentPlan?: { tier: PeCheckoutTier; interval: PeCheckoutInterval } | null;
   } = {},
 ) {
   const [busy, setBusy] = useState<CheckoutBusy>(null);
@@ -116,6 +150,8 @@ export function useCheckoutActions(
   );
   const [subscriptionSession, setSubscriptionSession] =
     useState<SubscriptionCheckoutSession | null>(null);
+  const [pendingPlanChangeTier, setPendingPlanChangeTier] =
+    useState<PeCheckoutTier | null>(null);
 
   const handleProperty = async () => {
     if (busy || !parcelNodeId) return;
@@ -193,13 +229,31 @@ export function useCheckoutActions(
     seats?: number,
   ) => {
     if (busy) return;
+    const checkoutInterval = toCheckoutInterval(interval);
+
+    // Defense in depth (see the currentPlan doc comment above): a real plan
+    // CHANGE gets one confirmation click before it fires. Clicking the SAME
+    // tier again (or clicking a different tier, which resets which one is
+    // pending) proceeds.
+    const current = opts.currentPlan;
+    if (
+      planChangeNeedsConfirmation(current, tier, checkoutInterval, pendingPlanChangeTier)
+    ) {
+      setPendingPlanChangeTier(tier);
+      setNote({
+        text: `You're already on the ${current!.tier} (${current!.interval === "year" ? "annual" : "monthly"}) plan. Click ${PE_PRICING[tier].ctaLabel} again to switch.`,
+        tone: "amber",
+      });
+      return;
+    }
+    setPendingPlanChangeTier(null);
+
     setBusy(tier);
     setNote(null);
     void recordPeGtmEvent({
       eventType: "pe_upgrade_started",
       parcelNodeId,
     });
-    const checkoutInterval = toCheckoutInterval(interval);
     persistCheckoutPurchase({
       kind: "subscription",
       tier,
