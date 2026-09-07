@@ -395,6 +395,22 @@ textarea:focus-visible {
 }
 .maplibregl-ctrl-group button:hover .maplibregl-ctrl-icon { opacity: 1 }
 
+/* The compass control's icon is a TWO-TONE needle SVG (#333 north half,
+   #ccc south half) — the contrast between the two halves is what reads as
+   a needle at all. The blanket brightness(0) above crushes any source
+   colour to black before inverting, so both halves land on the exact same
+   grey and the needle reads as two identical, disconnected triangles —
+   indistinguishable from a broken stepper control next to the zoom
+   buttons it shares a group with (9-4 UI review: "the arrows underneath
+   [zoom] do not work" — verified live, 2026-09-07: the control is not
+   broken, drag-to-rotate works, only the icon reads as inert). Skip the
+   brightness(0) step here so the two source tones invert-and-lighten
+   instead of collapsing together; verified by rendering, not tuned by eye
+   against an unmeasured target the way the residue above was. */
+.maplibregl-ctrl-compass .maplibregl-ctrl-icon {
+  filter: brightness(2.5) !important;
+}
+
 /* ---- Scrollbars -----------------------------------------------------
    EVERY scroll container in the app, not just the dock one.
    The white platform scrollbar was showing because only .pe-dock-scroll was
