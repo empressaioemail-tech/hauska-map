@@ -54,13 +54,14 @@ describe("SettingsModal — the shell", () => {
   });
 });
 
-describe("Account — the address is NOT READ, and says so", () => {
-  it("renders Not read instead of a specimen address", () => {
-    // The session read returns { authenticated, hasSession } and the BFF holds
-    // an opaque token. Printing an address would mean inventing one.
+describe("Account — the address falls to Not read before the read resolves", () => {
+  it("renders Not read instead of a specimen address on first paint", () => {
+    // renderToStaticMarkup runs no effects, so the account read (P-123) never
+    // lands here. An unresolved read is unknown, not blank, so the row must
+    // still say Not read rather than a placeholder shape.
     const html = render("account");
-    expect(html).toContain('data-testid="settings-email-not-read"');
-    expect(html).toContain("Not read");
+    expect(html).toContain('data-testid="settings-email"');
+    expect(html).toContain(`<span data-testid="settings-email">${"Not read"}</span>`);
   });
 
   it("never renders an email-shaped string", () => {

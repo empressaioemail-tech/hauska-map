@@ -113,6 +113,7 @@ describe("parseAccountEntitlement", () => {
         seatsPurchased: 3,
         billingInterval: "month",
         hasBillingAccount: true,
+        email: "operator@example.com",
       }),
     ).toEqual({
       authenticated: true,
@@ -124,7 +125,20 @@ describe("parseAccountEntitlement", () => {
       billingInterval: "month",
       preContract: false,
       hasBillingAccount: true,
+      email: "operator@example.com",
     });
+  });
+
+  it("P-123: email is ONLY a non-empty string — absent, null, and non-strings are all Not read", () => {
+    const withEmail = (v: unknown) =>
+      parseAccountEntitlement({ authenticated: true, email: v })?.email;
+    expect(withEmail("operator@example.com")).toBe("operator@example.com");
+    for (const bad of [undefined, null, "", 7, {}, [], true]) {
+      expect(withEmail(bad)).toBeNull();
+    }
+    // A server that predates P-123 omits the key entirely — same as every
+    // other field on this contract, that is null, not a fixture address.
+    expect(parseAccountEntitlement({ authenticated: true })?.email).toBeNull();
   });
 
   it("A-062: hasBillingAccount is ONLY an explicit true", () => {
@@ -213,6 +227,8 @@ describe("parseAccountEntitlement", () => {
       // us. False here is a REFUSAL to show a control, not a claim that the
       // account has no billing — see the asymmetry note on the field.
       hasBillingAccount: false,
+      // P-123 joins the same list: absent, so null, not a fixture address.
+      email: null,
     });
   });
 

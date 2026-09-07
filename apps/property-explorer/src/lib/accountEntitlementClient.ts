@@ -16,8 +16,16 @@
 //
 //   GET api/property-explorer/v1/entitlement          (NO parcelNodeId)
 //   200 { accessTier, subscriptionTier, entitlementSource, devRole,
-//         seatsPurchased, billingInterval, hasBillingAccount }
+//         seatsPurchased, billingInterval, hasBillingAccount, email }
 //       — and the `property` block OMITTED ENTIRELY.
+//
+//   email (P-123) is ANOTHER ACCOUNT-BODY-ONLY FIELD, added the same way
+//   hasBillingAccount was for A-062: it exists on peEntitlementAccountBody
+//   and is never on the per-property base body, so this module's own parse
+//   is the only place that ever looks for it. A server that predates the
+//   field omits the key entirely, which parses to null, same as every other
+//   field on this contract — there is no fixture address and no "Unknown"
+//   string standing in for one.
 //
 //   hasBillingAccount (A-062) is a BOOLEAN and the Stripe customer id is
 //   never on this wire. It gates whether Settings > Plan renders a real
@@ -152,6 +160,17 @@ export interface AccountEntitlement {
    * false.
    */
   hasBillingAccount: boolean;
+  /**
+   * P-123 — the signed-in address, or null when the wire does not carry it.
+   *
+   * NULL IS THE ONLY ABSENCE VALUE. Not "", not "Not read" baked into data —
+   * that string belongs to the render boundary (SettingsModal's emailLabel),
+   * not to this parse. A pre-P-123 server that omits the key, an explicit
+   * null, and a non-string value all resolve here to null; only a real
+   * non-empty string is accepted, because an invented address is worse than
+   * an honest blank on a row labelled "Signed in as".
+   */
+  email: string | null;
 }
 
 export type AccountEntitlementOutcome =
@@ -195,6 +214,15 @@ export function parsePlanTier(v: unknown): PlanTier | null {
 /** paid / free only. Anything else — INCLUDING ABSENT — is null = unknown. */
 export function parseAccessTier(v: unknown): AccessTier | null {
   return v === "paid" || v === "free" ? v : null;
+}
+
+/**
+ * A non-empty string, or null. Anything else — absent, null, a number, "" —
+ * is null. Never trimmed or validated as an address: this is a wire parse,
+ * not a form field, and the server owns what counts as an email.
+ */
+function parseEmail(v: unknown): string | null {
+  return typeof v === "string" && v.length > 0 ? v : null;
 }
 
 /**
@@ -251,6 +279,7 @@ export function parseAccountEntitlement(body: unknown): AccountEntitlement | nul
     // truthy string would be a coercion, and both must read false — see the
     // asymmetry argument on the field above.
     hasBillingAccount: pick("hasBillingAccount") === true,
+    email: parseEmail(pick("email")),
     billingInterval: parseBillingInterval(pick("billingInterval")),
     preContract:
       !Object.prototype.hasOwnProperty.call(b, "billingInterval") &&
