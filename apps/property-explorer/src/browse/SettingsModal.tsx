@@ -11,11 +11,16 @@
 //
 // WHAT IS REAL AND WHAT IS NOT, which is the whole design:
 //
-//   Account      REAL. Provider sign-in and logout from auth.ts. The email is
-//                NOT READ: GET /api/auth/session returns { authenticated,
-//                hasSession } and the BFF holds an opaque token. The address
-//                exists only at the OAuth callback. The slot says so instead
-//                of printing a specimen address.
+//   Account      REAL. Provider sign-in and logout from auth.ts. The email
+//                is NOT on the session read — GET /api/auth/session returns
+//                { authenticated, hasSession } and the BFF holds an opaque
+//                token, no address. P-123 added it to the ACCOUNT
+//                entitlement read instead (same wire as Access, below), the
+//                same way A-062 added hasBillingAccount: an account-body-only
+//                field, absent on the per-property form. The row reads
+//                emailLabel(account) and says Not read on its own null,
+//                same discipline as every other row on this wire — it does
+//                not go blank the day the field lands; it goes real.
 //   Plan         REAL. Access, Tier name and Billing interval all come off the
 //                ACCOUNT-level entitlement read (lib/accountEntitlementClient
 //                — the parcel-less GET, added P-98b), and each says Not read
@@ -330,6 +335,24 @@ export function accessLabel(read: AccountEntitlementRead): string {
   if (!account.authenticated) return NOT_READ;
   if (account.accessTier === null) return NOT_READ;
   return account.accessTier === "paid" ? "Paid" : PE_PRICING.free.title;
+}
+
+/**
+ * SIGNED-IN ADDRESS, off the ACCOUNT read (P-123).
+ *
+ * SAME FOUR-STATE SHAPE AS accessLabel, for the same reasons: an unresolved
+ * or failed read is unknown, not blank; a ready-but-signed-out read has no
+ * account to name, and printing an address next to the sign-in buttons would
+ * be a claim about a person who has not identified themselves; a ready,
+ * authenticated read with a null email is a pre-P-123 server or a row the
+ * wire genuinely omitted, and stays Not read rather than falling back to a
+ * placeholder shape.
+ */
+export function emailLabel(read: AccountEntitlementRead): string {
+  if (read === null || read.kind !== "ready") return NOT_READ;
+  const { account } = read;
+  if (!account.authenticated) return NOT_READ;
+  return account.email ?? NOT_READ;
 }
 
 /**
@@ -685,7 +708,7 @@ export function SettingsModal({
                 <Panel>
                   <Row
                     label="Signed in as"
-                    value={<span data-testid="settings-email-not-read">Not read</span>}
+                    value={<span data-testid="settings-email">{emailLabel(account)}</span>}
                   />
                   <Row label="Session" value="This browser" />
                   <Row
