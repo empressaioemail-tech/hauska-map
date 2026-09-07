@@ -33,7 +33,7 @@ describe("SignUpCard — email magic-link option is wired correctly (source)", (
     // flowing through state/fetch calls.
     expect(SOURCE).not.toMatch(/type="password"/);
     expect(SOURCE).not.toMatch(/\bpassword\s*[:=]/i);
-    expect(SOURCE).toContain("no password, ever");
+    expect(SOURCE).toContain("No password, ever");
   });
 
   it("a send failure sets the error stage and shows the honest server message, never a fake sent state unconditionally", () => {

@@ -74,7 +74,7 @@ export function SignUpCard({ onDismiss }: { onDismiss: () => void }) {
         setEmailStage("error");
         setEmailMessage(
           result.error === "rate_limited"
-            ? "Too many requests for this address — try again in a few minutes."
+            ? "Too many requests for this address. Try again in a few minutes."
             : result.message || "Could not send the sign-in email. Please try again.",
         );
         return;
@@ -157,7 +157,7 @@ export function SignUpCard({ onDismiss }: { onDismiss: () => void }) {
             color: PE.t1,
           }}
         >
-          See what you can build on Texas parcels — where data is verified.
+          Find out what a parcel will let you do, and what nobody has measured yet.
         </h1>
 
         <ul
@@ -170,9 +170,9 @@ export function SignUpCard({ onDismiss }: { onDismiss: () => void }) {
           }}
         >
           {[
-            "Browse the map and inspect card free — zoning, setbacks, flood, and buildable envelope when verified.",
-            "Save properties and share analysis links at no cost — share is free for every account.",
-            "Deep research, reports, and unlimited AI start at $15 per property for 30 days or Solo from $49/mo.",
+            "The map, the layers and the inspect card are free, no account needed.",
+            "Make an account and you can save properties, ask three questions on any parcel, and send anyone a live link. Sharing is free on every plan, and the person you send it to sees exactly what you see.",
+            "Reports and unlimited questions start at $15 for one property for 30 days, or $49 a month for all of them.",
           ].map((t, i) => (
             <li
               key={t}
@@ -324,7 +324,7 @@ export function SignUpCard({ onDismiss }: { onDismiss: () => void }) {
                   </p>
                 )}
                 <p style={{ fontSize: 12.5, color: PE.t5, margin: 0 }}>
-                  We'll email you a link — no password, ever.
+                  We'll email you a link. No password, ever.
                 </p>
               </form>
             )}
@@ -339,7 +339,7 @@ export function SignUpCard({ onDismiss }: { onDismiss: () => void }) {
           onClick={dismissBrowse}
           style={{ marginTop: 10 }}
         >
-          Just browse the map
+          Browse the map first
         </Button>
 
         <p
@@ -350,8 +350,9 @@ export function SignUpCard({ onDismiss }: { onDismiss: () => void }) {
             color: PE.t5,
           }}
         >
-          Coverage varies by county and city. Comal countywide land-use remains an
-          honest gap on browse.
+          Coverage runs deepest in Central Texas and varies by county and by
+          city. Where something has not been measured, the record says so
+          instead of guessing.
         </p>
       </div>
     </div>
