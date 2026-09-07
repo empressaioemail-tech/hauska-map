@@ -186,3 +186,122 @@ describe("augmentFacetsWithLiveEnvelope", () => {
     expect(out.envelope?.emptyReason).toContain("consume");
   });
 });
+
+// Boundary-envelope atom program item 2's PE-side counterpart: when the bake
+// already carries a real atom-derived buildableAreaSqFt, it must not be
+// silently overridden by live-derive's own independently-recomputed number.
+describe("augmentFacetsWithLiveEnvelope — atom-area reconciliation", () => {
+  // Real figure from the pilot's live verification of 48021:105032 (a real
+  // Elgin R-2 parcel) — buildableEnvelope.outcome = {kind:"buildable", areaSqFt:9160}.
+  const ATOM_BUILDABLE: BakedFacetPayload = {
+    envelope: {
+      ...GEO_ABSENT.envelope!,
+      buildableAreaSqFt: 9160,
+      buildableAreaPct: 62.4,
+    },
+  };
+
+  function liveGeometryResponse(buildableAreaSqFt: number) {
+    return vi.fn(async () => ({
+      ok: true,
+      json: async () => ({
+        status: "ok",
+        payload: {
+          geojson: {
+            type: "FeatureCollection",
+            features: [
+              {
+                type: "Feature",
+                properties: { buildableAreaSqFt },
+                geometry: {
+                  type: "Polygon",
+                  coordinates: [
+                    [
+                      [-97.32, 30.11],
+                      [-97.319, 30.11],
+                      [-97.319, 30.109],
+                      [-97.32, 30.109],
+                      [-97.32, 30.11],
+                    ],
+                  ],
+                },
+              },
+            ],
+          },
+        },
+      }),
+    })) as unknown as typeof fetch;
+  }
+
+  it("atom's reported area wins when live-derive disagrees (positive)", async () => {
+    const fetchImpl = liveGeometryResponse(8000);
+    const out = await augmentFacetsWithLiveEnvelope(
+      ATOM_BUILDABLE,
+      "1010 PECAN ST, BASTROP, TX 78602",
+      "/api/spine/cortex/api",
+      fetchImpl,
+    );
+    expect(out.envelope?.buildableAreaSqFt).toBe(9160);
+    expect(out.envelope?.buildableAreaPct).toBe(62.4);
+    expect(out.envelope?.geojson).toBeTruthy();
+    expect(out.envelope?.disclosure).toContain("property atom chain");
+  });
+
+  it("keeps live-derive's own result when it already agrees with the atom (falsifier: no gratuitous override)", async () => {
+    const fetchImpl = liveGeometryResponse(9160);
+    const out = await augmentFacetsWithLiveEnvelope(
+      ATOM_BUILDABLE,
+      "1010 PECAN ST, BASTROP, TX 78602",
+      "/api/spine/cortex/api",
+      fetchImpl,
+    );
+    expect(out.envelope?.buildableAreaSqFt).toBe(9160);
+    expect(out.envelope?.disclosure).not.toContain("property atom chain");
+    expect(out.envelope?.disclosure).toContain("live derive");
+  });
+
+  it("atom's reported area wins when live-derive finds no buildable area at all", async () => {
+    const fetchImpl = vi.fn(async () => ({
+      ok: true,
+      json: async () => ({
+        status: "no-buildable-area",
+        payload: {
+          empty: true,
+          geojson: {
+            type: "FeatureCollection",
+            features: [
+              {
+                type: "Feature",
+                properties: { emptyReason: "Setbacks consume the lot." },
+                geometry: null,
+              },
+            ],
+          },
+        },
+      }),
+    })) as unknown as typeof fetch;
+
+    const out = await augmentFacetsWithLiveEnvelope(
+      ATOM_BUILDABLE,
+      "1010 PECAN ST, BASTROP, TX 78602",
+      "/api/spine/cortex/api",
+      fetchImpl,
+    );
+    expect(out.envelope?.status).toBe("ok");
+    expect(out.envelope?.buildableAreaSqFt).toBe(9160);
+    expect(out.envelope?.geojson).toBeUndefined();
+    expect(out.envelope?.disclosure).toContain("property atom chain");
+  });
+
+  it("regression: no atom area to reconcile against still lets live-derive's number stand (GEO_ABSENT cohort)", async () => {
+    const fetchImpl = liveGeometryResponse(4200);
+    const out = await augmentFacetsWithLiveEnvelope(
+      GEO_ABSENT,
+      "1010 PECAN ST, BASTROP, TX 78602",
+      "/api/spine/cortex/api",
+      fetchImpl,
+    );
+    expect(out.envelope?.buildableAreaSqFt).toBe(4200);
+    expect(out.envelope?.disclosure).not.toContain("property atom chain");
+  });
+});
