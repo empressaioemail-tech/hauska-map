@@ -686,7 +686,6 @@ export function SettingsModal({
                   <Row
                     label="Signed in as"
                     value={<span data-testid="settings-email-not-read">Not read</span>}
-                    note="The session read returns authentication only. The address exists at the OAuth callback and is not persisted anywhere a later read can reach."
                   />
                   <Row label="Session" value="This browser" />
                   <Row
@@ -704,9 +703,6 @@ export function SettingsModal({
                     >
                       Sign out
                     </Button>
-                    <span style={{ fontSize: 12.5, color: PE.t5 }}>
-                      Signing out clears this browser only.
-                    </span>
                   </div>
                 ) : (
                   <div style={{ display: "flex", gap: 8 }}>
@@ -759,10 +755,6 @@ export function SettingsModal({
                   >
                     View plans
                   </Button>
-                </div>
-                <div style={{ fontSize: 15.5, lineHeight: 1.65, color: PE.t2 }}>
-                  Upgrading opens the same checkout as everywhere else in the
-                  app, so a plan is never priced in two places.
                 </div>
                 <Panel>
                   {/*
@@ -840,8 +832,11 @@ export function SettingsModal({
                 {/*
                   THE REFUSAL IS SHOWN, never swallowed. A cancel control that
                   appears to do nothing is worse than the Not built row it
-                  replaced, so every non-portal outcome from the client is
-                  rendered here with its own words.
+                  replaced, so a portal-open failure is rendered here with its
+                  own words. The "manage" success case says nothing further —
+                  the row's own note above already states where cancellation,
+                  payment method and invoices live, and restating it here was
+                  the same sentence twice (9-4 UI review, boilerplate removal).
                 */}
                 {portal ? (
                   <Aside>
@@ -853,13 +848,7 @@ export function SettingsModal({
                           : portal.message}
                     </span>
                   </Aside>
-                ) : billingManagement === "manage" ? (
-                  <Aside>
-                    Cancelling, changing the payment method and downloading
-                    invoices all happen in the Stripe billing portal. Smart Site
-                    does not keep a second copy of any of them.
-                  </Aside>
-                ) : (
+                ) : billingManagement === "manage" ? null : (
                   <Aside>
                     A paid plan bought on this account opens a Stripe billing
                     portal, where payment method, invoices and cancellation
