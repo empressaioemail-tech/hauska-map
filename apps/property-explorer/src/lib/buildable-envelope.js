@@ -261,7 +261,7 @@ export async function fetchBuildableEnvelope(sel, cortexBase, fetchImpl = fetch)
         props?.emptyReason ||
         props?.disclosure ||
         coverage.reason ||
-        "No buildable area — setbacks exceed the lot.",
+        "No buildable area: setbacks exceed the lot.",
       empty: true,
       setbacks,
       summary,

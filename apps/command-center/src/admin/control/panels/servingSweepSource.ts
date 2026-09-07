@@ -117,6 +117,6 @@ export function loadSweepArtifact(text: string, filename: string): SweepSourceSt
 }
 
 export const ORIGIN_COPY: Readonly<Record<SweepOrigin, string>> = Object.freeze({
-  'live-endpoint': 'LIVE — read from cortex-api',
-  'loaded-artifact': 'ARTIFACT — a report file loaded into the console, not a live read',
+  'live-endpoint': 'LIVE: read from cortex-api',
+  'loaded-artifact': 'ARTIFACT: a report file loaded into the console, not a live read',
 })

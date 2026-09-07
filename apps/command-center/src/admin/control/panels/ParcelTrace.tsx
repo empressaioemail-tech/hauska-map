@@ -110,7 +110,7 @@ export const ParcelTrace: React.FC = () => {
       if (!geocodeResult.ok) {
         setError(
           geocodeResult.json?.error === 'geocode_miss'
-            ? `Geocode miss — could not geocode “${address.trim()}”. Check the address and try again.`
+            ? `Geocode miss: could not geocode “${address.trim()}”. Check the address and try again.`
             : geocodeResult.error || 'Geocode failed',
         )
         setLoading(false)
@@ -195,7 +195,7 @@ export const ParcelTrace: React.FC = () => {
           >
             The vanilla console's E7 panel was map-driven (click parcel → atoms). Site Analysis
             now hosts the shared layered map; this panel is the address search + atom trace
-            companion — resolve place → show atoms → trace graph.
+            companion, resolve place → show atoms → trace graph.
           </p>
           <div style={{ display: 'flex', gap: 6, alignItems: 'center' }}>
             <input
@@ -311,7 +311,7 @@ export const ParcelTrace: React.FC = () => {
         {atoms.length === 0 && !loading && !error && (
           <div style={{ padding: 20, textAlign: 'center', color: 'var(--color-text-tertiary)', fontSize: 11 }}>
             {placeKey
-              ? `Place resolved (${placeKey}) but no atoms are composed at this place yet — an honest 0, not an error.`
+              ? `Place resolved (${placeKey}) but no atoms are composed at this place yet. An honest 0, not an error.`
               : 'Enter an address above to resolve a place and view its composed atoms.'}
           </div>
         )}

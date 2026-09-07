@@ -23,6 +23,6 @@ export function iccCitationStatus(): IccCitationStatus {
   return {
     live: false,
     message:
-      "ICC I-Code citations on this surface require ingest credentials on cortex-api (hold list — no fabricated code text).",
+      "ICC I-Code citations on this surface require ingest credentials on cortex-api (hold list, no fabricated code text).",
   };
 }

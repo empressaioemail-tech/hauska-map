@@ -111,7 +111,7 @@ async function fetchRunState(config: SpineConfig): Promise<RunState> {
     computeBudgetUsd: null,
     recentRuns: [],
     attempts,
-    message: 'W1 warming harness (W1–W5) not running — no run-state endpoint responded',
+    message: 'W1 warming harness (W1–W5) not running: no run-state endpoint responded',
   }
 }
 

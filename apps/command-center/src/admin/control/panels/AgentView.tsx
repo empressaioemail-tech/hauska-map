@@ -37,8 +37,8 @@ async function fetchDiscoverabilityDocs(config: SpineConfig): Promise<Discoverab
   
   // llms.txt and agents.txt are at the MCP server root (not under /mcp/*), so they're not proxied
   if (isProxyMode) {
-    docs.llmsError = 'Not available through proxy — MCP server root paths are not routed'
-    docs.agentsError = 'Not available through proxy — MCP server root paths are not routed'
+    docs.llmsError = 'Not available through proxy: MCP server root paths are not routed'
+    docs.agentsError = 'Not available through proxy: MCP server root paths are not routed'
     docs.source = 'proxy mode (root paths excluded)'
     return docs
   }
@@ -189,7 +189,7 @@ export const AgentView: React.FC = () => {
   if (err) {
     return (
       <Panel title="Agent View" subtitle="Third-party agent surface" right={<Pill sev="warn">error</Pill>}>
-        <ErrorState msg={`${err} — is the Empressa MCP server reachable at ${config.mcpUrl}?`} />
+        <ErrorState msg={`${err}. Is the Empressa MCP server reachable at ${config.mcpUrl}?`} />
       </Panel>
     )
   }

@@ -235,7 +235,7 @@ const CatalogAtomDetailView: React.FC<{
       </div>
 
       <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
-        <span style={sectionHeader}>Confidence (object — never bare)</span>
+        <span style={sectionHeader}>Confidence (object, never bare)</span>
         <ConfidenceBlock fig={atom.confidence} showValue={false} />
       </div>
 
@@ -369,7 +369,7 @@ const PropertyAtomDetailView: React.FC<{
       </div>
 
       <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
-        <span style={sectionHeader}>Confidence (object — never bare)</span>
+        <span style={sectionHeader}>Confidence (object, never bare)</span>
         <ConfidenceBlock fig={row.confidence} showValue={false} />
       </div>
 
@@ -447,7 +447,7 @@ const PropertyAtomDetailView: React.FC<{
             </div>
           ) : (
             <span style={typeCaption}>
-              No property-line-tags on this edge (optional — Amendment 2). GIS-approx — not a survey.
+              No property-line-tags on this edge (optional, Amendment 2). GIS-approx, not a survey.
             </span>
           )}
         </div>
@@ -496,9 +496,9 @@ const PropertyAtomDetailView: React.FC<{
       </div>
 
       <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
-        <span style={sectionHeader}>Time travel — LIVE / AS-OF</span>
+        <span style={sectionHeader}>Time travel: LIVE / AS-OF</span>
         <Empty>
-          Property substrate does not expose LIVE/AS-OF projection endpoints yet — showing the
+          Property substrate does not expose LIVE/AS-OF projection endpoints yet, showing the
           fetched atom as current. (CT TimeTravel ports when retrieval adds as-of.)
         </Empty>
       </div>
@@ -687,7 +687,7 @@ export const AtomInspector: React.FC = () => {
               <Pill sev="info">jurisdiction sent: {normalizedJurisdiction}</Pill>
               {normalizedJurisdiction !== jurisdiction.trim() ? (
                 <span style={typeCaption}>
-                  normalized from “{jurisdiction.trim()}” — search_atoms matches exact underscored tenant ids only
+                  normalized from “{jurisdiction.trim()}”: search_atoms matches exact underscored tenant ids only
                 </span>
               ) : null}
             </div>
@@ -696,10 +696,10 @@ export const AtomInspector: React.FC = () => {
           {loading ? (
             <Loading />
           ) : err ? (
-            <ErrorState msg={`${err} — is the Empressa MCP server reachable at ${config.mcpUrl}?`} />
+            <ErrorState msg={`${err}. Is the Empressa MCP server reachable at ${config.mcpUrl}?`} />
           ) : !rows || rows.length === 0 ? (
             <Empty>
-              No atoms — start the local MCP server ({config.mcpUrl}) or set an Empressa key in Settings, then query.
+              No atoms. Start the local MCP server ({config.mcpUrl}) or set an Empressa key in Settings, then query.
             </Empty>
           ) : (
             <>

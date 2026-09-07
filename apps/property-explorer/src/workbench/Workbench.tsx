@@ -392,7 +392,7 @@ export function Workbench({
                 data-open={active ? "1" : undefined}
                 data-coming={tool.status === "coming" ? "1" : undefined}
                 data-testid={`workbench-bubble-${tool.id}`}
-                aria-label={tool.unread ? `${tool.label} — new` : tool.label}
+                aria-label={tool.unread ? `${tool.label} · new` : tool.label}
                 aria-pressed={active}
                 onClick={() => tapBubble(tool.id)}
                 style={bubbleStyle(active, tool.status === "coming")}

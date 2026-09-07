@@ -77,7 +77,7 @@ export const PORTAL_NO_BILLING_ACCOUNT_MESSAGE =
   "This account has no billing history yet, so there is no billing portal to open.";
 
 export const PORTAL_UNAVAILABLE_MESSAGE =
-  "The billing portal is temporarily unavailable. Nothing was changed — try again later.";
+  "The billing portal is temporarily unavailable. Nothing was changed; try again later.";
 
 export const PORTAL_NOT_BUILT_MESSAGE =
   "The billing portal is not available on this deployment yet.";
@@ -211,7 +211,7 @@ export async function startBillingPortal(
     return {
       kind: "error",
       message:
-        "The billing portal could not be opened — the session URL was not from Stripe.",
+        "The billing portal could not be opened: the session URL was not from Stripe.",
     };
   }
   return { kind: "portal", portalUrl };

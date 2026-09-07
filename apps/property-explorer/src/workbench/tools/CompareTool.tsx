@@ -151,7 +151,7 @@ export function CompareView({
   if (phase.kind === "sign-in") {
     return (
       <div data-testid="compare-sign-in" style={{ margin: 0, fontSize: 12.5, color: AMBER }}>
-        Sign in to compare saved properties — the saved list is account-scoped.
+        Sign in to compare saved properties. The saved list is account-scoped.
         <div style={{ marginTop: 8 }}>
           <GoogleSignInButton size="sm" testId="compare-sign-in-link" />
         </div>
@@ -708,7 +708,7 @@ export function CompareTool() {
         ...prev,
         [parcelNodeId]:
           outcome.kind === "not-saved"
-            ? "This property is no longer saved — notes not stored."
+            ? "This property is no longer saved. Notes not stored."
             : outcome.kind === "sign-in"
               ? "Sign in to save notes."
               : outcome.kind === "unreachable"

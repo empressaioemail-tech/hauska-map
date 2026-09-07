@@ -87,9 +87,9 @@ const FLOW_STROKE = "rgba(125,211,252,0.75)";
 const EXIT_COLOR = "#fcd34d";
 
 export const FLOOD_PAYWALL_MESSAGE =
-  "Flood & drainage report — catchment, drainage zones, rainfall ponding, and flow exits with a Sheet-Standard PDF.";
+  "Flood & drainage report: catchment, drainage zones, rainfall ponding, and flow exits with a Sheet-Standard PDF.";
 export const FLOOD_RUNNING_LINE =
-  "Running drainage study — fetching the DEM and modeling catchment, ponding, and flow (usually 15-45 s)…";
+  "Running drainage study: fetching the DEM and modeling catchment, ponding, and flow (usually 15-45 s)…";
 /**
  * The honest empty-ponding line. A study that models NO standing water on
  * the parcel is a real, useful result — but a legend listing "Ponding" over
@@ -97,7 +97,7 @@ export const FLOOD_RUNNING_LINE =
  * zero drawable ponding polygons the dock says so in words instead.
  */
 export const FLOOD_NO_PONDING_LINE =
-  "No modeled ponding on this parcel at the design storm — the drainage zones and flow paths below are the result.";
+  "No modeled ponding on this parcel at the design storm. The drainage zones and flow paths below are the result.";
 
 /** JSON-serializable per-property snapshot (useDockToolState slot "flood"). */
 export interface FloodToolStoredState {
@@ -248,9 +248,9 @@ function Legend({ hasPonding = true }: { hasPonding?: boolean }) {
         "FEMA flood zone (reference)",
       )}
       {/* Drainage-zone concentration bands — render teal fills, low → high. */}
-      {item({ background: FLOOD_ZONE_LOW_COLOR }, "Zone — low concentration")}
-      {item({ background: FLOOD_ZONE_MED_COLOR }, "Zone — medium concentration")}
-      {item({ background: FLOOD_ZONE_HIGH_COLOR }, "Zone — high concentration")}
+      {item({ background: FLOOD_ZONE_LOW_COLOR }, "Zone: low concentration")}
+      {item({ background: FLOOD_ZONE_MED_COLOR }, "Zone: medium concentration")}
+      {item({ background: FLOOD_ZONE_HIGH_COLOR }, "Zone: high concentration")}
       {/* The ponding swatch appears only when ponding is actually drawn — a
           legend entry with nothing on the map reads as a broken render. Render:
           deepest teal fill + heavy dark rim. */}
@@ -260,7 +260,7 @@ function Legend({ hasPonding = true }: { hasPonding?: boolean }) {
             background: FLOOD_PONDING_FILL_COLOR,
             border: `2px solid ${FLOOD_PONDING_LINE_COLOR}`,
           },
-          "Ponding — standing water",
+          "Ponding: standing water",
         )}
       {/* Catchment — dashed teal boundary, no fill (render: dashed line). */}
       {item(
@@ -465,7 +465,7 @@ export function FloodDrainageSection({ embed = false }: { embed?: boolean } = {}
         <p style={{ margin: "0 0 8px", fontSize: 12.5, lineHeight: 1.5, color: TEXT }}>
           Model this parcel&apos;s drainage: the upstream catchment delivering
           runoff, where water concentrates, modeled ponding at the design
-          storm, and where it exits — drawn on the map.
+          storm, and where it exits, drawn on the map.
         </p>
       )}
 
@@ -474,7 +474,7 @@ export function FloodDrainageSection({ embed = false }: { embed?: boolean } = {}
           data-testid="flood-stale-style"
           style={{ margin: "0 0 8px", fontSize: 12.5, color: MUTED, lineHeight: 1.45 }}
         >
-          A drainage study was run on this parcel in an earlier build — re-run it
+          A drainage study was run on this parcel in an earlier build. Re-run it
           to redraw with the current severity bands and flow paths.
         </div>
       )}

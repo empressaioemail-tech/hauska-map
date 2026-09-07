@@ -106,7 +106,7 @@ export async function saveChatToProperty(
   const now = deps.now ?? (() => new Date().toISOString());
 
   if (input.turns.length === 0) {
-    return { kind: "error", message: "Nothing to save — the thread is empty." };
+    return { kind: "error", message: "Nothing to save. The thread is empty." };
   }
 
   // ONE extra call on the SAME route/subject: the summary. The full history

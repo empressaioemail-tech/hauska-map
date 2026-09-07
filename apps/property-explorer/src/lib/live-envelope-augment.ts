@@ -180,7 +180,7 @@ export function applyLiveDeriveToFacets(
           disclosure:
             `Buildable area from the property atom chain (engine source of truth): ` +
             `${Math.round(atomAreaSqFt)} sq ft. Local map geometry unavailable for ` +
-            `this outcome — area shown without a drawn shape. Approximate — ` +
+            `this outcome, area shown without a drawn shape. Approximate: ` +
             `verify with a survey and the city.`,
         },
       };
@@ -195,7 +195,7 @@ export function applyLiveDeriveToFacets(
         buildableAreaPct: 0,
         emptyReason:
           str(live.reason) ??
-          "Setbacks consume the lot — no buildable area remains.",
+          "Setbacks consume the lot: no buildable area remains.",
         disclosure:
           str(live.disclosure) ??
           str(live.reason) ??
@@ -237,7 +237,7 @@ export function applyLiveDeriveToFacets(
         buildableAreaPct: env.buildableAreaPct,
         disclosure:
           `Buildable area from the property atom chain (engine source of truth): ` +
-          `${Math.round(atomAreaSqFt)} sq ft. Approximate — verify with a survey and the city.`,
+          `${Math.round(atomAreaSqFt)} sq ft. Approximate: verify with a survey and the city.`,
       },
     };
   }

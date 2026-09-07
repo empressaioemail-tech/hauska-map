@@ -332,14 +332,14 @@ export function SuggestDropdown({
   } else if (snap.unavailable) {
     body = (
       <div data-testid="search-unavailable" style={{ ...infoRow, color: PE.warn }}>
-        Search unavailable — could not reach the geocoder. Parcel ids (48021:34177)
+        Search unavailable, could not reach the geocoder. Parcel ids (48021:34177)
         still open directly.
       </div>
     );
   } else if (!snap.showingRecents && snap.empty) {
     body = (
       <div data-testid="search-empty" style={infoRow}>
-        No matches — try a fuller address
+        No matches, try a fuller address
       </div>
     );
   } else if (!rows.length) {

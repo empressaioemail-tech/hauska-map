@@ -419,7 +419,7 @@ export function splitWeldedProvenance(
 const JOIN_HOLD_RE =
   /LANDUSE_JOIN_HOLD|property_use_code|TxGIO prop_id|does not join CAD/i;
 const JOIN_HOLD_CUSTOMER =
-  "Not read — the county's parcel id does not match the appraisal record, so zoning is unavailable.";
+  "Not read: the county's parcel id does not match the appraisal record, so zoning is unavailable.";
 
 /** Customer value slot. Internal hold tokens stay in provenance / Sources. */
 export function customerValueSlot(raw: string): {
@@ -1434,7 +1434,7 @@ export function InspectCard({
             style={{ marginTop: 8, fontSize: 12.5, color: PE.warn }}
           >
             {baked.envelopeEmptyReason ||
-              "No buildable area after setbacks — the setbacks consume the lot."}
+              "No buildable area after setbacks: the setbacks consume the lot."}
           </div>
         )}
 
@@ -1446,7 +1446,7 @@ export function InspectCard({
       )}
       {source === "live" && env.status === "empty" && (
         <div style={{ marginTop: 8, fontSize: 12.5, color: PE.warn }}>
-          {env.reason || "No buildable area — setbacks consume the lot."}
+          {env.reason || "No buildable area: setbacks consume the lot."}
         </div>
       )}
       {/* I4 — `unresolved`. The ONLY one of these states that is an error, and
@@ -1461,7 +1461,7 @@ export function InspectCard({
       {((source === "baked" && baked?.envelopeApproximate) ||
         (source === "live" && (env.status === "ok" || env.status === "empty"))) && (
         <div style={{ marginTop: 8, fontSize: 11.5, color: MUTED }}>
-          Approximate — not survey grade. Verify with the city.
+          Approximate, not survey grade. Verify with the city.
         </div>
       )}
 

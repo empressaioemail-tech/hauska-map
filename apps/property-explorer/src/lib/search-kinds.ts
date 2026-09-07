@@ -107,7 +107,7 @@ export const INDEX_MISS_CHIP = "No parcel in the index for that address";
 
 /** Raw Find of a bare house+street must not lock the first prefix hit. */
 export const AMBIGUOUS_FIND_REASON =
-  "Several streets or cities match — pick one from the list.";
+  "Several streets or cities match. Pick one from the list.";
 
 const US_STATE_ABBREV: Record<string, string> = {
   alabama: "AL",

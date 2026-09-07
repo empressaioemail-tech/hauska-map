@@ -96,7 +96,7 @@ export const PE_PRICING = {
     needsPropertyNote: "Inspect a property first to unlock it.",
     /** Shown on the unlock card when the triggering feature is Studio-only. */
     studioOnlyNote:
-      "This feature is not part of the single-property unlock — it needs Studio or Team.",
+      "This feature is not part of the single-property unlock. It needs Studio or Team.",
     busyLabel: "Unlocking…",
   },
   /** Solo subscription — primary self-serve upsell in the two-choice unlock flow. */
@@ -110,7 +110,7 @@ export const PE_PRICING = {
     monthlyCompare: "$490/yr billed annually",
     title: "Solo",
     ctaLabel: "Start Solo",
-    blurb: "X-ray, flood study, unlimited AI — the full answer on one parcel at a time",
+    blurb: "X-ray, flood study, unlimited AI: the full answer on one parcel at a time",
     features: "X-ray, flood & drainage study, unlimited AI, unlimited properties",
   },
   /** Studio subscription — professional deliverables tier (terrain, CAD, owner data). */
@@ -127,7 +127,7 @@ export const PE_PRICING = {
     /** P-101: was "The packet", which told the largest segment the tier was
      *  for someone else while it held the one thing they would pay for. */
     badge: "Work a list",
-    blurb: "Work a list of parcels — screens, owner data, records, and the sheets you hand off",
+    blurb: "Work a list of parcels: screens, owner data, records, and the sheets you hand off",
     features: "Screens and boards, owner data, records request, site-plan CAD (DXF, IFC), terrain export",
   },
   /** Team subscription — firm tier (self-serve; seat expansion priced per seat). */
@@ -148,8 +148,8 @@ export const PE_PRICING = {
     annualCapNote: "Annual Team carries 3 seats. Extra seats are monthly.",
     title: "Team",
     ctaLabel: "Start Team",
-    blurb: "Everything in Studio — shared saved properties, seats, one bill",
-    features: "Everything in Studio for the whole firm — shared saved properties, one bill",
+    blurb: "Everything in Studio: shared saved properties, seats, one bill",
+    features: "Everything in Studio for the whole firm: shared saved properties, one bill",
   },
   cells: {
     included: "✓",
@@ -265,11 +265,11 @@ export const PE_PRICING = {
   >,
   /** First unlock this week stays quiet. Second unlock states the fact. */
   soloNudge:
-    "Unlocking more than a few properties? Solo covers unlimited properties — one subscription instead of many 30-day unlocks.",
+    "Unlocking more than a few properties? Solo covers unlimited properties: one subscription instead of many 30-day unlocks.",
   soloSecondUnlockFact:
     "This is your second property this week. Solo is unlimited at $49.",
   walletHonestDecline:
-    "Cash App Pay and wallets open as a QR in this box. If they do not appear, they are not available for this charge — use a card.",
+    "Cash App Pay and wallets open as a QR in this box. If they do not appear, they are not available for this charge. Use a card.",
   /** Free AI chat allowance per free account per property (server-counted;
    *  the server value wins when the entitlement response carries one). */
   freeMessages: {
@@ -285,22 +285,22 @@ export const proNudge = PE_PRICING.soloNudge;
 
 /** "Unlock this property — $15" */
 export function propertyChoiceLabel(): string {
-  return `${PE_PRICING.property.title} — ${PE_PRICING.property.priceLabel}`;
+  return `${PE_PRICING.property.title}: ${PE_PRICING.property.priceLabel}`;
 }
 
 /** "Solo — $49/mo" */
 export function soloChoiceLabel(): string {
-  return `${PE_PRICING.solo.title} — ${PE_PRICING.solo.priceLabel}`;
+  return `${PE_PRICING.solo.title}: ${PE_PRICING.solo.priceLabel}`;
 }
 
 /** "Studio — $129/mo" */
 export function studioChoiceLabel(): string {
-  return `${PE_PRICING.studio.title} — ${PE_PRICING.studio.priceLabel}`;
+  return `${PE_PRICING.studio.title}: ${PE_PRICING.studio.priceLabel}`;
 }
 
 /** "Team — $299/mo" */
 export function teamChoiceLabel(): string {
-  return `${PE_PRICING.team.title} — ${PE_PRICING.team.priceLabel}`;
+  return `${PE_PRICING.team.title}: ${PE_PRICING.team.priceLabel}`;
 }
 
 /** @deprecated Use soloChoiceLabel — retired Pro $99/$149 framing. */

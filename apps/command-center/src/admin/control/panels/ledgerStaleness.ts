@@ -89,7 +89,7 @@ export function ageAlarm(
     headline:
       severity === 'ok'
         ? `materialized ${humanDuration(age)} ago`
-        : `the ledger is ${humanDuration(age)} old — every one of the ${cellCount.toLocaleString()} cell states below is a claim about ${computedAt}, not about now`,
+        : `the ledger is ${humanDuration(age)} old. Every one of the ${cellCount.toLocaleString()} cell states below is a claim about ${computedAt}, not about now`,
     proves:
       severity === 'ok'
         ? 'the snapshot is recent; it is still a snapshot'
@@ -146,7 +146,7 @@ export function evidenceHorizonAlarm(
     id: 'evidence-horizon',
     severity: 'danger',
     headline: `${horizon.ahead.length} of ${observations.length} observations this console can see POSTDATE the ledger`,
-    proves: `the snapshot cannot contain them. ${named}. It does not prove any particular cell is wrong — it proves the ledger is behind the world and must not be read as world-truth`,
+    proves: `the snapshot cannot contain them. ${named}. It does not prove any particular cell is wrong. It proves the ledger is behind the world and must not be read as world-truth`,
     basis: 'timestamps carried by the other instruments on screen, compared against summary.computedAt',
     provenance: 'derived',
   }

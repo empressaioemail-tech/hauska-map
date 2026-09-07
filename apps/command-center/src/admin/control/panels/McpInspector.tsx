@@ -49,7 +49,7 @@ async function fetchMcpIntrospection(config: SpineConfig): Promise<McpIntrospect
     if (!res.ok) {
       return {
         status: 'error',
-        message: `HTTP ${res.status} — ${adminUrl}`,
+        message: `HTTP ${res.status}: ${adminUrl}`,
         tools: [],
         by_product: {},
       }

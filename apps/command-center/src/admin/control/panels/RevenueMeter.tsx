@@ -184,12 +184,12 @@ export const RevenueMeter: React.FC = () => {
                 <code style={mono}>platform_internal_required</code>). Wire an MCP product key
                 with <code style={mono}>platform_internal</code> access as{' '}
                 <code style={mono}>MCP_PRODUCT_KEY</code> on the Command Center deploy, then
-                refresh. Until then the NavRail badge stays DEGRADED (mechanical probe) — not LIVE.
+                refresh. Until then the NavRail badge stays DEGRADED (mechanical probe), not LIVE.
               </>
             ) : (
               <>
-                Metering summary unavailable. Badge stays DEGRADED until the probe succeeds —
-                never shown as LIVE without live numbers.
+                Metering summary unavailable. Badge stays DEGRADED until the probe succeeds.
+                Never shown as LIVE without live numbers.
               </>
             )}
           </div>
@@ -221,7 +221,7 @@ export const RevenueMeter: React.FC = () => {
                   Billed: <strong style={{ ...mono }}>{fmtNum(summary.totals.billed)}</strong>
                 </span>
                 {hasUnbilledWarning && (
-                  <Pill sev="warn" title="Stripe key not mounted — all calls unbilled">
+                  <Pill sev="warn" title="Stripe key not mounted, all calls unbilled">
                     stripe key missing
                   </Pill>
                 )}

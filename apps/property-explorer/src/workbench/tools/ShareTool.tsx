@@ -324,7 +324,7 @@ export function ShareTool() {
     } catch {
       setPhase({
         kind: "notice",
-        text: "Copy failed — select the link text and copy it manually.",
+        text: "Copy failed. Select the link text and copy it manually.",
         tone: "muted",
       });
     }

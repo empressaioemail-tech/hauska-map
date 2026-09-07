@@ -101,7 +101,7 @@ export class AppErrorBoundary extends React.Component<Props, State> {
           }}
         >
           Smart Site hit an unexpected error and stopped. Reloading will get
-          you back to a working map — nothing you had open is lost on the
+          you back to a working map. Nothing you had open is lost on the
           server.
         </div>
         {this.state.error?.message ? (

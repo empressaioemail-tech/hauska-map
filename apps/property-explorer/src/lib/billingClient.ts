@@ -28,7 +28,7 @@ export type PeCheckoutTier = "solo" | "studio" | "team";
 export type { PeCheckoutInterval };
 
 export const CHECKOUT_UNAVAILABLE_MESSAGE =
-  "Checkout is temporarily unavailable — the payment configuration on the server is incomplete. Nothing was charged; try again later.";
+  "Checkout is temporarily unavailable. The payment configuration on the server is incomplete. Nothing was charged; try again later.";
 
 export async function startPeCheckout(input: {
   /** REQUIRED: the tier the user actually clicked — a tierless body would
@@ -172,7 +172,7 @@ export const startProCheckout = startPeCheckout;
 // ---------------------------------------------------------------------------
 
 export const PROPERTY_UNLOCK_COMING_MESSAGE =
-  "The property unlock purchase flow is coming — contact us and we'll unlock this property for you today.";
+  "The property unlock purchase flow is coming. Contact us and we'll unlock this property for you today.";
 
 /** Property unlock redirects must land on Stripe Checkout — never a same-origin success URL. */
 export function isStripeCheckoutUrl(url: string): boolean {
@@ -370,7 +370,7 @@ export async function startPropertyUnlock(
           return {
             kind: "error",
             message:
-              "Checkout could not be started — payment session URL was not from Stripe.",
+              "Checkout could not be started: payment session URL was not from Stripe.",
           };
         }
         return { kind: "checkout", checkoutUrl: hosted, sessionId: body.sessionId };

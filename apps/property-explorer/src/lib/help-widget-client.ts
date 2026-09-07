@@ -54,14 +54,14 @@ export async function sendHelpWidgetMessage(
         message:
           typeof body.message === "string" && body.message
             ? body.message
-            : "Could not reach the assistant — try again.",
+            : "Could not reach the assistant. Try again.",
       };
     }
     return { kind: "answer", message: body.message };
   } catch {
     return {
       kind: "error",
-      message: "Could not reach the assistant — check your connection and try again.",
+      message: "Could not reach the assistant. Check your connection and try again.",
     };
   }
 }

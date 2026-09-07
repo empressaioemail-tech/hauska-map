@@ -278,7 +278,7 @@ describe("sign-up prompt", () => {
     expect(html).not.toContain("Start Solo");
     expect(html).not.toContain("View pricing");
     expect(html).toContain("Shared with you");
-    expect(html).toContain("sign up free to explore this and any property");
+    expect(html).toContain("Sign up free to explore this and any property");
     // The SAME entry point ChatTool / LockedToolPanel use (googleSignInUrl).
     expect(html).toContain('href="/api/auth/google/start"');
   });

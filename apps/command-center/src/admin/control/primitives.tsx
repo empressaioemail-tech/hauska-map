@@ -459,7 +459,7 @@ export const Centered: React.FC<{ children: React.ReactNode; color?: string }> =
 export const Loading: React.FC = () => <Centered>Loading…</Centered>
 
 export const ErrorState: React.FC<{ msg: string }> = ({ msg }) => (
-  <Centered color="var(--color-text-danger)">Couldn't load — {msg}</Centered>
+  <Centered color="var(--color-text-danger)">Couldn't load: {msg}</Centered>
 )
 
 export const Empty: React.FC<{ children?: React.ReactNode }> = ({ children }) => (

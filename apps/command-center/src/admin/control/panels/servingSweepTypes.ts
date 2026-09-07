@@ -302,7 +302,7 @@ function checkFields(v: unknown, path: string, problems: string[]): Record<Field
   }
   for (const key of FIELD_KEYS) {
     if (!(key in v)) {
-      problems.push(`${path}.${key}: missing — the frozen record requires every FieldKey`)
+      problems.push(`${path}.${key}: missing. The frozen record requires every FieldKey`)
       out[key] = emptyTally()
       continue
     }
@@ -419,7 +419,7 @@ function checkCounty(v: unknown, path: string, problems: string[]): CountyServin
   }
 
   const sf = isRecord(c.singleFamily) ? c.singleFamily : undefined
-  if (!sf) problems.push(`${path}.singleFamily: missing — the frozen record requires the single-family break-out`)
+  if (!sf) problems.push(`${path}.singleFamily: missing. The frozen record requires the single-family break-out`)
 
   return {
     countyFips: str(c.countyFips, `${path}.countyFips`, problems),
@@ -468,7 +468,7 @@ export function parseStatewideSweep(raw: unknown): SweepParseResult {
   }
   if (sweep.countiesSwept !== counties.length) {
     problems.push(
-      `root.countiesSwept: says ${sweep.countiesSwept} but counties[] carries ${counties.length} — two numbers that should agree and do not`,
+      `root.countiesSwept: says ${sweep.countiesSwept} but counties[] carries ${counties.length}, two numbers that should agree and do not`,
     )
   }
   return { ok: problems.length === 0, sweep, problems }

@@ -389,7 +389,7 @@ describe("flood section — persisted study renders the mini viz (KEPT) + map-ov
     // …and it says WHY there is no ponding, rather than showing nothing.
     expect(html).toContain('data-testid="flood-no-ponding"');
     expect(html).toContain("No modeled ponding on this parcel");
-    expect(html).not.toContain("Ponding — standing water");
+    expect(html).not.toContain("Ponding: standing water");
   });
 
   it("FD6: ponding SERVED but undrawable (null geometry) also reads as no ponding", () => {
@@ -419,7 +419,7 @@ describe("flood section — persisted study renders the mini viz (KEPT) + map-ov
       notice: null,
     } satisfies FloodToolStoredState);
     const html = render({ store });
-    expect(html).toContain("Ponding — standing water");
+    expect(html).toContain("Ponding: standing water");
     expect(html).not.toContain('data-testid="flood-no-ponding"');
   });
 

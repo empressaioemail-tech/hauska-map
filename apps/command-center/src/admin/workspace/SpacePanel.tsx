@@ -611,7 +611,7 @@ export function SpacePanel({ space }: SpacePanelProps) {
                     }}
                   >
                     <span>
-                      Report library unreachable — {registry.error ?? 'fetch failed'}
+                      Report library unreachable: {registry.error ?? 'fetch failed'}
                     </span>
                     <button
                       type="button"

@@ -140,7 +140,7 @@ export function SitePlanExportSection({
 
     settle({
       format,
-      notice: "Site plan ready — download above.",
+      notice: "Site plan ready, download above.",
       result: resp.data,
     });
   }, [address, countyName, format, onPaymentRequired, parcelNodeId, settle]);
@@ -320,7 +320,7 @@ export function SitePlanExportSection({
               style={{ marginTop: 6, fontSize: 11.5, color: MUTED, lineHeight: 1.4 }}
             >
               Setback layer: {result.setbackHonestAbsenceReason ??
-                "no setback rule on file for this parcel — setbacks not specified here and not verified."}
+                "no setback rule on file for this parcel: setbacks are not specified here and have not been verified."}
             </div>
           )}
 
@@ -329,7 +329,7 @@ export function SitePlanExportSection({
               data-testid="site-plan-setback-degenerate"
               style={{ marginTop: 6, fontSize: 11.5, color: WARN, lineHeight: 1.4 }}
             >
-              Setback offset degenerate — {result.setbackDegenerateReason ?? "lot geometry could not support the offset."}
+              Setback offset degenerate: {result.setbackDegenerateReason ?? "lot geometry could not support the offset."}
             </div>
           )}
 
@@ -364,7 +364,7 @@ export function SitePlanExportSection({
               style={{ marginTop: 6, fontSize: 11.5, color: MUTED, lineHeight: 1.4 }}
             >
               Revit: Link CAD (not Import) into a floor/site plan. Units meters.
-              After link, Zoom to Fit — geometry is local meters near the origin.
+              After link, Zoom to Fit: geometry is local meters near the origin.
             </div>
           )}
         </div>

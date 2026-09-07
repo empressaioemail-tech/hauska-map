@@ -156,7 +156,7 @@ export function ReportTile({ capability }: { capability: ReportTileCapability })
 
   const statusBanner =
     capability.status && capability.status !== 'live'
-      ? `${capability.status.toUpperCase()}${capability.degradedReason ? ` — ${capability.degradedReason}` : ''}`
+      ? `${capability.status.toUpperCase()}${capability.degradedReason ? `: ${capability.degradedReason}` : ''}`
       : null
 
   // Honest states — required context missing.
@@ -193,7 +193,7 @@ export function ReportTile({ capability }: { capability: ReportTileCapability })
     return (
       <HonestState
         title="No report endpoint"
-        hint={`cortex-api has no engagement report endpoint for "${capability.id}" yet (capability status: ${capability.status}). Nothing to display — this tile will light up when the backend ships it.`}
+        hint={`cortex-api has no engagement report endpoint for "${capability.id}" yet (capability status: ${capability.status}). Nothing to display. This tile will light up when the backend ships it.`}
       />
     )
   }
@@ -212,7 +212,7 @@ export function ReportTile({ capability }: { capability: ReportTileCapability })
         emptyHint={
           state.status === 'not-run' || state.status === null
             ? `${capability.label} has not run for this engagement yet.`
-            : `Status: ${state.status} — no result payload returned.`
+            : `Status: ${state.status}. No result payload returned.`
         }
         runLabel={`Run ${capability.label}`}
         quotaBanner={statusBanner}

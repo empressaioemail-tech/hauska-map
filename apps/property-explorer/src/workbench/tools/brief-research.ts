@@ -20,7 +20,7 @@ export const BRIEF_ENDPOINT = "api/property-explorer/v1/research/brief";
 /** 402 value line — the unified unlock flow renders under it (R1: replaces
  *  the Pro-hardcoded "R1–R10 … Pro entitlement" copy). */
 export const BRIEF_PAYWALL_MESSAGE =
-  "The full cited property brief — zoning, setbacks, buildable envelope, flood, and utilities with source citations and a verdict.";
+  "The full cited property brief: zoning, setbacks, buildable envelope, flood, and utilities with source citations and a verdict.";
 
 export type BriefResearchOutcome =
   | { kind: "ready"; brief: ResearchBriefPayload }

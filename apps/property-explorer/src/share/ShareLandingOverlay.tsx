@@ -64,7 +64,7 @@ export function ShareLandingOverlay({
             ? "This share link has expired."
             : "This share link is invalid or has expired."}{" "}
           <span style={{ color: MUTED }}>
-            Ask the sender for a fresh link — the map stays open.
+            Ask the sender for a fresh link. The map stays open.
           </span>
         </div>
       )}
@@ -86,10 +86,10 @@ export function ShareLandingOverlay({
             data-testid="share-inspect-cta"
             style={{ margin: "0 0 8px", fontSize: 14.5, lineHeight: 1.45 }}
           >
-            This property is open — use the inspect card.
+            This property is open. Use the inspect card.
           </p>
           <p style={{ margin: "0 0 8px", fontSize: 14.5, lineHeight: 1.45 }}>
-            <strong>Shared with you</strong> — sign up free to explore this and
+            <strong>Shared with you.</strong> Sign up free to explore this and
             any property.
           </p>
           <GoogleSignInButton
@@ -98,7 +98,7 @@ export function ShareLandingOverlay({
             onClick={() => void recordPeGtmEvent({ eventType: "pe_signup_intent" })}
           />
           <p style={{ margin: "6px 0 0", fontSize: 11.5, color: MUTED }}>
-            Browsing the map stays free — no account needed to look around.
+            Browsing the map stays free. No account needed to look around.
           </p>
         </div>
       )}

@@ -127,9 +127,9 @@ export type Subtab = 'manifest' | 'three-layer' | 'sweep'
 export const SUBTAB_HASH_KEY = 'view'
 
 const SUBTABS: Array<{ id: Subtab; label: string; hint: string }> = [
-  { id: 'manifest', label: 'Rail manifest', hint: 'SCORED — did a writer run for this county' },
+  { id: 'manifest', label: 'Rail manifest', hint: 'SCORED: did a writer run for this county' },
   { id: 'three-layer', label: 'Three layers', hint: 'WRITTEN vs SCORED vs SERVED, and where they disagree' },
-  { id: 'sweep', label: 'Serving sweep', hint: 'SERVED — what Smart Site serves, every parcel' },
+  { id: 'sweep', label: 'Serving sweep', hint: 'SERVED: what Smart Site serves, every parcel' },
 ]
 
 export function parseSubtab(raw: string | null): Subtab | null {
@@ -279,7 +279,7 @@ const AlarmBar: React.FC<{ alarms: StalenessAlarm[]; worst: 'ok' | 'warn' | 'dan
         }}
       >
         <span style={{ ...mono, fontWeight: 700, letterSpacing: '0.08em' }}>
-          {worst === 'ok' ? 'FRESH' : worst === 'warn' ? 'STALE' : 'STALE — READ THIS'}
+          {worst === 'ok' ? 'FRESH' : worst === 'warn' ? 'STALE' : 'STALE: READ THIS'}
         </span>
         <span style={{ ...typeCaption, color: c.fg, flex: '1 1 300px', lineHeight: 1.45 }}>
           {alarms[0]?.headline}
@@ -551,7 +551,7 @@ const DerivationStrip: React.FC<{
             <ul style={{ margin: '4px 0 0', paddingLeft: 18 }}>
               {REMOVED_CONTROLS.map((r) => (
                 <li key={r.control} style={{ marginBottom: 3 }}>
-                  <strong>{r.control}</strong> — driven by <span style={mono}>{r.drivenBy}</span>. {r.reason}.
+                  <strong>{r.control}</strong>: driven by <span style={mono}>{r.drivenBy}</span>. {r.reason}.
                   Replaced by: {r.replacedBy}.
                 </li>
               ))}
@@ -561,7 +561,7 @@ const DerivationStrip: React.FC<{
           <div style={{ ...sectionHeader, marginTop: 12, marginBottom: 4 }}>Derived replacements, measured now</div>
           <div data-testid="manifest-derived-controls" style={{ ...typeCaption, lineHeight: 1.5 }}>
             <div>
-              <strong>Scoring evidence</strong> — {railsWithoutEvidence.length} of {evidence.length} rails carry
+              <strong>Scoring evidence</strong>: {railsWithoutEvidence.length} of {evidence.length} rails carry
               no coverage number, no source and no verifying instrument on ANY of the{' '}
               {cells.length.toLocaleString()} cells:{' '}
               <span style={mono}>
@@ -572,7 +572,7 @@ const DerivationStrip: React.FC<{
               . This varies with the payload, unlike the hand-declared tag it replaced.
             </div>
             <div style={{ marginTop: 3 }}>
-              <strong>Partial</strong> — derived as 0 &lt; coverage &lt; threshold on{' '}
+              <strong>Partial</strong>: derived as 0 &lt; coverage &lt; threshold on{' '}
               {partialDivergence.derivedPartial.toLocaleString()} of{' '}
               {partialDivergence.cellsExamined.toLocaleString()} cells, while the served isPartial field
               says {partialDivergence.upstreamPartial.toLocaleString()}. The two disagree on{' '}
@@ -609,13 +609,13 @@ const DerivationStrip: React.FC<{
           <div style={{ ...sectionHeader, marginTop: 12, marginBottom: 4 }}>Cells that disagree with themselves</div>
           {contradictions.length === 0 ? (
             <div style={{ ...typeCaption }}>
-              none across {cells.length.toLocaleString()} cells — measured, not assumed
+              none across {cells.length.toLocaleString()} cells: measured, not assumed
             </div>
           ) : (
             contradictions.map((c) => (
               <div key={c.kind} style={{ marginBottom: 6 }}>
                 <div style={{ fontWeight: 600 }}>
-                  {MANIFEST_CONTRADICTION_LABELS[c.kind]} — {c.count.toLocaleString()} of{' '}
+                  {MANIFEST_CONTRADICTION_LABELS[c.kind]}: {c.count.toLocaleString()} of{' '}
                   {cells.length.toLocaleString()} cells
                 </div>
                 <div style={{ ...mono, color: 'var(--color-text-tertiary)' }}>
@@ -630,7 +630,7 @@ const DerivationStrip: React.FC<{
           <div style={{ ...sectionHeader, marginTop: 12, marginBottom: 4 }}>County names</div>
           <div style={{ ...typeCaption, lineHeight: 1.5 }}>
             {nameOrigins.api} served by the API, {nameOrigins.roster} filled from the local roster,{' '}
-            {nameOrigins.none} unresolved — denominator {counties.length.toLocaleString()} counties in this
+            {nameOrigins.none} unresolved, denominator {counties.length.toLocaleString()} counties in this
             payload. The roster is <span style={mono}>{TEXAS_COUNTY_NAME_SOURCE.artifact}</span> (
             {TEXAS_COUNTY_NAME_SOURCE.schemaVersion} @ {TEXAS_COUNTY_NAME_SOURCE.vintage},{' '}
             {TEXAS_COUNTY_NAME_SOURCE.countyCount} counties). It is presentation only and enters no
@@ -694,7 +694,7 @@ const Legend: React.FC<{ cannotFire: string[] }> = ({ cannotFire }) => (
     <span style={{ display: 'inline-flex', gap: 6, alignItems: 'center' }}>
       <Pill sev="warn">NO SCORING EVIDENCE</Pill>
       <span style={{ color: 'var(--color-text-tertiary)' }}>
-        column tag, DERIVED — not one county carries a coverage number, a source or a verifying
+        column tag, DERIVED: not one county carries a coverage number, a source or a verifying
         instrument for this rail
       </span>
     </span>
@@ -810,7 +810,7 @@ const CellDrawer: React.FC<{
         </dd>
         <dt style={{ ...typeCaption, textTransform: 'uppercase' }}>Writer / atom</dt>
         <dd style={{ ...mono, color: 'var(--color-text-tertiary)' }}>
-          hasWriter {String(cell.hasWriter)} · atomFamilyState {cell.atomFamilyState} — both HAND-DECLARED
+          hasWriter {String(cell.hasWriter)} · atomFamilyState {cell.atomFamilyState}, both HAND-DECLARED
           upstream; a registered writer is not the same as one that can produce coverage
         </dd>
       </dl>
@@ -873,7 +873,7 @@ const IntakeSection: React.FC<{
 
   return (
     <div style={{ marginTop: 20 }}>
-      <div style={{ ...sectionHeader, marginBottom: 8 }}>Intake — next best counties</div>
+      <div style={{ ...sectionHeader, marginBottom: 8 }}>Intake: next best counties</div>
       <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 'var(--type-caption)' }}>
         <thead>
           <tr style={sectionHeader as React.CSSProperties}>
@@ -946,7 +946,7 @@ const MaintenanceSection: React.FC<{ counties: ManifestCountyRow[] }> = ({ count
 
   return (
     <div style={{ marginTop: 20 }}>
-      <div style={{ ...sectionHeader, marginBottom: 8 }}>Maintenance — drifting or broken</div>
+      <div style={{ ...sectionHeader, marginBottom: 8 }}>Maintenance: drifting or broken</div>
       {rows.length === 0 ? (
         <div style={{ ...typeCaption }}>no stale, rewarm-unsafe, or open defect classes on this payload</div>
       ) : (
@@ -1304,7 +1304,7 @@ export const CountyManifestGrid: React.FC = () => {
   return (
     <Panel
       title="County Manifest"
-      subtitle={`${summary.totalCounties} counties × ${railCount} rails — see everything, where it is, and what is broken`}
+      subtitle={`${summary.totalCounties} counties × ${railCount} rails: see everything, where it is, and what is broken`}
       right={
         <Pill sev={alarmSet.worst === 'ok' ? 'ok' : alarmSet.worst}>
           {alarmSet.worst === 'ok'
@@ -1343,7 +1343,7 @@ export const CountyManifestGrid: React.FC = () => {
           onLoadArtifact={onLoadSweepArtifact}
         />
       ) : served ? (
-        <ErrorState msg="manifest not served by this deployment — GET /api/county-ledger returned no manifestCells array" />
+        <ErrorState msg="manifest not served by this deployment: GET /api/county-ledger returned no manifestCells array" />
       ) : (
         <>
           <RollupStrip
@@ -1426,8 +1426,8 @@ export const CountyManifestGrid: React.FC = () => {
                           key={rail.key}
                           title={
                             st?.sourceBasis
-                              ? `${rail.label} — reach basis: ${st.sourceBasis}${st.limitation ? ` (${st.limitation})` : ''}`
-                              : `${rail.label} — no capability probe defines a reachable ceiling for this rail`
+                              ? `${rail.label}, reach basis: ${st.sourceBasis}${st.limitation ? ` (${st.limitation})` : ''}`
+                              : `${rail.label}, no capability probe defines a reachable ceiling for this rail`
                           }
                           style={{
                             ...sectionHeader,
@@ -1458,7 +1458,7 @@ export const CountyManifestGrid: React.FC = () => {
                               <span
                                 data-testid={`rail-over-ceiling-${rail.key}`}
                                 style={{ color: 'var(--color-text-danger)' }}
-                                title="acquisition exceeds the rail's own reachable ceiling — the capability probe and the coverage scorer cannot both be right"
+                                title="acquisition exceeds the rail's own reachable ceiling. The capability probe and the coverage scorer cannot both be right"
                               >
                                 {' '}
                                 !
@@ -1506,7 +1506,7 @@ export const CountyManifestGrid: React.FC = () => {
                             style={{ fontWeight: 600, color: 'var(--color-text-primary)', overflow: 'hidden', textOverflow: 'ellipsis' }}
                             title={
                               resolved.origin === 'roster'
-                                ? 'name filled from the local Texas roster — the API served none for this county'
+                                ? 'name filled from the local Texas roster, the API served none for this county'
                                 : undefined
                             }
                           >

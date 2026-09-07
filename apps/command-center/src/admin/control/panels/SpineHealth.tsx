@@ -207,7 +207,7 @@ export const SpineHealth: React.FC = () => {
                     fontFamily: 'var(--font-ui)',
                   }}
                 >
-                  <strong>{alerts.length} ALERT(s)</strong> — zero/error with baseline&gt;0:{' '}
+                  <strong>{alerts.length} ALERT(s)</strong>: zero/error with baseline&gt;0:{' '}
                   {alerts.map((r) => r.probeId).join(', ')}
                 </div>
               ) : null}

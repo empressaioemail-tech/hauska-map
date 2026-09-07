@@ -226,7 +226,7 @@ export function RecordsRunsInbox({
           })}
           <p style={{ margin: 0, fontSize: 12.5, lineHeight: 1.45, color: MUTED }}>
             Runs continue in the background. We email your account when a search
-            finishes — open any row to see status on that parcel.
+            finishes. Open any row to see status on that parcel.
           </p>
         </div>
       ) : null}

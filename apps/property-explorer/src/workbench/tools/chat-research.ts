@@ -50,7 +50,7 @@ export const CHAT_ENDPOINT = "api/brokerage/v1/research/chat";
 /** 402 value line — the unified unlock flow renders under it (R1: no
  *  Pro-hardcoded copy; the flow offers the $15 property unlock AND Pro). */
 export const CHAT_PAYWALL_MESSAGE =
-  "Unlimited cited AI chat on this property — every answer cites the municipal-code atoms it rests on.";
+  "Unlimited cited AI chat on this property: every answer cites the municipal-code atoms it rests on.";
 
 /** 402 free_messages_exhausted value line (the chat wall). */
 export const CHAT_FREE_EXHAUSTED_MESSAGE =

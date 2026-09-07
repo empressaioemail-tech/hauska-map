@@ -20,7 +20,7 @@ import {
 } from "./entitlementClient";
 
 export const OWNER_STUDIO_UPGRADE_CUE =
-  "Owner data is on Studio — upgrade to see who owns this parcel.";
+  "Owner data is on Studio. Upgrade to see who owns this parcel.";
 
 export const OWNER_STUDIO_GATED_REASON = "owner-fact studio-gated";
 

@@ -30,7 +30,7 @@ const SECTIONS: LegendSection[] = [
     note: 'A confidence is never shown without its n + width.',
     terms: [
       { marker: <Pill sev="info">asserted</Pill>, gloss: 'Declared, not yet checked against outcomes. Treat as a prior.' },
-      { marker: <Pill sev="warn">backtest</Pill>, gloss: 'Calibrated on historical outcomes only — no live track record.' },
+      { marker: <Pill sev="warn">backtest</Pill>, gloss: 'Calibrated on historical outcomes only. No live track record.' },
       { marker: <Pill sev="ok">live</Pill>, gloss: 'Calibrated on realized live outcomes. The trustworthy basis.' },
     ],
   },

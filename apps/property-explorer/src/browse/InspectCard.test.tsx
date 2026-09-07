@@ -536,7 +536,7 @@ describe("P-96 join hold never reaches the customer value slot", () => {
   const leaked =
     "LANDUSE_JOIN_HOLD county 48491 — TxGIO prop_id does not join CAD property_use_code";
   const sentence =
-    "Not read — the county's parcel id does not match the appraisal record, so zoning is unavailable.";
+    "Not read: the county's parcel id does not match the appraisal record, so zoning is unavailable.";
 
   it("customerValueSlot keeps the token in the source note only", () => {
     const slot = customerValueSlot(leaked);

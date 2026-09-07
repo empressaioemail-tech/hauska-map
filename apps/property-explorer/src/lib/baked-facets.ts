@@ -967,7 +967,7 @@ export function deriveBakedCardModel(payload: BakedFacetPayload): BakedCardModel
     envelopeStatus: env?.status ?? null,
     envelopeEmptyReason:
       env?.status === "no-buildable-area"
-        ? env.emptyReason ?? env.disclosure ?? "Setbacks consume the lot — no buildable area remains."
+        ? env.emptyReason ?? env.disclosure ?? "Setbacks consume the lot: no buildable area remains."
         : null,
     envelopeDeclineReason:
       env?.status === "declined" ? env.declineReason ?? null : null,

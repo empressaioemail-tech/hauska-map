@@ -397,7 +397,7 @@ describe("deriveAtomCardModel — never-bare confidence, honest display", () => 
   it("setback-rule: dimensional claim with district", () => {
     const m = deriveAtomCardModel(SETBACK_DID, SETBACK_ATOM);
     expect(m.claim).toBe(
-      "Setbacks — front 15 ft · side 0 ft · rear 0 ft (district P-3)",
+      "Setbacks: front 15 ft · side 0 ft · rear 0 ft (district P-3)",
     );
     // No readContract on this fixture → NO number renders (never bare).
     expect(m.confidence).toBeNull();

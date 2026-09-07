@@ -351,7 +351,7 @@ function claimForAtom(atom: Record<string, unknown>): string | null {
       rear != null ? `rear ${rear} ft` : null,
     ].filter((p): p is string => p !== null);
     return (
-      `Setbacks — ${parts.join(" · ")}` + (district ? ` (district ${district})` : "")
+      `Setbacks: ${parts.join(" · ")}` + (district ? ` (district ${district})` : "")
     );
   }
   if (entityType === "buildable-envelope") {

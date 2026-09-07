@@ -219,7 +219,7 @@ export function dossierExportNotice(result: DossierExportClientResult): string {
       result.sitePlanAppended === false
         ? ` Site-plan sheets were not appended${
             result.sitePlanUnavailableReason
-              ? ` — ${result.sitePlanUnavailableReason}`
+              ? `: ${result.sitePlanUnavailableReason}`
               : ""
           }.`
         : "";
@@ -234,5 +234,5 @@ export function dossierExportNotice(result: DossierExportClientResult): string {
   if (result.status === 422 || result.error === "pipeline_output_absent") {
     return result.message ?? XRAY_PIPELINE_ABSENT_MESSAGE;
   }
-  return result.message ?? "X-ray export failed — try again.";
+  return result.message ?? "X-ray export failed. Try again.";
 }
