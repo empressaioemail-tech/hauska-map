@@ -326,7 +326,7 @@ export function PdfViewer({
               fontWeight: 600,
               fontSize: 12.5,
               color: PE.t1,
-              background: "rgba(255,255,255,.03)",
+              background: PE.raised,
               border: `1px solid ${PE.line28}`,
               textDecoration: "none",
             }}
