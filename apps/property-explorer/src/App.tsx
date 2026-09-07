@@ -21,7 +21,11 @@ import {
 } from "./share/share-landing";
 import { fetchSession } from "./lib/auth";
 import { claimAnonymousStateOnSignIn } from "./lib/claimClient";
-import { recordPeGtmEvent } from "./lib/gtmClient";
+import { claimShareAttribution, recordPeGtmEvent } from "./lib/gtmClient";
+import {
+  clearPendingShareAttribution,
+  readPendingShareAttribution,
+} from "./share/share-attribution-retry";
 import { usePostCheckoutRefresh } from "./lib/usePostCheckoutRefresh";
 import { CheckoutSuccessCard } from "./checkout/CheckoutSuccessCard";
 import { SubscriptionCheckoutModal } from "./checkout/SubscriptionCheckoutModal";
@@ -88,6 +92,22 @@ function rewriteCheckoutDeepLink(): void {
 }
 
 export function App() {
+  // Retry a share-signup attribution claim a prior page load stashed but
+  // never confirmed (share-attribution-retry.ts) — a claim can outlive the
+  // page it started on (tab closed, network down through every in-page
+  // retry), so every app boot, share landing or plain map, gets a chance to
+  // finish it. Idempotent server-side (P-100: keyed on the recipient's own
+  // primary key), so retrying an already-succeeded claim is a safe no-op.
+  // Declared before the share-landing branch below so it runs on every boot
+  // regardless of which branch this render takes.
+  useEffect(() => {
+    const pending = readPendingShareAttribution();
+    if (!pending) return;
+    void claimShareAttribution(pending).then((result) => {
+      if (result.ok) clearPendingShareAttribution();
+    });
+  }, []);
+
   // SHARE FUNNEL: /share#<token> loads the FULL map app (not the old
   // standalone read-only page) — flight to the shared property, read-only
   // dossier docked in the workbench, persistent sign-up prompt. See

@@ -136,6 +136,15 @@ describe("share landing resolution — /share lands in the app", () => {
     expect(funnelSource).toMatch(/<ExplorerMap share=\{share\} \/>/);
     // W2.3 — share sign-in must claim anonymous work (would fail if skipped).
     expect(funnelSource).toMatch(/claimAnonymousStateOnSignIn/);
+    // A claim that fails every in-page retry must be stashed for a later
+    // app boot to retry, never just dropped (share-attribution-retry.ts).
+    expect(funnelSource).toMatch(/stashPendingShareAttribution/);
+    expect(funnelSource).toMatch(/clearPendingShareAttribution/);
+
+    // App.tsx retries any still-pending claim on every boot, share landing
+    // or plain map, declared before the share-landing branch so it always runs.
+    expect(appSource).toMatch(/readPendingShareAttribution/);
+    expect(appSource).toMatch(/clearPendingShareAttribution/);
   });
 
   it("ExplorerMap wires the share binding: tool prepended, dock auto-opened, flight via the EXISTING reopen chain", () => {

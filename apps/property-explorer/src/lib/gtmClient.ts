@@ -148,19 +148,40 @@ export const recordPeEvent = recordPeGtmEvent;
  * SERVER-side refusals are recorded and why first-touch is held by a primary
  * key rather than by this call arriving exactly once.
  */
+const CLAIM_SHARE_ATTRIBUTION_ATTEMPTS = 3;
+const CLAIM_SHARE_ATTRIBUTION_BACKOFF_MS = [500, 1_500];
+
+function sleep(ms: number): Promise<void> {
+  return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
+/**
+ * Retries a transient failure (a cold BFF function, the entitlement-detail
+ * hop it depends on not yet resolving a just-created account) within this
+ * page load. A caller whose own attempt still fails after these retries
+ * should persist the claim for a later app boot to retry rather than
+ * dropping it — see share-attribution-retry.ts; this function alone does not
+ * survive the page navigating away.
+ */
 export async function claimShareAttribution(input: {
   grantId: string;
   surface?: string;
 }): Promise<{ ok: boolean }> {
-  try {
-    await postGtm("share-attribution", {
-      grantId: input.grantId,
-      surface: input.surface ?? "property-explorer",
-    });
-    return { ok: true };
-  } catch {
-    return { ok: false };
+  for (let attempt = 0; attempt < CLAIM_SHARE_ATTRIBUTION_ATTEMPTS; attempt++) {
+    try {
+      await postGtm("share-attribution", {
+        grantId: input.grantId,
+        surface: input.surface ?? "property-explorer",
+      });
+      return { ok: true };
+    } catch {
+      const isLastAttempt = attempt === CLAIM_SHARE_ATTRIBUTION_ATTEMPTS - 1;
+      if (!isLastAttempt) {
+        await sleep(CLAIM_SHARE_ATTRIBUTION_BACKOFF_MS[attempt] ?? 2_000);
+      }
+    }
   }
+  return { ok: false };
 }
 
 /**

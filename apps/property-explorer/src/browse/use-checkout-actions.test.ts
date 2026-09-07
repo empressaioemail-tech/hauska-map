@@ -1,7 +1,11 @@
 import { readFileSync } from "node:fs";
 import { resolve } from "node:path";
 import { describe, expect, it } from "vitest";
-import { resolveSubscriptionNavigation, resolveUnlockNavigation } from "./useCheckoutActions";
+import {
+  planChangeNeedsConfirmation,
+  resolveSubscriptionNavigation,
+  resolveUnlockNavigation,
+} from "./useCheckoutActions";
 
 describe("resolveSubscriptionNavigation", () => {
   const ctx = {
@@ -51,6 +55,46 @@ describe("handleSubscription — Start Studio does not navigate to /checkout", (
     expect(src).not.toMatch(/window\.location\.assign\(nav\.href\)/);
     expect(src).not.toMatch(/location\.assign\([^)]*checkoutPageHref/);
     expect(src).not.toMatch(/location\.href\s*=\s*nav\.href/);
+  });
+});
+
+// Defense-in-depth only (Smart Site UI review 2026-09-04: an account held
+// two simultaneously-active billing plans). Does NOT close the actual gap —
+// see the doc comment on useCheckoutActions' currentPlan option.
+describe("planChangeNeedsConfirmation", () => {
+  it("requires confirmation for a real tier change (positive)", () => {
+    expect(
+      planChangeNeedsConfirmation({ tier: "solo", interval: "month" }, "studio", "month", null),
+    ).toBe(true);
+  });
+
+  it("requires confirmation for a same-tier interval change (positive)", () => {
+    expect(
+      planChangeNeedsConfirmation({ tier: "studio", interval: "month" }, "studio", "year", null),
+    ).toBe(true);
+  });
+
+  it("does not confirm once the same tier has already been confirmed (proceeds on the second click)", () => {
+    expect(
+      planChangeNeedsConfirmation({ tier: "solo", interval: "month" }, "studio", "month", "studio"),
+    ).toBe(false);
+  });
+
+  it("does not block clicking the exact plan the account is already on (falsifier: not every click is a change)", () => {
+    expect(
+      planChangeNeedsConfirmation({ tier: "studio", interval: "year" }, "studio", "year", null),
+    ).toBe(false);
+  });
+
+  it("does not block when there is no known current plan — unread must not read as a change (falsifier)", () => {
+    expect(planChangeNeedsConfirmation(null, "studio", "year", null)).toBe(false);
+    expect(planChangeNeedsConfirmation(undefined, "studio", "year", null)).toBe(false);
+  });
+
+  it("a pending confirmation for a DIFFERENT tier does not carry over (clicking a second tier resets it)", () => {
+    expect(
+      planChangeNeedsConfirmation({ tier: "solo", interval: "month" }, "studio", "month", "team"),
+    ).toBe(true);
   });
 });
 

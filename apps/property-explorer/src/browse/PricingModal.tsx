@@ -20,6 +20,7 @@ import { Button } from "../components/Button";
 import { useDialogFocus } from "../components/useDialogFocus";
 import { PE } from "../styles/pe-chrome";
 import { useCheckoutActions, clampTeamSeats } from "./useCheckoutActions";
+import { useAccountEntitlement } from "../lib/useAccountEntitlement";
 import { UnlockCheckoutModal } from "../checkout/UnlockCheckoutModal";
 import { SubscriptionCheckoutModal } from "../checkout/SubscriptionCheckoutModal";
 import { checkoutPageHref } from "../checkout/checkoutLanding";
@@ -105,6 +106,16 @@ export function PricingModal({
   initialTeamSeats?: number;
   onClose: () => void;
 }) {
+  const accountEntitlement = useAccountEntitlement();
+  const currentPlan =
+    accountEntitlement?.kind === "ready" &&
+    accountEntitlement.account.subscriptionTier &&
+    accountEntitlement.account.billingInterval
+      ? {
+          tier: accountEntitlement.account.subscriptionTier,
+          interval: accountEntitlement.account.billingInterval,
+        }
+      : null;
   const {
     busy,
     note,
@@ -117,6 +128,7 @@ export function PricingModal({
   } = useCheckoutActions(parcelNodeId, {
     onUnlocked: onClose,
     situsAddress: situsAddress ?? null,
+    currentPlan,
   });
   const [interval, setInterval] = useState<PricingInterval>(
     initialInterval ?? defaultPricingInterval(),
