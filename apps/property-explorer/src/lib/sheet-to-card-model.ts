@@ -201,7 +201,7 @@ export function specialDistrictFacetFromSheet(
   if (specialDistrict.state === "present") {
     const type = (specialDistrict.value.districtType ?? "").trim();
     const name = (specialDistrict.value.districtName ?? "").trim();
-    if (type && name) return present(`${type} — ${name}`);
+    if (type && name) return present(`${type}: ${name}`);
     if (name) return present(name);
     if (type) return present(type);
     return absent("special-district-fact present with no districtType or districtName");
@@ -746,7 +746,7 @@ export function bakedCardModelFromSheet(
       `${sheet.identity.county.name} County (${sheet.identity.county.fips})`,
     ),
     landUse: facetFrom(sheet.landUse, (v) =>
-      v.description ? `${v.code} — ${v.description}` : v.code,
+      v.description ? `${v.code}: ${v.description}` : v.code,
     ),
     zoning: facetFrom(sheet.zoning, (v) => v.code),
     // I3: the acreage VALUE only. Provenance renders in the disclosure, never

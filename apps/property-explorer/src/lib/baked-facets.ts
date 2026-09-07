@@ -733,7 +733,7 @@ function pending<T>(message: T): CardFacet<T> {
 
 /**
  * Render a land-use fact WITH its provenance inline, e.g.
- * "A1 — Single-family residential (cad-roll · 2024)". Returns null when the
+ * "A1: Single-family residential (cad-roll · 2024)". Returns null when the
  * fact carries no code and no description (a genuine absence — never invent).
  */
 function formatLandUseDisplay(
@@ -744,7 +744,7 @@ function formatLandUseDisplay(
   const description =
     typeof lu.description === "string" ? lu.description.trim() : "";
   const label =
-    code && description ? `${code} — ${description}` : description || code;
+    code && description ? `${code}: ${description}` : description || code;
   if (!label) return null;
   const prov = [lu.source, lu.vintage]
     .filter((p): p is string => typeof p === "string" && p.trim().length > 0)

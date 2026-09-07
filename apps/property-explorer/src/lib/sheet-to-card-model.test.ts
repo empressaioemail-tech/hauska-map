@@ -157,7 +157,7 @@ describe("bakedCardModelFromSheet — the card's rows", () => {
     // formatLandUseDisplay used to return "A1 — Single-family residential
     // (cad-roll · 2026)" as ONE string, so the UI physically could not separate
     // the fact from its sourcing.
-    expect(model.landUse.value).toBe("A1 — Single-family residential");
+    expect(model.landUse.value).toBe("A1: Single-family residential");
     expect(model.landUse.value).not.toContain("cad-roll");
     expect(model.provenance.landUseSource).toBe("cad-roll");
     expect(model.acreage.value).toBe("0.25 ac");
@@ -566,7 +566,7 @@ describe("landUseFact inspect row (WDLL 5 leftover)", () => {
     );
     expect(model.landUse).toEqual({
       state: "present",
-      value: "A1 — Single-family residential",
+      value: "A1: Single-family residential",
     });
     expect(model.provenance.landUseSource).toBe("land-use-fact");
     expect(model.landUse.value).not.toContain("cad-roll");
@@ -580,7 +580,7 @@ describe("landUseFact inspect row (WDLL 5 leftover)", () => {
 });
 
 describe("specialDistrictFact inspect row (P-48 / WDLL 1)", () => {
-  it("present fixture shows MUD — The Colony MUD 1C", () => {
+  it("present fixture shows MUD: The Colony MUD 1C", () => {
     const model = bakedCardModelFromSheet(
       sheet({
         specialDistrict: {
@@ -596,7 +596,7 @@ describe("specialDistrictFact inspect row (P-48 / WDLL 1)", () => {
     );
     expect(model.specialDistrict).toEqual({
       state: "present",
-      value: "MUD — The Colony MUD 1C",
+      value: "MUD: The Colony MUD 1C",
     });
     expect(model.specialDistrict.value).toContain("The Colony MUD 1C");
   });

@@ -44,7 +44,7 @@ describe("deriveBakedCardModel — present facets", () => {
     // Land-use renders code + description + inline provenance caption.
     expect(m.landUse).toEqual({
       state: "present",
-      value: "A1 — Single-family residential (cad-roll)",
+      value: "A1: Single-family residential (cad-roll)",
     });
     expect(m.zoning).toEqual({ state: "present", value: "R-1" });
     expect(m.acreage).toEqual({ state: "present", value: "0.2388 ac" });
@@ -114,7 +114,7 @@ describe("deriveBakedCardModel — present values are trusted over coverage flag
     const m = deriveBakedCardModel(covFalse);
     expect(m.landUse).toEqual({
       state: "present",
-      value: "A1 — Single-family residential (cad-roll · 2024)",
+      value: "A1: Single-family residential (cad-roll · 2024)",
     });
     expect(m.acreage).toEqual({ state: "present", value: "1.23 ac (cad-roll)" });
   });
