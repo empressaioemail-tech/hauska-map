@@ -298,6 +298,25 @@ export function Workbench({
   const newest = newestOpen(synced);
   const stackedIds = isMobile ? (newest ? [newest] : []) : synced.open;
   const openIds = synced.open;
+
+  // 9-4 UI review: opening chat while a report dock is open "stacks it
+  // visually so it doesn't read as open; user has to manually scroll to
+  // the top to use it." The stack itself is already correct — the newest
+  // dock renders FIRST (dock-stack.ts, newest-first) — the column's SCROLL
+  // POSITION just never followed it: if the user had scrolled down reading
+  // the report, the newly-opened dock lands above the visible scroll
+  // offset. Desktop-only, since mobile shows a single sheet with nothing
+  // to scroll past (stackedIds above collapses to one tool there).
+  const dockColumnRef = useRef<HTMLDivElement>(null);
+  useEffect(() => {
+    if (isMobile) return;
+    const el = dockColumnRef.current;
+    // jsdom (component tests) does not implement scrollTo; feature-check
+    // rather than assume a DOM API every render environment carries.
+    if (el && typeof el.scrollTo === "function") {
+      el.scrollTo({ top: 0, behavior: "smooth" });
+    }
+  }, [newest, isMobile]);
   // `openTool` (the newest open dock) was removed with the expand-veto fix:
   // it existed only to answer a question that is now the column's, and a
   // binding kept alive for a reader that no longer exists is how the next
@@ -473,6 +492,7 @@ export function Workbench({
           you had open beside it. */}
       {stackedIds.length > 0 && (!isMobile || mobileResearchOpen) && (
         <div
+          ref={dockColumnRef}
           data-testid="workbench-dock-column"
           className="pe-scroll"
           data-count={stackedIds.length}
