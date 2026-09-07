@@ -23,7 +23,6 @@ import {
   annualMonthsFreeLabel,
   defaultPricingInterval,
   propertyChoiceLabel,
-  propertyUnlockOffer,
   soloChoiceLabel,
   studioChoiceLabel,
   teamChoiceLabel,
@@ -49,7 +48,7 @@ describe("PricingModal — ALL pricing in one popup, every string from config", 
     expect(html).toContain(PE_PRICING.free.blurb);
     expect(html).toContain('data-testid="pricing-unlock-card"');
     expect(html).toContain(PE_PRICING.property.title);
-    expect(html).toContain(propertyUnlockOffer());
+    expect(html).toContain(PE_PRICING.property.priceLabel);
     expect(html).toContain(PE_PRICING.property.blurb);
     // P-101: FOUR groups, walked from config rather than named one by one.
     // The literal list is kept alongside so this cannot go vacuous if
@@ -399,24 +398,26 @@ describe("P-101: the comparison surface is four groups and Studio works a list",
     const html = render();
     expect(PE_PRICING.groups.list.title).toBe("Work a list of them");
     expect(html).toContain("Work a list of them");
-    expect(html).toContain("Screens and boards");
-    expect(html).toContain("Owner data");
-    // Item 7: the SHIPPED label from the workbench catalog (reports-catalog.ts
-    // id REC), never "dossier" — which means an export kind on the MCP and the
-    // X-ray report engine on PE, and is not studio-gated there.
-    expect(html).toContain("Records request");
+    // Row labels de-jargoned 9-4 UI review; same rows, revised wording.
+    expect(html).toContain("Work a list of parcels on one board");
+    expect(html).toContain("Owner of record and mailing address");
+    // Item 7: the underlying feature is the workbench catalog's "Records
+    // request" (reports-catalog.ts id REC), never "dossier" — which means an
+    // export kind on the MCP and the X-ray report engine on PE, and is not
+    // studio-gated there. The price-list ROW label was de-jargoned separately.
+    expect(html).toContain("Records package, the county documents behind the answer");
     expect(html).not.toContain("Dossier");
   });
 
   it("owner data left the handoff group; handoff is the two deliverables only", () => {
     const handoffLabels = PE_PRICING.groups.handoff.rows.map((r) => r.label);
     expect(handoffLabels).toEqual([
-      "Site plan CAD · DXF, IFC",
-      "Terrain export · GLB, IFC4, DXF",
+      "Site plan file your designer can open (DXF, IFC)",
+      "Terrain model of the site (GLB, IFC4, DXF)",
     ]);
-    expect(handoffLabels).not.toContain("Owner data");
+    expect(handoffLabels).not.toContain("Owner of record and mailing address");
     expect(PE_PRICING.groups.list.rows.map((r) => r.label)).toContain(
-      "Owner data",
+      "Owner of record and mailing address",
     );
     expect(PE_PRICING.groups.handoff.title).toBe("Hand it off");
     expect(render()).not.toContain("Hand it to someone else");

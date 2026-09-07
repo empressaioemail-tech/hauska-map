@@ -86,17 +86,23 @@ export const PE_PRICING = {
   free: {
     title: "Free",
     priceLabel: "$0",
-    blurb: "Free covers the map, layers and inspect card.",
+    blurb:
+      "Map, layers, inspect card, saved properties, share links, and three AI questions per parcel.",
   },
   /** Per-property unlock — the low-commitment on-ramp (30-day freshness window). */
   property: {
     priceLabel: "$15",
     durationDays: 30,
     title: "Unlock this property, 30 days",
-    blurb: "every report on this parcel.",
+    /** Disabled-state button label: what the button says instead of
+     *  greying out its normal title over something it will not do (9-4 UI
+     *  review: "the disabled button with no explanation is the most
+     *  confusing element on the screen"). */
+    needsPropertyTitle: "Inspect a parcel first",
+    blurb: "covers every report on it for 30 days.",
     footerLead: "Just this one property?",
     /** Honest disabled copy when no parcel is active. */
-    needsPropertyNote: "Inspect a property first to unlock it.",
+    needsPropertyNote: "Inspect a parcel on the map first, then unlock it here.",
     /** Shown on the unlock card when the triggering feature is Studio-only. */
     studioOnlyNote:
       "This feature is not part of the single-property unlock. It needs Studio or Team.",
@@ -176,9 +182,10 @@ export const PE_PRICING = {
   groups: {
     answer: {
       title: "Answer this parcel",
+      subline: "Everything about the one property you are deciding on.",
       rows: [
         {
-          label: "Flood & drainage study",
+          label: "Flood and drainage study",
           solo: "included",
           studio: "included",
           team: "included",
@@ -190,7 +197,7 @@ export const PE_PRICING = {
           team: "included",
         },
         {
-          label: "Unlimited AI and properties",
+          label: "Unlimited questions, unlimited properties",
           solo: "included",
           studio: "included",
           team: "included",
@@ -203,29 +210,32 @@ export const PE_PRICING = {
      * the two GET routes stay open so a free connector user still mounts the
      * Smart Site panel and meets this prompt in context.
      *
-     * "Records request" is the SHIPPED label — it is what the workbench
-     * catalog calls the row (reports-catalog.ts, id REC). It is deliberately
-     * not called "dossier": the MCP means a Studio export kind by that word
-     * and the workbench means the X-ray report engine, which is not
-     * Studio-gated. A price list must not inherit that ambiguity.
+     * The workbench catalog calls this row's feature "Records request"
+     * (reports-catalog.ts, id REC); the price-list row itself was de-jargoned
+     * to name what it actually gets you (9-4 UI review). Neither name is
+     * "dossier": the MCP means a Studio export kind by that word and the
+     * workbench means the X-ray report engine, which is not Studio-gated. A
+     * price list must not inherit that ambiguity.
      */
     list: {
       title: "Work a list of them",
+      subline:
+        "Twelve addresses from a buyer, thirty from a broker, a corridor you are farming.",
       rows: [
         {
-          label: "Screens and boards",
+          label: "Work a list of parcels on one board",
           solo: "notIncluded",
           studio: "included",
           team: "included",
         },
         {
-          label: "Owner data",
+          label: "Owner of record and mailing address",
           solo: "notIncluded",
           studio: "included",
           team: "included",
         },
         {
-          label: "Records request",
+          label: "Records package, the county documents behind the answer",
           solo: "notIncluded",
           studio: "included",
           team: "included",
@@ -234,15 +244,16 @@ export const PE_PRICING = {
     },
     handoff: {
       title: "Hand it off",
+      subline: "Give a client, a partner or a designer a file they can open.",
       rows: [
         {
-          label: "Site plan CAD · DXF, IFC",
+          label: "Site plan file your designer can open (DXF, IFC)",
           solo: "notIncluded",
           studio: "included",
           team: "included",
         },
         {
-          label: "Terrain export · GLB, IFC4, DXF",
+          label: "Terrain model of the site (GLB, IFC4, DXF)",
           solo: "notIncluded",
           studio: "included",
           team: "included",
@@ -251,6 +262,7 @@ export const PE_PRICING = {
     },
     firm: {
       title: "Work as a firm",
+      subline: "More than one person working the same properties.",
       rows: [
         {
           label: "Seats and shared properties",
@@ -264,6 +276,7 @@ export const PE_PRICING = {
     string,
     {
       title: string;
+      subline: string;
       rows: Array<{
         label: string;
         solo: MatrixCellKind;
@@ -406,10 +419,6 @@ export function annualMonthsFreeLabel(tier: PePricedTier): string | null {
   const monthsFree = (monthly * 12 - annual) / monthly;
   if (!Number.isInteger(monthsFree) || monthsFree <= 0) return null;
   return `${monthsFree} month${monthsFree === 1 ? "" : "s"} free`;
-}
-
-export function propertyUnlockOffer(): string {
-  return `${PE_PRICING.property.priceLabel} for ${PE_PRICING.property.durationDays} days`;
 }
 
 export function tierHeadline(

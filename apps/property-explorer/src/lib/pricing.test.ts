@@ -6,7 +6,6 @@ import {
   extraSeatUsd,
   matrixCellText,
   propertyChoiceLabel,
-  propertyUnlockOffer,
   soloChoiceLabel,
   studioChoiceLabel,
   proChoiceLabel,
@@ -21,7 +20,7 @@ describe("PE_PRICING — locked 2026-08-10 ladder", () => {
   it("carries the per-property unlock price and 30-day window", () => {
     expect(PE_PRICING.property.priceLabel).toBe("$15");
     expect(PE_PRICING.property.durationDays).toBe(30);
-    expect(propertyUnlockOffer()).toContain("30 days");
+    expect(PE_PRICING.property.blurb).toContain("30 days");
     expect(PE_PRICING.property.blurb).not.toContain("forever");
   });
 
@@ -44,7 +43,6 @@ describe("PE_PRICING — locked 2026-08-10 ladder", () => {
     expect(teamSeatsControlVisible("monthly")).toBe(true);
     expect(tierHeadline("studio", "annual").amount).toBe("$1,290");
     expect(tierHeadline("studio", "monthly").amount).toBe("$129");
-    expect(propertyUnlockOffer()).toBe("$15 for 30 days");
     expect(matrixCellText("teamSeats", "annual")).toBe(
       PE_PRICING.team.annualSeatCell,
     );

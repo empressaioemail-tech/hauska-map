@@ -30,7 +30,6 @@ import {
   annualMonthsFreeLabel,
   defaultPricingInterval,
   matrixCellText,
-  propertyUnlockOffer,
   teamMonthlyTotalLabel,
   teamSeatsControlVisible,
   tierHeadline,
@@ -368,6 +367,7 @@ export function PricingModal({
               key={group.key}
               testId={group.testId}
               title={group.title}
+              subline={group.subline}
               rows={group.rows}
               interval={interval}
               emphasize={emphasize}
@@ -434,8 +434,7 @@ export function PricingModal({
           <div style={{ display: "flex", flexDirection: "column", gap: 4, minWidth: 0 }}>
             <div style={{ fontSize: 14.5, lineHeight: 1.45 }}>
               {PE_PRICING.property.footerLead}{" "}
-              <span style={{ fontWeight: 600 }}>{propertyUnlockOffer()}</span>
-              {" — "}
+              <span style={{ fontWeight: 600 }}>{PE_PRICING.property.priceLabel}</span>{" "}
               {PE_PRICING.property.blurb}
             </div>
             {shouldShowSoloCompare(unlocksThisWeek()) ? (
@@ -474,7 +473,9 @@ export function PricingModal({
           >
             {busy === "property"
               ? PE_PRICING.property.busyLabel
-              : PE_PRICING.property.title}
+              : !parcelNodeId
+                ? PE_PRICING.property.needsPropertyTitle
+                : PE_PRICING.property.title}
           </Button>
         </div>
 
@@ -688,12 +689,14 @@ function CellGlyph({ kind }: { kind: MatrixCellKind }) {
 function GroupBlock({
   testId,
   title,
+  subline,
   rows,
   interval,
   emphasize,
 }: {
   testId: string;
   title: string;
+  subline: string;
   rows: ReadonlyArray<{
     label: string;
     solo: MatrixCellKind;
@@ -710,15 +713,26 @@ function GroupBlock({
         style={{
           padding: "6px 20px 4px",
           gridColumn: "1 / -1",
-          fontSize: 11.5,
-          fontWeight: 600,
-          letterSpacing: ".13em",
-          textTransform: "uppercase",
-          color: PE.t6,
           background: "rgba(255,255,255,.015)",
         }}
       >
-        {title}
+        <div
+          style={{
+            fontSize: 11.5,
+            fontWeight: 600,
+            letterSpacing: ".13em",
+            textTransform: "uppercase",
+            color: PE.t6,
+          }}
+        >
+          {title}
+        </div>
+        <div
+          data-testid={`${testId}-subline`}
+          style={{ fontSize: 12.5, color: ABSENCE, marginTop: 2 }}
+        >
+          {subline}
+        </div>
       </div>
       {rows.map((row) => (
         <FeatureRow
