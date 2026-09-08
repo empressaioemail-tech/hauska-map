@@ -57,9 +57,10 @@
 //                blocked on a credential this build cannot reach). It says so
 //                rather than shipping a control that opens nothing.
 
-import { useEffect, useState, type ReactNode } from "react";
+import { useEffect, useRef, useState, type ReactNode } from "react";
 import { Modal } from "../components/Modal";
 import { Button } from "../components/Button";
+import { Input } from "../components/Input";
 import { StatusChip } from "../components/StatusChip";
 import { PE } from "../styles/pe-chrome";
 import {
@@ -91,7 +92,10 @@ import {
   fetchTeamRoster,
   isLastOwner,
   seatCounts,
+  sendTeamInvite,
+  type TeamInviteOutcome,
   type TeamOutcome,
+  type TeamRole,
 } from "../lib/teamClient";
 import { NextActionCard } from "../components/NextActionCard";
 import { AffiliateSection } from "./AffiliateSection";
@@ -138,16 +142,20 @@ const NEXT_ACTION_SURFACE = "settings";
  *
  * NOT RUNNABLE HERE, with the reason:
  *
- *   team_invite             There is NO invite write path anywhere in this
- *                           client. The Team tab's Invite block is prose, and
- *                           api/_lib/deep-allowlist.ts states the writes stay
- *                           off "until the client has a write path".
  *   unlock_expiring         onUpgrade opens the pricing modal scoped to the
  *                           MAP's active parcel, which is not necessarily the
  *                           parcel whose unlock is lapsing. Sending someone to
  *                           a checkout for a different property is worse than
  *                           not offering the step at all. Extending needs
  *                           parcel-scoped routing this host does not have.
+ *
+ * team_invite IS NOW RUNNABLE (P-130). The prior exclusion said "there is NO
+ * invite write path anywhere in this client" — that gap is what P-130 closed:
+ * teamClient.sendTeamInvite POSTs api/property-explorer/v1/team/invitations,
+ * and the path is on api/_lib/deep-allowlist.ts's POST set. The rail only
+ * ever proposes team_invite while section === "team" (nextAction.ts gates it
+ * on that context), so running it means the Invite form below is already on
+ * screen — see the team_invite branch in runAction.
  *
  * FAIL CLOSED. A new NextActionId is not runnable until it is added here AND
  * given a branch in runAction below. The rail goes quiet rather than guessing.
@@ -156,6 +164,7 @@ const SETTINGS_RUNNABLE: ReadonlySet<NextActionId> = new Set<NextActionId>([
   "connect_claude",
   "property_unlock",
   "annual_upgrade",
+  "team_invite",
 ]);
 
 // Exported so AffiliateSection (P-117) can build its panel from the same
@@ -424,6 +433,11 @@ export function SettingsModal({
   const [actNote, setActNote] = useState<{ id: NextActionId; node: ReactNode } | null>(
     null,
   );
+  // P-130. Incremented each time the rail's "Invite a teammate" CTA runs, so
+  // TeamTab can focus the (already-visible, since team_invite only proposes
+  // on the team context) invite email field. A counter rather than a boolean
+  // so a second click while the field is already focused still re-focuses it.
+  const [inviteFocusToken, setInviteFocusToken] = useState(0);
 
   useEffect(() => {
     let cancelled = false;
@@ -641,11 +655,16 @@ export function SettingsModal({
         // carries the number, so a plan is never priced in two places.
         onUpgrade();
         return;
-      case "unlock_expiring":
       case "team_invite":
-        // Unreachable: SETTINGS_RUNNABLE excludes both, with reasons. Left as
-        // explicit arms so adding a NextActionId is a compile-time decision
-        // here rather than a silent no-op.
+        // team_invite only ever proposes while section === "team" (see
+        // nextAction.ts's inviteTeammateRung), so the Invite form is already
+        // rendered below — this just moves focus into it.
+        setInviteFocusToken((t) => t + 1);
+        return;
+      case "unlock_expiring":
+        // Unreachable: SETTINGS_RUNNABLE excludes it, with the reason above.
+        // Left as an explicit arm so adding a NextActionId is a compile-time
+        // decision here rather than a silent no-op.
         return;
     }
   };
@@ -937,6 +956,12 @@ export function SettingsModal({
                 onAskRemove={setConfirmEmail}
                 onUpgrade={onUpgrade}
                 onRetry={() => setTeam(null)}
+                // P-130. A sent invitation holds a seat immediately, so the
+                // roster this account sees must reflect it — refetched from
+                // the source of truth rather than a row fabricated from the
+                // POST's own response, same discipline as onRetry above.
+                onInviteSent={() => setTeam(null)}
+                focusInviteToken={inviteFocusToken}
               />
             ) : null}
 
@@ -994,13 +1019,37 @@ function TeamTab({
   onAskRemove,
   onUpgrade,
   onRetry,
+  onInviteSent,
+  focusInviteToken,
 }: {
   outcome: TeamOutcome | null;
   confirmEmail: string | null;
   onAskRemove: (email: string | null) => void;
   onUpgrade: () => void;
   onRetry: () => void;
+  /** P-130. Called after a successful send so the parent refetches the
+   *  roster — see the call site's comment for why this is a refetch and not
+   *  a fabricated row. */
+  onInviteSent: () => void;
+  /** P-130. Bumped by the next-action rail's "Invite a teammate" CTA. */
+  focusInviteToken: number;
 }) {
+  // Hooks run unconditionally, ABOVE every early return below (rules of
+  // hooks) — even though the invite form they back only renders in the last
+  // branch of this component.
+  const [inviteEmail, setInviteEmail] = useState("");
+  const [inviteRole, setInviteRole] = useState<TeamRole>("member");
+  const [inviteBusy, setInviteBusy] = useState(false);
+  const [inviteOutcome, setInviteOutcome] = useState<TeamInviteOutcome | null>(null);
+  const inviteInputRef = useRef<HTMLInputElement>(null);
+
+  useEffect(() => {
+    // A ref does not need to be listed as a dependency; it is stable across
+    // renders. This is deliberately not gated on `> 0` becoming true only
+    // once — a second click while the field already has focus still refires.
+    if (focusInviteToken > 0) inviteInputRef.current?.focus();
+  }, [focusInviteToken]);
+
   if (outcome === null) {
     return (
       <div data-testid="settings-team" style={{ display: "flex", flexDirection: "column", gap: 16 }}>
@@ -1056,6 +1105,25 @@ function TeamTab({
   const viewerIsOwner = roster.viewerRole === "owner";
   const inviteAllowed = canInvite(counts, roster.viewerRole);
   const atCapacity = counts.remaining === 0;
+
+  // P-130. `inviteAllowed` is the same pre-flight check the disabled fields
+  // read below; this does not re-decide permission, it just refuses to fire
+  // the request the fields already say is refused.
+  const submitInvite = () => {
+    const email = inviteEmail.trim();
+    if (!email || inviteBusy || !inviteAllowed) return;
+    setInviteBusy(true);
+    setInviteOutcome(null);
+    void sendTeamInvite(email, inviteRole).then((result) => {
+      setInviteBusy(false);
+      setInviteOutcome(result);
+      if (result.kind === "sent") {
+        setInviteEmail("");
+        setInviteRole("member");
+        onInviteSent();
+      }
+    });
+  };
 
   // An account with no seats has nobody to list and no role to assign.
   if (counts.purchased !== null && counts.purchased <= 1 && roster.members.length <= 1) {
@@ -1296,6 +1364,81 @@ function TeamTab({
                 ? "Seats are Not read, so inviting is refused. An unknown seat count is not permission."
                 : `Refused: all ${counts.purchased} seats are held. Free one by revoking an invitation or removing a member, or add seats in checkout. Nothing is over-allocated and nothing is queued.`}
           </div>
+          {/*
+            P-130. THE WRITE PATH, WHERE THE PROSE USED TO STOP. `inviteAllowed`
+            already carries both server-mirrored refusals this client can know
+            about (unread seats, at capacity) — the FIELDS disable on it rather
+            than the button alone, so a refused invite cannot be typed into and
+            then silently discarded on submit.
+          */}
+          <div style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
+            <div style={{ flex: "1 1 220px", minWidth: 160 }}>
+              <Input
+                ref={inviteInputRef}
+                type="email"
+                inputMode="email"
+                autoComplete="email"
+                placeholder="name@company.com"
+                aria-label="Invite email address"
+                value={inviteEmail}
+                disabled={!inviteAllowed || inviteBusy}
+                invalid={inviteOutcome?.kind === "invalid-email"}
+                data-testid="settings-team-invite-email"
+                onChange={(e) => {
+                  setInviteEmail(e.target.value);
+                  setInviteOutcome(null);
+                }}
+                onKeyDown={(e) => {
+                  if (e.key === "Enter") submitInvite();
+                }}
+              />
+            </div>
+            <div style={{ display: "flex", gap: 4 }} role="group" aria-label="Invite role">
+              {(["member", "owner"] as const).map((r) => (
+                <Button
+                  key={r}
+                  variant={inviteRole === r ? "primary" : "secondary"}
+                  dense
+                  disabled={!inviteAllowed || inviteBusy}
+                  aria-pressed={inviteRole === r}
+                  data-testid={`settings-team-invite-role-${r}`}
+                  onClick={() => setInviteRole(r)}
+                >
+                  {r === "owner" ? "Owner" : "Member"}
+                </Button>
+              ))}
+            </div>
+            <Button
+              variant="primary"
+              disabled={!inviteAllowed || inviteBusy || !inviteEmail.trim()}
+              data-testid="settings-team-invite-send"
+              onClick={submitInvite}
+            >
+              {inviteBusy ? "Sending…" : "Send invite"}
+            </Button>
+          </div>
+          {/*
+            EVERY OUTCOME IS SHOWN, same discipline as the billing portal
+            refusal above. A send that appears to do nothing is worse than the
+            prose block this replaces.
+          */}
+          {inviteOutcome ? (
+            <div
+              data-testid="settings-team-invite-note"
+              style={{
+                fontSize: 12.5,
+                color: inviteOutcome.kind === "sent" ? PE.ok : PE.err,
+              }}
+            >
+              {inviteOutcome.kind === "sent"
+                ? "Invitation sent. It holds a seat until it is accepted or revoked."
+                : inviteOutcome.kind === "sign-in"
+                  ? "Your session has expired. Sign in again to invite."
+                  : inviteOutcome.kind === "blocked"
+                    ? "The invitation was refused by our own proxy. That is a defect on our side, not a fact about this account."
+                    : inviteOutcome.message}
+            </div>
+          ) : null}
         </div>
       ) : (
         <Aside>

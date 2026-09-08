@@ -88,15 +88,17 @@ describe("the mount does not offer what it cannot run (FILE-SHAPED)", () => {
   // server half lands.
   const src = codeOf("SettingsModal.tsx");
 
-  it("SETTINGS_RUNNABLE excludes team_invite and unlock_expiring, and includes the three it can run", () => {
+  it("SETTINGS_RUNNABLE excludes unlock_expiring and includes the four it can run", () => {
     const set = src.match(/SETTINGS_RUNNABLE[\s\S]*?\]\);/)?.[0] ?? "";
     expect(set).toContain('"connect_claude"');
     expect(set).toContain('"property_unlock"');
     expect(set).toContain('"annual_upgrade"');
-    // No invite write path exists anywhere in this client, and extending an
-    // unlock through onUpgrade would open a checkout scoped to the MAP's
-    // active parcel rather than the lapsing one.
-    expect(set).not.toContain('"team_invite"');
+    // P-130 closed the invite write-path gap: teamClient.sendTeamInvite POSTs
+    // api/property-explorer/v1/team/invitations, allowlisted in
+    // api/_lib/deep-allowlist.ts, so team_invite is now runnable here.
+    expect(set).toContain('"team_invite"');
+    // Extending an unlock through onUpgrade would open a checkout scoped to
+    // the MAP's active parcel rather than the lapsing one — still excluded.
     expect(set).not.toContain('"unlock_expiring"');
   });
 

@@ -1,4 +1,4 @@
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 import {
   canActOn,
   canInvite,
@@ -6,6 +6,9 @@ import {
   joinedOwnerCount,
   parseRoster,
   seatCounts,
+  sendTeamInvite,
+  TEAM_INVITE_NOT_BUILT_MESSAGE,
+  TEAM_INVITE_PATH,
   type TeamRoster,
 } from "./teamClient";
 
@@ -155,5 +158,127 @@ describe("canActOn — you cannot remove yourself or the last owner", () => {
 
   it("a member may act on nobody", () => {
     expect(canActOn(r, r.members[2], "member", "c@firm.com")).toBe(false);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// P-130 — sendTeamInvite, the write half. Same "outcomes must never merge"
+// discipline portal-client.test.ts pins for startBillingPortal: sign-in,
+// blocked and not-built each say something different from a genuine
+// server-side refusal, and none of them may collapse into "error".
+// ---------------------------------------------------------------------------
+
+function jsonResponse(status: number, body: unknown): Response {
+  return new Response(JSON.stringify(body), {
+    status,
+    headers: { "Content-Type": "application/json" },
+  });
+}
+
+function recordingFetch(res: Response | (() => Response)) {
+  const calls: { url: string; init: RequestInit | undefined }[] = [];
+  const impl = vi.fn(async (url: RequestInfo | URL, init?: RequestInit) => {
+    calls.push({ url: String(url), init });
+    return typeof res === "function" ? res() : res;
+  }) as unknown as typeof fetch;
+  return { impl, calls };
+}
+
+describe("sendTeamInvite — what goes on the wire", () => {
+  it("posts to the allowlisted path with credentials and ONLY {email, role}", async () => {
+    const { impl, calls } = recordingFetch(
+      jsonResponse(201, { email: "new@firm.com", role: "member", status: "invited" }),
+    );
+    await sendTeamInvite("new@firm.com", "member", impl);
+
+    expect(calls).toHaveLength(1);
+    expect(calls[0].url).toContain(TEAM_INVITE_PATH);
+    expect(calls[0].init?.method).toBe("POST");
+    expect(calls[0].init?.credentials).toBe("include");
+    expect(JSON.parse(String(calls[0].init?.body))).toEqual({
+      email: "new@firm.com",
+      role: "member",
+    });
+  });
+
+  it("carries the role the caller chose, owner included", async () => {
+    const { impl, calls } = recordingFetch(jsonResponse(201, {}));
+    await sendTeamInvite("co-owner@firm.com", "owner", impl);
+    expect(JSON.parse(String(calls[0].init?.body))).toEqual({
+      email: "co-owner@firm.com",
+      role: "owner",
+    });
+  });
+});
+
+describe("sendTeamInvite — the outcomes must never merge", () => {
+  it("201 is sent", async () => {
+    const { impl } = recordingFetch(
+      jsonResponse(201, { email: "a@x.com", role: "member", status: "invited" }),
+    );
+    expect(await sendTeamInvite("a@x.com", "member", impl)).toEqual({ kind: "sent" });
+  });
+
+  it("400 invalid_email is its OWN outcome, not a generic error", async () => {
+    const { impl } = recordingFetch(jsonResponse(400, { error: "invalid_email" }));
+    const out = await sendTeamInvite("not-an-email", "member", impl);
+    expect(out.kind).toBe("invalid-email");
+  });
+
+  it("400 invalid_role is its OWN outcome, not a generic error", async () => {
+    const { impl } = recordingFetch(jsonResponse(400, { error: "invalid_role" }));
+    const out = await sendTeamInvite("a@x.com", "member", impl);
+    expect(out.kind).toBe("invalid-role");
+  });
+
+  it("an UNNAMED 400 is a generic error, never fabricated as one of the two named ones", async () => {
+    const { impl } = recordingFetch(jsonResponse(400, { error: "seat_limit_reached" }));
+    const out = await sendTeamInvite("a@x.com", "member", impl);
+    expect(out.kind).toBe("error");
+    expect(out.kind === "error" && out.message).toBe("seat_limit_reached");
+  });
+
+  it("401 is sign-in, never read as an invalid email", async () => {
+    const { impl } = recordingFetch(jsonResponse(401, { error: "authentication_required" }));
+    expect((await sendTeamInvite("a@x.com", "member", impl)).kind).toBe("sign-in");
+  });
+
+  it("403 is blocked — OUR proxy refusing OUR path, never a user fact", async () => {
+    // Reachable, not hypothetical: api/spine-deep.ts returns exactly 403 for
+    // any path failing isDeepPathAllowed, the same failure mode the P-130
+    // allowlist entry in deep-allowlist.ts exists to close.
+    const { impl } = recordingFetch(jsonResponse(403, {}));
+    expect((await sendTeamInvite("a@x.com", "member", impl)).kind).toBe("blocked");
+  });
+
+  it("404 and 501 are not-built, carrying the constant message", async () => {
+    for (const status of [404, 501]) {
+      const { impl } = recordingFetch(jsonResponse(status, {}));
+      const out = await sendTeamInvite("a@x.com", "member", impl);
+      expect(out.kind).toBe("not-built");
+      expect(out.kind === "not-built" && out.message).toBe(TEAM_INVITE_NOT_BUILT_MESSAGE);
+    }
+  });
+
+  it("500 is an error carrying the server's message", async () => {
+    const { impl } = recordingFetch(jsonResponse(500, { error: "internal", message: "roster write failed" }));
+    const out = await sendTeamInvite("a@x.com", "member", impl);
+    expect(out.kind).toBe("error");
+    expect(out.kind === "error" && out.message).toBe("roster write failed");
+  });
+
+  it("a transport failure is an error, never a silent nothing", async () => {
+    const impl = vi.fn(async () => {
+      throw new Error("network down");
+    }) as unknown as typeof fetch;
+    expect((await sendTeamInvite("a@x.com", "member", impl)).kind).toBe("error");
+  });
+
+  it("an unreadable 201 body is still sent — the status decides, not the body", async () => {
+    const impl = vi.fn(
+      async () =>
+        new Response("not json", { status: 201, headers: { "Content-Type": "text/plain" } }),
+    ) as unknown as typeof fetch;
+    expect((await sendTeamInvite("a@x.com", "member", impl)).kind).toBe("sent");
   });
 });
