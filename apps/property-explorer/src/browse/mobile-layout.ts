@@ -80,54 +80,35 @@ export function dockLayoutStyle(
   // and grows LEFTWARD into the map. Same height budget as compact — the only
   // thing that changes is width.
   if (isExpanded) {
-    // THE COLUMN STOPS BEFORE THE FIND BAR. Expanded, it used to grow to 860
-    // and slide under the search bar, which shares this top band. The bar is
-    // not allowed to move (operator, 2026-08-28, after a version that did),
-    // so the column yields instead.
+    // THE COLUMN NO LONGER STOPS BEFORE THE FIND BAR. UI QA Batch 7 (operator,
+    // 2026-09-08) REVERSES the 2026-08-28/29 ruling below this comment kept
+    // for history: expanded panels (AI Chat, Compare, etc.) may now extend
+    // past the search bar, up to roughly two-thirds of the viewport, tested
+    // across multiple screen sizes. The bar still does not move — see
+    // searchBarWrapStyle — so an expanded column can sit over it. That overlap
+    // is now the accepted state, not a defect to route around: the earlier
+    // "the find bar is fixed and does not move" test block already named this
+    // exact overlap as "known, accepted" even while the old formula avoided
+    // it, so this is not a new risk, only removing arithmetic that was
+    // avoiding one.
     //
-    // The arithmetic, so the next person can check it rather than trust it:
-    //   12  bar left inset
-    //  436  bar width
-    //   12  channel between bar and column
-    //   74  right gutter the column already anchors to
-    //  ---
-    //  534  taken out of the viewport before the column gets any
+    // HISTORY (superseded, kept so the next person can see what changed and
+    // why, not why the CURRENT value is right): this used to compute
+    // `clamp(380px, calc(50vw - 86px - var(--ss-find-w) / 2), 860px)`, sized
+    // to leave a 12px channel before the centred find bar's right edge. That
+    // reservation is gone.
     //
-    // CLAMPED AT BOTH ENDS on purpose: never narrower than the 380 compact
-    // width (a naive subtraction goes below it under a 914px viewport, which
-    // would make the expand control shrink the column), never wider than the
-    // 860 ceiling it always had.
-    //
-    // clamp(), NOT max(380px, min(860px, calc(...))). The nested form shipped
-    // first and did not render at all: the column fell back to width:auto and
-    // shrink-to-fit, which lands near 855 and looks deceptively like the old
-    // 860 — so it read as "the deploy did not take" rather than as a broken
-    // value. The old expression was min(calc()) with no nesting, which is why
-    // this was the new variable. clamp is the same three numbers with none of
-    // the nesting.
+    // roughly 2/3 of the viewport: 66vw, floored at the 380 compact width (a
+    // window narrow enough that 66vw < 380 must not make "expanded" smaller
+    // than "compact") and ceilinged at 1280px so an ultra-wide monitor does
+    // not get an absurdly wide side panel. 1280 clears 66vw at the single most
+    // common desktop resolution (1920 * 0.66 = 1267.2), so the ratio holds
+    // uncapped through the ordinary desktop range rather than the old 860
+    // ceiling, which fell to under half the viewport at 1920.
     return {
       top: 12,
       right: 74,
-      // CORRECTED 2026-08-29. The 534 above assumed the find bar was LEFT
-      // ANCHORED at inset 12, so its right edge was 448. It is not: App
-      // renders it `left: 50%; transform: translateX(-50%)`, dead centre. A
-      // centred bar's right edge is (100vw + barWidth)/2, which GROWS with the
-      // viewport, so the old subtraction under-reserved by more the wider the
-      // screen got. Measured on the live DOM at 1903: bar right 1170, column
-      // left 969, a 201px overlap. The operator saw it as the panel tucking
-      // behind the bar.
-      //
-      //   column left  = 100vw - 74 - W        must be >=
-      //   bar right    = 50vw + findW/2        plus a 12 channel
-      //   =>  W <= 50vw - 74 - 12 - findW/2
-      //
-      // findW comes from the TOKEN, not a repeated literal. --ss-find-w had
-      // zero consumers before this line; binding the layout to it is what stops
-      // the bar width and the column arithmetic from drifting apart, which is
-      // the same two-sources-of-truth defect the port spent the day removing.
-      // Clamped at both ends as before: never below the 380 compact width,
-      // never above the 860 ceiling.
-      width: "clamp(380px, calc(50vw - 86px - var(--ss-find-w) / 2), 860px)",
+      width: "clamp(380px, 66vw, 1280px)",
       maxHeight: "calc(100vh - 28px)",
     };
   }

@@ -61,28 +61,23 @@ describe("the rail is a next-action rail, not a designer's note", () => {
   });
 });
 
-describe("the honesty note did not simply vanish", () => {
-  it("one line of it survives, at the BOTTOM of the rail, on every tab", () => {
-    // The panel is still full of "Not read" and "Not built" rows and fixing
-    // them was out of scope. Deleting the sentence that makes them read as
-    // honest rather than broken, while the rows are still there, would make
-    // the product look worse rather than cleaner.
+describe("the honesty note is gone (UI QA Batch 7, operator ruling 2026-09-08)", () => {
+  // The note used to survive as one line at the bottom of the rail, on every
+  // tab, explaining the panel's "Not read" / "Not built" rows. 2026-09-08
+  // supersedes that earlier HOLD: remove, not keep. The rows themselves are
+  // untouched — each still says "Not read" for itself — only the sentence
+  // explaining them is gone.
+  it("the footer sentence does not render on any tab", () => {
     for (const section of ["account", "plan", "connections", "team"] as const) {
       const html = render(section);
-      expect(html).toContain("names where it was read from");
-      expect(html).toContain("Not read");
-      expect(html).toContain("control that does nothing");
-      // BELOW the action slot: the rail markup opens, then the note.
-      const rail = html.indexOf('data-testid="settings-next-action-rail"');
-      expect(rail).toBeGreaterThan(-1);
-      expect(html.indexOf("names where it was read from")).toBeGreaterThan(rail);
+      expect(html).not.toContain("names where it was read from");
+      expect(html).not.toContain("control that does nothing");
     }
   });
 
-  it("it is ONE line now, not the three-sentence footer", () => {
+  it("is gone from the source, not just unrendered", () => {
     const src = codeOf("SettingsModal.tsx");
-    expect(src).not.toContain("A field with no");
-    expect(src).toContain("a field with no");
+    expect(src).not.toContain("names where it was read from");
   });
 });
 

@@ -49,6 +49,13 @@ export function BriefSourcesStrip({
   brief: ResearchBriefPayload;
 }) {
   const [openDefs, setOpenDefs] = useState(false);
+  // UI QA Batch 7 (2026-09-08): the raw bake-provenance line used to render
+  // unconditionally on the card face. It is real and load-bearing — the
+  // run/timestamp is the only client-visible way to tell which bake run
+  // served a given card while counties are baked one at a time — so it moves
+  // behind a disclosure rather than getting deleted. Closed by default, same
+  // pattern as "What these terms mean" below.
+  const [openProvenance, setOpenProvenance] = useState(false);
   const vm = deriveBriefViewModel(brief);
   const explanations = vm.sections
     .filter((s) => s.explanation)
@@ -83,7 +90,12 @@ export function BriefSourcesStrip({
             >
               <span style={{ color: MUTED, flex: "0 0 auto" }}>[{c.index}]</span>
               {c.url ? (
-                <a href={c.url} style={{ color: BLUE, flex: 1 }}>
+                <a
+                  href={c.url}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  style={{ color: BLUE, flex: 1 }}
+                >
                   {c.label}
                 </a>
               ) : (
@@ -150,28 +162,53 @@ export function BriefSourcesStrip({
       ) : null}
 
       {/* Which run produced the snapshot above. The card cannot say this, and
-          without it a reader cannot tell a fresh answer from a cached one. */}
-      <div
-        data-testid="brief-provenance"
-        style={{
-          marginTop: 10,
-          paddingTop: 8,
-          borderTop: `1px solid ${PE.line14}`,
-          fontSize: 12.5,
-          fontFamily: PE.mono,
-          color: MUTED,
-          lineHeight: 1.6,
-          wordBreak: "break-all",
-        }}
-      >
-        {[
-          vm.header.source ? `source ${vm.header.source}` : null,
-          vm.header.reportFamily ? `report ${vm.header.reportFamily}` : null,
-          vm.header.bakedAt ? `baked ${vm.header.bakedAt.slice(0, 19)}Z` : null,
-          vm.header.runId ? `run ${vm.header.runId}` : null,
-        ]
-          .filter(Boolean)
-          .join(" · ")}
+          without it a reader cannot tell a fresh answer from a cached one.
+          Behind a closed-by-default disclosure — real, kept, not on the card
+          face (UI QA Batch 7, 2026-09-08). */}
+      <div style={{ marginTop: 10, paddingTop: 8, borderTop: `1px solid ${PE.line14}` }}>
+        <Button
+          type="button"
+          data-testid="brief-provenance-toggle"
+          aria-expanded={openProvenance}
+          onClick={() => setOpenProvenance((v) => !v)}
+          style={{
+            background: "transparent",
+            border: 0,
+            padding: 0,
+            height: "auto",
+            color: BLUE,
+            fontSize: 12.5,
+            fontWeight: 600,
+            cursor: "pointer",
+          }}
+        >
+          {openProvenance ? "Hide snapshot details" : "More facts"}
+        </Button>
+        {/* hidden, not conditionally rendered: same convention as InspectCard's
+            "More facts" accordion (inspect-accordion-body), so the content is
+            always in the DOM for the static-markup test harness this repo
+            uses everywhere, and only its visibility toggles. */}
+        <div
+          data-testid="brief-provenance"
+          hidden={!openProvenance}
+          style={{
+            marginTop: 6,
+            fontSize: 12.5,
+            fontFamily: PE.mono,
+            color: MUTED,
+            lineHeight: 1.6,
+            wordBreak: "break-all",
+          }}
+        >
+          {[
+            vm.header.source ? `source ${vm.header.source}` : null,
+            vm.header.reportFamily ? `report ${vm.header.reportFamily}` : null,
+            vm.header.bakedAt ? `baked ${vm.header.bakedAt.slice(0, 19)}Z` : null,
+            vm.header.runId ? `run ${vm.header.runId}` : null,
+          ]
+            .filter(Boolean)
+            .join(" · ")}
+        </div>
       </div>
     </div>
   );

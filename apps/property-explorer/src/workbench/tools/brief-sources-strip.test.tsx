@@ -65,6 +65,28 @@ describe("BriefSourcesStrip — what the card above cannot say", () => {
     const html = renderToStaticMarkup(<BriefSourcesStrip brief={brief} />);
     expect(html).not.toContain("not verified here");
   });
+
+  it("numbered source links open in a new tab (UI QA Batch 7, 2026-09-08)", () => {
+    const html = renderToStaticMarkup(<BriefSourcesStrip brief={brief} />);
+    expect(html).toContain('target="_blank"');
+    expect(html).toContain('rel="noopener noreferrer"');
+  });
+
+  it("the bake-provenance line is behind a closed-by-default disclosure, not on the card face (UI QA Batch 7, 2026-09-08)", () => {
+    // The run/timestamp stays real and present in the DOM — it is the only
+    // client-visible way to tell which bake run served a card while counties
+    // bake one at a time — but it no longer renders open by default.
+    const html = renderToStaticMarkup(<BriefSourcesStrip brief={brief} />);
+    expect(html).toContain('data-testid="brief-provenance-toggle"');
+    expect(html).toContain('aria-expanded="false"');
+    // Still present in the markup (hidden, not unmounted) so the content is
+    // provably real rather than only reachable after a click this harness
+    // cannot simulate.
+    const provenanceOpen = html.indexOf('data-testid="brief-provenance"');
+    expect(provenanceOpen).toBeGreaterThan(-1);
+    expect(html.slice(provenanceOpen, provenanceOpen + 40)).toContain("hidden");
+    expect(html).toContain("pe-r1-TESTRUN");
+  });
 });
 
 describe("the dock no longer stacks a second report", () => {
