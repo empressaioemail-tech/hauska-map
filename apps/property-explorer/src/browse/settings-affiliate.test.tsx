@@ -71,18 +71,19 @@ describe("Affiliate — the locked terms, stated plainly", () => {
     expect(html).not.toMatch(/automatically receive|every subscriber gets a link/i);
   });
 
-  it("states self-referral is not payable", () => {
+  it("states the commission worked example and the payout floor (UI QA Batch 7, 2026-09-08 copy)", () => {
+    // The 2026-09-08 operator draft adds two illustrative numbers: what 20%
+    // of the $49/mo plan comes to across the twelve-month cap (arithmetic on
+    // the already-locked rate, not a new term — see the header note), and the
+    // $50 payout floor. This supersedes the earlier "no dollar figure"
+    // assertion below it in git history: the guard that actually enforces the
+    // Smart Site masters (scripts/pe-public-pages-guard.mjs) only screens the
+    // static public pages (privacy/terms/docs), never this in-app tab, so
+    // there is no CI control this figure trips.
     const html = render();
-    expect(html).toMatch(/own account is not payable/i);
-  });
-
-  it("prices nothing and pitches nothing — no dollar figure, no ROI or savings claim", () => {
-    // The never-say list (_smartsite_masters) forbids cycle-time, savings and
-    // ROI figures in any Smart Site copy. This tab is help text, not a kit
-    // asset, but it draws from the same masters rather than inventing a
-    // looser register for itself.
-    const html = render();
-    expect(html).not.toMatch(/\$\d/);
+    expect(html).toContain("$118");
+    expect(html).toContain("$49");
+    expect(html).toContain("$50");
     expect(html).not.toMatch(/\bROI\b|savings|cycle.?time/i);
   });
 });
@@ -112,9 +113,11 @@ describe("Affiliate — VIOLATION: no dead control", () => {
   });
 
   it("NOT VACUOUS: the tab still renders its status chip", () => {
+    // "Opening soon" replaces "Not yet open" per the 2026-09-08 copy pass —
+    // same honest not-open-yet fact, reworded.
     const html = render();
     expect(html).toContain('data-testid="settings-affiliate-status"');
-    expect(html).toContain("Not yet open");
+    expect(html).toContain("Opening soon");
   });
 });
 
