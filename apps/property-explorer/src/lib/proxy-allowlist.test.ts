@@ -20,6 +20,8 @@ import { ACCOUNT_ENTITLEMENT_PATH } from './accountEntitlementClient'
 // A-062: the billing-portal POST. Same reasoning again — the constant the
 // client builds its URL from, compared against the server allowlist.
 import { BILLING_PORTAL_PATH } from './portalClient'
+// P-130: the team invitations POST. Same reasoning again.
+import { TEAM_INVITE_PATH } from './teamClient'
 
 function isCortexBrowsePathAllowed(method: string, upstreamPath: string): boolean {
   if (method === 'GET' || method === 'HEAD') {
@@ -253,6 +255,8 @@ describe('every deep path a shipped client calls is allowlisted', () => {
     // signed-out caller gets 401 whether or not the path is listed and a
     // green probe would prove nothing at all.
     BILLING_PORTAL_PATH,
+    // P-130 team invitations — read from the client module, same reasoning.
+    TEAM_INVITE_PATH,
   ]
 
   it.each(SHIPPED_DEEP_GETS)('allows GET %s', (path) => {
@@ -298,6 +302,22 @@ describe('every deep path a shipped client calls is allowlisted', () => {
     // subject and is explicitly out of this card. It must not be reachable
     // through the deep proxy as a side effect of listing the PE one.
     expect(isDeepPathAllowed('POST', 'api/brokerage/v1/billing/portal')).toBe(false)
+  })
+
+  it('P-130: the team invitations POST is listed, and listed NARROWLY', () => {
+    // The path the client posts to, spelled once here as the second
+    // derivation. A rename on either side without the other fails this rather
+    // than 403ing the Invite button in production.
+    expect(TEAM_INVITE_PATH).toBe('api/property-explorer/v1/team/invitations')
+    expect(isDeepPathAllowed('POST', TEAM_INVITE_PATH)).toBe(true)
+    // NOT VACUOUS. The roster GET (P-94) and the invitations POST (P-130)
+    // are neighbours; this proves the addition did not accidentally open
+    // the roster path to writes or the invitations path to reads.
+    expect(isDeepPathAllowed('GET', TEAM_INVITE_PATH)).toBe(false)
+    expect(isDeepPathAllowed('DELETE', TEAM_INVITE_PATH)).toBe(false)
+    expect(isDeepPathAllowed('POST', `${TEAM_INVITE_PATH}/extra`)).toBe(false)
+    expect(isDeepPathAllowed('POST', 'api/property-explorer/v1/team/members')).toBe(false)
+    expect(isDeepPathAllowed('GET', 'api/property-explorer/v1/team/members')).toBe(true)
   })
 
   it('P-98 paths are the ones the clients actually fetch', () => {

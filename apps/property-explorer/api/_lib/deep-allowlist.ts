@@ -10,8 +10,9 @@ export const DEEP_GET_EXACT = new Set([
   'api/property-explorer/v1/records-request',
   // P-85 Records Request — cross-parcel inbox for My reports.
   'api/property-explorer/v1/records-request/inbox',
-  // P-94 Team roster — Settings tab GET. Writes stay off until the client
-  // has a write path; invite UI is display-only.
+  // P-94 Team roster — Settings tab GET. The write path (invitations) is a
+  // separate route with its own POST-only entry below (P-130); this entry
+  // stays GET-only.
   'api/property-explorer/v1/team/members',
   // P-87 Claude Sync — which AI clients have authenticated as this account.
   // OMITTING THIS SHIPPED A DEAD CARD. spine-deep checks the session cookie
@@ -78,6 +79,13 @@ export const DEEP_POST_EXACT = new Set([
   // The POST carries { returnUrl } and NO customer id — the server resolves
   // the Stripe customer from the session and refuses a supplied one.
   'api/property-explorer/v1/billing/portal',
+  // P-130 Team invitations — the write half of P-94's roster read. Listed in
+  // the SAME change as the client (src/lib/teamClient.ts sendTeamInvite),
+  // because the two are independently authored halves and a missing line
+  // here 403s an Invite button that looks fine until someone signed in
+  // actually clicks it — the same failure mode ai-connections and the
+  // billing portal already hit once each above.
+  'api/property-explorer/v1/team/invitations',
 ])
 
 // W4 My Properties: PUT (upsert) / DELETE on exactly ONE path segment after

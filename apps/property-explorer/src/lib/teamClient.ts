@@ -123,6 +123,131 @@ export async function fetchTeamRoster(
 }
 
 // ---------------------------------------------------------------------------
+// P-130 — THE WRITE HALF. The file header above describes the READ half only
+// and predates this function. It is left as written rather than rewritten,
+// because it is still the literal state of THIS repo: hauska-map has no
+// members table or invitations table of its own — every read and write here
+// is a proxied call to legacy-design-tools, which is not cloned into this
+// repo. The P-130 dispatch that authored this function names the contract
+// below; it was not independently re-derived from the server's source, so
+// the same discipline as fetchTeamRoster applies — call the path, trust
+// nothing about the response beyond the status code, and report the outcome
+// the wire actually returned. 404/501 stays `not-built` for the same reason
+// it does above: an undeployed route is not a fact about this account.
+// ---------------------------------------------------------------------------
+
+/**
+ * The path, exported so the allowlist test compares the URL this module
+ * actually builds against the server-side set (api/_lib/deep-allowlist.ts),
+ * rather than comparing two hand-transcribed copies of one string to each
+ * other. Same discipline as BILLING_PORTAL_PATH in portalClient.ts.
+ */
+export const TEAM_INVITE_PATH = "api/property-explorer/v1/team/invitations";
+
+export const TEAM_INVITE_NOT_BUILT_MESSAGE =
+  "Invitations are not available on this deployment yet.";
+
+export type TeamInviteOutcome =
+  | { kind: "sent" }
+  /** 400 { error: "invalid_email" } — named in the P-130 dispatch. */
+  | { kind: "invalid-email"; message: string }
+  /** 400 { error: "invalid_role" } — named in the P-130 dispatch. */
+  | { kind: "invalid-role"; message: string }
+  /** 401 — no session reached the proxy. */
+  | { kind: "sign-in" }
+  /** 403 — OUR deep proxy refused OUR path. OUR bug, never a user fact. */
+  | { kind: "blocked" }
+  /** 404 / 501 — the route is not deployed on this cortex build. */
+  | { kind: "not-built"; message: string }
+  | { kind: "error"; message: string };
+
+/**
+ * Send a team invitation.
+ *
+ * OWNER-ONLY and CAPACITY-GATED on the server. This client does not
+ * pre-guess either rule — `canInvite` above is the pre-flight check the UI
+ * already runs before this is ever called, and the server remains the actual
+ * authority, so a refusal for either reason still comes back through this
+ * same outcome union rather than being assumed client-side.
+ */
+export async function sendTeamInvite(
+  email: string,
+  role: TeamRole,
+  fetchImpl: typeof fetch = fetch,
+): Promise<TeamInviteOutcome> {
+  let res: Response;
+  try {
+    res = await fetchImpl(`${CORTEX_DEEP_PROXY_BASE}/${TEAM_INVITE_PATH}`, {
+      method: "POST",
+      credentials: "include",
+      headers: { "Content-Type": "application/json", Accept: "application/json" },
+      body: JSON.stringify({ email, role }),
+    });
+  } catch {
+    return { kind: "error", message: "Could not reach the member service." };
+  }
+
+  if (res.status === 401) return { kind: "sign-in" };
+  if (res.status === 403) return { kind: "blocked" };
+  if (res.status === 404 || res.status === 501) {
+    return { kind: "not-built", message: TEAM_INVITE_NOT_BUILT_MESSAGE };
+  }
+
+  let body: Record<string, unknown> = {};
+  try {
+    const parsed: unknown = await res.json();
+    if (parsed !== null && typeof parsed === "object" && !Array.isArray(parsed)) {
+      body = parsed as Record<string, unknown>;
+    }
+  } catch {
+    // A body we cannot read is not a reason to invent an outcome below; the
+    // status code still decides.
+  }
+
+  if (res.status === 400) {
+    if (body.error === "invalid_email") {
+      return {
+        kind: "invalid-email",
+        message:
+          (typeof body.message === "string" && body.message.trim()) ||
+          "That does not look like a valid email address.",
+      };
+    }
+    if (body.error === "invalid_role") {
+      return {
+        kind: "invalid-role",
+        message:
+          (typeof body.message === "string" && body.message.trim()) ||
+          "That role is not one this account can assign.",
+      };
+    }
+    return {
+      kind: "error",
+      message:
+        (typeof body.message === "string" && body.message.trim()) ||
+        (typeof body.error === "string" && body.error.trim()) ||
+        "The invitation was refused.",
+    };
+  }
+
+  if (res.status === 201) return { kind: "sent" };
+
+  if (!res.ok) {
+    return {
+      kind: "error",
+      message:
+        (typeof body.message === "string" && body.message.trim()) ||
+        (typeof body.error === "string" && body.error.trim()) ||
+        `Invitation failed (${res.status}).`,
+    };
+  }
+
+  // Any other 2xx: the contract promises 201, but an unanticipated success
+  // status is still a success, not a fabricated failure.
+  return { kind: "sent" };
+}
+
+// ---------------------------------------------------------------------------
 // Seat arithmetic. Pure, because this repo proves rules through helpers rather
 // than a DOM harness, and because getting it wrong over-allocates paid seats.
 // ---------------------------------------------------------------------------
