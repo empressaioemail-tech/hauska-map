@@ -76,6 +76,11 @@ import {
   getChatPropertyRecords,
 } from "./records-chat-context";
 import {
+  chatCompareContextFrom,
+  composeMessageWithCompareContext,
+} from "./compare-chat-context";
+import { useCompareGlobalState } from "./CompareTool";
+import {
   ATOM_ACCENT,
   ATOM_ACCENT_BG,
   ATOM_ACCENT_BORDER,
@@ -1150,6 +1155,11 @@ export function ChatTool() {
   // Read-only view of the BRIEF tool's stored state for the SAME property —
   // the chassis store is shared, keyed (property, toolId). Fuels areaContext.
   const [briefStored] = useDockToolState<BriefToolStoredState>("brief");
+  // Read-only view of Compare's GLOBAL (not property-scoped) stored state —
+  // same public chassis store seam CompareTool itself reads through
+  // (useWorkbench().store), so opening Chat never requires Compare to be
+  // open too: whatever was last loaded into the two slots is still there.
+  const [compareStored] = useCompareGlobalState();
   const [phase, setPhase] = useState<ChatPhase>({ kind: "idle" });
   const [draft, setDraft] = useState("");
   // Attach action state (transient — never persisted).
@@ -1252,8 +1262,15 @@ export function ChatTool() {
         await getChatUserRows(),
         activeParcelNodeId,
       );
+      // COMPARE PANEL CONTEXT — "compare these two" without either property
+      // named. Null when Compare has fewer than two loaded slots, so this is
+      // a no-op composer on every thread that never touched Compare.
+      const compareContext = chatCompareContextFrom(compareStored);
       const messageForModel = composeMessageWithUserWork(
-        composeMessageWithAttachments(message, activeSess.attachments),
+        composeMessageWithCompareContext(
+          composeMessageWithAttachments(message, activeSess.attachments),
+          compareContext,
+        ),
         userWork,
       );
 
@@ -1328,7 +1345,15 @@ export function ChatTool() {
       });
     },
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    [activeParcelNodeId, storedRaw, briefStored, host, setStored, ent.entitled],
+    [
+      activeParcelNodeId,
+      storedRaw,
+      briefStored,
+      compareStored,
+      host,
+      setStored,
+      ent.entitled,
+    ],
   );
 
   // WB6 — SAVE TO PROPERTY: store the thread (capped) into the saved
