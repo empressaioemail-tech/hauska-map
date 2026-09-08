@@ -74,13 +74,17 @@ describe("P-95 Settings line weight", () => {
     );
   });
 
-  it("Settings splits 7 surface edges / 7 internal rules / 1 emphasis", () => {
+  it("Settings splits 7 surface edges / 6 internal rules / 1 emphasis", () => {
     // Counted, not sampled: a flip in either direction moves a number here.
-    // 15 line sites total, which is what the file carried before the
-    // reclassification too — this changed no line's existence, only its token.
+    // 14 line sites total, down from 15: UI QA Batch 7 (operator ruling
+    // 2026-09-08) removed the rail's bottom-of-column honesty-note footer
+    // entirely, which was one of the internal-rule (line06) sites — its own
+    // `borderTop: \`1px solid ${PE.line06}\``. This is a real site leaving the
+    // file, not a reclassification, so the total drops rather than just
+    // moving between tokens.
     const src = code(SETTINGS);
     expect(count(src, /PE\.line14/g)).toBe(7);
-    expect(count(src, /PE\.line06/g)).toBe(7);
+    expect(count(src, /PE\.line06/g)).toBe(6);
     expect(count(src, /PE\.line28/g)).toBe(1);
   });
 
