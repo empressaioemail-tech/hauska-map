@@ -14,6 +14,13 @@
 // a channel, or an eligibility rule this card did not read from those two
 // sources.
 //
+// COPY REWRITE, UI QA Batch 7 (2026-09-08). The $118/$49 example, the 60-day
+// attribution window and the $50 payout floor are the operator's own drafted
+// numbers for this pass, additive to (not replacing) the two locked sources
+// above: $118 is 20% of $49/mo carried across the twelve-month cap
+// (0.2 * 49 * 12 ~= 118), arithmetic on the already-locked rate, not a new
+// term.
+//
 // WHY THERE IS NO "APPLY NOW" BUTTON. The application intake is meant to be a
 // GoHighLevel pipeline ("Affiliate Recruiting", per
 // _smartsite_gtm/05_ghl_chrome_runbook.md) created through the API. As of
@@ -65,34 +72,51 @@ export function AffiliateSection() {
     >
       <Eyebrow>Affiliate</Eyebrow>
       <div style={{ fontSize: 15.5, lineHeight: 1.65, color: PE.t2 }}>
-        Smart Site pays a recurring commission to partners who send paying
-        subscribers our way. This is how it works, plainly, not a pitch.
+        Smart Site pays a recurring commission to partners who send us paying
+        subscribers. Here is how it works.
       </div>
 
       <Panel>
         <Row
           label="Commission"
           value="20%, recurring"
-          note="Paid on the subscription you referred, for up to twelve months."
+          note="Paid on the referred subscription for up to twelve months. About $118 per subscriber on the $49 monthly plan."
         />
         <Row
           label="Attribution"
           value="PromoteKit"
-          note="Tracked against live Stripe subscriptions, not self-reported clicks."
+          note="Tracked against live Stripe subscriptions, not self-reported clicks. Signups count for 60 days after the click."
         />
-        <Row label="Payouts" value="PayPal" />
+        <Row
+          label="Payouts"
+          value="PayPal"
+          note="Paid monthly once your balance clears $50."
+        />
         <Row
           label="Applications"
           value={
             <span data-testid="settings-affiliate-status">
-              <StatusChip tone="provisional">Not yet open</StatusChip>
+              <StatusChip tone="provisional">Opening soon</StatusChip>
             </span>
           }
-          note="Opt-in by application: every subscriber does not receive a link automatically. A referral of your own account is not payable."
+          note="By application, not automatic. Full terms at signup."
           last
         />
       </Panel>
 
+      {/*
+        NO "Tell me when applications open" BUTTON. The reviewer's drafted
+        copy for this row (UI QA Batch 7) reads "We'll email the address on
+        your account. Nothing else" — a promise that Smart Site holds the
+        interest and emails the account later. There is no such mechanism:
+        no waitlist/notify endpoint exists anywhere in this client or its
+        backends (checked 2026-09-08), the same gap the header note above
+        already names for an "Apply now" button and the same reasoning
+        applies here verbatim. Shipping the button would be the dead-control
+        defect this file's own header refuses to ship — a control that
+        promises a follow-up nothing sends. Kept the working mailto affordance
+        instead and flagged the gap rather than faking the check.
+      */}
       <Aside>
         <span data-testid="settings-affiliate-not-open">
           Applications are not open yet, and there is no enrollment flow here

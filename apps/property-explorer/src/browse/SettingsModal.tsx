@@ -927,10 +927,6 @@ export function SettingsModal({
                     </div>
                   ))}
                 </Panel>
-                <div style={{ fontSize: 12.5, color: PE.t5 }}>
-                  Rows render the shared vendor list the Claude Sync bubble
-                  renders. Settings does not declare its own.
-                </div>
               </div>
             ) : null}
 
@@ -970,29 +966,13 @@ export function SettingsModal({
             />
             <div style={{ flex: 1 }} />
             {/*
-              THE HONESTY NOTE STAYS, in one line, BELOW the action.
-
-              This panel is full of "Not read" and "Not built" rows and fixing
-              those rows was out of scope for the card that replaced this rail.
-              Deleting the sentence that makes them read as honest rather than
-              broken, while the rows it explains are still there, would make
-              the product look worse rather than cleaner. It lives here rather
-              than inside NextActionCard because it is a statement about
-              SETTINGS, and the component may not assume Settings.
+              THE HONESTY NOTE IS GONE. Operator ruling 2026-09-08 (UI QA
+              Batch 7) supersedes the earlier HOLD recorded above the render:
+              remove, not keep. It used to justify the panel's "Not read" and
+              "Not built" rows in one line at the bottom of the rail, on every
+              tab. Those rows are unchanged and still say "Not read" for
+              themselves; only the footer explaining them is gone.
             */}
-            <div
-              style={{
-                fontSize: 12.5,
-                lineHeight: 1.6,
-                color: PE.t5,
-                borderTop: `1px solid ${PE.line06}`,
-                paddingTop: 14,
-              }}
-            >
-              Every value here names where it was read from: a field with no
-              traced source says Not read, and nothing in this popup is a
-              control that does nothing.
-            </div>
           </div>
         </div>
       </div>

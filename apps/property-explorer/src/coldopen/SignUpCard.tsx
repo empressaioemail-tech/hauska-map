@@ -147,6 +147,17 @@ export function SignUpCard({ onDismiss }: { onDismiss: () => void }) {
           </span>
         </div>
 
+        <p
+          style={{
+            margin: "0 0 14px",
+            fontSize: 12.5,
+            lineHeight: 1.4,
+            color: PE.t4,
+          }}
+        >
+          Parcel intelligence for Central Texas
+        </p>
+
         <h1
           style={{
             margin: "0 0 16px",
@@ -157,7 +168,7 @@ export function SignUpCard({ onDismiss }: { onDismiss: () => void }) {
             color: PE.t1,
           }}
         >
-          Find out what a parcel will let you do, and what nobody has measured yet.
+          Everything the record says about a property.
         </h1>
 
         <ul
@@ -170,9 +181,9 @@ export function SignUpCard({ onDismiss }: { onDismiss: () => void }) {
           }}
         >
           {[
-            "The map, the layers and the inspect card are free, no account needed.",
-            "Make an account and you can save properties, ask three questions on any parcel, and send anyone a live link. Sharing is free on every plan, and the person you send it to sees exactly what you see.",
-            "Reports and unlimited questions start at $15 for one property for 30 days, or $49 a month for all of them.",
+            "Zoning, setbacks and buildable area",
+            "Flood, drainage, feasibility and terrain studies",
+            "Draw, take notes, export, share with one link",
           ].map((t, i) => (
             <li
               key={t}
@@ -324,7 +335,7 @@ export function SignUpCard({ onDismiss }: { onDismiss: () => void }) {
                   </p>
                 )}
                 <p style={{ fontSize: 12.5, color: PE.t5, margin: 0 }}>
-                  We'll email you a link. No password, ever.
+                  No password, ever. We'll email you a link.
                 </p>
               </form>
             )}
@@ -339,21 +350,8 @@ export function SignUpCard({ onDismiss }: { onDismiss: () => void }) {
           onClick={dismissBrowse}
           style={{ marginTop: 10 }}
         >
-          Browse the map first
+          Browse the map first, no account needed
         </Button>
-
-        <p
-          style={{
-            margin: "14px 0 0",
-            fontSize: 12.5,
-            lineHeight: 1.45,
-            color: PE.t5,
-          }}
-        >
-          Coverage runs deepest in Central Texas and varies by county and by
-          city. Where something has not been measured, the record says so
-          instead of guessing.
-        </p>
       </div>
     </div>
   );
