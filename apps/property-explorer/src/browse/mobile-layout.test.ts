@@ -41,13 +41,10 @@ describe("dockLayoutStyle — desktop preserved", () => {
 
   it("EXPANDED widens the COLUMN, keeping the compact anchor", () => {
     const s = dockLayoutStyle(true, false);
-    // SUPERSEDED 2026-08-29. The 534 form assumed the find bar was LEFT
-    // ANCHORED at inset 12. It is centred, so its right edge grows with the
-    // viewport and the old subtraction under-reserved by more the wider the
-    // screen got. Measured live at 1903: a 201px overlap.
-    expect(s.width).toBe(
-      "clamp(380px, calc(50vw - 86px - var(--ss-find-w) / 2), 860px)",
-    );
+    // UI QA Batch 7 (operator, 2026-09-08): the column no longer stops short
+    // of the find bar. Roughly two-thirds of the viewport, floored at the
+    // compact width, ceilinged at 1280 for ultra-wide monitors.
+    expect(s.width).toBe("clamp(380px, 66vw, 1280px)");
     expect(String(s.maxHeight)).toBe("calc(100vh - 28px)");
   });
 });
@@ -101,8 +98,8 @@ describe("the find bar is fixed and does not move", () => {
 describe("expanded never comes out narrower than compact", () => {
   // A naive "viewport minus the bar" subtraction drops below the 380 compact
   // width on a small window, so the expand control would make the column
-  // SMALLER — the opposite of its label. The max() floor is the guard; this
-  // pins that it is present rather than trusting the expression reads right.
+  // SMALLER — the opposite of its label. The floor is the guard; this pins
+  // that it is present rather than trusting the expression reads right.
   it("floors the expanded width at the compact width", () => {
     const expanded = String(dockLayoutStyle(true, false).width);
     const compact = String(dockLayoutStyle(false, false).width);
@@ -111,54 +108,66 @@ describe("expanded never comes out narrower than compact", () => {
   });
 
   it("uses clamp, NOT nested max(min()) — the nested form did not render", () => {
-    // The nested version shipped and silently fell back to width:auto and
-    // shrink-to-fit, landing near 855 so it looked like the old 860 and read
-    // as a failed deploy. Pinned so it cannot come back.
+    // The nested version shipped once (a different formula) and silently fell
+    // back to width:auto and shrink-to-fit. Pinned so that failure mode cannot
+    // come back regardless of which formula clamp() wraps.
     const w = String(dockLayoutStyle(true, false).width);
     expect(w.startsWith("clamp(")).toBe(true);
     expect(w).not.toContain("max(");
     expect(w).not.toContain("min(");
   });
 
-  it("keeps the 860 ceiling it always had", () => {
-    expect(String(dockLayoutStyle(true, false).width)).toContain("860px)");
+  it("ceilings at 1280 on ultra-wide monitors", () => {
+    // UI QA Batch 7: raised from the old 860 ceiling, which fell to under
+    // half the viewport at 1920 — too far from "roughly two-thirds" on an
+    // ordinary desktop monitor to satisfy the ask. 1280 clears 66vw at 1920
+    // (1920 * 0.66 = 1267.2), the single most common desktop resolution.
+    expect(String(dockLayoutStyle(true, false).width)).toContain("1280px)");
   });
+});
 
-  it("reserves the bar PLUS both gutters, not just the bar", () => {
-    // The bar is CENTRED, so it is HALF its width that sits right of the
-    // midpoint and has to be cleared. A rule written against 100vw reserves for
-    // a left-anchored bar that does not exist.
-    const w = String(dockLayoutStyle(true, false).width);
-    expect(w).toContain("50vw");
-    expect(w).toContain("var(--ss-find-w) / 2");
-    expect(w).not.toContain("100vw");
-  });
+describe("expanded is roughly two-thirds of the viewport (UI QA Batch 7, operator 2026-09-08)", () => {
+  // Reverses the 2026-08-28/29 ruling: expanded panels (AI Chat, Compare,
+  // etc.) may now extend past the search bar. This is the geometry test that
+  // replaces the old "the expanded column never reaches the centred find bar"
+  // test — that outcome is exactly what this batch asked to stop guaranteeing.
+  const width = (vw: number) => Math.min(1280, Math.max(380, vw * 0.66));
 
-  // THE TEST THAT WOULD HAVE CAUGHT THE BUG. Both assertions above compare
-  // STRINGS, and a string assertion passed for the entire time the column was
-  // visibly tucked behind the bar — because the string was exactly what its
-  // author meant to write. What nothing checked was the RELATIONSHIP the string
-  // is supposed to produce. So evaluate the geometry instead.
-  it("the expanded column never reaches the centred find bar", () => {
-    const GUTTER = 74;
-    const CHANNEL = 12;
-    const BAR = 436;
-    const COMPACT = 380;
-    const CEIL = 860;
-    const width = (vw: number) =>
-      Math.min(CEIL, Math.max(COMPACT, vw / 2 - (GUTTER + CHANNEL + BAR / 2)));
-    const columnLeft = (vw: number) => vw - GUTTER - width(vw);
-    const barRight = (vw: number) => (vw + BAR) / 2;
-
-    // NOT VACUOUS: the superseded rule must FAIL this, or passing proves
-    // nothing about the fix.
-    const oldWidth = (vw: number) =>
-      Math.min(CEIL, Math.max(COMPACT, vw - 534));
-    const oldLeft = (vw: number) => vw - GUTTER - oldWidth(vw);
-    expect(oldLeft(1903)).toBeLessThan(barRight(1903));
-
-    for (const vw of [1368, 1440, 1600, 1903, 2200, 2560]) {
-      expect(columnLeft(vw)).toBeGreaterThanOrEqual(barRight(vw) + CHANNEL);
+  it("tracks 66vw across the common desktop range, not vacuously clamped at either end", () => {
+    for (const vw of [1024, 1280, 1440, 1600, 1920]) {
+      const w = width(vw);
+      // NOT VACUOUS: prove this sits strictly between the two clamp bounds
+      // for at least the bulk of the range, or a formula that always returns
+      // the floor or the ceiling would still pass a looser assertion.
+      expect(w).toBeGreaterThan(380);
+      expect(w).toBeCloseTo(vw * 0.66, 0);
     }
+  });
+
+  it("stays within roughly two-thirds even where the 1280 ceiling caps it on very wide screens", () => {
+    for (const vw of [2200, 2560, 3440]) {
+      const w = width(vw);
+      expect(w).toBe(1280);
+      // "Up to roughly two-thirds" — never MORE than 66vw, never above the
+      // ceiling.
+      expect(w).toBeLessThanOrEqual(vw * 0.66);
+    }
+  });
+
+  it("never narrower than the compact width even on a small desktop window", () => {
+    for (const vw of [800, 900, 1000]) {
+      expect(width(vw)).toBeGreaterThanOrEqual(380);
+    }
+  });
+
+  it("the formula in the source matches this test's model, not a hand-verified guess", () => {
+    const w = String(dockLayoutStyle(true, false).width);
+    expect(w).toBe("clamp(380px, 66vw, 1280px)");
+  });
+
+  it("no longer reserves anything for the find bar — the overlap is now accepted, not routed around", () => {
+    const w = String(dockLayoutStyle(true, false).width);
+    expect(w).not.toContain("--ss-find-w");
+    expect(w).not.toContain("50vw - 86px");
   });
 });
