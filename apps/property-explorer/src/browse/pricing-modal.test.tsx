@@ -223,18 +223,53 @@ describe("PricingModal — ALL pricing in one popup, every string from config", 
     );
   });
 
-  it("dialog semantics + BOTH close affordances (scrim and X); card fits the viewport with no scrollbar", () => {
+  it("dialog semantics + BOTH close affordances (scrim and X); card is height-capped AND scrollable (P-127: it was capped with no scroll region, clipping lower rows on a short viewport)", () => {
     const html = renderToStaticMarkup(
       <PricingModal parcelNodeId="48021:1" onClose={noop} />,
     );
     expect(html).toMatch(/role="dialog"[^>]*aria-modal="true"/);
     expect(html).toContain('data-testid="pricing-modal-scrim"');
     expect(html).toContain('data-testid="pricing-modal-close"');
-    expect(html).toContain('data-scroll="none"');
-    expect(html).toContain("overflow:hidden");
-    expect(html).not.toContain("overflow-y:auto");
+    expect(html).toContain('data-scroll="auto"');
+    // The card must actually be a scroll container: overflowY: auto rendered,
+    // and plain overflow:hidden (the pre-fix defect, which clips instead of
+    // scrolling) gone from the card's own style. react-dom/server renders
+    // camelCase overflowY as the hyphenated CSS property.
+    expect(html).toContain("overflow-y:auto");
+    expect(html).not.toContain("overflow:hidden");
+    expect(html).toContain('class="pe-scroll"');
     expect(html).toContain("min(940px, calc(100vw - 24px))");
     expect(html).toContain("calc(100dvh - 24px)");
+  });
+
+  it("top CTA mirrors the bottom Studio button exactly (P-127: a purchase path must exist without scrolling to the bottom)", () => {
+    const monthly = renderToStaticMarkup(
+      <PricingModal parcelNodeId="48021:1" initialInterval="monthly" onClose={noop} />,
+    );
+    // Renders before the close affordance, i.e. actually in the header, not
+    // buried below the fold with the bottom copy.
+    expect(monthly.indexOf('data-testid="pricing-top-cta-button"')).toBeLessThan(
+      monthly.indexOf('data-testid="pricing-modal-close"'),
+    );
+    // Same label, same amount/interval targeting as the bottom Studio button
+    // (one literal check on the attribute run is enough; a regex duplicate
+    // of the same claim would just be a second way to get the same answer).
+    expect(monthly).toContain(PE_PRICING.studio.ctaLabel);
+    expect(monthly).toContain(
+      `data-testid="pricing-top-cta-button" data-tier="studio" data-amount="${PE_PRICING.studio.monthlyAmount}" data-checkout-interval="month"`,
+    );
+    const annual = renderToStaticMarkup(
+      <PricingModal parcelNodeId="48021:1" initialInterval="annual" onClose={noop} />,
+    );
+    expect(annual).toContain(
+      `data-amount="${PE_PRICING.studio.annualPriceLabel}" data-checkout-interval="year"`,
+    );
+    // No active parcel: subscriptions (top CTA included) stay live — only the
+    // one-time unlock needs a parcel, per the existing disabled-unlock test.
+    const noParcel = renderToStaticMarkup(
+      <PricingModal parcelNodeId={null} onClose={noop} />,
+    );
+    expect(noParcel).not.toMatch(/data-testid="pricing-top-cta-button"[^>]*disabled/);
   });
 
   it("honest status footnote renders when provided (ICC citation state)", () => {

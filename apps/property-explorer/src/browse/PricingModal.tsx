@@ -14,6 +14,18 @@
 //
 // CTAs use Button.tsx. --brand-blue is the only interactive accent. Gold is
 // mark-only. No --sc-* tokens. No Oxygen CDN.
+//
+// SCROLL + TOP CTA (P-127, live-QA fix): the card was overflow:hidden with a
+// maxHeight and NOTHING set overflowY, so on a short viewport the lower rows
+// (records package, hand-it-off, terrain) were clipped and unreachable — the
+// classic no-scroll-region defect. Fixed the same way the sibling
+// UnlockCheckoutModal already does it: overflowY: auto + the shared
+// .pe-scroll class directly on the outer card (single scrolling card, no
+// sticky-header wrapper needed). The header also gained a top CTA mirroring
+// the bottom Studio button exactly (same handleSubscription("studio", ...)
+// call, same label/busy state) so a purchase path exists without scrolling
+// to the bottom — Studio is the modal's only variant="primary" button, i.e.
+// the one unambiguous "the" CTA to mirror.
 
 import { useRef, useState } from "react";
 import { Button } from "../components/Button";
@@ -202,12 +214,13 @@ export function PricingModal({
       <div
         data-testid="pricing-modal"
         data-studio-only={studioOnly ? "true" : "false"}
-        data-scroll="none"
+        data-scroll="auto"
+        className="pe-scroll"
         onClick={(e) => e.stopPropagation()}
         style={{
           width: "min(940px, calc(100vw - 24px))",
           maxHeight: "calc(100dvh - 24px)",
-          overflow: "hidden",
+          overflowY: "auto",
           borderRadius: PE.rModal,
           background: CARD_BG,
           border: `1px solid ${PE.line28}`,
@@ -288,6 +301,19 @@ export function PricingModal({
                 {PE_PRICING.interval.monthlyLabel}
               </Button>
             </div>
+            <Button
+              type="button"
+              dense
+              variant="primary"
+              data-testid="pricing-top-cta-button"
+              data-tier="studio"
+              data-amount={tierHeadline("studio", interval).amount}
+              data-checkout-interval={toCheckoutInterval(interval)}
+              disabled={busy !== null}
+              onClick={() => void handleSubscription("studio", interval, undefined)}
+            >
+              {busy === "studio" ? PE_PRICING.checkoutBusyLabel : PE_PRICING.studio.ctaLabel}
+            </Button>
             <Button
               type="button"
               aria-label="Close"
