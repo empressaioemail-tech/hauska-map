@@ -184,6 +184,80 @@ describe("SS-W2 item 3 / I3 — provenance is demoted, never welded into the val
 });
 
 // ---------------------------------------------------------------------------
+// CTX-INSPECTCARD (P-124) — legacy-design-tools PR #644 changes a bare-null
+// provenance.landUseSource into a declared-absence OBJECT
+// ({verdict, scope, asOf, basis}) for parcels with no land use. InspectCard.tsx
+// carried the field straight into SourcesDisclosure's `entries[].detail`
+// (typed `string`, never runtime-checked), and `entries` is a plain JS array
+// built eagerly regardless of whether the disclosure is open — so a customer
+// who taps "Sources" on any null-land-use parcel would hit it. The guard at
+// InspectCard.tsx ~1484 is mirrored here (not re-imported: it lives inside a
+// larger inline array literal with no exported seam) — keep this in sync with
+// that line if it ever changes shape.
+// ---------------------------------------------------------------------------
+describe("CTX-INSPECTCARD — provenance.landUseSource guard", () => {
+  const ABSENCE_OBJECT = {
+    verdict: "absent-verified",
+    scope: "county",
+    asOf: "2026-09-08",
+    basis: "no coded land-use record",
+  };
+
+  function guardedLandUseSourceEntries(landUseSource: unknown): Array<{ label: string; detail: string }> {
+    // Verbatim mirror of the guard at InspectCard.tsx ~1484-1486.
+    return typeof landUseSource === "string" && landUseSource
+      ? [{ label: "Land-use source", detail: landUseSource }]
+      : [];
+  }
+
+  it("PROVES THE DEFECT: an unguarded object detail crashes the render, it does not degrade to text", () => {
+    // This is what entries looked like BEFORE the guard: the raw field passed
+    // straight through with only a truthiness check (an object is truthy).
+    const unguardedEntries = [{ label: "Land-use source", detail: ABSENCE_OBJECT }];
+    expect(() =>
+      renderToStaticMarkup(
+        <SourcesDisclosure
+          isOpen={true}
+          onToggle={noop}
+          asOf="2026-09-08"
+          entries={unguardedEntries as unknown as Array<{ label: string; detail: string }>}
+        />,
+      ),
+    ).toThrow(/Objects are not valid as a React child/);
+  });
+
+  it("real string source — entry present, detail shown, unchanged from today", () => {
+    const entries = guardedLandUseSourceEntries("cad-roll");
+    expect(entries).toEqual([{ label: "Land-use source", detail: "cad-roll" }]);
+    const html = renderToStaticMarkup(
+      <SourcesDisclosure isOpen={true} onToggle={noop} asOf="2026-09-08" entries={entries} />,
+    );
+    expect(html).toContain("Land-use source:");
+    expect(html).toContain("cad-roll");
+  });
+
+  it("null source — no entry, unchanged from today (already the behavior pre-fix)", () => {
+    const entries = guardedLandUseSourceEntries(null);
+    expect(entries).toEqual([]);
+    const html = renderToStaticMarkup(
+      <SourcesDisclosure isOpen={true} onToggle={noop} asOf="2026-09-08" entries={entries} />,
+    );
+    expect(html).not.toContain("Land-use source");
+  });
+
+  it("declared-absence OBJECT source — guarded out, no crash, no [object Object] anywhere", () => {
+    const entries = guardedLandUseSourceEntries(ABSENCE_OBJECT);
+    expect(entries).toEqual([]);
+    const html = renderToStaticMarkup(
+      <SourcesDisclosure isOpen={true} onToggle={noop} asOf="2026-09-08" entries={entries} />,
+    );
+    expect(html).not.toContain("Land-use source");
+    expect(html).not.toContain("[object Object]");
+    expect(html).not.toContain("absent-verified");
+  });
+});
+
+// ---------------------------------------------------------------------------
 // Item 4 / invariant I4 — failure is not an absence.
 // ---------------------------------------------------------------------------
 

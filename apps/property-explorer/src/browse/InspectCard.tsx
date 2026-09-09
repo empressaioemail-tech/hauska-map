@@ -1481,7 +1481,7 @@ export function InspectCard({
               label: r.label,
               detail: r.fact.provenance as string,
             })),
-            ...(baked.provenance.landUseSource
+            ...(typeof baked.provenance.landUseSource === "string" && baked.provenance.landUseSource
               ? [{ label: "Land-use source", detail: baked.provenance.landUseSource }]
               : []),
             ...(baked.provenance.parcelSource
