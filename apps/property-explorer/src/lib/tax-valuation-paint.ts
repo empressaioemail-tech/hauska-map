@@ -21,14 +21,38 @@
  * here, on the SAME predicate this module has always deferred to — never a
  * second Property-Unlock check.
  *
- * A REAL, SOURCED FIGURE FROM THE COUNTY APPRAISAL DISTRICT, NOT AN OPINION
- * OF WORTH. Masters 06's "not a valuation tool" stance refuses anything
- * that reads as an estimate or opinion of what a property is worth; this
- * field is the county's own recorded number and is a different, cleared
- * class of data (operator ruling, A-103 item 5). The upgrade-cue and every
- * label this module produces says "tax-assessed value" — never "valuation"
- * or "worth" on its own — so nobody downstream (support, an affiliate, a
- * customer misreading it) confuses a sourced fact for a market opinion.
+ * A REAL, SOURCED FIGURE, NOT AN OPINION OF WORTH. Masters 06's "not a
+ * valuation tool" stance refuses anything that reads as an estimate or
+ * opinion of what a property is worth; this field is a recorded number and
+ * is a different, cleared class of data (operator ruling, A-103 item 5).
+ * Nothing this module produces says "valuation" or "worth" on its own, so
+ * nobody downstream (support, an affiliate, a customer misreading it)
+ * confuses a sourced fact for a market opinion.
+ *
+ * CORRECTED 2026-09-10 (CTX-B4, downstream of operator ruling A1). This
+ * comment used to read "A REAL, SOURCED FIGURE FROM THE COUNTY APPRAISAL
+ * DISTRICT" and every label this module produced said "tax-assessed
+ * value". That is FALSE on a material share of served parcels. A row whose
+ * county `assessed_value` is absent at the declared vintage reached
+ * `cad_property` through the StratMap statewide parcel file, not through
+ * the county appraisal district's own export, and served a
+ * byte-identical label. It was a load-bearing false statement about
+ * provenance sitting in the source, which is worse than an unstated one:
+ * it is what a reader checks and is reassured by.
+ *
+ * The corrected wording is deliberately narrower than the old one. WHOSE
+ * recorded number is now derived per record and rendered by
+ * `valuation-basis.ts`; it is not a property of this module and this
+ * module must not assert it. What is still true here, and is all that is
+ * claimed, is that the figure is recorded rather than opined.
+ *
+ * NOT corrected here, and open: `TAX_VALUATION_STUDIO_UPGRADE_CUE` below
+ * still promises "County tax-assessed value". When the server refuses the
+ * dollar fields for an under-tier caller it sends no basis, so nothing on
+ * this path can know which source the parcel would have served. The cue
+ * therefore over-promises on a StratMap parcel. Fixing it needs the gated
+ * refusal to carry the basis, which is a legacy-design-tools change and
+ * out of this repo's scope. Named rather than silently left.
  */
 
 import { ownerPaintAllowed } from "./owner-paint";

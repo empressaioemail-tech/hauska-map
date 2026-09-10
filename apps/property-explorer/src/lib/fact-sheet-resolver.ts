@@ -87,6 +87,11 @@ import { fetchGeocodeSuggestions } from "./geocodeClient";
 import { CORTEX_PROXY_BASE, PE_FACETS_PROXY_BASE } from "./config";
 import { isValidParcelNodeId, normalizeParcelNodeId } from "./parcel-node-id";
 import {
+  resolveValuationBasis,
+  taxValuationSourceLabel,
+  type ResolvedValuationBasis,
+} from "./valuation-basis";
+import {
   acresToSqFt,
   areaSqFtOfRings,
   bboxAround,
@@ -297,6 +302,30 @@ function cadProvenance(facets: BakedFacetPayload): Provenance {
   });
 }
 
+/**
+ * The valuation fact's OWN provenance (CTX-B4). Same record, same vintage, but
+ * the source label is derived from the record's `valueBasis` instead of
+ * asserting the county appraisal roll on every parcel.
+ *
+ * Deliberately NOT folded into `cadProvenance`. That one is shared by APN,
+ * situs and land use, and `valueBasis` is evidence about the DOLLAR fields
+ * only -- it is derived from `assessed_value` presence and nothing else.
+ * Relabelling a parcel's identity rows off it would be a control broader than
+ * its claim, which is the worse defect of the two.
+ *
+ * `source`, the machine key, is left exactly as `cadProvenance` computes it.
+ * This build has no authority to mint a lineage key the producer did not send.
+ */
+function taxValuationProvenance(
+  facets: BakedFacetPayload,
+  resolved: ResolvedValuationBasis,
+): Provenance {
+  return {
+    ...cadProvenance(facets),
+    sourceLabel: taxValuationSourceLabel(resolved, facets.countyName ?? null),
+  };
+}
+
 /** Travis-style sentinels (`, TX`) are not navigation or geocode anchors. */
 export function isUsableSitusAddress(raw: string | null | undefined): boolean {
   if (!raw || typeof raw !== "string") return false;
@@ -500,10 +529,21 @@ export function cadRollFieldState(
  * owner/agValuation/etc, since this rail is baked straight onto baseFacts,
  * the same place identityFacts/landUseFromCadRoll already read.
  *
- * A REAL, SOURCED FIGURE FROM THE COUNTY APPRAISAL DISTRICT, NOT AN OPINION
- * OF WORTH. Masters 06's "not a valuation tool" stance refuses market-value
- * OPINIONS; this is the county's own recorded number and is a different,
- * cleared class of data (operator ruling, A-103 item 5).
+ * A REAL, SOURCED FIGURE, NOT AN OPINION OF WORTH. Masters 06's "not a
+ * valuation tool" stance refuses market-value OPINIONS; this is a recorded
+ * number and is a different, cleared class of data (operator ruling, A-103
+ * item 5).
+ *
+ * WHOSE recorded number is not a constant, and used to be treated as one
+ * (CTX-B4, downstream of ruling A1). A row whose county `assessed_value` is
+ * absent at the declared vintage reached `cad_property` through the StratMap
+ * statewide parcel file, not through the county's own export, and still
+ * served under the label "<County> County appraisal roll". The record's
+ * `valueBasis` is now resolved here and travels with the fact as
+ * `valuationBasis` / `valuationSourceToken` (contract AMENDMENT 5), so a
+ * renderer can name the source instead of asserting one. The value itself is
+ * untouched: ruling A1 explicitly refused turning a labelled dollar into an
+ * absence.
  *
  * GATED the same tier as owner info: the server replaces all four dollar
  * fields with a `{state: "refused", code: "studio-gated"}` refusal when the
@@ -523,9 +563,14 @@ export function taxValuationFromCadRoll(
   landValue: number | null;
   improvementValue: number | null;
   display: string;
+  valuationBasis: string;
+  valuationSourceToken: string | null;
 }> {
   const cadRoll = facets.baseFacts?.cadRoll;
-  const prov = cadProvenance(facets);
+  const resolvedBasis = resolveValuationBasis(
+    (cadRoll ?? null) as Record<string, unknown> | null,
+  );
+  const prov = taxValuationProvenance(facets, resolvedBasis);
   if (!cadRoll) {
     return absentUncovered(
       "no CAD tax-assessed valuation on the county roll for this parcel",
@@ -578,6 +623,8 @@ export function taxValuationFromCadRoll(
       landValue: values.landValue ?? null,
       improvementValue: values.improvementValue ?? null,
       display: entries.join(" · "),
+      valuationBasis: resolvedBasis.basis,
+      valuationSourceToken: resolvedBasis.unrecognisedToken,
     },
     provenance: prov,
   };

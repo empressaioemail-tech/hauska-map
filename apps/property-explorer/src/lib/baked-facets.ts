@@ -561,6 +561,18 @@ export interface CardFacet<T> {
   layerAbsence?: import("./layer-absence").LayerAbsenceProvenance;
   /** Empty chain with no verdict — defect, not honest absence (P-63). */
   silentEmpty?: boolean;
+  /**
+   * WHICH SOURCE a present value came from, where the row's own heading would
+   * otherwise assert one (CTX-B4). Set only by the tax-valuation row today.
+   *
+   * Same optional side-channel shape as `layerAbsence` above, and for the same
+   * reason: `CardFacet<string>` carries a rendered string and drops the Fact's
+   * provenance sibling, so a row whose NAME depends on its source has nowhere
+   * else to read it from.
+   *
+   * ABSENT MEANS THE ROW MAKES NO SOURCE CLAIM. It never means county-assessed.
+   */
+  valuationBasis?: import("./valuation-basis").ValuationBasisPresentation;
 }
 
 /** The inspect card's view-model, derived purely from a baked payload. */
