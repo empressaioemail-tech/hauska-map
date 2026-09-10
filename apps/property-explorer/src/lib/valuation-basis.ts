@@ -214,11 +214,7 @@ export function readValuationBasis(
  * the thing being named changes.
  */
 export function taxValuationRowHeading(basis: ValuationBasis): string {
-  // VIOLATION-RUN STUB (commit 1 of 2). Reproduces the pre-CTX-B4 card
-  // exactly: one heading for every basis. The stratmap violation test must
-  // FAIL here and the county-assessed control must PASS. Removed in commit 2.
-  void basis;
-  return "Tax-assessed value";
+  return basis === COUNTY_ASSESSED_BASIS ? "Tax-assessed value" : "Recorded value";
 }
 
 function countyPhrase(countyName: string | null | undefined): string {
@@ -243,16 +239,20 @@ export function taxValuationBasisLine(
   countyName: string | null | undefined,
 ): string {
   const county = countyPhrase(countyName);
-  // VIOLATION-RUN STUB (commit 1 of 2). Reproduces the pre-CTX-B4 claim
-  // exactly: the county appraisal roll, asserted on every basis. Removed in
-  // commit 2.
-  void resolved;
-  return `From ${county}'s own appraisal-roll export.`;
   switch (resolved.basis) {
     case COUNTY_ASSESSED_BASIS:
       return `From ${county}'s own appraisal-roll export.`;
     case STRATMAP_REDISTRIBUTED_BASIS:
-      return `From the Texas StratMap statewide parcel file, not ${county}'s own appraisal-roll export.`;
+      // A POSITIVE statement only. The first draft read "From the Texas
+      // StratMap statewide parcel file, not <County>'s own appraisal-roll
+      // export." The denial was the better explanation and the worse line:
+      // on an 11.5px muted line the phrase a skim-reader lands on is the one
+      // being denied, and this entire lane exists because a false
+      // county-appraisal claim sat on this row's face. A sentence whose
+      // skim-read is the false claim is not an improvement on the false
+      // claim. The non-claim is carried by the heading instead, which stops
+      // saying "Tax-assessed value" on exactly these records.
+      return `From the Texas StratMap statewide parcel file.`;
     case "unstated":
       return "This record does not state which source the figure came from.";
     case "unrecognised":
@@ -280,9 +280,6 @@ export function taxValuationSourceLabel(
   countyName: string | null | undefined,
 ): string {
   const county = countyPhrase(countyName);
-  // VIOLATION-RUN STUB (commit 1 of 2). Removed in commit 2.
-  void resolved;
-  return `${county} appraisal roll`;
   switch (resolved.basis) {
     case COUNTY_ASSESSED_BASIS:
       return `${county} appraisal roll`;

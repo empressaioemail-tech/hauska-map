@@ -256,6 +256,12 @@ describe("the copy — basis lines and source labels", () => {
     expect(new Set(labels).size).toBe(ALL_BASES.length);
   });
 
+  it("no basis but county-assessed mentions the county appraisal roll AT ALL, denial included", () => {
+    for (const basis of ALL_BASES.filter((b) => b !== "county-assessed")) {
+      expect(county(basis, "some-future-tier")).not.toMatch(/appraisal/i);
+    }
+  });
+
   it("only county-assessed claims the county's own appraisal export", () => {
     expect(county("county-assessed")).toBe(
       "From McLennan County's own appraisal-roll export.",
@@ -266,10 +272,15 @@ describe("the copy — basis lines and source labels", () => {
     }
   });
 
-  it("the stratmap line names the real source and denies the false one in the same breath", () => {
+  it("the stratmap line names the real source and does not repeat the false one, even to deny it", () => {
     expect(county("stratmap-redistributed")).toBe(
-      "From the Texas StratMap statewide parcel file, not McLennan County's own appraisal-roll export.",
+      "From the Texas StratMap statewide parcel file.",
     );
+    // The denial form was rejected: on a muted 11.5px line the phrase a
+    // skim-reader lands on would have been the county-appraisal claim this
+    // lane exists to remove. The heading carries the non-claim instead.
+    expect(county("stratmap-redistributed")).not.toMatch(/appraisal/i);
+    expect(county("stratmap-redistributed")).not.toContain("McLennan");
   });
 
   it("an unrecognised token is printed, never swallowed", () => {
@@ -321,7 +332,7 @@ describe("presentValuationBasis — composed once, at the boundary that knows th
       basis: "stratmap-redistributed",
       unrecognisedToken: null,
       heading: "Recorded value",
-      line: "From the Texas StratMap statewide parcel file, not McLennan County's own appraisal-roll export.",
+      line: "From the Texas StratMap statewide parcel file.",
     });
   });
 

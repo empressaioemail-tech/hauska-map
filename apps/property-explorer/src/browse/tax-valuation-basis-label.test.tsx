@@ -48,7 +48,7 @@ import type { BakedFacetPayload } from "../lib/baked-facets";
  * Copy assertions run on this. Structural assertions (data attributes, test
  * ids) still run on the raw markup, where they belong.
  */
-export function visibleText(html: string): string {
+function visibleText(html: string): string {
   return html
     .replace(/<[^>]*>/g, " ")
     .replace(/&#x27;/g, "'")
