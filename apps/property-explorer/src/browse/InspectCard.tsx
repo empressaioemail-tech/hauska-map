@@ -60,6 +60,10 @@ import {
   type CardFacet,
 } from "../lib/baked-facets";
 import type { LayerAbsenceProvenance } from "../lib/layer-absence";
+import {
+  taxValuationRowHeading,
+  type ValuationBasisPresentation,
+} from "../lib/valuation-basis";
 import { factSheetResolver, FactSheetResolveError, isUsableSitusAddress } from "../lib/fact-sheet-resolver";
 import { usePropertyEntitlement } from "../lib/usePropertyEntitlement";
 import { gateOwnerPresentation } from "../lib/owner-paint";
@@ -289,6 +293,12 @@ export type FactPresentation =
       provenance: string | null;
       layerAbsence?: LayerAbsenceProvenance;
       silentEmpty?: boolean;
+      /**
+       * CTX-B4. WHICH SOURCE this value came from, and the words for it, for
+       * a row whose heading would otherwise assert one. Carried on `present`
+       * only: "whose number is this" has no meaning for an absence.
+       */
+      valuationBasis?: ValuationBasisPresentation;
     }
   | {
       state: "absent-covered";
@@ -468,7 +478,12 @@ export function toFactPresentation(
       facet.value ?? "",
       spec.splitProvenance,
     );
-    return { state: "present", value, provenance };
+    // CTX-B4: carried straight through, never re-derived here. This function
+    // issues no lookup of its own (invariant I2), and a source the deriver
+    // already resolved is not something a renderer gets to re-decide.
+    return facet.valuationBasis
+      ? { state: "present", value, provenance, valuationBasis: facet.valuationBasis }
+      : { state: "present", value, provenance };
   }
   // absent. The deriver's label choice carries the covered/uncovered signal.
   const label = facet.value;
@@ -1126,9 +1141,22 @@ export function InspectCard({
         },
         {
           key: "taxValuation",
-          // Deliberately "Tax-assessed value", never "Valuation" / "Worth" —
-          // a sourced county figure, not a market opinion (A-103 item 5).
-          label: "Tax-assessed value",
+          // Never "Valuation" / "Worth" — a sourced figure, not a market
+          // opinion (A-103 item 5). WHICH source decides the rest of the
+          // wording (CTX-B4): "Tax-assessed value" is kept exactly as ruled
+          // where the county's own appraisal export is what served the
+          // dollars, and every other basis renders the neutral heading rather
+          // than asserting a county assessment that did not happen.
+          //
+          // The fallback is the pre-CTX-B4 heading and applies only when the
+          // facet carries no basis at all — the entitlement-gated, absent and
+          // pending states, where the server refuses the dollar fields and no
+          // basis is derivable. That is a stated exclusion, not a default: see
+          // the close artifact's open item on the gated upgrade cue, which
+          // still promises a county figure it cannot know it will serve.
+          label: baked?.taxValuation.valuationBasis
+            ? baked.taxValuation.valuationBasis.heading
+            : taxValuationRowHeading("county-assessed"),
           fact: gateTaxValuationPresentation(
             toFactPresentation(baked.taxValuation, ROW_SPECS.taxValuation),
             entitlement.status === "ready" ? entitlement.subscriptionTier : null,
@@ -1957,6 +1985,17 @@ export function FactRow({
   const layerProv = fact.layerAbsence;
   const silentEmpty = fact.silentEmpty === true;
   const absenceChips = chipsForLayerAbsence(layerProv);
+  // CTX-B4. Rendered on the card FACE, in the same slot and at the same weight
+  // as the honest-absence basis line above it — no hover, no tap, no tooltip.
+  // The provenance sibling on this row is demoted into the collapsed Sources
+  // disclosure (and for the tax-valuation row is dropped before the card
+  // entirely), so a source statement carried only there is a statement nobody
+  // reads. It renders for EVERY basis including county-assessed: if it showed
+  // up only when something was off, then a row that lost the line to a bug or
+  // a stale bake would be indistinguishable from a genuine county figure, and
+  // silence would read as the strongest claim on the card.
+  const valuationBasis =
+    fact.state === "present" ? fact.valuationBasis : undefined;
 
   let text: string;
   let style: CSSProperties = { margin: 0 };
@@ -2014,8 +2053,23 @@ export function FactRow({
         data-pending={fact.state === "pending" ? "true" : undefined}
         data-verdict={layerProv?.verdict}
         data-silent-empty={silentEmpty ? "true" : undefined}
+        data-value-basis={valuationBasis?.basis}
       >
         {text}
+        {valuationBasis && (
+          <div
+            data-testid="valuation-basis"
+            style={{
+              marginTop: 3,
+              fontSize: 11.5,
+              fontStyle: "normal",
+              fontWeight: 400,
+              color: MUTED,
+            }}
+          >
+            {valuationBasis.line}
+          </div>
+        )}
         {layerProv && (
           <div
             data-testid="layer-absence-basis"

@@ -654,6 +654,52 @@ export interface ParcelFactSheet {
     landValue: number | null;
     improvementValue: number | null;
     display: string;
+    /**
+     * AMENDMENT 5 (2026-09-10, CTX-B4 / OPS-16 P-124, downstream of operator
+     * ruling A1). WHICH SOURCE these dollars came from.
+     *
+     * Same class of defect as amendments 1 and 2: the type could not express
+     * what the surface must render. The doc immediately above this field says
+     * "this field is the county appraisal district's own recorded number" and
+     * instructs consumers to "label it accordingly wherever it renders". For a
+     * dollar that reached `cad_property` through the StratMap adapter rather
+     * than through the county's own export, that instruction produces a false
+     * label -- and until this field existed a consumer had no way to tell the
+     * two apart, so every consumer that followed the instruction was wrong on
+     * some share of parcels and could not know which.
+     *
+     * `valueBasis` reaches the wire per dollar field (CTX-B1). This is the
+     * RESOLVED, whole-record answer, because a consumer labelling a row needs
+     * one determination and must not pick a rail. The resolver's vocabulary
+     * lives in property-explorer's `valuation-basis.ts` and currently reads
+     * `county-assessed`, `stratmap-redistributed`, `unstated` (no rail carried
+     * a basis), `unrecognised` (a rail carried a token this build cannot name)
+     * and `mixed` (the rails disagree).
+     *
+     * The field is a plain string, deliberately not narrowed to a closed union
+     * here: the producer's union widens on its own schedule, and a contract
+     * that cannot carry what its producer sent forces the consumer back into
+     * guessing, which is the defect being fixed.
+     *
+     * Optional so every existing sealed stub stays valid. ABSENT MEANS THE
+     * SHEET DOES NOT STATE THE SOURCE. It does not mean county-assessed, and a
+     * consumer that reads it that way re-buys the exact defect this amendment
+     * exists to close.
+     */
+    valuationBasis?: string;
+    /**
+     * AMENDMENT 5, second half. The raw on-wire token behind a
+     * `valuationBasis` of `unrecognised`, and null or absent otherwise.
+     *
+     * Kept as its own field rather than smuggled into `valuationBasis`
+     * because the two live in different vocabularies: one is this build's
+     * resolution, the other is the producer's own word. Folding an
+     * unrecognised token into the resolution field would make it collide with
+     * the resolution vocabulary the moment the producer ships a tier named
+     * like one of those five, and dropping it would leave a consumer able to
+     * say only that something was unreadable, never what.
+     */
+    valuationSourceToken?: string | null;
   }>;
   site: SiteConditions;
 

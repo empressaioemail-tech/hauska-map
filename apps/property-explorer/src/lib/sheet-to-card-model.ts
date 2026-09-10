@@ -33,6 +33,7 @@ import {
   type SetbackAxis,
   type Setbacks,
 } from "@empressaio/parcel-fact-sheet";
+import { presentValuationBasis, readValuationBasis } from "./valuation-basis";
 import {
   FLOOD_HAZARD_FACT_MISSING_REASON,
   PIPELINE_FACT_MISSING_REASON,
@@ -593,9 +594,11 @@ export function maxImperviousCoverPctFacetFromSheet(
  * upgrade-cue presentation — the exact same two-step InspectCard already
  * uses for `owner` (`gateOwnerPresentation`).
  *
- * A REAL, SOURCED FIGURE FROM THE COUNTY APPRAISAL DISTRICT, NOT AN OPINION
- * OF WORTH — the display string is composed entirely from values the CAD
- * roll actually reported, never a computed total.
+ * A REAL, SOURCED FIGURE, NOT AN OPINION OF WORTH — the display string is
+ * composed entirely from values the record actually reported, never a
+ * computed total. WHICH source reported them travels alongside as
+ * `valuationBasis` (CTX-B4); it is not assumed to be the county's own
+ * appraisal export, because on a StratMap-sourced record it is not.
  */
 export function taxValuationFacetFromSheet(
   taxValuation:
@@ -605,15 +608,40 @@ export function taxValuationFacetFromSheet(
         landValue: number | null;
         improvementValue: number | null;
         display: string;
+        valuationBasis?: string;
+        valuationSourceToken?: string | null;
       }>
     | undefined,
+  countyName: string | null,
 ): CardFacet<string> {
   if (!taxValuation) {
     return { state: "unknown", value: null };
   }
   if (taxValuation.state === "present") {
     const display = taxValuation.value.display.trim();
-    if (display) return present(display);
+    if (display) {
+      // CTX-B4: the row's heading and its face line are chosen from the
+      // source, so the source has to survive the crossing into the card
+      // model. Composed HERE because this is the last place the county's own
+      // name exists as a field — the card would otherwise have to parse it
+      // back out of the rendered "Bastrop County (48021)" string, and a
+      // renderer re-deriving a fact from another rendered string is how a
+      // display bug becomes a provenance bug.
+      //
+      // A sheet with no `valuationBasis` at all (an older sealed stub)
+      // resolves to `unstated`, never to `county-assessed` — an absent field
+      // is not a claim.
+      return {
+        ...present(display),
+        valuationBasis: presentValuationBasis(
+          readValuationBasis(
+            taxValuation.value.valuationBasis,
+            taxValuation.value.valuationSourceToken ?? null,
+          ),
+          countyName,
+        ),
+      };
+    }
     return absent("cad-roll-valuation present with no display");
   }
   return facetFrom(taxValuation, () => "");
@@ -772,7 +800,10 @@ export function bakedCardModelFromSheet(
     maxImperviousCoverPct: maxImperviousCoverPctFacetFromSheet(
       sheet.maxImperviousCoverPct,
     ),
-    taxValuation: taxValuationFacetFromSheet(sheet.taxValuation),
+    taxValuation: taxValuationFacetFromSheet(
+      sheet.taxValuation,
+      sheet.identity.county.name ?? null,
+    ),
     envelopeApproximate: env.kind === "derived" ? env.approximate : env.kind === "consumed",
     envelopeStatus:
       env.kind === "derived" ? "ok" : env.kind === "consumed" ? "no-buildable-area" : "declined",
