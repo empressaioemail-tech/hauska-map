@@ -599,7 +599,7 @@ describe("PeFactSheetResolver.resolve", () => {
     expect(sheet.setbacks.state).toBe("present");
   });
 
-  it("P-91 O1: gold 48021:34137 depth-warm geojson stays refused (no lot-percentage)", async () => {
+  it("P-91 O1 / R-2: gold 48021:34137 depth-warm geojson draws modelled, figure stays refused", async () => {
     const parcelNodeId = "48021:34137";
     const wire = facetsWire({
       parcelNodeId,
@@ -654,11 +654,17 @@ describe("PeFactSheetResolver.resolve", () => {
       },
     });
     const sheet = await sheetOf(makeResolver(stub), parcelNodeId);
-    expect(sheet.envelope.kind).toBe("not-derived");
-    if (sheet.envelope.kind !== "not-derived") throw new Error("unreachable");
-    expect(sheet.envelope.reason).toBe("atom_path_pending");
+    // R-2 (2026-09-11): Ruling B reversed for the polygon only. A real
+    // modelled polygon AND setbacks are on file, so the envelope now draws —
+    // the FIGURE stays refused (no area/pct field exists on this variant).
+    expect(sheet.envelope.kind).toBe("modelled");
+    if (sheet.envelope.kind !== "modelled") throw new Error("unreachable");
+    expect(sheet.envelope.rings.length).toBeGreaterThan(0);
+    expect(sheet.envelope.setbacksUsed.front?.distance?.value).toBe(25);
+    expect(sheet.envelope.disclosure).toContain("live derive");
     expect(sheet.verdict).not.toMatch(/\d+% of the lot/);
     expect(sheet.verdict).not.toContain("Buildable (approximate)");
+    expect(sheet.verdict).toContain("buildable envelope modelled from setbacks");
     expect(sheet.flood.state).toBe("present");
     expect(sheet.verdict).toContain("Inside the FEMA flood hazard area");
     expect(sheet.setbacks.state).toBe("present");

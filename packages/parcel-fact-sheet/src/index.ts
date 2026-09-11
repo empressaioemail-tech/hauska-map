@@ -333,6 +333,22 @@ export type BuildableEnvelope =
       reason: string;
       /** Named blockers, e.g. ["setbacks", "parcel-geometry"]. */
       missing: string[];
+    }
+  | {
+      /**
+       * Ruling B reversed for the polygon only (2026-09-11). Live-derive
+       * geometry is still not a buildable-envelope atom, so the FIGURE stays
+       * refused — but a district and a setback table exist, so the modelled
+       * polygon draws. `area` and `areaPctOfLot` are absent BY TYPE here, not
+       * by sentinel: there is no field to print a figure from.
+       */
+      kind: "modelled";
+      rings: Ring[];
+      setbacksUsed: Setbacks;
+      /** The deriving endpoint's own disclosure — carried, not re-worded. */
+      disclosure: string;
+      approximate: boolean;
+      provenance: Provenance;
     };
 
 /* ------------------------------------------------------------------ */
@@ -826,6 +842,13 @@ function envelopeSegment(sheet: ParcelFactSheet): VerdictSegment {
   if (env.kind === "consumed") {
     // The degenerate parcel says so PLAINLY. Never softened.
     return segment("no buildable area after setbacks", { caution: true });
+  }
+  if (env.kind === "modelled") {
+    // R-2 (2026-09-11): the polygon draws; the figure stays withheld.
+    return segment(
+      "buildable envelope modelled from setbacks (figure withheld pending an atom)",
+      { caution: true },
+    );
   }
   // AMENDMENT 4: `areaPctOfLot` is NULLABLE. A known buildable area with no
   // known lot area has no percentage, and the headline simply omits the share

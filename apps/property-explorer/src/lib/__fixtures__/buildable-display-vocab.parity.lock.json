@@ -2,6 +2,6 @@
   "peerRepo": "hauska-engine",
   "peerPath": "packages/engine-core/src/site-plan/buildable-display-vocab.ts",
   "localPath": "apps/property-explorer/src/lib/buildable-display-vocab.ts",
-  "sha256": "45C277D7A10EF9CAF1AD355644840F524FA2D131A038873F074C90E5E1D29CAC",
-  "note": "M0 dual-copy handshake. sha256 must match hauska-engine lock. Refresh peer.fixture from peer source when either copy changes."
+  "sha256": "60F493671549A9D97BBE01D9FB47A61953EDB2F8100DAEB09BBD53A16C9854A1",
+  "note": "M0 dual-copy handshake. sha256 must match hauska-engine lock. Refresh peer.fixture from peer source when either copy changes. UPDATED 2026-09-11 (P-153): local copy gained the 'modelled-figure-withheld' token (Ruling B reversed for the polygon only) and this fixture/lock were refreshed to match. hauska-engine's copy at packages/engine-core/src/site-plan/buildable-display-vocab.ts and ITS lock are NOT yet synced -- that repo is out of this lane's scope; see the P-153 close leave_behind."
 }

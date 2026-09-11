@@ -151,6 +151,35 @@ describe("mapBuildableDisplay — historical disagreement class (B3)", () => {
     expect(violatesHistoricalDisagreementGuard(vocab, input)).toBe(false);
   });
 
+  it("R-2 (2026-09-11): atom_path_pending + real geometry → modelled-figure-withheld, never loading or bare pending", () => {
+    const input: BuildableDisplayInput = {
+      declineReason: "atom_path_pending",
+      hasGeometry: true,
+    };
+    const vocab = mapBuildableDisplay(input);
+    expect(vocab.kind).toBe("modelled-figure-withheld");
+    expect(vocab.cardState).toBe("present");
+    expect(vocab.cardLabel).toMatch(/modelled/i);
+    expect(vocab.cardLabel).toMatch(/withheld/i);
+    // Falsifier: no digit anywhere in either customer string.
+    expect(vocab.cardLabel ?? "").not.toMatch(/\d/);
+    expect(vocab.pdfLabel).not.toMatch(/\d/);
+    expect(vocab.agreementToken).toBe("modelled-figure-withheld");
+  });
+
+  it("R-2: atom_path_pending with NO geometry still falls to the loading shell (unchanged)", () => {
+    // The negative control: a parcel with no district/no table never reaches
+    // this branch at all — but even a bare atom_path_pending signal with no
+    // geometry attached must keep its prior "loading" behavior verbatim.
+    const input: BuildableDisplayInput = {
+      declineReason: "atom_path_pending",
+      hasGeometry: false,
+    };
+    const vocab = mapBuildableDisplay(input);
+    expect(vocab.kind).toBe("loading");
+    expect(vocab.cardLabel).toBe("Loading buildable area…");
+  });
+
   it("guard flags the old disagreement shape if a caller bypasses the mapper", () => {
     const input: BuildableDisplayInput = {
       envelopeStatus: "ok",

@@ -172,6 +172,27 @@ function urlHost(url: string): string {
 /** Standard honest-absent copy — mirrors the inspect card's idiom. */
 const NOT_VERIFIED = "not verified here";
 
+/**
+ * R-2 / Ruling B (2026-09-11). This section's `data` is the RAW baked
+ * envelope wire (see file header) — it never passes through
+ * `sheetEnvelopeIsAtomPathPending` (src/lib/fact-sheet-resolver.ts), so this
+ * mirrors that same detection independently: a live-derive disclosure or a
+ * live-derive geojson feature means the atom-chain figure has not landed,
+ * regardless of what `status` otherwise reads. The brief prints no number in
+ * that case — same falsifier as the sheet's own `modelled` variant.
+ */
+function isLiveDeriveAtomPending(env: Record<string, unknown>): boolean {
+  const disclosure = (str(env.disclosure) ?? "").toLowerCase();
+  if (disclosure.includes("live derive")) return true;
+  const features = asRecord(env.geojson)?.features;
+  if (Array.isArray(features)) {
+    return features.some(
+      (f) => str(asRecord(asRecord(f)?.properties)?.source) === "live-derive",
+    );
+  }
+  return false;
+}
+
 // ---------------------------------------------------------------------------
 // Citation collector — builds the appendix while sections register sources.
 // ---------------------------------------------------------------------------
@@ -329,6 +350,7 @@ function deriveSetbacksEnvelope(
   const emptyReason = str(env.emptyReason);
   const districtNote = str(env.districtNote);
   const edgeNote = str(env.edgeNote);
+  const atomPending = isLiveDeriveAtomPending(env);
   if (status === "declined" || !status) {
     if (disclosure) notes.push(disclosure);
     return {
@@ -403,6 +425,20 @@ function deriveSetbacksEnvelope(
       emptyReason ??
         disclosure ??
         "Setbacks consume the lot — no buildable area remains.",
+    );
+  } else if (atomPending) {
+    // R-2: a real polygon is modelled from setbacks, but it is not a
+    // buildable-envelope atom yet. Print no square footage, no percent —
+    // an explicit withheld statement instead, never the raw figure.
+    facts.push(
+      fact(
+        "Buildable envelope",
+        "Modelled from setbacks — figure withheld pending an atom",
+      ),
+    );
+    notes.push(
+      disclosure ??
+        "Buildable envelope modelled from setbacks (not survey grade); the buildable area figure is withheld until a buildable-envelope atom backs it.",
     );
   } else {
     if (buildableAreaSqFt !== null && buildableAreaPct !== null) {

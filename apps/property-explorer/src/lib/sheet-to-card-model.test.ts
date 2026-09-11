@@ -204,6 +204,35 @@ describe("bakedCardModelFromSheet — the card's rows", () => {
     expect(absent.zoning.state).toBe("absent");
     expect(absent.zoning.value).toBe("no zoning stamp reaches this parcel");
   });
+
+  it("R-2: a modelled envelope never says 'Not stamped here' and never prints a figure", () => {
+    const modelled = bakedCardModelFromSheet(
+      sheet({
+        envelope: {
+          kind: "modelled",
+          rings: [],
+          setbacksUsed: {
+            front: axis(30),
+            side: axis(10),
+            rear: axis(30),
+            cornerSide: axis(20),
+          },
+          disclosure: "buildable envelope geometry from live derive, not survey grade.",
+          approximate: true,
+          provenance: prov(),
+        },
+      }),
+    );
+    expect(modelled.buildablePct.state).toBe("present");
+    expect(modelled.buildablePct.value).not.toBeNull();
+    expect(modelled.buildablePct.value).not.toContain("Not stamped here");
+    // The falsifier: no digit anywhere in the row's text — no sq ft, no %.
+    expect(modelled.buildablePct.value ?? "").not.toMatch(/\d/);
+    expect(modelled.buildablePct.value).toContain("withheld");
+    expect(modelled.buildableDisplayKind).toBe("modelled-figure-withheld");
+    expect(modelled.envelopeStatus).toBe("ok");
+    expect(modelled.disclosure).toContain("live derive");
+  });
 });
 
 describe("the two features that blocked the swap under contract v1", () => {
@@ -344,6 +373,45 @@ describe("envelopeStateFromSheet", () => {
     expect(env.geometry?.type).toBe("Polygon");
     expect(env.geojson?.features?.[0]?.geometry?.type).toBe("Polygon");
     expect(env.summary?.buildableAreaSqFt).toBe(4100);
+  });
+
+  it("R-2: projects a modelled envelope as a drawable ok polygon with NO summary (figure withheld)", () => {
+    const ring: Array<[number, number]> = [
+      [-97.3186, 30.1103],
+      [-97.3182, 30.1103],
+      [-97.3182, 30.1107],
+      [-97.3186, 30.1107],
+      [-97.3186, 30.1103],
+    ];
+    const env = envelopeStateFromSheet(
+      sheet({
+        envelope: {
+          kind: "modelled",
+          rings: [ring],
+          setbacksUsed: {
+            front: axis(30),
+            side: axis(10),
+            rear: axis(30),
+            cornerSide: axis(20),
+          },
+          disclosure: "buildable envelope geometry from live derive, not survey grade.",
+          approximate: true,
+          provenance: prov(),
+        },
+      }),
+    );
+    // Draws exactly like `derived` (status "ok" + geometry) so the map's
+    // normalizeEnvelope() treats it the same as any other drawable polygon.
+    expect(env.status).toBe("ok");
+    expect(env.geometry?.type).toBe("Polygon");
+    expect(env.geojson?.features?.[0]?.geometry?.type).toBe("Polygon");
+    // Wire setbacks project from sheet.setbacks (base fixture: 25/5/10), not
+    // from env.setbacksUsed — same as the `derived` variant above.
+    expect(env.setbacks?.front_ft).toBe(25);
+    // No `summary` field at all — the falsifier: nothing downstream can read
+    // a buildableAreaSqFt/Pct off this state, because there is none to read.
+    expect(env.summary).toBeUndefined();
+    expect(env.disclosure).toContain("live derive");
   });
 
   it("projects a consumed lot as empty, never as a 0 sq ft buildable area", () => {
