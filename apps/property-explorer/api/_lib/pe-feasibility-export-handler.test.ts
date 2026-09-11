@@ -91,6 +91,7 @@ function makeRes() {
 function stubFetch(routes: {
   entitlement?: () => unknown
   refresh?: () => unknown
+  status?: () => unknown
   download?: () => unknown
 }) {
   const mock = vi.fn(async (url: string | URL, _init?: RequestInit) => {
@@ -106,6 +107,12 @@ function stubFetch(routes: {
     if (u.includes('/feasibility-export/download')) {
       if (!routes.download) throw new Error(`unexpected download fetch: ${u}`)
       return routes.download()
+    }
+    // Status GETs the bare feasibility-export resource — checked LAST so
+    // its substring doesn't shadow the two more specific paths above.
+    if (u.includes('/feasibility-export')) {
+      if (!routes.status) throw new Error(`unexpected status fetch: ${u}`)
+      return routes.status()
     }
     throw new Error(`unexpected fetch: ${u}`)
   })
@@ -180,11 +187,7 @@ describe('handleFeasibilityExportRequest', () => {
   it('P-119: reads the PER-PARCEL entitlement (fetchPeEntitlementDetail) — the entitlement URL carries parcelNodeId', async () => {
     const fetchMock = stubFetch({
       entitlement: () => jsonResponse(200, { tier: 'paid', studioGranted: true }),
-      refresh: () =>
-        jsonResponse(201, {
-          atom: { parcelNodeId: PARCEL },
-          artifacts: { 'pdf-feasibility': { format: 'pdf-feasibility', ref: 'gcs://bucket/x' } },
-        }),
+      refresh: () => jsonResponse(202, { state: 'queued', jobRef: 'job-1' }),
     })
     const req = makeReq({ method: 'POST', body: { parcelNodeId: PARCEL } })
     const res = makeRes()
@@ -196,21 +199,18 @@ describe('handleFeasibilityExportRequest', () => {
     expect(String(entitlementCall![0])).toContain(`parcelNodeId=${encodeURIComponent(PARCEL)}`)
   })
 
-  it('P-119: a Property-Unlock session (tier free, no subscription) PASSES — 200, not the paywall', async () => {
+  it('P-119: a Property-Unlock session (tier free, no subscription) PASSES — 202 accepted, not the paywall', async () => {
     stubFetch({
       entitlement: () =>
         jsonResponse(200, { tier: 'free', studioGranted: false, property: { unlocked: true } }),
-      refresh: () =>
-        jsonResponse(201, {
-          atom: { parcelNodeId: PARCEL },
-          artifacts: { 'pdf-feasibility': { format: 'pdf-feasibility', ref: 'gcs://bucket/x' } },
-        }),
+      refresh: () => jsonResponse(202, { state: 'queued', jobRef: 'job-2' }),
     })
     const req = makeReq({ method: 'POST', body: { parcelNodeId: PARCEL } })
     const res = makeRes()
     await handleFeasibilityExportRequest(req, res)
-    expect(res.statusCode).toBe(200)
+    expect(res.statusCode).toBe(202)
     expect((res.body as { ok: boolean }).ok).toBe(true)
+    expect((res.body as { state: string }).state).toBe('queued')
   })
 
   it('P-119: a Property-Unlock session on the DOWNLOAD leg also passes (streams the PDF)', async () => {
@@ -276,22 +276,10 @@ describe('handleFeasibilityExportRequest', () => {
     )
   })
 
-  it('200s a Studio account and maps the pinned engine contract, including the section/open-item counts', async () => {
+  it('202s a Studio account\'s refresh — job accepted, gate-front headers + forwarded body reach engine-api', async () => {
     const fetchMock = stubFetch({
       entitlement: () => jsonResponse(200, { tier: 'paid', studioGranted: true }),
-      refresh: () =>
-        jsonResponse(201, {
-          atom: { parcelNodeId: PARCEL, atomDid: 'pfeasibility_test' },
-          artifacts: {
-            'pdf-feasibility': { format: 'pdf-feasibility', ref: 'gcs://bucket/x', byteCount: 950000 },
-          },
-          pageCount: 22,
-          feasibilityPageCount: 20,
-          sitePlanAppended: true,
-          sectionCount: 16,
-          openItemCount: 3,
-          narrativeIsDeterministicSkeleton: false,
-        }),
+      refresh: () => jsonResponse(202, { state: 'queued', jobRef: 'job-studio-1' }),
     })
     const req = makeReq({
       method: 'POST',
@@ -299,19 +287,12 @@ describe('handleFeasibilityExportRequest', () => {
     })
     const res = makeRes()
     await handleFeasibilityExportRequest(req, res)
-    expect(res.statusCode).toBe(200)
-    const body = res.body as {
-      ok: boolean
-      parcelNodeId: string
-      downloadUrl: string
-      sectionCount: number
-      openItemCount: number
-    }
+    expect(res.statusCode).toBe(202)
+    const body = res.body as { ok: boolean; parcelNodeId: string; state: string; jobRef: string }
     expect(body.ok).toBe(true)
     expect(body.parcelNodeId).toBe(PARCEL)
-    expect(body.downloadUrl).toBe(buildFeasibilityDownloadPath(PARCEL))
-    expect(body.sectionCount).toBe(16)
-    expect(body.openItemCount).toBe(3)
+    expect(body.state).toBe('queued')
+    expect(body.jobRef).toBe('job-studio-1')
 
     // Gate-front headers + the refresh body PE forwards actually reached
     // engine-api — the RPT1 concern is a silent no-op, not just a status code.
@@ -327,6 +308,104 @@ describe('handleFeasibilityExportRequest', () => {
       address: '905 Pecan St',
       countyName: 'Bastrop',
     })
+  })
+
+  // ---------------------------------------------------------------------------
+  // P-155 (OPS-23 FEASIBILITY, 2026-09-11): the status poll leg. Refresh only
+  // ever reports queued/running now (above); the report's own content
+  // (section/open-item counts etc.) surfaces here once the job settles.
+  // ---------------------------------------------------------------------------
+
+  it('status: 200s a Studio account and maps the ready job, including the section/open-item counts', async () => {
+    stubFetch({
+      entitlement: () => jsonResponse(200, { tier: 'paid', studioGranted: true }),
+      status: () =>
+        jsonResponse(200, {
+          state: 'ready',
+          artifacts: {
+            'pdf-feasibility': { format: 'pdf-feasibility', ref: 'gcs://bucket/x', byteCount: 950000 },
+          },
+          result: {
+            pageCount: 22,
+            feasibilityPageCount: 20,
+            sitePlanAppended: true,
+            sectionCount: 16,
+            openItemCount: 3,
+            narrativeIsDeterministicSkeleton: false,
+          },
+        }),
+    })
+    const req = makeReq({ method: 'GET', query: { action: 'status', parcelNodeId: PARCEL } })
+    const res = makeRes()
+    await handleFeasibilityExportRequest(req, res)
+    expect(res.statusCode).toBe(200)
+    const body = res.body as {
+      ok: boolean
+      state: string
+      downloadUrl: string
+      sectionCount: number
+      openItemCount: number
+    }
+    expect(body.ok).toBe(true)
+    expect(body.state).toBe('ready')
+    expect(body.downloadUrl).toBe(buildFeasibilityDownloadPath(PARCEL))
+    expect(body.sectionCount).toBe(16)
+    expect(body.openItemCount).toBe(3)
+  })
+
+  it('status: reports queued/running with a pollAfterMs, never as a failure', async () => {
+    stubFetch({
+      entitlement: () => jsonResponse(200, { tier: 'paid', studioGranted: true }),
+      status: () => jsonResponse(200, { state: 'running', jobRef: 'job-3', pollAfterMs: 5000 }),
+    })
+    const req = makeReq({ method: 'GET', query: { action: 'status', parcelNodeId: PARCEL } })
+    const res = makeRes()
+    await handleFeasibilityExportRequest(req, res)
+    expect(res.statusCode).toBe(200)
+    const body = res.body as { state: string; pollAfterMs: number }
+    expect(body.state).toBe('running')
+    expect(body.pollAfterMs).toBe(5000)
+  })
+
+  it('status: reports a failed job with its errorClass, still as a 200 status read (the FAILURE is in the body, not the HTTP status)', async () => {
+    stubFetch({
+      entitlement: () => jsonResponse(200, { tier: 'paid', studioGranted: true }),
+      status: () =>
+        jsonResponse(200, {
+          state: 'failed',
+          errorClass: 'geometry_unavailable',
+          errorMessage: 'parcel geometry could not be resolved for this parcel',
+        }),
+    })
+    const req = makeReq({ method: 'GET', query: { action: 'status', parcelNodeId: PARCEL } })
+    const res = makeRes()
+    await handleFeasibilityExportRequest(req, res)
+    expect(res.statusCode).toBe(200)
+    const body = res.body as { state: string; errorClass: string; errorMessage: string }
+    expect(body.state).toBe('failed')
+    expect(body.errorClass).toBe('geometry_unavailable')
+    expect(body.errorMessage).toContain('geometry')
+  })
+
+  it('status: never-requested is its own answer when nothing was ever asked', async () => {
+    stubFetch({
+      entitlement: () => jsonResponse(200, { tier: 'paid', studioGranted: true }),
+      status: () => jsonResponse(200, { state: 'never-requested' }),
+    })
+    const req = makeReq({ method: 'GET', query: { action: 'status', parcelNodeId: PARCEL } })
+    const res = makeRes()
+    await handleFeasibilityExportRequest(req, res)
+    expect(res.statusCode).toBe(200)
+    expect((res.body as { state: string }).state).toBe('never-requested')
+  })
+
+  it('status: 401s a signed-out request without touching the network', async () => {
+    const fetchMock = stubFetch({})
+    const req = makeReq({ method: 'GET', query: { action: 'status', parcelNodeId: PARCEL }, cookie: null })
+    const res = makeRes()
+    await handleFeasibilityExportRequest(req, res)
+    expect(res.statusCode).toBe(401)
+    expect(fetchMock).not.toHaveBeenCalled()
   })
 
   it('503s with the honest gate-token-missing message when the engine key is not configured', async () => {
@@ -362,6 +441,45 @@ describe('handleFeasibilityExportRequest', () => {
     await handleFeasibilityExportRequest(req, res)
     expect(res.statusCode).toBe(410)
     expect((res.body as { error: string }).error).toBe('artifact_evicted')
+  })
+
+  it('download: 422 feasibility_export_failed passes through the errorClass honestly (P-155 failed job)', async () => {
+    stubFetch({
+      entitlement: () => jsonResponse(200, { tier: 'paid', studioGranted: true }),
+      download: () =>
+        jsonResponse(422, {
+          error: 'feasibility_export_failed',
+          errorClass: 'geometry_unavailable',
+          message: 'parcel geometry could not be resolved for this parcel',
+        }),
+    })
+    const req = makeReq({ method: 'GET', query: { action: 'download', parcelNodeId: PARCEL } })
+    const res = makeRes()
+    await handleFeasibilityExportRequest(req, res)
+    expect(res.statusCode).toBe(422)
+    const body = res.body as { error: string; errorClass: string }
+    expect(body.error).toBe('feasibility_export_failed')
+    expect(body.errorClass).toBe('geometry_unavailable')
+  })
+
+  it('download: 404 DECLARED wait while running passes the state through (never a bare absence)', async () => {
+    stubFetch({
+      entitlement: () => jsonResponse(200, { tier: 'paid', studioGranted: true }),
+      download: () =>
+        jsonResponse(404, {
+          error: 'export_in_progress',
+          state: 'running',
+          jobRef: 'job-4',
+          pollAfterMs: 5000,
+        }),
+    })
+    const req = makeReq({ method: 'GET', query: { action: 'download', parcelNodeId: PARCEL } })
+    const res = makeRes()
+    await handleFeasibilityExportRequest(req, res)
+    expect(res.statusCode).toBe(404)
+    const body = res.body as { error: string; state: string }
+    expect(body.error).toBe('export_in_progress')
+    expect(body.state).toBe('running')
   })
 
   it('download: streams the PDF bytes with the right content type + filename on success', async () => {

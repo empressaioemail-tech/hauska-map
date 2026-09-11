@@ -15,13 +15,16 @@ import {
   buildEngineFeasibilityRefreshBody,
   buildFeasibilityDownloadPath,
   buildFeasibilityEngineGateHeaders,
-  FEASIBILITY_ENGINE_TIMEOUT_RETRY_MESSAGE,
-  FEASIBILITY_ENGINE_UNREACHABLE_RETRY_MESSAGE,
+  buildFeasibilityStatusPath,
+  FEASIBILITY_ENGINE_ACK_TIMEOUT_MESSAGE,
+  FEASIBILITY_ENGINE_ACK_UNREACHABLE_MESSAGE,
   FEASIBILITY_EXPORT_FORMAT,
   FEASIBILITY_STUDIO_REQUIRED_MESSAGE,
   FEASIBILITY_STUDIO_UNMEASURED_MESSAGE,
   feasibilityFilename,
+  mapEngineFeasibilityAccepted,
   mapEngineFeasibilityPayload,
+  mapEngineFeasibilityStatusPayload,
   parseFeasibilityRefreshBody,
   resolveFeasibilityExportAuth,
   retryableFeasibilityEngineFailureResponse,
@@ -352,14 +355,14 @@ describe('honest transient failures (timeout classes reused from classifyEngineF
     const resp = retryableFeasibilityEngineFailureResponse(kind, 'detail')
     expect(resp?.status).toBe(503)
     expect(resp?.body.retryable).toBe(true)
-    expect(resp?.body.message).toBe(FEASIBILITY_ENGINE_TIMEOUT_RETRY_MESSAGE)
+    expect(resp?.body.message).toBe(FEASIBILITY_ENGINE_ACK_TIMEOUT_MESSAGE)
   })
 
   it('connect failure -> 503 retryable unreachable copy; gate/payment/other stay non-retryable', () => {
     const kind = classifyEngineFailure({ message: 'fetch failed: ECONNREFUSED' })
     expect(kind).toBe('unreachable')
     const resp = retryableFeasibilityEngineFailureResponse(kind, 'detail')
-    expect(resp?.body.message).toBe(FEASIBILITY_ENGINE_UNREACHABLE_RETRY_MESSAGE)
+    expect(resp?.body.message).toBe(FEASIBILITY_ENGINE_ACK_UNREACHABLE_MESSAGE)
     expect(retryableFeasibilityEngineFailureResponse('gate', 'x')).toBeNull()
     expect(retryableFeasibilityEngineFailureResponse('payment', 'x')).toBeNull()
     expect(retryableFeasibilityEngineFailureResponse('other', 'x')).toBeNull()
@@ -377,5 +380,93 @@ describe('filename + download path', () => {
     expect(path).toContain('kind=feasibility')
     expect(path).toContain('action=download')
     expect(path).toContain(encodeURIComponent(PARCEL))
+  })
+
+  it('the status path routes back through the feasibility fold-in leg', () => {
+    const path = buildFeasibilityStatusPath(PARCEL)
+    expect(path).toContain('/api/pe-site-plan-export?')
+    expect(path).toContain('kind=feasibility')
+    expect(path).toContain('action=status')
+    expect(path).toContain(encodeURIComponent(PARCEL))
+  })
+})
+
+describe('P-155: async job mapping (mapEngineFeasibilityAccepted / mapEngineFeasibilityStatusPayload)', () => {
+  it('accepted: maps a queued/running 202 body, defaulting pollAfterMs when the engine omits it', () => {
+    const mapped = mapEngineFeasibilityAccepted({ state: 'queued', jobRef: 'job-1' }, PARCEL)
+    expect(mapped.ok).toBe(true)
+    if (mapped.ok) {
+      expect(mapped.response.state).toBe('queued')
+      expect(mapped.response.jobRef).toBe('job-1')
+      expect(mapped.response.pollAfterMs).toBe(5000)
+    }
+  })
+
+  it('accepted: refuses a payload with no queued/running state or jobRef — never fabricates a job reference', () => {
+    expect(mapEngineFeasibilityAccepted({ state: 'ready' }, PARCEL).ok).toBe(false)
+    expect(mapEngineFeasibilityAccepted({ state: 'queued' }, PARCEL).ok).toBe(false)
+    expect(mapEngineFeasibilityAccepted({}, PARCEL).ok).toBe(false)
+  })
+
+  it('status: never-requested is its own answer, not mapped onto failed or an error', () => {
+    const mapped = mapEngineFeasibilityStatusPayload({ state: 'never-requested' }, PARCEL)
+    expect(mapped.ok).toBe(true)
+    if (mapped.ok) expect(mapped.response.state).toBe('never-requested')
+  })
+
+  it('status: queued/running carries the jobRef and pollAfterMs through', () => {
+    const mapped = mapEngineFeasibilityStatusPayload(
+      { state: 'running', jobRef: 'job-2', pollAfterMs: 7000 },
+      PARCEL,
+    )
+    expect(mapped.ok).toBe(true)
+    if (mapped.ok) {
+      expect(mapped.response.state).toBe('running')
+      expect(mapped.response.jobRef).toBe('job-2')
+      expect(mapped.response.pollAfterMs).toBe(7000)
+    }
+  })
+
+  it('status: failed carries errorClass + errorMessage, with an honest default message', () => {
+    const mapped = mapEngineFeasibilityStatusPayload(
+      { state: 'failed', errorClass: 'geometry_unavailable' },
+      PARCEL,
+    )
+    expect(mapped.ok).toBe(true)
+    if (mapped.ok) {
+      expect(mapped.response.state).toBe('failed')
+      expect(mapped.response.errorClass).toBe('geometry_unavailable')
+      expect(mapped.response.errorMessage).toBe(
+        'Feasibility study could not be produced for this parcel.',
+      )
+    }
+  })
+
+  it('status: ready builds the download link and maps the result summary fields', () => {
+    const mapped = mapEngineFeasibilityStatusPayload(
+      {
+        state: 'ready',
+        artifacts: { 'pdf-feasibility': { format: FEASIBILITY_EXPORT_FORMAT, ref: 'gcs://x' } },
+        result: { pageCount: 22, sectionCount: 16, openItemCount: 3, sitePlanAppended: true },
+      },
+      PARCEL,
+    )
+    expect(mapped.ok).toBe(true)
+    if (mapped.ok) {
+      expect(mapped.response.state).toBe('ready')
+      expect(mapped.response.downloadUrl).toBe(buildFeasibilityDownloadPath(PARCEL))
+      expect(mapped.response.sectionCount).toBe(16)
+      expect(mapped.response.openItemCount).toBe(3)
+    }
+  })
+
+  it('status: ready with no pdf-feasibility artifact is an upstream error, never a fabricated download link', () => {
+    expect(mapEngineFeasibilityStatusPayload({ state: 'ready', artifacts: {} }, PARCEL).ok).toBe(false)
+    expect(mapEngineFeasibilityStatusPayload({ state: 'ready' }, PARCEL).ok).toBe(false)
+  })
+
+  it('status: an unrecognized state is refused, never silently treated as any known state', () => {
+    expect(mapEngineFeasibilityStatusPayload({ state: 'bogus' }, PARCEL).ok).toBe(false)
+    expect(mapEngineFeasibilityStatusPayload({}, PARCEL).ok).toBe(false)
   })
 })
