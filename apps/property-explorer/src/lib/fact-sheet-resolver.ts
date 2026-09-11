@@ -94,7 +94,10 @@ import {
 import { isLayerAbsenceWire, zoningDistrictFromPayload } from "./layer-absence";
 import type { VerdictLayerSnapshot } from "./sheet-to-card-model";
 import { fetchBuildableEnvelope, parsePlaceKey } from "./buildable-envelope.js";
-import { facetsNeedLiveEnvelopeDerive } from "./live-envelope-augment.js";
+import {
+  facetsNeedLiveEnvelopeDerive,
+  augmentFacetsWithLiveEnvelope,
+} from "./live-envelope-augment.js";
 import { fetchGeocodeSuggestions } from "./geocodeClient";
 import { CORTEX_PROXY_BASE, PE_FACETS_PROXY_BASE } from "./config";
 import { isValidParcelNodeId, normalizeParcelNodeId } from "./parcel-node-id";
@@ -2496,11 +2499,22 @@ export class PeFactSheetResolver implements FactSheetResolver {
     // which builds the display fact and drops queryPoint entirely.
     const recordPoint = recordPointFromCityLimitsFact(cityLimitsFact);
 
+    // A named, mutable ref (not a throwaway literal): resolveGeometry's own
+    // placement-seed live-derive fetch (step 2, address-only, !seed-gated)
+    // writes its result here so the R-2 augmentation below can reuse it
+    // instead of firing a second POST for the same parcel. P-151's
+    // recordPoint fallback (step 1.5) often satisfies placement before step 2
+    // ever runs, so this is frequently still empty when we get here — that
+    // is expected and handled below, not a bug in either lane.
+    const liveDeriveCtx: {
+      liveDerive: BuildableEnvelopeResult | null;
+      liveDeriveAttempted: boolean;
+    } = { liveDerive: null, liveDeriveAttempted: false };
     const geometry = await this.resolveGeometry(
       parcelNodeId,
       facets,
       identity,
-      { liveDerive: null, liveDeriveAttempted: false },
+      liveDeriveCtx,
       recordPoint,
     );
     if (!geometry) {
@@ -2522,10 +2536,45 @@ export class PeFactSheetResolver implements FactSheetResolver {
     // AMENDMENT 3: null means no lot area is known. No sentinel to unwrap.
     const lotAreaSqFt = geometry.lotArea?.value ?? null;
 
+    // R-2 (2026-09-11): real setback scalars are present but geometry is not
+    // (facetsNeedLiveEnvelopeDerive) -- fetch it live so envelopeValue() has
+    // something to draw a `modelled` envelope from. This is a SEPARATE
+    // concern from placement (resolveGeometry above): a parcel can already be
+    // placed via cityLimitsFact.queryPoint (P-151) with no live-derive call
+    // ever firing, which is exactly the common case this augmentation
+    // exists for. Reuses resolveGeometry's own fetch via liveDeriveCtx when
+    // it already ran (identical address, same parcel) rather than firing a
+    // second POST. A failed/timed-out fetch degrades honestly: facets stay
+    // unaugmented and envelopeValue() falls back to its prior not-derived
+    // behavior, never a throw.
+    let envelopeFacets = facets;
+    if (facetsNeedLiveEnvelopeDerive(facets)) {
+      try {
+        envelopeFacets = await augmentFacetsWithLiveEnvelope(
+          facets,
+          identity.situsAddress.state === "present"
+            ? identity.situsAddress.value
+            : null,
+          this.cortexBase,
+          this.hopFetch(),
+          parcelNodeId,
+          {
+            lat: geometry.centroid?.lat ?? recordPoint?.lat ?? null,
+            lng: geometry.centroid?.lng ?? recordPoint?.lng ?? null,
+            prefetchedLive: liveDeriveCtx.liveDeriveAttempted
+              ? liveDeriveCtx.liveDerive
+              : undefined,
+          },
+        );
+      } catch {
+        /* honest degrade -- envelopeValue sees unaugmented facets below */
+      }
+    }
+
     const landUse = landUseFromInspectWire(landUseFact, facets);
     const zoning = zoningFact(facets, fips, countyName, cityLimitsFact);
     const setbacks = setbacksFact(facets);
-    const envelope = envelopeValue(facets, setbacks, lotAreaSqFt);
+    const envelope = envelopeValue(envelopeFacets, setbacks, lotAreaSqFt);
     const flood = floodFact(floodHazardFact);
     const specialDistrict = specialDistrictFromInspectWire(specialDistrictFact);
     const pipeline = pipelineFromInspectWire(pipelineFact);
@@ -2728,6 +2777,11 @@ export class PeFactSheetResolver implements FactSheetResolver {
             this.cortexBase,
             this.hopFetch(),
           );
+          // R-2 (2026-09-11): expose this fetch to the caller so the
+          // envelope-augmentation step after placement can reuse it rather
+          // than firing a second identical POST for the same parcel.
+          liveDeriveCtx.liveDerive = env;
+          liveDeriveCtx.liveDeriveAttempted = true;
         }
         if (!env) {
           /* live derive already attempted with no usable response */
