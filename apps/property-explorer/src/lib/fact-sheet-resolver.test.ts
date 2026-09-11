@@ -552,7 +552,7 @@ describe("PeFactSheetResolver.resolve", () => {
     });
   });
 
-  it("P-91 O1: live-derive facets that used to print 42% now refuse atom_path_pending", async () => {
+  it("P-91 O1 / R-2: live-derive facets that used to print 42% now draw modelled, figure refused", async () => {
     const parcelNodeId = "48021:33223";
     const wire = facetsWire({
       parcelNodeId,
@@ -587,16 +587,116 @@ describe("PeFactSheetResolver.resolve", () => {
       },
     });
     const sheet = await sheetOf(makeResolver(stub), parcelNodeId);
-    expect(sheet.envelope.kind).toBe("not-derived");
-    if (sheet.envelope.kind !== "not-derived") throw new Error("unreachable");
-    expect(sheet.envelope.reason).toBe("atom_path_pending");
+    // R-2 (2026-09-11): real setbacks + a live-derive-fetched polygon now
+    // draw as `modelled`; there is still no `area` field to print 42% from.
+    expect(sheet.envelope.kind).toBe("modelled");
+    if (sheet.envelope.kind !== "modelled") throw new Error("unreachable");
     expect("area" in sheet.envelope).toBe(false);
+    expect(sheet.envelope.rings.length).toBeGreaterThan(0);
     expect(sheet.verdict).not.toMatch(/\d+% of the lot/);
     expect(sheet.verdict).not.toContain("Buildable (approximate)");
-    expect(sheet.verdict).toContain("not derived");
+    expect(sheet.verdict).toContain("buildable envelope modelled from setbacks");
     expect(sheet.flood.state).toBe("present");
     expect(sheet.verdict).toContain("Inside the FEMA flood hazard area");
     expect(sheet.setbacks.state).toBe("present");
+  });
+
+  it("R-2 (2026-09-11): a recordPoint-seeded parcel (P-151, no address live-derive) STILL gets a modelled polygon via its own dedicated fetch, not a skipped one", async () => {
+    // The production shape for 48021:34049 (confirmed live): cityLimitsFact
+    // carries a queryPoint, so P-151's step 1.5 seeds placement BEFORE
+    // resolveGeometry's own address-driven live-derive (step 2) ever runs --
+    // step 2's `!seed` guard is never satisfied. Without the R-2 augmentation
+    // step this parcel would never reach a live-derive POST at all and the
+    // envelope would stay `not-derived` forever. This is the falsifier for
+    // the wiring itself, not just for envelopeValue()'s own branching.
+    const parcelNodeId = "48021:34049";
+    const centre = { lng: -97.3172, lat: 30.1124 };
+    const wire = facetsWire({
+      parcelNodeId,
+      baseFacts: {
+        apn: "R34049",
+        situsAddress: "1109 PECAN ST",
+        situsCity: "BASTROP",
+        situsState: "TX",
+        landUse: { code: "A1", description: "Single-family residential", source: "cad-roll", vintage: "2026" },
+        acreage: { value: 0.6885, sqft: 29989, method: "shoelace-wgs84" },
+      },
+      envelope: {
+        status: "ok",
+        approximate: true,
+        district: "SF-1",
+        setbacks: { front_ft: 25, side_ft: 5, rear_ft: 25, side_corner_ft: 15 },
+        buildableAreaPct: 63.5,
+        buildableAreaSqFt: 19052,
+        disclosure:
+          "Atom-chain setback scalars; buildable envelope geometry from live derive (labelEdges+derive), not depth-warm ledger.",
+      },
+    }) as unknown as Record<string, unknown>;
+    wire.cityLimitsFact = {
+      status: "incorporated",
+      source: "tx_city_boundary",
+      basis: "point-in-polygon against tx_city_boundary",
+      cityName: "Bastrop",
+      etjStatus: "unresolved",
+      queryPoint: { latitude: centre.lat, longitude: centre.lng },
+    };
+    const subjectFeature = {
+      type: "Feature",
+      properties: { parcel_node_id: parcelNodeId, apn: "R34049" },
+      geometry: { type: "Polygon", coordinates: [square(centre.lng, centre.lat)] },
+    };
+    const stub = installFetchStub({
+      facets: wire,
+      gisFeatures: [subjectFeature],
+      buildableEnvelope: { parcelNodeId, buildableAreaSqFt: 19052 },
+    });
+    const sheet = await sheetOf(makeResolver(stub), parcelNodeId);
+    expect(sheet.envelope.kind).toBe("modelled");
+    if (sheet.envelope.kind !== "modelled") throw new Error("unreachable");
+    expect(sheet.envelope.rings.length).toBeGreaterThan(0);
+    // Exactly one buildable-envelope POST: the R-2 augmentation's own fetch.
+    // resolveGeometry's step 2 never ran (seed was already satisfied by
+    // step 1.5's recordPoint) -- two calls would mean a double-fetch
+    // regression (the liveDeriveCtx reuse plumbing broke).
+    expect(
+      stub.calls.filter((u) => u.includes("buildable-envelope")),
+    ).toHaveLength(1);
+  });
+
+  it("R-2 negative control: recordPoint-seeded but NO district (48453:474034 shape) never fires the augmentation fetch", async () => {
+    // Same placement mechanism as the positive test above (recordPoint seeds
+    // step 1.5, so any buildable-envelope call can only be the R-2
+    // augmentation, not a placement-seeking one) but with a declined
+    // envelope -- facetsNeedLiveEnvelopeDerive requires status "ok", so this
+    // isolates: does the augmentation correctly skip a parcel with no
+    // district/setback table? Zero calls proves it does.
+    const parcelNodeId = "48453:474034";
+    const centre = { lng: -97.75, lat: 30.35 };
+    const wire = facetsWire({
+      parcelNodeId,
+      countyFips: "48453",
+      countyName: "Travis",
+      envelope: { status: "declined", declineReason: "no-zoning-stamp" },
+    }) as unknown as Record<string, unknown>;
+    delete (wire.facets as Record<string, unknown>).zoning;
+    wire.cityLimitsFact = {
+      status: "unincorporated",
+      source: "tx_city_boundary",
+      basis: "point-in-polygon against tx_city_boundary",
+      etjStatus: "unresolved",
+      queryPoint: { latitude: centre.lat, longitude: centre.lng },
+    };
+    const subjectFeature = {
+      type: "Feature",
+      properties: { parcel_node_id: parcelNodeId, apn: "R474034" },
+      geometry: { type: "Polygon", coordinates: [square(centre.lng, centre.lat)] },
+    };
+    const stub = installFetchStub({ facets: wire, gisFeatures: [subjectFeature] });
+    const sheet = await sheetOf(makeResolver(stub), parcelNodeId);
+    expect(sheet.envelope.kind).toBe("not-derived");
+    expect(
+      stub.calls.filter((u) => u.includes("buildable-envelope")),
+    ).toHaveLength(0);
   });
 
   it("P-91 O1 / R-2: gold 48021:34137 depth-warm geojson draws modelled, figure stays refused", async () => {
@@ -2556,6 +2656,14 @@ describe("P-151: unincorporated is a finding, not a gap (zoningFact)", () => {
     expect(sheet.zoning.reason).toBe(
       "unincorporated Travis County: no municipal zoning applies",
     );
+    // R-2 negative control: no district means no envelope status "ok" at
+    // all, so envelopeValue() refuses fully (unchanged from before this
+    // mission) -- facetsNeedLiveEnvelopeDerive requires status "ok", which
+    // this fixture never has, so the R-2 augmentation step itself never
+    // fires (any buildable-envelope call this fixture makes is
+    // resolveGeometry's own pre-existing PLACEMENT-seeking fetch, unrelated
+    // to this mission and not asserted on here).
+    expect(sheet.envelope.kind).toBe("not-derived");
   });
 
   it("incorporated + no-zoning-stamp names the city instead of the generic gap message", async () => {
