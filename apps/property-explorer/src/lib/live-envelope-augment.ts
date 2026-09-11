@@ -44,6 +44,27 @@ function isUsableSitusAddress(raw: string | null | undefined): boolean {
   return true;
 }
 
+/**
+ * Duplicated from fact-sheet-resolver.ts's `composedSitusAddress` (P-151) —
+ * same reason `isUsableSitusAddress` above is duplicated rather than
+ * imported: fact-sheet-resolver.ts already imports FROM this module
+ * (`facetsNeedLiveEnvelopeDerive`), so importing back would be circular.
+ * situsAddress + city + state, composed ONLY for the outbound live-derive
+ * POST — never for what `baseFacts.situsAddress` displays elsewhere.
+ */
+function composedSitusAddress(facets: BakedFacetPayload): string | null {
+  const base = facets.baseFacts ?? {};
+  const address = str(base.situsAddress);
+  if (!address) return null;
+  const addressLower = address.toLowerCase();
+  const parts = [address];
+  const city = str(base.situsCity);
+  if (city && !addressLower.includes(city.toLowerCase())) parts.push(city);
+  const state = str(base.situsState);
+  if (state && !addressLower.includes(state.toLowerCase())) parts.push(state);
+  return parts.join(", ");
+}
+
 /** True when facets carry setbacks — geometry must come from live derive. */
 export function facetsNeedLiveEnvelopeDerive(facets: BakedFacetPayload): boolean {
   const env = facets.envelope;
@@ -91,7 +112,16 @@ export type LiveEnvelopeDeriveInput = {
 
 function resolveDeriveAddress(input: LiveEnvelopeDeriveInput): string | null {
   const situs = str(input.situsAddress);
-  if (situs && isUsableSitusAddress(situs)) return situs;
+  if (situs && isUsableSitusAddress(situs)) {
+    // Prefer the FULL composed address (situsAddress + city + state) built
+    // off the record's own baseFacts when it carries a matching, usable
+    // situsAddress (P-151 — Travis stores city separately, and a bare street
+    // line alone geocodes poorly). Falls back to the bare `situs` string
+    // unchanged when `input.facets` carries no usable baseFacts of its own —
+    // e.g. every existing caller of this module today, which passes the
+    // address as a plain string without baseFacts attached.
+    return composedSitusAddress(input.facets) ?? situs;
+  }
   const nav = str(input.navigationAddress);
   if (nav && isUsableSitusAddress(nav)) return nav;
   if (nav && nav.length > 3) return nav;

@@ -102,6 +102,17 @@ describe("InspectCard — persona UI removed (map UX cluster item 4)", () => {
   });
 });
 
+describe("InspectCard fallback (bare-card) row label — P-151 item 4", () => {
+  it("labels the landUse row 'Land use', not 'Zone'", () => {
+    // CARD has no parcelNodeId to resolve against, so the card takes the
+    // fallback (non-"baked") branch — the one that used to hardcode "Zone".
+    expect(html).toContain('data-testid="inspect-landuse"');
+    expect(html).toContain("Single family");
+    expect(html).toContain(">Land use<");
+    expect(html).not.toContain(">Zone<");
+  });
+});
+
 describe("inspect accordion — high-level first, rest collapsed", () => {
   it("places zone / flood / lot in the high-level group", () => {
     expect(inspectRowGroup("landUse")).toBe("high");
