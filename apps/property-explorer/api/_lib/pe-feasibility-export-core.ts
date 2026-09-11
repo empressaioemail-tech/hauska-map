@@ -247,6 +247,17 @@ export function buildFeasibilityDownloadPath(parcelNodeId: string): string {
   return `/api/pe-site-plan-export?${qs.toString()}`
 }
 
+/** P-155: the poll leg — GET .../feasibility-export job status through the
+ * SAME folded function, mirroring buildFeasibilityDownloadPath exactly. */
+export function buildFeasibilityStatusPath(parcelNodeId: string): string {
+  const qs = new URLSearchParams({
+    parcelNodeId,
+    kind: 'feasibility',
+    action: 'status',
+  })
+  return `/api/pe-site-plan-export?${qs.toString()}`
+}
+
 export function feasibilityFilename(parcelNodeId: string): string {
   return `${parcelNodeId.replace(':', '_')}_feasibility_study.pdf`
 }
@@ -332,26 +343,174 @@ export function mapEngineFeasibilityPayload(
 }
 
 // ---------------------------------------------------------------------------
+// P-155 (OPS-23 FEASIBILITY, 2026-09-11): async job mapping. Refresh now
+// ACCEPTS (202) instead of returning the composed report inline —
+// `mapEngineFeasibilityPayload` above documents the PRE-P-155 synchronous
+// contract and is kept (still exercised by pe-feasibility-export-bff.test.ts)
+// because that historical shape is real test-fixture data, not because
+// anything still calls it. The two functions below are what the handler
+// actually uses now.
+// ---------------------------------------------------------------------------
+
+export type FeasibilityJobState = 'queued' | 'running' | 'ready' | 'failed' | 'never-requested'
+
+/** What the BFF hands back to the browser for BOTH the refresh-accepted
+ * (202) leg and the status-poll leg — one shape, so the browser's poll
+ * loop and its initial POST can share the same reader. */
+export interface FeasibilityJobStatusResponse {
+  ok: true
+  parcelNodeId: string
+  state: FeasibilityJobState
+  jobRef?: string
+  pollAfterMs?: number
+  /** `ready` only. */
+  downloadUrl?: string
+  pageCount?: number
+  feasibilityPageCount?: number
+  sitePlanAppended?: boolean
+  sitePlanUnavailableReason?: string
+  sectionCount?: number
+  openItemCount?: number
+  narrativeIsDeterministicSkeleton?: boolean
+  /** `failed` only. */
+  errorClass?: string
+  errorMessage?: string
+}
+
+const DEFAULT_POLL_AFTER_MS = 5_000
+
+/** Maps the engine's 202 refresh-accepted body: `{ state, jobRef,
+ * pollAfterMs, statusUrl, downloadUrl }`. Never `ready` on this leg — the
+ * engine's refresh handler always answers `queued` or `running`. */
+export function mapEngineFeasibilityAccepted(
+  payload: unknown,
+  requestParcelNodeId: string,
+): { ok: true; response: FeasibilityJobStatusResponse } | { ok: false; message: string } {
+  const p = asRecord(payload)
+  if (!p || (p.state !== 'queued' && p.state !== 'running') || typeof p.jobRef !== 'string') {
+    return {
+      ok: false,
+      message: 'Engine feasibility-export refresh payload missing a queued/running state or jobRef.',
+    }
+  }
+  return {
+    ok: true,
+    response: {
+      ok: true,
+      parcelNodeId: requestParcelNodeId,
+      state: p.state,
+      jobRef: p.jobRef,
+      pollAfterMs: optNum(p.pollAfterMs) ?? DEFAULT_POLL_AFTER_MS,
+    },
+  }
+}
+
+/** Maps the engine's `GET .../feasibility-export` status body. Every state
+ * gets a response — `never-requested` is its own answer (P-155 item 1),
+ * never mapped onto `failed` or an HTTP error. */
+export function mapEngineFeasibilityStatusPayload(
+  payload: unknown,
+  requestParcelNodeId: string,
+): { ok: true; response: FeasibilityJobStatusResponse } | { ok: false; message: string } {
+  const p = asRecord(payload)
+  if (!p || typeof p.state !== 'string') {
+    return { ok: false, message: 'Engine feasibility-export status payload missing state.' }
+  }
+  if (p.state === 'never-requested') {
+    return { ok: true, response: { ok: true, parcelNodeId: requestParcelNodeId, state: 'never-requested' } }
+  }
+  if (p.state === 'queued' || p.state === 'running') {
+    return {
+      ok: true,
+      response: {
+        ok: true,
+        parcelNodeId: requestParcelNodeId,
+        state: p.state,
+        jobRef: typeof p.jobRef === 'string' ? p.jobRef : undefined,
+        pollAfterMs: optNum(p.pollAfterMs) ?? DEFAULT_POLL_AFTER_MS,
+      },
+    }
+  }
+  if (p.state === 'failed') {
+    return {
+      ok: true,
+      response: {
+        ok: true,
+        parcelNodeId: requestParcelNodeId,
+        state: 'failed',
+        errorClass: typeof p.errorClass === 'string' ? p.errorClass : undefined,
+        errorMessage:
+          typeof p.errorMessage === 'string'
+            ? p.errorMessage
+            : 'Feasibility study could not be produced for this parcel.',
+      },
+    }
+  }
+  if (p.state !== 'ready') {
+    return { ok: false, message: `Engine feasibility-export status payload had an unrecognized state: ${p.state}` }
+  }
+  const result = asRecord(p.result) ?? {}
+  const artifacts = asRecord(p.artifacts)
+  const artifact = artifacts ? asRecord(artifacts[FEASIBILITY_EXPORT_FORMAT]) : null
+  if (!artifact) {
+    return {
+      ok: false,
+      message: 'Engine feasibility-export status payload marked ready with no pdf-feasibility artifact.',
+    }
+  }
+  return {
+    ok: true,
+    response: {
+      ok: true,
+      parcelNodeId: requestParcelNodeId,
+      state: 'ready',
+      downloadUrl: buildFeasibilityDownloadPath(requestParcelNodeId),
+      pageCount: optNum(result.pageCount),
+      feasibilityPageCount: optNum(result.feasibilityPageCount),
+      sitePlanAppended: optBool(result.sitePlanAppended),
+      sitePlanUnavailableReason:
+        typeof result.sitePlanUnavailableReason === 'string' ? result.sitePlanUnavailableReason : undefined,
+      sectionCount: optNum(result.sectionCount),
+      openItemCount: optNum(result.openItemCount),
+      narrativeIsDeterministicSkeleton: optBool(result.narrativeIsDeterministicSkeleton),
+    },
+  }
+}
+
+// ---------------------------------------------------------------------------
 // Honest failure copy (timeout classes REUSED from the site-plan core's
 // classifyEngineFailure; only the customer wording is report-specific).
+//
+// P-155 (2026-09-11): the refresh leg now only waits for the engine to
+// ACCEPT the job (202), not to finish composing it — the two retired
+// messages below both told the customer "this usually means a cold start,
+// try again", which was never true (F7: the engine was never cold; the
+// OLD client budget was just shorter than the composition). A timeout on
+// the ACK itself is now genuinely rare and genuinely means the engine
+// didn't respond in time, so the replacement copy says exactly that and
+// nothing about cold starts or manual retries — the browser's poll loop
+// (feasibility-export.ts) is the retry mechanism now, not the customer.
 // ---------------------------------------------------------------------------
 
 export const FEASIBILITY_ENGINE_GATE_TOKEN_MESSAGE =
   'Feasibility Study needs an engine-api gate token (server config) — HAUSKA_ENGINE_API_KEY / gate-front context not set or not accepted.'
 
-export const FEASIBILITY_ENGINE_TIMEOUT_RETRY_MESSAGE =
-  'Feasibility Study engine timed out — this usually means a cold start. Try the report again in a moment.'
+export const FEASIBILITY_ENGINE_ACK_TIMEOUT_MESSAGE =
+  'Feasibility Study engine did not accept the request in time. Try Generate again.'
 
-export const FEASIBILITY_ENGINE_UNREACHABLE_RETRY_MESSAGE =
-  'Feasibility Study engine did not respond — it may be restarting. Try the report again in a moment.'
+export const FEASIBILITY_ENGINE_ACK_UNREACHABLE_MESSAGE =
+  'Feasibility Study engine did not respond. Try Generate again.'
 
 export const FEASIBILITY_ENGINE_GATE_TOKEN_MISSING_MESSAGE =
   'Feasibility Study is not configured: engine-api gate token missing (set HAUSKA_ENGINE_API_KEY or ENGINE_API_GATE_TOKEN).'
 
 /**
  * 503 + retryable body for the transient engine failure classes
- * (timeout / unreachable); null for everything else so callers keep their
- * existing gate/payment/other handling.
+ * (timeout / unreachable) on the ACCEPT leg only; null for everything else
+ * so callers keep their existing gate/payment/other handling. Since P-155
+ * this can only fire when the engine fails to even ACKNOWLEDGE the refresh
+ * (queued/running) — composition failures surface as a job `state: failed`
+ * on the status poll instead, never as this transient-retry shape.
  */
 export function retryableFeasibilityEngineFailureResponse(
   kind: EngineFailureKind,
@@ -365,7 +524,7 @@ export function retryableFeasibilityEngineFailureResponse(
       status: 503,
       body: {
         error: 'engine_timeout',
-        message: FEASIBILITY_ENGINE_TIMEOUT_RETRY_MESSAGE,
+        message: FEASIBILITY_ENGINE_ACK_TIMEOUT_MESSAGE,
         retryable: true,
         detail,
       },
@@ -376,7 +535,7 @@ export function retryableFeasibilityEngineFailureResponse(
       status: 503,
       body: {
         error: 'engine_unreachable',
-        message: FEASIBILITY_ENGINE_UNREACHABLE_RETRY_MESSAGE,
+        message: FEASIBILITY_ENGINE_ACK_UNREACHABLE_MESSAGE,
         retryable: true,
         detail,
       },
