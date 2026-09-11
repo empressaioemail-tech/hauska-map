@@ -34,6 +34,7 @@ import {
   type Setbacks,
 } from "@empressaio/parcel-fact-sheet";
 import { presentValuationBasis, readValuationBasis } from "./valuation-basis";
+import { mapBuildableDisplay } from "./buildable-display-vocab";
 import {
   FLOOD_HAZARD_FACT_MISSING_REASON,
   PIPELINE_FACT_MISSING_REASON,
@@ -56,6 +57,16 @@ import {
   zoningLayerToCardFacet,
 } from "./baked-facets";
 import { isLayerAbsenceWire } from "./layer-absence";
+
+/**
+ * R-2 (2026-09-11): the ONE vocabulary call for the "polygon modelled, figure
+ * withheld" state (invariant: surfaces call `mapBuildableDisplay` rather than
+ * re-deriving copy). Constant — the inputs never vary for this variant.
+ */
+const MODELLED_ENVELOPE_VOCAB = mapBuildableDisplay({
+  declineReason: "atom_path_pending",
+  hasGeometry: true,
+});
 import type {
   EnvelopeProvenanceRefs,
   SetbackFieldNotes,
@@ -754,9 +765,14 @@ export function bakedCardModelFromSheet(
         : present(formatMeasurement(env.area, "us"))
       : env.kind === "consumed"
         ? present("0%")
-        : sheet.setbacks.state === "unresolved"
-          ? pending("pending")
-          : absent();
+        : env.kind === "modelled"
+          ? present(
+              MODELLED_ENVELOPE_VOCAB.cardLabel ??
+                "Buildable envelope modelled from setbacks — area withheld pending an atom",
+            )
+          : sheet.setbacks.state === "unresolved"
+            ? pending("pending")
+            : absent();
 
   // AMENDMENT 3: a null lot area is an ABSENCE, not a zero and not a NaN. It
   // was being divided unguarded, which produced NaN acreage silently.
@@ -804,20 +820,27 @@ export function bakedCardModelFromSheet(
       sheet.taxValuation,
       sheet.identity.county.name ?? null,
     ),
-    envelopeApproximate: env.kind === "derived" ? env.approximate : env.kind === "consumed",
+    envelopeApproximate:
+      env.kind === "derived" || env.kind === "modelled" ? env.approximate : env.kind === "consumed",
     envelopeStatus:
-      env.kind === "derived" ? "ok" : env.kind === "consumed" ? "no-buildable-area" : "declined",
+      env.kind === "derived" || env.kind === "modelled"
+        ? "ok"
+        : env.kind === "consumed"
+          ? "no-buildable-area"
+          : "declined",
     envelopeEmptyReason: env.kind === "consumed" ? env.reason : null,
     envelopeDeclineReason: env.kind === "not-derived" ? env.reason : null,
-    disclosure: null,
+    disclosure: env.kind === "modelled" ? env.disclosure : null,
     buildableDisplayKind:
       env.kind === "derived"
         ? "buildable-with-area"
         : env.kind === "consumed"
           ? "declined-consume"
-          : sheet.setbacks.state === "unresolved"
-            ? "pending"
-            : "absent",
+          : env.kind === "modelled"
+            ? MODELLED_ENVELOPE_VOCAB.kind
+            : sheet.setbacks.state === "unresolved"
+              ? "pending"
+              : "absent",
     // The sheet id IS the cross-surface agreement token: two surfaces showing
     // the same parcel with different tokens is now visible to the reader.
     buildableAgreementToken: sheet.factSheetId,
@@ -936,6 +959,38 @@ export function envelopeStateFromSheet(sheet: ParcelFactSheet): CardEnvelopeStat
       district: wire?.district ?? null,
       provenanceRefs,
       ...(parcelRing ? { parcelRing } : {}),
+    };
+  }
+  if (env.kind === "modelled") {
+    // R-2: the polygon draws (status "ok" + geometry) exactly like `derived`.
+    // NO `summary` is set here — there is no area/pct field to draw it from,
+    // so no downstream reader can print a figure for this variant by reading
+    // this state (falsifier: any surface printing a number for `modelled`).
+    const geometry =
+      env.rings.length > 0
+        ? { type: "Polygon" as const, coordinates: env.rings }
+        : null;
+    return {
+      status: "ok",
+      setbacks: wire,
+      ...(geometry
+        ? {
+            geometry,
+            geojson: {
+              type: "FeatureCollection" as const,
+              features: [
+                {
+                  type: "Feature" as const,
+                  properties: { kind: "buildable-envelope" },
+                  geometry,
+                },
+              ],
+            },
+          }
+        : {}),
+      disclosure: env.disclosure,
+      district: wire?.district ?? null,
+      provenanceRefs,
     };
   }
   // not-derived (declined / no setback table) is honest absence, not a

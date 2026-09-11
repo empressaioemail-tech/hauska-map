@@ -707,7 +707,8 @@ export interface BakedCardModel {
     | "buildable-with-area"
     | "declined-consume"
     | "not_specified"
-    | "not-applicable";
+    | "not-applicable"
+    | "modelled-figure-withheld";
   /** Stable cross-surface probe token (map card ↔ inspect ↔ PDF). */
   buildableAgreementToken: string;
   /** Provenance: parcel + land-use source and vintage for the citation line. */

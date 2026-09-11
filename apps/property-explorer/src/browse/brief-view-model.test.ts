@@ -6,6 +6,7 @@ import { describe, expect, it } from "vitest";
 import {
   deriveBriefViewModel,
   freshnessVerdict,
+  type ResearchBriefPayload,
 } from "./brief-view-model";
 import {
   FIXTURE_NOW_MS,
@@ -28,6 +29,71 @@ describe("freshnessVerdict (ported Alder thresholds)", () => {
   it("unknown on missing or malformed dates", () => {
     expect(freshnessVerdict(null, now)).toBe("unknown");
     expect(freshnessVerdict("not-a-date", now)).toBe("unknown");
+  });
+});
+
+describe("R-2 (2026-09-11): the brief prints no figure for a live-derive-pending envelope", () => {
+  // This section's `data` is the RAW baked envelope wire (see file header) —
+  // it never passes through the sheet's `modelled` variant, so this proves
+  // the brief's OWN independent guard (isLiveDeriveAtomPending) instead. The
+  // raw payload here deliberately CARRIES buildableAreaSqFt/Pct (as the real
+  // 48021:34049 payload does) to prove they are suppressed, not merely absent.
+  const LIVE_DERIVE_PENDING_BRIEF: ResearchBriefPayload = {
+    runId: "pe-r1-live-derive",
+    reportFamily: "R1",
+    mode: "baked-facet-intel-v1",
+    parcelNodeId: "48021:34049",
+    brief: {
+      sections: [
+        {
+          id: "setbacks-envelope",
+          title: "Setbacks and buildable envelope",
+          data: {
+            status: "ok",
+            approximate: true,
+            district: "SF-1",
+            setbacks: { front_ft: 30, side_ft: 10, rear_ft: 30 },
+            parcelAreaSqFt: 20000,
+            buildableAreaSqFt: 16386,
+            buildableAreaPct: 82,
+            disclosure:
+              "Estimated buildable area. Front edge inferred from the situs-named street centerline (OpenStreetMap). buildable envelope geometry from live derive, not depth-warm ledger. Not survey grade.",
+            geojson: {
+              type: "FeatureCollection",
+              features: [
+                {
+                  type: "Feature",
+                  properties: { source: "live-derive" },
+                  geometry: { type: "Polygon", coordinates: [[[0, 0]]] },
+                },
+              ],
+            },
+          },
+        },
+      ],
+    },
+  };
+
+  const vm = deriveBriefViewModel(LIVE_DERIVE_PENDING_BRIEF, FIXTURE_NOW_MS);
+  const env = vm.sections.find((s) => s.id === "setbacks-envelope")!;
+
+  it("never prints buildableAreaSqFt or buildableAreaPct even though the raw payload carries them", () => {
+    expect(env.kind).toBe("facts");
+    const blob = env.facts.map((f) => `${f.label} ${f.value}`).join(" ");
+    // Falsifier: neither raw number (16386, 82%) may appear anywhere.
+    expect(blob).not.toContain("16,386");
+    expect(blob).not.toContain("16386");
+    expect(blob).not.toMatch(/\b82%/);
+    const buildable = env.facts.find((f) => f.label === "Buildable envelope")!;
+    expect(buildable.value).toMatch(/withheld/i);
+    expect(buildable.value).toMatch(/modelled/i);
+  });
+
+  it("still renders the known setbacks and district — only the figure is withheld", () => {
+    const setbacks = env.facts.find((f) => f.label === "Setbacks")!;
+    expect(setbacks.value).toContain("F 30");
+    const district = env.facts.find((f) => f.label === "Setback district")!;
+    expect(district.value).toBe("SF-1");
   });
 });
 

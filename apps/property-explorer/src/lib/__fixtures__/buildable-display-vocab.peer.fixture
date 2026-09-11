@@ -23,7 +23,14 @@ export type BuildableDisplayKind =
   | "declined-consume"
   | "not_specified"
   /** Unincorporated land — no zoning ordinance to derive a setback from. */
-  | "not-applicable";
+  | "not-applicable"
+  /**
+   * R-2 (2026-09-11, Ruling B reversed for the polygon only). A real modelled
+   * polygon is on file (a district and a setback table exist) even though the
+   * atom-chain read is still pending — the drawing shows it; the figure stays
+   * withheld until a buildable-envelope atom backs it.
+   */
+  | "modelled-figure-withheld";
 
 export type EnvelopeStatusInput = "ok" | "no-buildable-area" | "declined" | null | undefined;
 
@@ -130,6 +137,20 @@ export function mapBuildableDisplay(input: BuildableDisplayInput): BuildableDisp
   const provisional =
     input.provisional === true ||
     input.warmEnvelopeKind === "provisional-front-edge";
+
+  // R-2 (2026-09-11): a real modelled polygon is on file even though the
+  // atom-chain read is still pending — draw it, withhold only the figure.
+  // Checked BEFORE the generic loading shell below, which is reserved for the
+  // case with no geometry at all (a genuine transient "still loading" state).
+  if (decline === "atom_path_pending" && input.hasGeometry === true) {
+    return {
+      kind: "modelled-figure-withheld",
+      cardState: "present",
+      cardLabel: "Buildable envelope modelled from setbacks — area withheld pending an atom",
+      pdfLabel: "withheld — buildable envelope modelled from setbacks, not yet backed by an atom",
+      agreementToken: "modelled-figure-withheld",
+    };
+  }
 
   // Loading shell (Gate C) — never "not verified" / consume.
   if (decline === "atom_path_pending") {

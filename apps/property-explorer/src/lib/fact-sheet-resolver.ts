@@ -1964,6 +1964,24 @@ function envelopeValue(
   // P-91 O1 / ruling B: live derive (or withheld atom-chain geometry that
   // used to side-door through it) is not a buildable-envelope atom.
   if (sheetEnvelopeIsAtomPathPending(facets)) {
+    // R-2 (2026-09-11): ruling B reversed for the polygon only. Where the
+    // same derivation carries a real modelled polygon AND setbacks (a
+    // district and a setback table exist), draw the polygon and withhold
+    // only the figure. Where it does not (no district, no table), refuse
+    // entirely as before — unchanged for the negative-control case.
+    const rings = ringsFromGeoJson(env.geojson);
+    if (rings.length > 0) {
+      return {
+        kind: "modelled",
+        rings,
+        setbacksUsed,
+        disclosure:
+          str(env.disclosure) ??
+          "Estimated buildable envelope modelled from setbacks. Not survey grade.",
+        approximate: env.approximate !== false,
+        provenance: prov,
+      };
+    }
     return {
       kind: "not-derived",
       reason: "atom_path_pending",
