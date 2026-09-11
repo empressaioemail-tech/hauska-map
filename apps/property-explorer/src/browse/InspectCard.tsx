@@ -1339,7 +1339,7 @@ export function InspectCard({
               key: "landUse",
               node: (
                 <Row
-                  label="Zone"
+                  label="Land use"
                   value={card.landUseDescription}
                   testid="inspect-landuse"
                 />

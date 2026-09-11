@@ -40,12 +40,23 @@
 //                                             txgio_parcel / parcel ring as
 //                                             boundaryEdgeFact; never bake /
 //                                             CAD / cad-parcel-roll / GIS
-//                                             owner as ownerFact).
-//   2. POST {cortex}/…/place/buildable-envelope   the backend's authoritative
+//                                             owner as ownerFact). Also
+//                                             carries cityLimitsFact.queryPoint
+//                                             (P-151): a coordinate the record
+//                                             already holds, tried as a
+//                                             geometry seed before any of the
+//                                             network hops below run.
+//   2. GET   {origin}/api/pe-situs-search    PE's own TxGIO situs index,
+//                                             queried with the composed
+//                                             address (situsAddress + city +
+//                                             state); accepted as a seed only
+//                                             on an EXACT parcelNodeId match
+//                                             carrying a point (P-151).
+//   3. POST {cortex}/…/place/buildable-envelope   the backend's authoritative
 //                                             resolution of the parcel to a
 //                                             point (its `coord:` placeKey),
 //                                             used ONLY as a geometry seed.
-//   3. POST {cortex}/…/map-data/gis-layer     a small bbox around that seed,
+//   4. POST {cortex}/…/map-data/gis-layer     a small bbox around that seed,
 //                                             from which the parcel's own ring
 //                                             is picked by node id, then APN,
 //                                             then point containment.
@@ -73,6 +84,7 @@ import {
   composeVerdict,
 } from "@empressaio/parcel-fact-sheet";
 import { formatGovernedByFragment } from "../../api/_lib/setback-not-specified";
+import type { SitusSearchHit } from "../../api/_lib/pe-situs-search-core";
 import type { BuildableEnvelopeResult, GovernedBy } from "./buildable-envelope.js";
 import {
   fetchBakedNodeFacets,
@@ -335,6 +347,30 @@ export function isUsableSitusAddress(raw: string | null | undefined): boolean {
   if (!street || !/^\d/.test(street)) return false;
   if (/^,\s*(TX)?\s*$/i.test(trimmed)) return false;
   return true;
+}
+
+/**
+ * situsAddress + city + state, composed ONLY for an outbound network call
+ * (geocode / situs-search / buildable-envelope-by-address) — never for what
+ * `identity.situsAddress` displays elsewhere in the app, which stays exactly
+ * as `identityFacts` builds it below. Travis stores city on a separate
+ * `base.situsCity` field; a bare street line alone ("414 SPILLER LN")
+ * geocodes to the wrong hit or misses entirely without it (P-151). A part is
+ * appended only when it is present AND not already a substring of the bare
+ * address (case-insensitive) — most counties' situsAddress already spells
+ * out "..., CITY, TX", and this must never double it up.
+ */
+export function composedSitusAddress(facets: BakedFacetPayload): string | null {
+  const base = facets.baseFacts ?? {};
+  const address = str(base.situsAddress);
+  if (!address) return null;
+  const addressLower = address.toLowerCase();
+  const parts = [address];
+  const city = str(base.situsCity);
+  if (city && !addressLower.includes(city.toLowerCase())) parts.push(city);
+  const state = str(base.situsState);
+  if (state && !addressLower.includes(state.toLowerCase())) parts.push(state);
+  return parts.join(", ");
 }
 
 function identityFacts(facets: BakedFacetPayload, parcelNodeId: string) {
@@ -1683,7 +1719,19 @@ function maxImperviousCoverPctFromInspectWire(
   };
 }
 
-function zoningFact(facets: BakedFacetPayload, countyFips: string): Fact<ZoningDistrict> {
+/**
+ * @param cityLimitsFact the RAW cityLimitsFact wire value (not the
+ *   `cityLimitsFromInspectWire` display fact) — read only for `status` and
+ *   `cityName`, so an unincorporated parcel with no zoning stamp reads as the
+ *   FINDING it is ("unincorporated ... County: no municipal zoning applies")
+ *   rather than the generic "not zoned or not stamped" gap message (P-151).
+ */
+function zoningFact(
+  facets: BakedFacetPayload,
+  countyFips: string,
+  countyName: string,
+  cityLimitsFact: unknown,
+): Fact<ZoningDistrict> {
   const declineReason = facets.envelope?.status === "declined"
     ? str(facets.envelope.declineReason)
     : null;
@@ -1722,6 +1770,24 @@ function zoningFact(facets: BakedFacetPayload, countyFips: string): Fact<ZoningD
     };
   }
   if (declineReason === "no-zoning-stamp" || declineReason === "zoning-absent") {
+    const cl = rec(cityLimitsFact);
+    const clStatus = str(cl?.status);
+    if (clStatus === "unincorporated") {
+      // A FINDING, not a gap: there is no municipal zoning to apply here.
+      return absentUncovered(
+        `unincorporated ${countyName} County: no municipal zoning applies`,
+        `a zoning stamp for ${countyFips}`,
+      );
+    }
+    const clCityName = str(cl?.cityName);
+    if (clCityName) {
+      return absentUncovered(
+        `inside ${clCityName} limits; no zoning layer on file for ${clCityName}`,
+        `a zoning stamp for ${countyFips}`,
+      );
+    }
+    // City limits status is unknown/unmeasured/missing a usable name: keep the
+    // original honest gap message rather than interpolating an empty city.
     return absentUncovered(
       "this area is not zoned or not stamped",
       `a zoning stamp for ${countyFips}`,
@@ -2198,6 +2264,29 @@ export function pickParcelRings(
   return [];
 }
 
+/**
+ * A plain point off `cityLimitsFact.queryPoint` (P-151). The record already
+ * carries this — the resolver reaches for it before ever geocoding a bare
+ * street line. Read directly off the RAW wire shape
+ * (`{status, source, basis, cityName, etjStatus, queryPoint: {longitude,
+ * latitude}}`), never through `cityLimitsFromInspectWire`, which builds the
+ * DISPLAY fact and drops the point entirely.
+ *
+ * A wrong point here is not independently validated: the ring probe
+ * (`pickParcelRings`, matching by parcelNodeId/APN first) is what makes this
+ * safe by design — a wrong seed yields no matching ring, never a wrong one.
+ */
+function recordPointFromCityLimitsFact(
+  cityLimitsFact: unknown,
+): { lat: number; lng: number } | null {
+  const fact = rec(cityLimitsFact);
+  if (!fact) return null;
+  const qp = rec(fact.queryPoint);
+  const lat = num(qp?.latitude);
+  const lng = num(qp?.longitude);
+  return lat != null && lng != null ? { lat, lng } : null;
+}
+
 // ---------------------------------------------------------------------------
 // The resolver.
 // ---------------------------------------------------------------------------
@@ -2384,11 +2473,17 @@ export class PeFactSheetResolver implements FactSheetResolver {
       owner: identity.owner,
     };
 
+    // The record's OWN coordinate (P-151), read off the RAW cityLimitsFact
+    // wire (already extracted above) — never through cityLimitsFromInspectWire,
+    // which builds the display fact and drops queryPoint entirely.
+    const recordPoint = recordPointFromCityLimitsFact(cityLimitsFact);
+
     const geometry = await this.resolveGeometry(
       parcelNodeId,
       facets,
       identity,
       { liveDerive: null, liveDeriveAttempted: false },
+      recordPoint,
     );
     if (!geometry) {
       // AMENDMENT 1: we hold the record and cannot place it. A DESIGNED state,
@@ -2410,7 +2505,7 @@ export class PeFactSheetResolver implements FactSheetResolver {
     const lotAreaSqFt = geometry.lotArea?.value ?? null;
 
     const landUse = landUseFromInspectWire(landUseFact, facets);
-    const zoning = zoningFact(facets, fips);
+    const zoning = zoningFact(facets, fips, countyName, cityLimitsFact);
     const setbacks = setbacksFact(facets);
     const envelope = envelopeValue(facets, setbacks, lotAreaSqFt);
     const flood = floodFact(floodHazardFact);
@@ -2511,12 +2606,19 @@ export class PeFactSheetResolver implements FactSheetResolver {
   /**
    * I5: geometry is the navigation authority.
    *
-   * Seed order: the baked envelope's own polygon, then the backend's
-   * authoritative `coord:` placeKey for the situs address. Then the seed is
-   * used to pull the parcel's TRUE ring out of the live parcel layer.
+   * Seed order (P-151 adds the record point and the situs-search hop): the
+   * caller's own hint / the baked envelope's own polygon, then the record's
+   * OWN coordinate (`cityLimitsFact.queryPoint` — a fact the record already
+   * carries), then PE's own situs index keyed on the composed address, then
+   * the backend's authoritative `coord:` placeKey for the composed address,
+   * then a last-resort geocode. Whatever seeds first, the seed is then used
+   * to pull the parcel's TRUE ring out of the live parcel layer — a wrong
+   * seed yields no matching ring there, never a wrong one, which is what
+   * makes every non-geometric seed above safe to try.
    *
-   * The situs address is never the centring authority — it is only ever a way
-   * to ask the backend for a coordinate when nothing geometric is on hand.
+   * The situs address (composed or bare) is never the centring authority —
+   * it is only ever a way to ask something else for a coordinate when
+   * nothing geometric is on hand.
    */
   private async resolveGeometry(
     parcelNodeId: string,
@@ -2526,6 +2628,7 @@ export class PeFactSheetResolver implements FactSheetResolver {
       liveDerive: BuildableEnvelopeResult | null;
       liveDeriveAttempted: boolean;
     } = { liveDerive: null, liveDeriveAttempted: false },
+    recordPoint: { lat: number; lng: number } | null = null,
   ): Promise<ParcelGeometry | null> {
     const acreage = facets.baseFacts?.acreage ?? null;
     const cadAcreageSqFt =
@@ -2550,6 +2653,46 @@ export class PeFactSheetResolver implements FactSheetResolver {
           })?.centroid ?? null)
         : null) ?? hint?.centroid ?? null;
 
+    // 1.5. The record's OWN coordinate (P-151). cityLimitsFact.queryPoint is
+    //      already on the record we just fetched — a fallback, not an
+    //      override, so it only fires when nothing above already seeded.
+    if (!seed && recordPoint) {
+      seed = recordPoint;
+    }
+
+    // 1.6. PE's own situs index (P-151), keyed on the FULL composed address
+    //      (situsAddress + situsCity + situsState — Travis stores city
+    //      separately, and a bare street line alone misses). Accepted ONLY
+    //      when a hit's own parcelNodeId strictly equals THIS parcel and it
+    //      carries a point; anything else (no hits, no id match, no point, a
+    //      timeout, an error) falls straight through to the address-derive
+    //      step below exactly as it worked before this existed.
+    if (!seed) {
+      const composedAddress = composedSitusAddress(facets);
+      if (composedAddress) {
+        try {
+          const fips = parcelNodeId.split(":")[0] ?? "";
+          const qs = new URLSearchParams({ q: composedAddress, countyFips: fips });
+          const res = await this.hopFetch()(`/api/pe-situs-search?${qs.toString()}`);
+          if (res.ok) {
+            const body = (await res.json()) as { hits?: SitusSearchHit[] };
+            const hits = Array.isArray(body?.hits) ? body.hits : [];
+            const hit = hits.find(
+              (h) =>
+                h?.parcelNodeId === parcelNodeId &&
+                num(h?.latitude) != null &&
+                num(h?.longitude) != null,
+            );
+            if (hit) {
+              seed = { lat: num(hit.latitude) as number, lng: num(hit.longitude) as number };
+            }
+          }
+        } catch {
+          /* honest degrade — fall through to address-derive below */
+        }
+      }
+    }
+
     // 2. The backend's authoritative resolution of the situs address to a
     //    point. Best effort — never a lookup failure.
     if (
@@ -2563,7 +2706,7 @@ export class PeFactSheetResolver implements FactSheetResolver {
           env = liveDeriveCtx.liveDerive;
         } else {
           env = await fetchBuildableEnvelope(
-            { address: identity.situsAddress.value },
+            { address: composedSitusAddress(facets) ?? identity.situsAddress.value },
             this.cortexBase,
             this.hopFetch(),
           );

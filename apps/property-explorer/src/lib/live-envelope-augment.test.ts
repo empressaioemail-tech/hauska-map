@@ -305,3 +305,89 @@ describe("augmentFacetsWithLiveEnvelope — atom-area reconciliation", () => {
     expect(out.envelope?.disclosure).not.toContain("property atom chain");
   });
 });
+
+// P-151: compose the full address (situsAddress + city + state) before ANY
+// network resolution call — Travis stores city on a separate baseFacts field,
+// and a bare street line alone geocodes/derives poorly.
+describe("augmentFacetsWithLiveEnvelope — composed address (P-151)", () => {
+  // Same shape as the sibling describe block's own `liveGeometryResponse`
+  // (scoped to that block, so not reusable here) — a bare live-derive "ok"
+  // response with a real polygon so `fetchLiveEnvelopeDerive` returns
+  // successfully and the request it SENT can be inspected below.
+  function liveGeometryResponse(buildableAreaSqFt: number) {
+    return vi.fn(async () => ({
+      ok: true,
+      json: async () => ({
+        status: "ok",
+        payload: {
+          geojson: {
+            type: "FeatureCollection",
+            features: [
+              {
+                type: "Feature",
+                properties: { buildableAreaSqFt },
+                geometry: {
+                  type: "Polygon",
+                  coordinates: [
+                    [
+                      [-97.32, 30.11],
+                      [-97.319, 30.11],
+                      [-97.319, 30.109],
+                      [-97.32, 30.109],
+                      [-97.32, 30.11],
+                    ],
+                  ],
+                },
+              },
+            ],
+          },
+        },
+      }),
+    })) as unknown as typeof fetch;
+  }
+
+  // `liveGeometryResponse` casts its vi.fn to `typeof fetch` for the function
+  // under test, which erases the Mock type — pull `.mock.calls` back out
+  // through `unknown` rather than re-declaring the fetch fixture.
+  function callsOf(fetchImpl: typeof fetch): Array<[unknown, { body: string }]> {
+    return (fetchImpl as unknown as { mock: { calls: Array<[unknown, { body: string }]> } })
+      .mock.calls;
+  }
+
+  it("prefers baseFacts.situsAddress + situsCity + situsState over the bare address param", async () => {
+    const facetsWithCity: BakedFacetPayload = {
+      ...GEO_ABSENT,
+      baseFacts: {
+        situsAddress: "414 SPILLER LN",
+        situsCity: "WEST LAKE HILLS",
+        situsState: "TX",
+      },
+    };
+    const fetchImpl = liveGeometryResponse(4200);
+    await augmentFacetsWithLiveEnvelope(
+      facetsWithCity,
+      "414 SPILLER LN",
+      "/api/spine/cortex/api",
+      fetchImpl,
+    );
+    const [, init] = callsOf(fetchImpl)[0];
+    const body = JSON.parse(init.body) as { address?: string };
+    expect(body.address).toBe("414 SPILLER LN, WEST LAKE HILLS, TX");
+  });
+
+  it("falls back to the bare address param when facets carries no baseFacts of its own", async () => {
+    // GEO_ABSENT (used throughout this file) carries no baseFacts at all —
+    // every pre-P-151 test above must keep sending the bare address it
+    // always did.
+    const fetchImpl = liveGeometryResponse(4200);
+    await augmentFacetsWithLiveEnvelope(
+      GEO_ABSENT,
+      "1010 PECAN ST, BASTROP, TX 78602",
+      "/api/spine/cortex/api",
+      fetchImpl,
+    );
+    const [, init] = callsOf(fetchImpl)[0];
+    const body = JSON.parse(init.body) as { address?: string };
+    expect(body.address).toBe("1010 PECAN ST, BASTROP, TX 78602");
+  });
+});

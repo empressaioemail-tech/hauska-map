@@ -949,6 +949,7 @@ function ExplorerMapSurface({
       parcelNodeId: string | null,
       geometry: unknown,
       origin: "map-click" | "share" | "compare",
+      centroid?: { lat: number; lng: number } | null,
     ) => {
       // Bump first so an in-flight Find cannot inspect/rebind/fly after this click.
       lookupIntentRef.current.bump();
@@ -957,7 +958,7 @@ function ExplorerMapSurface({
         // the previous subject stands rather than being replaced by a guess.
         return;
       }
-      factSheetResolver.hint(parcelNodeId, { geometry });
+      factSheetResolver.hint(parcelNodeId, { geometry, centroid });
       void setSubjectByParcelNodeId(parcelNodeId, origin)
         .then((outcome) => {
           // Only adopt if this parcel is STILL the one being inspected — a
@@ -1462,7 +1463,9 @@ function ExplorerMapSurface({
           (sel.feature as { geometry?: unknown } | undefined)?.geometry ?? null;
         const nodeId = parcelNodeIdFromSelection(sel);
         inspectInPlace(selectionToCard(sel), nodeId, geom);
-        adoptSubject(nodeId, geom, "map-click");
+        const liveCentroid =
+          sel.lat != null && sel.lng != null ? { lat: sel.lat, lng: sel.lng } : null;
+        adoptSubject(nodeId, geom, "map-click", liveCentroid);
         return;
       }
       // A non-live overlay click carrying only coords — inspect what it carries.
@@ -1480,7 +1483,10 @@ function ExplorerMapSurface({
         lng: sel.lng,
       };
       inspectInPlace(bareCard, parcelNodeIdFromSelection(sel));
-      adoptSubject(parcelNodeIdFromSelection(sel), null, "map-click");
+      adoptSubject(parcelNodeIdFromSelection(sel), null, "map-click", {
+        lat: sel.lat,
+        lng: sel.lng,
+      });
     },
     [inspectInPlace, adoptSubject],
   );
@@ -1499,6 +1505,8 @@ function ExplorerMapSurface({
           : typeof v === "number"
             ? String(v)
             : null;
+      const propsLat = typeof props.lat === "number" ? (props.lat as number) : null;
+      const propsLng = typeof props.lng === "number" ? (props.lng as number) : null;
       const bareCard: ParcelCardData = {
         apn: str(props.apn) ?? str(props.prop_id),
         situsAddress: str(props.situsAddress) ?? str(props.address),
@@ -1509,8 +1517,8 @@ function ExplorerMapSurface({
         provider: null,
         notSurveyGrade: true,
         retrievedAt: null,
-        lat: typeof props.lat === "number" ? (props.lat as number) : null,
-        lng: typeof props.lng === "number" ? (props.lng as number) : null,
+        lat: propsLat,
+        lng: propsLng,
       };
       // PMTiles feature geometry is clipped-per-tile (not a clean full ring), so
       // it's unreliable for the 0% outline / inset fallback — pass NO geometry
@@ -1519,7 +1527,13 @@ function ExplorerMapSurface({
       inspectInPlace(bareCard, parcelNodeId);
       // PMTiles rings are clipped per tile, so they are NOT offered to the
       // resolver as a boundary seed — a clipped ring would measure a lot short.
-      adoptSubject(parcelNodeId, null, "map-click");
+      // The feature's own lat/lng (when numeric) IS offered as a centroid seed.
+      adoptSubject(
+        parcelNodeId,
+        null,
+        "map-click",
+        propsLat != null && propsLng != null ? { lat: propsLat, lng: propsLng } : null,
+      );
     },
     [inspectInPlace, adoptSubject],
   );

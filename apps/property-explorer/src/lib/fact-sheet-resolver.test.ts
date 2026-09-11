@@ -123,6 +123,14 @@ interface StubOpts {
   } | null;
   /** GIS never settles unless the request signal aborts. */
   gisHang?: boolean;
+  /** Hits GET /api/pe-situs-search returns. Defaults to none (P-151). */
+  situsSearchHits?: Array<{
+    parcelNodeId?: string | null;
+    situsAddress?: string;
+    countyFips?: string;
+    latitude?: number | null;
+    longitude?: number | null;
+  }>;
 }
 
 function abortAwareHang(signal: AbortSignal | null | undefined): Promise<Response> {
@@ -156,6 +164,12 @@ function installFetchStub(opts: StubOpts = {}) {
         JSON.stringify({ layer: "parcels", geojson: { type: "FeatureCollection", features: opts.gisFeatures ?? [] } }),
         { status, headers: { "Content-Type": "application/json" } },
       );
+    }
+    if (url.includes("/api/pe-situs-search")) {
+      return new Response(JSON.stringify({ hits: opts.situsSearchHits ?? [] }), {
+        status: 200,
+        headers: { "Content-Type": "application/json" },
+      });
     }
     if (url.includes("/api/pe-geocode")) {
       const hit = opts.geocodeHit === undefined ? SUBJECT_CENTRE : opts.geocodeHit;
@@ -2324,5 +2338,251 @@ describe("maxImperviousCoverPctFact only (acquire-wave12)", () => {
     const stub = installFetchStub({ facets: wire, gisFeatures: [SUBJECT_FEATURE] });
     const sheet = await sheetOf(makeResolver(stub), NODE_ID);
     expect(sheet.maxImperviousCoverPct).toBeUndefined();
+  });
+});
+
+// ---------------------------------------------------------------------------
+// P-151 SEAM (hauska-map half) — 414 Spiller Ln, West Lake Hills (48453:113408)
+// used to fail to place: the record's own cityLimitsFact.queryPoint carried a
+// usable coordinate, but the resolver's only fallback was geocoding the bare
+// street line ("414 SPILLER LN"), which misses because Travis stores city on
+// a separate field. These fixtures are shaped from the mission's own live
+// captures against 48453:113408 / 48453:474034, dated 2026-09-11 — not
+// literally re-fetched.
+// ---------------------------------------------------------------------------
+
+const SPILLER_ID = "48453:113408";
+const SPILLER_CENTRE = { lng: -97.8283, lat: 30.2985 };
+
+function spillerFacetsWire(over: Record<string, unknown> = {}) {
+  const wire = facetsWire({
+    countyFips: "48453",
+    countyName: "Travis",
+    baseFacts: {
+      apn: "R113408",
+      situsAddress: "414 SPILLER LN",
+      situsCity: "WEST LAKE HILLS",
+      situsState: "TX",
+      landUse: { code: "A1", description: "Single-family residential", source: "cad-roll", vintage: "2026" },
+      acreage: { value: 0.5, sqft: 21780, method: "cad-roll" },
+    },
+    // No baked envelope polygon: step 1 (hint/envelope ring) must not seed,
+    // so the test actually exercises the NEW fallback rather than the old one.
+    envelope: { status: "declined", declineReason: "no-setback-table" },
+    ...over,
+  });
+  wire.parcelNodeId = SPILLER_ID;
+  wire.facets.parcelNodeId = SPILLER_ID;
+  return wire;
+}
+
+const SPILLER_FEATURE = {
+  type: "Feature",
+  properties: { parcel_node_id: SPILLER_ID, apn: "R113408" },
+  geometry: { type: "Polygon", coordinates: [square(SPILLER_CENTRE.lng, SPILLER_CENTRE.lat)] },
+};
+
+describe("P-151: record-point seed (cityLimitsFact.queryPoint)", () => {
+  it("Non-vacuity + step 1.5: a record point + a matching GIS ring place the parcel, WITHOUT ever calling situs-search", async () => {
+    const wire = spillerFacetsWire() as unknown as Record<string, unknown>;
+    wire.cityLimitsFact = {
+      status: "incorporated",
+      source: "tx_city_boundary",
+      basis: "point-in-polygon against tx_city_boundary",
+      cityName: "West Lake Hills",
+      etjStatus: "unresolved",
+      queryPoint: { latitude: SPILLER_CENTRE.lat, longitude: SPILLER_CENTRE.lng },
+    };
+    const stub = installFetchStub({ facets: wire, gisFeatures: [SPILLER_FEATURE] });
+    const result = await makeResolver(stub).resolve(SPILLER_ID);
+    expect(result.kind).toBe("sheet");
+    if (result.kind !== "sheet") throw new Error("unreachable");
+    // Non-vacuity (Testing item 4): a REAL, non-null ring was returned, not
+    // just "the code path executed without throwing".
+    expect(result.geometry.rings.length).toBeGreaterThan(0);
+    expect(result.geometry.centroid.lat).toBeCloseTo(SPILLER_CENTRE.lat, 3);
+    expect(result.geometry.centroid.lng).toBeCloseTo(SPILLER_CENTRE.lng, 3);
+    // The record point (step 1.5) pre-empts situs-search (step 1.6) — it only
+    // fires when nothing already seeded.
+    expect(stub.calls.some((u) => u.includes("/api/pe-situs-search"))).toBe(false);
+  });
+
+  it("no queryPoint on the record: falls through past step 1.5 (no seed from it)", async () => {
+    const wire = spillerFacetsWire() as unknown as Record<string, unknown>;
+    // No cityLimitsFact at all, and situs-search / geocode both miss too —
+    // covered fully by the "still degrades to unplaceable" test below; here
+    // we only need the negative half: step 1.5 contributes nothing.
+    const stub = installFetchStub({
+      facets: wire,
+      gisFeatures: [SPILLER_FEATURE],
+      situsSearchHits: [
+        { parcelNodeId: SPILLER_ID, situsAddress: "414 SPILLER LN, WEST LAKE HILLS, TX", countyFips: "48453", latitude: SPILLER_CENTRE.lat, longitude: SPILLER_CENTRE.lng },
+      ],
+    });
+    const result = await makeResolver(stub).resolve(SPILLER_ID);
+    // Still places the parcel — but via situs-search (step 1.6), proven by
+    // the sibling test below asserting the actual network call.
+    expect(result.kind).toBe("sheet");
+  });
+});
+
+describe("P-151: situs-search-by-composed-address (step 1.6)", () => {
+  it("resolves 48453:113408's coordinate via situs-search, accepting ONLY the exact parcelNodeId hit", async () => {
+    const wire = spillerFacetsWire();
+    // No cityLimitsFact: step 1.5 contributes nothing, so this test actually
+    // exercises step 1.6 rather than being pre-empted by it.
+    const stub = installFetchStub({
+      facets: wire,
+      gisFeatures: [SPILLER_FEATURE],
+      situsSearchHits: [
+        // A same-street near-miss on a DIFFERENT parcel — must be rejected.
+        { parcelNodeId: "48453:999999", situsAddress: "412 SPILLER LN, WEST LAKE HILLS, TX", countyFips: "48453", latitude: 30.1, longitude: -97.9 },
+        // The exact parcel — accepted.
+        { parcelNodeId: SPILLER_ID, situsAddress: "414 SPILLER LN, WEST LAKE HILLS, TX", countyFips: "48453", latitude: SPILLER_CENTRE.lat, longitude: SPILLER_CENTRE.lng },
+      ],
+    });
+    const result = await makeResolver(stub).resolve(SPILLER_ID);
+    expect(result.kind).toBe("sheet");
+    if (result.kind !== "sheet") throw new Error("unreachable");
+    // Answers the mission's own question directly: yes, this path resolves a
+    // real coordinate for a fixture shaped like 48453:113408.
+    expect(result.geometry.rings.length).toBeGreaterThan(0);
+    expect(result.geometry.centroid.lat).toBeCloseTo(SPILLER_CENTRE.lat, 3);
+    expect(result.geometry.centroid.lng).toBeCloseTo(SPILLER_CENTRE.lng, 3);
+    // The composed address (situsAddress + city + state) is what was queried,
+    // not the bare street line the old geocode fallback used.
+    const situsCall = stub.calls.find((u) => u.includes("/api/pe-situs-search"));
+    expect(situsCall).toBeTruthy();
+    const parsed = new URL(situsCall as string, "http://localhost");
+    expect(parsed.searchParams.get("q")).toBe("414 SPILLER LN, WEST LAKE HILLS, TX");
+    expect(parsed.searchParams.get("countyFips")).toBe("48453");
+    // The bare-address geocode never ran: situs-search already seeded.
+    expect(stub.calls.some((u) => u.includes("/api/pe-geocode"))).toBe(false);
+  });
+
+  it("a near-miss on the WRONG parcelNodeId is never accepted (falls through, not adopted)", async () => {
+    const wire = spillerFacetsWire();
+    const stub = installFetchStub({
+      facets: wire,
+      // No ring for this parcel at all — if the wrong-id hit were wrongly
+      // accepted as a seed, the ring probe would still legitimately find
+      // nothing here, so the REAL assertion is on the query itself below:
+      // buildable-envelope is reached next, proving situs-search did NOT
+      // short-circuit the fallback chain on the near-miss.
+      gisFeatures: [],
+      situsSearchHits: [
+        { parcelNodeId: "48453:999999", situsAddress: "412 SPILLER LN, WEST LAKE HILLS, TX", countyFips: "48453", latitude: 30.1, longitude: -97.9 },
+      ],
+      buildableEnvelope: {
+        parcelNodeId: SPILLER_ID,
+        placeKey: "coord:30.2985:-97.8283",
+        status: "declined",
+        declineReason: "no-setback-table",
+      },
+    });
+    const result = await makeResolver(stub).resolve(SPILLER_ID);
+    expect(stub.calls.some((u) => u.includes("/api/pe-situs-search"))).toBe(true);
+    expect(stub.calls.some((u) => u.includes("buildable-envelope"))).toBe(true);
+    expect(result.kind).toBe("sheet");
+    if (result.kind !== "sheet") throw new Error("unreachable");
+    // Seeded by the address-derive step's placeKey, not by the rejected hit.
+    expect(result.geometry.centroid).toEqual({ lat: 30.2985, lng: -97.8283 });
+  });
+});
+
+describe("P-151: still degrades honestly when nothing seeds at all", () => {
+  it("no record point, no hint, address fails to geocode/derive/situs-search: stays unplaceable, never throws", async () => {
+    const wire = spillerFacetsWire();
+    const stub = installFetchStub({
+      facets: wire,
+      gisFeatures: [],
+      situsSearchHits: [
+        // Present, but for a different parcel — must not be adopted.
+        { parcelNodeId: "48453:999999", situsAddress: "412 SPILLER LN, WEST LAKE HILLS, TX", countyFips: "48453", latitude: 30.1, longitude: -97.9 },
+      ],
+      buildableEnvelope: null,
+      geocodeHit: null,
+    });
+    const result = await makeResolver(stub).resolve(SPILLER_ID);
+    expect(result.kind).toBe("unplaceable");
+    if (result.kind !== "unplaceable") throw new Error("unreachable");
+    expect(result.identity.parcelNodeId).toBe(SPILLER_ID);
+    expect(result.reason).toContain("cannot be placed on the map");
+  });
+});
+
+describe("P-151: identity guard — a hint never crosses parcels (regression lock)", () => {
+  it("hint(parcelIdA, centroid near B) then resolve(parcelIdB) never adopts A's hint", async () => {
+    const idA = "48021:11111";
+    const stub = installFetchStub({ gisFeatures: [NEIGHBOUR_FEATURE, SUBJECT_FEATURE] });
+    const resolver = makeResolver(stub);
+    // A's hint centroid points at the NEIGHBOUR lot, nowhere near NODE_ID's
+    // own fixture data (SUBJECT_CENTRE) below.
+    resolver.hint(idA, { centroid: NEIGHBOUR_CENTRE });
+    const sheet = await sheetOf(resolver, NODE_ID);
+    expect(sheet.identity.parcelNodeId).toBe(NODE_ID);
+    // NODE_ID resolved from its OWN envelope polygon (SUBJECT_CENTRE), not
+    // from A's hint — it's keyed strictly by parcelNodeId (hint() docs,
+    // fact-sheet-resolver.ts ~line 2308).
+    expect(sheet.geometry.centroid.lat).toBeCloseTo(SUBJECT_CENTRE.lat, 6);
+    expect(sheet.geometry.centroid.lng).toBeCloseTo(SUBJECT_CENTRE.lng, 6);
+  });
+});
+
+describe("P-151: unincorporated is a finding, not a gap (zoningFact)", () => {
+  it("48453:474034-shaped fixture: unincorporated + no-zoning-stamp reads as a finding", async () => {
+    const wire = facetsWire({
+      countyFips: "48453",
+      countyName: "Travis",
+      envelope: { status: "declined", declineReason: "no-zoning-stamp" },
+    }) as unknown as Record<string, unknown>;
+    delete (wire.facets as Record<string, unknown>).zoning;
+    wire.cityLimitsFact = {
+      status: "unincorporated",
+      source: "tx_city_boundary",
+      basis: "point-in-polygon against tx_city_boundary",
+      etjStatus: "unresolved",
+    };
+    const stub = installFetchStub({ facets: wire, gisFeatures: [SUBJECT_FEATURE] });
+    const sheet = await sheetOf(makeResolver(stub), NODE_ID);
+    expect(sheet.zoning.state).toBe("absent-uncovered");
+    if (sheet.zoning.state !== "absent-uncovered") throw new Error("unreachable");
+    expect(sheet.zoning.reason).toBe(
+      "unincorporated Travis County: no municipal zoning applies",
+    );
+  });
+
+  it("incorporated + no-zoning-stamp names the city instead of the generic gap message", async () => {
+    const wire = facetsWire({
+      envelope: { status: "declined", declineReason: "no-zoning-stamp" },
+    }) as unknown as Record<string, unknown>;
+    delete (wire.facets as Record<string, unknown>).zoning;
+    wire.cityLimitsFact = {
+      status: "incorporated",
+      source: "tx_city_boundary",
+      basis: "point-in-polygon against tx_city_boundary",
+      cityName: "West Lake Hills",
+      etjStatus: "unresolved",
+    };
+    const stub = installFetchStub({ facets: wire, gisFeatures: [SUBJECT_FEATURE] });
+    const sheet = await sheetOf(makeResolver(stub), NODE_ID);
+    expect(sheet.zoning.state).toBe("absent-uncovered");
+    if (sheet.zoning.state !== "absent-uncovered") throw new Error("unreachable");
+    expect(sheet.zoning.reason).toBe(
+      "inside West Lake Hills limits; no zoning layer on file for West Lake Hills",
+    );
+  });
+
+  it("declineReason not matching either case is untouched", async () => {
+    const wire = facetsWire({
+      envelope: { status: "declined", declineReason: "no-setback-table" },
+    }) as unknown as Record<string, unknown>;
+    delete (wire.facets as Record<string, unknown>).zoning;
+    wire.cityLimitsFact = { status: "unincorporated", source: "tx_city_boundary" };
+    const stub = installFetchStub({ facets: wire, gisFeatures: [SUBJECT_FEATURE] });
+    const sheet = await sheetOf(makeResolver(stub), NODE_ID);
+    expect(sheet.zoning.state).toBe("absent-uncovered");
+    if (sheet.zoning.state !== "absent-uncovered") throw new Error("unreachable");
+    expect(sheet.zoning.reason).toBe("no zoning stamp reaches this parcel");
   });
 });
