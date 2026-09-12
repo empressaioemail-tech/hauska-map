@@ -49,11 +49,21 @@ export function isParcelNodeIdQuery(raw: string): boolean {
 
 export type ResolvedLookupPoint = { lat: number; lng: number };
 
+/**
+ * P-172 step 6: the geocoder is a labelled last resort, never indistinguishable
+ * from a situs-index hit. `"situs"` covers every resolution the situs index
+ * itself produced (a unique street-key hit, or a match against the current
+ * subject's own situs); `"geocoded"` is set ONLY when the situs search found
+ * nothing and `fetchBuildableEnvelope`'s address rung (which ends in a fuzzy
+ * geocode) supplied the parcel id instead.
+ */
+export type LookupResolvedSource = "parcel-node-id" | "situs" | "geocoded";
+
 export type LookupResult =
   | {
       ok: true;
       parcelNodeId: string;
-      source: LookupKind;
+      source: LookupResolvedSource;
       /** Backend-authoritative point from placeKey or caller bias. */
       resolvedPoint?: ResolvedLookupPoint;
     }
@@ -185,7 +195,7 @@ export async function resolveLookupToParcelNodeId(
     return {
       ok: true,
       parcelNodeId: pin.parcelNodeId,
-      source: "address",
+      source: "situs",
       resolvedPoint,
     };
   }
@@ -199,7 +209,7 @@ export async function resolveLookupToParcelNodeId(
     return {
       ok: true,
       parcelNodeId: subject.parcelNodeId,
-      source: "address",
+      source: "situs",
     };
   }
 
@@ -246,7 +256,7 @@ export async function resolveLookupToParcelNodeId(
       return {
         ok: true,
         parcelNodeId: subject.parcelNodeId,
-        source: "address",
+        source: "situs",
       };
     }
     return {
@@ -262,7 +272,22 @@ export async function resolveLookupToParcelNodeId(
     (envInput.lat != null && envInput.lng != null
       ? { lat: envInput.lat, lng: envInput.lng }
       : undefined);
-  return { ok: true, parcelNodeId, source: "address", resolvedPoint };
+  // P-172 step 6: label the geocoder fallback, but only when it actually
+  // ran. `envInput` carried an explicit lat/lng whenever the situs index
+  // supplied one (an address-point rooftop, or a caller-trusted rooftop
+  // from an earlier situs pick) — the resolver's own documented preference
+  // order honors an explicit point VERBATIM, no geocode (txgioAddressResolve
+  // RESOLUTION PREFERENCE (i)), so that case is still situs-class, not a
+  // fuzzy geocode. Only the bare address-only ladder (no point at all,
+  // because the situs search and the current-subject check both missed)
+  // ends in Nominatim -- that is the one case this labels "geocoded".
+  const usedExplicitPoint = envInput.lat != null && envInput.lng != null;
+  return {
+    ok: true,
+    parcelNodeId,
+    source: usedExplicitPoint ? "situs" : "geocoded",
+    resolvedPoint,
+  };
 }
 
 async function fetchUniqueSitusPin(

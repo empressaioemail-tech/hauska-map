@@ -48,6 +48,9 @@ import { PE, MOTION } from "../styles/pe-chrome";
 export interface SearchBarProps {
   busy?: boolean;
   error?: string | null;
+  /** P-172: set when the last Find resolved through the geocoder fallback
+   *  rather than the situs index — labelled, not silent (R-6/step 6). */
+  advisory?: string | null;
   /** A suggestion was chosen (keyboard Enter or click). */
   onSelect: (suggestion: Suggestion) => void;
   /** Enter with no highlighted row — today's raw submit (id or address). */
@@ -143,6 +146,13 @@ const input: CSSProperties = {
 const errStyle: CSSProperties = {
   font: `11.5px/1.35 ${FONT}`,
   color: PE.warn,
+  padding: "0 4px",
+};
+
+/** P-172: labelled-fallback notice, not an error — a lighter tone than errStyle. */
+const advisoryStyle: CSSProperties = {
+  font: `11.5px/1.35 ${FONT}`,
+  color: PE.t6,
   padding: "0 4px",
 };
 
@@ -418,6 +428,7 @@ export function SuggestDropdown({
 export function SearchBar({
   busy = false,
   error = null,
+  advisory = null,
   onSelect,
   onSubmitRaw,
   getBias,
@@ -597,6 +608,11 @@ export function SearchBar({
       {error && (
         <div data-testid="parcel-lookup-error" style={errStyle}>
           {error}
+        </div>
+      )}
+      {!error && advisory && (
+        <div data-testid="parcel-lookup-advisory" style={advisoryStyle}>
+          {advisory}
         </div>
       )}
     </div>

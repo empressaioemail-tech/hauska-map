@@ -170,7 +170,7 @@ describe("resolveLookupToParcelNodeId", () => {
     expect(result).toEqual({
       ok: true,
       parcelNodeId: "48021:27479",
-      source: "address",
+      source: "situs",
     });
     expect(fetchImpl).toHaveBeenCalled();
   });
@@ -252,7 +252,10 @@ describe("resolveLookupToParcelNodeId", () => {
     expect(result).toEqual({
       ok: true,
       parcelNodeId: "48453:280239",
-      source: "address",
+      // A situs address-point rooftop, not a fuzzy geocode: the envelope
+      // call was given the rooftop's explicit lat/lng, which its own
+      // resolution order honors verbatim ahead of any geocode.
+      source: "situs",
       resolvedPoint: { lat: 30.459005, lng: -97.635421 },
     });
   });
@@ -354,7 +357,7 @@ describe("resolveLookupToParcelNodeId", () => {
     expect(result).toEqual({
       ok: true,
       parcelNodeId: "48021:34137",
-      source: "address",
+      source: "situs",
     });
   });
 
@@ -408,7 +411,9 @@ describe("resolveLookupToParcelNodeId", () => {
     expect(result).toEqual({
       ok: true,
       parcelNodeId: "48021:36521",
-      source: "address",
+      // Bare address-only ladder (no situs hit, no trusted point) -- the
+      // one case that is actually geocoder-class.
+      source: "geocoded",
     });
   });
 
@@ -470,7 +475,7 @@ describe("resolveLookupToParcelNodeId", () => {
     expect(result).toEqual({
       ok: true,
       parcelNodeId: "48021:34097",
-      source: "address",
+      source: "situs",
     });
     expect(JSON.stringify(result)).not.toMatch(/Error fetch property search/);
   });
