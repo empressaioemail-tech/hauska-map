@@ -36,6 +36,7 @@ import {
   type PropertyAtomChain,
   shouldSkipColdDerive,
 } from "./atom-chain-to-facets.js";
+import { composeRecordPatch, type ParcelRecordResponse } from "./pe-record-to-facets.js";
 import {
   jurisdictionRequiresPerParcelSetbackRecord,
   type CodifiedSetbackScalars,
@@ -74,7 +75,8 @@ export type PeReadPathHeader =
   | "atom-chain-warm"
   | "atom-pending"
   | "cortex"
-  | "cortex-fallback";
+  | "cortex-fallback"
+  | "record";
 
 function retrievalConfig(): { baseUrl: string; key: string | undefined } {
   const baseUrl = (
@@ -429,6 +431,94 @@ export async function fetchAtomChainWithAlias(
   return primary;
 }
 
+/**
+ * P152-PANEL (OPS-23 P-152 lane 2 of 2): `GET /property-nodes/:id/record` on
+ * the SAME retrieval service, same Bearer key, as `fetchAtomChainOnce`
+ * above — the one reader lane 1 built (hauska-engine PR #417/418/419).
+ * Best-effort, single attempt: a failed fetch here means the BFF simply
+ * does not apply the record-composed override for this response (the
+ * existing atom-chain/cortex path already produced an honest answer), never
+ * a crash and never a fabricated absence.
+ */
+export async function fetchParcelRecordOnce(
+  parcelNodeId: string,
+): Promise<{ ok: true; record: ParcelRecordResponse } | { ok: false; reason: string }> {
+  const { baseUrl, key } = retrievalConfig();
+  if (!key) {
+    return { ok: false, reason: "missing HAUSKA_RETRIEVAL_API_KEY|RETRIEVAL_API_KEY" };
+  }
+  const url = `${baseUrl}/property-nodes/${encodeURIComponent(parcelNodeId)}/record`;
+  let upstream: Response;
+  try {
+    upstream = await fetch(url, {
+      method: "GET",
+      headers: { Authorization: `Bearer ${key}`, Accept: "application/json" },
+      signal: AbortSignal.timeout(upstreamFetchTimeoutMs()),
+    });
+  } catch (err) {
+    if (err instanceof Error && err.name === "TimeoutError") {
+      return { ok: false, reason: `record aborted after ${upstreamFetchTimeoutMs()}ms upstream timeout` };
+    }
+    return { ok: false, reason: err instanceof Error ? err.message : String(err) };
+  }
+  if (!upstream.ok) {
+    return { ok: false, reason: `record HTTP ${upstream.status}` };
+  }
+  let body: unknown;
+  try {
+    body = await upstream.json();
+  } catch {
+    return { ok: false, reason: "record invalid JSON" };
+  }
+  return { ok: true, record: body as ParcelRecordResponse };
+}
+
+/**
+ * Fetch `/record` and, on success, apply its composed patch on top of
+ * `payload` (record wins over whatever the atom-chain/cortex path already
+ * produced for the SAME field — every other field is untouched). Sets
+ * `readPath: "record"` whenever the fetch succeeds, per the P152-PANEL
+ * dispatch and its falsifier, regardless of whether any individual field
+ * changed value (the reader was genuinely consulted for this response).
+ */
+export async function applyRecordPatch(
+  payload: PeBakedFacetsResponse,
+  parcelNodeId: string,
+): Promise<PeBakedFacetsResponse> {
+  const result = await fetchParcelRecordOnce(parcelNodeId);
+  if (!result.ok) return payload;
+  const { patch, railStates } = composeRecordPatch(result.record);
+  const facets = payload.facets;
+  const baseFacts = facets.baseFacts ?? {};
+  return {
+    ...payload,
+    readPath: "record",
+    recordRailStates: railStates,
+    ...(patch.cityLimitsFact ? { cityLimitsFact: patch.cityLimitsFact } : {}),
+    ...(patch.floodHazardFact ? { floodHazardFact: patch.floodHazardFact } : {}),
+    ...(patch.specialDistrictFact ? { specialDistrictFact: patch.specialDistrictFact } : {}),
+    ...(patch.wellFact ? { wellFact: patch.wellFact } : {}),
+    ...(patch.schoolDistrictFact ? { schoolDistrictFact: patch.schoolDistrictFact } : {}),
+    ...(patch.utilityServiceFact ? { utilityServiceFact: patch.utilityServiceFact } : {}),
+    ...(patch.overlayDistrictsFact ? { overlayDistrictsFact: patch.overlayDistrictsFact } : {}),
+    ...(patch.agValuationFact ? { agValuationFact: patch.agValuationFact } : {}),
+    ...(patch.maxImperviousCoverPctFact ? { maxImperviousCoverPctFact: patch.maxImperviousCoverPctFact } : {}),
+    facets: {
+      ...facets,
+      baseFacts: patch.baseFactsAcreage
+        ? { ...baseFacts, acreage: patch.baseFactsAcreage }
+        : baseFacts,
+      livingAreaSqft: patch.livingAreaSqft ?? facets.livingAreaSqft,
+      yearBuilt: patch.yearBuilt ?? facets.yearBuilt,
+      yearBuiltSource: patch.yearBuiltSource ?? facets.yearBuiltSource,
+      facetCoverage: {
+        ...facets.facetCoverage,
+        acreage: patch.baseFactsAcreage ? true : facets.facetCoverage?.acreage,
+      },
+    },
+  };
+}
+
 /** Strip cortex envelope / tier2.envelope so zombie multiply cannot be product truth. */
 export function stripCortexEnvelopeProductTruth(body: unknown): unknown {
   if (!body || typeof body !== "object") return body;
@@ -631,8 +721,18 @@ export async function handlePropertyAtomsFacets(
       }
       payload = attachBuildablePctFromKnownLotArea(payload);
       payload = echoRequestedParcelNodeId(payload, parcelNodeId);
+      // P152-PANEL (OPS-23 P-152 lane 2 of 2): the one reader wins over
+      // atom-chain/cortex for every rail it slates as `record` — applied
+      // last so it overrides whatever the merge above already produced for
+      // the SAME field. A failed /record fetch is a no-op (payload
+      // unchanged); it never blocks or degrades this response.
+      payload = await applyRecordPatch(payload, parcelNodeId);
       const readHeader: PeReadPathHeader =
-        adapted.readPath === "atom-chain-warm" ? "atom-chain-warm" : "atom-chain";
+        payload.readPath === "record"
+          ? "record"
+          : adapted.readPath === "atom-chain-warm"
+            ? "atom-chain-warm"
+            : "atom-chain";
       res.setHeader("X-PE-Read-Path", readHeader);
       if (shouldSkipColdDerive(atom.chain)) {
         res.setHeader("X-PE-Cold-Derive", "skipped");

@@ -210,13 +210,32 @@ export interface PropertyAtomChain {
 export type CadRollValueWire =
   | { state: "present"; v: number; source?: string; vintage?: string | null; valueBasis?: string }
   | { state: "zero"; v: 0; source?: string; vintage?: string | null; valueBasis?: string; basis?: string }
-  | { state: "absent"; source?: string; vintage?: string | null; basis?: string };
+  | { state: "absent"; source?: string; vintage?: string | null; basis?: string }
+  /**
+   * P152-PANEL fix: cortex gates the four dollar rails to Studio/Team/
+   * Property-Unlock and emits exactly this shape per field
+   * (legacy-design-tools `cadRollValue.ts` `studioGatedCadRollValuationRefusal`)
+   * for anyone else. This wire previously had no "refused" member, so
+   * `isCadRollValueWire` rejected it and `cadRollField` (below) silently
+   * collapsed it to `null` — indistinguishable on the wire from "no CAD
+   * roll data exists" and from the county's own absence. The client
+   * (`fact-sheet-resolver.ts` `cadRollFieldState`/`taxValuationFromCadRoll`)
+   * already has a `kind: "refused"` branch that renders the correct
+   * upgrade cue; it was simply unreachable through this BFF. Never
+   * collapsed to null again — see the P152-PANEL close falsifier
+   * ("an anonymous read never carries a cadRoll dollar... a Studio read
+   * carries exactly what it carried before").
+   */
+  | { state: "refused"; code: "studio-gated"; reason?: string };
 
 function isCadRollValueWire(v: unknown): v is CadRollValueWire {
   if (v === null || typeof v !== "object" || Array.isArray(v)) return false;
   const r = v as Record<string, unknown>;
   if (r.state === "present" || r.state === "zero") {
     return typeof r.v === "number" && Number.isFinite(r.v);
+  }
+  if (r.state === "refused") {
+    return r.code === "studio-gated";
   }
   return r.state === "absent";
 }
@@ -685,9 +704,24 @@ export interface PeBakedFacetsResponse {
   source: "atom-chain";
   snapshotAt: string | null;
   facets: PeBakedFacetPayload;
-  readPath: "atom-chain" | "atom-chain-warm";
+  /**
+   * "record" (P-152 PANEL, lane 2 of 2): at least one rail on this response
+   * was composed directly from the Hauska retrieval service's
+   * `GET /property-nodes/:id/record` rather than from the cortex facets
+   * merge. Set whenever that fetch succeeds, regardless of whether any
+   * individual field actually changed value (the reader was genuinely
+   * consulted) — see the P152-PANEL close falsifier.
+   */
+  readPath: "atom-chain" | "atom-chain-warm" | "record";
   /** True when baked cortex base facts were merged onto the atom-chain read. */
   baseFactsMerged?: boolean;
+  /**
+   * Per-rail `{serve, atomBacked}` for every rail this lane's BFF looked at
+   * on the retrieval `/record` response (P152-PANEL). Additive — the wire
+   * shape the sheet resolver already reads is unchanged; P-167's vocabulary
+   * module will supply the display words once it lands (dispatch item 1).
+   */
+  recordRailStates?: Record<string, { serve: "record" | "refused" | "legacy-transitional"; atomBacked: boolean }>;
   /**
    * Flood determination from flood-hazard-fact atoms. Copied from the cortex
    * JSON ROOT only. Never populated from tier2.flood.
