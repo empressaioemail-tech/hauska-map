@@ -34,7 +34,7 @@ import {
   type Setbacks,
 } from "@empressaio/parcel-fact-sheet";
 import { presentValuationBasis, readValuationBasis } from "./valuation-basis";
-import { mapBuildableDisplay } from "./buildable-display-vocab";
+import { mapBuildableDisplay } from "@empressaio/atom-contract/display";
 import {
   FLOOD_HAZARD_FACT_MISSING_REASON,
   PIPELINE_FACT_MISSING_REASON,
