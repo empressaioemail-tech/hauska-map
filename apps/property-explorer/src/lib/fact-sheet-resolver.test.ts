@@ -273,7 +273,7 @@ async function sheetOf(
 
 function makeResolver(
   stub: { impl: typeof fetch },
-  over: { hopTimeoutMs?: number } = {},
+  over: { hopTimeoutMs?: number; atomChainSettleBackoffMs?: number[] } = {},
 ) {
   return new PeFactSheetResolver({
     facetsBase: FACETS_BASE,
@@ -281,6 +281,7 @@ function makeResolver(
     fetchImpl: stub.impl,
     now: () => new Date("2026-08-18T12:00:00.000Z"),
     hopTimeoutMs: over.hopTimeoutMs,
+    atomChainSettleBackoffMs: over.atomChainSettleBackoffMs,
   });
 }
 
@@ -2698,5 +2699,188 @@ describe("P-151: unincorporated is a finding, not a gap (zoningFact)", () => {
     expect(sheet.zoning.state).toBe("absent-uncovered");
     if (sheet.zoning.state !== "absent-uncovered") throw new Error("unreachable");
     expect(sheet.zoning.reason).toBe("no zoning stamp reaches this parcel");
+  });
+});
+
+// ---------------------------------------------------------------------------
+// P-174 (F20, operator 2026-09-12): "the setbacks don't show up [after a
+// search landing] and I have to click another property then come back and
+// click my subject in order for the setbacks to show." Two placement paths
+// producing two sealed sheets for the same parcel is the defect class OPS-23
+// hunts; this section pins the mechanism this lane found and the fix.
+// ---------------------------------------------------------------------------
+
+/**
+ * A fetch stub whose `/facets` responses are a SCRIPTED QUEUE — one entry per
+ * HTTP call, holding the last entry for any call past the queue's length.
+ * Models the atom chain settling across successive requests without pretending
+ * to be a general-purpose server: gis-layer is the only other route this
+ * lane's fixtures need (recordPoint seeds placement, so no situs-search /
+ * buildable-envelope / geocode hop ever fires).
+ */
+function installSequencedFacetsStub(
+  facetsBodies: unknown[],
+  opts: { gisFeatures?: unknown[] } = {},
+) {
+  const calls: string[] = [];
+  let facetsCalls = 0;
+  const impl = vi.fn(async (input: RequestInfo | URL) => {
+    const url = String(input);
+    calls.push(url);
+    if (url.includes("/facets")) {
+      const idx = Math.min(facetsCalls, facetsBodies.length - 1);
+      facetsCalls += 1;
+      return new Response(JSON.stringify(facetsBodies[idx]), {
+        status: 200,
+        headers: { "Content-Type": "application/json" },
+      });
+    }
+    if (url.includes("gis-layer")) {
+      return new Response(
+        JSON.stringify({
+          layer: "parcels",
+          geojson: { type: "FeatureCollection", features: opts.gisFeatures ?? [] },
+        }),
+        { status: 200, headers: { "Content-Type": "application/json" } },
+      );
+    }
+    throw new Error(`unexpected fetch in P-174 sequenced stub: ${url}`);
+  });
+  vi.stubGlobal("fetch", impl);
+  return {
+    impl: impl as unknown as typeof fetch,
+    calls,
+    facetsCallCount: () => facetsCalls,
+  };
+}
+
+/**
+ * A raw facets wire whose zoning/setback atom chain has not resolved yet —
+ * the Gate C bounce (`envelope.status: "declined"`, `declineReason:
+ * "atom_path_pending"`, no setback scalars). Carries `cityLimitsFact.
+ * queryPoint` so placement seeds from the record (P-151) with no situs-search
+ * / live-derive / geocode hop, isolating the assertions to setbacks/zoning.
+ */
+function pendingAtomChainWire(): Record<string, unknown> {
+  const wire = facetsWire({
+    envelope: { status: "declined", declineReason: "atom_path_pending" },
+  }) as unknown as Record<string, unknown>;
+  delete (wire.facets as Record<string, unknown>).zoning;
+  wire.cityLimitsFact = {
+    queryPoint: { latitude: SUBJECT_CENTRE.lat, longitude: SUBJECT_CENTRE.lng },
+  };
+  return wire;
+}
+
+/** Same fixture, atom chain settled: real setbacks and a zoning stamp. */
+function settledAtomChainWire(): Record<string, unknown> {
+  const wire = facetsWire() as unknown as Record<string, unknown>;
+  wire.cityLimitsFact = {
+    queryPoint: { latitude: SUBJECT_CENTRE.lat, longitude: SUBJECT_CENTRE.lng },
+  };
+  return wire;
+}
+
+describe("P-174 — a sheet sealed with a pending atom chain is never cached as complete", () => {
+  it("settles within the resolver's own retry budget when the chain catches up quickly", async () => {
+    // First facets read: Gate C bounce. Second (inside fetchFacetsWithSettle's
+    // own backoff, well within the card's "Reading this parcel…" state):
+    // the chain has resolved. ONE resolve() call must come back with real
+    // setbacks — no second click, no second resolve() needed.
+    const stub = installSequencedFacetsStub(
+      [pendingAtomChainWire(), settledAtomChainWire()],
+      { gisFeatures: [SUBJECT_FEATURE] },
+    );
+    const resolver = makeResolver(stub, { atomChainSettleBackoffMs: [5, 5] });
+    const sheet = await sheetOf(resolver, NODE_ID);
+    expect(sheet.setbacks.state).toBe("present");
+    expect(stub.facetsCallCount()).toBe(2);
+  });
+
+  it("THE FALSIFIER — a sheet still pending after the retry budget is not cached as this parcel's final answer; the next resolve (from any entry point) re-fetches and gets the real setbacks once the chain has settled", async () => {
+    // Every facets read up front is pending — the chain has not settled
+    // within this resolve()'s own budget, so it seals honestly as
+    // unresolved/retryable (Gate C doctrine). Before this fix that seal was
+    // cached in `byParcel` forever: a search-landed subject stuck with no
+    // setbacks stayed stuck even after clicking away and back — clicking
+    // "another property then come back and click my subject" is exactly a
+    // SECOND resolve() call for the SAME parcelNodeId, and a resolver whose
+    // cache "outlives its inputs" would hand back the identical stale
+    // promise. This is the row's own falsifier: if a later resolve for the
+    // same id still shows no setbacks once the chain has settled, the row is
+    // not done.
+    const stub = installSequencedFacetsStub(
+      [pendingAtomChainWire(), pendingAtomChainWire(), pendingAtomChainWire()],
+      { gisFeatures: [SUBJECT_FEATURE] },
+    );
+    const resolver = makeResolver(stub, { atomChainSettleBackoffMs: [5, 5] });
+
+    // Attempt 1 — the search-landed subject's own resolve(). Still pending
+    // after the in-band retry budget: an honest, retryable "not yet".
+    const first = await sheetOf(resolver, NODE_ID);
+    expect(first.setbacks.state).toBe("unresolved");
+    if (first.setbacks.state !== "unresolved") throw new Error("unreachable");
+    expect(first.setbacks.retryable).toBe(true);
+
+    // The chain has now settled server-side (the operator clicked elsewhere
+    // and came back — real wall-clock time passed; nothing about THIS
+    // resolver call is what settles it). `fetchBakedNodeFacets` always calls
+    // the GLOBAL `fetch` (never the resolver's own injected `fetchImpl`,
+    // which only carries the GIS/hop calls below — see baked-facets.ts),
+    // so re-stubbing it here — on the SAME long-lived resolver instance, the
+    // app's one factSheetResolver — is the honest analogue of time passing
+    // server-side between the search landing and the operator's return
+    // click. The GIS ring probe below still answers correctly: it goes
+    // through the FIRST stub's own captured `fetchImpl`, which implements
+    // gis-layer itself and does not depend on which stub is globally active.
+    installSequencedFacetsStub([settledAtomChainWire()], {
+      gisFeatures: [SUBJECT_FEATURE],
+    });
+
+    const second = await resolver.resolve(NODE_ID);
+    if (second.kind !== "sheet") throw new Error(`expected a sheet, got ${second.kind}`);
+    expect(second.setbacks.state).toBe("present");
+  });
+
+  it("a resolved-and-complete sheet is still cached once (I1 preserved)", async () => {
+    const stub = installSequencedFacetsStub([settledAtomChainWire()], {
+      gisFeatures: [SUBJECT_FEATURE],
+    });
+    const resolver = makeResolver(stub, { atomChainSettleBackoffMs: [5, 5] });
+    const a = await resolver.resolve(NODE_ID);
+    const b = await resolver.resolve(NODE_ID);
+    expect(a).toBe(b);
+    expect(stub.facetsCallCount()).toBe(1);
+  });
+});
+
+describe("P-174 — one sealing path: a search-landing hint and a click hint seal the same setbacks and envelope variant", () => {
+  it("a weak search-landing hint (address only, no geometry) and a rich click hint (ring + centroid) resolve to identical setbacks and envelope variant for the same fixture", async () => {
+    const wire = settledAtomChainWire();
+
+    const searchStub = installFetchStub({ facets: wire, gisFeatures: [SUBJECT_FEATURE] });
+    const searchResolver = makeResolver(searchStub);
+    // Mirrors runParcelLookup's hint (ExplorerMap.tsx:1057-1064): a resolved
+    // point when the situs index carried one, navigationAddress always —
+    // never geometry, since the searched result has not been clicked on the
+    // live map.
+    searchResolver.hint(NODE_ID, {
+      centroid: SUBJECT_CENTRE,
+      navigationAddress: "1109 PECAN ST",
+    });
+    const searchLanded = await sheetOf(searchResolver, NODE_ID);
+
+    const clickStub = installFetchStub({ facets: wire, gisFeatures: [SUBJECT_FEATURE] });
+    const clickResolver = makeResolver(clickStub);
+    // Mirrors adoptSubject's hint (ExplorerMap.tsx:965): the click's own ring
+    // and centroid from the live-GIS feature.
+    clickResolver.hint(NODE_ID, {
+      geometry: SUBJECT_FEATURE.geometry,
+      centroid: SUBJECT_CENTRE,
+    });
+    const clicked = await sheetOf(clickResolver, NODE_ID);
+
+    expect(searchLanded.setbacks).toEqual(clicked.setbacks);
+    expect(searchLanded.envelope.kind).toBe(clicked.envelope.kind);
   });
 });
