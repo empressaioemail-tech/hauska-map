@@ -392,6 +392,10 @@ function ExplorerMapSurface({
   const [cardNodeId, setCardNodeId] = useState<string | null>(null);
   const [lookupBusy, setLookupBusy] = useState(false);
   const [lookupError, setLookupError] = useState<string | null>(null);
+  // P-172 step 6: set only when the last successful Find resolved through
+  // the geocoder fallback rather than the situs index -- labelled, not a
+  // silent substitute for the record.
+  const [lookupAdvisory, setLookupAdvisory] = useState<string | null>(null);
   // AMENDMENT 1: a parcel we hold the record for but cannot place. NOT an error
   // and NOT a subject — its own designed state, rendered where the inspect card
   // would be. It never silently becomes a sheet.
@@ -1017,6 +1021,7 @@ function ExplorerMapSurface({
       const started = lookupIntentRef.current.bump();
       setLookupBusy(true);
       setLookupError(null);
+      setLookupAdvisory(null);
       try {
         // 1. Query -> parcel node id. That is the ONLY thing the lookup path
         //    is authoritative for; it no longer reads a single parcel fact.
@@ -1039,6 +1044,14 @@ function ExplorerMapSurface({
         if (!found.ok) {
           if (!opts?.quiet) setLookupError(found.reason);
           return false;
+        }
+        if (!opts?.quiet && found.source === "geocoded") {
+          // P-172 step 6: the situs index had no row for this query; the
+          // parcel id came from the geocoder fallback instead. Label it
+          // rather than let it look like an ordinary record match.
+          setLookupAdvisory(
+            "Matched by approximate address search — no property record found for this address.",
+          );
         }
         if (found.resolvedPoint) {
           factSheetResolver.hint(found.parcelNodeId, {
@@ -2203,6 +2216,7 @@ function ExplorerMapSurface({
       <SearchBar
         busy={lookupBusy}
         error={lookupError}
+        advisory={lookupAdvisory}
         subjectDisplay={subjectDisplay}
         onSelect={handleSearchSelect}
         onSubmitRaw={(q) => void runParcelLookup(q)}
