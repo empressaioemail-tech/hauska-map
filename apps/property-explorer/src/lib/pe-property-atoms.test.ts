@@ -1000,6 +1000,25 @@ describe("handlePropertyAtomsFacets dual-grammar echo (WDLL 5)", () => {
           facets: { baseFacts: {} },
         });
       }
+      // P152-RAILS: this parcel is not in the reader's landing population --
+      // a real, successful /record call with an empty rail set (readPath
+      // still becomes "record", but composeRecordPatch produces no
+      // overrides, so this test's cortex-sourced floodHazardFact/landUseFact
+      // survive untouched). A THROWN /record fetch is now a declared outage
+      // (item 3) that overwrites those same fields with a typed refusal --
+      // not what this fixture is testing, so it is mocked as a genuine
+      // (empty) success instead of left to fall through to the catch-all.
+      if (url.includes("/record") && (url.includes(encodeURIComponent(PADDED)) || url.includes(encodeURIComponent(INTEGER)))) {
+        return jsonResponse({
+          parcelNodeId: url.includes(encodeURIComponent(PADDED)) ? PADDED : INTEGER,
+          placeKey: null,
+          countyFips: "48021",
+          railRegistrySha: "test-sha",
+          readAt: "2026-09-12T00:00:00.000Z",
+          rails: {},
+          refused: null,
+        });
+      }
       throw new Error(`unexpected fetch ${url}`);
     });
 
