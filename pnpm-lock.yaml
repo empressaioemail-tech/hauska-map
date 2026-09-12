@@ -113,6 +113,9 @@ importers:
 
   apps/property-explorer:
     dependencies:
+      '@empressaio/atom-contract':
+        specifier: ^1.33.1
+        version: 1.33.1
       '@empressaio/cortex-client':
         specifier: ^0.1.2
         version: 0.1.2
@@ -391,6 +394,10 @@ packages:
   '@edge-runtime/vm@3.2.0':
     resolution: {integrity: sha512-0dEVyRLM/lG4gp1R/Ik5bfPl/1wX00xFwd5KcNH602tzBa09oF7pbTKETEhR1GjZ75K6OJnYFu8II2dyMhONMw==}
     engines: {node: '>=16'}
+
+  '@empressaio/atom-contract@1.33.1':
+    resolution: {integrity: sha512-vSbxmTSBObrMaTYifp1FVRYGyKcEJB8+BOnpNrc73meaJ5t4gYFWzr4xye0wo0035vv2l6f97FQTAg5RJp+sRA==}
+    engines: {node: '>=18.18.0'}
 
   '@empressaio/cortex-client@0.1.2':
     resolution: {integrity: sha512-nYz+7z60kuzpRO1ube/QDkVrmxFyZEZSvm3Ra+x8MVTLMwP2E0diXLrrCBcC6KHZ43NBXbYylyt9Gps+s8FDKg==}
@@ -2723,6 +2730,41 @@ snapshots:
   '@edge-runtime/vm@3.2.0':
     dependencies:
       '@edge-runtime/primitives': 4.1.0
+
+  '@empressaio/atom-contract@1.33.1':
+    dependencies:
+      drizzle-orm: 0.45.2
+      zod: 3.25.76
+    transitivePeerDependencies:
+      - '@aws-sdk/client-rds-data'
+      - '@cloudflare/workers-types'
+      - '@electric-sql/pglite'
+      - '@libsql/client'
+      - '@libsql/client-wasm'
+      - '@neondatabase/serverless'
+      - '@op-engineering/op-sqlite'
+      - '@opentelemetry/api'
+      - '@planetscale/database'
+      - '@prisma/client'
+      - '@tidbcloud/serverless'
+      - '@types/better-sqlite3'
+      - '@types/pg'
+      - '@types/sql.js'
+      - '@upstash/redis'
+      - '@vercel/postgres'
+      - '@xata.io/client'
+      - better-sqlite3
+      - bun-types
+      - expo-sqlite
+      - gel
+      - knex
+      - kysely
+      - mysql2
+      - pg
+      - postgres
+      - prisma
+      - sql.js
+      - sqlite3
 
   '@empressaio/cortex-client@0.1.2': {}
 

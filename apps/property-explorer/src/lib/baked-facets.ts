@@ -26,7 +26,7 @@
 // (P-54), never a CAD-roll / GIS owner parked on the bake.
 
 import { formatSetbackDisplay } from "../../api/_lib/setback-not-specified";
-import { mapBuildableDisplay } from "./buildable-display-vocab";
+import { mapBuildableDisplay } from "@empressaio/atom-contract/display";
 import { isUsableSitusAddress } from "./fact-sheet-resolver";
 import type {
   EnvelopeProvenanceRefs,
