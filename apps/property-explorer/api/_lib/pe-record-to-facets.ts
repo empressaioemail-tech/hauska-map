@@ -42,6 +42,27 @@ import type {
   WellFactWire,
 } from "./atom-chain-to-facets.js";
 
+/**
+ * Fact-family `source` constants, vendored verbatim from legacy-design-tools'
+ * own `<rail>FactRead.ts` modules (cross-repo reference only). Cortex's
+ * existing parcel_record-fed adapters already stamp these exact strings on
+ * `source` today (e.g. `floodHazardFactFromParcelRecord.ts` uses
+ * `FLOOD_HAZARD_FACT_SOURCE`, not a generic `"parcel_record"` label) — this
+ * lane's own composers must match, or the falsifier's "value, source, or
+ * vintage" parity check fails on `source` alone even though every other
+ * field agrees byte-for-byte (caught live: the first deploy used a generic
+ * `"parcel_record"` string here and diffed non-identical against production
+ * on four of the five probe parcels before this fix).
+ */
+const FLOOD_HAZARD_FACT_SOURCE = "flood-hazard-fact";
+const SPECIAL_DISTRICT_FACT_SOURCE = "special-district-fact";
+const WELL_FACT_SOURCE = "well-fact";
+const SCHOOL_DISTRICT_FACT_SOURCE = "school-district-fact";
+const UTILITY_SERVICE_FACT_SOURCE = "utility-service-fact";
+const OVERLAY_DISTRICTS_FACT_SOURCE = "overlay-districts-fact";
+const AG_VALUATION_FACT_SOURCE = "ag-valuation-fact";
+const MAX_IMPERVIOUS_COVER_PCT_FACT_SOURCE = "max-impervious-cover-pct-fact";
+
 /** Mirrors hauska-engine services/retrieval-api's ParcelRecordRailResponse (P-152 lane 1). */
 export interface RecordRail {
   cell: Record<string, unknown> | null;
@@ -201,12 +222,12 @@ function composeFlood(placeKey: string, rail: RecordRail): FloodHazardFactWire |
     // of its sibling *FactWire types) — the classification lives in `code`;
     // the human-readable detail is dropped rather than smuggled onto an
     // undeclared field.
-    return { state: "refused", code: REFUSAL_CODE_MAP[cell.code], source: "parcel_record" };
+    return { state: "refused", code: REFUSAL_CODE_MAP[cell.code], source: FLOOD_HAZARD_FACT_SOURCE };
   }
   if (cell.state === "absent") {
     return {
       state: "absent",
-      source: "parcel_record",
+      source: FLOOD_HAZARD_FACT_SOURCE,
       absence: { kind: cell.verdict, reason: reasonFromBasis(cell.basis) },
       sourceVintage: vintageFromBasis(cell.basis) ?? undefined,
     };
@@ -215,7 +236,7 @@ function composeFlood(placeKey: string, rail: RecordRail): FloodHazardFactWire |
   const floodZone = asNullableString(raw.floodZone);
   return {
     state: "present",
-    source: "parcel_record",
+    source: FLOOD_HAZARD_FACT_SOURCE,
     floodZone: floodZone ?? undefined,
     inSpecialFloodHazardArea: isSfhaZone(floodZone),
     sourceVintage: cell.vintage || undefined,
@@ -230,12 +251,12 @@ function composeSpecialDistricts(placeKey: string, rail: RecordRail): SpecialDis
   if (cell.state === "refused") {
     // SpecialDistrictFactWire, like FloodHazardFactWire, declares no
     // top-level `reason` field — `code` alone carries the classification.
-    return { state: "refused", code: REFUSAL_CODE_MAP[cell.code], source: "parcel_record" };
+    return { state: "refused", code: REFUSAL_CODE_MAP[cell.code], source: SPECIAL_DISTRICT_FACT_SOURCE };
   }
   if (cell.state === "absent") {
     return {
       state: "absent",
-      source: "parcel_record",
+      source: SPECIAL_DISTRICT_FACT_SOURCE,
       absence: { kind: cell.verdict, reason: reasonFromBasis(cell.basis) },
       sourceVintage: vintageFromBasis(cell.basis) ?? undefined,
     };
@@ -254,7 +275,7 @@ function composeSpecialDistricts(placeKey: string, rail: RecordRail): SpecialDis
   const lead = [...pool].sort((a, b) => a.districtId.localeCompare(b.districtId))[0]!;
   return {
     state: "present",
-    source: "parcel_record",
+    source: SPECIAL_DISTRICT_FACT_SOURCE,
     districtId: lead.districtId,
     districtType: lead.districtType ?? undefined,
     districtName: lead.districtName ?? undefined,
@@ -267,12 +288,12 @@ function composeWells(placeKey: string, rail: RecordRail): WellFactWire | undefi
     ? interpretRecordCell(placeKey, "wells", rail.cell, toCompanionRows(rail))
     : noSuchCellRefusal(placeKey, "wells");
   if (cell.state === "refused") {
-    return { state: "refused", code: REFUSAL_CODE_MAP[cell.code], source: "parcel_record", reason: cell.reason };
+    return { state: "refused", code: REFUSAL_CODE_MAP[cell.code], source: WELL_FACT_SOURCE, reason: cell.reason };
   }
   if (cell.state === "absent") {
     return {
       state: "absent",
-      source: "parcel_record",
+      source: WELL_FACT_SOURCE,
       absence: { kind: cell.verdict, reason: reasonFromBasis(cell.basis) },
       sourceVintage: vintageFromBasis(cell.basis) ?? undefined,
     };
@@ -293,7 +314,7 @@ function composeWells(placeKey: string, rail: RecordRail): WellFactWire | undefi
   const lead = [...wells].sort((a, b) => a.wellKey.localeCompare(b.wellKey))[0]!;
   return {
     state: "present",
-    source: "parcel_record",
+    source: WELL_FACT_SOURCE,
     apiNumber14: lead.apiNumber14 ?? undefined,
     wellStatus: lead.wellStatus ?? undefined,
     parcelRelation: "on-parcel",
@@ -307,12 +328,12 @@ function composeSchoolDistrict(placeKey: string, rail: RecordRail): SchoolDistri
     ? interpretRecordCell(placeKey, "schoolDistrict", rail.cell, [])
     : noSuchCellRefusal(placeKey, "schoolDistrict");
   if (cell.state === "refused") {
-    return { state: "refused", code: REFUSAL_CODE_MAP[cell.code], source: "parcel_record", reason: cell.reason };
+    return { state: "refused", code: REFUSAL_CODE_MAP[cell.code], source: SCHOOL_DISTRICT_FACT_SOURCE, reason: cell.reason };
   }
   if (cell.state === "absent") {
     return {
       state: "absent",
-      source: "parcel_record",
+      source: SCHOOL_DISTRICT_FACT_SOURCE,
       absence: { kind: cell.verdict, reason: reasonFromBasis(cell.basis) },
       sourceVintage: vintageFromBasis(cell.basis) ?? undefined,
     };
@@ -321,7 +342,7 @@ function composeSchoolDistrict(placeKey: string, rail: RecordRail): SchoolDistri
   if (!districtName) return undefined;
   return {
     state: "present",
-    source: "parcel_record",
+    source: SCHOOL_DISTRICT_FACT_SOURCE,
     districtName,
     sourceVintage: cell.vintage || undefined,
     evaluatedAt: cell.vintage || undefined,
@@ -335,12 +356,12 @@ function composeUtilityService(placeKey: string, rail: RecordRail): UtilityServi
     ? interpretRecordCell(placeKey, "utilityService", rail.cell, toCompanionRows(rail))
     : noSuchCellRefusal(placeKey, "utilityService");
   if (cell.state === "refused") {
-    return { state: "refused", code: REFUSAL_CODE_MAP[cell.code], source: "parcel_record", reason: cell.reason };
+    return { state: "refused", code: REFUSAL_CODE_MAP[cell.code], source: UTILITY_SERVICE_FACT_SOURCE, reason: cell.reason };
   }
   if (cell.state === "absent") {
     return {
       state: "absent",
-      source: "parcel_record",
+      source: UTILITY_SERVICE_FACT_SOURCE,
       absence: { kind: cell.verdict, reason: reasonFromBasis(cell.basis) },
       sourceVintage: vintageFromBasis(cell.basis) ?? undefined,
     };
@@ -356,7 +377,7 @@ function composeUtilityService(placeKey: string, rail: RecordRail): UtilityServi
   const sewer = entryAt(UTILITY_ROW_INDEX.sewer);
   const electric = entryAt(UTILITY_ROW_INDEX.electric);
   if (water === null && sewer === null && electric === null) return undefined;
-  return { state: "present", source: "parcel_record", water, sewer, electric, sourceVintage: cell.vintage || undefined, evaluatedAt: cell.vintage || undefined };
+  return { state: "present", source: UTILITY_SERVICE_FACT_SOURCE, water, sewer, electric, sourceVintage: cell.vintage || undefined, evaluatedAt: cell.vintage || undefined };
 }
 
 function composeOverlayDistricts(placeKey: string, rail: RecordRail): OverlayDistrictsFactWire | undefined {
@@ -364,12 +385,12 @@ function composeOverlayDistricts(placeKey: string, rail: RecordRail): OverlayDis
     ? interpretRecordCell(placeKey, "overlayDistricts", rail.cell, toCompanionRows(rail))
     : noSuchCellRefusal(placeKey, "overlayDistricts");
   if (cell.state === "refused") {
-    return { state: "refused", code: REFUSAL_CODE_MAP[cell.code], source: "parcel_record", reason: cell.reason };
+    return { state: "refused", code: REFUSAL_CODE_MAP[cell.code], source: OVERLAY_DISTRICTS_FACT_SOURCE, reason: cell.reason };
   }
   if (cell.state === "absent") {
     return {
       state: "absent",
-      source: "parcel_record",
+      source: OVERLAY_DISTRICTS_FACT_SOURCE,
       absence: { kind: cell.verdict, reason: reasonFromBasis(cell.basis) },
       sourceVintage: vintageFromBasis(cell.basis) ?? undefined,
     };
@@ -385,7 +406,7 @@ function composeOverlayDistricts(placeKey: string, rail: RecordRail): OverlayDis
     })
     .filter((d): d is { city: string; attributes: Record<string, unknown> } => d !== null);
   if (districts.length === 0) return undefined;
-  return { state: "present", source: "parcel_record", districts, sourceVintage: cell.vintage || undefined, evaluatedAt: cell.vintage || undefined };
+  return { state: "present", source: OVERLAY_DISTRICTS_FACT_SOURCE, districts, sourceVintage: cell.vintage || undefined, evaluatedAt: cell.vintage || undefined };
 }
 
 function composeAgValuation(placeKey: string, rail: RecordRail): AgValuationFactWire | undefined {
@@ -393,12 +414,12 @@ function composeAgValuation(placeKey: string, rail: RecordRail): AgValuationFact
     ? interpretRecordCell(placeKey, "agValuation", rail.cell, toCompanionRows(rail))
     : noSuchCellRefusal(placeKey, "agValuation");
   if (cell.state === "refused") {
-    return { state: "refused", code: REFUSAL_CODE_MAP[cell.code], source: "parcel_record", reason: cell.reason };
+    return { state: "refused", code: REFUSAL_CODE_MAP[cell.code], source: AG_VALUATION_FACT_SOURCE, reason: cell.reason };
   }
   if (cell.state === "absent") {
     return {
       state: "absent",
-      source: "parcel_record",
+      source: AG_VALUATION_FACT_SOURCE,
       absence: { kind: cell.verdict, reason: reasonFromBasis(cell.basis) },
       sourceVintage: vintageFromBasis(cell.basis) ?? undefined,
     };
@@ -416,7 +437,7 @@ function composeAgValuation(placeKey: string, rail: RecordRail): AgValuationFact
     })
     .filter((e): e is { statecode: string | null; landType: string | null; acres: number | null; value: number | null } => e !== null);
   if (entries.length === 0) return undefined;
-  return { state: "present", source: "parcel_record", entries, sourceVintage: cell.vintage || undefined, evaluatedAt: cell.vintage || undefined };
+  return { state: "present", source: AG_VALUATION_FACT_SOURCE, entries, sourceVintage: cell.vintage || undefined, evaluatedAt: cell.vintage || undefined };
 }
 
 function composeMaxImperviousCoverPct(placeKey: string, rail: RecordRail): MaxImperviousCoverPctFactWire | undefined {
@@ -424,12 +445,12 @@ function composeMaxImperviousCoverPct(placeKey: string, rail: RecordRail): MaxIm
     ? interpretRecordCell(placeKey, "maxImperviousCoverPct", rail.cell, [])
     : noSuchCellRefusal(placeKey, "maxImperviousCoverPct");
   if (cell.state === "refused") {
-    return { state: "refused", code: REFUSAL_CODE_MAP[cell.code], source: "parcel_record", reason: cell.reason };
+    return { state: "refused", code: REFUSAL_CODE_MAP[cell.code], source: MAX_IMPERVIOUS_COVER_PCT_FACT_SOURCE, reason: cell.reason };
   }
   if (cell.state === "absent") {
     return {
       state: "absent",
-      source: "parcel_record",
+      source: MAX_IMPERVIOUS_COVER_PCT_FACT_SOURCE,
       absence: { kind: cell.verdict, reason: reasonFromBasis(cell.basis) },
       sourceVintage: vintageFromBasis(cell.basis) ?? undefined,
     };
@@ -438,7 +459,7 @@ function composeMaxImperviousCoverPct(placeKey: string, rail: RecordRail): MaxIm
   if (percent === null) return undefined;
   return {
     state: "present",
-    source: "parcel_record",
+    source: MAX_IMPERVIOUS_COVER_PCT_FACT_SOURCE,
     percent,
     watershedType: asNullableString(cell.raw.watershedType) ?? undefined,
     inRechargeZone: cell.raw.inRechargeZone === true,

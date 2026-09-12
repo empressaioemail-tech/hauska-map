@@ -92,7 +92,7 @@ describe("composeRecordPatch", () => {
       flood: rail("record", { kind: "value", floodZone: "AE", vintage: "2026-01-01" }),
     });
     const { patch } = composeRecordPatch(record);
-    expect(patch.floodHazardFact).toMatchObject({ state: "present", floodZone: "AE", inSpecialFloodHazardArea: true, source: "parcel_record" });
+    expect(patch.floodHazardFact).toMatchObject({ state: "present", floodZone: "AE", inSpecialFloodHazardArea: true, source: "flood-hazard-fact" });
   });
 
   it("composes floodHazardFact present with SFHA false for an X zone", () => {
