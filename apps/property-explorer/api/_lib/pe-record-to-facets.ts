@@ -135,6 +135,13 @@ function asNullableNumber(value: unknown): number | null {
   return typeof value === "number" && Number.isFinite(value) ? value : null;
 }
 
+/** Some CAD source columns (rawAgFlag, agYear) are not coerced by the writer — preserve whichever primitive type actually came through, never invent one. */
+function asNullableStringOrNumber(value: unknown): string | number | null {
+  if (typeof value === "string" && value.trim()) return value;
+  if (typeof value === "number" && Number.isFinite(value)) return value;
+  return null;
+}
+
 function reasonFromBasis(basis: string | Record<string, unknown> | null): string {
   if (typeof basis === "string") return basis;
   const rec = asRecord(basis);
@@ -213,9 +220,20 @@ function isSfhaZone(zone: string | null): boolean {
   return SFHA_ZONE_PREFIXES.some((p) => z.startsWith(p));
 }
 
+/**
+ * flood is a COMPANION rail (`parcel-record-rail-registry.ts` grain
+ * "companion") — unlike cityLimits/schoolDistrict, a "value" cell's zone
+ * data lives on the companion row's `payload.zone` (and `payload.bfe`,
+ * `payload.method`), never on the cell_state itself. Mirrors legacy-design-
+ * tools' `parcelRecordFactRead.ts` `loadParcelRecordFloodFact` exactly —
+ * caught live: the first deploy read `cell.raw.floodZone` (a field that
+ * does not exist on this rail's cell_state) and silently produced a
+ * present fact with no floodZone at all, dropping a real value the pre-
+ * change capture had (`floodZone: "X"`).
+ */
 function composeFlood(placeKey: string, rail: RecordRail): FloodHazardFactWire | undefined {
   const cell = rail.cell
-    ? interpretRecordCell(placeKey, "flood", rail.cell, [])
+    ? interpretRecordCell(placeKey, "flood", rail.cell, toCompanionRows(rail))
     : noSuchCellRefusal(placeKey, "flood");
   if (cell.state === "refused") {
     // FloodHazardFactWire declares no top-level `reason` field (unlike most
@@ -229,11 +247,20 @@ function composeFlood(placeKey: string, rail: RecordRail): FloodHazardFactWire |
       state: "absent",
       source: FLOOD_HAZARD_FACT_SOURCE,
       absence: { kind: cell.verdict, reason: reasonFromBasis(cell.basis) },
-      sourceVintage: vintageFromBasis(cell.basis) ?? undefined,
+      sourceVintage: vintageFromBasis(cell.basis) ?? null,
     };
   }
-  const raw = cell.raw;
-  const floodZone = asNullableString(raw.floodZone);
+  const payload = cell.companionRows[0] ? asRecord(cell.companionRows[0].payload) : null;
+  if (!payload) {
+    // kind=value but the companion row is missing/malformed — refuse rather
+    // than inventing a zone, matching the vendored reference's own guard.
+    return {
+      state: "refused",
+      code: "parcel-record-malformed-cell",
+      source: FLOOD_HAZARD_FACT_SOURCE,
+    };
+  }
+  const floodZone = asNullableString(payload.zone);
   return {
     state: "present",
     source: FLOOD_HAZARD_FACT_SOURCE,
@@ -258,7 +285,7 @@ function composeSpecialDistricts(placeKey: string, rail: RecordRail): SpecialDis
       state: "absent",
       source: SPECIAL_DISTRICT_FACT_SOURCE,
       absence: { kind: cell.verdict, reason: reasonFromBasis(cell.basis) },
-      sourceVintage: vintageFromBasis(cell.basis) ?? undefined,
+      sourceVintage: vintageFromBasis(cell.basis) ?? null,
     };
   }
   const candidates = cell.companionRows
@@ -295,7 +322,7 @@ function composeWells(placeKey: string, rail: RecordRail): WellFactWire | undefi
       state: "absent",
       source: WELL_FACT_SOURCE,
       absence: { kind: cell.verdict, reason: reasonFromBasis(cell.basis) },
-      sourceVintage: vintageFromBasis(cell.basis) ?? undefined,
+      sourceVintage: vintageFromBasis(cell.basis) ?? null,
     };
   }
   const wells = cell.companionRows
@@ -335,7 +362,7 @@ function composeSchoolDistrict(placeKey: string, rail: RecordRail): SchoolDistri
       state: "absent",
       source: SCHOOL_DISTRICT_FACT_SOURCE,
       absence: { kind: cell.verdict, reason: reasonFromBasis(cell.basis) },
-      sourceVintage: vintageFromBasis(cell.basis) ?? undefined,
+      sourceVintage: vintageFromBasis(cell.basis) ?? null,
     };
   }
   const districtName = typeof cell.value === "string" ? asNullableString(cell.value) : null;
@@ -363,7 +390,7 @@ function composeUtilityService(placeKey: string, rail: RecordRail): UtilityServi
       state: "absent",
       source: UTILITY_SERVICE_FACT_SOURCE,
       absence: { kind: cell.verdict, reason: reasonFromBasis(cell.basis) },
-      sourceVintage: vintageFromBasis(cell.basis) ?? undefined,
+      sourceVintage: vintageFromBasis(cell.basis) ?? null,
     };
   }
   const byIndex = new Map(cell.companionRows.map((r) => [r.rowIndex, r] as const));
@@ -392,7 +419,7 @@ function composeOverlayDistricts(placeKey: string, rail: RecordRail): OverlayDis
       state: "absent",
       source: OVERLAY_DISTRICTS_FACT_SOURCE,
       absence: { kind: cell.verdict, reason: reasonFromBasis(cell.basis) },
-      sourceVintage: vintageFromBasis(cell.basis) ?? undefined,
+      sourceVintage: vintageFromBasis(cell.basis) ?? null,
     };
   }
   const districts = cell.companionRows
@@ -421,9 +448,13 @@ function composeAgValuation(placeKey: string, rail: RecordRail): AgValuationFact
       state: "absent",
       source: AG_VALUATION_FACT_SOURCE,
       absence: { kind: cell.verdict, reason: reasonFromBasis(cell.basis) },
-      sourceVintage: vintageFromBasis(cell.basis) ?? undefined,
+      sourceVintage: vintageFromBasis(cell.basis) ?? null,
     };
   }
+  // AgValuationFactWire types `entries` as `unknown` (no shape validation),
+  // so the full vendored field set is included here for fidelity with
+  // cortex's existing shape — nothing forces the narrower subset an earlier
+  // draft of this composer used.
   const entries = cell.companionRows
     .map((row) => {
       const rec = asRecord(row.payload);
@@ -431,11 +462,19 @@ function composeAgValuation(placeKey: string, rail: RecordRail): AgValuationFact
       return {
         statecode: asNullableString(rec.statecode),
         landType: asNullableString(rec.landType),
+        description: asNullableString(rec.description),
         acres: asNullableNumber(rec.acres),
         value: asNullableNumber(rec.value),
+        currValue: asNullableNumber(rec.currValue),
+        agFlag: rec.agFlag === true,
+        rawAgFlag: asNullableStringOrNumber(rec.rawAgFlag),
+        sequence: asNullableNumber(rec.sequence),
+        apprMethod: asNullableString(rec.apprMethod),
+        agYear: asNullableStringOrNumber(rec.agYear),
+        propertyNumber: asNullableString(rec.propertyNumber),
       };
     })
-    .filter((e): e is { statecode: string | null; landType: string | null; acres: number | null; value: number | null } => e !== null);
+    .filter((e): e is NonNullable<typeof e> => e !== null);
   if (entries.length === 0) return undefined;
   return { state: "present", source: AG_VALUATION_FACT_SOURCE, entries, sourceVintage: cell.vintage || undefined, evaluatedAt: cell.vintage || undefined };
 }
@@ -452,7 +491,7 @@ function composeMaxImperviousCoverPct(placeKey: string, rail: RecordRail): MaxIm
       state: "absent",
       source: MAX_IMPERVIOUS_COVER_PCT_FACT_SOURCE,
       absence: { kind: cell.verdict, reason: reasonFromBasis(cell.basis) },
-      sourceVintage: vintageFromBasis(cell.basis) ?? undefined,
+      sourceVintage: vintageFromBasis(cell.basis) ?? null,
     };
   }
   const percent = asNullableNumber(cell.value);
