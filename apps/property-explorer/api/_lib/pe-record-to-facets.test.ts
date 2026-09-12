@@ -19,7 +19,7 @@ function rail(
   };
 }
 
-function emptyRecord(overrides: Partial<ParcelRecordResponse["rails"]> = {}): ParcelRecordResponse {
+function emptyRecord(overrides: Record<string, RecordRail> = {}): ParcelRecordResponse {
   return {
     parcelNodeId: "48021:34049",
     placeKey: "48021:34049",

@@ -125,11 +125,6 @@ function reasonFromBasis(basis: string | Record<string, unknown> | null): string
   return "parcel_record marked this cell absent with no basis recorded.";
 }
 
-function methodFromBasis(basis: string | Record<string, unknown> | null): string | null {
-  const rec = asRecord(basis);
-  return rec ? asNullableString(rec.method) : null;
-}
-
 function vintageFromBasis(basis: string | Record<string, unknown> | null): string | null {
   const rec = asRecord(basis);
   return rec ? asNullableString(rec.vintage) : null;
@@ -202,7 +197,11 @@ function composeFlood(placeKey: string, rail: RecordRail): FloodHazardFactWire |
     ? interpretRecordCell(placeKey, "flood", rail.cell, [])
     : noSuchCellRefusal(placeKey, "flood");
   if (cell.state === "refused") {
-    return { state: "refused", code: REFUSAL_CODE_MAP[cell.code], source: "parcel_record", reason: `parcel_record flood (${cell.code}): ${cell.reason}` };
+    // FloodHazardFactWire declares no top-level `reason` field (unlike most
+    // of its sibling *FactWire types) — the classification lives in `code`;
+    // the human-readable detail is dropped rather than smuggled onto an
+    // undeclared field.
+    return { state: "refused", code: REFUSAL_CODE_MAP[cell.code], source: "parcel_record" };
   }
   if (cell.state === "absent") {
     return {
@@ -229,7 +228,9 @@ function composeSpecialDistricts(placeKey: string, rail: RecordRail): SpecialDis
     ? interpretRecordCell(placeKey, "specialDistricts", rail.cell, toCompanionRows(rail))
     : noSuchCellRefusal(placeKey, "specialDistricts");
   if (cell.state === "refused") {
-    return { state: "refused", code: REFUSAL_CODE_MAP[cell.code], source: "parcel_record", reason: cell.reason };
+    // SpecialDistrictFactWire, like FloodHazardFactWire, declares no
+    // top-level `reason` field — `code` alone carries the classification.
+    return { state: "refused", code: REFUSAL_CODE_MAP[cell.code], source: "parcel_record" };
   }
   if (cell.state === "absent") {
     return {
