@@ -712,7 +712,16 @@ export interface PeBakedFacetsResponse {
    * individual field actually changed value (the reader was genuinely
    * consulted) — see the P152-PANEL close falsifier.
    */
-  readPath: "atom-chain" | "atom-chain-warm" | "record";
+  /**
+   * "record-unavailable" (P152-RAILS, OPS-23 P-152 lane 3): the `/record`
+   * fetch was attempted and FAILED (non-2xx, timeout, or invalid JSON) —
+   * distinct from "atom-chain"/"atom-chain-warm", which mean `/record` was
+   * never reached to begin with vs. reached-and-refused-us. Declares the
+   * outage on the wire rather than silently keeping whatever the cortex
+   * merge already produced for a rail this lane's composer owns (R-6: never
+   * fall to legacy silently). See pe-record-to-facets.ts composeRecordUnavailablePatch.
+   */
+  readPath: "atom-chain" | "atom-chain-warm" | "record" | "record-unavailable";
   /** True when baked cortex base facts were merged onto the atom-chain read. */
   baseFactsMerged?: boolean;
   /**

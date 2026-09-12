@@ -110,14 +110,117 @@ describe("fetchParcelRecordOnce / applyRecordPatch (P152-PANEL)", () => {
     expect(after.parcelNodeId).toBe(before.parcelNodeId);
   });
 
-  it("applyRecordPatch is a no-op (payload unchanged, readPath untouched) when the /record fetch fails — never a crash, never a silent fallback masquerading as success", async () => {
+  it("P152-RAILS item 3: applyRecordPatch DECLARES a /record outage — readPath becomes record-unavailable and every rail this lane's composer owns is a typed refusal carrying the HTTP status, never a silent no-op that leaves a stale cortex-sourced value standing in as current (R-6)", async () => {
     vi.stubEnv("HAUSKA_RETRIEVAL_API_KEY", "test-key");
     vi.stubGlobal("fetch", vi.fn().mockResolvedValue(jsonResponse({ error: "boom" }, false, 503)));
 
     const before = basePayload();
     const after = await applyRecordPatch(before, "48021:34049");
 
-    expect(after).toEqual(before);
+    expect(after.readPath).toBe("record-unavailable");
+    expect(after.cityLimitsFact).toEqual({
+      status: "unmeasured",
+      etjStatus: "unresolved",
+      source: "tx_city_boundary",
+      basis: "parcel_record reader unavailable (http-error 503): record HTTP 503",
+    });
+    expect(after.floodHazardFact).toEqual({
+      state: "refused",
+      code: "parcel-record-unavailable",
+      source: "flood-hazard-fact",
+      reason: "parcel_record reader unavailable (http-error 503): record HTTP 503",
+    });
+    // zoning/envelope have no honest refused shape to invent (see module
+    // doc) — the pre-existing atom-chain value is untouched, same as before
+    // this lane.
+    expect(after.facets.zoning).toEqual(before.facets.zoning);
+    expect(after.facets.envelope).toEqual(before.facets.envelope);
+  });
+
+  it("P152-RAILS item 3: a timeout classifies as errorClass 'timeout', not 'http-error'", async () => {
+    vi.stubEnv("HAUSKA_RETRIEVAL_API_KEY", "test-key");
+    const abortError = Object.assign(new Error("aborted"), { name: "TimeoutError" });
+    vi.stubGlobal("fetch", vi.fn().mockRejectedValue(abortError));
+
+    const before = basePayload();
+    const after = await applyRecordPatch(before, "48021:34049");
+
+    expect(after.readPath).toBe("record-unavailable");
+    expect((after.wellFact as { reason: string }).reason).toMatch(/\(timeout\)/);
+  });
+
+  it("P152-RAILS item 1: setback axis override applies only to the reader-slated axis; unslated axes and every envelope figure field (status/geojson/buildableArea*) stay atom-chain-owned (R-2)", async () => {
+    vi.stubEnv("HAUSKA_RETRIEVAL_API_KEY", "test-key");
+    const recordBody: ParcelRecordResponse = {
+      parcelNodeId: "48021:34049",
+      placeKey: "48021:34049",
+      countyFips: "48021",
+      railRegistrySha: "sha",
+      readAt: "2026-09-12T00:00:00.000Z",
+      rails: {
+        zoningDistrict: recordRail("record", { kind: "value", value: "RR", source: "parcel_record", vintage: "2026-09-01T00:00:00.000Z" }),
+        setbackFrontFt: recordRail("record", { kind: "value", value: 30, source: "parcel_record", vintage: "2026-09-01T00:00:00.000Z" }),
+        // Unslated for this county — legacy-transitional, must NOT override side/rear/corner.
+        setbackSideFt: recordRail("legacy-transitional", null),
+        setbackRearFt: recordRail("legacy-transitional", null),
+        setbackCornerFt: recordRail("legacy-transitional", null),
+      },
+      refused: null,
+    };
+    vi.stubGlobal("fetch", vi.fn().mockResolvedValue(jsonResponse(recordBody)));
+
+    const before = basePayload();
+    before.facets.envelope = {
+      status: "ok",
+      district: "RR",
+      setbacks: { front_ft: 25, side_ft: 5, rear_ft: 25, side_corner_ft: 15 },
+      approximate: true,
+      provisional: true,
+      buildableAreaSqFt: 4000,
+      buildableAreaPct: 40,
+      disclosure: "Atom-chain buildable envelope.",
+    };
+    const after = await applyRecordPatch(before, "48021:34049");
+
+    expect(after.readPath).toBe("record");
+    expect(after.facets.zoning).toEqual({ district: "RR" });
+    expect(after.facets.envelope?.setbacks).toEqual({
+      front_ft: 30, // overridden (record)
+      side_ft: 5, // unchanged (legacy-transitional)
+      rear_ft: 25, // unchanged (legacy-transitional)
+      side_corner_ft: 15, // unchanged (legacy-transitional)
+    });
+    // R-2: the figure never moves.
+    expect(after.facets.envelope?.status).toBe("ok");
+    expect(after.facets.envelope?.buildableAreaSqFt).toBe(4000);
+    expect(after.facets.envelope?.buildableAreaPct).toBe(40);
+  });
+
+  it("P152-RAILS item 1: never invents a setbacks object when the atom chain declined the envelope (no re-derivation of the decline/ok tree)", async () => {
+    vi.stubEnv("HAUSKA_RETRIEVAL_API_KEY", "test-key");
+    const recordBody: ParcelRecordResponse = {
+      parcelNodeId: "48021:34049",
+      placeKey: "48021:34049",
+      countyFips: "48021",
+      railRegistrySha: "sha",
+      readAt: "2026-09-12T00:00:00.000Z",
+      rails: {
+        setbackFrontFt: recordRail("record", { kind: "value", value: 30, source: "parcel_record", vintage: "2026-09-01T00:00:00.000Z" }),
+      },
+      refused: null,
+    };
+    vi.stubGlobal("fetch", vi.fn().mockResolvedValue(jsonResponse(recordBody)));
+
+    const before = basePayload();
+    before.facets.envelope = {
+      status: "declined",
+      declineReason: "setback-rule-pending",
+      approximate: true,
+      provisional: true,
+    };
+    const after = await applyRecordPatch(before, "48021:34049");
+
+    expect(after.facets.envelope).toEqual(before.facets.envelope);
   });
 
   it("does not surface a legacy-transitional rail's /record cell onto the wire — the existing cortex-merge value for that field is left alone", async () => {

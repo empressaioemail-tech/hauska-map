@@ -103,6 +103,32 @@ export const COMPOSED_RECORD_RAIL_KEYS = [
   "yearBuilt",
 ] as const;
 
+/**
+ * P152-RAILS (OPS-23 P-152 lane 3): the zoning-district and per-axis setback
+ * rail keys the reader carries (`parcel-record-rail-registry.ts` zoning-
+ * envelope group). Composed SEPARATELY from `COMPOSED_RECORD_RAIL_KEYS`
+ * above because these do not replace a whole fact object — they OVERRIDE
+ * individual fields (`facets.zoning.district`, one or more
+ * `facets.envelope.setbacks.<axis>`) on top of whatever
+ * `adaptAtomChainToBakedFacets` already built from the atom chain. R-2
+ * (ENVELOPE DRAWN, FIGURE REFUSED) stays: this module never touches
+ * `envelope.status`, `envelope.geojson`, `envelope.buildableAreaSqFt`,
+ * `envelope.buildableAreaPct`, or `envelope.summary` — those stay atom-owned.
+ * A rail whose `serve` is anything but `"record"` is left alone: for 48021
+ * today that means `setbackSideFt`/`setbackRearFt`/`setbackCornerFt` keep
+ * their atom-chain value untouched (unslated — see the P152-RAILS close's
+ * leave_behind for the current per-parcel serve counts).
+ */
+export const COMPOSED_ZONING_SETBACK_RAIL_KEYS = [
+  "zoningDistrict",
+  "zoningJurisdictionKey",
+  "zoningProvenance",
+  "setbackFrontFt",
+  "setbackSideFt",
+  "setbackRearFt",
+  "setbackCornerFt",
+] as const;
+
 export interface RecordPatch {
   cityLimitsFact?: CityLimitsFactWire;
   floodHazardFact?: FloodHazardFactWire;
@@ -558,6 +584,173 @@ function composeYearBuilt(placeKey: string, rail: RecordRail): { value: { status
   const n = typeof raw === "number" ? raw : typeof raw === "string" && raw.trim() !== "" ? Number(raw) : null;
   if (n === null || !Number.isFinite(n) || n <= 0) return undefined;
   return { value: { status: "populated", value: Math.round(n) }, source: "parcel_record" };
+}
+
+/** Per-axis setback scalar: read the reader's own numeric cell, gated strictly on `serve === "record"`, never negative. */
+function composeSetbackAxisScalar(placeKey: string, rail: RecordRail | undefined, railKey: string): number | undefined {
+  if (!rail || rail.serve !== "record" || !rail.cell) return undefined;
+  const cell = interpretRecordCell(placeKey, railKey, rail.cell, []);
+  if (cell.state !== "present") return undefined;
+  const n = asNullableNumber(cell.value);
+  return n !== null && n >= 0 ? n : undefined;
+}
+
+/** setbackRules is the companion rail carrying the rule's effective date + citation — vendored field names guessed conservatively (effectiveDate/effective_date, citationUrl/citation_url); absent when the companion row carries neither. */
+function companionSetbackRulesMeta(
+  placeKey: string,
+  rail: RecordRail | undefined,
+): { effectiveDate: string | null; citationUrl: string | null } {
+  if (!rail || !rail.cell) return { effectiveDate: null, citationUrl: null };
+  const cell = interpretRecordCell(placeKey, "setbackRules", rail.cell, toCompanionRows(rail));
+  if (cell.state !== "present") return { effectiveDate: null, citationUrl: null };
+  const row = cell.companionRows[0] ? asRecord(cell.companionRows[0].payload) : null;
+  if (!row) return { effectiveDate: null, citationUrl: null };
+  const effectiveDate = asNullableString(row.effectiveDate) ?? asNullableString(row.effective_date);
+  const citationUrl = asNullableString(row.citationUrl) ?? asNullableString(row.citation_url);
+  return { effectiveDate, citationUrl };
+}
+
+/** The override this lane applies onto `facets.zoning` / `facets.envelope.setbacks` — see COMPOSED_ZONING_SETBACK_RAIL_KEYS module doc for the R-2 boundary. */
+export interface ZoningSetbackOverride {
+  district?: string;
+  jurisdictionKey?: string;
+  setbackAxisOverrides?: {
+    front_ft?: number;
+    side_ft?: number;
+    rear_ft?: number;
+    side_corner_ft?: number;
+  };
+  setbackRulesEffectiveDate: string | null;
+  setbackRulesCitationUrl: string | null;
+}
+
+/**
+ * Compose the zoning/setback override from the reader's zoning-envelope
+ * rail group, for whichever of those rails serve `"record"` today. Returns
+ * an EMPTY override (no-op) when the record itself is a whole-parcel
+ * refusal, or when none of the zoning/setback rails serve `"record"` yet —
+ * the caller leaves the atom-chain-built zoning/envelope entirely alone in
+ * that case, exactly as before this lane.
+ */
+export function composeZoningSetbackOverride(record: ParcelRecordResponse): {
+  override: ZoningSetbackOverride;
+  railStates: Record<string, RecordRailState>;
+} {
+  const placeKey = record.placeKey ?? record.parcelNodeId;
+  const railStates: Record<string, RecordRailState> = {};
+  for (const key of COMPOSED_ZONING_SETBACK_RAIL_KEYS) {
+    const rail = record.rails[key];
+    if (rail) railStates[key] = { serve: rail.serve, atomBacked: rail.atomBacked };
+  }
+  const override: ZoningSetbackOverride = { setbackRulesEffectiveDate: null, setbackRulesCitationUrl: null };
+  if (record.refused) return { override, railStates };
+
+  const districtRail = record.rails.zoningDistrict;
+  if (districtRail?.serve === "record" && districtRail.cell) {
+    const cell = interpretRecordCell(placeKey, "zoningDistrict", districtRail.cell, []);
+    if (cell.state === "present") {
+      const district = asNullableString(cell.value);
+      if (district) override.district = district;
+    }
+  }
+  const jurisRail = record.rails.zoningJurisdictionKey;
+  if (jurisRail?.serve === "record" && jurisRail.cell) {
+    const cell = interpretRecordCell(placeKey, "zoningJurisdictionKey", jurisRail.cell, []);
+    if (cell.state === "present") {
+      const key = asNullableString(cell.value);
+      if (key) override.jurisdictionKey = key;
+    }
+  }
+
+  const front = composeSetbackAxisScalar(placeKey, record.rails.setbackFrontFt, "setbackFrontFt");
+  const side = composeSetbackAxisScalar(placeKey, record.rails.setbackSideFt, "setbackSideFt");
+  const rear = composeSetbackAxisScalar(placeKey, record.rails.setbackRearFt, "setbackRearFt");
+  const corner = composeSetbackAxisScalar(placeKey, record.rails.setbackCornerFt, "setbackCornerFt");
+  if (front !== undefined || side !== undefined || rear !== undefined || corner !== undefined) {
+    override.setbackAxisOverrides = {
+      ...(front !== undefined ? { front_ft: front } : {}),
+      ...(side !== undefined ? { side_ft: side } : {}),
+      ...(rear !== undefined ? { rear_ft: rear } : {}),
+      ...(corner !== undefined ? { side_corner_ft: corner } : {}),
+    };
+  }
+
+  const meta = companionSetbackRulesMeta(placeKey, record.rails.setbackRules);
+  override.setbackRulesEffectiveDate = meta.effectiveDate;
+  override.setbackRulesCitationUrl = meta.citationUrl;
+
+  return { override, railStates };
+}
+
+/**
+ * P152-RAILS item 3: on a `/record` outage, every rail that WOULD have been
+ * composed above is returned as a typed refusal carrying the reader's
+ * errorClass and HTTP status — never a silent fall to whatever the cortex
+ * merge already produced for the same field (R-6). Scoped to the nine rails
+ * with a well-defined `*FactWire` refused shape; `acreageAcres/Sqft/Method`,
+ * `livingAreaSqft` and `yearBuilt` have no honest refused shape this module
+ * can construct without inventing a `LayerAbsenceWire`-shaped absence it has
+ * no source data to back (same limitation the P152-PANEL close named for
+ * the "present cell only" branch) — those three are left as-is on outage,
+ * named in this lane's own leave_behind, not silently claimed fixed.
+ */
+export interface RecordFetchFailure {
+  errorClass: "timeout" | "http-error" | "invalid-json" | "network-error";
+  httpStatus: number | null;
+  reason: string;
+}
+
+export function classifyRecordFetchFailure(reason: string): RecordFetchFailure {
+  const httpMatch = reason.match(/record HTTP (\d+)/);
+  if (httpMatch) return { errorClass: "http-error", httpStatus: Number(httpMatch[1]), reason };
+  if (/aborted after \d+ms upstream timeout$/.test(reason)) {
+    return { errorClass: "timeout", httpStatus: null, reason };
+  }
+  if (/invalid JSON$/.test(reason)) return { errorClass: "invalid-json", httpStatus: null, reason };
+  return { errorClass: "network-error", httpStatus: null, reason };
+}
+
+function unavailableMessage(failure: RecordFetchFailure): string {
+  return `parcel_record reader unavailable (${failure.errorClass}${
+    failure.httpStatus ? ` ${failure.httpStatus}` : ""
+  }): ${failure.reason}`;
+}
+
+/** Generic `state:'refused'` shape shared by flood/specialDistricts/wells/schoolDistrict/utilityService/overlayDistricts/agValuation/maxImperviousCoverPct. */
+function recordUnavailableGenericFact(
+  source: string,
+  failure: RecordFetchFailure,
+): { state: "refused"; code: string; source: string; reason: string } {
+  return { state: "refused", code: "parcel-record-unavailable", source, reason: unavailableMessage(failure) };
+}
+
+function recordUnavailableCityLimits(failure: RecordFetchFailure): CityLimitsFactWire {
+  return {
+    status: "unmeasured",
+    etjStatus: "unresolved",
+    source: "tx_city_boundary",
+    basis: unavailableMessage(failure),
+  };
+}
+
+/**
+ * Build the full "declared unavailable" patch for every rail this lane's
+ * happy-path composer would have set, applied by the caller (pe-property-
+ * atoms.ts) in place of the normal `composeRecordPatch` output whenever the
+ * `/record` fetch itself failed.
+ */
+export function composeRecordUnavailablePatch(failure: RecordFetchFailure): RecordPatch {
+  return {
+    cityLimitsFact: recordUnavailableCityLimits(failure),
+    floodHazardFact: recordUnavailableGenericFact(FLOOD_HAZARD_FACT_SOURCE, failure) as FloodHazardFactWire,
+    specialDistrictFact: recordUnavailableGenericFact(SPECIAL_DISTRICT_FACT_SOURCE, failure) as SpecialDistrictFactWire,
+    wellFact: recordUnavailableGenericFact(WELL_FACT_SOURCE, failure) as WellFactWire,
+    schoolDistrictFact: recordUnavailableGenericFact(SCHOOL_DISTRICT_FACT_SOURCE, failure) as SchoolDistrictFactWire,
+    utilityServiceFact: recordUnavailableGenericFact(UTILITY_SERVICE_FACT_SOURCE, failure) as UtilityServiceFactWire,
+    overlayDistrictsFact: recordUnavailableGenericFact(OVERLAY_DISTRICTS_FACT_SOURCE, failure) as OverlayDistrictsFactWire,
+    agValuationFact: recordUnavailableGenericFact(AG_VALUATION_FACT_SOURCE, failure) as AgValuationFactWire,
+    maxImperviousCoverPctFact: recordUnavailableGenericFact(MAX_IMPERVIOUS_COVER_PCT_FACT_SOURCE, failure) as MaxImperviousCoverPctFactWire,
+  };
 }
 
 /**

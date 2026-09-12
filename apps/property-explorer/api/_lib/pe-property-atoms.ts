@@ -36,7 +36,14 @@ import {
   type PropertyAtomChain,
   shouldSkipColdDerive,
 } from "./atom-chain-to-facets.js";
-import { composeRecordPatch, type ParcelRecordResponse } from "./pe-record-to-facets.js";
+import {
+  composeRecordPatch,
+  composeZoningSetbackOverride,
+  classifyRecordFetchFailure,
+  composeRecordUnavailablePatch,
+  type ParcelRecordResponse,
+  type ZoningSetbackOverride,
+} from "./pe-record-to-facets.js";
 import {
   jurisdictionRequiresPerParcelSetbackRecord,
   type CodifiedSetbackScalars,
@@ -76,7 +83,8 @@ export type PeReadPathHeader =
   | "atom-pending"
   | "cortex"
   | "cortex-fallback"
-  | "record";
+  | "record"
+  | "record-unavailable";
 
 function retrievalConfig(): { baseUrl: string; key: string | undefined } {
   const baseUrl = (
@@ -474,26 +482,114 @@ export async function fetchParcelRecordOnce(
 }
 
 /**
- * Fetch `/record` and, on success, apply its composed patch on top of
- * `payload` (record wins over whatever the atom-chain/cortex path already
- * produced for the SAME field — every other field is untouched). Sets
- * `readPath: "record"` whenever the fetch succeeds, per the P152-PANEL
- * dispatch and its falsifier, regardless of whether any individual field
- * changed value (the reader was genuinely consulted for this response).
+ * P152-RAILS item 1: apply the zoning/setback override onto `zoning` and
+ * `envelope.setbacks` ONLY — never `envelope.status`, `.geojson`,
+ * `.buildableAreaSqFt`, `.buildableAreaPct`, or `.summary` (R-2, the figure
+ * stays refused/atom-owned). A setback axis override is applied only when
+ * `envelope.setbacks` already exists (the atom chain already decided this
+ * parcel has a drawable envelope) — this lane does not re-derive the
+ * decline/ok decision tree in `adaptAtomChainToBakedFacets`.
+ */
+function applyZoningOverride(
+  zoning: NonNullable<PeBakedFacetsResponse["facets"]>["zoning"],
+  override: ZoningSetbackOverride,
+): NonNullable<PeBakedFacetsResponse["facets"]>["zoning"] {
+  if (override.district === undefined && override.jurisdictionKey === undefined) return zoning;
+  const baseDistrict = zoning?.district;
+  const district = override.district ?? baseDistrict;
+  if (!district) return zoning; // never invent a district out of nothing
+  return {
+    district,
+    ...((override.jurisdictionKey ?? zoning?.jurisdictionKey)
+      ? { jurisdictionKey: override.jurisdictionKey ?? zoning!.jurisdictionKey }
+      : {}),
+  };
+}
+
+function applyEnvelopeSetbackOverride(
+  envelope: NonNullable<PeBakedFacetsResponse["facets"]>["envelope"],
+  override: ZoningSetbackOverride,
+): NonNullable<PeBakedFacetsResponse["facets"]>["envelope"] {
+  if (!envelope || !envelope.setbacks) return envelope;
+  const hasDistrictOverride = override.district !== undefined && override.district !== envelope.district;
+  const axes = override.setbackAxisOverrides;
+  if (!axes && !hasDistrictOverride) return envelope;
+  const dateNote = override.setbackRulesEffectiveDate
+    ? ` parcel_record setback rule effective ${override.setbackRulesEffectiveDate}.`
+    : "";
+  const overrideNote = axes
+    ? `Reader-composed axis override (parcel_record) applied to one or more setback axes; other axes remain atom-chain-sourced.${dateNote}`
+    : "";
+  return {
+    ...envelope,
+    ...(hasDistrictOverride ? { district: override.district } : {}),
+    setbacks: axes
+      ? {
+          ...envelope.setbacks,
+          ...(axes.front_ft !== undefined ? { front_ft: axes.front_ft } : {}),
+          ...(axes.side_ft !== undefined ? { side_ft: axes.side_ft } : {}),
+          ...(axes.rear_ft !== undefined ? { rear_ft: axes.rear_ft } : {}),
+          ...(axes.side_corner_ft !== undefined ? { side_corner_ft: axes.side_corner_ft } : {}),
+        }
+      : envelope.setbacks,
+    ...(override.setbackRulesCitationUrl ? { citationUrl: override.setbackRulesCitationUrl } : {}),
+    ...(overrideNote
+      ? { disclosure: envelope.disclosure ? `${envelope.disclosure} ${overrideNote}` : overrideNote }
+      : {}),
+  };
+}
+
+/**
+ * Fetch `/record` and apply its composed patch on top of `payload` (record
+ * wins over whatever the atom-chain/cortex path already produced for the
+ * SAME field — every other field is untouched). Sets `readPath: "record"`
+ * whenever the fetch succeeds, per the P152-PANEL dispatch and its
+ * falsifier, regardless of whether any individual field changed value (the
+ * reader was genuinely consulted for this response).
+ *
+ * P152-RAILS item 3: on a FAILED fetch, the outage is declared — every rail
+ * this lane's happy-path composer owns is set to a typed refusal carrying
+ * the reader's errorClass/HTTP status, and `readPath` becomes
+ * "record-unavailable" — never a silent no-op that leaves whatever the
+ * cortex merge already produced standing in as if it were current (R-6).
  */
 export async function applyRecordPatch(
   payload: PeBakedFacetsResponse,
   parcelNodeId: string,
 ): Promise<PeBakedFacetsResponse> {
   const result = await fetchParcelRecordOnce(parcelNodeId);
-  if (!result.ok) return payload;
-  const { patch, railStates } = composeRecordPatch(result.record);
   const facets = payload.facets;
   const baseFacts = facets.baseFacts ?? {};
+
+  if (!result.ok) {
+    const failure = classifyRecordFetchFailure(result.reason);
+    const patch = composeRecordUnavailablePatch(failure);
+    return {
+      ...payload,
+      readPath: "record-unavailable",
+      cityLimitsFact: patch.cityLimitsFact,
+      floodHazardFact: patch.floodHazardFact,
+      specialDistrictFact: patch.specialDistrictFact,
+      wellFact: patch.wellFact,
+      schoolDistrictFact: patch.schoolDistrictFact,
+      utilityServiceFact: patch.utilityServiceFact,
+      overlayDistrictsFact: patch.overlayDistrictsFact,
+      agValuationFact: patch.agValuationFact,
+      maxImperviousCoverPctFact: patch.maxImperviousCoverPctFact,
+      // acreage/livingAreaSqft/yearBuilt/zoning/envelope have no honest
+      // refused shape this module can construct without inventing a
+      // LayerAbsenceWire-shaped absence it has no data to back — left as
+      // whatever the atom-chain/cortex path already produced. Named, not
+      // silently claimed fixed — see this lane's close leave_behind.
+    };
+  }
+
+  const { patch, railStates } = composeRecordPatch(result.record);
+  const { override: zsOverride, railStates: zsRailStates } = composeZoningSetbackOverride(result.record);
   return {
     ...payload,
     readPath: "record",
-    recordRailStates: railStates,
+    recordRailStates: { ...railStates, ...zsRailStates },
     ...(patch.cityLimitsFact ? { cityLimitsFact: patch.cityLimitsFact } : {}),
     ...(patch.floodHazardFact ? { floodHazardFact: patch.floodHazardFact } : {}),
     ...(patch.specialDistrictFact ? { specialDistrictFact: patch.specialDistrictFact } : {}),
@@ -511,6 +607,8 @@ export async function applyRecordPatch(
       livingAreaSqft: patch.livingAreaSqft ?? facets.livingAreaSqft,
       yearBuilt: patch.yearBuilt ?? facets.yearBuilt,
       yearBuiltSource: patch.yearBuiltSource ?? facets.yearBuiltSource,
+      zoning: applyZoningOverride(facets.zoning, zsOverride),
+      envelope: applyEnvelopeSetbackOverride(facets.envelope, zsOverride),
       facetCoverage: {
         ...facets.facetCoverage,
         acreage: patch.baseFactsAcreage ? true : facets.facetCoverage?.acreage,
@@ -721,18 +819,21 @@ export async function handlePropertyAtomsFacets(
       }
       payload = attachBuildablePctFromKnownLotArea(payload);
       payload = echoRequestedParcelNodeId(payload, parcelNodeId);
-      // P152-PANEL (OPS-23 P-152 lane 2 of 2): the one reader wins over
-      // atom-chain/cortex for every rail it slates as `record` — applied
-      // last so it overrides whatever the merge above already produced for
-      // the SAME field. A failed /record fetch is a no-op (payload
-      // unchanged); it never blocks or degrades this response.
+      // P152-PANEL/P152-RAILS: the one reader wins over atom-chain/cortex for
+      // every rail it slates as `record` — applied last so it overrides
+      // whatever the merge above already produced for the SAME field. A
+      // FAILED /record fetch is now a DECLARED outage (readPath
+      // "record-unavailable", typed refusals on the rails this lane owns —
+      // P152-RAILS item 3), never a silent no-op (R-6).
       payload = await applyRecordPatch(payload, parcelNodeId);
       const readHeader: PeReadPathHeader =
         payload.readPath === "record"
           ? "record"
-          : adapted.readPath === "atom-chain-warm"
-            ? "atom-chain-warm"
-            : "atom-chain";
+          : payload.readPath === "record-unavailable"
+            ? "record-unavailable"
+            : adapted.readPath === "atom-chain-warm"
+              ? "atom-chain-warm"
+              : "atom-chain";
       res.setHeader("X-PE-Read-Path", readHeader);
       if (shouldSkipColdDerive(atom.chain)) {
         res.setHeader("X-PE-Cold-Derive", "skipped");
