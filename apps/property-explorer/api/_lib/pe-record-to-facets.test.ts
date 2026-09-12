@@ -87,9 +87,11 @@ describe("composeRecordPatch", () => {
     expect(railStates.flood).toEqual({ serve: "refused", atomBacked: false });
   });
 
-  it("composes floodHazardFact present with SFHA derived from the zone prefix", () => {
+  it("composes floodHazardFact present with SFHA derived from the zone prefix (flood is a companion rail: the zone lives on payload.zone, not the cell itself)", () => {
     const record = emptyRecord({
-      flood: rail("record", { kind: "value", floodZone: "AE", vintage: "2026-01-01" }),
+      flood: rail("record", { kind: "value", disposition: "rows", rowCount: 1, vintage: "2026-01-01" }, [
+        { rowIndex: 0, payload: { zone: "AE" }, source: "x", vintage: "2026-01-01" },
+      ]),
     });
     const { patch } = composeRecordPatch(record);
     expect(patch.floodHazardFact).toMatchObject({ state: "present", floodZone: "AE", inSpecialFloodHazardArea: true, source: "flood-hazard-fact" });
@@ -97,10 +99,20 @@ describe("composeRecordPatch", () => {
 
   it("composes floodHazardFact present with SFHA false for an X zone", () => {
     const record = emptyRecord({
-      flood: rail("record", { kind: "value", floodZone: "X", vintage: "2026-01-01" }),
+      flood: rail("record", { kind: "value", disposition: "rows", rowCount: 1, vintage: "2026-01-01" }, [
+        { rowIndex: 0, payload: { zone: "X" }, source: "x", vintage: "2026-01-01" },
+      ]),
     });
     const { patch } = composeRecordPatch(record);
     expect(patch.floodHazardFact).toMatchObject({ inSpecialFloodHazardArea: false });
+  });
+
+  it("refuses (never invents a zone) when a flood cell is kind=value but its companion row is missing", () => {
+    const record = emptyRecord({
+      flood: rail("record", { kind: "value", disposition: "rows", rowCount: 1, vintage: "2026-01-01" }, []),
+    });
+    const { patch } = composeRecordPatch(record);
+    expect(patch.floodHazardFact).toEqual({ state: "refused", code: "parcel-record-malformed-cell", source: "flood-hazard-fact" });
   });
 
   it("composes specialDistrictFact preferring the MUD district when multiple companion rows exist", () => {
