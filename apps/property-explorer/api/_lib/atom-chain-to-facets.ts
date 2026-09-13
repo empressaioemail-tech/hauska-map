@@ -525,6 +525,18 @@ export type BoundaryEdgeFactWire = {
  * Cortex inspect GET sibling (P-76 / city-limits). PIP against
  * `tx_city_boundary`, not an atom. ETJ is typed absence (`etjStatus:
  * unresolved`). No ETJ buffer ring on this wire.
+ *
+ * `queryPoint` (F21, 2026-09-13): the point-in-polygon subject point cortex
+ * stamps onto this fact — was already present on the wire (carried through
+ * `withCityLimitsFact`/`cityLimitsFactFromCortexRoot` from cortex's raw
+ * JSON, a structural pass-through that never checked this field's name
+ * against the type) but never DECLARED here, so nothing in this file could
+ * reference it by name. Declared now because P152-RAILS's own
+ * `applyRecordPatch` needs to preserve it explicitly across the record-path
+ * overwrite (see that file) — P-151 seeds placement from this field, and
+ * the record-composed `composeCityLimits` (pe-record-to-facets.ts) has no
+ * way to construct it (it is not part of the retrieval reader's cityLimits
+ * cell), so it must be carried through rather than recomposed.
  */
 export type CityLimitsFactWire = {
   status: "incorporated" | "unincorporated" | "unmeasured";
@@ -534,6 +546,7 @@ export type CityLimitsFactWire = {
   cityName?: string;
   geoId?: string;
   gnis?: string | null;
+  queryPoint?: { longitude: number; latitude: number } | null;
 };
 
 export type OwnerFactWire = {

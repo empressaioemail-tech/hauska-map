@@ -110,6 +110,86 @@ describe("fetchParcelRecordOnce / applyRecordPatch (P152-PANEL)", () => {
     expect(after.parcelNodeId).toBe(before.parcelNodeId);
   });
 
+  it("F21 (2026-09-13, overseer finding): applyRecordPatch PRESERVES cityLimitsFact.queryPoint from the cortex merge when overriding cityLimits with a record-composed fact — P-151 seeds placement from this field, and composeCityLimits has no way to construct it itself", async () => {
+    vi.stubEnv("HAUSKA_RETRIEVAL_API_KEY", "test-key");
+    const recordBody: ParcelRecordResponse = {
+      parcelNodeId: "48021:34049",
+      placeKey: "48021:34049",
+      countyFips: "48021",
+      railRegistrySha: "sha",
+      readAt: "2026-09-12T00:00:00.000Z",
+      rails: {
+        cityLimits: recordRail("record", {
+          kind: "value",
+          value: "Bastrop",
+          source: "landing_parcel_jurisdiction",
+          vintage: "2026-09-02T18:13:56.751Z",
+        }),
+      },
+      refused: null,
+    };
+    vi.stubGlobal("fetch", vi.fn().mockResolvedValue(jsonResponse(recordBody)));
+
+    const before = basePayload();
+    // Simulates mergeBakedBaseFacts having already carried cortex's own
+    // cityLimitsFact (with queryPoint) onto the payload before this
+    // function runs — the real production shape (withCityLimitsFact,
+    // atom-chain-to-facets.ts).
+    before.cityLimitsFact = {
+      status: "unmeasured",
+      etjStatus: "unresolved",
+      source: "tx_city_boundary",
+      basis: "stale cortex copy",
+      queryPoint: { longitude: -97.31717, latitude: 30.11238 },
+    };
+    const after = await applyRecordPatch(before, "48021:34049");
+
+    expect(after.cityLimitsFact?.status).toBe("incorporated"); // the record composition still wins on status/basis/cityName
+    expect(after.cityLimitsFact?.cityName).toBe("Bastrop");
+    expect(after.cityLimitsFact?.queryPoint).toEqual({ longitude: -97.31717, latitude: 30.11238 }); // but queryPoint survives
+  });
+
+  it("F21: never fabricates a queryPoint when the pre-existing payload never had one (e.g. cortex merge failed or never carried the field)", async () => {
+    vi.stubEnv("HAUSKA_RETRIEVAL_API_KEY", "test-key");
+    const recordBody: ParcelRecordResponse = {
+      parcelNodeId: "48021:34049",
+      placeKey: "48021:34049",
+      countyFips: "48021",
+      railRegistrySha: "sha",
+      readAt: "2026-09-12T00:00:00.000Z",
+      rails: {
+        cityLimits: recordRail("record", { kind: "value", value: "Bastrop", source: "landing_parcel_jurisdiction", vintage: "2026-09-02T18:13:56.751Z" }),
+      },
+      refused: null,
+    };
+    vi.stubGlobal("fetch", vi.fn().mockResolvedValue(jsonResponse(recordBody)));
+
+    const before = basePayload(); // no queryPoint on the pre-existing cityLimitsFact
+    const after = await applyRecordPatch(before, "48021:34049");
+
+    expect(after.cityLimitsFact?.queryPoint).toBeUndefined();
+  });
+
+  it("F21: queryPoint is also preserved across a declared /record outage (item 3's refusal branch)", async () => {
+    vi.stubEnv("HAUSKA_RETRIEVAL_API_KEY", "test-key");
+    vi.stubGlobal("fetch", vi.fn().mockResolvedValue(jsonResponse({ error: "boom" }, false, 503)));
+
+    const before = basePayload();
+    before.cityLimitsFact = {
+      status: "incorporated",
+      etjStatus: "unresolved",
+      source: "tx_city_boundary",
+      basis: "prior good read",
+      cityName: "Bastrop",
+      queryPoint: { longitude: -97.31717, latitude: 30.11238 },
+    };
+    const after = await applyRecordPatch(before, "48021:34049");
+
+    expect(after.readPath).toBe("record-unavailable");
+    expect(after.cityLimitsFact?.status).toBe("unmeasured"); // the outage refusal still wins on status/basis
+    expect(after.cityLimitsFact?.queryPoint).toEqual({ longitude: -97.31717, latitude: 30.11238 }); // queryPoint survives the outage too
+  });
+
   it("P152-RAILS item 3: applyRecordPatch DECLARES a /record outage — readPath becomes record-unavailable and every rail this lane's composer owns is a typed refusal carrying the HTTP status, never a silent no-op that leaves a stale cortex-sourced value standing in as current (R-6)", async () => {
     vi.stubEnv("HAUSKA_RETRIEVAL_API_KEY", "test-key");
     vi.stubGlobal("fetch", vi.fn().mockResolvedValue(jsonResponse({ error: "boom" }, false, 503)));
