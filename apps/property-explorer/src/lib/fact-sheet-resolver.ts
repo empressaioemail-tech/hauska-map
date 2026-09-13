@@ -90,6 +90,7 @@ import {
   fetchBakedNodeFacets,
   FLOOD_HAZARD_FACT_MISSING_REASON,
   type BakedFacetPayload,
+  type BakedFacetsFetchResult,
 } from "./baked-facets";
 import { isLayerAbsenceWire, zoningDistrictFromPayload } from "./layer-absence";
 import type { VerdictLayerSnapshot } from "./sheet-to-card-model";
@@ -255,6 +256,73 @@ export function sheetEnvelopeIsAtomPathPending(
   }
   return false;
 }
+
+/**
+ * The exact `declineReason === "atom_path_pending"` check `zoningFact` and
+ * `setbacksFact` each make inline (Gate C bounce — the atom chain has not
+ * finished resolving zoning/setbacks for this parcel yet), exposed once so
+ * the facets FETCH itself can retry before ever sealing a sheet with it —
+ * see `PeFactSheetResolver.fetchFacetsWithSettle` below.
+ */
+function bakedFacetsAtomPathPending(facets: BakedFacetPayload): boolean {
+  return str(facets.envelope?.declineReason) === "atom_path_pending";
+}
+
+/**
+ * P-174: true when a SEALED sheet's setbacks or zoning is a Gate C bounce
+ * (`state: "unresolved", retryable: true` — see `zoningFact` / `setbacksFact`
+ * above). `resolveUncached` still returns such a sheet honestly (Gate C
+ * doctrine: pending is never dressed up as an absence), but `resolve()`
+ * refuses to let it stand as this parcel's PERMANENT cached answer — a sheet
+ * sealed with an incomplete input is never cached as complete.
+ */
+function sheetHasPendingAtomChain(
+  sheet: Pick<ParcelFactSheet, "setbacks" | "zoning">,
+): boolean {
+  return (
+    (sheet.setbacks.state === "unresolved" && sheet.setbacks.retryable === true) ||
+    (sheet.zoning.state === "unresolved" && sheet.zoning.retryable === true)
+  );
+}
+
+function sleep(ms: number): Promise<void> {
+  return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
+/**
+ * Extra facets re-fetches when the atom chain has not resolved zoning/
+ * setbacks yet. Short and bounded, and it rides inside the card's existing
+ * "Reading this parcel…" state — never a background poll, never unbounded.
+ *
+ * WIDENED post-deploy (P-174 second pass, 2026-09-12): the operator
+ * reproduced the original symptom live AFTER this mechanism first shipped
+ * (searchLandedSetbacksShown observed false, clickSetbacksShown observed
+ * true — the pre-registered falsifier fired). A live investigation against
+ * production with the actual fixed resolver code found NO divergence
+ * between a search-landing seal and a click seal for this exact parcel at
+ * that time (three different realistic query strings all round-tripped to
+ * identical, complete setbacks), the retrieval-api Cloud Run logs showed no
+ * errors or elevated latency in the observable window, and the deployed
+ * bundle was confirmed to carry this fix. What the investigation DID find
+ * live is that upstream lookups here are not uniformly fast under real
+ * conditions (pe-situs-search itself returned `situs_search_unreachable:
+ * cortex timed out after 5000ms` for one realistic query variant during
+ * this same investigation) — so the ORIGINAL 700/1500ms budget (2.2s total)
+ * is a plausible under-estimate of how long a genuinely cold atom-chain
+ * read can take, even though this specific incident could not be pinned to
+ * it with certainty. This is a deliberate, bounded widening on that
+ * evidence, not a guess dressed as a fix: still finite, still entirely
+ * inside the card's existing loading state, and it changes nothing about
+ * which condition triggers a retry (see bakedFacetsAtomPathPending) or
+ * about resolve()'s cache eviction on a still-pending seal, which is the
+ * only actual GUARANTEE this mechanism ever made against the original bug.
+ * The remaining open question (see this lane's close/leave_behind) is
+ * whether the operator's reproduction was actually the InspectCard
+ * "More facts" accordion being collapsed rather than a data gap — the
+ * screenshots that came with the report could not distinguish the two, and
+ * this lane has no browser to check live.
+ */
+const ATOM_CHAIN_SETTLE_BACKOFF_MS = [800, 1_600, 3_200, 6_400];
 
 function provenance(
   over: Partial<Provenance> & { source: string; sourceLabel: string },
@@ -2334,6 +2402,11 @@ export interface FactSheetResolverOptions {
   now?: () => Date;
   /** Override for tests. Production stays GEOMETRY_HOP_TIMEOUT_MS. */
   hopTimeoutMs?: number;
+  /**
+   * Override for tests. Production stays ATOM_CHAIN_SETTLE_BACKOFF_MS. An
+   * empty array disables the in-band settle retry (one facets fetch only).
+   */
+  atomChainSettleBackoffMs?: number[];
 }
 
 export class PeFactSheetResolver implements FactSheetResolver {
@@ -2342,6 +2415,7 @@ export class PeFactSheetResolver implements FactSheetResolver {
   private readonly fetchImpl: typeof fetch;
   private readonly now: () => Date;
   private readonly hopTimeoutMs: number;
+  private readonly atomChainSettleBackoffMs: number[];
   private readonly byParcel = new Map<string, Promise<ResolveResult>>();
   private readonly bySheet = new Map<string, ParcelFactSheet>();
   private readonly seeds = new Map<string, GeometrySeedHint>();
@@ -2352,6 +2426,8 @@ export class PeFactSheetResolver implements FactSheetResolver {
     this.fetchImpl = opts.fetchImpl ?? ((...args) => fetch(...args));
     this.now = opts.now ?? (() => new Date());
     this.hopTimeoutMs = opts.hopTimeoutMs ?? GEOMETRY_HOP_TIMEOUT_MS;
+    this.atomChainSettleBackoffMs =
+      opts.atomChainSettleBackoffMs ?? ATOM_CHAIN_SETTLE_BACKOFF_MS;
   }
 
   /** Envelope / GIS fetches abort after hopTimeoutMs. No retries. */
@@ -2385,11 +2461,27 @@ export class PeFactSheetResolver implements FactSheetResolver {
     const cached = this.byParcel.get(id);
     if (cached) return cached;
 
-    const pending = this.resolveUncached(id).catch((err) => {
-      // A failed resolve must not poison the cache — the next Find retries.
-      this.byParcel.delete(id);
-      throw err;
-    });
+    const pending = this.resolveUncached(id)
+      .then((result) => {
+        // P-174: a sheet sealed while the zoning/setback atom chain had not
+        // yet resolved (Gate C bounce) must not stand as this parcel's
+        // permanent answer for the rest of the session — `fetchFacetsWithSettle`
+        // already gave it a bounded chance to warm before sealing; if it is
+        // STILL pending, evict the entry so the NEXT resolve, from ANY entry
+        // point (a search landing, a click, a shared link), gets a genuinely
+        // fresh attempt instead of replaying a stale pending snapshot. This
+        // is the one place a sheet is ever un-cached without an error: an
+        // incomplete input is never cached as complete.
+        if (result.kind === "sheet" && sheetHasPendingAtomChain(result)) {
+          this.byParcel.delete(id);
+        }
+        return result;
+      })
+      .catch((err) => {
+        // A failed resolve must not poison the cache — the next Find retries.
+        this.byParcel.delete(id);
+        throw err;
+      });
     this.byParcel.set(id, pending);
     return pending;
   }
@@ -2428,8 +2520,40 @@ export class PeFactSheetResolver implements FactSheetResolver {
     this.seeds.clear();
   }
 
+  /**
+   * P-174: `fetchBakedNodeFacets` already retries TRANSPORT failures
+   * (5xx / timeout / bad JSON); a 200 whose `envelope.declineReason` is
+   * "atom_path_pending" is, as far as the wire is concerned, a complete and
+   * successful read, so it retries none of those. But the zoning/setback
+   * atom chain sometimes has not finished resolving yet (Gate C bounce —
+   * live-observed on 48209:156346, atom-chain-to-facets.test.ts), and until
+   * this lane nothing downstream of the fetch ever asked again for THAT
+   * specific gap. A few short, bounded re-fetches here give the chain a real
+   * chance to settle inside the card's own "Reading this parcel…" state, so
+   * a search-landed subject has the same chance a click gets without a
+   * second, unrelated click standing in for a retry. Still pending after the
+   * budget: return the last response as-is and seal it honestly as pending
+   * (Gate C doctrine unchanged) — `resolve()`'s cache eviction covers the
+   * rest by refusing to let that pending seal become permanent.
+   */
+  private async fetchFacetsWithSettle(
+    parcelNodeId: string,
+  ): Promise<BakedFacetsFetchResult> {
+    let last: BakedFacetsFetchResult | null = null;
+    for (let attempt = 0; ; attempt++) {
+      const result = await fetchBakedNodeFacets(parcelNodeId, this.facetsBase);
+      if (result.kind !== "ok" || !bakedFacetsAtomPathPending(result.data.facets)) {
+        return result;
+      }
+      last = result;
+      const wait = this.atomChainSettleBackoffMs[attempt];
+      if (wait == null) return last;
+      await sleep(wait);
+    }
+  }
+
   private async resolveUncached(parcelNodeId: string): Promise<ResolveResult> {
-    const facetsResult = await fetchBakedNodeFacets(parcelNodeId, this.facetsBase);
+    const facetsResult = await this.fetchFacetsWithSettle(parcelNodeId);
     if (facetsResult.kind === "not_found") {
       throw new FactSheetResolveError(
         "not-found",
