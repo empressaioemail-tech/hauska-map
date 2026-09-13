@@ -129,6 +129,31 @@ const GEOMETRY_PROBE_METRES = 150;
 export const GEOMETRY_HOP_TIMEOUT_MS = 4_000;
 
 /**
+ * F21 (2026-09-13, live-traced): step 1.5 (cityLimitsFact.queryPoint, P-151's
+ * record-point seed) is a no-op today for every parcel served through the
+ * "record" readPath — the record composer does not carry queryPoint (a
+ * separate, server-side fix; not this lane's to make). Every search-landed
+ * subject that arrives without its own click-ring therefore falls through
+ * to step 1.6 (situs-search) EVERY TIME. situs-search has DEMONSTRATED
+ * real multi-second latency under real conditions (live-observed:
+ * `situs_search_unreachable: cortex timed out after 5000ms` for a
+ * realistic query), while a healthy call typically answers in ~1-1.3s
+ * (also live-measured). Worse, for a parcel whose OWN situs-index entry
+ * carries no coordinate (also live-confirmed for this exact probe parcel —
+ * the situs "parcel-situs" hit for "1109 Pecan St" has latitude/longitude
+ * both null), this hop can NEVER produce a seed no matter how long it
+ * waits. Giving it the full GEOMETRY_HOP_TIMEOUT_MS (4s) before falling
+ * through to step 2 (the address-derive POST, which in every live test so
+ * far has succeeded) turns a genuinely fast fallback into a slow, fragile
+ * one for exactly the parcels F21 affects. Bounded shorter here — still
+ * comfortably above the observed healthy latency, still short of the
+ * demonstrated failure mode — so a slow/unhelpful situs-search degrades
+ * fast rather than eating the whole hop budget on a hop that was never
+ * going to answer.
+ */
+export const SITUS_SEED_HOP_TIMEOUT_MS = 2_500;
+
+/**
  * County names for the FIPS the served payload does not name. The FIPS is a
  * substring of every parcel node id, so a sheet that cannot name its county is
  * MALFORMED rather than honestly absent — this is what makes "County name is
@@ -2407,6 +2432,8 @@ export interface FactSheetResolverOptions {
    * empty array disables the in-band settle retry (one facets fetch only).
    */
   atomChainSettleBackoffMs?: number[];
+  /** Override for tests. Production stays SITUS_SEED_HOP_TIMEOUT_MS. */
+  situsSeedHopTimeoutMs?: number;
 }
 
 export class PeFactSheetResolver implements FactSheetResolver {
@@ -2416,6 +2443,7 @@ export class PeFactSheetResolver implements FactSheetResolver {
   private readonly now: () => Date;
   private readonly hopTimeoutMs: number;
   private readonly atomChainSettleBackoffMs: number[];
+  private readonly situsSeedHopTimeoutMs: number;
   private readonly byParcel = new Map<string, Promise<ResolveResult>>();
   private readonly bySheet = new Map<string, ParcelFactSheet>();
   private readonly seeds = new Map<string, GeometrySeedHint>();
@@ -2428,11 +2456,13 @@ export class PeFactSheetResolver implements FactSheetResolver {
     this.hopTimeoutMs = opts.hopTimeoutMs ?? GEOMETRY_HOP_TIMEOUT_MS;
     this.atomChainSettleBackoffMs =
       opts.atomChainSettleBackoffMs ?? ATOM_CHAIN_SETTLE_BACKOFF_MS;
+    this.situsSeedHopTimeoutMs =
+      opts.situsSeedHopTimeoutMs ?? SITUS_SEED_HOP_TIMEOUT_MS;
   }
 
-  /** Envelope / GIS fetches abort after hopTimeoutMs. No retries. */
-  private hopFetch(): typeof fetch {
-    const ms = this.hopTimeoutMs;
+  /** Envelope / GIS fetches abort after hopTimeoutMs (or the override). No retries. */
+  private hopFetch(timeoutMsOverride?: number): typeof fetch {
+    const ms = timeoutMsOverride ?? this.hopTimeoutMs;
     const impl = this.fetchImpl;
     return (input, init) => {
       const timeout = AbortSignal.timeout(ms);
@@ -2864,7 +2894,15 @@ export class PeFactSheetResolver implements FactSheetResolver {
         try {
           const fips = parcelNodeId.split(":")[0] ?? "";
           const qs = new URLSearchParams({ q: composedAddress, countyFips: fips });
-          const res = await this.hopFetch()(`/api/pe-situs-search?${qs.toString()}`);
+          // F21: bounded shorter than the general hop timeout — see
+          // SITUS_SEED_HOP_TIMEOUT_MS. A parcel whose own situs entry
+          // carries no coordinate can never be answered by this hop no
+          // matter how long it waits; a slow one degrades fast instead of
+          // spending the whole geometry budget here before step 2 (which
+          // has been reliable in every live check) even starts.
+          const res = await this.hopFetch(this.situsSeedHopTimeoutMs)(
+            `/api/pe-situs-search?${qs.toString()}`,
+          );
           if (res.ok) {
             const body = (await res.json()) as { hits?: SitusSearchHit[] };
             const hits = Array.isArray(body?.hits) ? body.hits : [];

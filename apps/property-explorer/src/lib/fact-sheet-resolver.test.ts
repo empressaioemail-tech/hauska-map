@@ -14,7 +14,9 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 import {
   FactSheetResolveError,
+  GEOMETRY_HOP_TIMEOUT_MS,
   PeFactSheetResolver,
+  SITUS_SEED_HOP_TIMEOUT_MS,
   computeFactSheetId,
   pickParcelRings,
   sheetEnvelopeIsAtomPathPending,
@@ -123,6 +125,8 @@ interface StubOpts {
   } | null;
   /** GIS never settles unless the request signal aborts. */
   gisHang?: boolean;
+  /** situs-search never settles unless the request signal aborts (F21). */
+  situsSearchHang?: boolean;
   /** Hits GET /api/pe-situs-search returns. Defaults to none (P-151). */
   situsSearchHits?: Array<{
     parcelNodeId?: string | null;
@@ -166,6 +170,7 @@ function installFetchStub(opts: StubOpts = {}) {
       );
     }
     if (url.includes("/api/pe-situs-search")) {
+      if (opts.situsSearchHang) return abortAwareHang(init?.signal);
       return new Response(JSON.stringify({ hits: opts.situsSearchHits ?? [] }), {
         status: 200,
         headers: { "Content-Type": "application/json" },
@@ -273,7 +278,11 @@ async function sheetOf(
 
 function makeResolver(
   stub: { impl: typeof fetch },
-  over: { hopTimeoutMs?: number; atomChainSettleBackoffMs?: number[] } = {},
+  over: {
+    hopTimeoutMs?: number;
+    atomChainSettleBackoffMs?: number[];
+    situsSeedHopTimeoutMs?: number;
+  } = {},
 ) {
   return new PeFactSheetResolver({
     facetsBase: FACETS_BASE,
@@ -282,6 +291,7 @@ function makeResolver(
     now: () => new Date("2026-08-18T12:00:00.000Z"),
     hopTimeoutMs: over.hopTimeoutMs,
     atomChainSettleBackoffMs: over.atomChainSettleBackoffMs,
+    situsSeedHopTimeoutMs: over.situsSeedHopTimeoutMs,
   });
 }
 
@@ -2911,5 +2921,65 @@ describe("P-174 — one sealing path: a search-landing hint and a click hint sea
 
     expect(searchLanded.setbacks).toEqual(clicked.setbacks);
     expect(searchLanded.envelope.kind).toBe(clicked.envelope.kind);
+  });
+});
+
+describe("F21 (2026-09-13) — the record path's cityLimitsFact carries no queryPoint; the situs-search fallback hop must degrade fast, not eat the whole geometry budget", () => {
+  /**
+   * A facets wire shaped like the LIVE "record" readPath, confirmed live on
+   * 2026-09-13 via a direct traced call against production for 48021:34049:
+   * no cityLimitsFact.queryPoint (step 1.5 is a no-op) AND no
+   * envelope.geojson (step 1 is also a no-op) -- every search-landed
+   * subject without its own click-ring reaches step 1.6 every time.
+   */
+  function noRecordPointWire(): Record<string, unknown> {
+    const wire = facetsWire({
+      envelope: {
+        status: "ok",
+        district: "SF-1",
+        setbacks: { front_ft: 30, side_ft: 5, rear_ft: 25, side_corner_ft: 15 },
+        buildableAreaSqFt: 19052,
+      },
+    }) as unknown as Record<string, unknown>;
+    // No cityLimitsFact at all on this wire -- recordPointFromCityLimitsFact
+    // returns null, matching the live "record" payload exactly.
+    return wire;
+  }
+
+  it("a hung situs-search aborts at situsSeedHopTimeoutMs, not the longer general hop timeout, and step 2 still places the parcel", async () => {
+    const stub = installFetchStub({
+      facets: noRecordPointWire(),
+      situsSearchHang: true,
+      buildableEnvelope: {
+        parcelNodeId: NODE_ID,
+        status: "ok",
+        placeKey: `coord:${SUBJECT_CENTRE.lat}:${SUBJECT_CENTRE.lng}`,
+      },
+      gisFeatures: [SUBJECT_FEATURE],
+    });
+    // hopTimeoutMs deliberately much longer than situsSeedHopTimeoutMs: if
+    // the situs-search hop used the general hop timeout (pre-fix
+    // behaviour), this test would take ~hopTimeoutMs to complete. It must
+    // instead complete close to situsSeedHopTimeoutMs.
+    const resolver = makeResolver(stub, {
+      hopTimeoutMs: 10_000,
+      situsSeedHopTimeoutMs: 20,
+    });
+    const started = Date.now();
+    const result = await resolver.resolve(NODE_ID);
+    const elapsedMs = Date.now() - started;
+    expect(result.kind).toBe("sheet");
+    if (result.kind !== "sheet") throw new Error("unreachable");
+    expect(result.setbacks.state).toBe("present");
+    expect(result.geometry.centroid.lat).toBeCloseTo(SUBJECT_CENTRE.lat, 3);
+    // Comfortably under hopTimeoutMs (10s) and close to situsSeedHopTimeoutMs
+    // (20ms) plus the rest of the (stub, near-instant) chain -- a regression
+    // back to the general hop timeout would blow well past this.
+    expect(elapsedMs).toBeLessThan(2_000);
+  });
+
+  it("SITUS_SEED_HOP_TIMEOUT_MS is bounded shorter than GEOMETRY_HOP_TIMEOUT_MS", () => {
+    expect(SITUS_SEED_HOP_TIMEOUT_MS).toBeLessThan(GEOMETRY_HOP_TIMEOUT_MS);
+    expect(SITUS_SEED_HOP_TIMEOUT_MS).toBeGreaterThan(0);
   });
 });
