@@ -293,8 +293,36 @@ function sleep(ms: number): Promise<void> {
  * Extra facets re-fetches when the atom chain has not resolved zoning/
  * setbacks yet. Short and bounded, and it rides inside the card's existing
  * "Reading this parcel…" state — never a background poll, never unbounded.
+ *
+ * WIDENED post-deploy (P-174 second pass, 2026-09-12): the operator
+ * reproduced the original symptom live AFTER this mechanism first shipped
+ * (searchLandedSetbacksShown observed false, clickSetbacksShown observed
+ * true — the pre-registered falsifier fired). A live investigation against
+ * production with the actual fixed resolver code found NO divergence
+ * between a search-landing seal and a click seal for this exact parcel at
+ * that time (three different realistic query strings all round-tripped to
+ * identical, complete setbacks), the retrieval-api Cloud Run logs showed no
+ * errors or elevated latency in the observable window, and the deployed
+ * bundle was confirmed to carry this fix. What the investigation DID find
+ * live is that upstream lookups here are not uniformly fast under real
+ * conditions (pe-situs-search itself returned `situs_search_unreachable:
+ * cortex timed out after 5000ms` for one realistic query variant during
+ * this same investigation) — so the ORIGINAL 700/1500ms budget (2.2s total)
+ * is a plausible under-estimate of how long a genuinely cold atom-chain
+ * read can take, even though this specific incident could not be pinned to
+ * it with certainty. This is a deliberate, bounded widening on that
+ * evidence, not a guess dressed as a fix: still finite, still entirely
+ * inside the card's existing loading state, and it changes nothing about
+ * which condition triggers a retry (see bakedFacetsAtomPathPending) or
+ * about resolve()'s cache eviction on a still-pending seal, which is the
+ * only actual GUARANTEE this mechanism ever made against the original bug.
+ * The remaining open question (see this lane's close/leave_behind) is
+ * whether the operator's reproduction was actually the InspectCard
+ * "More facts" accordion being collapsed rather than a data gap — the
+ * screenshots that came with the report could not distinguish the two, and
+ * this lane has no browser to check live.
  */
-const ATOM_CHAIN_SETTLE_BACKOFF_MS = [700, 1_500];
+const ATOM_CHAIN_SETTLE_BACKOFF_MS = [800, 1_600, 3_200, 6_400];
 
 function provenance(
   over: Partial<Provenance> & { source: string; sourceLabel: string },
