@@ -1,6 +1,12 @@
 import { describe, expect, it } from "vitest";
 
-import { composeRecordPatch, type ParcelRecordResponse, type RecordRail } from "./pe-record-to-facets";
+import {
+  composeRecordPatch,
+  composeZoningSetbackOverride,
+  COMPOSED_ZONING_SETBACK_RAIL_KEYS,
+  type ParcelRecordResponse,
+  type RecordRail,
+} from "./pe-record-to-facets";
 
 function rail(
   serve: RecordRail["serve"],
@@ -227,5 +233,133 @@ describe("composeRecordPatch", () => {
     const record = emptyRecord({});
     const { railStates } = composeRecordPatch(record);
     expect(Object.keys(railStates)).toHaveLength(0);
+  });
+});
+
+/**
+ * OPS-23 P-152 lane 4 (p152-slate): `composeZoningSetbackOverride` (P152-RAILS,
+ * PR #393) had zero direct test coverage before this lane — only exercised
+ * indirectly through `pe-property-atoms.ts`'s own integration tests, none of
+ * which construct a fully record-served zoning-envelope rail group. These
+ * cases use the REAL `parcel_record_cell` values for the probe parcel
+ * `48021:34049` (Bastrop), read live from the FACTORY host
+ * (ep-round-base-au0jofwp/neondb, 2026-09-13): setbackSideFt=10,
+ * setbackRearFt=30, setbackCornerFt=20, source
+ * `@empressaio/setback-corpus@1.1.0:bastrop-development-code` — the SAME
+ * ordinance-sourced figures `get_smart_site`/the buildable-envelope endpoint
+ * already serve (OPS-23 F3's "30/10/30/20"). The panel itself served
+ * front_ft=30/side_ft=5/rear_ft=25/side_corner_ft=15 on this same live read
+ * (2026-09-13T19:39Z) because these three rails carry no
+ * `parcel-record-slate.json`/`PARCEL_RECORD_SLATE` entry today (a
+ * hauska-engine + legacy-design-tools write, outside this lane's registered
+ * repos — see this lane's close). This test proves the COMPOSE function
+ * itself is correct and ready: once slated, the only remaining step is the
+ * slate flip, not new hauska-map code. It is the "divergence test between
+ * the record value and the last legacy value" the mission asked for,
+ * expressed as fixture data because the live slate cannot be flipped from
+ * this lane's write scope.
+ */
+describe("composeZoningSetbackOverride — real Bastrop parcel_record_cell fixtures (OPS-23 P-152 lane 4)", () => {
+  const LEGACY_ATOM_CHAIN_SETBACKS_48021_34049_20260913 = {
+    front_ft: 30,
+    side_ft: 5,
+    rear_ft: 25,
+    side_corner_ft: 15,
+  } as const;
+
+  it("overrides side/rear/corner from record-served cells, diverging from the live legacy atom-chain values captured 2026-09-13", () => {
+    const record = emptyRecord({
+      setbackFrontFt: rail("record", {
+        kind: "value",
+        value: 30,
+        source: "@empressaio/setback-corpus@1.1.0:bastrop-development-code",
+        vintage: "2026-09-10T22:33:31.180Z",
+      }),
+      setbackSideFt: rail("record", {
+        kind: "value",
+        value: 10,
+        source: "@empressaio/setback-corpus@1.1.0:bastrop-development-code",
+        vintage: "2026-09-10T22:33:31.180Z",
+      }),
+      setbackRearFt: rail("record", {
+        kind: "value",
+        value: 30,
+        source: "@empressaio/setback-corpus@1.1.0:bastrop-development-code",
+        vintage: "2026-09-10T22:33:31.180Z",
+      }),
+      setbackCornerFt: rail("record", {
+        kind: "value",
+        value: 20,
+        source: "@empressaio/setback-corpus@1.1.0:bastrop-development-code",
+        vintage: "2026-09-10T22:33:31.180Z",
+      }),
+    });
+
+    const { override } = composeZoningSetbackOverride(record);
+
+    expect(override.setbackAxisOverrides).toEqual({ front_ft: 30, side_ft: 10, rear_ft: 30, side_corner_ft: 20 });
+    // The divergence this lane found live: today's served value disagrees with
+    // the record's own cell on every axis but front (already slated).
+    expect(override.setbackAxisOverrides).not.toEqual(LEGACY_ATOM_CHAIN_SETBACKS_48021_34049_20260913);
+  });
+
+  it("leaves side/rear/corner untouched (legacy-transitional) when the rails are unslated, matching today's live production response", () => {
+    const record = emptyRecord({
+      setbackFrontFt: rail("record", { kind: "value", value: 30 }),
+      setbackSideFt: rail("legacy-transitional", { kind: "value", value: 10 }),
+      setbackRearFt: rail("legacy-transitional", { kind: "value", value: 30 }),
+      setbackCornerFt: rail("legacy-transitional", { kind: "value", value: 20 }),
+    });
+
+    const { override, railStates } = composeZoningSetbackOverride(record);
+
+    expect(override.setbackAxisOverrides).toEqual({ front_ft: 30 });
+    expect(railStates.setbackSideFt).toEqual({ serve: "legacy-transitional", atomBacked: false });
+  });
+
+  it("composes zoningJurisdictionKey onto override.jurisdictionKey when record-served", () => {
+    const record = emptyRecord({
+      zoningDistrict: rail("record", { kind: "value", value: "SF-1" }),
+      zoningJurisdictionKey: rail("record", { kind: "value", value: "bastrop-development-code" }),
+    });
+
+    const { override } = composeZoningSetbackOverride(record);
+
+    expect(override.district).toBe("SF-1");
+    expect(override.jurisdictionKey).toBe("bastrop-development-code");
+  });
+
+  /**
+   * KNOWN GAP, named rather than silently accepted (OPS-23 P-152 lane 4
+   * close, `leave_behind`): `zoningProvenance` is declared in
+   * `COMPOSED_ZONING_SETBACK_RAIL_KEYS` (rail-keys.js / the retrieval-api
+   * registry both carry it as a real, independent rail) and its `serve`
+   * state is tracked in `railStates`, but `composeZoningSetbackOverride`
+   * has no line anywhere that reads `record.rails.zoningProvenance`'s
+   * VALUE onto any field of `ZoningSetbackOverride` — there is no
+   * `provenance` (or similarly named) field on the PE zoning wire type for
+   * it to land on. Slating `<county>:zoningProvenance` in the allowlist
+   * would flip this rail's `serve` to `"record"` with zero visible effect
+   * on any customer surface. This lane does not invent new wire surface to
+   * close that gap (out of mandate — see the close's `scopeBasis`); this
+   * test only makes the gap visible and regression-proof so a future
+   * change to this function is not mistaken for zoningProvenance already
+   * being wired.
+   */
+  it("tracks zoningProvenance's serve state but applies its value to no wire field (documented gap, not fixed here)", () => {
+    expect(COMPOSED_ZONING_SETBACK_RAIL_KEYS).toContain("zoningProvenance");
+
+    const record = emptyRecord({
+      zoningDistrict: rail("record", { kind: "value", value: "SF-1" }),
+      zoningProvenance: rail("record", { kind: "value", value: "bastrop-development-code:2026-06-ordinance" }),
+    });
+
+    const { override, railStates } = composeZoningSetbackOverride(record);
+
+    expect(railStates.zoningProvenance).toEqual({ serve: "record", atomBacked: false });
+    // No field on ZoningSetbackOverride carries this value today.
+    expect(Object.keys(override).sort()).toEqual(
+      ["district", "setbackRulesCitationUrl", "setbackRulesEffectiveDate"].sort(),
+    );
   });
 });
