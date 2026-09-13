@@ -1862,6 +1862,12 @@ function zoningFact(
           did: facets.envelope?.provenanceRefs?.zoning?.atomDid,
           label: null,
         }),
+        // P-167 wave 5 (OPS-23 R-4): the parcel_record zoningProvenance
+        // rail's own citation string, when the record served one — the MCP
+        // already carries this same value; the panel prints it as the
+        // citation it is instead of dropping it (documented gap closed,
+        // pe-record-to-facets.test.ts / OPS-23 P-152 lane 4 close).
+        sourceUrl: str(zoningStamp?.provenance),
       }),
     };
   }

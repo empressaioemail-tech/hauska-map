@@ -96,16 +96,23 @@ export function isPopulatedLayerWire<T>(
   return (value as { status?: unknown }).status === "populated";
 }
 
-/** Zoning stamp district when facets.zoning is a district object, not a verdict wire. */
+/**
+ * Zoning stamp district when facets.zoning is a district object, not a
+ * verdict wire. `provenance` (P-167 wave 5, OPS-23 R-4) is the
+ * parcel_record `zoningProvenance` rail's citation string, carried through
+ * unchanged so the panel's zoning row can print it as the citation it is —
+ * it used to be dropped here even when the caller supplied it.
+ */
 export function zoningDistrictFromPayload(
-  zoning: { district: string; jurisdictionKey?: string } | LayerAbsenceWire | null | undefined,
-): { district: string; jurisdictionKey?: string } | null {
+  zoning: { district: string; jurisdictionKey?: string; provenance?: string } | LayerAbsenceWire | null | undefined,
+): { district: string; jurisdictionKey?: string; provenance?: string } | null {
   if (zoning == null || isLayerAbsenceWire(zoning)) return null;
   const district = zoning.district?.trim();
   if (!district) return null;
   return {
     district,
     jurisdictionKey: zoning.jurisdictionKey,
+    ...(zoning.provenance ? { provenance: zoning.provenance } : {}),
   };
 }
 
