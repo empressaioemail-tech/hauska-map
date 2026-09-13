@@ -8,6 +8,8 @@
 // not_specified: live setback-rule atoms currently drop the flag; we re-attach
 // B3 provenance by district so silent axes never render as real 0′ / "consume lot".
 
+import { envelopeHuman } from "@empressaio/atom-contract/display";
+
 import {
   resolveCodifiedSetbacksForStamp,
   type CodifiedSetbackScalars,
@@ -270,7 +272,17 @@ export interface PeBakedFacetPayload {
       improvementValue?: CadRollValueWire | null;
     } | null;
   };
-  zoning?: { district: string; jurisdictionKey?: string } | null;
+  /**
+   * `provenance` (P-167 wave 5, OPS-23 R-4): the parcel_record
+   * `zoningProvenance` rail's own citation string (e.g.
+   * "bastrop-development-code:2026-06-ordinance"), composed by
+   * `composeZoningSetbackOverride` / `applyZoningOverride` in
+   * pe-record-to-facets.ts / pe-property-atoms.ts. Distinct from
+   * `envelope.citationUrl` (a different rail, `setbackRules`). Optional:
+   * absent whenever the record does not serve this rail, exactly like
+   * `jurisdictionKey`.
+   */
+  zoning?: { district: string; jurisdictionKey?: string; provenance?: string } | null;
   envelope?: {
     status: "ok" | "no-buildable-area" | "declined";
     confidence?: number;
@@ -1912,6 +1924,15 @@ export function adaptAtomChainToBakedFacets(
 
   if (absenceKind === "no-zoning-stamp") {
     // Align with cortex absentZoningHonesty / declineReason vocabulary.
+    // P-167 wave 5 (OPS-23 R-4): the atom's own absence.reason (read into
+    // absenceReason above) already carries a human sentence for the common
+    // case, so this rarely falls through — but when it does (an atom with
+    // no reason recorded), the fallback now reads the shared vocabulary's
+    // own no-zoning-stamp humanization instead of a fourth, separately
+    // hand-typed sentence, so hauska-map, the MCP (tool-honesty.ts calls
+    // the same envelopeHuman generically) and hauska-engine's PDF (author.ts
+    // falls back to the identical envelopeHuman(kind) call) converge on one
+    // string for this edge case too.
     envelope = {
       status: "declined",
       declineReason: "no-zoning-stamp",
@@ -1919,6 +1940,7 @@ export function adaptAtomChainToBakedFacets(
       provisional: true,
       disclosure:
         absenceReason ||
+        envelopeHuman("no-zoning-stamp") ||
         "No zoning stamp on this parcel — honest absence; no district invented.",
     };
     envelopeCovered = false;

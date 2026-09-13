@@ -276,6 +276,39 @@ describe("fetchParcelRecordOnce / applyRecordPatch (P152-PANEL)", () => {
     expect(after.facets.envelope?.buildableAreaPct).toBe(40);
   });
 
+  /**
+   * P-167 wave 5 (OPS-23 R-4). Closes the gap OPS-23 P-152 lane 4 left open
+   * (pe-record-to-facets.test.ts's former "documented gap" test): the
+   * zoningProvenance rail's value now reaches facets.zoning.provenance
+   * end-to-end through applyRecordPatch, so the panel's zoning row has it
+   * to print.
+   */
+  it("P-167 wave 5: applyRecordPatch carries zoningProvenance through onto facets.zoning.provenance", async () => {
+    vi.stubEnv("HAUSKA_RETRIEVAL_API_KEY", "test-key");
+    const recordBody: ParcelRecordResponse = {
+      parcelNodeId: "48021:34049",
+      placeKey: "48021:34049",
+      countyFips: "48021",
+      railRegistrySha: "sha",
+      readAt: "2026-09-12T00:00:00.000Z",
+      rails: {
+        zoningDistrict: recordRail("record", { kind: "value", value: "RR", source: "parcel_record", vintage: "2026-09-01T00:00:00.000Z" }),
+        zoningProvenance: recordRail("record", { kind: "value", value: "bastrop-development-code:2026-06-ordinance", source: "parcel_record", vintage: "2026-09-01T00:00:00.000Z" }),
+      },
+      refused: null,
+    };
+    vi.stubGlobal("fetch", vi.fn().mockResolvedValue(jsonResponse(recordBody)));
+
+    const before = basePayload();
+    const after = await applyRecordPatch(before, "48021:34049");
+
+    expect(after.readPath).toBe("record");
+    expect(after.facets.zoning).toEqual({
+      district: "RR",
+      provenance: "bastrop-development-code:2026-06-ordinance",
+    });
+  });
+
   it("P152-RAILS item 1: never invents a setbacks object when the atom chain declined the envelope (no re-derivation of the decline/ok tree)", async () => {
     vi.stubEnv("HAUSKA_RETRIEVAL_API_KEY", "test-key");
     const recordBody: ParcelRecordResponse = {

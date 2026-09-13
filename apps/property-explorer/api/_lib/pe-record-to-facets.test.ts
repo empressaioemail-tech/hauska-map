@@ -330,23 +330,19 @@ describe("composeZoningSetbackOverride — real Bastrop parcel_record_cell fixtu
   });
 
   /**
-   * KNOWN GAP, named rather than silently accepted (OPS-23 P-152 lane 4
-   * close, `leave_behind`): `zoningProvenance` is declared in
+   * P-167 wave 5 (OPS-23 R-4) CLOSES the gap OPS-23 P-152 lane 4 named and
+   * left open: `zoningProvenance` is declared in
    * `COMPOSED_ZONING_SETBACK_RAIL_KEYS` (rail-keys.js / the retrieval-api
    * registry both carry it as a real, independent rail) and its `serve`
-   * state is tracked in `railStates`, but `composeZoningSetbackOverride`
-   * has no line anywhere that reads `record.rails.zoningProvenance`'s
-   * VALUE onto any field of `ZoningSetbackOverride` — there is no
-   * `provenance` (or similarly named) field on the PE zoning wire type for
-   * it to land on. Slating `<county>:zoningProvenance` in the allowlist
-   * would flip this rail's `serve` to `"record"` with zero visible effect
-   * on any customer surface. This lane does not invent new wire surface to
-   * close that gap (out of mandate — see the close's `scopeBasis`); this
-   * test only makes the gap visible and regression-proof so a future
-   * change to this function is not mistaken for zoningProvenance already
-   * being wired.
+   * state was tracked in `railStates`, but `composeZoningSetbackOverride`
+   * had no line anywhere that read `record.rails.zoningProvenance`'s VALUE
+   * onto any field of `ZoningSetbackOverride`. It now lands on
+   * `override.provenance`, `applyZoningOverride` (pe-property-atoms.ts)
+   * carries it onto `facets.zoning.provenance`, and the panel's zoning row
+   * (fact-sheet-resolver.ts's `provenance({sourceUrl: ...})`) prints it as
+   * the citation it is.
    */
-  it("tracks zoningProvenance's serve state but applies its value to no wire field (documented gap, not fixed here)", () => {
+  it("composes zoningProvenance onto override.provenance when record-served (P-167 wave 5)", () => {
     expect(COMPOSED_ZONING_SETBACK_RAIL_KEYS).toContain("zoningProvenance");
 
     const record = emptyRecord({
@@ -357,9 +353,20 @@ describe("composeZoningSetbackOverride — real Bastrop parcel_record_cell fixtu
     const { override, railStates } = composeZoningSetbackOverride(record);
 
     expect(railStates.zoningProvenance).toEqual({ serve: "record", atomBacked: false });
-    // No field on ZoningSetbackOverride carries this value today.
+    expect(override.provenance).toBe("bastrop-development-code:2026-06-ordinance");
     expect(Object.keys(override).sort()).toEqual(
-      ["district", "setbackRulesCitationUrl", "setbackRulesEffectiveDate"].sort(),
+      ["district", "provenance", "setbackRulesCitationUrl", "setbackRulesEffectiveDate"].sort(),
     );
+  });
+
+  it("does not compose override.provenance when the zoningProvenance rail is not record-served", () => {
+    const record = emptyRecord({
+      zoningDistrict: rail("record", { kind: "value", value: "SF-1" }),
+      zoningProvenance: rail("legacy-transitional", { kind: "value", value: "bastrop-development-code:2026-06-ordinance" }),
+    });
+
+    const { override } = composeZoningSetbackOverride(record);
+
+    expect(override.provenance).toBeUndefined();
   });
 });

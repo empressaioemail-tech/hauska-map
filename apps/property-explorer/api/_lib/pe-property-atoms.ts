@@ -489,12 +489,24 @@ export async function fetchParcelRecordOnce(
  * `envelope.setbacks` already exists (the atom chain already decided this
  * parcel has a drawable envelope) — this lane does not re-derive the
  * decline/ok decision tree in `adaptAtomChainToBakedFacets`.
+ *
+ * P-167 wave 5 (OPS-23 R-4): `override.provenance` is included in the guard
+ * and the returned shape so a record that serves `zoningProvenance` without
+ * also serving `zoningDistrict`/`zoningJurisdictionKey` (the district coming
+ * from the atom chain instead) still gets its citation applied, rather than
+ * this function bailing out before ever looking at it.
  */
 function applyZoningOverride(
   zoning: NonNullable<PeBakedFacetsResponse["facets"]>["zoning"],
   override: ZoningSetbackOverride,
 ): NonNullable<PeBakedFacetsResponse["facets"]>["zoning"] {
-  if (override.district === undefined && override.jurisdictionKey === undefined) return zoning;
+  if (
+    override.district === undefined &&
+    override.jurisdictionKey === undefined &&
+    override.provenance === undefined
+  ) {
+    return zoning;
+  }
   const baseDistrict = zoning?.district;
   const district = override.district ?? baseDistrict;
   if (!district) return zoning; // never invent a district out of nothing
@@ -502,6 +514,9 @@ function applyZoningOverride(
     district,
     ...((override.jurisdictionKey ?? zoning?.jurisdictionKey)
       ? { jurisdictionKey: override.jurisdictionKey ?? zoning!.jurisdictionKey }
+      : {}),
+    ...((override.provenance ?? (zoning as { provenance?: string } | null | undefined)?.provenance)
+      ? { provenance: override.provenance ?? (zoning as { provenance?: string }).provenance }
       : {}),
   };
 }

@@ -114,8 +114,8 @@ importers:
   apps/property-explorer:
     dependencies:
       '@empressaio/atom-contract':
-        specifier: ^1.33.1
-        version: 1.33.1
+        specifier: ^1.34.0
+        version: 1.34.0
       '@empressaio/cortex-client':
         specifier: ^0.1.2
         version: 0.1.2
@@ -395,8 +395,8 @@ packages:
     resolution: {integrity: sha512-0dEVyRLM/lG4gp1R/Ik5bfPl/1wX00xFwd5KcNH602tzBa09oF7pbTKETEhR1GjZ75K6OJnYFu8II2dyMhONMw==}
     engines: {node: '>=16'}
 
-  '@empressaio/atom-contract@1.33.1':
-    resolution: {integrity: sha512-vSbxmTSBObrMaTYifp1FVRYGyKcEJB8+BOnpNrc73meaJ5t4gYFWzr4xye0wo0035vv2l6f97FQTAg5RJp+sRA==}
+  '@empressaio/atom-contract@1.34.0':
+    resolution: {integrity: sha512-BAzrMGRPk2Cgpkpmrf02X/n7wjcgzmhSFTQhBX9FXUkjI6n5/dFu2C7JepmblRN9c9lt4yiqJ2PAwp3y9GeG+w==}
     engines: {node: '>=18.18.0'}
 
   '@empressaio/cortex-client@0.1.2':
@@ -2731,7 +2731,7 @@ snapshots:
     dependencies:
       '@edge-runtime/primitives': 4.1.0
 
-  '@empressaio/atom-contract@1.33.1':
+  '@empressaio/atom-contract@1.34.0':
     dependencies:
       drizzle-orm: 0.45.2
       zod: 3.25.76

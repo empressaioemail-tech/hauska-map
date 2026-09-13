@@ -2,6 +2,7 @@
 // Run: `pnpm --filter property-explorer test`
 
 import { describe, it, expect } from "vitest";
+import { envelopeHuman } from "@empressaio/atom-contract/display";
 import {
   adaptAtomChainToBakedFacets,
   atomChainIsUsable,
@@ -122,6 +123,37 @@ describe("adaptAtomChainToBakedFacets — Bexar honest absence", () => {
     const wire = JSON.stringify(resp);
     expect(wire).not.toMatch(/"I-2"/);
     expect(wire).not.toMatch(/heavy industrial/i);
+  });
+
+  /**
+   * P-167 wave 5 (OPS-23 R-4). The atom's own absence.reason (the common
+   * case, exercised above) already carried a human sentence, so this panel
+   * adapter never actually leaked the raw code for a normally-baked atom.
+   * The one remaining edge case was the FALLBACK used when an atom carries
+   * no reason at all — that fallback used to be a fourth, separately
+   * hand-typed sentence, subtly different from hauska-engine's own wording
+   * for the same disposition. It now reads envelopeHuman("no-zoning-stamp")
+   * from the shared vocabulary, the same function the MCP's overlay
+   * reasonDisplayText and hauska-engine's author.ts fallback both call, so
+   * this edge case converges on one string too.
+   */
+  it("falls back to the shared vocabulary's humanization, never the raw code, when the zoning-fact atom carries no absence.reason", () => {
+    const chain: PropertyAtomChain = {
+      parcelNodeId: "48029:410120",
+      zoningFact: {
+        absence: { kind: "no-zoning-stamp" },
+        fetchedAt: "2026-07-23T20:00:00.000Z",
+      },
+      setbackRule: null,
+      buildableEnvelope: null,
+      atoms: [{}],
+    };
+    const resp = adaptAtomChainToBakedFacets(chain);
+    expect(resp!.facets.envelope?.declineReason).toBe("no-zoning-stamp");
+    expect(resp!.facets.envelope?.disclosure).toBe(envelopeHuman("no-zoning-stamp"));
+    expect(resp!.facets.envelope?.disclosure).not.toBe("no-zoning-stamp");
+    const wire = JSON.stringify(resp);
+    expect(wire).not.toMatch(/no-zoning-stamp[^"]*honest absence; no district invented/);
   });
 });
 

@@ -104,7 +104,13 @@ export interface BakedFacetPayload {
       improvementValue?: unknown;
     } | null;
   };
-  zoning?: { district: string; jurisdictionKey?: string } | LayerAbsenceWire | null;
+  /**
+   * `provenance` (P-167 wave 5, OPS-23 R-4): the parcel_record
+   * `zoningProvenance` rail's citation string, composed server-side in
+   * pe-record-to-facets.ts / pe-property-atoms.ts. Optional, same as
+   * `jurisdictionKey`.
+   */
+  zoning?: { district: string; jurisdictionKey?: string; provenance?: string } | LayerAbsenceWire | null;
   envelope?: {
     status: "ok" | "no-buildable-area" | "declined";
     confidence?: number;

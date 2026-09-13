@@ -614,6 +614,20 @@ function companionSetbackRulesMeta(
 export interface ZoningSetbackOverride {
   district?: string;
   jurisdictionKey?: string;
+  /**
+   * P-167 wave 5 (OPS-23 R-4). `record.rails.zoningProvenance`'s own value —
+   * a flat citation string (e.g. "bastrop-development-code:2026-06-
+   * ordinance"), per `zoningFactFromParcelRecord.ts`'s own documented
+   * convention in legacy-design-tools ("this adapter serves it as a plain
+   * citation string"). Distinct from `setbackRulesCitationUrl` above (a
+   * DIFFERENT rail, `setbackRules`, carrying a richer {effectiveDate,
+   * citationUrl} companion pair) — this was previously composed into
+   * `railStates` (its serve state was tracked) but never applied to any
+   * field of this override, a documented gap (pe-record-to-facets.test.ts,
+   * OPS-23 P-152 lane 4 close leave_behind). Closed here: the panel's
+   * zoning row now has somewhere to print it.
+   */
+  provenance?: string;
   setbackAxisOverrides?: {
     front_ft?: number;
     side_ft?: number;
@@ -659,6 +673,17 @@ export function composeZoningSetbackOverride(record: ParcelRecordResponse): {
     if (cell.state === "present") {
       const key = asNullableString(cell.value);
       if (key) override.jurisdictionKey = key;
+    }
+  }
+  // P-167 wave 5 (OPS-23 R-4): closes the documented gap — this rail's value
+  // now lands on `override.provenance` instead of being tracked in
+  // railStates with nowhere to go.
+  const provenanceRail = record.rails.zoningProvenance;
+  if (provenanceRail?.serve === "record" && provenanceRail.cell) {
+    const cell = interpretRecordCell(placeKey, "zoningProvenance", provenanceRail.cell, []);
+    if (cell.state === "present") {
+      const provenance = asNullableString(cell.value);
+      if (provenance) override.provenance = provenance;
     }
   }
 
