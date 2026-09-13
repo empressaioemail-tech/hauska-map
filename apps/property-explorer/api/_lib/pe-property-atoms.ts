@@ -553,6 +553,38 @@ function applyEnvelopeSetbackOverride(
  * "record-unavailable" — never a silent no-op that leaves whatever the
  * cortex merge already produced standing in as if it were current (R-6).
  */
+/**
+ * F21 (2026-09-13, overseer finding, live-confirmed by the dispatch
+ * planner): `cityLimitsFact.queryPoint` — the point-in-polygon subject
+ * point cortex stamps onto this fact, carried through from cortex's own
+ * response by `withCityLimitsFact` (atom-chain-to-facets.ts) whenever the
+ * cortex merge runs, ahead of this function — was disappearing from the
+ * panel's response whenever the record path composed (or declared
+ * unavailable for) cityLimits, because both branches replace the WHOLE
+ * `cityLimitsFact` object with one `composeCityLimits`/
+ * `composeRecordUnavailablePatch` built, and neither of those has any way
+ * to construct `queryPoint` (it is not part of the retrieval reader's
+ * cityLimits cell — confirmed by reading `composeCityLimits`, which reads
+ * only `cell.value`/`cell.source`/`cell.vintage`/`cell.basis`). P-151 seeds
+ * placement from this field, so losing it silently is exactly the class of
+ * regression this lane's own falsifier is supposed to catch and did not,
+ * because this lane's own pre/post facets diff (see this lane's close)
+ * never compared `cityLimitsFact` field-by-field, only zoning/setbacks.
+ * Fixed by carrying `queryPoint` through explicitly from whatever
+ * `payload.cityLimitsFact` already held, in both branches below — never
+ * invented when absent (an atom-chain-only response that never got a
+ * cortex merge has no queryPoint to carry, and none is fabricated here).
+ */
+function withPreservedQueryPoint(
+  existing: PeBakedFacetsResponse["cityLimitsFact"],
+  composed: PeBakedFacetsResponse["cityLimitsFact"],
+): PeBakedFacetsResponse["cityLimitsFact"] {
+  if (!composed) return composed;
+  if (composed.queryPoint !== undefined) return composed; // composer already set one — never overridden
+  if (!existing || existing.queryPoint === undefined) return composed; // nothing to carry through
+  return { ...composed, queryPoint: existing.queryPoint };
+}
+
 export async function applyRecordPatch(
   payload: PeBakedFacetsResponse,
   parcelNodeId: string,
@@ -567,7 +599,7 @@ export async function applyRecordPatch(
     return {
       ...payload,
       readPath: "record-unavailable",
-      cityLimitsFact: patch.cityLimitsFact,
+      cityLimitsFact: withPreservedQueryPoint(payload.cityLimitsFact, patch.cityLimitsFact),
       floodHazardFact: patch.floodHazardFact,
       specialDistrictFact: patch.specialDistrictFact,
       wellFact: patch.wellFact,
@@ -590,7 +622,7 @@ export async function applyRecordPatch(
     ...payload,
     readPath: "record",
     recordRailStates: { ...railStates, ...zsRailStates },
-    ...(patch.cityLimitsFact ? { cityLimitsFact: patch.cityLimitsFact } : {}),
+    ...(patch.cityLimitsFact ? { cityLimitsFact: withPreservedQueryPoint(payload.cityLimitsFact, patch.cityLimitsFact) } : {}),
     ...(patch.floodHazardFact ? { floodHazardFact: patch.floodHazardFact } : {}),
     ...(patch.specialDistrictFact ? { specialDistrictFact: patch.specialDistrictFact } : {}),
     ...(patch.wellFact ? { wellFact: patch.wellFact } : {}),
