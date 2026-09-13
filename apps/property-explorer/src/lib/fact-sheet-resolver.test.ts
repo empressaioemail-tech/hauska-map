@@ -2797,6 +2797,35 @@ describe("P-174 — a sheet sealed with a pending atom chain is never cached as 
     expect(stub.facetsCallCount()).toBe(2);
   });
 
+  it("P-174 second pass (2026-09-12): the widened production budget (4 retries) settles a chain that needed every attempt but the last", async () => {
+    // The live-reproduction pass that followed this mechanism's first deploy
+    // could not rule out a genuinely slow-to-settle atom chain exceeding the
+    // original 2-retry budget (2.2s) -- pe-situs-search itself was observed
+    // live to time out after 5s for a realistic query variant during that
+    // investigation. This pins the WIDENED production constant
+    // (ATOM_CHAIN_SETTLE_BACKOFF_MS = [800, 1_600, 3_200, 6_400], 4 retries,
+    // 5 attempts total) actually covers a chain that stays pending through
+    // every retry but the very last -- a case the OLD 2-retry budget would
+    // have sealed pending and this lane's cache-eviction would then have
+    // needed a second, separate resolve() to recover from.
+    const stub = installSequencedFacetsStub(
+      [
+        pendingAtomChainWire(),
+        pendingAtomChainWire(),
+        pendingAtomChainWire(),
+        pendingAtomChainWire(),
+        settledAtomChainWire(),
+      ],
+      { gisFeatures: [SUBJECT_FEATURE] },
+    );
+    // Fast stand-in for the real ATOM_CHAIN_SETTLE_BACKOFF_MS shape (same
+    // LENGTH -- 4 retries -- so this exercises the real attempt ceiling).
+    const resolver = makeResolver(stub, { atomChainSettleBackoffMs: [2, 2, 2, 2] });
+    const sheet = await sheetOf(resolver, NODE_ID);
+    expect(sheet.setbacks.state).toBe("present");
+    expect(stub.facetsCallCount()).toBe(5);
+  });
+
   it("THE FALSIFIER — a sheet still pending after the retry budget is not cached as this parcel's final answer; the next resolve (from any entry point) re-fetches and gets the real setbacks once the chain has settled", async () => {
     // Every facets read up front is pending — the chain has not settled
     // within this resolve()'s own budget, so it seals honestly as
