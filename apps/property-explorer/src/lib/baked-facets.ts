@@ -26,7 +26,11 @@
 // (P-54), never a CAD-roll / GIS owner parked on the bake.
 
 import { formatSetbackDisplay } from "../../api/_lib/setback-not-specified";
-import { mapBuildableDisplay } from "@empressaio/atom-contract/display";
+import {
+  mapBuildableDisplay,
+  setbackConflictNote,
+  type SetbackConflictSecondSourceInput,
+} from "@empressaio/atom-contract/display";
 import { isUsableSitusAddress } from "./fact-sheet-resolver";
 import type {
   EnvelopeProvenanceRefs,
@@ -148,6 +152,26 @@ export interface BakedFacetPayload {
     };
     buildableAreaPct?: number;
     buildableAreaSqFt?: number;
+    /**
+     * R25 / P-154 wave 6 — the second source that disagrees with the followed
+     * row, and the disagreement as data (`conflict`). The card composes the
+     * one conflict sentence from `conflict` through
+     * `setbackConflictNote` in `@empressaio/atom-contract/display`.
+     */
+    secondSource?: {
+      source: string;
+      note: string;
+      citationUrl?: string;
+      conflict?: SetbackConflictSecondSourceInput | null;
+    };
+    /**
+     * P-154 wave 6 (R-1) — the followed row's own citation + effective date,
+     * read at source. Absent on rows minted before wave 6: the card then
+     * prints no source clause rather than a citation it does not have.
+     */
+    sourceCitationUrl?: string | null;
+    sourceDate?: string | null;
+    sourceDateBasis?: string | null;
     disclosure?: string;
     emptyReason?: string;
     citationUrl?: string;
@@ -738,6 +762,26 @@ export interface BakedCardModel {
   /** Per-axis provenance notes for the X-ray/detail surface, threaded from
    *  envelope.setbacks.fieldNotes. Null when the payload carries none. */
   setbackFieldNotes: SetbackFieldNotes | null;
+  /**
+   * P-154 wave 6 (R-1) — the ONE conflict sentence, composed here (and only
+   * here) from `envelope.secondSource.conflict` through
+   * `setbackConflictNote` in `@empressaio/atom-contract/display`, so the
+   * panel, the MCP and the PDF print the same characters. Null whenever the
+   * two sources agree — a note on agreeing sources would mean the detector
+   * is wrong (wave-6 falsifier).
+   */
+  setbackConflictNote: string | null;
+  /**
+   * P-154 wave 6 (R-1) — the followed row's own citation and effective date,
+   * threaded from the envelope facet. Null when the row carries neither, in
+   * which case no source clause is printed: a value with no citation is the
+   * wave-6 falsifier for a missing disclosure.
+   */
+  setbackSourceCitation: string | null;
+  setbackSourceDate: string | null;
+  setbackSourceDateBasis: string | null;
+  /** The second source's own citation URL, when it published one. */
+  setbackSecondSourceCitationUrl: string | null;
 }
 
 function present<T>(value: T): CardFacet<T> {
@@ -1003,7 +1047,26 @@ export function deriveBakedCardModel(payload: BakedFacetPayload): BakedCardModel
     provenanceRefs: env?.provenanceRefs ?? null,
     setbackGovernedBy: s?.governedBy ?? null,
     setbackFieldNotes: s?.fieldNotes ?? null,
+    setbackConflictNote: conflictNoteFor(env?.secondSource?.conflict ?? null),
+    setbackSourceCitation: env?.sourceCitationUrl ?? null,
+    setbackSourceDate: env?.sourceDate ?? null,
+    setbackSourceDateBasis: env?.sourceDateBasis ?? null,
+    setbackSecondSourceCitationUrl: env?.secondSource?.citationUrl ?? null,
   };
+}
+
+/**
+ * P-154 wave 6 (R-1) — one conflict sentence, from the shared vocabulary.
+ * Returns null when the payload carries no disagreement, so the card shows
+ * nothing rather than a note on sources that agree. The composition happens
+ * HERE and nowhere else in this app: no surface retypes the sentence.
+ */
+function conflictNoteFor(
+  conflict: SetbackConflictSecondSourceInput | null,
+): string | null {
+  if (!conflict) return null;
+  const note = setbackConflictNote(conflict);
+  return note.trim().length > 0 ? note : null;
 }
 
 /** Discriminated facets fetch — never conflate transient failure with absence. */
