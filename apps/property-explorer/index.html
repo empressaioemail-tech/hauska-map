@@ -16,6 +16,19 @@
     <link rel="icon" href="/favicon.ico?v=ss-ink-1" sizes="32x32" />
     <link rel="icon" href="/icons/icon-192.svg?v=ss-ink-1" type="image/svg+xml" />
     <link rel="apple-touch-icon" href="/apple-touch-icon.png?v=ss-ink-1" />
+    <!--
+      OPS-16 P-185 — PromoteKit affiliate tracking. The id is PromoteKit's
+      public site id (not a secret). The tag sets `window.promotekit_referral`
+      from a `?via=<affiliate>` visit; `billingClient.ts` reads it at checkout
+      time and it rides the Stripe Checkout Session metadata. `async` so it
+      never blocks the app. NB: `vercel.json`'s script-src CSP must allow this
+      host or the tag is blocked in production and the referral never sets.
+    -->
+    <script
+      async
+      src="https://cdn.promotekit.com/pk.js"
+      data-promotekit="5d6458ec-b6b9-47df-a587-c2c255db7e8d"
+    ></script>
   </head>
   <body style="margin: 0">
     <div id="root"></div>
