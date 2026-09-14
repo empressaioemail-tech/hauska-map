@@ -39,11 +39,15 @@
 import { useCallback, useEffect, useRef, useState, type CSSProperties } from "react";
 import {
   fetchFloodDrainageStudy,
+  FLOOD_DRAINAGE_SCREEN_DISCLAIMER,
   floodDrainageDownloadPath,
   floodDrainageFilename,
   floodProvenanceLine,
   isCurrentStyledFloodStudy,
+  RAINFALL_DEPTH_MAX_INCHES,
+  RAINFALL_DEPTH_MIN_INCHES,
   requestFloodDrainageRefresh,
+  returnPeriodYearsForDepthInches,
   type FloodDrainageStudyView,
 } from "../../lib/floodDrainageClient";
 import { GoogleSignInButton } from "../../components/GoogleSignInButton";
@@ -98,6 +102,17 @@ export const FLOOD_RUNNING_LINE =
  */
 export const FLOOD_NO_PONDING_LINE =
   "No modeled ponding on this parcel at the design storm. The drainage zones and flow paths below are the result.";
+
+/**
+ * G-125 — THE FOUR-INCH QUESTION. One control, two vocabularies, one
+ * source: Sylvia Carrillo (Bastrop city manager) thinks in inches; an
+ * engineer thinks in return periods. Both read off the SAME NOAA Atlas 14
+ * curve the study already fetches -- quick presets are rendered directly
+ * from that curve's own return periods, never a separately-maintained
+ * list that could drift from what the curve actually carries.
+ */
+export const FLOOD_RUNNING_LINE_CUSTOM_DEPTH =
+  "Running drainage study at your chosen depth: fetching the DEM and modeling catchment, ponding, and flow (usually 15-45 s)…";
 
 /** JSON-serializable per-property snapshot (useDockToolState slot "flood"). */
 export interface FloodToolStoredState {
@@ -299,6 +314,10 @@ export function FloodDrainageSection({ embed = false }: { embed?: boolean } = {}
   const [stored, setStored] = useDockToolState<FloodToolStoredState>("flood");
   const ent = usePropertyEntitlement(activeParcelNodeId);
   const [busy, setBusy] = useState(false);
+  // G-125: the rainfall depth override, as the user is TYPING it (inches).
+  // Empty string = "use the default" -- the byte-identical no-param path.
+  const [depthOverrideInput, setDepthOverrideInput] = useState("");
+  const [lastRunDepthOverride, setLastRunDepthOverride] = useState<number | null>(null);
 
   // WB6 auto-attach memory: one attach per settled study object.
   const attachedRef = useRef(new Map<string, unknown>());
@@ -332,13 +351,21 @@ export function FloodDrainageSection({ embed = false }: { embed?: boolean } = {}
     [activeParcelNodeId, host, setStored],
   );
 
-  const run = useCallback(async () => {
+  const run = useCallback(async (rainfallDepthInches?: number) => {
     if (!activeParcelNodeId) return;
     setBusy(true);
+    setLastRunDepthOverride(rainfallDepthInches ?? null);
     // P-39: the study is keyed on the SUBJECT'S sheet id. The report that came
     // back for 48027:498770 while 498778 was selected is why the panel no
     // longer supplies its own target facts.
-    const resp = await requestFloodDrainageRefresh(activeParcelNodeId);
+    // G-125: rainfallDepthInches is OMITTED unless the caller passed one --
+    // the default Generate/Re-run buttons below always call run() with no
+    // argument, so their request body is identical to before this control
+    // existed.
+    const resp = await requestFloodDrainageRefresh(
+      activeParcelNodeId,
+      rainfallDepthInches !== undefined ? { rainfallDepthInches } : undefined,
+    );
     setBusy(false);
     if (!resp.ok) {
       if (resp.status === 401) {
@@ -439,6 +466,103 @@ export function FloodDrainageSection({ embed = false }: { embed?: boolean } = {}
   const overlayOnMap =
     overlayArmedRef.current && !!study && !study.honestEmpty;
 
+  // G-125 — the rainfall depth / return-period control. Empty input = use
+  // the default (byte-identical no-param path). An out-of-bounds or
+  // unparseable entry is simply not a valid override (the run button
+  // disables) rather than silently clamped.
+  const depthOverrideTrimmed = depthOverrideInput.trim();
+  const parsedDepthOverride = (() => {
+    if (!depthOverrideTrimmed) return null;
+    const n = Number(depthOverrideTrimmed);
+    if (!Number.isFinite(n) || n <= RAINFALL_DEPTH_MIN_INCHES || n > RAINFALL_DEPTH_MAX_INCHES) {
+      return null;
+    }
+    return n;
+  })();
+  const rainfallCurve = study?.rainfallCurve;
+  const equivalentReturnPeriod =
+    parsedDepthOverride != null ? returnPeriodYearsForDepthInches(rainfallCurve, parsedDepthOverride) : null;
+
+  const depthControl = (
+    <div data-testid="flood-depth-control" style={{ margin: "0 0 10px" }}>
+      <div style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
+        <label
+          htmlFor="flood-depth-input"
+          style={{ fontSize: 12.5, color: TEXT, whiteSpace: "nowrap" }}
+        >
+          Rainfall depth
+        </label>
+        <input
+          id="flood-depth-input"
+          data-testid="flood-depth-input"
+          type="number"
+          inputMode="decimal"
+          min={RAINFALL_DEPTH_MIN_INCHES}
+          max={RAINFALL_DEPTH_MAX_INCHES}
+          step="0.1"
+          placeholder="default (100-yr)"
+          value={depthOverrideInput}
+          onChange={(e) => setDepthOverrideInput(e.target.value)}
+          disabled={busy}
+          style={{
+            width: 84,
+            fontSize: 12.5,
+            padding: "4px 6px",
+            borderRadius: 8,
+            border: `0.5px solid ${PE.line28}`,
+            background: "transparent",
+            color: TEXT,
+          }}
+        />
+        <span style={{ fontSize: 12.5, color: MUTED }}>in</span>
+        <Button
+          type="button"
+          variant="secondary"
+          dense
+          data-testid="flood-run-at-depth"
+          disabled={busy || parsedDepthOverride == null}
+          onClick={() => void run(parsedDepthOverride ?? undefined)}
+        >
+          {busy && lastRunDepthOverride != null ? "Running…" : "Run at this depth"}
+        </Button>
+      </div>
+      <div style={{ marginTop: 4, fontSize: 11.5, color: MUTED, lineHeight: 1.4 }} data-testid="flood-depth-equivalent">
+        {depthOverrideTrimmed && parsedDepthOverride == null
+          ? `Enter a depth between ${RAINFALL_DEPTH_MIN_INCHES} and ${RAINFALL_DEPTH_MAX_INCHES} inches.`
+          : parsedDepthOverride != null && equivalentReturnPeriod
+            ? `≈ ${
+                equivalentReturnPeriod.clamped === "low"
+                  ? `less than the ${Math.round(equivalentReturnPeriod.value)}-year`
+                  : equivalentReturnPeriod.clamped === "high"
+                    ? `more than the ${Math.round(equivalentReturnPeriod.value)}-year`
+                    : `the ${Math.round(equivalentReturnPeriod.value)}-year`
+              } storm for this location (interpolated from the NOAA Atlas 14 curve).`
+            : parsedDepthOverride != null
+              ? "Return-period equivalent unavailable for this location (the live NOAA Atlas 14 lookup did not return a usable curve)."
+              : "Leave blank to use the location's NOAA Atlas 14 100-year 24-hour design storm."}
+      </div>
+      {rainfallCurve && rainfallCurve.length > 0 ? (
+        <div style={{ marginTop: 6, display: "flex", flexWrap: "wrap", gap: 6 }} data-testid="flood-depth-presets">
+          {[...rainfallCurve]
+            .sort((a, b) => a.returnPeriodYears - b.returnPeriodYears)
+            .map((point) => (
+              <Button
+                key={point.returnPeriodYears}
+                type="button"
+                variant="secondary"
+                dense
+                data-testid={`flood-depth-preset-${point.returnPeriodYears}`}
+                disabled={busy}
+                onClick={() => setDepthOverrideInput(point.depthInches.toFixed(1))}
+              >
+                {point.returnPeriodYears}-yr · {point.depthInches.toFixed(1)} in
+              </Button>
+            ))}
+        </div>
+      ) : null}
+    </div>
+  );
+
   // The Reports tool guarantees a non-null active property.
   if (!activeParcelNodeId) return null;
 
@@ -479,6 +603,8 @@ export function FloodDrainageSection({ embed = false }: { embed?: boolean } = {}
         </div>
       )}
 
+      {!study && depthControl}
+
       {!study ? (
         <Button
           type="button"
@@ -488,7 +614,7 @@ export function FloodDrainageSection({ embed = false }: { embed?: boolean } = {}
           disabled={busy}
           onClick={() => void run()}
         >
-          {busy ? "Running…" : "Generate flood & drainage study"}
+          {busy && lastRunDepthOverride == null ? "Running…" : "Generate flood & drainage study"}
         </Button>
       ) : null}
 
@@ -497,7 +623,7 @@ export function FloodDrainageSection({ embed = false }: { embed?: boolean } = {}
           data-testid="flood-progress"
           style={{ marginTop: 8, fontSize: 12.5, color: MUTED, lineHeight: 1.45 }}
         >
-          {FLOOD_RUNNING_LINE}
+          {lastRunDepthOverride != null ? FLOOD_RUNNING_LINE_CUSTOM_DEPTH : FLOOD_RUNNING_LINE}
         </div>
       )}
 
@@ -525,6 +651,15 @@ export function FloodDrainageSection({ embed = false }: { embed?: boolean } = {}
           <div style={{ marginTop: 6, fontSize: 11.5, color: MUTED }}>
             {floodProvenanceLine(study)}
           </div>
+          {/* G-125: the honesty line, ALWAYS visible (never a footnote or a
+              tooltip) -- a model that found nothing is still a screen, not
+              an engineering determination. */}
+          <p
+            data-testid="flood-honesty-disclaimer"
+            style={{ marginTop: 8, fontSize: 11.5, color: MUTED, lineHeight: 1.45 }}
+          >
+            {FLOOD_DRAINAGE_SCREEN_DISCLAIMER}
+          </p>
         </div>
       )}
 
@@ -538,6 +673,35 @@ export function FloodDrainageSection({ embed = false }: { embed?: boolean } = {}
               {finding}
             </p>
           ) : null}
+
+          {/* G-125: what storm produced this result, in BOTH vocabularies,
+              always visible next to the finding it belongs to. */}
+          <div
+            data-testid="flood-design-storm-line"
+            style={{ margin: "0 0 8px", fontSize: 12.5, color: MUTED, lineHeight: 1.4 }}
+          >
+            Design storm: {study.rainfallDepthInches}&quot; ·{" "}
+            {study.rainfallSource === "parameter"
+              ? (() => {
+                  const eq = returnPeriodYearsForDepthInches(study.rainfallCurve, study.rainfallDepthInches);
+                  return eq
+                    ? `${eq.clamped === "low" ? "<" : eq.clamped === "high" ? ">" : "≈"}${Math.round(eq.value)}-yr equivalent (interpolated)`
+                    : "custom depth";
+                })()
+              : "100-yr (NOAA Atlas 14)"}
+          </div>
+
+          {/* G-125: the honesty line, ALWAYS visible (never a footnote or a
+              tooltip) -- the whole point of this report is a city skipping
+              an engineer on its strength. */}
+          <p
+            data-testid="flood-honesty-disclaimer"
+            style={{ margin: "0 0 12px", fontSize: 11.5, color: MUTED, lineHeight: 1.45 }}
+          >
+            {FLOOD_DRAINAGE_SCREEN_DISCLAIMER}
+          </p>
+
+          {depthControl}
 
           <DownloadFileButton
             href={floodDrainageDownloadPath(activeParcelNodeId)}

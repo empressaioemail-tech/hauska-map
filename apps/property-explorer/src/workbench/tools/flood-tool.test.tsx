@@ -497,3 +497,95 @@ describe("flood export — dossier auto-attach (WB6 seam)", () => {
     expect(exportsPatch[0].kind).toBe("flood-drainage");
   });
 });
+
+// G-125 — the four-inch question: one control, two vocabularies, one source.
+describe("flood section — G-125 rainfall depth / return-period control", () => {
+  it("the depth control renders before any run, with the default (100-yr) path unaffected", () => {
+    primePropertyEntitlement(PARCEL, ent({ propertyUnlocked: true }));
+    const html = render({});
+    expect(html).toContain('data-testid="flood-depth-control"');
+    expect(html).toContain('data-testid="flood-depth-input"');
+    expect(html).toContain('data-testid="flood-run-at-depth"');
+    // No study yet -> no curve captured yet -> presets do not render (never
+    // a fabricated preset depth before the first NOAA fetch has run).
+    expect(html).not.toContain('data-testid="flood-depth-presets"');
+    // The default Generate button is unchanged.
+    expect(html).toContain('data-testid="flood-run"');
+    expect(html).toContain("Generate flood &amp; drainage study");
+  });
+
+  it("the honesty disclaimer and the design-storm line are ALWAYS visible on a result, not folded into the collapsed disclosure", () => {
+    primePropertyEntitlement(PARCEL, ent({ propertyUnlocked: true }));
+    const store = createWorkbenchToolStateStore({ storage: null });
+    store.set(PARCEL, "flood", { study: fixtureStudy(), notice: null } satisfies FloodToolStoredState);
+    const html = render({ store });
+
+    expect(html).toContain('data-testid="flood-honesty-disclaimer"');
+    expect(html).toContain(
+      "Screening-level drainage model, not a drainage study or engineering determination",
+    );
+    expect(html).toContain("Verify drainage with a licensed engineer");
+    // Visible BEFORE the collapsed <details> disclosure, not inside it: the
+    // disclaimer testid must appear earlier in the markup than the disclosure.
+    expect(html.indexOf('data-testid="flood-honesty-disclaimer"')).toBeLessThan(
+      html.indexOf('data-testid="flood-method-disclosure"'),
+    );
+
+    expect(html).toContain('data-testid="flood-design-storm-line"');
+    expect(html).toContain("100-yr (NOAA Atlas 14)"); // fixtureStudy() is noaa-atlas14-sourced
+  });
+
+  it("honest-empty studies ALSO carry the visible honesty line, not just the engine's short reason", () => {
+    primePropertyEntitlement(PARCEL, ent({ propertyUnlocked: true }));
+    const store = createWorkbenchToolStateStore({ storage: null });
+    store.set(PARCEL, "flood", {
+      study: { ...fixtureStudy(), honestEmpty: { reason: "Terrain elevation data did not resolve for this parcel." } },
+      notice: null,
+    } satisfies FloodToolStoredState);
+    const html = render({ store });
+    expect(html).toContain('data-testid="flood-honest-empty"');
+    expect(html).toContain('data-testid="flood-honesty-disclaimer"');
+    expect(html).toContain("Verify drainage with a licensed engineer");
+  });
+
+  it("a PARAMETER-sourced study with a captured curve shows the interpolated return-period equivalent, never a false 100-yr claim", () => {
+    primePropertyEntitlement(PARCEL, ent({ propertyUnlocked: true }));
+    const store = createWorkbenchToolStateStore({ storage: null });
+    store.set(PARCEL, "flood", {
+      study: {
+        ...fixtureStudy(),
+        rainfallDepthInches: 4,
+        rainfallSource: "parameter",
+        rainfallCurve: [
+          { returnPeriodYears: 2, depthInches: 3.5 },
+          { returnPeriodYears: 10, depthInches: 5.5 },
+          { returnPeriodYears: 100, depthInches: 9.5 },
+        ],
+      },
+      notice: null,
+    } satisfies FloodToolStoredState);
+    const html = render({ store });
+    expect(html).toContain('data-testid="flood-design-storm-line"');
+    expect(html).not.toContain("100-yr (NOAA Atlas 14)");
+    expect(html).toMatch(/≈\d+-yr equivalent \(interpolated\)/);
+    // Presets DO render once a curve exists, offering the standard NOAA
+    // return periods at their curve-derived depths for THIS location.
+    expect(html).toContain('data-testid="flood-depth-presets"');
+    expect(html).toContain('data-testid="flood-depth-preset-10"');
+    expect(html).toContain("10-yr");
+    expect(html).toContain("5.5 in");
+  });
+
+  it("a PARAMETER-sourced study with NO curve (live NOAA lookup unavailable) states the depth honestly, never a fabricated year", () => {
+    primePropertyEntitlement(PARCEL, ent({ propertyUnlocked: true }));
+    const store = createWorkbenchToolStateStore({ storage: null });
+    store.set(PARCEL, "flood", {
+      study: { ...fixtureStudy(), rainfallDepthInches: 4, rainfallSource: "parameter" },
+      notice: null,
+    } satisfies FloodToolStoredState);
+    const html = render({ store });
+    expect(html).toContain("custom depth");
+    expect(html).not.toContain("100-yr (NOAA Atlas 14)");
+    expect(html).not.toContain('data-testid="flood-depth-presets"');
+  });
+});

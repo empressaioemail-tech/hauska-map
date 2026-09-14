@@ -91,7 +91,97 @@ export interface FloodDrainageStudyView {
   /** Engine provenance note for flowPaths + catchmentSwaths derivation. */
   flowPathsNote?: string
   generatedAt?: string
+  /**
+   * G-125 engine addition (feature-detect: absent when the live NOAA fetch
+   * failed, or on a study produced before this shipped): the full NOAA
+   * Atlas 14 frequency curve for this parcel centroid. One fetch answers
+   * both vocabularies -- an inches depth and its return-period equivalent.
+   */
+  rainfallCurve?: Array<{ returnPeriodYears: number; depthInches: number }>
 }
+
+/** G-125: bounds mirrored from the engine/BFF validation (0, 60]. */
+export const RAINFALL_DEPTH_MIN_INCHES = 0
+export const RAINFALL_DEPTH_MAX_INCHES = 60
+
+export interface RainfallCurveLookup {
+  value: number
+  /** Set when the input fell outside the curve's own range -- the value is
+   * the curve's boundary, not an interpolation past NOAA's published range. */
+  clamped?: 'low' | 'high'
+}
+
+function sortedCurve(
+  curve: ReadonlyArray<{ returnPeriodYears: number; depthInches: number }>,
+): Array<{ returnPeriodYears: number; depthInches: number }> {
+  return [...curve].sort((a, b) => a.returnPeriodYears - b.returnPeriodYears)
+}
+
+/** Depth (inches) for a chosen return period, interpolated log-linearly
+ * over the curve (the standard PFDS convention) -- the SAME method the
+ * engine's PDF/gradient labels use, so the control and the exported
+ * document can never disagree. Clamps at the curve's ends; never
+ * extrapolates past NOAA's own published range. */
+export function depthInchesForReturnPeriod(
+  curve: ReadonlyArray<{ returnPeriodYears: number; depthInches: number }> | undefined,
+  returnPeriodYears: number,
+): RainfallCurveLookup | null {
+  if (!curve || curve.length === 0) return null
+  const pts = sortedCurve(curve)
+  const first = pts[0]!
+  const last = pts[pts.length - 1]!
+  if (returnPeriodYears <= first.returnPeriodYears) {
+    return { value: first.depthInches, clamped: returnPeriodYears < first.returnPeriodYears ? 'low' : undefined }
+  }
+  if (returnPeriodYears >= last.returnPeriodYears) {
+    return { value: last.depthInches, clamped: returnPeriodYears > last.returnPeriodYears ? 'high' : undefined }
+  }
+  for (let i = 1; i < pts.length; i++) {
+    const lo = pts[i - 1]!
+    const hi = pts[i]!
+    if (returnPeriodYears <= hi.returnPeriodYears) {
+      const t =
+        (Math.log(returnPeriodYears) - Math.log(lo.returnPeriodYears)) /
+        (Math.log(hi.returnPeriodYears) - Math.log(lo.returnPeriodYears))
+      return { value: lo.depthInches + (hi.depthInches - lo.depthInches) * t }
+    }
+  }
+  return { value: last.depthInches }
+}
+
+/** The inverse: return period (years) for a chosen depth (inches). */
+export function returnPeriodYearsForDepthInches(
+  curve: ReadonlyArray<{ returnPeriodYears: number; depthInches: number }> | undefined,
+  depthInches: number,
+): RainfallCurveLookup | null {
+  if (!curve || curve.length === 0) return null
+  const pts = sortedCurve(curve)
+  const first = pts[0]!
+  const last = pts[pts.length - 1]!
+  if (depthInches <= first.depthInches) {
+    return { value: first.returnPeriodYears, clamped: depthInches < first.depthInches ? 'low' : undefined }
+  }
+  if (depthInches >= last.depthInches) {
+    return { value: last.returnPeriodYears, clamped: depthInches > last.depthInches ? 'high' : undefined }
+  }
+  for (let i = 1; i < pts.length; i++) {
+    const lo = pts[i - 1]!
+    const hi = pts[i]!
+    if (depthInches <= hi.depthInches) {
+      const t = (depthInches - lo.depthInches) / (hi.depthInches - lo.depthInches)
+      const logYears =
+        Math.log(lo.returnPeriodYears) + (Math.log(hi.returnPeriodYears) - Math.log(lo.returnPeriodYears)) * t
+      return { value: Math.exp(logYears) }
+    }
+  }
+  return { value: last.returnPeriodYears }
+}
+
+/** Screening-level honesty line (G-125): visible on screen AND in the PDF,
+ * matching the engine's FLOOD_DRAINAGE_DISCLAIMER verbatim so the two
+ * surfaces never disagree. */
+export const FLOOD_DRAINAGE_SCREEN_DISCLAIMER =
+  'Screening-level drainage model, not a drainage study or engineering determination. Verify drainage with a licensed engineer before design or permitting.'
 
 export type FloodDrainageClientResult =
   | { ok: true; study: FloodDrainageStudyView }
@@ -165,14 +255,40 @@ async function parseOutcome(res: Response): Promise<FloodDrainageClientResult> {
   return { ok: true, study }
 }
 
+/** Pure body-builder for the refresh POST, split out so the G-125 optional
+ * depth passthrough is unit-testable without mocking fetch/subjectStore. */
+export function buildFloodDrainageRefreshBody(
+  target: Pick<ReturnType<typeof resolveExportTarget>, 'factSheetId' | 'parcelNodeId' | 'address' | 'countyName'>,
+  opts?: { rainfallDepthInches?: number },
+): Record<string, unknown> {
+  return {
+    factSheetId: target.factSheetId,
+    parcelNodeId: target.parcelNodeId,
+    ...(target.address ? { address: target.address } : {}),
+    countyName: target.countyName,
+    liveViewUrl: `/?parcelNodeId=${encodeURIComponent(target.parcelNodeId)}`,
+    ...(opts?.rainfallDepthInches !== undefined
+      ? { rainfallDepthInches: opts.rainfallDepthInches }
+      : {}),
+  }
+}
+
 /**
  * Run (or re-run) the parcel drainage study — honest work, ~15-45 s.
  *
  * I1: keyed on the SUBJECT'S sheet. The study that came back for 48027:498770
  * while 498778 was selected is why this no longer accepts a panel-held id.
+ *
+ * G-125: `rainfallDepthInches` is an OPTIONAL override (0, 60], mirroring the
+ * engine/BFF bound. Omitted (the default call every pre-G-125 caller still
+ * makes) -> the engine's own default path, byte-identical to before this
+ * option existed. The BFF (pe-flood-drainage-core.ts) and the engine route
+ * already validated and forwarded this field before G-125; this is the
+ * first caller that actually sends it.
  */
 export async function requestFloodDrainageRefresh(
   parcelNodeId: string,
+  opts?: { rainfallDepthInches?: number },
 ): Promise<FloodDrainageClientResult> {
   let target
   try {
@@ -190,13 +306,7 @@ export async function requestFloodDrainageRefresh(
       method: 'POST',
       credentials: 'include',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        factSheetId: target.factSheetId,
-        parcelNodeId: target.parcelNodeId,
-        ...(target.address ? { address: target.address } : {}),
-        countyName: target.countyName,
-        liveViewUrl: `/?parcelNodeId=${encodeURIComponent(target.parcelNodeId)}`,
-      }),
+      body: JSON.stringify(buildFloodDrainageRefreshBody(target, opts)),
     })
     return await parseOutcome(res)
   } catch (err) {
