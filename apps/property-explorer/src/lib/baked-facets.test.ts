@@ -455,6 +455,79 @@ describe("deriveBakedCardModel — governed_by resolution + X-ray field notes (E
     expect(m.setbackFieldNotes).toBeNull();
   });
 
+  it("P-154 wave 6: a conflict row prints the A-148 sentence and the followed row's own citation + date", () => {
+    // The live Bastrop shape: ONE current layer whose unrefreshed numeric
+    // shortcut columns (what its One Click join reads) disagree with its text
+    // fields. Asserted CHARACTER FOR CHARACTER against the sentence the
+    // wave-6 dispatch fixes, because all three surfaces must print it
+    // identically and the vocabulary is the only producer.
+    const withConflict: BakedFacetPayload = {
+      ...fullPayload,
+      envelope: {
+        status: "ok",
+        setbacks: { front_ft: 30, side_ft: 10, rear_ft: 30, side_corner_ft: 20 },
+        secondSource: {
+          source: "One Click card",
+          note: "second source disclosure (technical, not the printed sentence)",
+          conflict: {
+            shape: "stale-numeric-columns",
+            secondSourceLabel: "One Click card",
+            numeric: { front: 25, side: 5, rear: 25 },
+            text: { front: 30, side: 10, rear: 30, corner: 20 },
+            ordinance: "2026-06",
+            confirmedWith: "the City of Bastrop",
+            confirmedOn: "2026-09-14",
+          },
+        },
+        sourceCitationUrl: "Ord. 2026-06",
+        sourceDate: "2026-04-14",
+        sourceDateBasis: "ordinance-effective-date",
+      },
+      facetCoverage: { ...fullPayload.facetCoverage, envelope: true },
+    };
+    const m = deriveBakedCardModel(withConflict);
+    expect(m.setbackConflictNote).toBe(
+      "The city's One Click card shows 25/5/25 from unrefreshed numeric columns of its zoning layer; the same layer's text and Ordinance 2026-06 say 30/10/30/20 (confirmed with the City of Bastrop 2026-09-14)",
+    );
+    // The corner appears in the TEXT reading and never in the numeric one:
+    // the numeric shortcut columns are front/side/rear only (A-148 falsifier).
+    expect(m.setbackConflictNote).not.toContain("25/5/25/15");
+    expect(m.setbackSourceCitation).toBe("Ord. 2026-06");
+    expect(m.setbackSourceDate).toBe("2026-04-14");
+    expect(m.setbackSourceDateBasis).toBe("ordinance-effective-date");
+  });
+
+  it("P-154 wave 6 FALSIFIER: no conflict note where the sources agree", () => {
+    // A second source that agrees is NOT a conflict: the atom carries no
+    // `conflict`, so the card must print no note at all. A note here would
+    // mean the detector fires on agreement.
+    const agreeing: BakedFacetPayload = {
+      ...fullPayload,
+      envelope: {
+        status: "ok",
+        setbacks: { front_ft: 30, side_ft: 10, rear_ft: 30 },
+        secondSource: {
+          source: "Zoned Parcels layer",
+          note: "agrees with the ordinance text",
+        },
+        sourceCitationUrl: "Ord. 2026-06",
+        sourceDate: "2026-04-14",
+      },
+      facetCoverage: { ...fullPayload.facetCoverage, envelope: true },
+    };
+    const m = deriveBakedCardModel(agreeing);
+    expect(m.setbackConflictNote).toBeNull();
+    expect(m.setbackSourceDate).toBe("2026-04-14");
+  });
+
+  it("P-154 wave 6 GRACEFUL ABSENCE: no citation and no date -> no source clause fields at all", () => {
+    const m = deriveBakedCardModel(fullPayload);
+    expect(m.setbackConflictNote).toBeNull();
+    expect(m.setbackSourceCitation).toBeNull();
+    expect(m.setbackSourceDate).toBeNull();
+    expect(m.setbackSecondSourceCitationUrl).toBeNull();
+  });
+
   it("no envelope at all -> setbackGovernedBy and setbackFieldNotes are both null, not an error", () => {
     const m = deriveBakedCardModel({ parcelNodeId: "48021:1" });
     expect(m.setbackGovernedBy).toBeNull();

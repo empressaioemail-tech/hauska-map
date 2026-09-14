@@ -1091,6 +1091,22 @@ export function InspectCard({
     !!setbackFieldNotes &&
     Object.values(setbackFieldNotes).some((n) => typeof n === "string" && n.trim());
 
+  // P-154 wave 6 (R-1) — the conflict row. When the city's own two sources
+  // disagree on a setback value, the card prints the followed values (the
+  // Setbacks row above, unchanged), the followed source's own citation and
+  // effective date, and ONE conflict sentence from the shared vocabulary.
+  // Both are absent when the payload carries no disagreement, so no note can
+  // appear where the sources agree (wave-6 falsifier).
+  const setbackConflictLine: string | null =
+    baked?.setbackConflictNote ?? null;
+  const setbackSourceLine: string | null =
+    source === "baked" && baked
+      ? setbackSourceClause({
+          citation: baked.setbackSourceCitation,
+          sourceDate: baked.setbackSourceDate,
+        })
+      : null;
+
   // ONE mapping pass, consumed by the rows, the coverage footer and the
   // sources disclosure alike — so the card cannot say one thing in a row and
   // a different thing three lines below it.
@@ -1413,6 +1429,28 @@ export function InspectCard({
           isOpen={xrayOpen}
           onToggle={() => setXrayOpen((v) => !v)}
         />
+      )}
+
+      {/* P-154 wave 6 (R-1) — the followed values' own source, then the one
+          conflict sentence when the city's sources disagree. The sentence is
+          composed in `baked-facets.ts` from `setbackConflictNote` in
+          `@empressaio/atom-contract/display`, so the panel, the MCP and the
+          PDF print the same characters; nothing is retyped here. */}
+      {setbackSourceLine && (
+        <div
+          data-testid="inspect-setback-source"
+          style={{ marginTop: 6, fontSize: 11.5, lineHeight: 1.45, color: MUTED }}
+        >
+          {setbackSourceLine}
+        </div>
+      )}
+      {setbackConflictLine && (
+        <div
+          data-testid="inspect-setback-conflict"
+          style={{ marginTop: 4, fontSize: 11.5, lineHeight: 1.45, color: TEXT }}
+        >
+          {setbackConflictLine}
+        </div>
       )}
 
       {/* Honest coverage / disclosure states. */}
@@ -1758,6 +1796,25 @@ function liveGovernedByFragment(
 /** Exported test seam — the live-fallback path is only reachable through the
  *  async effect, which renderToStaticMarkup can't drive; pin the pure
  *  formatter directly, same rationale as chipsForRow/FacetRow/Row above. */
+/**
+ * P-154 wave 6 (R-1) — the followed row's own source clause: its citation and
+ * the effective date read at source. Returns null when the payload carries
+ * neither, so the card prints no clause rather than a citation it does not
+ * have. The values themselves come from the Setbacks row above; this line is
+ * what makes them attributable.
+ */
+export function setbackSourceClause(input: {
+  citation: string | null;
+  sourceDate: string | null;
+}): string | null {
+  const citation = (input.citation ?? "").trim();
+  const sourceDate = (input.sourceDate ?? "").trim();
+  if (!citation && !sourceDate) return null;
+  if (citation && sourceDate) return `${citation} · effective ${sourceDate}`;
+  if (citation) return citation;
+  return `effective ${sourceDate}`;
+}
+
 export function liveSetbackLine(env: EnvelopeState): string | null {
   const s = env.setbacks;
   if (!s || (s.front_ft == null && s.side_ft == null && s.rear_ft == null)) {

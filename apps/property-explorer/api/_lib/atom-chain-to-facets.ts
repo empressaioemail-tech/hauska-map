@@ -8,7 +8,10 @@
 // not_specified: live setback-rule atoms currently drop the flag; we re-attach
 // B3 provenance by district so silent axes never render as real 0′ / "consume lot".
 
-import { envelopeHuman } from "@empressaio/atom-contract/display";
+import {
+  envelopeHuman,
+  type SetbackConflictSecondSourceInput,
+} from "@empressaio/atom-contract/display";
 
 import {
   resolveCodifiedSetbacksForStamp,
@@ -43,7 +46,29 @@ export interface AtomChainSetbackDisplayMeta {
   sideCityLanguage?: string;
   resolvedDistrictCode?: string | null;
   splitZoneMinorZones?: Array<{ districtCode: string | null; shapeArea?: number }>;
-  secondSource?: { source: string; note: string; citationUrl?: string };
+  /**
+   * P-154 wave 6 (R-1) — the effective date read on THIS row's own source,
+   * how it was established, and the followed row's own citation. Absent on
+   * rows minted before wave 6, in which case the card prints no source
+   * clause rather than inventing one.
+   */
+  sourceDate?: string | null;
+  dateBasis?: string;
+  datePrecision?: "day" | "year";
+  citationUrl?: string;
+  /**
+   * R25 / P-154 wave 6 — the second source that disagrees with the followed
+   * value. `conflict` is the disagreement AS DATA, read verbatim from the
+   * atom; the card hands it to `setbackConflictNote` from
+   * `@empressaio/atom-contract/display` so the panel, the MCP and the PDF
+   * print one character-identical sentence (OPS-23 R-6, P-167's pattern).
+   */
+  secondSource?: {
+    source: string;
+    note: string;
+    citationUrl?: string;
+    conflict?: SetbackConflictSecondSourceInput | null;
+  };
 }
 
 export interface AtomChainSetbackRule {
@@ -309,8 +334,26 @@ export interface PeBakedFacetPayload {
     minLotSize?: string;
     /** R26 — dominant district + minor zones on a split-zoned parcel. */
     splitZoneMinorZones?: Array<{ districtCode: string | null; shapeArea?: number }>;
-    /** R25 — conflicting second source (e.g. Bastrop layer-83 Revisions). */
-    secondSource?: { source: string; note: string; citationUrl?: string };
+    /**
+     * R25 / P-154 wave 6 — the second source whose values disagree with the
+     * followed row. Present only where the atom carries one.
+     */
+    secondSource?: {
+      source: string;
+      note: string;
+      citationUrl?: string;
+      /** The disagreement as data; the card composes the one conflict sentence from it. */
+      conflict?: SetbackConflictSecondSourceInput | null;
+    };
+    /**
+     * P-154 wave 6 (R-1) — the followed row's own citation and the effective
+     * date read AT SOURCE, with the basis for that date. Absent on rows
+     * minted before wave 6: the card then prints no source clause at all,
+     * rather than a citation it does not have.
+     */
+    sourceCitationUrl?: string | null;
+    sourceDate?: string | null;
+    sourceDateBasis?: string | null;
     buildableAreaPct?: number;
     buildableAreaSqFt?: number;
     /**
@@ -1905,6 +1948,14 @@ export function adaptAtomChainToBakedFacets(
           ? { splitZoneMinorZones: dm.splitZoneMinorZones }
           : {}),
         ...(dm?.secondSource ? { secondSource: dm.secondSource } : {}),
+        // P-154 wave 6 (R-1): the followed row's own citation + effective
+        // date travel with the values they belong to, so the panel can print
+        // "30/10/30/20 … Ord. 2026-06, eff. 2026-04-14" instead of a value
+        // with no citation (the wave-6 falsifier: a value with no citation
+        // means the disclosure is missing).
+        ...(dm?.citationUrl ? { sourceCitationUrl: dm.citationUrl } : {}),
+        ...(dm?.sourceDate ? { sourceDate: dm.sourceDate } : {}),
+        ...(dm?.dateBasis ? { sourceDateBasis: dm.dateBasis } : {}),
       }
     : {};
   const outcomeKind =

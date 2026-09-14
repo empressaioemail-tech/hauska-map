@@ -867,6 +867,17 @@ export function bakedCardModelFromSheet(
     setbackFieldNotes: setbackFieldNotesFromSheet(
       isPresent(sheet.setbacks) ? sheet.setbacks.value : null,
     ),
+    // P-154 wave 6 (R-1) — the sealed sheet's `Setbacks` is four axes with a
+    // per-axis note; it carries no second source, no `conflict` payload and no
+    // followed-row citation/date, so this path can print no conflict row at
+    // all. Stated rather than silently blank: a sheet-served card shows no
+    // conflict note, and the fix belongs in the sheet's own producer
+    // (`@hauska/parcel-fact-sheet`) if this path is ever a customer surface.
+    setbackConflictNote: null,
+    setbackSourceCitation: null,
+    setbackSourceDate: null,
+    setbackSourceDateBasis: null,
+    setbackSecondSourceCitationUrl: null,
     livingArea: { state: "unknown", value: null },
     yearBuilt: { state: "unknown", value: null },
   };

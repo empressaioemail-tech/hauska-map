@@ -27,6 +27,7 @@ import {
   showsFacetsLoadError,
   SetbackXrayDetail,
   liveSetbackLine,
+  setbackSourceClause,
   toFactPresentation,
   customerValueSlot,
   whoServesFactPresentation,
@@ -487,6 +488,28 @@ describe("liveSetbackLine — governed_by resolution on the live-fallback path (
 
   it("no setbacks at all -> null (unchanged)", () => {
     expect(liveSetbackLine({ status: "loading" })).toBeNull();
+  });
+});
+
+describe("setbackSourceClause — P-154 wave 6, the followed values' own source", () => {
+  it("citation + effective date, read at source", () => {
+    expect(
+      setbackSourceClause({ citation: "Ord. 2026-06", sourceDate: "2026-04-14" }),
+    ).toBe("Ord. 2026-06 · effective 2026-04-14");
+  });
+
+  it("an unreadable date is simply absent — no placeholder date is invented", () => {
+    expect(setbackSourceClause({ citation: "Ord. 2026-06", sourceDate: null })).toBe(
+      "Ord. 2026-06",
+    );
+    expect(setbackSourceClause({ citation: "", sourceDate: "2026-04-14" })).toBe(
+      "effective 2026-04-14",
+    );
+  });
+
+  it("neither citation nor date -> no clause at all (never a bare value claimed as sourced)", () => {
+    expect(setbackSourceClause({ citation: null, sourceDate: null })).toBeNull();
+    expect(setbackSourceClause({ citation: "  ", sourceDate: "  " })).toBeNull();
   });
 });
 
