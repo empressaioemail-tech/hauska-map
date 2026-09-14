@@ -30,6 +30,35 @@ export type { PeCheckoutInterval };
 export const CHECKOUT_UNAVAILABLE_MESSAGE =
   "Checkout is temporarily unavailable. The payment configuration on the server is incomplete. Nothing was charged; try again later.";
 
+/**
+ * OPS-16 P-185 — the PromoteKit affiliate referral id, read AT CHECKOUT TIME.
+ *
+ * PromoteKit's tag in `index.html` (`<script async
+ * src="https://cdn.promotekit.com/pk.js" data-promotekit="...">`) sets
+ * `window.promotekit_referral` from a `?via=<affiliate>` visit. It is read
+ * here, at the moment of the checkout call, and never cached at module load:
+ * the tag is `async`, so on a cold visit a customer can click checkout before
+ * the script lands, and a value captured at load would be permanently empty
+ * for that visit. Re-reading means a referral that arrives late still
+ * attributes, and a visit with no `?via=` yields `undefined`, so the key
+ * never appears on the wire (a stale cached value shipping on a plain visit is
+ * the falsifier the dispatch names).
+ *
+ * LENIENT TO IGNORE, NEVER TO REJECT: anything that is not a short,
+ * whitespace-free string is dropped here and independently re-normalized on
+ * cortex (`normalizePromotekitReferral`, `pePaywallStripe.ts`). A malformed
+ * attribution token must never block a purchase.
+ */
+export function readPromotekitReferral(): string | undefined {
+  if (typeof window === "undefined") return undefined;
+  const raw = (window as unknown as { promotekit_referral?: unknown })
+    .promotekit_referral;
+  if (typeof raw !== "string") return undefined;
+  const trimmed = raw.trim();
+  if (!trimmed || trimmed.length > 128 || /\s/.test(trimmed)) return undefined;
+  return trimmed;
+}
+
 export async function startPeCheckout(input: {
   /** REQUIRED: the tier the user actually clicked — a tierless body would
    *  default to Solo on cortex, which is the audit defect (a Studio click
@@ -78,6 +107,10 @@ export async function startPeCheckout(input: {
         ? Math.min(input.seats, PE_PRICING.team.baseSeats)
         : input.seats;
 
+  // OPS-16 P-185: read at call time, not at load — the async tag may have
+  // landed after this module was evaluated.
+  const promotekitReferral = readPromotekitReferral();
+
   try {
     const res = await fetch(
       `${CORTEX_DEEP_PROXY_BASE}/api/property-explorer/v1/billing/checkout`,
@@ -92,6 +125,10 @@ export async function startPeCheckout(input: {
           tier: input.tier,
           interval: input.interval,
           ...(seatsOnWire !== undefined ? { seats: seatsOnWire } : {}),
+          // Absent, never null/empty, when there is no referral — the cortex
+          // normalizer drops a malformed one anyway, but an absent key is the
+          // evidence that a plain visit carried none.
+          ...(promotekitReferral ? { promotekitReferral } : {}),
           uiMode: "elements",
           returnUrl,
           successUrl,
@@ -311,6 +348,8 @@ export async function startPropertyUnlock(
     typeof window !== "undefined"
       ? window.location.origin
       : "https://property-explorer.vercel.app";
+  // OPS-16 P-185: read at call time, not at load (async tag).
+  const promotekitReferral = readPromotekitReferral();
   try {
     const res = await fetchImpl(
       `${CORTEX_DEEP_PROXY_BASE}/api/property-explorer/v1/entitlement/checkout`,
@@ -320,6 +359,7 @@ export async function startPropertyUnlock(
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           parcelNodeId,
+          ...(promotekitReferral ? { promotekitReferral } : {}),
           uiMode: "elements",
           returnUrl:
             deps.successUrl ??
