@@ -38,7 +38,6 @@
 
 import { useCallback, useEffect, useRef, useState, type CSSProperties } from "react";
 import {
-  depthInchesForReturnPeriod,
   fetchFloodDrainageStudy,
   FLOOD_DRAINAGE_SCREEN_DISCLAIMER,
   floodDrainageDownloadPath,
@@ -108,11 +107,10 @@ export const FLOOD_NO_PONDING_LINE =
  * G-125 — THE FOUR-INCH QUESTION. One control, two vocabularies, one
  * source: Sylvia Carrillo (Bastrop city manager) thinks in inches; an
  * engineer thinks in return periods. Both read off the SAME NOAA Atlas 14
- * curve the study already fetches. Quick presets are the common return
- * periods NOAA Atlas 14 itself publishes (noaaAtlas14.ts RETURN_PERIODS).
+ * curve the study already fetches -- quick presets are rendered directly
+ * from that curve's own return periods, never a separately-maintained
+ * list that could drift from what the curve actually carries.
  */
-const RAINFALL_RETURN_PERIOD_PRESETS: ReadonlyArray<number> = [2, 10, 25, 100, 500];
-
 export const FLOOD_RUNNING_LINE_CUSTOM_DEPTH =
   "Running drainage study at your chosen depth: fetching the DEM and modeling catchment, ponding, and flow (usually 15-45 s)…";
 
@@ -510,7 +508,7 @@ export function FloodDrainageSection({ embed = false }: { embed?: boolean } = {}
             width: 84,
             fontSize: 12.5,
             padding: "4px 6px",
-            borderRadius: 6,
+            borderRadius: 8,
             border: `0.5px solid ${PE.line28}`,
             background: "transparent",
             color: TEXT,
@@ -545,30 +543,21 @@ export function FloodDrainageSection({ embed = false }: { embed?: boolean } = {}
       </div>
       {rainfallCurve && rainfallCurve.length > 0 ? (
         <div style={{ marginTop: 6, display: "flex", flexWrap: "wrap", gap: 6 }} data-testid="flood-depth-presets">
-          {RAINFALL_RETURN_PERIOD_PRESETS.map((years) => {
-            const lookup = depthInchesForReturnPeriod(rainfallCurve, years);
-            if (!lookup) return null;
-            return (
-              <button
-                key={years}
+          {[...rainfallCurve]
+            .sort((a, b) => a.returnPeriodYears - b.returnPeriodYears)
+            .map((point) => (
+              <Button
+                key={point.returnPeriodYears}
                 type="button"
-                data-testid={`flood-depth-preset-${years}`}
+                variant="secondary"
+                dense
+                data-testid={`flood-depth-preset-${point.returnPeriodYears}`}
                 disabled={busy}
-                onClick={() => setDepthOverrideInput(lookup.value.toFixed(1))}
-                style={{
-                  fontSize: 11.5,
-                  color: ACCENT,
-                  background: "transparent",
-                  border: `0.5px solid ${PE.line28}`,
-                  borderRadius: 20,
-                  padding: "3px 9px",
-                  cursor: busy ? "default" : "pointer",
-                }}
+                onClick={() => setDepthOverrideInput(point.depthInches.toFixed(1))}
               >
-                {years}-yr · {lookup.value.toFixed(1)} in
-              </button>
-            );
-          })}
+                {point.returnPeriodYears}-yr · {point.depthInches.toFixed(1)} in
+              </Button>
+            ))}
         </div>
       ) : null}
     </div>
