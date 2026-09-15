@@ -588,11 +588,42 @@ function composeYearBuilt(placeKey: string, rail: RecordRail): { value: { status
 
 /** Per-axis setback scalar: read the reader's own numeric cell, gated strictly on `serve === "record"`, never negative. */
 function composeSetbackAxisScalar(placeKey: string, rail: RecordRail | undefined, railKey: string): number | undefined {
+  return composeSetbackAxisScalarWithVintage(placeKey, rail, railKey)?.value;
+}
+
+/**
+ * P-216 (2026-09-15): same read as {@link composeSetbackAxisScalar}, but also
+ * returns the cell's own `vintage` — the parcel_record row's write time, a
+ * DIFFERENT date from `setbackRulesEffectiveDate` (the ordinance's effective
+ * date, from a separate companion rail, often absent). Without this, a
+ * response applying a fresh axis override still carried the stale
+ * atom-chain `snapshotAt` with no trace of which date backs which axis — a
+ * payload that is part atom-chain, part parcel_record, labelled with only
+ * the older of the two (the "hybrid payload wearing one date" defect).
+ */
+function composeSetbackAxisScalarWithVintage(
+  placeKey: string,
+  rail: RecordRail | undefined,
+  railKey: string,
+): { value: number; vintage: string | null } | undefined {
   if (!rail || rail.serve !== "record" || !rail.cell) return undefined;
   const cell = interpretRecordCell(placeKey, railKey, rail.cell, []);
   if (cell.state !== "present") return undefined;
   const n = asNullableNumber(cell.value);
-  return n !== null && n >= 0 ? n : undefined;
+  if (n === null || n < 0) return undefined;
+  return { value: n, vintage: cell.vintage.trim() || null };
+}
+
+/** The latest of any parseable ISO dates given, or null when none parse. Never guesses a date from an unparseable string. */
+export function latestParseableDate(dates: ReadonlyArray<string | null | undefined>): string | null {
+  let latest: { raw: string; ms: number } | null = null;
+  for (const raw of dates) {
+    if (!raw) continue;
+    const ms = Date.parse(raw);
+    if (!Number.isFinite(ms)) continue;
+    if (!latest || ms > latest.ms) latest = { raw, ms };
+  }
+  return latest?.raw ?? null;
 }
 
 /** setbackRules is the companion rail carrying the rule's effective date + citation — vendored field names guessed conservatively (effectiveDate/effective_date, citationUrl/citation_url); absent when the companion row carries neither. */
@@ -634,6 +665,17 @@ export interface ZoningSetbackOverride {
     rear_ft?: number;
     side_corner_ft?: number;
   };
+  /**
+   * P-216 (2026-09-15): the latest `parcel_record` cell `vintage` among the
+   * axes actually overridden — the write time of the freshest overriding
+   * row, NOT `setbackRulesEffectiveDate` (a different rail's ordinance
+   * effective date). Null when no axis overrode, or none carried a
+   * parseable vintage. The caller uses this to keep a hybrid response's
+   * `snapshotAt` from wearing only its OLDER (atom-chain) date — a payload
+   * combining a 2026-07 atom-chain read with a 2026-09 parcel_record
+   * override must not be labelled 2026-07.
+   */
+  setbackAxisOverrideVintage: string | null;
   setbackRulesEffectiveDate: string | null;
   setbackRulesCitationUrl: string | null;
 }
@@ -656,7 +698,11 @@ export function composeZoningSetbackOverride(record: ParcelRecordResponse): {
     const rail = record.rails[key];
     if (rail) railStates[key] = { serve: rail.serve, atomBacked: rail.atomBacked };
   }
-  const override: ZoningSetbackOverride = { setbackRulesEffectiveDate: null, setbackRulesCitationUrl: null };
+  const override: ZoningSetbackOverride = {
+    setbackAxisOverrideVintage: null,
+    setbackRulesEffectiveDate: null,
+    setbackRulesCitationUrl: null,
+  };
   if (record.refused) return { override, railStates };
 
   const districtRail = record.rails.zoningDistrict;
@@ -687,17 +733,23 @@ export function composeZoningSetbackOverride(record: ParcelRecordResponse): {
     }
   }
 
-  const front = composeSetbackAxisScalar(placeKey, record.rails.setbackFrontFt, "setbackFrontFt");
-  const side = composeSetbackAxisScalar(placeKey, record.rails.setbackSideFt, "setbackSideFt");
-  const rear = composeSetbackAxisScalar(placeKey, record.rails.setbackRearFt, "setbackRearFt");
-  const corner = composeSetbackAxisScalar(placeKey, record.rails.setbackCornerFt, "setbackCornerFt");
-  if (front !== undefined || side !== undefined || rear !== undefined || corner !== undefined) {
+  const front = composeSetbackAxisScalarWithVintage(placeKey, record.rails.setbackFrontFt, "setbackFrontFt");
+  const side = composeSetbackAxisScalarWithVintage(placeKey, record.rails.setbackSideFt, "setbackSideFt");
+  const rear = composeSetbackAxisScalarWithVintage(placeKey, record.rails.setbackRearFt, "setbackRearFt");
+  const corner = composeSetbackAxisScalarWithVintage(placeKey, record.rails.setbackCornerFt, "setbackCornerFt");
+  if (front || side || rear || corner) {
     override.setbackAxisOverrides = {
-      ...(front !== undefined ? { front_ft: front } : {}),
-      ...(side !== undefined ? { side_ft: side } : {}),
-      ...(rear !== undefined ? { rear_ft: rear } : {}),
-      ...(corner !== undefined ? { side_corner_ft: corner } : {}),
+      ...(front ? { front_ft: front.value } : {}),
+      ...(side ? { side_ft: side.value } : {}),
+      ...(rear ? { rear_ft: rear.value } : {}),
+      ...(corner ? { side_corner_ft: corner.value } : {}),
     };
+    override.setbackAxisOverrideVintage = latestParseableDate([
+      front?.vintage,
+      side?.vintage,
+      rear?.vintage,
+      corner?.vintage,
+    ]);
   }
 
   const meta = companionSetbackRulesMeta(placeKey, record.rails.setbackRules);

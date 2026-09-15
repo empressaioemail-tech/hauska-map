@@ -355,7 +355,13 @@ describe("composeZoningSetbackOverride — real Bastrop parcel_record_cell fixtu
     expect(railStates.zoningProvenance).toEqual({ serve: "record", atomBacked: false });
     expect(override.provenance).toBe("bastrop-development-code:2026-06-ordinance");
     expect(Object.keys(override).sort()).toEqual(
-      ["district", "provenance", "setbackRulesCitationUrl", "setbackRulesEffectiveDate"].sort(),
+      [
+        "district",
+        "provenance",
+        "setbackAxisOverrideVintage",
+        "setbackRulesCitationUrl",
+        "setbackRulesEffectiveDate",
+      ].sort(),
     );
   });
 

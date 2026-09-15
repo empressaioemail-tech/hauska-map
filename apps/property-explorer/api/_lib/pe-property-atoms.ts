@@ -41,6 +41,7 @@ import {
   composeZoningSetbackOverride,
   classifyRecordFetchFailure,
   composeRecordUnavailablePatch,
+  latestParseableDate,
   type ParcelRecordResponse,
   type ZoningSetbackOverride,
 } from "./pe-record-to-facets.js";
@@ -633,9 +634,21 @@ export async function applyRecordPatch(
 
   const { patch, railStates } = composeRecordPatch(result.record);
   const { override: zsOverride, railStates: zsRailStates } = composeZoningSetbackOverride(result.record);
+  // P-216 (2026-09-15): a setback-axis override is a genuinely newer read
+  // than whatever atom-chain `snapshotAt` this payload started with — never
+  // let the response wear only the OLDER date once a fresher axis has been
+  // folded in (the "hybrid payload wearing one date" defect). `bakedAt`
+  // mirrors it for the same reason (the two are meant to describe the same
+  // moment; see PeBakedFacetsResponse/PeBakedFacetPayload module docs).
+  // Gated on an axis override actually having happened — otherwise this
+  // payload is untouched and must not gain a `bakedAt` it never had.
+  const snapshotAt = zsOverride.setbackAxisOverrideVintage
+    ? latestParseableDate([payload.snapshotAt, zsOverride.setbackAxisOverrideVintage])
+    : null;
   return {
     ...payload,
     readPath: "record",
+    ...(snapshotAt ? { snapshotAt } : {}),
     recordRailStates: { ...railStates, ...zsRailStates },
     ...(patch.cityLimitsFact ? { cityLimitsFact: withPreservedQueryPoint(payload.cityLimitsFact, patch.cityLimitsFact) } : {}),
     ...(patch.floodHazardFact ? { floodHazardFact: patch.floodHazardFact } : {}),
@@ -648,6 +661,7 @@ export async function applyRecordPatch(
     ...(patch.maxImperviousCoverPctFact ? { maxImperviousCoverPctFact: patch.maxImperviousCoverPctFact } : {}),
     facets: {
       ...facets,
+      ...(snapshotAt ? { bakedAt: snapshotAt } : {}),
       baseFacts: patch.baseFactsAcreage
         ? { ...baseFacts, acreage: patch.baseFactsAcreage }
         : baseFacts,

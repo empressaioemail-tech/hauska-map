@@ -2054,12 +2054,15 @@ export function adaptAtomChainToBakedFacets(
       disclosure: buildToLineDisclosure(ns),
     };
     envelopeCovered = true;
-  } else if (!envelope && outcomeKind === "no-buildable-area") {
+  } else if (!envelope && outcomeKind === "no-buildable-area" && depthWarm) {
     envelope = {
       status: "no-buildable-area",
       district: district ?? undefined,
       setbacks: effectiveSetbacks,
       // Honest zero — setbacks consume the lot (QA-3: not "not verified").
+      // Gated on depthWarm (ground-truth verified, see checkEnvelopeGroundTruth
+      // in hauska-engine) — see the sibling `declined`/`envelope-unverified`
+      // branch below for the unverified case this predicate exists to exclude.
       buildableAreaPct: 0,
       approximate: true,
       provisional: true,
@@ -2068,11 +2071,42 @@ export function adaptAtomChainToBakedFacets(
       ...(geojson !== undefined ? { geojson } : {}),
     };
     envelopeCovered = true;
+  } else if (!envelope && outcomeKind === "no-buildable-area") {
+    // P-216 (2026-09-15): a "no-buildable-area" atom outcome that never passed
+    // depth-warm/ground-truth promotion (checkEnvelopeGroundTruth) is a
+    // shape-only computation with no confirmed road-frontage edge labeling —
+    // exactly the state the 2026-09-11 "no approximation" ruling (Ruling 2,
+    // `_decisions/2026-09-11_not_specified_semantics_and_no_approximation_state.md`)
+    // and R-2 (`_decisions/2026-09-11_ruling_b_reversed_polygon_only.md`)
+    // refuse: buildable area is a substantive negative claim about a specific
+    // parcel and stays refused until a verified atom backs it. A shape-only
+    // ring can mislabel GIS-artifact vertices as `side` and collapse a long
+    // narrow lot to a false zero (confirmed live on 48209:97658 and siblings,
+    // a nine-edge ring with five `side`-labelled edges). Setback DISTANCES
+    // are separately ruled and stay served; only the area figure and the
+    // definitive zero verdict are withheld.
+    envelope = {
+      status: "declined",
+      declineReason: "envelope-unverified",
+      district: district ?? undefined,
+      setbacks: effectiveSetbacks,
+      approximate: true,
+      provisional: true,
+      disclosure:
+        "Buildable area withheld — this parcel's buildable-envelope outcome has " +
+        "not passed ground-truth verification (no confirmed road-frontage edge " +
+        "labeling). Setback distances above are on record; the area figure is not.",
+    };
+    envelopeCovered = false;
   } else if (!envelope && (outcomeKind === "buildable" || effectiveSetbacks)) {
     // Proof atoms may omit geojson / pct — honest partial OK; do not fabricate.
     // When pct is absent, baked-facets marks buildable as pending (QA-3).
     // When silent axes exist, never publish a pct that treated them as 0 ft.
+    // depthWarm-gated for the same reason as the no-buildable-area branch
+    // above (P-216, Ruling 2 / R-2) — an unverified atom's positive area is
+    // exactly as unfounded as its zero.
     const pctFromAtom =
+      depthWarm &&
       !silentAxes &&
       envAtom?.outcome &&
       typeof (envAtom.outcome as { buildableAreaPct?: unknown }).buildableAreaPct ===
@@ -2096,8 +2130,11 @@ export function adaptAtomChainToBakedFacets(
       ...(typeof pctFromAtom === "number" ? { buildableAreaPct: pctFromAtom } : {}),
       // Warm/buildable areaSqFt is honest even when side/rear are build-to-line
       // silent — do NOT strip it. SilentAxes only blocks pct that treated
-      // not_specified axes as 0 ft (the false consume-lot class).
-      ...(typeof areaSqFt === "number" && areaSqFt > 0 ? { buildableAreaSqFt: areaSqFt } : {}),
+      // not_specified axes as 0 ft (the false consume-lot class). depthWarm-
+      // gated (P-216, Ruling 2 / R-2): an unverified atom's area is unfounded.
+      ...(typeof areaSqFt === "number" && areaSqFt > 0 && depthWarm
+        ? { buildableAreaSqFt: areaSqFt }
+        : {}),
       // Geometry withheld on facets — map/export use live labelEdges+derive (WDLL unification).
     };
     envelopeCovered = true;
