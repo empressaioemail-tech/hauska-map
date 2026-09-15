@@ -638,7 +638,7 @@ export function FloodDrainageSection({ embed = false }: { embed?: boolean } = {}
             borderRadius: 8,
             border: `0.5px solid ${PE.line28}`,
             background: "color-mix(in oklab, var(--ss-void) 55%, transparent)",
-            fontSize: 12,
+            fontSize: 11.5,
             lineHeight: 1.45,
             color: TEXT,
           }}
