@@ -277,6 +277,71 @@ describe("fetchParcelRecordOnce / applyRecordPatch (P152-PANEL)", () => {
   });
 
   /**
+   * P-216 (2026-09-15): live production defect — a payload's top-level
+   * `snapshotAt` (and `facets.bakedAt`) named a 2026-07 atom-chain read even
+   * though `applyEnvelopeSetbackOverride` had folded in a 2026-09
+   * parcel_record axis override for the same response, so the whole payload
+   * read as 54-days stale despite carrying content written that same day.
+   * The fix: `snapshotAt`/`bakedAt` take the NEWER of the atom-chain date and
+   * the overriding axis cell's own vintage, never silently keeping the
+   * older one once a fresher axis has been folded in.
+   */
+  it("P-216: bumps snapshotAt/bakedAt to the newer parcel_record axis vintage when an axis override is applied, so a hybrid payload never wears only its older date", async () => {
+    vi.stubEnv("HAUSKA_RETRIEVAL_API_KEY", "test-key");
+    const recordBody: ParcelRecordResponse = {
+      parcelNodeId: "48209:97658",
+      placeKey: "48209:97658",
+      countyFips: "48209",
+      railRegistrySha: "sha",
+      readAt: "2026-09-15T00:54:11.683Z",
+      rails: {
+        setbackFrontFt: recordRail("record", { kind: "value", value: 25, source: "parcel_record", vintage: "2026-09-15T00:54:11.683Z" }),
+      },
+      refused: null,
+    };
+    vi.stubGlobal("fetch", vi.fn().mockResolvedValue(jsonResponse(recordBody)));
+
+    const before = basePayload();
+    before.parcelNodeId = "48209:97658";
+    before.facets.parcelNodeId = "48209:97658";
+    before.snapshotAt = "2026-07-23T20:00:00.000Z"; // the stale atom-chain read
+    before.facets.envelope = {
+      status: "ok",
+      district: "SF-6",
+      setbacks: { front_ft: 20, side_ft: 5, rear_ft: 20 },
+      approximate: true,
+      provisional: true,
+      disclosure: "Atom-chain buildable envelope.",
+    };
+    const after = await applyRecordPatch(before, "48209:97658");
+
+    expect(after.snapshotAt).toBe("2026-09-15T00:54:11.683Z");
+    expect(after.facets.bakedAt).toBe("2026-09-15T00:54:11.683Z");
+  });
+
+  it("P-216: leaves snapshotAt/bakedAt untouched when no axis override is applied (no new date to fold in)", async () => {
+    vi.stubEnv("HAUSKA_RETRIEVAL_API_KEY", "test-key");
+    const recordBody: ParcelRecordResponse = {
+      parcelNodeId: "48021:34049",
+      placeKey: "48021:34049",
+      countyFips: "48021",
+      railRegistrySha: "sha",
+      readAt: "2026-09-12T00:00:00.000Z",
+      rails: {
+        cityLimits: recordRail("record", { kind: "value", value: "Bastrop", source: "landing_parcel_jurisdiction", vintage: "2026-09-02T18:13:56.751Z" }),
+      },
+      refused: null,
+    };
+    vi.stubGlobal("fetch", vi.fn().mockResolvedValue(jsonResponse(recordBody)));
+
+    const before = basePayload();
+    const after = await applyRecordPatch(before, "48021:34049");
+
+    expect(after.snapshotAt).toBe(before.snapshotAt);
+    expect(after.facets.bakedAt).toBe(before.facets.bakedAt);
+  });
+
+  /**
    * P-167 wave 5 (OPS-23 R-4). Closes the gap OPS-23 P-152 lane 4 left open
    * (pe-record-to-facets.test.ts's former "documented gap" test): the
    * zoningProvenance rail's value now reaches facets.zoning.provenance
