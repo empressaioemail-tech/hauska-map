@@ -104,6 +104,7 @@ import {
 } from "../lib/parcel-lookup";
 import { factSheetResolver } from "../lib/fact-sheet-resolver";
 import { setSubjectByParcelNodeId, subjectStore } from "../lib/subject-store";
+import { reconcileCardWithSubject } from "../lib/card-subject-guard";
 import { cardFromSheetWithSearchFallback } from "../lib/sheet-to-card";
 import {
   inspectAsSoonAsIdKnown,
@@ -998,6 +999,33 @@ function ExplorerMapSurface({
         });
     },
     [showCountyExactRing],
+  );
+
+  // P-218 GUARD: force the rendered card to agree with the SUBJECT whenever
+  // they disagree, regardless of which entry point's own staleness guard let
+  // them drift apart. Production, 2026-09-15: a search for 48209:97652
+  // rendered a brief titled "Parcel 97651" while subjectStore had already
+  // sealed correctly to 97652 -- the card and the subject are each
+  // maintained by several independent call sites above, and nothing
+  // previously reconciled them once they disagreed. See
+  // card-subject-guard.ts for the full account and the unit coverage; this
+  // is the one place that guard is applied, so the card is a PROJECTION of
+  // the subject by construction rather than by five separate conventions.
+  useEffect(
+    () =>
+      subjectStore.subscribe((subject) => {
+        const reconciled = reconcileCardWithSubject({
+          inspectedParcelNodeId: inspectedRef.current?.parcelNodeId ?? null,
+          fallbackAddress: inspectedRef.current?.card?.situsAddress ?? null,
+          subject,
+          buildCard: cardFromSheetWithSearchFallback,
+        });
+        if (!reconciled) return;
+        inspectInPlace(reconciled.card, reconciled.parcelNodeId, null, {
+          keepDock: true,
+        });
+      }),
+    [inspectInPlace],
   );
 
   // Reachability: search bar + deep-link (?parcelNodeId= | ?parcel= | ?address=)
