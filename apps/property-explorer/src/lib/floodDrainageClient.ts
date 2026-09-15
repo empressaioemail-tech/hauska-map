@@ -273,8 +273,118 @@ export function buildFloodDrainageRefreshBody(
   }
 }
 
+// ---------------------------------------------------------------------------
+// P-240 (OPS-24, 2026-09-15): refresh returns 202 with a job reference
+// instead of the composed study — the engine's own authoring measured
+// 56-75s on Travis (F7/P-240), well past the OLD client abort both this BFF
+// leg and the engine itself used to hold a socket open for. Ported onto
+// P-155's feasibility-export pattern. `requestFloodDrainageRefresh` now
+// polls the (unchanged path, now job-aware) `/study` leg internally so this
+// function's own CONTRACT (one awaited call, resolving to the same
+// FloodDrainageClientResult shape) is unchanged for FloodTool.tsx — `busy`
+// stays true for the whole wait.
+//
+// There is no separate BFF status leg for this report the way
+// feasibility-export.ts needed one: flood-drainage's `/study` endpoint
+// ALREADY carries the job state on its own DECLARED-wait 404
+// (`flood_drainage_in_progress`, with `jobRef`/`pollAfterMs`) and on its
+// 422 (`flood_drainage_refresh_failed`, with `errorClass`) — adding a
+// second BFF route would just be an extra hop to the same information the
+// poll loop needs anyway to fetch the final study payload. This is a
+// route-shape difference from feasibility, not an invented pattern: the
+// engine itself re-shaped `/study` for exactly this purpose (see
+// routes/flood-drainage.ts's own "never a stale prior study" comment).
+// ---------------------------------------------------------------------------
+
+/** Ceiling on how long the browser keeps polling before giving up and
+ * telling the customer to check back — NOT a claim that the job failed.
+ * ~4x the observed 75s Travis max (F7/P-240), mirroring the engine's own
+ * FLOOD_DRAINAGE_JOB_STALL_CEILING_MS and feasibility-export.ts's identical
+ * "~4x the observed max" convention. */
+const FLOOD_DRAINAGE_POLL_CLIENT_CAP_MS = 5 * 60_000
+const FLOOD_DRAINAGE_POLL_MIN_INTERVAL_MS = 3_000
+const FLOOD_DRAINAGE_POLL_MAX_INTERVAL_MS = 10_000
+
+function clampFloodPollInterval(pollAfterMs: unknown): number {
+  const ms =
+    typeof pollAfterMs === 'number' && Number.isFinite(pollAfterMs)
+      ? pollAfterMs
+      : FLOOD_DRAINAGE_POLL_MIN_INTERVAL_MS
+  return Math.min(FLOOD_DRAINAGE_POLL_MAX_INTERVAL_MS, Math.max(FLOOD_DRAINAGE_POLL_MIN_INTERVAL_MS, ms))
+}
+
+function sleep(ms: number): Promise<void> {
+  return new Promise((resolve) => setTimeout(resolve, ms))
+}
+
+/** Polls the `/study` leg until the job settles (ready/failed) or the
+ * client cap is hit. Never returns a `failed` result for a job that is
+ * merely slow — the cap's own outcome is `still_processing`, distinct from
+ * `flood_drainage_refresh_failed`. Mirrors feasibility-export.ts's
+ * pollFeasibilityStatus, reading the study endpoint's own raw body instead
+ * of a separate status envelope (see the route-shape note above). */
+async function pollFloodDrainageStudy(
+  parcelNodeId: string,
+  deadlineAt: number,
+): Promise<FloodDrainageClientResult> {
+  while (Date.now() < deadlineAt) {
+    let res: Response
+    try {
+      res = await fetch(
+        `${BFF_BASE}&action=study&parcelNodeId=${encodeURIComponent(parcelNodeId)}`,
+        { credentials: 'include', headers: { Accept: 'application/json' } },
+      )
+    } catch (err) {
+      return { ok: false, status: 0, error: 'network_error', message: (err as Error).message }
+    }
+    const body = (await res.json().catch(() => ({}))) as Record<string, unknown>
+    if (res.status === 404 && body.error === 'flood_drainage_in_progress') {
+      await sleep(clampFloodPollInterval(body.pollAfterMs))
+      continue
+    }
+    if (res.status === 422 && body.error === 'flood_drainage_refresh_failed') {
+      return {
+        ok: false,
+        status: 422,
+        error: 'flood_drainage_refresh_failed',
+        message:
+          typeof body.message === 'string'
+            ? body.message
+            : 'Drainage study could not be produced for this parcel.',
+      }
+    }
+    if (!res.ok) {
+      return {
+        ok: false,
+        status: res.status,
+        error: typeof body.error === 'string' ? body.error : 'request_failed',
+        message: typeof body.message === 'string' ? body.message : undefined,
+        retryable: body.retryable === true,
+      }
+    }
+    const study = asStudy(body)
+    if (!study) {
+      return {
+        ok: false,
+        status: 502,
+        error: 'invalid_response',
+        message: 'Flood & drainage response carried no study payload.',
+      }
+    }
+    return { ok: true, study }
+  }
+  return {
+    ok: false,
+    status: 202,
+    error: 'still_processing',
+    message:
+      'Flood & drainage study is taking longer than expected. It is still being generated — try Re-run in a minute to check.',
+  }
+}
+
 /**
- * Run (or re-run) the parcel drainage study — honest work, ~15-45 s.
+ * Run (or re-run) the parcel drainage study — honest work, ~56-75 s
+ * measured on Travis (F7/P-240).
  *
  * I1: keyed on the SUBJECT'S sheet. The study that came back for 48027:498770
  * while 498778 was selected is why this no longer accepts a panel-held id.
@@ -285,6 +395,11 @@ export function buildFloodDrainageRefreshBody(
  * option existed. The BFF (pe-flood-drainage-core.ts) and the engine route
  * already validated and forwarded this field before G-125; this is the
  * first caller that actually sends it.
+ *
+ * P-240: the POST below now gets back a 202 job-accepted body instead of
+ * the composed study — this function polls `/study` internally
+ * (pollFloodDrainageStudy) before resolving, so its own one-await contract
+ * is unchanged for every caller (FloodTool.tsx needs zero changes).
  */
 export async function requestFloodDrainageRefresh(
   parcelNodeId: string,
@@ -308,7 +423,25 @@ export async function requestFloodDrainageRefresh(
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(buildFloodDrainageRefreshBody(target, opts)),
     })
-    return await parseOutcome(res)
+    const body = (await res.json().catch(() => ({}))) as Record<string, unknown>
+    if (!res.ok) {
+      return {
+        ok: false,
+        status: res.status,
+        error: typeof body.error === 'string' ? body.error : 'request_failed',
+        message: typeof body.message === 'string' ? body.message : undefined,
+        retryable: body.retryable === true,
+      }
+    }
+    if (body.state !== 'queued' && body.state !== 'running') {
+      return {
+        ok: false,
+        status: 502,
+        error: 'invalid_response',
+        message: 'Flood & drainage refresh response missing a job state.',
+      }
+    }
+    return pollFloodDrainageStudy(parcelNodeId, Date.now() + FLOOD_DRAINAGE_POLL_CLIENT_CAP_MS)
   } catch (err) {
     return {
       ok: false,
@@ -344,21 +477,20 @@ export async function fetchFloodDrainageStudy(
  * by that embed path; every existing caller (FloodTool.tsx's Generate/Re-run)
  * keeps calling requestFloodDrainageRefresh directly, byte-identical.
  *
- * MECHANISM (verified by reading hauska-engine's flood-drainage route,
- * services/engine-api/src/routes/flood-drainage.ts): the refresh handler is
- * a single awaited async function that computes the study AND persists it
- * before ever responding — there is no abort-checking on the request
- * context, and neither Hono nor Node cancel an in-flight handler just
- * because the caller's HTTP connection closed. So when this BFF's own
- * AbortSignal.timeout (FLOOD_ENGINE_TIMEOUT_MS, pe-flood-drainage-core.ts)
- * fires and the POST comes back 503 engine_timeout, the engine itself is, on
- * the evidence of its own source, still running and will still persist — a
- * later GET .../study read picks up the finished result. REJECTED
- * ALTERNATIVE: the engine also tears down when the BFF's fetch disconnects,
- * in which case polling would just spin until the budget runs out and return
- * the same honest timeout — indistinguishable from the accepted mechanism
- * except by live observation, which this control is exercised against
- * end-to-end through the mounted path (see the G-129 close).
+ * P-240 UPDATE (2026-09-15): the MECHANISM this doc originally described —
+ * "the refresh handler is a single awaited function that computes AND
+ * persists the study before ever responding" — is retired along with the
+ * engine's OLD synchronous refresh route. `requestFloodDrainageRefresh`
+ * above now polls `/study` INTERNALLY (pollFloodDrainageStudy) until the
+ * job is ready/failed or its own 5-minute cap is hit, so it only returns
+ * `{status:503, error:'engine_timeout'}` in the now-rare case where the
+ * BFF's ACK-only fetch itself (FLOOD_REFRESH_ACK_TIMEOUT_MS = 15s,
+ * pe-flood-drainage-core.ts) fails to complete — the guard below still
+ * fires correctly on that case and falls through to the SAME outer
+ * `/study` poll this function always used, now just a rarer path than it
+ * was pre-P-240 (when EVERY slow Travis parcel hit it). Left in place as a
+ * safety net rather than retired outright — a genuine ACK failure is still
+ * possible and this is the honest way to ride it out.
  *
  * SAFETY: a poll that lands on an OLDER cached study — a prior run at a
  * DIFFERENT depth, persisted before this run overwrites it — would be a real

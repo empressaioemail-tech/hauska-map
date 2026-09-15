@@ -7,14 +7,23 @@
 // function cap, so this is NOT a new function; pe-site-plan-export.ts
 // dispatches here. Underscore-prefixed dir = never deployed standalone.
 //
-// Surface (mirrors the pinned engine contract 1:1):
+// Surface (P-240, 2026-09-15 — refresh is now asynchronous; mirrors the
+// pinned engine contract 1:1):
 //   POST /api/pe-site-plan-export?report=flood-drainage
 //     { parcelNodeId, address?, countyName?, rainfallDepthInches? }
-//     → 200 { ok, parcelNodeId, study, artifact }   (engine 201 refresh)
+//     → 202 { ok, parcelNodeId, state: queued|running, jobRef, pollAfterMs }
+//       (engine 202 refresh; a second call while one is running returns the
+//       SAME jobRef)
 //   GET  ...?report=flood-drainage&action=study&parcelNodeId=...
-//     → 200 { ok, parcelNodeId, study }             (cached study passthrough)
+//     → 200 { ok, parcelNodeId, study } once ready; 404 DECLARED wait
+//       { error: "flood_drainage_in_progress", state, jobRef, pollAfterMs }
+//       while queued/running (never a stale prior study); 422
+//       { error: "flood_drainage_refresh_failed", errorClass } once failed;
+//       otherwise the original 404 study_unavailable / 410 artifact_evicted
 //   GET  ...?report=flood-drainage&action=download&parcelNodeId=...&format=pdf-flood-drainage
-//     → application/pdf stream
+//     → application/pdf stream (carries X-Flood-Drainage-Generated-At) once
+//       ready; the same declared-404-wait / 422-failed additions as /study
+//       layered on the original 404/410 shapes
 //
 // TRANSPORT: direct BFF -> engine-api with gate-front headers (the proven
 // pe-map-layers pattern; see pe-flood-drainage-core.ts for the rationale —
@@ -42,9 +51,10 @@ import {
   FLOOD_DRAINAGE_FORMAT,
   FLOOD_ENGINE_GATE_TOKEN_MESSAGE,
   FLOOD_ENGINE_GATE_TOKEN_MISSING_MESSAGE,
-  FLOOD_ENGINE_TIMEOUT_MS,
+  FLOOD_REFRESH_ACK_TIMEOUT_MS,
   floodDrainageFilename,
   isValidParcelNodeId,
+  mapEngineFloodDrainageAccepted,
   mapEngineFloodPayload,
   parseFloodDrainageRefreshBody,
   resolveFloodDrainageAuth,
@@ -143,20 +153,13 @@ async function handleRefresh(req: VercelRequest, res: VercelResponse): Promise<v
         ...buildFloodDrainageGateHeaders(),
       },
       body: JSON.stringify(buildEngineRefreshBody(parsed.request)),
-      signal: AbortSignal.timeout(FLOOD_ENGINE_TIMEOUT_MS),
+      signal: AbortSignal.timeout(FLOOD_REFRESH_ACK_TIMEOUT_MS),
     })
-    if (upstream.status === 422) {
-      // The engine's honest refresh failure (geometry/DEM/model) — pass the
-      // real reason through, never the paywall and never a fake study.
-      const body = (await upstream.json().catch(() => ({}))) as {
-        message?: string
-      }
-      res.status(422).json({
-        error: 'flood_drainage_refresh_failed',
-        message: body.message ?? 'Drainage study could not be produced for this parcel.',
-      })
-      return
-    }
+    // P-240: the engine's async refresh route has NO 422 branch any more —
+    // every geometry/DEM/model failure that used to surface here now
+    // settles as a job `state: failed` on the /study or /download leg
+    // instead (read on a later poll). A non-ok response here is always a
+    // genuine ACCEPT-leg failure (gate/timeout/unreachable/other).
     if (!upstream.ok) {
       const text = await upstream.text().catch(() => '')
       engineFailure(
@@ -166,13 +169,16 @@ async function handleRefresh(req: VercelRequest, res: VercelResponse): Promise<v
       )
       return
     }
+    // P-240: the engine now answers 202 (queued/running) — it never
+    // finishes composing inline, so there is no study payload to map here
+    // yet. The browser polls the /study leg below for the result.
     const payload = (await upstream.json().catch(() => null)) as unknown
-    const mapped = mapEngineFloodPayload(payload, parcelNodeId)
+    const mapped = mapEngineFloodDrainageAccepted(payload, parcelNodeId)
     if (!mapped.ok) {
       res.status(502).json({ error: 'upstream_error', message: mapped.message })
       return
     }
-    res.status(200).json({
+    res.status(202).json({
       ...mapped.response,
       ...(parsed.request.factSheetId
         ? { factSheetId: parsed.request.factSheetId }
@@ -212,16 +218,28 @@ async function handleStudy(req: VercelRequest, res: VercelResponse): Promise<voi
       },
       signal: AbortSignal.timeout(30_000),
     })
-    if (upstream.status === 404 || upstream.status === 410) {
-      // Honest cache misses from the engine (no study yet / bytes evicted)
-      // — pass the engine's own reason through.
+    // Pinned contract (P-240): 404 study_unavailable (nothing on file, OR
+    // the DECLARED wait while queued/running — the engine's 404 body names
+    // which via `state`), 410 artifact_evicted (stored ref can't be read
+    // back), 422 flood_drainage_refresh_failed with an errorClass (the job
+    // settled to `failed`). Pass through as-is — honest states, never a
+    // stale study served silently while a new refresh is in flight.
+    if (upstream.status === 404 || upstream.status === 410 || upstream.status === 422) {
       const body = (await upstream.json().catch(() => ({}))) as {
         error?: string
         message?: string
+        state?: string
+        errorClass?: string
+        jobRef?: string
+        pollAfterMs?: number
       }
       res.status(upstream.status).json({
-        error: body.error ?? 'study_unavailable',
+        error: body.error ?? (upstream.status === 422 ? 'flood_drainage_refresh_failed' : 'study_unavailable'),
         message: body.message,
+        ...(body.state ? { state: body.state } : {}),
+        ...(body.errorClass ? { errorClass: body.errorClass } : {}),
+        ...(body.jobRef ? { jobRef: body.jobRef } : {}),
+        ...(body.pollAfterMs ? { pollAfterMs: body.pollAfterMs } : {}),
       })
       return
     }
@@ -282,14 +300,24 @@ async function handleDownload(req: VercelRequest, res: VercelResponse): Promise<
       },
       signal: AbortSignal.timeout(30_000),
     })
-    if (upstream.status === 404 || upstream.status === 410) {
+    // Same P-240 declared-wait / failed-job additions as /study above,
+    // layered on the original 404 artifact_unavailable / 410 evicted shapes.
+    if (upstream.status === 404 || upstream.status === 410 || upstream.status === 422) {
       const body = (await upstream.json().catch(() => ({}))) as {
         error?: string
         message?: string
+        state?: string
+        errorClass?: string
+        jobRef?: string
+        pollAfterMs?: number
       }
       res.status(upstream.status).json({
-        error: body.error ?? 'artifact_unavailable',
+        error: body.error ?? (upstream.status === 422 ? 'flood_drainage_refresh_failed' : 'artifact_unavailable'),
         message: body.message,
+        ...(body.state ? { state: body.state } : {}),
+        ...(body.errorClass ? { errorClass: body.errorClass } : {}),
+        ...(body.jobRef ? { jobRef: body.jobRef } : {}),
+        ...(body.pollAfterMs ? { pollAfterMs: body.pollAfterMs } : {}),
       })
       return
     }
@@ -308,6 +336,10 @@ async function handleDownload(req: VercelRequest, res: VercelResponse): Promise<
       'Content-Disposition',
       `attachment; filename="${floodDrainageFilename(parcelNodeId)}"`,
     )
+    const generatedAt = upstream.headers.get('X-Flood-Drainage-Generated-At')
+    if (generatedAt) {
+      res.setHeader('X-Flood-Drainage-Generated-At', generatedAt)
+    }
     res.status(200).send(bytes)
   } catch (err) {
     const message = err instanceof Error ? err.message : String(err)

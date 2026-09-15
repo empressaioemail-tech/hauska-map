@@ -12,7 +12,9 @@ import {
   ENGINE_UNREACHABLE_RETRY_MESSAGE,
   extractInlineDownload,
   isValidParcelNodeId,
+  mapMcpSitePlanAccepted,
   mapMcpSitePlanPayload,
+  mapMcpSitePlanStatusPayload,
   parseSitePlanFormat,
   resolveSitePlanExportAuth,
   retryableEngineFailureResponse,
@@ -538,5 +540,151 @@ describe('site-plan export core', () => {
     expect(headers['x-hauska-tenant-id']).toBe('public-catalog')
     expect(headers['x-hauska-gate-credential-id']).toBe('pe-bff')
     expect(headers['x-hauska-request-id']).toBe('req-test-1')
+  })
+})
+
+// ---------------------------------------------------------------------------
+// P-240 (OPS-24, 2026-09-15): async job mapping. hauska-mcp-server's
+// refresh_parcel_site_plan_export tool now ALWAYS returns fast (the engine's
+// 202-accepted job envelope, under payload.data per the MCP envelope shape);
+// check_parcel_site_plan_export_status is the new poll leg. Mirrors
+// pe-feasibility-export-core.ts's mapEngineFeasibilityAccepted /
+// mapEngineFeasibilityStatusPayload test coverage.
+// ---------------------------------------------------------------------------
+
+const PARCEL = '48029:105129'
+
+describe('P-240: mapMcpSitePlanAccepted (refresh_parcel_site_plan_export fast-accept)', () => {
+  it('maps a queued/running job envelope under payload.data, defaulting pollAfterMs when omitted', () => {
+    const mapped = mapMcpSitePlanAccepted(
+      { data: { parcelNodeId: PARCEL, state: 'queued', jobRef: 'job-1' } },
+      PARCEL,
+    )
+    expect(mapped.ok).toBe(true)
+    if (mapped.ok) {
+      expect(mapped.response.state).toBe('queued')
+      expect(mapped.response.jobRef).toBe('job-1')
+      expect(mapped.response.pollAfterMs).toBe(5000)
+    }
+  })
+
+  it('carries a non-default pollAfterMs through verbatim', () => {
+    const mapped = mapMcpSitePlanAccepted(
+      { data: { parcelNodeId: PARCEL, state: 'running', jobRef: 'job-2', pollAfterMs: 7000 } },
+      PARCEL,
+    )
+    expect(mapped.ok).toBe(true)
+    if (mapped.ok) expect(mapped.response.pollAfterMs).toBe(7000)
+  })
+
+  it('falls back to the request parcelNodeId when the envelope omits it', () => {
+    const mapped = mapMcpSitePlanAccepted({ data: { state: 'queued', jobRef: 'job-3' } }, PARCEL)
+    expect(mapped.ok).toBe(true)
+    if (mapped.ok) expect(mapped.response.parcelNodeId).toBe(PARCEL)
+  })
+
+  it('refuses a payload with no queued/running state or jobRef — never fabricates a job reference', () => {
+    expect(mapMcpSitePlanAccepted({ data: { state: 'ready' } }, PARCEL).ok).toBe(false)
+    expect(mapMcpSitePlanAccepted({ data: { state: 'queued' } }, PARCEL).ok).toBe(false)
+    expect(mapMcpSitePlanAccepted({ data: {} }, PARCEL).ok).toBe(false)
+  })
+
+  it('surfaces isError instead of a missing-state false negative', () => {
+    const mapped = mapMcpSitePlanAccepted({ isError: true, message: 'metering denied' }, PARCEL)
+    expect(mapped.ok).toBe(false)
+    if (!mapped.ok) expect(mapped.message).toMatch(/metering denied/i)
+  })
+})
+
+describe('P-240: mapMcpSitePlanStatusPayload (check_parcel_site_plan_export_status)', () => {
+  it('never-requested is its own answer, not mapped onto failed or an error', () => {
+    const mapped = mapMcpSitePlanStatusPayload(
+      { data: { parcelNodeId: PARCEL, state: 'never-requested' } },
+      'pdf-site-plan',
+    )
+    expect(mapped.ok).toBe(true)
+    if (mapped.ok) expect(mapped.response.state).toBe('never-requested')
+  })
+
+  it('queued/running carries the jobRef and pollAfterMs through', () => {
+    const mapped = mapMcpSitePlanStatusPayload(
+      { data: { parcelNodeId: PARCEL, state: 'running', jobRef: 'job-4', pollAfterMs: 6000 } },
+      'pdf-site-plan',
+    )
+    expect(mapped.ok).toBe(true)
+    if (mapped.ok) {
+      expect(mapped.response.state).toBe('running')
+      if (mapped.response.state === 'running') {
+        expect(mapped.response.jobRef).toBe('job-4')
+        expect(mapped.response.pollAfterMs).toBe(6000)
+      }
+    }
+  })
+
+  it('failed carries errorClass + errorMessage, with an honest default message', () => {
+    const mapped = mapMcpSitePlanStatusPayload(
+      { data: { parcelNodeId: PARCEL, state: 'failed', errorClass: 'geometry_unavailable' } },
+      'pdf-site-plan',
+    )
+    expect(mapped.ok).toBe(true)
+    if (mapped.ok && mapped.response.state === 'failed') {
+      expect(mapped.response.errorClass).toBe('geometry_unavailable')
+      expect(mapped.response.errorMessage).toBe(
+        'Site-plan export could not be produced for this parcel.',
+      )
+    }
+  })
+
+  it('ready reshapes { atom, artifacts, result } into the same export payload mapMcpSitePlanPayload produces, plus state:"ready"', () => {
+    const mapped = mapMcpSitePlanStatusPayload(
+      {
+        data: {
+          parcelNodeId: PARCEL,
+          state: 'ready',
+          atom: { parcelNodeId: PARCEL, accessPolicy: 'public-paid' },
+          artifacts: {
+            'pdf-site-plan': { format: 'pdf-site-plan', ref: 'gcs://bucket/x', byteCount: 7900 },
+          },
+          result: {
+            setbackHonestAbsence: true,
+            setbackHonestAbsenceReason: 'no setback-rule atom on file',
+            streetHonestAbsence: true,
+          },
+        },
+      },
+      'pdf-site-plan',
+    )
+    expect(mapped.ok).toBe(true)
+    if (mapped.ok && mapped.response.state === 'ready') {
+      expect(mapped.response.parcelNodeId).toBe(PARCEL)
+      expect(mapped.response.downloadUrl).toBe(buildDownloadPath(PARCEL, 'pdf-site-plan'))
+      expect(mapped.response.setbackHonestAbsence).toBe(true)
+      expect(mapped.response.streetHonestAbsence).toBe(true)
+    }
+  })
+
+  it('ready with no matching artifact still maps ok (downloadUrl built even if the format is not yet on file — mirrors mapMcpSitePlanPayload)', () => {
+    const mapped = mapMcpSitePlanStatusPayload(
+      { data: { parcelNodeId: PARCEL, state: 'ready', atom: {}, artifacts: {}, result: {} } },
+      'pdf-site-plan',
+    )
+    expect(mapped.ok).toBe(true)
+  })
+
+  it('an unrecognized state is refused, never silently treated as any known state', () => {
+    expect(
+      mapMcpSitePlanStatusPayload({ data: { parcelNodeId: PARCEL, state: 'bogus' } }, 'pdf-site-plan')
+        .ok,
+    ).toBe(false)
+  })
+
+  it('surfaces isError instead of a missing-id false negative', () => {
+    const mapped = mapMcpSitePlanStatusPayload(
+      { isError: true, message: 'gate_front_context_required' },
+      'pdf-site-plan',
+      PARCEL,
+    )
+    expect(mapped.ok).toBe(false)
+    if (!mapped.ok) expect(mapped.message).toMatch(/gate_front_context_required/i)
   })
 })
