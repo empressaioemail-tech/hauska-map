@@ -47,9 +47,11 @@ import {
   RAINFALL_DEPTH_MAX_INCHES,
   RAINFALL_DEPTH_MIN_INCHES,
   requestFloodDrainageRefresh,
+  requestFloodDrainageRefreshWithPoll,
   returnPeriodYearsForDepthInches,
   type FloodDrainageStudyView,
 } from "../../lib/floodDrainageClient";
+import { isFloodDrainageEmbedRequest } from "../../lib/flood-embed";
 import { GoogleSignInButton } from "../../components/GoogleSignInButton";
 import { Button } from "../../components/Button";
 import { PE } from "../../styles/pe-chrome";
@@ -94,6 +96,31 @@ export const FLOOD_PAYWALL_MESSAGE =
   "Flood & drainage report: catchment, drainage zones, rainfall ponding, and flow exits with a Sheet-Standard PDF.";
 export const FLOOD_RUNNING_LINE =
   "Running drainage study: fetching the DEM and modeling catchment, ponding, and flow (usually 15-45 s)…";
+/**
+ * G-129 — shown only in the SmartCity Dashboards mount, once the fast
+ * synchronous refresh has missed its 55s budget and this section has fallen
+ * back to polling (requestFloodDrainageRefreshWithPoll). The FIRST run on a
+ * parcel is genuinely slower than 55s on a cold engine container (measured
+ * 92.5-102.8s live, G-125) — this is the honest "still working" line that
+ * replaces a dead-end timeout error for that case.
+ */
+export const FLOOD_RUNNING_LINE_PREPARING =
+  "Still working — the first run on this parcel can take a couple of minutes on a cold start. This will update on its own; no need to retry.";
+
+/**
+ * G-129 — THE TWO-FLOODS BANNER. Rendered only in the SmartCity Dashboards
+ * mount (isFloodDrainageEmbedRequest), because that is the one surface where
+ * this report and the city map's own FEMA/AE-floodway/BEFCO layers occupy the
+ * same frame at different times and could read as competing answers.
+ *
+ * Wording is deliberate and reviewed as its own artifact (see the G-129
+ * close): names the regulatory FEMA zone and this MODELED study as two
+ * different questions, states the exact case that looks like a contradiction
+ * and is not (outside the FEMA zone, still modeled to pond), and says
+ * plainly that this result does not change the parcel's FEMA determination.
+ */
+export const FLOOD_VS_FEMA_EMBED_BANNER =
+  "Two different questions: this is a MODELED drainage study of what happens when it rains, not the regulatory FEMA flood zone. A parcel can sit entirely outside the FEMA zone and still be modeled here to pond badly — that is not a contradiction, it is the case this study exists to catch. This result does not change the parcel's FEMA determination.";
 /**
  * The honest empty-ponding line. A study that models NO standing water on
  * the parcel is a real, useful result — but a legend listing "Ponding" over
@@ -314,6 +341,16 @@ export function FloodDrainageSection({ embed = false }: { embed?: boolean } = {}
   const [stored, setStored] = useDockToolState<FloodToolStoredState>("flood");
   const ent = usePropertyEntitlement(activeParcelNodeId);
   const [busy, setBusy] = useState(false);
+  // G-129: this section is ALSO what the SmartCity Dashboards mount opens
+  // (?embed=flood-drainage) — a narrower, URL-detected condition than the
+  // `embed` prop above, which ReportsTool passes unconditionally whenever
+  // this section renders inside the Reports catalog list for ANY signed-in
+  // PE customer. Read once; the URL does not change under this mount.
+  const [isSmartCityEmbed] = useState(
+    () => typeof window !== "undefined" && isFloodDrainageEmbedRequest(window.location.search),
+  );
+  // True only while a poll (past the 55s fast-path miss) is in flight.
+  const [preparing, setPreparing] = useState(false);
   // G-125: the rainfall depth override, as the user is TYPING it (inches).
   // Empty string = "use the default" -- the byte-identical no-param path.
   const [depthOverrideInput, setDepthOverrideInput] = useState("");
@@ -354,6 +391,7 @@ export function FloodDrainageSection({ embed = false }: { embed?: boolean } = {}
   const run = useCallback(async (rainfallDepthInches?: number) => {
     if (!activeParcelNodeId) return;
     setBusy(true);
+    setPreparing(false);
     setLastRunDepthOverride(rainfallDepthInches ?? null);
     // P-39: the study is keyed on the SUBJECT'S sheet id. The report that came
     // back for 48027:498770 while 498778 was selected is why the panel no
@@ -362,11 +400,23 @@ export function FloodDrainageSection({ embed = false }: { embed?: boolean } = {}
     // the default Generate/Re-run buttons below always call run() with no
     // argument, so their request body is identical to before this control
     // existed.
-    const resp = await requestFloodDrainageRefresh(
-      activeParcelNodeId,
-      rainfallDepthInches !== undefined ? { rainfallDepthInches } : undefined,
-    );
+    // G-129: the SmartCity mount tolerates the cold-container timeout risk
+    // (measured 92.5-102.8s live, G-125) by polling past a 503 engine_timeout
+    // instead of surfacing it as a dead end. Every other caller — every PE
+    // customer signed in through the normal Reports catalog — keeps the
+    // original single-await path, byte-identical to before this row.
+    const resp = isSmartCityEmbed
+      ? await requestFloodDrainageRefreshWithPoll(
+          activeParcelNodeId,
+          rainfallDepthInches !== undefined ? { rainfallDepthInches } : undefined,
+          { onPreparing: () => setPreparing(true) },
+        )
+      : await requestFloodDrainageRefresh(
+          activeParcelNodeId,
+          rainfallDepthInches !== undefined ? { rainfallDepthInches } : undefined,
+        );
     setBusy(false);
+    setPreparing(false);
     if (!resp.ok) {
       if (resp.status === 401) {
         settle({ study: null, notice: "Sign in to run the flood & drainage report." });
@@ -398,7 +448,7 @@ export function FloodDrainageSection({ embed = false }: { embed?: boolean } = {}
     overlayArmedRef.current = true;
     setOverlayGeneration((n) => n + 1);
     settle({ study: resp.study, notice: null });
-  }, [activeParcelNodeId, host, settle]);
+  }, [activeParcelNodeId, host, settle, isSmartCityEmbed]);
 
   // Hydrate silently from the SERVER cache when this property has no local
   // snapshot yet (the study is written at refresh; a 404 just means "not
@@ -579,6 +629,23 @@ export function FloodDrainageSection({ embed = false }: { embed?: boolean } = {}
             }
       }
     >
+      {isSmartCityEmbed && (
+        <div
+          data-testid="flood-vs-fema-banner"
+          style={{
+            margin: "0 0 10px",
+            padding: "8px 10px",
+            borderRadius: 8,
+            border: `0.5px solid ${PE.line28}`,
+            background: "color-mix(in oklab, var(--ss-void) 55%, transparent)",
+            fontSize: 11.5,
+            lineHeight: 1.45,
+            color: TEXT,
+          }}
+        >
+          {FLOOD_VS_FEMA_EMBED_BANNER}
+        </div>
+      )}
       {embed ? null : (
         <div style={{ fontSize: 11.5, color: MUTED, marginBottom: 6 }}>
           Flood &amp; drainage report · public-paid
@@ -623,7 +690,11 @@ export function FloodDrainageSection({ embed = false }: { embed?: boolean } = {}
           data-testid="flood-progress"
           style={{ marginTop: 8, fontSize: 12.5, color: MUTED, lineHeight: 1.45 }}
         >
-          {lastRunDepthOverride != null ? FLOOD_RUNNING_LINE_CUSTOM_DEPTH : FLOOD_RUNNING_LINE}
+          {preparing
+            ? FLOOD_RUNNING_LINE_PREPARING
+            : lastRunDepthOverride != null
+              ? FLOOD_RUNNING_LINE_CUSTOM_DEPTH
+              : FLOOD_RUNNING_LINE}
         </div>
       )}
 

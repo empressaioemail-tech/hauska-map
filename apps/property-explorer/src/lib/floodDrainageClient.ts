@@ -339,6 +339,87 @@ export async function fetchFloodDrainageStudy(
   }
 }
 
+/**
+ * G-129 — the SmartCity Dashboards mount's async-tolerant refresh. Used ONLY
+ * by that embed path; every existing caller (FloodTool.tsx's Generate/Re-run)
+ * keeps calling requestFloodDrainageRefresh directly, byte-identical.
+ *
+ * MECHANISM (verified by reading hauska-engine's flood-drainage route,
+ * services/engine-api/src/routes/flood-drainage.ts): the refresh handler is
+ * a single awaited async function that computes the study AND persists it
+ * before ever responding — there is no abort-checking on the request
+ * context, and neither Hono nor Node cancel an in-flight handler just
+ * because the caller's HTTP connection closed. So when this BFF's own
+ * AbortSignal.timeout (FLOOD_ENGINE_TIMEOUT_MS, pe-flood-drainage-core.ts)
+ * fires and the POST comes back 503 engine_timeout, the engine itself is, on
+ * the evidence of its own source, still running and will still persist — a
+ * later GET .../study read picks up the finished result. REJECTED
+ * ALTERNATIVE: the engine also tears down when the BFF's fetch disconnects,
+ * in which case polling would just spin until the budget runs out and return
+ * the same honest timeout — indistinguishable from the accepted mechanism
+ * except by live observation, which this control is exercised against
+ * end-to-end through the mounted path (see the G-129 close).
+ *
+ * SAFETY: a poll that lands on an OLDER cached study — a prior run at a
+ * DIFFERENT depth, persisted before this run overwrites it — would be a real
+ * dishonesty risk (showing a 9.5" result while the caller is waiting on a 4"
+ * run). When the caller asked for a specific depth, a polled study is
+ * accepted only if its own rainfallDepthInches matches what was requested.
+ * Without a specific depth (the default-path caller), any successful poll is
+ * accepted, matching the non-poll path's own no-cache-differentiation
+ * (G-125: flood-drainage has no refresh-level caching at any depth).
+ */
+const FLOOD_EMBED_POLL_INTERVAL_MS = 8_000
+/** Margin above the 92.5-102.8s cold-container times G-125 measured live for
+ * THIS report (subprocess/DEM cold start, not depth-driven). */
+const FLOOD_EMBED_POLL_BUDGET_MS = 180_000
+
+export type FloodDrainageRefreshWithPollResult = FloodDrainageClientResult & {
+  /** True once the fast synchronous path missed and a poll took over —
+   * whether it eventually succeeded or the budget ran out. Absent on the
+   * fast (no-poll) path. */
+  polled?: boolean
+}
+
+export async function requestFloodDrainageRefreshWithPoll(
+  parcelNodeId: string,
+  opts?: { rainfallDepthInches?: number },
+  pollOpts?: {
+    intervalMs?: number
+    budgetMs?: number
+    /** Fires once, the moment the fast path has missed and polling starts —
+     * the caller's cue to swap "Running…" for an honest "still working" line. */
+    onPreparing?: () => void
+    sleep?: (ms: number) => Promise<void>
+  },
+): Promise<FloodDrainageRefreshWithPollResult> {
+  const first = await requestFloodDrainageRefresh(parcelNodeId, opts)
+  if (first.ok) return first
+  // Only the honest transient class is worth waiting past. A 401/402/422/400
+  // is a real answer already: a 401/402 never becomes a study by waiting, and
+  // a 422 already IS the engine's own honest refusal for this parcel.
+  if (!(first.status === 503 && first.error === 'engine_timeout')) return first
+
+  pollOpts?.onPreparing?.()
+  const interval = pollOpts?.intervalMs ?? FLOOD_EMBED_POLL_INTERVAL_MS
+  const budget = pollOpts?.budgetMs ?? FLOOD_EMBED_POLL_BUDGET_MS
+  const sleep =
+    pollOpts?.sleep ?? ((ms: number) => new Promise<void>((resolve) => setTimeout(resolve, ms)))
+  const wantedDepth = opts?.rainfallDepthInches
+  const deadline = Date.now() + budget
+
+  while (Date.now() < deadline) {
+    await sleep(interval)
+    const polled = await fetchFloodDrainageStudy(parcelNodeId)
+    if (!polled.ok) continue // honest "not ready yet" -- keep waiting out the budget
+    if (wantedDepth !== undefined && polled.study.rainfallDepthInches !== wantedDepth) {
+      continue // a stale cached study at a DIFFERENT depth -- not our answer
+    }
+    return { ...polled, polled: true }
+  }
+  return { ...first, polled: true }
+}
+
 /** The gated PDF download path (session cookie rides the same-origin GET). */
 export function floodDrainageDownloadPath(parcelNodeId: string): string {
   return `${BFF_BASE}&action=download&parcelNodeId=${encodeURIComponent(parcelNodeId)}&format=${FLOOD_DRAINAGE_FORMAT}`
