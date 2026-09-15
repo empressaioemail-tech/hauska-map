@@ -1,16 +1,37 @@
 // Property Explorer site-plan export BFF — Wave 3, WDLL items 7-8.
 //
+// P-240 (OPS-24, 2026-09-15): refresh is now asynchronous. hauska-mcp-
+// server's refresh_parcel_site_plan_export tool ALWAYS returns fast (the
+// engine's 202-accepted job envelope) — this Vercel function is hard-capped
+// at 60s (vercel.json maxDuration) while a real composition measures
+// 56.8-115.9s (F7/P-240), and PE reaches site-plan-export ONLY through this
+// MCP tool (never engine-api directly). Ported onto the same job pattern
+// P-155 shipped for feasibility-export and this same wave shipped for
+// flood-drainage (pe-flood-drainage-handler.ts).
+//
 // POST /api/pe-site-plan-export
 //   Body: { parcelNodeId: "48029:105129", format?: "dxf-site-plan"|"ifc-site-plan"|"pdf-site-plan", address?, countyName? }
 //   Requires PE session + (STUDIO/TEAM entitlement OR an active Property
-//   Unlock on this parcel — P-104, extended by P-119). Calls MCP
-//   refresh_parcel_site_plan_export
-//   with server-side MCP_PRODUCT_KEY (one SDK meter per request at MCP).
+//   Unlock on this parcel — P-104, extended by P-119).
+//   -> 202 { ok, parcelNodeId, state: queued|running, jobRef, pollAfterMs }
+//      (engine 202 refresh, forwarded via MCP's refresh_parcel_site_plan_export;
+//      a second call while one is running returns the SAME jobRef). `format`
+//      no longer reaches the MCP call (the engine composes all 3 formats in
+//      one job regardless) — it only selects which downloadUrl the client
+//      leg below highlights.
+//
+// GET /api/pe-site-plan-export?parcelNodeId=...&format=pdf-site-plan&action=status
+//   -> 200 job state (never-requested/queued/running/ready/failed) plus the
+//      full mapped export payload (atom/artifacts/downloads/honesty flags)
+//      once ready — the browser polls this. Proxies MCP's NEW
+//      check_parcel_site_plan_export_status tool (one SDK meter was already
+//      consumed at refresh; this poll is not metered again).
 //
 // GET /api/pe-site-plan-export?parcelNodeId=...&format=pdf-site-plan&action=download
 //   Streams artifact bytes from engine-api with full gate-front headers
 //   (service token + x-hauska-* seam). Same auth gate. Prefer MCP inline
-//   base64 from POST when available (no second hop).
+//   base64 from a `ready` status poll when available (no second hop).
+//   UNCHANGED by P-240 (same 404/410/200 shapes as before).
 //
 // Sibling of pe-terrain-export.ts: same session/entitlement gate, distinct
 // engine route (site-plan-export/*) and MCP tool
@@ -87,7 +108,8 @@ import {
   ENGINE_GATE_TOKEN_MESSAGE,
   extractInlineDownload,
   isValidParcelNodeId,
-  mapMcpSitePlanPayload,
+  mapMcpSitePlanAccepted,
+  mapMcpSitePlanStatusPayload,
   parseSitePlanFormat,
   resolveSitePlanExportAuth,
   retryableEngineFailureResponse,
@@ -200,6 +222,13 @@ async function handleRefresh(
       ? body.factSheetId.trim()
       : undefined
 
+  // P-240 (OPS-24, 2026-09-15): `format` still selects which downloadUrl the
+  // BROWSER cares about (site-plan-export.ts's core mapper builds all three
+  // downloads[] regardless), but is no longer forwarded to the MCP call —
+  // refresh_parcel_site_plan_export dropped its `format` param when it
+  // stopped composing inline (the engine always builds all 3 formats in one
+  // job; `format` never affected what got composed, only which download
+  // link the OLD synchronous response highlighted).
   const format: SitePlanExportFormat = parseSitePlanFormat(body?.format) ?? 'pdf-site-plan'
   const address = typeof body?.address === 'string' ? body.address : undefined
   const countyName = typeof body?.countyName === 'string' ? body.countyName : undefined
@@ -207,7 +236,6 @@ async function handleRefresh(
   try {
     const payload = await callMcpTool('refresh_parcel_site_plan_export', {
       parcel_node_id: parcelNodeId,
-      format,
       ...(address ? { address } : {}),
       ...(countyName ? { county_name: countyName } : {}),
       ...(factSheetId ? { fact_sheet_id: factSheetId } : {}),
@@ -262,13 +290,16 @@ async function handleRefresh(
       return
     }
 
-    const mapped = mapMcpSitePlanPayload(payload, format, parcelNodeId)
+    // P-240: the tool now ALWAYS returns fast (queued/running job envelope)
+    // — never the composed atom/artifacts inline any more. The browser
+    // polls handleStatus below for the result.
+    const mapped = mapMcpSitePlanAccepted(payload, parcelNodeId)
     if (!mapped.ok) {
       res.status(502).json({ error: 'upstream_error', message: mapped.message })
       return
     }
 
-    res.status(200).json({ ...mapped, ...(factSheetId ? { factSheetId } : {}) })
+    res.status(202).json({ ...mapped.response, ...(factSheetId ? { factSheetId } : {}) })
   } catch (err) {
     const message = err instanceof Error ? err.message : String(err)
     if (isMcpPaymentMessage(message)) {
@@ -289,6 +320,100 @@ async function handleRefresh(
     // (No `setback_rule_missing` branch: a missing setback rule is an honest
     // export state now, not a thrown error — see the isError block above.)
     // FIX 1: honest classification for thrown MCP/engine errors.
+    const kind = classifyEngineFailure({ message })
+    if (kind === 'gate') {
+      res.status(503).json({
+        error: 'engine_gate_config',
+        message: ENGINE_GATE_TOKEN_MESSAGE,
+        detail: message,
+      })
+      return
+    }
+    const transient = retryableEngineFailureResponse(kind, message)
+    if (transient) {
+      res.status(transient.status).json(transient.body)
+      return
+    }
+    res.status(502).json({ error: 'upstream_error', message })
+  }
+}
+
+/**
+ * P-240 (OPS-24, 2026-09-15): the poll leg. The browser calls this on
+ * `pollAfterMs` until the job settles (ready/failed) or its own client-side
+ * cap (sitePlanExportClient.ts's SITE_PLAN_POLL_CLIENT_CAP_MS). Every job
+ * state gets a 200 here — `failed` and `never-requested` are reported IN
+ * the body, not as an HTTP error, because the poll itself succeeded at
+ * reading the state. Mirrors pe-feasibility-export-handler.ts's
+ * handleStatus.
+ */
+async function handleStatus(
+  req: VercelRequest,
+  res: VercelResponse,
+): Promise<void> {
+  const parcelNodeIdRaw = req.query.parcelNodeId
+  const parcelNodeId = Array.isArray(parcelNodeIdRaw) ? parcelNodeIdRaw[0] : parcelNodeIdRaw
+  if (!isValidParcelNodeId(parcelNodeId)) {
+    res.status(400).json({ error: 'invalid_parcel_node_id' })
+    return
+  }
+
+  const session = await requireStudioSession(req, res, parcelNodeId)
+  if (!session) return
+
+  if (!mcpProductKey()) {
+    res.status(503).json({
+      error: 'proxy not configured',
+      missing: 'MCP_PRODUCT_KEY',
+    })
+    return
+  }
+
+  const formatRaw = req.query.format
+  const format: SitePlanExportFormat =
+    parseSitePlanFormat(Array.isArray(formatRaw) ? formatRaw[0] : formatRaw) ?? 'pdf-site-plan'
+
+  try {
+    const payload = await callMcpTool('check_parcel_site_plan_export_status', {
+      parcel_node_id: parcelNodeId,
+    })
+
+    if (payload.isError === true) {
+      const message = mcpToolErrorMessage(payload)
+      if (isMcpPaymentMessage(message)) {
+        res.status(402).json({ error: 'payment_required', message })
+        return
+      }
+      const kind = classifyEngineFailure({ message })
+      if (kind === 'gate') {
+        res.status(503).json({
+          error: 'engine_gate_config',
+          message: ENGINE_GATE_TOKEN_MESSAGE,
+          detail: message,
+        })
+        return
+      }
+      const transient = retryableEngineFailureResponse(kind, message)
+      if (transient) {
+        res.status(transient.status).json(transient.body)
+        return
+      }
+      res.status(502).json({ error: 'upstream_error', message })
+      return
+    }
+
+    const mapped = mapMcpSitePlanStatusPayload(payload, format, parcelNodeId)
+    if (!mapped.ok) {
+      res.status(502).json({ error: 'upstream_error', message: mapped.message })
+      return
+    }
+    res.status(200).json(mapped.response)
+  } catch (err) {
+    const message = err instanceof Error ? err.message : String(err)
+    if (isMcpPaymentMessage(message)) {
+      res.status(402).json({ error: 'payment_required', message })
+      return
+    }
     const kind = classifyEngineFailure({ message })
     if (kind === 'gate') {
       res.status(503).json({
@@ -689,6 +814,12 @@ export default async function handler(
 
   if (req.method === 'GET' && action === 'download') {
     await handleDownload(req, res)
+    return
+  }
+
+  // P-240: the poll leg — GET ?action=status&parcelNodeId=...&format=...
+  if (req.method === 'GET' && action === 'status') {
+    await handleStatus(req, res)
     return
   }
 

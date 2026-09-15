@@ -64,17 +64,25 @@ describe("requestFloodDrainageRefreshWithPoll", () => {
     vi.unstubAllGlobals();
   });
 
-  it("returns the fast path untouched when the POST succeeds (no poll)", async () => {
+  it("P-240: settles fast (no OUTER poll) when the job accepts and the INNER study poll comes back ready right away", async () => {
+    // requestFloodDrainageRefresh (called first, below) now ALWAYS gets a
+    // 202 job-accepted body from the POST, then polls /study internally —
+    // there is no more "one call, done" fast path at the wire level. This
+    // still counts as "no OUTER poll" because the 503 engine_timeout branch
+    // below never engages: `result.polled` stays undefined.
     subjectStore.set({ sheet: sheet(PARCEL), origin: "search" });
-    const fetchMock = vi.fn().mockResolvedValueOnce(
-      jsonResponse(200, { study: { parcelNodeId: PARCEL, rainfallDepthInches: 9.5 } }),
-    );
+    const fetchMock = vi
+      .fn()
+      .mockResolvedValueOnce(jsonResponse(202, { state: "queued", jobRef: "job-1", pollAfterMs: 1 }))
+      .mockResolvedValueOnce(
+        jsonResponse(200, { study: { parcelNodeId: PARCEL, rainfallDepthInches: 9.5 } }),
+      );
     vi.stubGlobal("fetch", fetchMock);
 
     const result = await requestFloodDrainageRefreshWithPoll(PARCEL);
     expect(result.ok).toBe(true);
     expect(result.polled).toBeUndefined();
-    expect(fetchMock).toHaveBeenCalledTimes(1);
+    expect(fetchMock).toHaveBeenCalledTimes(2);
   });
 
   it("does NOT poll a non-transient failure (401) -- one call, honest answer", async () => {

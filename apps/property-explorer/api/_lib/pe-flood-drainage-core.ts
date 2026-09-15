@@ -34,12 +34,18 @@ export const FLOOD_DRAINAGE_FORMAT = 'pdf-flood-drainage' as const
 export const FLOOD_DRAINAGE_REPORT = 'flood-drainage' as const
 
 /**
- * Client-side budget for the engine study run. The study is honest work
- * (DEM fetch + hydrology model, ~15-45 s); the Vercel function cap is 60 s,
- * so budget just under it and classify an overrun as the honest transient
- * engine_timeout — never a gate error.
+ * P-240 (OPS-24, 2026-09-15): refresh no longer waits for the engine to
+ * COMPOSE the study (that took 56-75s measured on Travis, F7/P-240,
+ * 6 of 11 calls over the OLD 55,000ms client abort while the engine itself
+ * returned 201 on all 11 — the engine never failed) — it returns 202 as
+ * soon as the engine ACKNOWLEDGES the job (queued/running), ported onto
+ * P-155's feasibility-export pattern. 15s is generous headroom over that
+ * ack, not a budget for the composition itself. The OLD
+ * `FLOOD_ENGINE_TIMEOUT_MS = 55_000` budgeted for composition finishing
+ * inline and is retired along with the "cold start" retry copy it existed
+ * to excuse below.
  */
-export const FLOOD_ENGINE_TIMEOUT_MS = 55_000
+export const FLOOD_REFRESH_ACK_TIMEOUT_MS = 15_000
 
 /**
  * Gate-front headers engine-api requires on every non-health call. Mirrors
@@ -256,26 +262,93 @@ export function mapEngineFloodPayload(
 }
 
 // ---------------------------------------------------------------------------
+// P-240 (OPS-24, 2026-09-15): async job mapping. Refresh now ACCEPTS (202)
+// instead of returning the composed study inline — `mapEngineFloodPayload`
+// above is UNCHANGED and still does real work: the engine's `/study` and
+// `/download` legs keep the pinned `{ data: { parcelNodeId, study } }`
+// shape on their own 200 (ready) response, so that mapper still applies
+// there verbatim. `mapEngineFloodDrainageAccepted` below is what the NEW
+// refresh leg uses instead — mirrors mapEngineFeasibilityAccepted
+// (pe-feasibility-export-core.ts) 1:1.
+// ---------------------------------------------------------------------------
+
+export type FloodDrainageJobState = 'queued' | 'running' | 'ready' | 'failed'
+
+export interface FloodDrainageAcceptedResponse {
+  ok: true
+  parcelNodeId: string
+  state: 'queued' | 'running'
+  jobRef: string
+  pollAfterMs: number
+}
+
+const DEFAULT_FLOOD_POLL_AFTER_MS = 5_000
+
+/** Maps the engine's 202 refresh-accepted body: `{ state, jobRef,
+ * pollAfterMs, statusUrl, downloadUrl }`. Never `ready` on this leg — the
+ * engine's refresh handler always answers `queued` or `running` (a second
+ * refresh while one is running returns the SAME jobRef, never a new one). */
+export function mapEngineFloodDrainageAccepted(
+  payload: unknown,
+  requestParcelNodeId: string,
+): { ok: true; response: FloodDrainageAcceptedResponse } | { ok: false; message: string } {
+  const p = payload as Record<string, unknown> | null
+  if (!p || (p.state !== 'queued' && p.state !== 'running') || typeof p.jobRef !== 'string') {
+    return {
+      ok: false,
+      message: 'Engine flood-drainage refresh payload missing a queued/running state or jobRef.',
+    }
+  }
+  return {
+    ok: true,
+    response: {
+      ok: true,
+      parcelNodeId: requestParcelNodeId,
+      state: p.state,
+      jobRef: p.jobRef,
+      pollAfterMs:
+        typeof p.pollAfterMs === 'number' && Number.isFinite(p.pollAfterMs)
+          ? p.pollAfterMs
+          : DEFAULT_FLOOD_POLL_AFTER_MS,
+    },
+  }
+}
+
+// ---------------------------------------------------------------------------
 // Honest failure copy (timeout classes REUSED from the site-plan core's
 // classifyEngineFailure; only the customer wording is report-specific).
+//
+// P-240 (2026-09-15): the refresh leg now only waits for the engine to
+// ACCEPT the job (202), not to finish composing it — the two retired
+// messages below both told the customer "this can take up to a minute /
+// may be restarting, try again", which was never the honest mechanism
+// (F7/P-240: the engine was never cold; the OLD client budget was just
+// shorter than the composition). A timeout on the ACK itself is now
+// genuinely rare and genuinely means the engine didn't respond in time, so
+// the replacement copy says exactly that and nothing about cold starts or
+// manual retries — the browser's poll loop (floodDrainageClient.ts) is the
+// retry mechanism now, not the customer.
 // ---------------------------------------------------------------------------
 
 export const FLOOD_ENGINE_GATE_TOKEN_MESSAGE =
   'Flood & drainage report needs an engine-api gate token (server config) — HAUSKA_ENGINE_API_KEY / gate-front context not set or not accepted.'
 
-export const FLOOD_ENGINE_TIMEOUT_RETRY_MESSAGE =
-  'Drainage study timed out — the model run (DEM fetch + hydrology) can take up to a minute on a cold start. Try again in a moment.'
+export const FLOOD_ENGINE_ACK_TIMEOUT_MESSAGE =
+  'Flood & drainage engine did not accept the request in time. Try Generate again.'
 
-export const FLOOD_ENGINE_UNREACHABLE_RETRY_MESSAGE =
-  'Drainage engine did not respond — it may be restarting. Try the report again in a moment.'
+export const FLOOD_ENGINE_ACK_UNREACHABLE_MESSAGE =
+  'Flood & drainage engine did not respond. Try Generate again.'
 
 export const FLOOD_ENGINE_GATE_TOKEN_MISSING_MESSAGE =
   'Flood & drainage report is not configured: engine-api gate token missing (set HAUSKA_ENGINE_API_KEY or ENGINE_API_GATE_TOKEN).'
 
 /**
- * 503 + retryable body for the transient engine failure classes — the
- * site-plan `retryableEngineFailureResponse` shape with flood copy so the
- * client's existing retry handling maps over unchanged.
+ * 503 + retryable body for the transient engine failure classes on the
+ * ACCEPT leg only; null for everything else so callers keep their existing
+ * gate/payment/other handling. Since P-240 this can only fire when the
+ * engine fails to even ACKNOWLEDGE the refresh (queued/running) —
+ * composition failures surface as a job `state: failed` on the `/study` /
+ * `/download` legs instead, never as this transient-retry shape.
  */
 export function retryableFloodEngineFailureResponse(
   kind: EngineFailureKind,
@@ -289,7 +362,7 @@ export function retryableFloodEngineFailureResponse(
       status: 503,
       body: {
         error: 'engine_timeout',
-        message: FLOOD_ENGINE_TIMEOUT_RETRY_MESSAGE,
+        message: FLOOD_ENGINE_ACK_TIMEOUT_MESSAGE,
         retryable: true,
         detail,
       },
@@ -300,7 +373,7 @@ export function retryableFloodEngineFailureResponse(
       status: 503,
       body: {
         error: 'engine_unreachable',
-        message: FLOOD_ENGINE_UNREACHABLE_RETRY_MESSAGE,
+        message: FLOOD_ENGINE_ACK_UNREACHABLE_MESSAGE,
         retryable: true,
         detail,
       },

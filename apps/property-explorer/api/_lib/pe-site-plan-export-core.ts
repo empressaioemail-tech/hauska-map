@@ -208,6 +208,173 @@ export function mapMcpSitePlanPayload(
   }
 }
 
+// ---------------------------------------------------------------------------
+// P-240 (OPS-24, 2026-09-15): async job mapping. hauska-mcp-server's
+// refresh_parcel_site_plan_export tool now ALWAYS returns fast (the engine's
+// 202-accepted job envelope) — this is the PERMANENT contract, not a
+// transient state, because PE's own Vercel function for this route is
+// hard-capped at 60s (vercel.json maxDuration) while a real composition
+// measures 56.8-115.9s (F7/P-240). The new check_parcel_site_plan_export_status
+// tool is the poll leg. Mirrors pe-feasibility-export-core.ts's
+// mapEngineFeasibilityAccepted / mapEngineFeasibilityStatusPayload 1:1,
+// adapted for the MCP envelope (`payload.data`) and for site-plan's
+// nested `result`/`atom`/`artifacts` (vs. feasibility's flat result
+// fields) — the `ready` case below REUSES mapMcpSitePlanPayload above by
+// reshaping the status envelope into the shape that function already
+// knows how to read, so both "ready" paths (a fresh refresh's OLD sync
+// response, kept only for its own historical test coverage, and this
+// status poll's ready payload) share ONE extractor.
+// ---------------------------------------------------------------------------
+
+const DEFAULT_SITE_PLAN_POLL_AFTER_MS = 5_000
+
+export interface SitePlanExportAcceptedResponse {
+  ok: true
+  parcelNodeId: string
+  state: 'queued' | 'running'
+  jobRef: string
+  pollAfterMs: number
+}
+
+/** Maps the (now permanent) fast-accept body from refresh_parcel_site_plan_export:
+ * `{ parcelNodeId, state, jobRef, pollAfterMs, statusUrl, downloadUrl, message }`
+ * under `payload.data`. Never `ready` on this leg — the tool always answers
+ * `queued` or `running`. */
+export function mapMcpSitePlanAccepted(
+  payload: Record<string, unknown>,
+  requestParcelNodeId: string,
+): { ok: true; response: SitePlanExportAcceptedResponse } | { ok: false; message: string } {
+  if (payload.isError === true) {
+    const msg =
+      (typeof payload.message === 'string' && payload.message) ||
+      (typeof payload.error === 'string' && payload.error) ||
+      'MCP site-plan refresh tool returned isError.'
+    return { ok: false, message: msg }
+  }
+  const dataBlock = payload.data as Record<string, unknown> | undefined
+  const state = (dataBlock?.state ?? payload.state) as unknown
+  const jobRef = (dataBlock?.jobRef ?? payload.jobRef) as unknown
+  if ((state !== 'queued' && state !== 'running') || typeof jobRef !== 'string') {
+    return {
+      ok: false,
+      message: 'MCP site-plan refresh payload missing a queued/running state or jobRef.',
+    }
+  }
+  const pollAfterMs = (dataBlock?.pollAfterMs ?? payload.pollAfterMs) as unknown
+  const parcelNodeId =
+    (typeof dataBlock?.parcelNodeId === 'string' && dataBlock.parcelNodeId) ||
+    (typeof payload.parcelNodeId === 'string' && payload.parcelNodeId) ||
+    requestParcelNodeId
+  return {
+    ok: true,
+    response: {
+      ok: true,
+      parcelNodeId,
+      state,
+      jobRef,
+      pollAfterMs:
+        typeof pollAfterMs === 'number' && Number.isFinite(pollAfterMs)
+          ? pollAfterMs
+          : DEFAULT_SITE_PLAN_POLL_AFTER_MS,
+    },
+  }
+}
+
+export type SitePlanExportStatusResponse =
+  | { ok: true; parcelNodeId: string; state: 'never-requested' }
+  | {
+      ok: true
+      parcelNodeId: string
+      state: 'queued' | 'running'
+      jobRef?: string
+      pollAfterMs?: number
+    }
+  | {
+      ok: true
+      parcelNodeId: string
+      state: 'failed'
+      errorClass?: string
+      errorMessage?: string
+    }
+  | ({ ok: true; state: 'ready' } & SitePlanExportBffResponse)
+
+/** Maps check_parcel_site_plan_export_status's response (also under
+ * `payload.data`). Every state gets a response — `never-requested` is its
+ * own answer, never mapped onto `failed` or an HTTP error. The `ready`
+ * case reshapes `{ atom, artifacts, result }` into the flat shape
+ * mapMcpSitePlanPayload expects (its flags used to ride flat on the OLD
+ * synchronous refresh body; they now live under `result` on this poll
+ * instead — same "moved off the response the client can no longer wait
+ * for" story as feasibility's 7 result fields). */
+export function mapMcpSitePlanStatusPayload(
+  payload: Record<string, unknown>,
+  selectedFormat: SitePlanExportFormat,
+  requestParcelNodeId?: string | null,
+): { ok: true; response: SitePlanExportStatusResponse } | { ok: false; message: string } {
+  if (payload.isError === true) {
+    const msg =
+      (typeof payload.message === 'string' && payload.message) ||
+      (typeof payload.error === 'string' && payload.error) ||
+      'MCP site-plan status tool returned isError.'
+    return { ok: false, message: msg }
+  }
+  const dataBlock = (payload.data ?? payload) as Record<string, unknown>
+  const parcelNodeId =
+    (typeof dataBlock.parcelNodeId === 'string' && dataBlock.parcelNodeId) ||
+    (typeof requestParcelNodeId === 'string' && requestParcelNodeId) ||
+    null
+  if (!parcelNodeId || !isValidParcelNodeId(parcelNodeId)) {
+    return { ok: false, message: 'MCP site-plan status payload missing parcelNodeId.' }
+  }
+  const state = dataBlock.state
+  if (state === 'never-requested') {
+    return { ok: true, response: { ok: true, parcelNodeId, state: 'never-requested' } }
+  }
+  if (state === 'queued' || state === 'running') {
+    return {
+      ok: true,
+      response: {
+        ok: true,
+        parcelNodeId,
+        state,
+        jobRef: typeof dataBlock.jobRef === 'string' ? dataBlock.jobRef : undefined,
+        pollAfterMs:
+          typeof dataBlock.pollAfterMs === 'number' && Number.isFinite(dataBlock.pollAfterMs)
+            ? dataBlock.pollAfterMs
+            : DEFAULT_SITE_PLAN_POLL_AFTER_MS,
+      },
+    }
+  }
+  if (state === 'failed') {
+    return {
+      ok: true,
+      response: {
+        ok: true,
+        parcelNodeId,
+        state: 'failed',
+        errorClass: typeof dataBlock.errorClass === 'string' ? dataBlock.errorClass : undefined,
+        errorMessage:
+          typeof dataBlock.errorMessage === 'string'
+            ? dataBlock.errorMessage
+            : 'Site-plan export could not be produced for this parcel.',
+      },
+    }
+  }
+  if (state !== 'ready') {
+    return { ok: false, message: `MCP site-plan status payload had an unrecognized state: ${state}` }
+  }
+  const result = (dataBlock.result ?? {}) as Record<string, unknown>
+  const reshaped: Record<string, unknown> = {
+    parcelNodeId,
+    atom: dataBlock.atom,
+    artifacts: dataBlock.artifacts,
+    ...result,
+  }
+  const mapped = mapMcpSitePlanPayload(reshaped, selectedFormat, parcelNodeId)
+  if (!mapped.ok) return mapped
+  return { ok: true, response: { ...mapped, state: 'ready' } }
+}
+
 function readEnv(name: string): string | undefined {
   const env = (globalThis as { process?: { env?: Record<string, string | undefined> } })
     .process?.env
