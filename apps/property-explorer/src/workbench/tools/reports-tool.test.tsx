@@ -172,27 +172,40 @@ describe("reports tool — Option D picker, not the stacked wall", () => {
     expect(html).not.toContain('data-testid="terrain-export-section"');
   });
 
-  it("selecting REC mounts the records request scaffold", () => {
+  // 2026-09-15 operator ruling (_decisions/2026-09-15_record_request_coming_
+  // soon_all_surfaces.md): Records request goes coming-soon on the web app —
+  // disabled AND labelled together, never dropped from the picker and never
+  // rendered as a paywall/upgrade prompt. The four tests below replace the
+  // pre-ruling "REC is a live Studio-gated verb" tests: selecting REC now
+  // renders the shared disabled Coming-soon button (reports-doc-coming-soon
+  // path in ReportsTool.tsx's SelectedEngine) instead of ever mounting
+  // RecordsRequestSection, regardless of entitlement tier.
+  it("selecting REC renders the disabled Coming soon button, never the records request scaffold", () => {
     primePropertyEntitlement("48021:123", ent());
     const store = createWorkbenchToolStateStore({ storage: null });
     store.set("48021:123", "reports.selectedDoc", "REC");
     const html = render({ activeParcelNodeId: "48021:123", store });
-    expect(html).toContain('data-testid="records-request-section"');
-    expect(html).toContain("Records request");
-    expect(html).toContain("Property records");
-    expect(html).toContain(RECORDS_NOT_WIRED_NOTICE);
-    expect(html).toContain('data-testid="records-request-run"');
+    expect(html).toContain('data-testid="reports-coming-soon-button"');
+    expect(html).toContain("Coming soon");
+    expect(html).not.toContain('data-testid="records-request-section"');
+    expect(html).not.toContain('data-testid="records-request-run"');
+    expect(html).not.toContain(RECORDS_NOT_WIRED_NOTICE);
     expect(html).not.toContain('data-testid="site-plan-export-section"');
   });
 
-  it("picker lists Records request as a live verb, not a Coming soon report", () => {
+  it("picker lists Records request as Coming soon — visible, not dropped, not a live verb", () => {
     primePropertyEntitlement("48021:123", ent());
     const html = render({ activeParcelNodeId: "48021:123" });
+    // Present in the menu (purchaseSurface stayed true) ...
     expect(html).toContain('data-testid="reports-doc-option-REC"');
     expect(html).toContain("Records request");
+    // ... with the picker-row status reading "Coming soon", same as the
+    // selected-doc card once REC is chosen (reportDocStatus's "coming"
+    // branch, reports-catalog.ts).
+    expect(html).toContain("Coming soon");
   });
 
-  it("selecting REC with Studio entitlement mounts the records section", () => {
+  it("selecting REC with Studio entitlement still shows Coming soon, not the records section", () => {
     primePropertyEntitlement(
       "48021:123",
       ent({ subscriptionTier: "studio", devRole: false }),
@@ -200,11 +213,12 @@ describe("reports tool — Option D picker, not the stacked wall", () => {
     const store = createWorkbenchToolStateStore({ storage: null });
     store.set("48021:123", "reports.selectedDoc", "REC");
     const html = render({ activeParcelNodeId: "48021:123", store });
-    expect(html).toContain('data-testid="records-request-section"');
+    expect(html).toContain('data-testid="reports-coming-soon-button"');
+    expect(html).not.toContain('data-testid="records-request-section"');
     expect(html).not.toContain('data-testid="records-studio-lock"');
   });
 
-  it("selecting REC with Solo entitlement shows the Studio lock", () => {
+  it("selecting REC with Solo entitlement still shows Coming soon, not the Studio lock", () => {
     primePropertyEntitlement(
       "48021:123",
       ent({ subscriptionTier: "solo", devRole: false }),
@@ -212,7 +226,11 @@ describe("reports tool — Option D picker, not the stacked wall", () => {
     const store = createWorkbenchToolStateStore({ storage: null });
     store.set("48021:123", "reports.selectedDoc", "REC");
     const html = render({ activeParcelNodeId: "48021:123", store });
-    expect(html).toContain('data-testid="records-studio-lock"');
+    // Coming-soon runs BEFORE the studio-lock branch (SelectedEngine's first
+    // check) — a Solo subscriber sees the same disabled button as everyone
+    // else, never a paywall/upgrade prompt.
+    expect(html).toContain('data-testid="reports-coming-soon-button"');
+    expect(html).not.toContain('data-testid="records-studio-lock"');
     expect(html).not.toContain('data-testid="records-request-section"');
   });
 
