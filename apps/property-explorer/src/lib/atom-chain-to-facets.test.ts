@@ -104,10 +104,91 @@ describe("adaptAtomChainToBakedFacets — Hays-shaped", () => {
       side_corner_ft: 10,
     });
     expect(resp!.facets.envelope?.district).toBe("RS");
-    expect(resp!.facets.envelope?.buildableAreaSqFt).toBe(5100);
+    // P-216 (2026-09-15): haysChain is NOT depth-warm promoted
+    // (isDepthWarmPromoted(haysChain) === false, asserted below at line 301).
+    // Ruling 2 / R-2 refuse a buildable-area figure from an atom that has not
+    // passed ground-truth verification (real road-frontage edge labeling) —
+    // this fixture's own outcome.areaSqFt (5100) must NOT reach the wire.
+    expect(resp!.facets.envelope?.buildableAreaSqFt).toBeUndefined();
     expect(resp!.facets.envelope?.geojson).toBeUndefined();
     expect(resp!.facets.facetCoverage?.envelope).toBe(true);
     expect(resp!.facets.countyFips).toBe("48209");
+  });
+});
+
+/**
+ * P-216 (2026-09-15): live production shape for San Marcos Sturgeon Dr
+ * parcels (48209:97650/97651/97652/97658), a real 55x138ft SF-6 lot with a
+ * nine-vertex GIS ring (five edges labelled `side` — a near-quadrilateral
+ * with GIS-artifact vertices, not four genuine side yards). The write-time
+ * buildable-envelope atom reports `no-buildable-area` with no depth-warm
+ * promotion (no confirmed road-frontage edge labeling backs the verdict).
+ * Live customer-facing symptom: `buildableAreaPct: 0` / `buildableAreaSqFt: 0`
+ * served as fact for a lot that plausibly has ~4,200 sqft buildable.
+ */
+const sanMarcosUnverifiedZeroChain: PropertyAtomChain = {
+  parcelNodeId: "48209:97658",
+  zoningFact: {
+    district: "SF-6",
+    sourceAdapter: "txgio-zoning-stamp:san-marcos-tx",
+    extractedAt: "2026-09-02T14:45:16.934Z",
+  },
+  setbackRule: {
+    front: 25,
+    side: 5,
+    rear: 20,
+    sideCornerFt: 15,
+    districtCode: "SF-6",
+  },
+  buildableEnvelope: {
+    // No depthWarmPromotion, no depth-warm sourceCitation — a shape-only
+    // write, never ground-truth verified.
+    outcome: { kind: "no-buildable-area", areaSqFt: 0 },
+    extractedAt: "2026-09-15T00:54:11.683Z",
+  },
+  atoms: [{}, {}, {}],
+};
+
+describe("adaptAtomChainToBakedFacets — P-216 unverified no-buildable-area", () => {
+  it("refuses the buildable-area figure and the definitive zero verdict when the atom is not depth-warm verified, but still serves the real ruled setback distances", () => {
+    expect(isDepthWarmPromoted(sanMarcosUnverifiedZeroChain)).toBe(false);
+    const resp = adaptAtomChainToBakedFacets(sanMarcosUnverifiedZeroChain);
+    expect(resp).not.toBeNull();
+    const envelope = resp!.facets.envelope;
+    // The false "no buildable area" claim must never reach the wire.
+    expect(envelope?.status).not.toBe("no-buildable-area");
+    expect(envelope?.status).toBe("declined");
+    expect(envelope?.declineReason).toBe("envelope-unverified");
+    expect(envelope?.buildableAreaPct).toBeUndefined();
+    expect(envelope?.buildableAreaSqFt).toBeUndefined();
+    expect(envelope?.emptyReason).toBeUndefined();
+    // facetCoverage.envelope must not claim coverage the ruling declines.
+    expect(resp!.facets.facetCoverage?.envelope).toBe(false);
+    // Real, ruled setback distances are a separate rail and stay served.
+    expect(envelope?.setbacks).toEqual({
+      front_ft: 25,
+      side_ft: 5,
+      rear_ft: 20,
+      side_interior_ft: 5,
+      side_corner_ft: 15,
+    });
+    // A declared refusal, never a blank — the falsifier this dispatch
+    // pre-registered ("suppressing the envelope must not read as silence").
+    expect(envelope?.disclosure).toMatch(/ground-truth verification/i);
+  });
+
+  it("still serves the honest zero once the atom is depth-warm (ground-truth) verified", () => {
+    const verified: PropertyAtomChain = {
+      ...sanMarcosUnverifiedZeroChain,
+      buildableEnvelope: {
+        ...sanMarcosUnverifiedZeroChain.buildableEnvelope!,
+        depthWarmPromotion: DEPTH_WARM_PROMOTION_MARKER,
+      },
+    };
+    const resp = adaptAtomChainToBakedFacets(verified);
+    expect(resp!.facets.envelope?.status).toBe("no-buildable-area");
+    expect(resp!.facets.envelope?.buildableAreaPct).toBe(0);
+    expect(resp!.facets.facetCoverage?.envelope).toBe(true);
   });
 });
 
@@ -625,6 +706,9 @@ describe("attachBuildablePctFromKnownLotArea — C4 (F-06)", () => {
       parcelNodeId: "48021:34137",
       buildableEnvelope: {
         outcome: { kind: "buildable", areaSqFt: 9350 },
+        // depth-warm (ground-truth) verified — see P-216: an unverified
+        // atom's area is withheld before this stage ever sees it.
+        depthWarmPromotion: DEPTH_WARM_PROMOTION_MARKER,
         extractedAt: "2026-07-31T15:13:47.773Z",
       },
     })!;
@@ -650,7 +734,15 @@ describe("attachBuildablePctFromKnownLotArea — C4 (F-06)", () => {
   });
 
   it("leaves pct and summary absent when lot area is unknown — never a 0", () => {
-    const adapted = adaptAtomChainToBakedFacets(haysChain)!;
+    const adapted = adaptAtomChainToBakedFacets({
+      ...haysChain,
+      buildableEnvelope: {
+        ...haysChain.buildableEnvelope!,
+        // depth-warm verified — see P-216 (haysChain itself is deliberately
+        // NOT verified, to test the unrelated no-lot-area path in isolation).
+        depthWarmPromotion: DEPTH_WARM_PROMOTION_MARKER,
+      },
+    })!;
     expect(adapted.facets.envelope?.buildableAreaSqFt).toBe(5100);
     const attached = attachBuildablePctFromKnownLotArea(adapted);
     expect(attached.facets.envelope?.buildableAreaPct).toBeUndefined();
@@ -663,6 +755,8 @@ describe("attachBuildablePctFromKnownLotArea — C4 (F-06)", () => {
       ...haysChain,
       buildableEnvelope: {
         outcome: { kind: "buildable", areaSqFt: 9350, buildableAreaPct: 42 },
+        // depth-warm (ground-truth) verified — see P-216.
+        depthWarmPromotion: DEPTH_WARM_PROMOTION_MARKER,
         extractedAt: "2026-07-31T15:13:47.773Z",
       },
     })!;
