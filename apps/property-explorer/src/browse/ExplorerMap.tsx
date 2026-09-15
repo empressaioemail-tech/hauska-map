@@ -33,6 +33,8 @@ import {
   useSyncExternalStore,
 } from "react";
 import { FloatingMap } from "@hauska/map-renderer";
+import { isFloodDrainageEmbedRequest } from "../lib/flood-embed";
+import { workbenchToolState } from "../workbench/tool-state-store";
 import type {
   Center,
   FloatingMapHandle,
@@ -1994,6 +1996,22 @@ function ExplorerMapSurface({
   // this changes (chassis store is keyed by it).
   const activeParcelNodeId = cardNodeId ?? subjectNodeId;
   activeParcelNodeIdRef.current = activeParcelNodeId;
+
+  // G-129 — the SmartCity Dashboards mount (`?embed=flood-drainage`) opens
+  // straight to the Flood & Drainage report for the resolved parcel, rather
+  // than requiring a staff member to find Reports -> Flood themselves.
+  // Fires once per load: a staff member navigating elsewhere afterward is a
+  // deliberate choice this effect must not fight.
+  const floodEmbedAutoOpenedRef = useRef(false);
+  useEffect(() => {
+    if (floodEmbedAutoOpenedRef.current) return;
+    if (!activeParcelNodeId) return;
+    if (typeof window === "undefined") return;
+    if (!isFloodDrainageEmbedRequest(window.location.search)) return;
+    floodEmbedAutoOpenedRef.current = true;
+    workbenchToolState.set(activeParcelNodeId, "reports.selectedDoc", "FLOOD");
+    ensureWorkbenchTool("reports");
+  }, [activeParcelNodeId, ensureWorkbenchTool]);
 
   // WB6 dossier: when the ACTIVE property switches away from the property the
   // dossier-drawings overlay was drawn for, clear the overlay — saved drawings
