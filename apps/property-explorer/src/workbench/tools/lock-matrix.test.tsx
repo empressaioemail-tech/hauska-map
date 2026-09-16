@@ -206,12 +206,12 @@ describe("REPORTS bubble (Option D picker; TERRAIN Studio-only when selected)", 
     expect(terrain).not.toContain('data-testid="terrain-export-section"');
   });
 
-  it("solo subscriber: Records request is STUDIO-ONLY (View-pricing, no inline checkout)", () => {
+  it("solo subscriber: Records request is Coming soon (2026-09-15 ruling), not a Studio paywall", () => {
     primePropertyEntitlement(PARCEL, SOLO);
     const html = renderTool("reports", { selectedDoc: "REC" });
     expect(html).not.toContain('data-testid="reports-locked"');
-    expect(html).toContain('data-testid="records-studio-lock"');
-    expect(html).toContain('data-testid="view-pricing-button"');
+    expect(html).toContain('data-testid="reports-coming-soon-button"');
+    expect(html).not.toContain('data-testid="records-studio-lock"');
     expect(html).not.toContain('data-testid="records-request-section"');
   });
 
@@ -393,24 +393,33 @@ describe("FEASIBILITY STUDY bubble (Studio/Team or Property Unlock when selected
   });
 });
 
-describe("RECORDS REQUEST bubble (Studio-only when selected — P-85 item 13)", () => {
-  it("STUDIO → records-request-section visible, not studio-locked", () => {
+// 2026-09-15 operator ruling (_decisions/2026-09-15_record_request_coming_
+// soon_all_surfaces.md): Records request is coming-soon on the web app now,
+// for every tier — the SelectedEngine "coming" branch runs before the
+// records engine branch and before the studio-lock check, so no tier sees
+// records-request-section OR records-studio-lock anymore, only the shared
+// disabled Coming-soon button. This replaces the pre-ruling P-85 item 13
+// "Studio-only when selected" matrix below.
+describe("RECORDS REQUEST bubble (coming soon on every tier — 2026-09-15 ruling)", () => {
+  it("STUDIO → Coming soon, not records-request-section or studio-locked", () => {
     primePropertyEntitlement(PARCEL, STUDIO);
     const html = renderTool("reports", { selectedDoc: "REC" });
     expect(html).not.toContain('data-testid="reports-locked"');
+    expect(html).toContain('data-testid="reports-coming-soon-button"');
     expect(html).not.toContain('data-testid="records-studio-lock"');
-    expect(html).toContain('data-testid="records-request-section"');
+    expect(html).not.toContain('data-testid="records-request-section"');
   });
 
-  it("TEAM → records-request-section visible, not studio-locked", () => {
+  it("TEAM → Coming soon, not records-request-section or studio-locked", () => {
     primePropertyEntitlement(PARCEL, TEAM);
     const html = renderTool("reports", { selectedDoc: "REC" });
     expect(html).not.toContain('data-testid="reports-locked"');
+    expect(html).toContain('data-testid="reports-coming-soon-button"');
     expect(html).not.toContain('data-testid="records-studio-lock"');
-    expect(html).toContain('data-testid="records-request-section"');
+    expect(html).not.toContain('data-testid="records-request-section"');
   });
 
-  it("FREE signed-in → reports bubble locked; Records withheld (no section, no studio lock)", () => {
+  it("FREE signed-in → reports bubble locked; Records withheld (no section, no studio lock, no coming-soon either — the whole bubble is behind the property-unlock wall)", () => {
     primePropertyEntitlement(PARCEL, FREE);
     const html = renderTool("reports", { selectedDoc: "REC" });
     expect(html).toContain('data-testid="reports-locked"');
@@ -418,12 +427,12 @@ describe("RECORDS REQUEST bubble (Studio-only when selected — P-85 item 13)", 
     expect(html).not.toContain('data-testid="records-studio-lock"');
   });
 
-  it("SOLO → studio lock on Records (LockedToolPanel, no request section)", () => {
+  it("SOLO → Coming soon, not the Studio lock (never a paywall for a coming-soon row)", () => {
     primePropertyEntitlement(PARCEL, SOLO);
     const html = renderTool("reports", { selectedDoc: "REC" });
     expect(html).not.toContain('data-testid="reports-locked"');
-    expect(html).toContain('data-testid="records-studio-lock"');
-    expect(html).toContain('data-testid="view-pricing-button"');
+    expect(html).toContain('data-testid="reports-coming-soon-button"');
+    expect(html).not.toContain('data-testid="records-studio-lock"');
     expect(html).not.toContain('data-testid="records-request-section"');
   });
 
@@ -435,15 +444,16 @@ describe("RECORDS REQUEST bubble (Studio-only when selected — P-85 item 13)", 
     expect(html).not.toContain('data-testid="records-studio-lock"');
   });
 
-  // P-119 (2026-09-05): Property Unlock is explicitly ABSENT from the
-  // Property Unlock row for multi-property/records-adjacent tools — this is
-  // the one row this task must NOT touch. A property-unlocked account still
-  // sees the studio lock here, unlike SITEPLAN/TERRAIN/FEAS above.
-  it("P-119 REGRESSION: property-unlocked (no Studio) still sees the studio lock on Records — UNCHANGED", () => {
+  // P-119 (2026-09-05): Property Unlock was explicitly ABSENT from the
+  // Property Unlock row for Records — moot now that Records is coming-soon
+  // for every tier, but pinned so a future un-ruling of coming-soon does not
+  // silently reopen the Property-Unlock door P-119 closed.
+  it("P-119 REGRESSION: property-unlocked (no Studio) sees Coming soon, same as every other tier", () => {
     primePropertyEntitlement(PARCEL, PROPERTY_UNLOCKED);
     const html = renderTool("reports", { selectedDoc: "REC" });
     expect(html).not.toContain('data-testid="reports-locked"');
-    expect(html).toContain('data-testid="records-studio-lock"');
+    expect(html).toContain('data-testid="reports-coming-soon-button"');
+    expect(html).not.toContain('data-testid="records-studio-lock"');
     expect(html).not.toContain('data-testid="records-request-section"');
   });
 });

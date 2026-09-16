@@ -1081,8 +1081,18 @@ function SelectedEngine({
   onOpenBrief: () => void;
 }) {
   if (doc.catalogStatus === "coming") {
+    // Runs BEFORE every engine branch below (records included): a "coming"
+    // row never mounts its real engine, regardless of tier/entitlement — see
+    // reports-catalog.ts's REC row (2026-09-15 ruling). Disabled + labelled
+    // together, never a paywall and never an error.
     return (
-      <Button type="button" variant="secondary" fullWidth disabled>
+      <Button
+        type="button"
+        variant="secondary"
+        fullWidth
+        disabled
+        data-testid="reports-coming-soon-button"
+      >
         Coming soon
       </Button>
     );
