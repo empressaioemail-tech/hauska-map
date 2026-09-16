@@ -12,10 +12,11 @@ import {
   buildEngineRefreshBody,
   buildFloodDrainageGateHeaders,
   FLOOD_DRAINAGE_FORMAT,
-  FLOOD_ENGINE_TIMEOUT_RETRY_MESSAGE,
-  FLOOD_ENGINE_UNREACHABLE_RETRY_MESSAGE,
+  FLOOD_ENGINE_ACK_TIMEOUT_MESSAGE,
+  FLOOD_ENGINE_ACK_UNREACHABLE_MESSAGE,
   FLOOD_PROPERTY_LOCKED_MESSAGE,
   floodDrainageFilename,
+  mapEngineFloodDrainageAccepted,
   mapEngineFloodPayload,
   parseFloodDrainageRefreshBody,
   resolveFloodDrainageAuth,
@@ -214,22 +215,53 @@ describe('engine payload mapping', () => {
   })
 })
 
-describe('honest transient failures (timeout classes reused)', () => {
-  it('timeout → 503 retryable with the flood copy', () => {
-    const kind = classifyEngineFailure({ message: 'The operation timed out after 55000ms' })
+describe('honest transient failures (timeout classes reused, ACCEPT leg only since P-240)', () => {
+  it('timeout → 503 retryable with the flood ACK copy', () => {
+    const kind = classifyEngineFailure({ message: 'The operation timed out after 15000ms' })
     expect(kind).toBe('engine_timeout')
     const resp = retryableFloodEngineFailureResponse(kind, 'detail')
     expect(resp?.status).toBe(503)
     expect(resp?.body.retryable).toBe(true)
-    expect(resp?.body.message).toBe(FLOOD_ENGINE_TIMEOUT_RETRY_MESSAGE)
+    expect(resp?.body.message).toBe(FLOOD_ENGINE_ACK_TIMEOUT_MESSAGE)
   })
 
   it('connect failure → 503 retryable unreachable copy; gate stays non-retryable', () => {
     const kind = classifyEngineFailure({ message: 'fetch failed: ECONNREFUSED' })
     expect(kind).toBe('unreachable')
     const resp = retryableFloodEngineFailureResponse(kind, 'detail')
-    expect(resp?.body.message).toBe(FLOOD_ENGINE_UNREACHABLE_RETRY_MESSAGE)
+    expect(resp?.body.message).toBe(FLOOD_ENGINE_ACK_UNREACHABLE_MESSAGE)
     expect(retryableFloodEngineFailureResponse('gate', 'detail')).toBeNull()
+  })
+})
+
+describe('P-240: async job mapping (mapEngineFloodDrainageAccepted)', () => {
+  it('accepted: maps a queued/running 202 body, defaulting pollAfterMs when the engine omits it', () => {
+    const mapped = mapEngineFloodDrainageAccepted({ state: 'queued', jobRef: 'job-1' }, PARCEL)
+    expect(mapped.ok).toBe(true)
+    if (mapped.ok) {
+      expect(mapped.response.state).toBe('queued')
+      expect(mapped.response.jobRef).toBe('job-1')
+      expect(mapped.response.pollAfterMs).toBe(5000)
+    }
+  })
+
+  it('accepted: carries a non-default pollAfterMs through verbatim', () => {
+    const mapped = mapEngineFloodDrainageAccepted(
+      { state: 'running', jobRef: 'job-2', pollAfterMs: 7000 },
+      PARCEL,
+    )
+    expect(mapped.ok).toBe(true)
+    if (mapped.ok) {
+      expect(mapped.response.state).toBe('running')
+      expect(mapped.response.pollAfterMs).toBe(7000)
+    }
+  })
+
+  it('accepted: refuses a payload with no queued/running state or jobRef — never fabricates a job reference', () => {
+    expect(mapEngineFloodDrainageAccepted({ state: 'ready' }, PARCEL).ok).toBe(false)
+    expect(mapEngineFloodDrainageAccepted({ state: 'queued' }, PARCEL).ok).toBe(false)
+    expect(mapEngineFloodDrainageAccepted({}, PARCEL).ok).toBe(false)
+    expect(mapEngineFloodDrainageAccepted(null, PARCEL).ok).toBe(false)
   })
 })
 

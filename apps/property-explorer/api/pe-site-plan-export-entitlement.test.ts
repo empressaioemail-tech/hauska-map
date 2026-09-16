@@ -44,6 +44,15 @@ function makeReq(opts: { body?: unknown; cookie?: string | null }): VercelReques
   } as unknown as VercelRequest
 }
 
+/** P-240: the new action=status poll leg is a GET, gated the same way. */
+function makeStatusReq(opts: { parcelNodeId: string; cookie?: string | null }): VercelRequest {
+  return {
+    method: 'GET',
+    query: { action: 'status', parcelNodeId: opts.parcelNodeId, format: 'pdf-site-plan' },
+    headers: { cookie: opts.cookie === null ? undefined : (opts.cookie ?? COOKIE) },
+  } as unknown as VercelRequest
+}
+
 function makeRes() {
   const res = {
     statusCode: 200,
@@ -153,6 +162,39 @@ describe('pe-site-plan-export.ts — P-119 entitlement wiring (requireStudioSess
     const res = makeRes()
     await handler(makeReq({ body: { parcelNodeId: 'not-a-parcel' } }), res)
     expect(res.statusCode).toBe(400)
+    expect(fetchMock).not.toHaveBeenCalled()
+  })
+
+  // ---------------------------------------------------------------------------
+  // P-240 (OPS-24, 2026-09-15): the new action=status poll leg (proxies
+  // hauska-mcp-server's check_parcel_site_plan_export_status) gets the SAME
+  // studio/Property-Unlock gate as refresh/download — proven the same way
+  // as the rest of this file, by observing whether the (always-throwing)
+  // MCP fetch was ever reached.
+  // ---------------------------------------------------------------------------
+
+  it('status: a Studio session PASSES the gate and reaches MCP', async () => {
+    stubFetch({ tier: 'paid', studioGranted: true, property: { unlocked: false } })
+    const res = makeRes()
+    await handler(makeStatusReq({ parcelNodeId: PARCEL }), res)
+    expect(res.statusCode).toBe(502)
+    expect((res.body as { message: string }).message).toBe('MCP_REACHED')
+  })
+
+  it('status: Solo (paid, no Property Unlock) REFUSES studio_required — MCP never reached', async () => {
+    const fetchMock = stubFetch({ tier: 'paid', studioGranted: false, property: { unlocked: false } })
+    const res = makeRes()
+    await handler(makeStatusReq({ parcelNodeId: PARCEL }), res)
+    expect(res.statusCode).toBe(402)
+    expect((res.body as { error: string }).error).toBe('studio_required')
+    expect(fetchMock.mock.calls.some(([url]) => String(url).includes('/mcp'))).toBe(false)
+  })
+
+  it('status: a signed-out request 401s without touching the network', async () => {
+    const fetchMock = stubFetch({ tier: 'paid', studioGranted: true })
+    const res = makeRes()
+    await handler(makeStatusReq({ parcelNodeId: PARCEL, cookie: null }), res)
+    expect(res.statusCode).toBe(401)
     expect(fetchMock).not.toHaveBeenCalled()
   })
 })
