@@ -30,6 +30,24 @@ export default defineConfig({
       "@hauska/instrument-registry": fileURLToPath(
         new URL("../../packages/instrument-registry/src/index.ts", import.meta.url),
       ),
+      // P-247: @hauska/map-renderer's package.json "exports" points only at
+      // ./dist, with no dev/source condition (unlike the two aliases above,
+      // which already exist for exactly this reason). Every existing
+      // consumer here (ExplorerMap.tsx and 8 others) imports TYPES ONLY from
+      // the package specifier, which Vite elides at transform time and never
+      // resolves at runtime -- so this gap was latent until the first REAL
+      // (non-type-only) import of the package reached vitest's module graph.
+      // The specific styles.css subpath is aliased separately and FIRST:
+      // the bare package alias below would otherwise prefix-match it too
+      // (Vite/rollup-plugin-alias treats a string `find` as matching either
+      // an exact specifier or `find + "/"+ rest`) and append "/styles.css"
+      // onto index.ts, a file, not a directory.
+      "@hauska/map-renderer/styles.css": fileURLToPath(
+        new URL("../../packages/map-renderer/src/styles.css", import.meta.url),
+      ),
+      "@hauska/map-renderer": fileURLToPath(
+        new URL("../../packages/map-renderer/src/index.ts", import.meta.url),
+      ),
     },
   },
   server: {
