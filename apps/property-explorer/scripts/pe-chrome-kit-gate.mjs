@@ -53,6 +53,7 @@ const REQUIRED_BUTTON = [
   "src/workbench/tools/RecordsRequestSection.tsx",
   "src/workbench/tools/RecordsAcknowledgementPanel.tsx",
   "src/coldopen/SignUpCard.tsx",
+  "src/coldopen/SampleReportPanel.tsx",
   "src/browse/PropertyBriefPanel.tsx",
   "src/browse/PricingModal.tsx",
   "src/browse/SitePlanExportSection.tsx",
@@ -60,6 +61,7 @@ const REQUIRED_BUTTON = [
 ];
 
 const REQUIRED_PE = [
+  "src/coldopen/SampleReportPanel.tsx",
   "src/workbench/tools/BriefTool.tsx",
   "src/workbench/tools/CompareTool.tsx",
   "src/workbench/tools/FloodTool.tsx",
@@ -126,6 +128,11 @@ export const ISLAND_PREFIXES = [
   "src/browse/brief-print",  // print gold
   "src/browse/road-overlay", // map overlay cyan
   "src/browse/flood-map-overlay",
+  // P-247 state 3: a mocked Claude conversation inside Claude's OWN light
+  // shell, not Smart Site's dark chrome — by design, per the 2026-09-16
+  // handoff ("no Smart Site chrome... Claude's own light shell"). Its colors
+  // are Claude's UI, never PE tokens, the same reasoning as the Stripe island.
+  "src/coldopen/ClaudeChannelPreview.tsx",
 ];
 
 export function isIsland(rel) {
@@ -305,17 +312,26 @@ export function hasRawCyanColor(src) {
  * Gold has TWO jobs as of 2026-08-27, not one:
  *   1. the brand mark   — MapCornerChrome (chip), SignUpCard (cold-open lockup)
  *   2. the rail unread dot — Workbench, by operator ruling
+ *   3. the primary CTA fill on the P-247 sign-in redesign's card and its
+ *      sample-report panel — operator-approved departure, 2026-09-16 design
+ *      handoff (`See a real parcel report` / `Look up your own parcel`).
+ *      The system reserves gold for the brand mark; these two buttons are the
+ *      documented exception, not a silent bypass — see the handoff's own
+ *      fidelity note requiring exactly this allow-list entry.
  *
  * The second was taken against a recommendation and the recommendation is
  * recorded rather than buried: the original SPEC specified a BLUE dot, and
  * giving gold a second meaning ("new") weakens the one-hue-one-job rule the
  * kit itself states. The operator chose gold with that in front of them. The
  * carve-out is therefore FILE-NARROW — Workbench.tsx and nowhere else — so the
- * exception cannot quietly spread to a third surface.
+ * exception cannot quietly spread to a third surface. The P-247 carve-out is
+ * narrow the same way: SignUpCard.tsx and SampleReportPanel.tsx only, each
+ * carrying exactly one gold-filled button, not a general license to fill.
  */
 export const GOLD_ALLOWED = [
   "src/browse/MapCornerChrome.tsx",
   "src/coldopen/SignUpCard.tsx",
+  "src/coldopen/SampleReportPanel.tsx",
   "src/workbench/Workbench.tsx",
   "src/styles/pe-tokens.css",
   "src/styles/pe-chrome.ts",
