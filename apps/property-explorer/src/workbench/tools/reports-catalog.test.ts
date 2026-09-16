@@ -14,9 +14,11 @@ import {
 } from "./reports-catalog";
 
 describe("reports catalog — W7 purchase surface", () => {
-  it("Coming soon rows are off the purchase surface (violate: a Coming soon row must fail)", () => {
+  it("Coming soon rows are off the purchase surface — except REC, which the 2026-09-15 ruling keeps visible", () => {
     const purchase = purchaseSurfaceCatalog();
-    expect(purchase.some((d) => d.catalogStatus === "coming")).toBe(false);
+    // COMP is still the "vanish" composition: coming + purchaseSurface:false
+    // drops it from the picker entirely.
+    expect(purchase.some((d) => d.id === "COMP")).toBe(false);
     expect(purchase.some((d) => /coming soon/i.test(d.name))).toBe(false);
     expect(purchase.map((d) => d.id).sort()).toEqual(
       ["BRIEF", "DOSS", "FEAS", "FLOOD", "REC", "SITEPLAN", "TERRAIN"].sort(),
@@ -26,6 +28,12 @@ describe("reports catalog — W7 purchase surface", () => {
       .flatMap((g) => g.rows.map((r) => `${g.group}:${r.name}:${r.catalogStatus}`))
       .join("|");
     expect(htmlish.toLowerCase()).not.toContain("coming soon");
+    // REC is the deliberate exception (_decisions/2026-09-15_record_request_
+    // coming_soon_all_surfaces.md): catalogStatus "coming" with
+    // purchaseSurface left true, so the row stays on the surface — disabled
+    // and labelled, never dropped.
+    const rec = purchase.find((d) => d.id === "REC");
+    expect(rec?.catalogStatus).toBe("coming");
   });
 
   it("the 10-of-12 meter is retired (violate: readyCount must fail)", () => {
@@ -84,14 +92,23 @@ describe("reports catalog — W7 purchase surface", () => {
     }
   });
 
-  it("Records request is Studio-gated in Tools group", () => {
+  it("Records request is coming soon (operator ruling 2026-09-15): never generatable, no lock chip", () => {
     const rec = findReportDoc("REC");
+    expect(rec.catalogStatus).toBe("coming");
+    expect(rec.purchaseSurface).toBe(true);
+    // studioGated/group are unchanged by the ruling — only catalogStatus moved.
     expect(rec.studioGated).toBe(true);
     expect(rec.group).toBe("Tools");
     expect(reportDocIsGeneratable(rec, false)).toBe(false);
-    expect(reportDocIsGeneratable(rec, true)).toBe(true);
-    const locked = reportDocLockChip(rec, { studioGranted: false });
-    expect(locked?.text).toContain("Studio");
+    expect(reportDocIsGeneratable(rec, true)).toBe(false);
+    // catalogStatus === "coming" short-circuits reportDocLockChip before the
+    // studio check ever runs, so there is no paywall/lock chip — only the
+    // "Coming soon" status text (never a paywall, per the ruling).
+    expect(reportDocLockChip(rec, { studioGranted: false })).toBeNull();
+    expect(reportDocLockChip(rec, { studioGranted: true })).toBeNull();
+    expect(reportDocStatus(rec, { studioGranted: true }).text).toBe(
+      "Coming soon",
+    );
   });
 
   // ---------------------------------------------------------------------------
@@ -209,20 +226,29 @@ describe("reports catalog — W7 purchase surface", () => {
     }
   });
 
-  it("P-119: an active Property Unlock does NOT open Records request (studio-only, no alternate door)", () => {
+  it("P-119: an active Property Unlock does NOT open Records request (studio-only, no alternate door); post-ruling it is coming-soon regardless", () => {
     const rec = findReportDoc("REC");
     expect(reportDocIsGeneratable(rec, false, true)).toBe(false);
+    expect(reportDocIsGeneratable(rec, true, true)).toBe(false);
+    // "coming" short-circuits before the studio/property-unlock check runs —
+    // no paywall chip either way, only "Coming soon" (2026-09-15 ruling).
     expect(
-      reportDocLockChip(rec, { studioGranted: false, propertyUnlocked: true })?.text,
-    ).toBe("Studio, $129/mo");
+      reportDocLockChip(rec, { studioGranted: false, propertyUnlocked: true }),
+    ).toBeNull();
   });
 
   it("P-119 REGRESSION: with no Property Unlock (default), gating is unchanged from P-104", () => {
-    for (const id of ["SITEPLAN", "TERRAIN", "FEAS", "REC"] as const) {
+    for (const id of ["SITEPLAN", "TERRAIN", "FEAS"] as const) {
       const doc = findReportDoc(id);
       expect(reportDocIsGeneratable(doc, false)).toBe(false);
       expect(reportDocIsGeneratable(doc, false, false)).toBe(false);
       expect(reportDocIsGeneratable(doc, true)).toBe(true);
     }
+    // REC is the one row this regression no longer holds for: the 2026-09-15
+    // ruling made it "coming", so it is never generatable — studioGranted or
+    // not — unlike SITEPLAN/TERRAIN/FEAS above.
+    const rec = findReportDoc("REC");
+    expect(reportDocIsGeneratable(rec, false)).toBe(false);
+    expect(reportDocIsGeneratable(rec, true)).toBe(false);
   });
 });

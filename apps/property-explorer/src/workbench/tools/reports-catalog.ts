@@ -153,7 +153,16 @@ export const REPORTS_CATALOG: readonly ReportDocDef[] = [
     group: "Tools",
     name: "Records request",
     kind: "Tool",
-    catalogStatus: "ready",
+    // Operator ruling, 2026-09-15
+    // (_decisions/2026-09-15_record_request_coming_soon_all_surfaces.md):
+    // the flow completes but delivers nothing real, so DISABLED + LABELLED
+    // together — a label alone was explicitly rejected. `purchaseSurface`
+    // stays true (unlike COMP below) so the row is NOT dropped from the
+    // picker: the tool must stay visible, just unstartable. This is the ONE
+    // "coming" row on the purchase surface today; COMP's composition
+    // (`purchaseSurface: false`) would make it vanish, which the ruling
+    // forbids here.
+    catalogStatus: "coming",
     purchaseSurface: true,
     promise:
       "The recorded documents the county clerk's index ties to this parcel.",
