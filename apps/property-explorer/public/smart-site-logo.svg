@@ -1,0 +1,13 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="420" height="96" viewBox="0 0 420 96" fill="none" color="#FFFFFF">
+  <title>Smart Site</title>
+
+  <g transform="translate(10 10)" stroke="currentColor" stroke-width="2">
+    <circle cx="38" cy="38" r="30" fill="none"></circle>
+    <line x1="38" y1="0" x2="38" y2="16"></line>
+    <line x1="38" y1="60" x2="38" y2="76"></line>
+    <line x1="0" y1="38" x2="16" y2="38"></line>
+    <line x1="60" y1="38" x2="76" y2="38"></line>
+    <circle cx="38" cy="38" r="4" fill="#E8963B" stroke="none"></circle>
+  </g>
+  <text x="112" y="60" font-family="Oxygen, system-ui, sans-serif" font-weight="700" font-size="40" letter-spacing=".4"><tspan fill="currentColor">SMART</tspan> <tspan fill="#F5B95C">SITE</tspan></text>
+</svg>
