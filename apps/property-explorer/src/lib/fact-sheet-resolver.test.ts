@@ -2983,3 +2983,142 @@ describe("F21 (2026-09-13) — the record path's cityLimitsFact carries no query
     expect(SITUS_SEED_HOP_TIMEOUT_MS).toBeGreaterThan(0);
   });
 });
+
+// ---------------------------------------------------------------------------
+// P-249 (2026-09-16): the unverified envelope draws with NO figure.
+//
+// A180 (operator): a buildable-area FIGURE appears only when a VERIFIED
+// envelope atom backs it. R-2 (2026-09-11) reversed Ruling B for the POLYGON
+// only: draw it wherever a district and a setback table exist, and let the
+// AREA wait. `atom-chain-to-facets.ts` marks that payload `figureWithheld`;
+// these tests pin what the sheet does with it.
+// ---------------------------------------------------------------------------
+
+/** The modelled outline `live-envelope-augment.ts` writes onto the facets. */
+function withheldEnvelopeWire(over: Record<string, unknown> = {}) {
+  const wire = facetsWire();
+  (wire.facets as Record<string, unknown>).envelope = {
+    status: "ok",
+    // The stable branch token, kept even though the status is "ok" — it is not
+    // a decline, and no reader that guards on status === "declined" sees one.
+    declineReason: "envelope-unverified",
+    figureWithheld: true,
+    district: "R-1",
+    setbacks: { front_ft: 25, side_ft: 5, rear_ft: 10 },
+    approximate: true,
+    provisional: true,
+    disclosure:
+      "Buildable area withheld — this parcel's buildable-envelope outcome has not " +
+      "passed ground-truth verification (no confirmed road-frontage edge labeling). " +
+      "Envelope outline from live derive (labelEdges+derive), not from a verified atom.",
+    geojson: {
+      type: "FeatureCollection",
+      features: [
+        {
+          type: "Feature",
+          properties: { kind: "buildable-envelope", source: "live-derive" },
+          geometry: {
+            type: "Polygon",
+            coordinates: [square(SUBJECT_CENTRE.lng, SUBJECT_CENTRE.lat, 0.0002)],
+          },
+        },
+      ],
+    },
+    ...over,
+  };
+  return wire;
+}
+
+describe("P-249 — a figureWithheld envelope draws the modelled polygon and no area", () => {
+  it("serves `modelled`: real rings, the payload's own disclosure, and NO area field at all", async () => {
+    const stub = installFetchStub({
+      facets: withheldEnvelopeWire(),
+      gisFeatures: [SUBJECT_FEATURE],
+    });
+    const sheet = await sheetOf(makeResolver(stub), NODE_ID);
+    expect(sheet.envelope.kind).toBe("modelled");
+    if (sheet.envelope.kind !== "modelled") throw new Error("unreachable");
+    expect(sheet.envelope.rings.length).toBeGreaterThan(0);
+    expect(sheet.envelope.disclosure).toContain("Buildable area withheld");
+    expect(sheet.envelope.setbacksUsed.front.distance?.value).toBe(25);
+    // The whole point: the `modelled` variant has no area to print, so no
+    // downstream reader (card, MCP, PDF) can print a figure for it by reading
+    // this state. `derived` — the variant that DOES carry one — is not reachable
+    // from a withheld payload.
+    expect("area" in sheet.envelope).toBe(false);
+    expect("areaPctOfLot" in sheet.envelope).toBe(false);
+  });
+
+  it("guards the ATOM-DID path too (falsifier: this is the leak the branch closes)", async () => {
+    // An atom did on the payload makes `sheetEnvelopeIsAtomPathPending` return
+    // false immediately, so this payload used to fall through to `derived` —
+    // whose AMENDMENT 3 fallback MEASURES an area off the rings when the
+    // payload carries no number. That would print a buildable-area figure with
+    // no verified atom behind it, the exact A-180 leak P-249 closes.
+    const withDid = withheldEnvelopeWire({
+      provenanceRefs: { envelope: { atomDid: "did:atom:buildable-envelope-1" } },
+    });
+    const guarded = await sheetOf(
+      makeResolver(installFetchStub({ facets: withDid, gisFeatures: [SUBJECT_FEATURE] })),
+      NODE_ID,
+    );
+    expect(guarded.envelope.kind).toBe("modelled");
+    expect("area" in guarded.envelope).toBe(false);
+
+    // The guard is load-bearing and able to fire: drop ONLY `figureWithheld`
+    // from the same payload and the measured figure comes straight back.
+    const unguardedWire = withheldEnvelopeWire({
+      provenanceRefs: { envelope: { atomDid: "did:atom:buildable-envelope-1" } },
+    });
+    delete (
+      (unguardedWire.facets as { envelope: Record<string, unknown> }).envelope
+    ).figureWithheld;
+    const unguarded = await sheetOf(
+      makeResolver(installFetchStub({ facets: unguardedWire, gisFeatures: [SUBJECT_FEATURE] })),
+      NODE_ID,
+    );
+    expect(unguarded.envelope.kind).toBe("derived");
+    if (unguarded.envelope.kind !== "derived") throw new Error("unreachable");
+    expect(unguarded.envelope.area.value).toBeGreaterThan(0);
+  });
+
+  it("names the branch reason when the withheld payload carries no drawable rings", async () => {
+    // A live pass that wrote an (empty) FeatureCollection, or a shape the ring
+    // reader cannot use: there is nothing to draw and the figure is withheld, so
+    // the sheet declares the branch instead of an unexplained blank. Distinct
+    // from the `atom_path_pending` state (no geometry on the payload at all),
+    // which the predicate above this branch owns and which re-fetches.
+    const noRings = withheldEnvelopeWire({
+      geojson: { type: "FeatureCollection", features: [] },
+      // The unavailable-shape case, so the payload carries no live-derive marker.
+      disclosure:
+        "Buildable area withheld — this parcel's buildable-envelope outcome has not " +
+        "passed ground-truth verification (no confirmed road-frontage edge labeling). " +
+        "The envelope outline is modelled from the setback table on record and drawn " +
+        "for reference; the area figure stays withheld until a verified atom backs it.",
+    });
+    const sheet = await sheetOf(
+      makeResolver(installFetchStub({ facets: noRings, gisFeatures: [SUBJECT_FEATURE] })),
+      NODE_ID,
+    );
+    expect(sheet.envelope.kind).toBe("not-derived");
+    if (sheet.envelope.kind !== "not-derived") throw new Error("unreachable");
+    expect(sheet.envelope.reason).toBe("envelope-unverified");
+    expect("area" in sheet.envelope).toBe(false);
+  });
+
+  it("a withheld payload with no geometry at all is the atom-path-pending state, still with no figure", async () => {
+    // Before the live pass has run the payload has a district, a table and no
+    // shape — the pre-existing `atom_path_pending` reading, which is what makes
+    // the resolver fire the live derive in the first place. Either way, no area.
+    const noShape = withheldEnvelopeWire({ geojson: undefined });
+    const sheet = await sheetOf(
+      makeResolver(installFetchStub({ facets: noShape, gisFeatures: [SUBJECT_FEATURE] })),
+      NODE_ID,
+    );
+    expect(sheet.envelope.kind).toBe("not-derived");
+    if (sheet.envelope.kind !== "not-derived") throw new Error("unreachable");
+    expect(sheet.envelope.reason).toBe("atom_path_pending");
+    expect("area" in sheet.envelope).toBe(false);
+  });
+});

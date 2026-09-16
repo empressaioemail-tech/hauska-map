@@ -194,6 +194,16 @@ export function applyLiveDeriveToFacets(
 
   const env = facets.envelope!;
   const atomAreaSqFt = atomBuildableAreaSqFt(env);
+  /**
+   * P-249 (2026-09-16): the atom-chain adapter marks the unverified
+   * `no-buildable-area` branch `figureWithheld` (polygon yes, figure no — the
+   * 2026-09-11 R-2 ruling). This module owns the polygon (the atom carries
+   * none), so it must NOT re-stamp its own independently-recomputed area onto
+   * a payload that declared the figure withheld: that would put a buildable
+   * AREA on the wire with no verified atom behind it (A-180).
+   */
+  const figureWithheld = env.figureWithheld === true;
+  const withheldDisclosure = `${str(env.disclosure) ?? "Buildable area withheld — this parcel's buildable-envelope outcome has not passed ground-truth verification."} Envelope outline from live derive (labelEdges+derive), not from a verified atom.`;
 
   if (live.status === "no-buildable-area") {
     if (atomAreaSqFt != null) {
@@ -253,7 +263,7 @@ export function applyLiveDeriveToFacets(
     liveAreaSqFt != null &&
     Math.round(liveAreaSqFt) === Math.round(atomAreaSqFt);
 
-  if (atomAreaSqFt != null && !liveAgreesWithAtom) {
+  if (atomAreaSqFt != null && !liveAgreesWithAtom && !figureWithheld) {
     // Real disagreement between the atom's reported area and live-derive's own
     // independently-recomputed one. The atom wins on the number (engine source
     // of truth); live-derive's geometry is still used — the atom carries none.
@@ -278,12 +288,19 @@ export function applyLiveDeriveToFacets(
       ...env,
       status: "ok",
       geojson,
-      buildableAreaSqFt: liveAreaSqFt ?? env.buildableAreaSqFt,
-      buildableAreaPct:
-        num(live.summary?.buildableAreaPct as number | undefined) ?? env.buildableAreaPct,
-      disclosure:
-        str(live.disclosure) ??
-        "Buildable envelope from live derive (labelEdges+derive); map/export parity.",
+      // P-249: a withheld figure stays withheld through the augmentation —
+      // geometry is this pass's contribution, the area is not.
+      ...(figureWithheld
+        ? {}
+        : {
+            buildableAreaSqFt: liveAreaSqFt ?? env.buildableAreaSqFt,
+            buildableAreaPct:
+              num(live.summary?.buildableAreaPct as number | undefined) ?? env.buildableAreaPct,
+          }),
+      disclosure: figureWithheld
+        ? withheldDisclosure
+        : (str(live.disclosure) ??
+          "Buildable envelope from live derive (labelEdges+derive); map/export parity."),
     },
   };
 }
