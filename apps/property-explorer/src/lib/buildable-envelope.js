@@ -24,6 +24,15 @@
  * polygon and returns an honest {ok:false, reason} on any non-ok status.
  */
 
+// P-272: this file used to carry its OWN, NARROWER copy of the unusable-address
+// rule (`isTravisUnusableSitus`, which knew only the `, TX` sentinel and the
+// truncated ZIP tail). It did not know `", ,"`, so a malformed situs rode along
+// with a perfectly good click point, cortex missed on the punctuation, and the
+// envelope never drew (XD-9). The rule now has one definition, shared with
+// `fact-sheet-resolver.ts`, `live-envelope-augment.ts` and the API's
+// `atom-chain-to-facets.ts`, so the four cannot drift apart again.
+import { isUnusableEnvelopeAddress } from "./situs-address";
+
 /** Round a coordinate for the request body (avoids over-precise float noise). */
 function round6(n) {
   return Number.isFinite(n) ? Math.round(n * 1e6) / 1e6 : null;
@@ -40,24 +49,21 @@ function round6(n) {
  * @param {{ address?: string|null, lat?: number|null, lng?: number|null }} sel
  * @returns {object|null}
  */
-/** Travis CAD sentinels / truncated ZIPs. Only drop them when a click point exists. */
-function isTravisUnusableSitus(raw) {
-  if (!raw) return false;
-  if (/^,\s*(TX)?\s*$/i.test(raw)) return true;
-  // "17006 DASHWOOD CREEK DR, TX 7866" — truncated ZIP, no city.
-  if (/,\s*TX\s+\d{1,4}\s*$/i.test(raw) && raw.split(",").length < 3) return true;
-  return false;
-}
-
+/**
+ * Only drop the address when a click point exists, and only when the address is
+ * one the geocoder cannot match (`isUnusableEnvelopeAddress`, P-272). A search
+ * with no coordinates still posts the string so cortex returns an honest miss.
+ */
 export function envelopeRequestBody(sel) {
   const rawAddress = typeof sel?.address === "string" ? sel.address.trim() : "";
   const lat = round6(sel?.lat);
   const lng = round6(sel?.lng);
   // Search still POSTs a free-typed string (even "nowhere at all") so cortex
   // can return an honest miss. A map click already has a rooftop: drop the
-  // Travis sentinel / truncated ZIP and send the point.
+  // unusable address — the sentinel, the truncated ZIP, or a malformed situs
+  // like ", ," — and send the point.
   const address =
-    rawAddress && isTravisUnusableSitus(rawAddress) && lat != null && lng != null
+    rawAddress && isUnusableEnvelopeAddress(rawAddress) && lat != null && lng != null
       ? ""
       : rawAddress;
   // parcel_node_id is NOT sent until cortex POST schema accepts it (LDT #467

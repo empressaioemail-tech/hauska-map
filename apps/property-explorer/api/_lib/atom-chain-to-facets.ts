@@ -24,6 +24,12 @@ import {
   type NotSpecifiedAxes,
 } from "./setback-not-specified.js";
 import { withVerdictLayerFields } from "./verdict-layer-merge.js";
+// P-272: one definition of a readable situs, shared with the client modules
+// (`fact-sheet-resolver.ts`, `live-envelope-augment.ts`, `baked-facets.ts`) and
+// with `buildable-envelope.js`'s request-body guard. Re-exported below so this
+// module's existing export surface is unchanged.
+import { isUsableSitusAddress } from "../../src/lib/situs-address.js";
+export { isUsableSitusAddress };
 
 export interface AtomChainAbsence {
   kind?: string;
@@ -1445,17 +1451,6 @@ function withMaxImperviousCoverPctFact(
   const fact = maxImperviousCoverPctFactFromCortexRoot(bakedBody);
   if (fact === undefined) return atomResponse;
   return { ...atomResponse, maxImperviousCoverPctFact: fact };
-}
-
-/** Travis/CAD sentinels (`, TX`) are not situs. Same rule as fact-sheet-resolver. */
-export function isUsableSitusAddress(raw: string | null | undefined): boolean {
-  if (!raw || typeof raw !== "string") return false;
-  const trimmed = raw.trim();
-  if (!trimmed) return false;
-  const street = (trimmed.split(",")[0] ?? "").trim();
-  if (!street || !/^\d/.test(street)) return false;
-  if (/^,\s*(TX)?\s*$/i.test(trimmed)) return false;
-  return true;
 }
 
 /**

@@ -56,6 +56,7 @@ import {
   yearBuiltLayerToCardFacet,
   zoningLayerToCardFacet,
 } from "./baked-facets";
+import { countyRowText } from "./county-grade";
 import { isLayerAbsenceWire } from "./layer-absence";
 
 /**
@@ -786,8 +787,11 @@ export function bakedCardModelFromSheet(
     apn: facetFrom(sheet.identity.apn, (v) => v),
     situsAddress: facetFrom(sheet.identity.situsAddress, (v) => v),
     // county is NOT a Fact on the sheet, so this can never read "not on file".
+    // P-291: the row also carries the "not yet verified" statement for a county
+    // outside the graded six, worded once in ./county-grade.
     county: present(
-      `${sheet.identity.county.name} County (${sheet.identity.county.fips})`,
+      countyRowText(sheet.identity.county.name, sheet.identity.county.fips) ??
+        `${sheet.identity.county.name} County (${sheet.identity.county.fips})`,
     ),
     landUse: facetFrom(sheet.landUse, (v) =>
       v.description ? `${v.code}: ${v.description}` : v.code,

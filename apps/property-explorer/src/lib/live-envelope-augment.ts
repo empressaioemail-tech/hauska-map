@@ -24,6 +24,9 @@ import {
   fetchBuildableEnvelope,
   type BuildableEnvelopeResult,
 } from "./buildable-envelope.js";
+// P-272: the single definition, shared with fact-sheet-resolver.ts,
+// baked-facets.ts, buildable-envelope.js and the API's atom-chain-to-facets.ts.
+import { isUsableSitusAddress } from "./situs-address";
 
 function str(v: unknown): string | null {
   return typeof v === "string" && v.trim() ? v.trim() : null;
@@ -33,22 +36,12 @@ function num(v: unknown): number | undefined {
   return typeof v === "number" && Number.isFinite(v) ? v : undefined;
 }
 
-/** Travis-style sentinels (`, TX`) are not navigation or geocode anchors. */
-function isUsableSitusAddress(raw: string | null | undefined): boolean {
-  if (!raw || typeof raw !== "string") return false;
-  const trimmed = raw.trim();
-  if (!trimmed) return false;
-  const street = (trimmed.split(",")[0] ?? "").trim();
-  if (!street || !/^\d/.test(street)) return false;
-  if (/^,\s*(TX)?\s*$/i.test(trimmed)) return false;
-  return true;
-}
-
 /**
  * Duplicated from fact-sheet-resolver.ts's `composedSitusAddress` (P-151) —
- * same reason `isUsableSitusAddress` above is duplicated rather than
- * imported: fact-sheet-resolver.ts already imports FROM this module
- * (`facetsNeedLiveEnvelopeDerive`), so importing back would be circular.
+ * importing back would be circular (fact-sheet-resolver.ts already imports FROM
+ * this module's `facetsNeedLiveEnvelopeDerive`). P-272 moved
+ * `isUsableSitusAddress` itself OUT of both files into `./situs-address`, where
+ * it is shared with no cycle at all; only this compose helper stays local.
  * situsAddress + city + state, composed ONLY for the outbound live-derive
  * POST — never for what `baseFacts.situsAddress` displays elsewhere.
  */
