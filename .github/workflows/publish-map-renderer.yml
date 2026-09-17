@@ -3,6 +3,10 @@ name: Publish @hauska/map-renderer
 # Publishes @hauska/map-renderer to npm when a matching tag is pushed
 # (e.g. map-renderer-v0.1.1), or on manual dispatch. Requires the NPM_TOKEN
 # Actions secret (an npm automation token with publish rights to @hauska).
+# P-318 CONTROL (falsifier 3) - not for merge. This comment exists only so that a
+# pull request's diff is exactly ONE workflow file, against UNFIXED main, to show
+# that no `test` check-run is produced for it. The trigger fix for this defect is
+# on ci/p318-required-check-can-run; this branch deliberately carries no fix.
 on:
   push:
     tags:
