@@ -31,6 +31,7 @@ import {
   setbackConflictNote,
   type SetbackConflictSecondSourceInput,
 } from "@empressaio/atom-contract/display";
+import type { SetbackCitationVintageRow } from "../../api/_lib/setback-citation-vintage";
 import {
   SITUS_UNREADABLE_REASON,
   isUnreadableSitusAddress,
@@ -180,6 +181,8 @@ export interface BakedFacetPayload {
     disclosure?: string;
     emptyReason?: string;
     citationUrl?: string;
+    /** P-270 (OPS-24 X11) — present only when a citation is served without a readable effective date. */
+    citationVintage?: SetbackCitationVintageRow | null;
     geojson?: unknown;
     /**
      * Forward-compat, type-only (no baked backend serves this today): the
@@ -808,6 +811,18 @@ export interface BakedCardModel {
   setbackSourceCitation: string | null;
   setbackSourceDate: string | null;
   setbackSourceDateBasis: string | null;
+  /**
+   * P-270 (OPS-24 X11) — the citation's vintage declaration, threaded from
+   * `envelope.citationVintage`. Null when the citation's effective date WAS
+   * read at source (a readable date is not a conflict) and when there is no
+   * citation; non-null exactly when a citation is being served WITHOUT a
+   * readable date, in which case the card must not print it as a plain
+   * citation. `state` is the machine-readable cause (absent-at-source /
+   * unparseable / never-looked) and `note` is the one sentence a reader sees,
+   * both composed by the ONE module `setback-citation-vintage.ts` — never
+   * retyped here, and byte-identical to legacy-design-tools' copy.
+   */
+  setbackCitationVintage: SetbackCitationVintageRow | null;
   /** The second source's own citation URL, when it published one. */
   setbackSecondSourceCitationUrl: string | null;
 }
@@ -1080,6 +1095,7 @@ export function deriveBakedCardModel(payload: BakedFacetPayload): BakedCardModel
     setbackSourceCitation: env?.sourceCitationUrl ?? null,
     setbackSourceDate: env?.sourceDate ?? null,
     setbackSourceDateBasis: env?.sourceDateBasis ?? null,
+    setbackCitationVintage: env?.citationVintage ?? null,
     setbackSecondSourceCitationUrl: env?.secondSource?.citationUrl ?? null,
   };
 }

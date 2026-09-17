@@ -29,6 +29,11 @@
 // atom-chain / cortex-merge path already produced for that field untouched.
 
 import { interpretRecordCell, noSuchCellRefusal, type RecordCompanionRow } from "./pe-record-cell-interpret.js";
+import {
+  NEVER_LOOKED_DATE_READ,
+  readSetbackDateFromRowAtSource,
+  type SetbackDateRead,
+} from "./setback-citation-vintage.js";
 import type {
   AgValuationFactWire,
   CityLimitsFactWire,
@@ -626,19 +631,72 @@ export function latestParseableDate(dates: ReadonlyArray<string | null | undefin
   return latest?.raw ?? null;
 }
 
-/** setbackRules is the companion rail carrying the rule's effective date + citation — vendored field names guessed conservatively (effectiveDate/effective_date, citationUrl/citation_url); absent when the companion row carries neither. */
+/**
+ * The `setbackRules` companion row's own two spellings of its effective-date
+ * field. `readSetbackDateFromRowAtSource` reads whichever key is PRESENT, so a
+ * row carrying neither reports absent-at-source and a row carrying one with a
+ * value that is not a date reports unparseable — the two states this lane
+ * exists to keep apart.
+ */
+const SETBACK_RULE_DATE_FIELD_KEYS = ["effectiveDate", "effective_date"] as const;
+
+/**
+ * setbackRules is the companion rail carrying the rule's effective date +
+ * citation. Field names are the rail's own two spellings
+ * (`effectiveDate`/`effective_date`, `citationUrl`/`citation_url`).
+ *
+ * P-270 (OPS-24 X11): this function used to return
+ * `{effectiveDate: null, citationUrl: null}` from FIVE situations that are not
+ * the same situation — no rail, rail cell not `present`, no companion row, no
+ * `effectiveDate` key, and a key whose value `asNullableString` rejected — so a
+ * citation whose date could not be read was indistinguishable from a rail that
+ * was never consulted, and the caller served the citation as though it were
+ * current. The date read now goes through `readSetbackDateFromRowAtSource`
+ * (setback-citation-vintage.ts), which keeps absent-at-source and
+ * present-but-unparseable apart, and the two "nobody read anything" cases
+ * report `never-looked` rather than a null that reads as an absence.
+ */
 function companionSetbackRulesMeta(
   placeKey: string,
   rail: RecordRail | undefined,
-): { effectiveDate: string | null; citationUrl: string | null } {
-  if (!rail || !rail.cell) return { effectiveDate: null, citationUrl: null };
+): {
+  dateRead: SetbackDateRead;
+  citationUrl: string | null;
+  sourceLabel: string | null;
+} {
+  const RAIL_LABEL = "parcel_record setbackRules";
+  if (!rail || !rail.cell) {
+    return { dateRead: NEVER_LOOKED_DATE_READ, citationUrl: null, sourceLabel: null };
+  }
   const cell = interpretRecordCell(placeKey, "setbackRules", rail.cell, toCompanionRows(rail));
-  if (cell.state !== "present") return { effectiveDate: null, citationUrl: null };
+  if (cell.state === "refused") {
+    // The reader was asked and refused: this cell's date was never read.
+    return { dateRead: NEVER_LOOKED_DATE_READ, citationUrl: null, sourceLabel: RAIL_LABEL };
+  }
+  const sourceLabel = `${RAIL_LABEL} (${cell.state === "present" ? cell.cellSource : cell.state})`;
+  if (cell.state !== "present") {
+    // absent / absent-verified: the source itself states it carries no rule row.
+    return {
+      dateRead: { sourceDate: null, state: "unreadable-absent-at-source" },
+      citationUrl: null,
+      sourceLabel,
+    };
+  }
   const row = cell.companionRows[0] ? asRecord(cell.companionRows[0].payload) : null;
-  if (!row) return { effectiveDate: null, citationUrl: null };
-  const effectiveDate = asNullableString(row.effectiveDate) ?? asNullableString(row.effective_date);
-  const citationUrl = asNullableString(row.citationUrl) ?? asNullableString(row.citation_url);
-  return { effectiveDate, citationUrl };
+  if (!row) {
+    // kind=value with no companion row: the content this rail carries lives on
+    // that row, so there is no date at source to read.
+    return {
+      dateRead: { sourceDate: null, state: "unreadable-absent-at-source" },
+      citationUrl: null,
+      sourceLabel,
+    };
+  }
+  return {
+    dateRead: readSetbackDateFromRowAtSource(row, SETBACK_RULE_DATE_FIELD_KEYS),
+    citationUrl: asNullableString(row.citationUrl) ?? asNullableString(row.citation_url),
+    sourceLabel,
+  };
 }
 
 /** The override this lane applies onto `facets.zoning` / `facets.envelope.setbacks` — see COMPOSED_ZONING_SETBACK_RAIL_KEYS module doc for the R-2 boundary. */
@@ -678,6 +736,23 @@ export interface ZoningSetbackOverride {
   setbackAxisOverrideVintage: string | null;
   setbackRulesEffectiveDate: string | null;
   setbackRulesCitationUrl: string | null;
+  /**
+   * P-270 (OPS-24 X11): how the served citation's effective date was
+   * established AT SOURCE — `read`, or one of the three unreadable causes.
+   * `setbackRulesEffectiveDate` above is its `sourceDate`, kept as its own
+   * field only so existing callers keep working; the STATE is what must not
+   * be collapsed.
+   *
+   * PRESENT ONLY WHEN THIS RAIL SERVED A CITATION. A payload whose
+   * `setbackRulesCitationUrl` is null has no citation here for this override
+   * to qualify, and the vintage of a citation this path never served is not
+   * this path's to declare — the atom chain declares its own (see
+   * atom-chain-to-facets.ts). Absent is therefore the honest value, not
+   * `never-looked`: the same shape as `setbackRulesCitationUrl` itself.
+   */
+  setbackRulesCitationDateRead?: SetbackDateRead;
+  /** P-270: the source whose date could not be read — named on the conflict row, never left implicit. */
+  setbackRulesSourceLabel?: string | null;
 }
 
 /**
@@ -753,8 +828,15 @@ export function composeZoningSetbackOverride(record: ParcelRecordResponse): {
   }
 
   const meta = companionSetbackRulesMeta(placeKey, record.rails.setbackRules);
-  override.setbackRulesEffectiveDate = meta.effectiveDate;
+  override.setbackRulesEffectiveDate = meta.dateRead.sourceDate;
   override.setbackRulesCitationUrl = meta.citationUrl;
+  if (meta.citationUrl) {
+    // P-270: declared only when this rail is actually serving a citation. With
+    // no citation the keys stay absent, so nothing downstream can report a
+    // vintage for a citation that did not come from here.
+    override.setbackRulesCitationDateRead = meta.dateRead;
+    override.setbackRulesSourceLabel = meta.sourceLabel;
+  }
 
   return { override, railStates };
 }

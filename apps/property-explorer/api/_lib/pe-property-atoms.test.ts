@@ -429,6 +429,221 @@ describe("fetchParcelRecordOnce / applyRecordPatch (P152-PANEL)", () => {
   });
 });
 
+/**
+ * P-270 (OPS-24 X11). The live defect this lane closes: the `setbackRules` rail
+ * serves a citation whose effective date cannot be read, and until this lane
+ * the payload carried the citation with NO statement of its vintage — so the
+ * card printed a citation the reader had to assume was current. The operator's
+ * most-current-wins ruling (2026-09-11) says an unreadable date is a conflict
+ * row, never a silent pick.
+ *
+ * These are end-to-end through `applyRecordPatch` because that is the only
+ * writer of `facets.envelope.citationUrl` in this app, and therefore the field
+ * the surface-probe's XD-11 grader reads.
+ */
+describe("P-270 (OPS-24 X11) — a citation whose effective date could not be read is declared, never served plain", () => {
+  const CITATION = "https://library.municode.com/tx/pflugerville/ordinances/2026-04-14";
+  const NOTE =
+    "Setback rule vintage unknown — the rule is served undated, not as current. Verify with the city.";
+
+  /** A `setbackRules` rail as the reader slates it: one companion row carrying the citation. */
+  function setbackRulesRail(row: Record<string, unknown> | null, cellSource = "pflugerville_udc"): RecordRail {
+    return {
+      cell: { kind: "value", value: "rules-v1", source: cellSource, vintage: "2026-09-01T00:00:00.000Z" },
+      gate: { verdict: null, evaluatedAt: null },
+      serve: "record",
+      atom: null,
+      atomBacked: false,
+      rendering: null,
+      companions: row
+        ? [{ rowIndex: 0, payload: row, source: cellSource, vintage: "2026-09-01T00:00:00.000Z" }]
+        : [],
+    };
+  }
+
+  /**
+   * The shape every XD-11 parcel has: the rail IS consulted and it DOES serve a
+   * citation, but its own date-bearing field carries no date. An axis override
+   * rides along because the composer only writes a citation when it also has
+   * something of its own to apply (the pre-existing guard, unchanged here).
+   */
+  function recordWithCitationRow(row: Record<string, unknown> | null) {
+    const record: ParcelRecordResponse = {
+      parcelNodeId: "48453:445501",
+      placeKey: "48453:445501",
+      countyFips: "48453",
+      railRegistrySha: "sha",
+      readAt: "2026-09-17T00:00:00.000Z",
+      rails: {
+        setbackFrontFt: recordRail("record", {
+          kind: "value",
+          value: 25,
+          source: "parcel_record",
+          vintage: "2026-09-17T00:00:00.000Z",
+        }),
+        setbackRules: setbackRulesRail(row),
+      },
+      refused: null,
+    };
+    return record;
+  }
+
+  function baseWithEnvelope(): PeBakedFacetsResponse {
+    const payload = basePayload();
+    payload.parcelNodeId = "48453:445501";
+    payload.facets.parcelNodeId = "48453:445501";
+    payload.facets.envelope = {
+      status: "ok",
+      district: "SF-1",
+      setbacks: { front_ft: 20, side_ft: 5, rear_ft: 20 },
+      approximate: true,
+      provisional: true,
+      buildableAreaSqFt: 4000,
+      buildableAreaPct: 40,
+      disclosure: "Atom-chain buildable envelope.",
+    };
+    return payload;
+  }
+
+  it("SERVES THE CONFLICT ROW when the source's own date-bearing field carries no date", async () => {
+    vi.stubEnv("HAUSKA_RETRIEVAL_API_KEY", "test-key");
+    vi.stubGlobal(
+      "fetch",
+      vi.fn().mockResolvedValue(
+        jsonResponse(recordWithCitationRow({ citationUrl: CITATION })),
+      ),
+    );
+
+    const after = await applyRecordPatch(baseWithEnvelope(), "48453:445501");
+    const env = after.facets.envelope;
+
+    // The citation itself is unchanged: this lane does not withhold a value the
+    // source really does cite, it qualifies it.
+    expect(env?.citationUrl).toBe(CITATION);
+    expect(env?.citationVintage).toEqual({
+      kind: "setback-citation-vintage-unreadable",
+      state: "unreadable-absent-at-source",
+      sourceLabel: "parcel_record setbackRules (pflugerville_udc)",
+      citationUrl: CITATION,
+      note: NOTE,
+    });
+    expect(env?.disclosure).toContain(NOTE);
+    // The row is about the citation the payload serves, and it names the source.
+    expect(env?.citationVintage?.citationUrl).toBe(env?.citationUrl);
+    expect(env?.citationVintage?.sourceLabel).toContain("setbackRules");
+  });
+
+  it("tells `unparseable` apart from `absent-at-source` on the same rail — a bad value in a good field is a different defect", async () => {
+    vi.stubEnv("HAUSKA_RETRIEVAL_API_KEY", "test-key");
+    vi.stubGlobal(
+      "fetch",
+      vi.fn().mockResolvedValue(
+        jsonResponse(recordWithCitationRow({ citationUrl: CITATION, effectiveDate: "April 2026" })),
+      ),
+    );
+
+    const after = await applyRecordPatch(baseWithEnvelope(), "48453:445501");
+    const env = after.facets.envelope;
+
+    expect(env?.citationVintage?.state).toBe("unreadable-unparseable");
+    // The bad value is NOT promoted into the effective-date field, so nothing
+    // downstream can compare it as a date.
+    expect(env?.sourceDate ?? null).toBeNull();
+    expect(env?.disclosure).not.toContain("April 2026");
+  });
+
+  it("THE AGREEING CONTROL: a readable effective date publishes NO row and adds NO sentence", async () => {
+    vi.stubEnv("HAUSKA_RETRIEVAL_API_KEY", "test-key");
+    vi.stubGlobal(
+      "fetch",
+      vi.fn().mockResolvedValue(
+        jsonResponse(recordWithCitationRow({ citationUrl: CITATION, effectiveDate: "2026-04-14" })),
+      ),
+    );
+
+    const after = await applyRecordPatch(baseWithEnvelope(), "48453:445501");
+    const env = after.facets.envelope;
+
+    expect("citationVintage" in (env ?? {})).toBe(false);
+    expect(env?.citationVintage).toBeUndefined();
+    expect(env?.disclosure).not.toContain(NOTE);
+    // The dated case keeps the pre-existing date note it always had.
+    expect(env?.disclosure).toContain("setback rule effective 2026-04-14");
+  });
+
+  it("a rail that serves NO row at all still declares absent-at-source rather than staying silent", async () => {
+    vi.stubEnv("HAUSKA_RETRIEVAL_API_KEY", "test-key");
+    vi.stubGlobal("fetch", vi.fn().mockResolvedValue(jsonResponse(recordWithCitationRow(null))));
+
+    const after = await applyRecordPatch(baseWithEnvelope(), "48453:445501");
+
+    // No row means no citation either, so there is nothing to qualify: the
+    // honest payload carries neither a citation nor a declaration about one.
+    expect(after.facets.envelope?.citationUrl).toBeUndefined();
+    expect(after.facets.envelope?.citationVintage).toBeUndefined();
+    expect(after.facets.envelope?.disclosure).not.toContain(NOTE);
+  });
+
+  it("REPLACING a citation also replaces its declaration: a stale row must not survive onto a newly dated citation", async () => {
+    vi.stubEnv("HAUSKA_RETRIEVAL_API_KEY", "test-key");
+    vi.stubGlobal(
+      "fetch",
+      vi.fn().mockResolvedValue(
+        jsonResponse(recordWithCitationRow({ citationUrl: CITATION, effectiveDate: "2026-04-14" })),
+      ),
+    );
+
+    const before = baseWithEnvelope();
+    before.facets.envelope = {
+      ...before.facets.envelope!,
+      // As an atom-chain-built envelope would have left it: its own undated
+      // citation, already declared. The record rail now serves a DATED one.
+      citationVintage: {
+        kind: "setback-citation-vintage-unreadable",
+        state: "unreadable-never-looked",
+        sourceLabel: "property atom chain setback-rule (no basis on wire)",
+        citationUrl: "https://example.gov/old-undated-citation",
+        note: NOTE,
+      },
+      disclosure: `Atom-chain buildable envelope. ${NOTE}`,
+    };
+
+    const after = await applyRecordPatch(before, "48453:445501");
+    const env = after.facets.envelope;
+
+    // The row described the OLD citation, so it cannot stand for the new one.
+    expect("citationVintage" in (env ?? {})).toBe(false);
+    expect(env?.citationUrl).toBe(CITATION);
+  });
+
+  it("does not touch a payload whose rail is unslated: byte-identical to what it was before this lane", async () => {
+    vi.stubEnv("HAUSKA_RETRIEVAL_API_KEY", "test-key");
+    const record: ParcelRecordResponse = {
+      parcelNodeId: "48021:34049",
+      placeKey: "48021:34049",
+      countyFips: "48021",
+      railRegistrySha: "sha",
+      readAt: "2026-09-12T00:00:00.000Z",
+      rails: {
+        cityLimits: recordRail("record", {
+          kind: "value",
+          value: "Bastrop",
+          source: "landing_parcel_jurisdiction",
+          vintage: "2026-09-02T18:13:56.751Z",
+        }),
+      },
+      refused: null,
+    };
+    vi.stubGlobal("fetch", vi.fn().mockResolvedValue(jsonResponse(record)));
+
+    const before = baseWithEnvelope();
+    const beforeEnvelope = JSON.parse(JSON.stringify(before.facets.envelope));
+    const after = await applyRecordPatch(before, "48021:34049");
+
+    expect(JSON.parse(JSON.stringify(after.facets.envelope))).toEqual(beforeEnvelope);
+  });
+});
+
 describe("bastropPerParcelSetbackIfNeeded", () => {
   it("fetches and returns live scalars for a Bastrop city parcel with no existing live rule", async () => {
     const fetchMock = vi.fn().mockResolvedValue(

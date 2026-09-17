@@ -528,6 +528,73 @@ describe("deriveBakedCardModel — governed_by resolution + X-ray field notes (E
     expect(m.setbackSecondSourceCitationUrl).toBeNull();
   });
 
+  /**
+   * P-270 (OPS-24 X11). The card is the surface the defect was measured on: a
+   * payload whose citation carried no readable effective date produced a plain
+   * citation and nothing else. The model now threads the server-composed
+   * declaration through unchanged, and `setbackSourceClause` refuses to print
+   * that citation bare.
+   */
+  describe("P-270 (OPS-24 X11) — the citation vintage declaration reaches the card", () => {
+    const NOTE =
+      "Setback rule vintage unknown — the rule is served undated, not as current. Verify with the city.";
+    const ROW = {
+      kind: "setback-citation-vintage-unreadable" as const,
+      state: "unreadable-absent-at-source" as const,
+      sourceLabel: "parcel_record setbackRules (pflugerville_udc)",
+      citationUrl: "https://library.municode.com/tx/pflugerville/ordinances/2026-04-14",
+      note: NOTE,
+    };
+    const undated: BakedFacetPayload = {
+      ...fullPayload,
+      envelope: {
+        status: "ok",
+        setbacks: { front_ft: 25, side_ft: 5, rear_ft: 20 },
+        sourceCitationUrl: ROW.citationUrl,
+        citationVintage: ROW,
+      },
+      facetCoverage: { ...fullPayload.facetCoverage, envelope: true },
+    };
+
+    it("threads the row through verbatim — the card never retypes the sentence", () => {
+      const m = deriveBakedCardModel(undated);
+      expect(m.setbackCitationVintage).toEqual(ROW);
+      expect(m.setbackCitationVintage?.note).toBe(NOTE);
+      // The state survives so an instrument can tell the three causes apart
+      // even though the sentence is deliberately identical for all three.
+      expect(m.setbackCitationVintage?.state).toBe("unreadable-absent-at-source");
+    });
+
+    it("carries the citation the row is about onto the same field the clause prints", () => {
+      const m = deriveBakedCardModel(undated);
+      // The clause composes from `setbackSourceCitation` and the declaration
+      // from `setbackCitationVintage`; a row about a DIFFERENT citation than
+      // the one printed would be a declaration the reader cannot attach to
+      // anything. Here they are the same URL.
+      expect(m.setbackSourceCitation).toBe(m.setbackCitationVintage?.citationUrl);
+    });
+
+    it("THE AGREEING CONTROL: a dated payload derives NO row, so nothing is appended to a known vintage", () => {
+      const m = deriveBakedCardModel({
+        ...fullPayload,
+        envelope: {
+          status: "ok",
+          setbacks: { front_ft: 25, side_ft: 5, rear_ft: 20 },
+          sourceCitationUrl: ROW.citationUrl,
+          sourceDate: "2026-04-14",
+        },
+        facetCoverage: { ...fullPayload.facetCoverage, envelope: true },
+      });
+      expect(m.setbackCitationVintage).toBeNull();
+      expect(m.setbackSourceDate).toBe("2026-04-14");
+    });
+
+    it("GRACEFUL ABSENCE: a payload with no declaration has a null row and nothing to print", () => {
+      const m = deriveBakedCardModel(fullPayload);
+      expect(m.setbackCitationVintage).toBeNull();
+    });
+  });
+
   it("no envelope at all -> setbackGovernedBy and setbackFieldNotes are both null, not an error", () => {
     const m = deriveBakedCardModel({ parcelNodeId: "48021:1" });
     expect(m.setbackGovernedBy).toBeNull();

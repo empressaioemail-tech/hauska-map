@@ -881,6 +881,11 @@ export function bakedCardModelFromSheet(
     setbackSourceCitation: null,
     setbackSourceDate: null,
     setbackSourceDateBasis: null,
+    // P-270: the sheet path serves no setback citation at all, so there is no
+    // citation whose vintage could be unreadable. Null is the honest value
+    // here, not a declaration about a citation this path never reads — the
+    // same reasoning as the conflict note above.
+    setbackCitationVintage: null,
     setbackSecondSourceCitationUrl: null,
     livingArea: { state: "unknown", value: null },
     yearBuilt: { state: "unknown", value: null },

@@ -498,13 +498,54 @@ describe("setbackSourceClause — P-154 wave 6, the followed values' own source"
     ).toBe("Ord. 2026-06 · effective 2026-04-14");
   });
 
-  it("an unreadable date is simply absent — no placeholder date is invented", () => {
+  /**
+   * UPDATED BY P-270 (OPS-24 X11), and the update is the point of the lane.
+   * This test previously read "an unreadable date is simply absent — no
+   * placeholder date is invented", asserting that a citation with no readable
+   * date came out as a BARE citation. That is precisely the silent pick the
+   * operator's most-current-wins ruling forbids: a reader cannot tell a rule
+   * from this year from one from 2011. The no-invented-date half is kept and
+   * still asserted; the bare-citation half is now conditioned on there being
+   * no declaration to attach, which is the only case where a plain citation is
+   * the honest rendering.
+   */
+  it("an unreadable date is never a bare citation WHEN THE PAYLOAD DECLARES IT — and still invents no placeholder date", () => {
+    const declared = {
+      kind: "setback-citation-vintage-unreadable" as const,
+      state: "unreadable-absent-at-source" as const,
+      sourceLabel: null,
+      citationUrl: "Ord. 2026-06",
+      note: "Setback rule vintage unknown — the rule is served undated, not as current. Verify with the city.",
+    };
+    expect(
+      setbackSourceClause({ citation: "Ord. 2026-06", sourceDate: null, citationVintage: declared }),
+    ).toBe("Ord. 2026-06 · vintage unknown");
+    // No placeholder date anywhere in the clause, declared or not.
+    expect(
+      setbackSourceClause({ citation: "Ord. 2026-06", sourceDate: null, citationVintage: declared }),
+    ).not.toMatch(/\d{4}-\d{2}-\d{2}/);
+  });
+
+  it("with NO declaration on the payload the clause is unchanged — a card cannot declare what it was not told", () => {
     expect(setbackSourceClause({ citation: "Ord. 2026-06", sourceDate: null })).toBe(
       "Ord. 2026-06",
     );
+    expect(
+      setbackSourceClause({ citation: "Ord. 2026-06", sourceDate: null, citationVintage: null }),
+    ).toBe("Ord. 2026-06");
     expect(setbackSourceClause({ citation: "", sourceDate: "2026-04-14" })).toBe(
       "effective 2026-04-14",
     );
+  });
+
+  it("a DECLARED readable-looking date is not marked vintage-unknown: the marker follows the row, not the field", () => {
+    expect(
+      setbackSourceClause({
+        citation: "Ord. 2026-06",
+        sourceDate: "2026-04-14",
+        citationVintage: null,
+      }),
+    ).toBe("Ord. 2026-06 · effective 2026-04-14");
   });
 
   it("neither citation nor date -> no clause at all (never a bare value claimed as sourced)", () => {
