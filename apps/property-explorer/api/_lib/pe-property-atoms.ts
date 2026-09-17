@@ -533,9 +533,17 @@ function applyEnvelopeSetbackOverride(
   const dateNote = override.setbackRulesEffectiveDate
     ? ` parcel_record setback rule effective ${override.setbackRulesEffectiveDate}.`
     : "";
-  const overrideNote = axes
-    ? `Reader-composed axis override (parcel_record) applied to one or more setback axes; other axes remain atom-chain-sourced.${dateNote}`
-    : "";
+  // P-303 (2026-09-17): a record-sourced envelope (`setbackSource:
+  // "parcel-record"` — the adapter built its scalars from these same record
+  // axes because the chain is in the no-district decline class) has no
+  // atom-chain axis left for the note below to describe; saying "other axes
+  // remain atom-chain-sourced" there would state the opposite of the truth,
+  // and the merge beneath is a no-op on identical cells. The district,
+  // citation and effective-date handling still apply.
+  const overrideNote =
+    axes && envelope.setbackSource !== "parcel-record"
+      ? `Reader-composed axis override (parcel_record) applied to one or more setback axes; other axes remain atom-chain-sourced.${dateNote}`
+      : "";
   return {
     ...envelope,
     ...(hasDistrictOverride ? { district: override.district } : {}),
@@ -604,8 +612,17 @@ function withPreservedQueryPoint(
 export async function applyRecordPatch(
   payload: PeBakedFacetsResponse,
   parcelNodeId: string,
+  /**
+   * P-303 (2026-09-17): the same `/record` read the caller already made to
+   * hand `recordZoningSetback` to `adaptAtomChainToBakedFacets` — reused here
+   * so the panel never pays for two record reads per request (and so the two
+   * layers cannot disagree about which record a response was composed from).
+   * Omitted by direct callers/tests, which keeps the original fetch-inside
+   * behavior byte-for-byte.
+   */
+  prefetched?: Awaited<ReturnType<typeof fetchParcelRecordOnce>>,
 ): Promise<PeBakedFacetsResponse> {
-  const result = await fetchParcelRecordOnce(parcelNodeId);
+  const result = prefetched ?? (await fetchParcelRecordOnce(parcelNodeId));
   const facets = payload.facets;
   const baseFacts = facets.baseFacts ?? {};
 
@@ -860,7 +877,31 @@ export async function handlePropertyAtomsFacets(
       parcelNodeId,
       atom.chain,
     );
-    const adapted = adaptAtomChainToBakedFacets(atom.chain, { perParcelSetback });
+    // P-303 (2026-09-17): ONE record read per request, made BEFORE the
+    // adaptation so the adapter can classify a no-district-class chain
+    // against the payload's own record-composed zoning stamp and setback
+    // axes (the XD-2 Waco case: the chain declines `no-zoning-stamp` while
+    // the record stamps `R-1B` + `waco-tx` and serves the table). The same
+    // result is handed to `applyRecordPatch` below, so a served response is
+    // composed from exactly one record read.
+    //
+    // Charged only when the chain can serve facets at all — the gate the
+    // adapter itself applies first — so the adapt-failed path below (which
+    // serves cortex base facts and no envelope) does not pay a record read it
+    // cannot use, exactly as it did not before this change. Best-effort,
+    // single attempt: a failed read leaves the chain's own answer standing
+    // here and is declared as `record-unavailable` below.
+    const recordResult = atomChainIsUsable(atom.chain)
+      ? await fetchParcelRecordOnce(parcelNodeId)
+      : undefined;
+    const recordZoningSetback =
+      recordResult?.ok === true
+        ? composeZoningSetbackOverride(recordResult.record).override
+        : null;
+    const adapted = adaptAtomChainToBakedFacets(atom.chain, {
+      perParcelSetback,
+      recordZoningSetback,
+    });
     if (adapted) {
       // Merge baked base facts (never zoning/envelope — those stay atom-owned).
       // A failed/unusable cortex read serves the atom response unmerged: base
@@ -886,7 +927,7 @@ export async function handlePropertyAtomsFacets(
       // FAILED /record fetch is now a DECLARED outage (readPath
       // "record-unavailable", typed refusals on the rails this lane owns —
       // P152-RAILS item 3), never a silent no-op (R-6).
-      payload = await applyRecordPatch(payload, parcelNodeId);
+      payload = await applyRecordPatch(payload, parcelNodeId, recordResult);
       const readHeader: PeReadPathHeader =
         payload.readPath === "record"
           ? "record"

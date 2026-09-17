@@ -15,8 +15,15 @@ import {
   shouldSkipColdDerive,
   BASTROP_LIVE_SETBACK_ADAPTER,
   DEPTH_WARM_PROMOTION_MARKER,
+  // P-303 (2026-09-17) — the no-district decline class vocabulary.
+  NO_DISTRICT_DECLINE_SOURCES,
+  NO_DISTRICT_ENVELOPE_CODES,
+  noDistrictDeclineBasis,
+  recordSetbackTable,
   type PropertyAtomChain,
 } from "../../api/_lib/atom-chain-to-facets";
+import { facetsNeedLiveEnvelopeDerive } from "./live-envelope-augment";
+import type { BakedFacetPayload } from "./baked-facets";
 
 /** Hays-shaped fixture (aligned to live Gate C proof atom-chain). */
 const haysChain: PropertyAtomChain = {
@@ -2103,3 +2110,234 @@ describe("adaptAtomChainToBakedFacets — P-5 silent axes keep warm area (Track 
     expect(resp!.facets.envelope?.geojson).toBeUndefined();
   });
 });
+
+/**
+ * P-303 (2026-09-17) — "Waco-type parcels draw on the panel".
+ *
+ * THE LIVE CHAIN, ENCODED FROM THE REAL READ. `GET
+ * /api/spine/retrieval/property-nodes/48309:103015/atom-chain` (2026-09-17)
+ * returns a breadth-bake zoning-fact that is an honest absence
+ * (`absence.kind: "no-zoning-stamp"`, "No zoning district observed for
+ * parcel") and an engine-cascade buildable-envelope atom
+ * (`warmVerifyDeclineCode: "no-district-on-record"`, "no district on record —
+ * jurisdiction not yet onboarded"), with `setbackRule: null` and
+ * `setbackServe: refused: no setback-rule atom`. Neither atom carries a
+ * district; neither carries a setback table. The SAME live panel payload
+ * (`/api/spine/property-atoms/48309:103015/facets`) carries
+ * `facets.zoning.district: "R-1B"` with `jurisdictionKey: "waco-tx"` from the
+ * city's own GIS layer, served by the parcel record — and the panel still
+ * printed `no-zoning-stamp` and drew nothing, which is the XD-2 failure in
+ * `_inbox/2026-09-17_p249_canary_proof.md`.
+ *
+ * The record's AXIS VALUES below are fixture scalars in the record's own axis
+ * shape, not a claim about the live cells (this lane did not read them; the
+ * record is not anonymously reachable). The DISTANCE is not what these tests
+ * pin — the routing and the withheld figure are.
+ */
+const xd2WacoChain: PropertyAtomChain = {
+  parcelNodeId: "48309:103015",
+  zoningFact: {
+    absence: {
+      kind: "no-zoning-stamp",
+      reason:
+        "No zoning district observed for parcel — honest absence, no fallback district invented.",
+    },
+    fetchedAt: "2026-07-24T19:33:06.683Z",
+    extractedAt: "2026-07-24T19:33:06.683Z",
+  },
+  setbackRule: null,
+  buildableEnvelope: {
+    atomDid: "did:hauska:buildable-envelope:48309:103015",
+    outcome: {
+      kind: "no-buildable-area",
+      reason: "no district on record — jurisdiction not yet onboarded",
+    },
+    warmVerifyDecline: "no district on record — jurisdiction not yet onboarded",
+    warmVerifyDeclineCode: "no-district-on-record",
+    sourceCitation: "depth-warm-verify-decline",
+    fetchedAt: "2026-08-04T22:48:56.070Z",
+    extractedAt: "2026-08-04T22:48:56.070Z",
+  },
+  atoms: [{}],
+};
+
+/** The record-composed stamp the same live payload carries (`facets.zoning`: R-1B / waco-tx) plus its served axes. */
+const xd2WacoRecordStamp = {
+  district: "R-1B",
+  jurisdictionKey: "waco-tx",
+  setbackAxisOverrides: { front_ft: 25, side_ft: 5, rear_ft: 25, side_corner_ft: 25 },
+} as const;
+
+describe("P-303 — the no-district decline class draws once the record stamps the district", () => {
+  it("F1: the live XD-2 shape takes the P-249 envelope-unverified branch — drawn, figure withheld, atom named", () => {
+    const resp = adaptAtomChainToBakedFacets(xd2WacoChain, {
+      recordZoningSetback: xd2WacoRecordStamp,
+    });
+    expect(resp).not.toBeNull();
+    const env = resp!.facets.envelope!;
+
+    expect(env.status).toBe("ok");
+    expect(env.declineReason).toBe("envelope-unverified");
+    expect(env.figureWithheld).toBe(true);
+    expect(env.district).toBe("R-1B");
+    expect(env.setbackSource).toBe("parcel-record");
+    expect(env.setbacks).toEqual({
+      front_ft: 25,
+      side_ft: 5,
+      rear_ft: 25,
+      side_corner_ft: 25,
+    });
+    // The polygon draws from the live derive; the AREA FIGURE never leaves the atom's verdict.
+    expect(env.buildableAreaSqFt).toBeUndefined();
+    expect(env.buildableAreaPct).toBeUndefined();
+    expect(resp!.facets.facetCoverage?.envelope).toBe(true);
+    expect(resp!.facets.zoning?.district).toBe("R-1B");
+    // "disclosure naming unverified atom": the atom's DID and its own basis, not a generic sentence.
+    expect(String(env.disclosure)).toMatch(/not passed ground-truth verification/);
+    expect(String(env.disclosure)).toContain("did:hauska:buildable-envelope:48309:103015");
+    expect(String(env.disclosure)).toContain("no-district-on-record");
+    expect(String(env.disclosure)).toContain("R-1B");
+  });
+
+  it("F1b: the drawn envelope is exactly what fires the live derive (the only source of the polygon)", () => {
+    const resp = adaptAtomChainToBakedFacets(xd2WacoChain, {
+      recordZoningSetback: xd2WacoRecordStamp,
+    });
+    const facets = {
+      parcelNodeId: "48309:103015",
+      envelope: resp!.facets.envelope,
+      facetCoverage: { envelope: true },
+    } as BakedFacetPayload;
+    expect(facetsNeedLiveEnvelopeDerive(facets)).toBe(true);
+  });
+
+  it("F2 (control): with no district anywhere in the payload the decline stands — no draw, no invented district", () => {
+    const resp = adaptAtomChainToBakedFacets(xd2WacoChain);
+    const env = resp!.facets.envelope!;
+    expect(env.status).toBe("declined");
+    expect(env.declineReason).toBe("no-zoning-stamp");
+    expect(env.figureWithheld).toBeUndefined();
+    expect(env.setbackSource).toBeUndefined();
+    expect(env.setbacks).toBeUndefined();
+    expect(env.district).toBeUndefined();
+    expect(resp!.facets.zoning).toBeNull();
+    expect(resp!.facets.facetCoverage?.envelope).toBe(false);
+    // and it is the atom's own sentence, byte-identical to the live panel's.
+    expect(env.disclosure).toBe(
+      "No zoning district observed for parcel — honest absence, no fallback district invented.",
+    );
+
+    // A record read that failed (or an empty stamp) must not change that.
+    expect(
+      adaptAtomChainToBakedFacets(xd2WacoChain, { recordZoningSetback: null })!.facets.envelope!
+        .declineReason,
+    ).toBe("no-zoning-stamp");
+    expect(
+      adaptAtomChainToBakedFacets(xd2WacoChain, { recordZoningSetback: {} })!.facets.envelope!
+        .declineReason,
+    ).toBe("no-zoning-stamp");
+  });
+
+  it("F2b: the engine's other cascade code is the same class (unincorporated cohort)", () => {
+    const chain: PropertyAtomChain = {
+      ...xd2WacoChain,
+      parcelNodeId: "48309:103016",
+      buildableEnvelope: {
+        ...xd2WacoChain.buildableEnvelope!,
+        warmVerifyDeclineCode: "unzoned-no-district-basis",
+        warmVerifyDecline: "unzoned jurisdiction — no district basis for setbacks or envelope",
+      },
+    };
+    const withStamp = adaptAtomChainToBakedFacets(chain, {
+      recordZoningSetback: xd2WacoRecordStamp,
+    })!;
+    expect(withStamp.facets.envelope?.declineReason).toBe("envelope-unverified");
+    expect(withStamp.facets.envelope?.figureWithheld).toBe(true);
+    expect(
+      adaptAtomChainToBakedFacets(chain)!.facets.envelope?.declineReason,
+    ).toBe("no-zoning-stamp");
+  });
+
+  it("a PARTIAL record table is never turned into an inset — the decline stands, with a reason that is now true", () => {
+    const partial = { ...xd2WacoRecordStamp, setbackAxisOverrides: { front_ft: 25 } };
+    const resp = adaptAtomChainToBakedFacets(xd2WacoChain, {
+      recordZoningSetback: partial,
+    })!;
+    const env = resp.facets.envelope!;
+    expect(env.status).toBe("declined");
+    // `no-zoning-stamp` would be false once a district is on the payload.
+    expect(env.declineReason).toBe("setback-rule-pending");
+    expect(env.district).toBe("R-1B");
+    expect(env.setbacks).toBeUndefined();
+    expect(env.figureWithheld).toBeUndefined();
+    expect(resp.facets.facetCoverage?.envelope).toBe(false);
+  });
+
+  it("a chain that carries its OWN district is untouched by the record evidence (no re-route, no re-label)", () => {
+    const resp = adaptAtomChainToBakedFacets(haysChain, {
+      recordZoningSetback: xd2WacoRecordStamp,
+    })!;
+    const env = resp.facets.envelope!;
+    expect(env.district).toBe("RS");
+    expect(env.setbacks?.front_ft).toBe(25);
+    expect(env.setbacks?.rear_ft).toBe(10);
+    expect(env.setbackSource).toBeUndefined();
+    expect(env.figureWithheld).toBeUndefined();
+    expect(env.declineReason).toBeUndefined();
+  });
+
+  it("requirement 5 — every member of the inventory is a STAMP GAP, and the predicate agrees with each one", () => {
+    // Not vacuous: the inventory is non-empty and every member is declared.
+    expect(NO_DISTRICT_DECLINE_SOURCES.length).toBeGreaterThan(0);
+    for (const source of NO_DISTRICT_DECLINE_SOURCES) {
+      // No input in this class proves the parcel has no zoning, so none may be
+      // treated as a genuine absence — that is what lets a record-stamped
+      // district contradict them.
+      expect(source.genuineAbsence, source.value).toBe(false);
+      const basis = noDistrictDeclineBasis(
+        source.from === "zoning-absence-kind"
+          ? { zoningAbsenceKind: source.value }
+          : source.from === "envelope-decline-code"
+            ? { envelopeDeclineCode: source.value }
+            : { envelopeDeclineReason: source.value },
+      );
+      expect(basis?.token, source.value).toBe(source.value);
+      expect(basis?.from, source.value).toBe(source.from);
+    }
+    // Both engine cascade codes are covered by the class (CASCADE_DECLINE_CODES).
+    for (const code of NO_DISTRICT_ENVELOPE_CODES) {
+      expect(noDistrictDeclineBasis({ envelopeDeclineCode: code })?.token).toBe(code);
+    }
+    // A named validation-failed decline is NOT in the class: a record stamp
+    // must never paper over a specific geometry complaint.
+    expect(
+      noDistrictDeclineBasis({
+        envelopeDeclineReason:
+          "edge 1: R32 35.02831192164916ft != expected 5ft for role side; edge 4: R32 53.60964475445567ft != expected 25ft for role rear",
+      }),
+    ).toBeNull();
+    expect(
+      noDistrictDeclineBasis({
+        envelopeDeclineReason: "Setbacks consume the lot per engine calculation.",
+      }),
+    ).toBeNull();
+    expect(noDistrictDeclineBasis({})).toBeNull();
+  });
+
+  it("recordSetbackTable requires front, side AND rear — a missing primary axis is a refusal, not a zero", () => {
+    expect(recordSetbackTable({ front_ft: 25, side_ft: 5, rear_ft: 25 })).toEqual({
+      front_ft: 25,
+      side_ft: 5,
+      rear_ft: 25,
+    });
+    expect(recordSetbackTable({ front_ft: 25, side_ft: 5 })).toBeNull();
+    expect(recordSetbackTable({ front_ft: 25, side_ft: 5, rear_ft: 0 })).toEqual({
+      front_ft: 25,
+      side_ft: 5,
+      rear_ft: 0,
+    });
+    expect(recordSetbackTable(null)).toBeNull();
+    expect(recordSetbackTable(undefined)).toBeNull();
+  });
+});
+
