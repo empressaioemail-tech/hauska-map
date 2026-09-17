@@ -1,5 +1,10 @@
 // apps/property-explorer/src/lib/fact-sheet-resolver.test.ts
 //
+// P-318 CONTROL (falsifier 2) - not for merge. This comment exists only so that
+// a pull request's diff is exactly one file under apps/property-explorer/**, on
+// top of the `.github/workflows/**` trigger fix, to show the existing
+// apps/property-explorer/** path entry still produces the required contexts.
+//
 // The resolver is tested against the DEFECTS from the 2026-08-18 QA pass:
 //
 //   - a drainage study came back for 48027:498770 while 498778 was selected
