@@ -7,7 +7,16 @@ on:
       - "packages/map-renderer/**"
       - "packages/parcel-fact-sheet/**"
       - "pnpm-lock.yaml"
-      - ".github/workflows/property-explorer-ci.yml"
+      # P-318 - the whole workflow directory, not just this file. `test` is a
+      # REQUIRED context on main (with enforce_admins on), and a required check
+      # that is path-filtered away does not fail open: it never reports at all,
+      # so the pull request cannot merge by any honest path. Measured
+      # 2026-09-17 on #410, which changes only
+      # property-explorer-sync-retrieval-key.yml: "No double-encoded source"
+      # reported, `test` never ran, merge BLOCKED despite enforce_admins.
+      # The directory rather than a list of the workflows that exist today,
+      # because a NEW workflow file is the same miss by construction.
+      - ".github/workflows/**"
       # .gitattributes governs how EVERY file in this repo is checked out.
       # Without it here a line-ending policy change triggers no CI at all: the
       # file most able to break every other file was the one file this workflow
