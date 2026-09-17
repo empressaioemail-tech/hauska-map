@@ -3,8 +3,8 @@
 # Source of truth: GCP Secret Manager hauska-prod-497015 / HAUSKA_ENGINE_API_KEY
 # (same secret retrieval-api mounts as RETRIEVAL_API_KEY and MCP mounts as
 # HAUSKA_ENGINE_API_KEY). This workflow pulls that secret and authoritative-
-# replaces the Vercel production env for project property-explorer, then
-# redeploys so a rotation cannot strand PE.
+# replaces the Vercel env for project property-explorer IN EVERY ENVIRONMENT THE
+# PROJECT SERVES FROM, then redeploys so a rotation cannot strand PE.
 #
 # Traps baked in (see _STATE.md 2026-08-10 PE outage notes):
 #   1) Assert VERCEL_PROJECT_ID == property-explorer (never cmdcenter)
@@ -13,6 +13,18 @@
 #   4) Workflow deploy is intentional authoritative-replace of manual env
 #   5) Cloud Run :latest re-resolve is MCP/retrieval's half — not this file
 #   6) Live verify is a gated PE facets probe, not a bare 200 on /
+#   7) EVERY ENVIRONMENT, NOT JUST PRODUCTION (P-305, A-205, added 2026-09-17).
+#      P-251 rotated the engine key and this workflow wrote production only, so
+#      the Preview environment kept the old value and EVERY Property Explorer
+#      preview answered its panel read with `retrieval_auth_failed`. Production
+#      being green said nothing about Preview. The write loop below walks
+#      EXPECTED_VERCEL_ENVIRONMENTS, and a fresh PREVIEW deployment is created at
+#      the end so the Preview value is materialised on a real host — a preview
+#      deployment that already exists keeps the value it was built with.
+#      Development is deliberately NOT written: the inventory of 2026-09-17
+#      (_inbox/2026-09-17_p305-key-inventory.md) found no Development copy of
+#      these names, and creating one would push the value onto developer
+#      machines through `vercel env pull`.
 #
 # Required GitHub secrets (repo empressaioemail-tech/hauska-map):
 #   VERCEL_TOKEN           — MUST be a personal token from
@@ -43,6 +55,8 @@ env:
   # re-reading .vercel/project.json after `vercel link --project property-explorer`.
   EXPECTED_VERCEL_PROJECT_ID: prj_vcZGXbqdffk5C20WzaplEpzFynK3
   EXPECTED_VERCEL_ORG_ID: team_4TH5lNnFHcBGx4EKNapJ2MVG
+  # Trap 7 (P-305). Space-separated; every environment the project serves from.
+  EXPECTED_VERCEL_ENVIRONMENTS: "production preview"
 
 jobs:
   sync:
@@ -134,21 +148,26 @@ jobs:
             exit 1
           fi
 
-      - name: Authoritative-replace retrieval env vars (trap 2+3+4)
+      - name: Authoritative-replace retrieval env vars in EVERY environment (trap 2+3+4+7)
         env:
           VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
           VERCEL_ORG_ID: ${{ secrets.VERCEL_ORG_ID }}
           VERCEL_PROJECT_ID: ${{ secrets.VERCEL_PROJECT_ID }}
         run: |
           set -euo pipefail
-          for VAR in HAUSKA_RETRIEVAL_API_KEY RETRIEVAL_API_KEY; do
-            vercel env rm "$VAR" production --yes --token "$VERCEL_TOKEN" || true
-            printf '%s' "$(cat /tmp/retrieval.key)" | vercel env add "$VAR" production --token "$VERCEL_TOKEN"
-            echo "set ${VAR}"
+          # Trap 7: production alone is what let P-251's rotation miss Preview (A-205).
+          for ENVIRONMENT in $EXPECTED_VERCEL_ENVIRONMENTS; do
+            for VAR in HAUSKA_RETRIEVAL_API_KEY RETRIEVAL_API_KEY; do
+              vercel env rm "$VAR" "$ENVIRONMENT" --yes --token "$VERCEL_TOKEN" || true
+              printf '%s' "$(cat /tmp/retrieval.key)" | vercel env add "$VAR" "$ENVIRONMENT" --token "$VERCEL_TOKEN"
+              echo "set ${VAR} in ${ENVIRONMENT}"
+            done
           done
           # OAuth redirect_uri follows the request host (deployOrigin). Do not pin
           # PE_OIDC_REDIRECT_ORIGIN here — it must match Authorized redirect URIs
           # already registered in Google Cloud (smartsite.cloud apex).
+          # Cleared in production only, on purpose: it is the production host's
+          # setting and previews use their own host.
           vercel env rm PE_OIDC_REDIRECT_ORIGIN production --yes --token "$VERCEL_TOKEN" || true
           echo "cleared PE_OIDC_REDIRECT_ORIGIN (if present)"
 
@@ -163,6 +182,40 @@ jobs:
           # settings — do NOT pass --cwd apps/property-explorer (doubles the path).
           vercel deploy --prod --yes --token "$VERCEL_TOKEN" \
             --build-env HAUSKA_BUILD_SHA="$GITHUB_SHA"
+
+      - name: Fresh PREVIEW deploy, so the Preview value is materialised (trap 7)
+        id: preview
+        env:
+          VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
+          VERCEL_ORG_ID: ${{ secrets.VERCEL_ORG_ID }}
+          VERCEL_PROJECT_ID: ${{ secrets.VERCEL_PROJECT_ID }}
+        run: |
+          set -euo pipefail
+          # A preview deployment that already exists keeps the value it was built
+          # with, so writing the Preview variable is not enough on its own. This one
+          # is created AFTER the write above.
+          PREVIEW_URL=$(vercel deploy --yes --token "$VERCEL_TOKEN" \
+            --build-env HAUSKA_BUILD_SHA="$GITHUB_SHA")
+          echo "preview_url=${PREVIEW_URL}"
+          echo "preview_url=${PREVIEW_URL}" >> "$GITHUB_OUTPUT"
+
+      - name: Closing check — run it against the preview this run created (P-305)
+        run: |
+          set -euo pipefail
+          # NO PREDICATE IS IMPLEMENTED HERE, DELIBERATELY. The canonical check is
+          # `scripts/check-preview-key-drift.mjs` in doc_repo: it grades the BODY
+          # markers (error=retrieval_auth_failed, atomPathReason/message~HTTP 401)
+          # before the status, self-tests against a recorded 401 body and a
+          # recorded 200 body, and never prints a key. A second implementation of
+          # that rule in YAML could not carry a divergence test (DEV_PROCESS 2.4),
+          # so this step does not pretend to be one.
+          #
+          # What it CAN do without a second implementation is hand the runner the
+          # exact thing the check needs: a preview built after the write.
+          echo "PREVIEW_URL=${{ steps.preview.outputs.preview_url }}"
+          echo "Run the closing check from a doc_repo worktree:"
+          echo "  node scripts/check-preview-key-drift.mjs --url ${{ steps.preview.outputs.preview_url }}"
+          echo "exit 0 = every environment this workflow writes is serving; exit 3 = a stale environment (A-205)."
 
       - name: Live verify PE facets gold Bastrop 34137 (exit-bounded)
         run: |
