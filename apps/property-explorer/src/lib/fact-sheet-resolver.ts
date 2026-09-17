@@ -100,6 +100,12 @@ import {
   augmentFacetsWithLiveEnvelope,
 } from "./live-envelope-augment.js";
 import { fetchGeocodeSuggestions } from "./geocodeClient";
+import {
+  SITUS_ABSENT_REASON,
+  SITUS_UNREADABLE_REASON,
+  isUnreadableSitusAddress,
+  isUsableSitusAddress,
+} from "./situs-address";
 import { CORTEX_PROXY_BASE, PE_FACETS_PROXY_BASE } from "./config";
 import { isValidParcelNodeId, normalizeParcelNodeId } from "./parcel-node-id";
 import {
@@ -115,6 +121,11 @@ import {
   ringsContainPoint,
   ringsFromGeoJson,
 } from "./parcel-geometry";
+
+// P-272: re-exported so the callers that already import it from here
+// (`baked-facets.ts`, `InspectCard.tsx`, tests) keep working unchanged while the
+// rule itself lives in exactly one module.
+export { isUsableSitusAddress } from "./situs-address";
 
 /** Bumped whenever the resolver's derivation changes. Part of factSheetId. */
 export const RESOLVER_VERSION = "pe-fact-sheet-3";
@@ -434,17 +445,6 @@ function taxValuationProvenance(
   };
 }
 
-/** Travis-style sentinels (`, TX`) are not navigation or geocode anchors. */
-export function isUsableSitusAddress(raw: string | null | undefined): boolean {
-  if (!raw || typeof raw !== "string") return false;
-  const trimmed = raw.trim();
-  if (!trimmed) return false;
-  const street = (trimmed.split(",")[0] ?? "").trim();
-  if (!street || !/^\d/.test(street)) return false;
-  if (/^,\s*(TX)?\s*$/i.test(trimmed)) return false;
-  return true;
-}
-
 /**
  * situsAddress + city + state, composed ONLY for an outbound network call
  * (geocode / situs-search / buildable-envelope-by-address) — never for what
@@ -486,10 +486,16 @@ function identityFacts(facets: BakedFacetPayload, parcelNodeId: string) {
 
   // Genuinely absent on a material share of single-family parcels. Absence here
   // is a DATA gap: it must never degrade navigation or block an export.
-  const situsAddress: Fact<string> = isUsableSitusAddress(str(base.situsAddress))
-    ? { state: "present", value: str(base.situsAddress) as string, provenance: prov }
+  //
+  // P-272: a roll that CARRIES a situs it cannot read (`, ,` — XD-9) is not the
+  // same fact as a roll carrying none, and the card must not say "no situs
+  // address on the county roll" about a roll that plainly holds one. The
+  // unusable string is still never served as the value.
+  const rawSitus = str(base.situsAddress);
+  const situsAddress: Fact<string> = isUsableSitusAddress(rawSitus)
+    ? { state: "present", value: rawSitus as string, provenance: prov }
     : absentCovered(
-        "no situs address on the county roll for this parcel",
+        isUnreadableSitusAddress(rawSitus) ? SITUS_UNREADABLE_REASON : SITUS_ABSENT_REASON,
         prov,
       );
 

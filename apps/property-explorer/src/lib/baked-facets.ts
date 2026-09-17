@@ -31,7 +31,12 @@ import {
   setbackConflictNote,
   type SetbackConflictSecondSourceInput,
 } from "@empressaio/atom-contract/display";
-import { isUsableSitusAddress } from "./fact-sheet-resolver";
+import {
+  SITUS_UNREADABLE_REASON,
+  isUnreadableSitusAddress,
+  isUsableSitusAddress,
+} from "./situs-address";
+import { countyRowText } from "./county-grade";
 import type {
   EnvelopeProvenanceRefs,
   SetbackFieldProvenance,
@@ -942,17 +947,18 @@ export function deriveBakedCardModel(payload: BakedFacetPayload): BakedCardModel
       ? present(bf.apn.trim())
       : absent<string>();
 
+  // P-272: the roll carrying an unreadable situs (`, ,`) is a different fact
+  // from the roll carrying none, and the card must say which. `absent()` with no
+  // message read as "nothing here" over a parcel the county had addressed.
   const situsAddress = isUsableSitusAddress(
     typeof bf.situsAddress === "string" ? bf.situsAddress : null,
   )
     ? present((bf.situsAddress as string).trim())
-    : absent<string>();
+    : isUnreadableSitusAddress(typeof bf.situsAddress === "string" ? bf.situsAddress : null)
+      ? absent<string>(SITUS_UNREADABLE_REASON)
+      : absent<string>();
 
-  const countyStr = payload.countyName
-    ? payload.countyFips
-      ? `${payload.countyName} County (${payload.countyFips})`
-      : `${payload.countyName} County`
-    : payload.countyFips ?? null;
+  const countyStr = countyRowText(payload.countyName, payload.countyFips);
   const county = countyStr ? present(countyStr) : absent<string>();
 
   // Land-use: trust a present value (a stale/false coverage flag must not hide
