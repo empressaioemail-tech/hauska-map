@@ -370,6 +370,20 @@ export interface PeBakedFacetPayload {
     emptyReason?: string;
     citationUrl?: string;
     geojson?: unknown;
+    /**
+     * P-249 (2026-09-16). Mirrors `BakedFacetPayload.envelope.figureWithheld`
+     * in src/lib/baked-facets.ts, and is set on exactly one branch: an
+     * unverified `no-buildable-area` atom (see this file's P-216/P-249 comment
+     * inside `adaptAtomChainToBakedFacets`). The polygon still draws — status
+     * "ok" plus real setback scalars is what makes the live labelEdges+derive
+     * pass fire — but the AREA FIGURE stays withheld, because operator ruling
+     * A-180 allows a buildable-area figure only when a VERIFIED atom backs it.
+     * Read by `live-envelope-augment.ts` (which must not re-stamp its own
+     * recomputed area onto the payload) and by `fact-sheet-resolver.ts` (which
+     * maps the withheld payload to the sheet's `modelled` envelope — polygon,
+     * no area — instead of measuring an area off the rings).
+     */
+    figureWithheld?: boolean;
   } | null;
   facetCoverage?: {
     baseFacts?: boolean;
@@ -2085,9 +2099,34 @@ export function adaptAtomChainToBakedFacets(
     // a nine-edge ring with five `side`-labelled edges). Setback DISTANCES
     // are separately ruled and stay served; only the area figure and the
     // definitive zero verdict are withheld.
+    //
+    // P-249 (2026-09-16): the refusal used to be a `declined` envelope with no
+    // geometry, which also killed the DRAWING — `facetsNeedLiveEnvelopeDerive`
+    // requires status "ok" plus real setback scalars, so nothing ever fetched
+    // the modelled polygon, and the card read as "envelope declined" for a lot
+    // that has a district and a table. That over-refused: the 2026-09-11
+    // ruling (R-2, `_decisions/2026-09-11_ruling_b_reversed_polygon_only.md`)
+    // reversed Ruling B for the POLYGON only — draw it wherever a district and
+    // a setback table exist, and let only the AREA wait for a verified atom.
+    // So this branch now serves the modelled envelope WITHOUT a figure:
+    //   - `status: "ok"` + the real setback scalars is exactly what the
+    //     client's `facetsNeedLiveEnvelopeDerive` needs to fire the live
+    //     labelEdges+derive pass that supplies the polygon (the atom carries
+    //     no geometry, so the live derive is the only source of a shape — see
+    //     the CP1 read in this lane's close);
+    //   - NO `buildableAreaSqFt` / `buildableAreaPct` — the unverified atom's
+    //     zero is never served (A-180), and `figureWithheld` stops the
+    //     augmentation that follows from stamping its own recomputed area on
+    //     the payload (`live-envelope-augment.ts`);
+    //   - `declineReason` stays `envelope-unverified` as the stable branch
+    //     token every surface and the divergence fixture read, even though the
+    //     status is now "ok" — it is not a decline, and no reader that guards
+    //     on `status === "declined"` (the card's decline row, the zoning
+    //     decline stamp) treats it as one.
     envelope = {
-      status: "declined",
+      status: "ok",
       declineReason: "envelope-unverified",
+      figureWithheld: true,
       district: district ?? undefined,
       setbacks: effectiveSetbacks,
       approximate: true,
@@ -2095,9 +2134,13 @@ export function adaptAtomChainToBakedFacets(
       disclosure:
         "Buildable area withheld — this parcel's buildable-envelope outcome has " +
         "not passed ground-truth verification (no confirmed road-frontage edge " +
-        "labeling). Setback distances above are on record; the area figure is not.",
+        "labeling). The envelope outline is modelled from the setback table on " +
+        "record and drawn for reference; the area figure stays withheld until a " +
+        "verified atom backs it.",
     };
-    envelopeCovered = false;
+    // The setback distances and the modelled outline ARE served (the ruling
+    // above), so the envelope facet is covered; only the figure is not.
+    envelopeCovered = true;
   } else if (!envelope && (outcomeKind === "buildable" || effectiveSetbacks)) {
     // Proof atoms may omit geojson / pct — honest partial OK; do not fabricate.
     // When pct is absent, baked-facets marks buildable as pending (QA-3).

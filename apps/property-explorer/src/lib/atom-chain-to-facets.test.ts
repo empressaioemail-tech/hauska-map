@@ -157,13 +157,21 @@ describe("adaptAtomChainToBakedFacets — P-216 unverified no-buildable-area", (
     const envelope = resp!.facets.envelope;
     // The false "no buildable area" claim must never reach the wire.
     expect(envelope?.status).not.toBe("no-buildable-area");
-    expect(envelope?.status).toBe("declined");
+    // P-249 (2026-09-16): the refusal no longer over-refuses. R-2 (2026-09-11)
+    // reversed Ruling B for the POLYGON only, so a parcel with a district and
+    // a setback table serves the modelled envelope (status "ok" is the only
+    // value that lets the client's live labelEdges+derive pass fire) and
+    // withholds ONLY the figure. `envelope-unverified` stays as the branch
+    // token so every surface and the divergence fixture keep one name.
+    expect(envelope?.status).toBe("ok");
     expect(envelope?.declineReason).toBe("envelope-unverified");
+    expect(envelope?.figureWithheld).toBe(true);
     expect(envelope?.buildableAreaPct).toBeUndefined();
     expect(envelope?.buildableAreaSqFt).toBeUndefined();
     expect(envelope?.emptyReason).toBeUndefined();
-    // facetCoverage.envelope must not claim coverage the ruling declines.
-    expect(resp!.facets.facetCoverage?.envelope).toBe(false);
+    // The facet is covered: the outline and the setback distances ARE served;
+    // only the figure is not (facetCoverage never claims the figure).
+    expect(resp!.facets.facetCoverage?.envelope).toBe(true);
     // Real, ruled setback distances are a separate rail and stay served.
     expect(envelope?.setbacks).toEqual({
       front_ft: 25,
@@ -175,6 +183,9 @@ describe("adaptAtomChainToBakedFacets — P-216 unverified no-buildable-area", (
     // A declared refusal, never a blank — the falsifier this dispatch
     // pre-registered ("suppressing the envelope must not read as silence").
     expect(envelope?.disclosure).toMatch(/ground-truth verification/i);
+    // The geometry stays OFF the facets: the atom carries none, and the
+    // drawn polygon comes from the live derive (CP1 answer, this lane).
+    expect(envelope?.geojson).toBeUndefined();
   });
 
   it("still serves the honest zero once the atom is depth-warm (ground-truth) verified", () => {

@@ -2091,6 +2091,40 @@ function envelopeValue(
     };
   }
 
+  // P-249 (2026-09-16): an envelope whose atom has not passed ground-truth
+  // verification declares `figureWithheld` (see baked-facets.ts) but still has
+  // a district, a setback table and — once the live pass above has run — a real
+  // modelled polygon. R-2 (2026-09-11) is exactly this shape: draw the polygon,
+  // withhold the figure. This MUST be checked before the `derived` branch
+  // below, because `derived` carries a NON-NULL area by contract and its
+  // AMENDMENT 3 fallback MEASURES one off the rings whenever the payload has no
+  // number — which would print a buildable-area figure measured from a polygon
+  // that no verified atom backs (A-180), the precise leak this branch exists to
+  // close ("A buildable-area figure appears only when a VERIFIED envelope atom
+  // backs it"). Note this runs whether or not an envelope atomDid is on the
+  // payload: `sheetEnvelopeIsAtomPathPending` above returns early on an atomDid,
+  // so the withheld case cannot be left to that predicate.
+  if (env.figureWithheld === true) {
+    const rings = ringsFromGeoJson(env.geojson);
+    if (rings.length > 0) {
+      return {
+        kind: "modelled",
+        rings,
+        setbacksUsed,
+        disclosure:
+          str(env.disclosure) ??
+          "Buildable envelope modelled from setbacks — area withheld pending a verified atom.",
+        approximate: env.approximate !== false,
+        provenance: prov,
+      };
+    }
+    return {
+      kind: "not-derived",
+      reason: str(env.declineReason) ?? "envelope-unverified",
+      missing: ["envelope-area"],
+    };
+  }
+
   if (env.status === "no-buildable-area") {
     return {
       kind: "consumed",

@@ -1,0 +1,147 @@
+{
+  "fixtureSet": "envelope-verification-v1",
+  "purpose": "One declared answer per atom, read by FOUR predicates in THREE repos (A-184 / P-249 item 5). Each product repo's test fails when its own predicate disagrees with the declared answer. Byte-identical copies live at hauska-map apps/property-explorer/src/lib/__fixtures__/envelope-verification.json and legacy-design-tools artifacts/api-server/src/lib/buildableEnvelope/__fixtures__/envelope-verification.json; the doc_repo instrument scripts/envelope-draw-gap.mjs reads the string and boolean forms of the same fact.",
+  "casesSha256": "983bb015e65f3b4ab664ef174a408d0bf4baa60b904369e5ee1b1fe712a59e20",
+  "cases": [
+    {
+      "id": "promoted-marker",
+      "atom": {
+        "depthWarmPromotion": "depth-warm-promoted-v1",
+        "sourceCitation": null
+      },
+      "reason": null,
+      "verified": true,
+      "machineVerifyDiagnostic": false,
+      "note": "The promotion marker alone is verification — precedence column 1."
+    },
+    {
+      "id": "citation-fallback",
+      "atom": {
+        "depthWarmPromotion": null,
+        "sourceCitation": "https://cortex.internal/cert/depth-warm-verified/2026-09-02/48021:34137"
+      },
+      "reason": null,
+      "verified": true,
+      "machineVerifyDiagnostic": false,
+      "note": "No marker, but the citation names depth-warm verification — precedence column 2."
+    },
+    {
+      "id": "marker-and-citation-both-present-and-agree",
+      "atom": {
+        "depthWarmPromotion": "depth-warm-promoted-v1",
+        "sourceCitation": "https://cortex.internal/cert/depth-warm-verified/2026-09-02/48209:97658"
+      },
+      "reason": "Setbacks consume the lot per engine calculation.",
+      "verified": true,
+      "machineVerifyDiagnostic": false,
+      "note": "Marker wins and the fallback is not consulted; a verified zero still wins (P-249 item 2)."
+    },
+    {
+      "id": "shape-only-write-no-promotion",
+      "atom": {
+        "depthWarmPromotion": null,
+        "sourceCitation": null
+      },
+      "reason": "Setbacks consume the lot per engine calculation.",
+      "verified": false,
+      "machineVerifyDiagnostic": false,
+      "note": "A shape-only write-time bake. 48209:97650-97658 live shape."
+    },
+    {
+      "id": "reasonless-zero",
+      "atom": {
+        "depthWarmPromotion": null,
+        "sourceCitation": null
+      },
+      "reason": null,
+      "verified": false,
+      "machineVerifyDiagnostic": false,
+      "note": "123,706 of the 490,185 six-county atoms: a zero with no reason at all."
+    },
+    {
+      "id": "unzoned",
+      "atom": {
+        "depthWarmPromotion": null,
+        "sourceCitation": null
+      },
+      "reason": "unzoned",
+      "verified": false,
+      "machineVerifyDiagnostic": false,
+      "note": "208,868 of the 490,185: breadth-bake records that mean 'unzoned', not 'no buildable area'."
+    },
+    {
+      "id": "not-onboarded",
+      "atom": {
+        "depthWarmPromotion": null,
+        "sourceCitation": null
+      },
+      "reason": "not onboarded",
+      "verified": false,
+      "machineVerifyDiagnostic": false,
+      "note": "153,775 of the 490,185."
+    },
+    {
+      "id": "r32-mechanical-verify-diagnostic",
+      "atom": {
+        "depthWarmPromotion": null,
+        "sourceCitation": null
+      },
+      "reason": "edge 1: R32 35.02831192164916ft != expected 5ft for role side; edge 4: R32 53.60964475445567ft != expected 25ft for role rear",
+      "verified": false,
+      "machineVerifyDiagnostic": true,
+      "note": "Live 48021:8723767 (P-214). LDT's isMachineVerifyDiagnostic reads the REASON TEXT, not the promotion fields — a named validation-failed decline, never a silent empty (P-249 item 2)."
+    },
+    {
+      "id": "near-miss-marker-token",
+      "atom": {
+        "depthWarmPromotion": "depth-warm-promoted-v2",
+        "sourceCitation": null
+      },
+      "reason": null,
+      "verified": false,
+      "machineVerifyDiagnostic": false,
+      "note": "Exact marker only: a version-shifted lookalike is NOT verification."
+    },
+    {
+      "id": "near-miss-citation-substring",
+      "atom": {
+        "depthWarmPromotion": null,
+        "sourceCitation": "https://cortex.internal/cert/depth-warm-verify/2026-09-02"
+      },
+      "reason": null,
+      "verified": false,
+      "machineVerifyDiagnostic": false,
+      "note": "The fallback substring is 'depth-warm-verified', not 'depth-warm-verify'."
+    },
+    {
+      "id": "padded-marker-not-promoted",
+      "atom": {
+        "depthWarmPromotion": " depth-warm-promoted-v1 ",
+        "sourceCitation": null
+      },
+      "reason": null,
+      "verified": false,
+      "machineVerifyDiagnostic": false,
+      "note": "EXACT match, no trimming: whitespace around the marker is not verification. Added after the falsifier-5 probe showed a whitespace-tolerant edit survived the first fixture."
+    },
+    {
+      "id": "citation-case-variant-not-promoted",
+      "atom": {
+        "depthWarmPromotion": null,
+        "sourceCitation": "https://cortex.internal/cert/Depth-Warm-Verified/2026-09-02"
+      },
+      "reason": null,
+      "verified": false,
+      "machineVerifyDiagnostic": false,
+      "note": "The citation fallback is case-sensitive; an upper-case spelling is not verification."
+    },
+    {
+      "id": "no-atom-at-all",
+      "atom": null,
+      "reason": null,
+      "verified": false,
+      "machineVerifyDiagnostic": false,
+      "note": "Absent, not unverified — no outcome to reconcile against; the live derivation stands on its own terms."
+    }
+  ]
+}

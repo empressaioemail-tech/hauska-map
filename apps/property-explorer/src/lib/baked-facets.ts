@@ -185,6 +185,18 @@ export interface BakedFacetPayload {
      * source. Optional — absent on every payload the current bake writes.
      */
     provenanceRefs?: EnvelopeProvenanceRefs;
+    /**
+     * P-249 (2026-09-16). The polygon draws (status "ok" + real setback
+     * scalars) because a district and a setback table exist, but the AREA
+     * FIGURE stays withheld: the only envelope atom on this parcel has not
+     * passed ground-truth (depth-warm) verification, and operator ruling
+     * A-180 allows a buildable-area figure only when a VERIFIED atom backs
+     * it. Set by `atom-chain-to-facets.ts` on the unverified
+     * `no-buildable-area` branch; honored by `live-envelope-augment.ts`, so
+     * the live labelEdges+derive pass that supplies the polygon can never
+     * re-stamp its own independently-recomputed area onto the payload.
+     */
+    figureWithheld?: boolean;
   } | null;
   facetCoverage?: {
     baseFacts?: boolean;

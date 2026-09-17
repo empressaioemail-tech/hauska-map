@@ -391,3 +391,100 @@ describe("augmentFacetsWithLiveEnvelope — composed address (P-151)", () => {
     expect(body.address).toBe("1010 PECAN ST, BASTROP, TX 78602");
   });
 });
+
+/**
+ * P-249 (2026-09-16). The atom-chain adapter's unverified `no-buildable-area`
+ * branch serves the modelled envelope with `figureWithheld: true` (R-2: the
+ * polygon draws, the figure waits for a verified atom). This module is what
+ * supplies that polygon — and it must not use that position to re-stamp its
+ * own independently-recomputed area onto the payload (A-180).
+ *
+ * Both directions: the withheld marker must suppress the figure, and its
+ * ABSENCE must leave the live-derived figure exactly as it is today (a check
+ * observed only firing has not been observed not-firing).
+ */
+describe("P-249 figureWithheld — the live pass supplies geometry, never the withheld figure", () => {
+  /** Same live-POST shape the sibling describes use, scoped to this block. */
+  function liveGeometryResponse(buildableAreaSqFt: number) {
+    return vi.fn(async () => ({
+      ok: true,
+      json: async () => ({
+        status: "ok",
+        payload: {
+          geojson: {
+            type: "FeatureCollection",
+            features: [
+              {
+                type: "Feature",
+                properties: { buildableAreaSqFt },
+                geometry: {
+                  type: "Polygon",
+                  coordinates: [
+                    [
+                      [-97.32, 30.11],
+                      [-97.319, 30.11],
+                      [-97.319, 30.109],
+                      [-97.32, 30.109],
+                      [-97.32, 30.11],
+                    ],
+                  ],
+                },
+              },
+            ],
+          },
+          summary: { buildableAreaSqFt, buildableAreaPct: 21 },
+        },
+      }),
+    })) as unknown as typeof fetch;
+  }
+
+  const WITHHELD: BakedFacetPayload = {
+    envelope: {
+      status: "ok",
+      declineReason: "envelope-unverified",
+      figureWithheld: true,
+      district: "SF-6",
+      setbacks: { front_ft: 25, side_ft: 5, rear_ft: 20 },
+      approximate: true,
+      provisional: true,
+      disclosure:
+        "Buildable area withheld — this parcel's buildable-envelope outcome has " +
+        "not passed ground-truth verification (no confirmed road-frontage edge " +
+        "labeling). The envelope outline is modelled from the setback table on " +
+        "record and drawn for reference; the area figure stays withheld until a " +
+        "verified atom backs it.",
+    },
+  };
+
+  it("attaches the live polygon and NO area figure, keeping the withheld disclosure", async () => {
+    const fetchImpl = liveGeometryResponse(4200);
+    const out = await augmentFacetsWithLiveEnvelope(
+      WITHHELD,
+      "1010 PECAN ST, BASTROP, TX 78602",
+      "/api/spine/cortex/api",
+      fetchImpl,
+    );
+    // The polygon is the deliverable.
+    expect(out.envelope?.geojson).toBeTruthy();
+    expect(out.envelope?.status).toBe("ok");
+    // The figure is not.
+    expect(out.envelope?.buildableAreaSqFt).toBeUndefined();
+    expect(out.envelope?.buildableAreaPct).toBeUndefined();
+    // Its disclosure survives, still naming the withholding, plus the honest
+    // provenance of the outline it now carries.
+    expect(out.envelope?.disclosure).toMatch(/ground-truth verification/i);
+    expect(out.envelope?.disclosure).toMatch(/live derive/i);
+    expect(out.envelope?.figureWithheld).toBe(true);
+  });
+
+  it("leaves an un-withheld envelope's live-derived figure exactly as before (falsifier: must not over-fire)", async () => {
+    const fetchImpl = liveGeometryResponse(4200);
+    const out = await augmentFacetsWithLiveEnvelope(
+      GEO_ABSENT,
+      "1010 PECAN ST, BASTROP, TX 78602",
+      "/api/spine/cortex/api",
+      fetchImpl,
+    );
+    expect(out.envelope?.buildableAreaSqFt).toBe(4200);
+  });
+});
