@@ -107,6 +107,8 @@ export interface AtomChainBuildableEnvelope {
   fetchedAt?: string;
   extractedAt?: string;
   sourceCitation?: string;
+  /** P-303: the atom's own DID, carried on the wire — named in the withheld-figure disclosure. */
+  atomDid?: string;
   depthWarmPromotion?: string;
   /** depth-warm honest decline — must surface on PE before generic pending. */
   warmVerifyDecline?: string;
@@ -384,6 +386,18 @@ export interface PeBakedFacetPayload {
      * no area — instead of measuring an area off the rings).
      */
     figureWithheld?: boolean;
+    /**
+     * P-303 (2026-09-17). Which source supplied this envelope's setback
+     * scalars. Absent means the atom-chain path (the historical default, so
+     * every existing payload keeps its meaning). `"parcel-record"` is set on
+     * exactly one branch: a no-district-class chain whose district and
+     * setback table were served by the parcel record (the XD-2 Waco case) —
+     * read by `applyEnvelopeSetbackOverride` in `pe-property-atoms.ts` so its
+     * overlay note does not claim the un-overridden axes are
+     * "atom-chain-sourced" when every axis on the envelope came from the
+     * record.
+     */
+    setbackSource?: "atom-chain" | "parcel-record";
   } | null;
   facetCoverage?: {
     baseFacts?: boolean;
@@ -1856,6 +1870,228 @@ export function jurisdictionKeyFromSourceAdapter(
   return null;
 }
 
+/**
+ * P-303 (2026-09-17) — THE NO-DISTRICT DECLINE CLASS.
+ *
+ * WHY THIS EXISTS. Before this block, the adapter had exactly one place where
+ * an absence of zoning became an envelope refusal: the `absenceKind ===
+ * "no-zoning-stamp"` branch below, which fires FIRST in the decision tree and
+ * therefore pre-empts every district-and-table branch under it. Live proof
+ * (2026-09-17, `_inbox/2026-09-17_p249_canary_proof.md`): Waco `48309:103015`
+ * carries a breadth-bake zoning-fact whose `absence.kind` is
+ * `no-zoning-stamp` ("No zoning district observed for parcel") and a
+ * buildable-envelope atom whose basis is the engine's cascade code
+ * `no-district-on-record` ("no district on record — jurisdiction not yet
+ * onboarded"), while the SAME payload's zoning facet holds district `R-1B`
+ * (jurisdiction `waco-tx`, from the city's own GIS layer, served by the
+ * parcel record) and the parcel record also serves its setback axes. The
+ * panel printed `no-zoning-stamp` and drew nothing, so map/MCP/PDF/panel
+ * disagreed — LDT's route draws that parcel (P-249 canary: `ok`, polygon
+ * drawn) because it reads the record, and the panel did not.
+ *
+ * THE CLASS IS A STAMP GAP, NOT A ZONING ABSENCE. hauska-engine's own
+ * cascade module says it in its doc comment
+ * (`packages/engine-core/src/property-reasoning/cascade-unzoned-envelope-decline.ts`):
+ * it "targets every absence-zoning parcel county-wide, including parcels
+ * inside an incorporated city that IS zoned but simply has not been stamped
+ * yet … the jurisdiction is zoned, only unonboarded". So a member of this
+ * class is never proof that the parcel has no zoning. The verdict the map
+ * owes each member is recorded in {@link NO_DISTRICT_DECLINE_SOURCES}: the
+ * class declines honestly while NO district exists anywhere in the payload,
+ * and must re-route to the P-249 `envelope-unverified` branch (drawn, figure
+ * withheld) once the parcel record stamps a district and serves the setback
+ * table. The district is never invented here — it is read off the payload's
+ * own record-composed zoning facet passed in by the caller.
+ */
+export const NO_DISTRICT_DECLINE_REASON = "no-zoning-stamp" as const;
+
+/**
+ * hauska-engine's cascade codes for this cohort (`CASCADE_DECLINE_CODES`):
+ * the in-city-but-unonboarded variant and the unincorporated variant. The
+ * adapter previously never read them (`mapWarmVerifyDeclineEnvelope` is
+ * gated behind `hasDistrict`, which a member of this class cannot have on
+ * the chain), which is why they had no effect on the panel.
+ */
+export const NO_DISTRICT_ENVELOPE_CODES = [
+  "no-district-on-record",
+  "unzoned-no-district-basis",
+] as const;
+
+/**
+ * Absence kinds that put a chain in this class. `no-zoning-stamp` is the
+ * only kind hauska-engine mints for a null/empty district
+ * (`emit-zoning-fact.ts`); `zoning-absent` is the adapter's OWN fallback
+ * reason for an absence whose kind is missing (the `!hasDistrict` branch
+ * below). Both already render as an ABSENT zoning row and the fact sheet
+ * collapses them into one branch (`fact-sheet-resolver.ts`); the class
+ * predicate makes the adapter agree with them rather than the reverse.
+ */
+export const NO_DISTRICT_ABSENCE_KINDS = ["no-zoning-stamp", "zoning-absent"] as const;
+
+/** Breadth-bake reason TEXT for the same cohort (the LDT fixture's declared `reason` values). */
+const NO_DISTRICT_TEXT_RE = /no[ -]?district|not[ -]?onboarded|unzoned/i;
+
+/**
+ * THE INVENTORY (P-303 step 5): every input that routes a parcel to the
+ * panel's `no-zoning-stamp` decline, with the verdict this codebase owes it.
+ * `genuineAbsence` answers one question only — "does this input prove the
+ * parcel has no zoning district?" — and no member of the class answers yes:
+ * each is either a breadth-bake observation made at its own read time
+ * (2026-07-24 for the Waco atom) or an explicit onboarding gap. The class
+ * therefore declines only while the payload holds no district; a
+ * record-stamped district contradicts every member.
+ */
+export const NO_DISTRICT_DECLINE_SOURCES: ReadonlyArray<{
+  from: NoDistrictDeclineBasis["from"];
+  value: string;
+  genuineAbsence: false;
+  why: string;
+}> = [
+  {
+    from: "zoning-absence-kind",
+    value: "no-zoning-stamp",
+    genuineAbsence: false,
+    why: "The engine's honest-absence kind for a null/empty district at bake time ('No zoning district observed for parcel'). Absence of a STAMP, not of zoning: the same atom's jurisdiction is often zoned and simply unstamped (live: Waco R-1B, stamped in the parcel record 2026-09-10).",
+  },
+  {
+    from: "envelope-decline-code",
+    value: "no-district-on-record",
+    genuineAbsence: false,
+    why: "hauska-engine cascade code whose reason text is 'jurisdiction not yet onboarded' (city-signal cohort). A stamp gap by construction.",
+  },
+  {
+    from: "envelope-decline-code",
+    value: "unzoned-no-district-basis",
+    genuineAbsence: false,
+    why: "hauska-engine cascade code for the unincorporated/no-situs-signal cohort ('unzoned jurisdiction — no district basis'). The only member that asserts unzoned; it is a county-wide cascade inference from a postal-city proxy, and a record-stamped district contradicts it.",
+  },
+  {
+    from: "envelope-decline-reason",
+    value: "unzoned",
+    genuineAbsence: false,
+    why: "Breadth-bake reason text (the shared envelope-verification fixture's `unzoned` case, 208,868 of 490,185 six-county atoms). Same stamp gap, older vocabulary.",
+  },
+  {
+    from: "envelope-decline-reason",
+    value: "not onboarded",
+    genuineAbsence: false,
+    why: "Breadth-bake reason text (the shared fixture's `not-onboarded` case, 153,775 of 490,185). The XD-2 cohort; LDT's route already draws it.",
+  },
+  {
+    from: "zoning-absence-kind",
+    value: "zoning-absent",
+    genuineAbsence: false,
+    why: "The adapter's own fallback reason for an absence with no kind recorded — absence of information, not of zoning.",
+  },
+];
+
+export interface NoDistrictDeclineBasis {
+  from: "zoning-absence-kind" | "envelope-decline-code" | "envelope-decline-reason";
+  token: string;
+  genuineAbsence: boolean;
+}
+
+/**
+ * Classify a chain's no-district decline basis, or null when the chain is not
+ * in the class. Reads the zoning absence kind first (the panel's own token),
+ * then the envelope atom's machine code, then its human reason text. Pure and
+ * side-effect free: no district is ever derived here.
+ */
+export function noDistrictDeclineBasis(input: {
+  zoningAbsenceKind?: string | null;
+  envelopeDeclineCode?: string | null;
+  envelopeDeclineReason?: string | null;
+}): NoDistrictDeclineBasis | null {
+  const kind = (input.zoningAbsenceKind ?? "").trim().toLowerCase();
+  if (kind && (NO_DISTRICT_ABSENCE_KINDS as readonly string[]).includes(kind)) {
+    return { from: "zoning-absence-kind", token: kind, genuineAbsence: false };
+  }
+  const code = (input.envelopeDeclineCode ?? "").trim();
+  if (code && (NO_DISTRICT_ENVELOPE_CODES as readonly string[]).includes(code)) {
+    return { from: "envelope-decline-code", token: code, genuineAbsence: false };
+  }
+  const reason = (input.envelopeDeclineReason ?? "").trim();
+  if (reason && NO_DISTRICT_TEXT_RE.test(reason)) {
+    return { from: "envelope-decline-reason", token: reason, genuineAbsence: false };
+  }
+  return null;
+}
+
+/**
+ * The record-composed evidence the caller may pass in: the parcel record's
+ * own zoning stamp and setback axes (P152-RAILS / OPS-23, `parcel_record_cell`).
+ * Structural on purpose — the caller's `ZoningSetbackOverride` already has
+ * these fields and no cross-module type import is needed.
+ */
+export interface RecordZoningSetbackEvidence {
+  district?: string;
+  jurisdictionKey?: string;
+  setbackAxisOverrides?: {
+    front_ft?: number;
+    side_ft?: number;
+    rear_ft?: number;
+    side_corner_ft?: number;
+  };
+}
+
+/**
+ * A record setback table is only a table when every PRIMARY axis is served.
+ * An envelope inset needs front, side and rear; drawing one from a partial
+ * row would invent the missing insets, which is the fabrication this
+ * codebase's honest-absence doctrine exists to prevent. The corner axis is
+ * genuinely optional (`side_interior_ft`/`side_corner_ft` are optional in
+ * the facet shape) and is carried when served.
+ */
+export function recordSetbackTable(
+  axes: RecordZoningSetbackEvidence["setbackAxisOverrides"] | null | undefined,
+): { front_ft: number; side_ft: number; rear_ft: number; side_corner_ft?: number } | null {
+  if (!axes) return null;
+  const front = axes.front_ft;
+  const side = axes.side_ft;
+  const rear = axes.rear_ft;
+  if (typeof front !== "number" || typeof side !== "number" || typeof rear !== "number") {
+    return null;
+  }
+  return {
+    front_ft: front,
+    side_ft: side,
+    rear_ft: rear,
+    ...(typeof axes.side_corner_ft === "number" ? { side_corner_ft: axes.side_corner_ft } : {}),
+  };
+}
+
+/**
+ * P-249 branch shape, ONE definition (the adapter's own unverified branch and
+ * the P-303 record-stamped branch below must not drift). `status: "ok"` is
+ * what makes `facetsNeedLiveEnvelopeDerive` fetch the modelled polygon;
+ * `figureWithheld` is what keeps the area figure off every surface.
+ */
+function envelopeUnverifiedBranch(input: {
+  district: string;
+  setbacks: NonNullable<NonNullable<PeBakedFacetPayload["envelope"]>["setbacks"]>;
+  /** The withheld-figure clause naming WHY this envelope is unverified. */
+  basisClause: string;
+  /** Provenance of the setback scalars carried on this envelope. */
+  setbackSource?: "atom-chain" | "parcel-record";
+}): PeBakedFacetPayload["envelope"] {
+  return {
+    status: "ok",
+    declineReason: "envelope-unverified",
+    figureWithheld: true,
+    district: input.district,
+    setbacks: input.setbacks,
+    ...(input.setbackSource ? { setbackSource: input.setbackSource } : {}),
+    approximate: true,
+    provisional: true,
+    disclosure:
+      "Buildable area withheld — this parcel's buildable-envelope outcome has " +
+      `not passed ground-truth verification (${input.basisClause}). ` +
+      "The envelope outline is modelled from the setback table on record and " +
+      "drawn for reference; the area figure stays withheld until a verified " +
+      "atom backs it.",
+  };
+}
+
 function mapWarmVerifyDeclineEnvelope(
   envAtom: AtomChainBuildableEnvelope,
   district: string | null,
@@ -1889,6 +2125,16 @@ export function adaptAtomChainToBakedFacets(
   opts?: {
     /** Live layer-23 scalars for a per-parcel-only jurisdiction (e.g. Bastrop city), pre-fetched by the caller. */
     perParcelSetback?: CodifiedSetbackScalars | null;
+    /**
+     * P-303 (2026-09-17) — the parcel record's own zoning stamp and setback
+     * axes for this parcel, fetched and composed by the caller BEFORE this
+     * call (`pe-property-atoms.ts`, `composeZoningSetbackOverride`). Consulted
+     * for exactly one decision: whether a chain in the no-district decline
+     * class should take the P-249 `envelope-unverified` branch instead of the
+     * earlier `no-zoning-stamp` decline. It never supplies a district to a
+     * chain that is not in that class, and never overrides a chain district.
+     */
+    recordZoningSetback?: RecordZoningSetbackEvidence | null;
   },
 ): PeBakedFacetsResponse | null {
   if (!atomChainIsUsable(chain)) return null;
@@ -1918,9 +2164,55 @@ export function adaptAtomChainToBakedFacets(
       : undefined;
 
   // Honest absence: never invent a district (Bexar no-zoning-stamp).
-  const hasDistrict =
-    !absenceKind && typeof zf?.district === "string" && zf.district.trim().length > 0;
-  const district = hasDistrict ? (zf!.district as string).trim() : null;
+  const chainDistrict =
+    !absenceKind && typeof zf?.district === "string" && zf.district.trim().length > 0
+      ? (zf.district as string).trim()
+      : null;
+
+  /**
+   * P-303 (2026-09-17) — the no-district decline class (see
+   * NO_DISTRICT_DECLINE_SOURCES above) plus the parcel record's own stamp.
+   *
+   * The record's district is consulted ONLY here and ONLY when (a) the chain's
+   * own envelope basis is in the class and (b) the chain carries no district of
+   * its own — i.e. exactly the case where a chain-only adapter had nothing to
+   * draw from and printed `no-zoning-stamp` for a parcel the ledger stamps.
+   * A chain that already has a district is never touched by this, and no
+   * district is ever invented: the value comes off the payload's own
+   * record-composed zoning facet, which the caller passed in.
+   */
+  const noDistrictBasis = noDistrictDeclineBasis({
+    zoningAbsenceKind: absenceKind || null,
+    envelopeDeclineCode:
+      envAtom && typeof envAtom.warmVerifyDeclineCode === "string"
+        ? envAtom.warmVerifyDeclineCode
+        : null,
+    envelopeDeclineReason:
+      (envAtom && typeof envAtom.warmVerifyDecline === "string"
+        ? envAtom.warmVerifyDecline
+        : "") ||
+      (envAtom?.outcome && typeof envAtom.outcome.reason === "string"
+        ? envAtom.outcome.reason
+        : ""),
+  });
+  const recordStamp = opts?.recordZoningSetback ?? null;
+  const recordDistrict =
+    noDistrictBasis &&
+    !chainDistrict &&
+    typeof recordStamp?.district === "string" &&
+    recordStamp.district.trim().length > 0
+      ? recordStamp.district.trim()
+      : null;
+  /**
+   * The record-served setback table (primary axes only — see
+   * {@link recordSetbackTable}). Computed only for a class member whose
+   * district came from the record, so no other branch in the tree can start
+   * consuming record scalars as a side effect of this lane.
+   */
+  const recordTable = recordDistrict ? recordSetbackTable(recordStamp?.setbackAxisOverrides) : null;
+
+  const district = chainDistrict ?? recordDistrict;
+  const hasDistrict = district !== null;
   // The stamped corpus jurisdiction key (from the zoning source adapter), so
   // chat atom-retrieval sends areaContext.jurisdictionKey and the answer can
   // carry cited atoms. Null when the adapter has no jurisdiction suffix.
@@ -1987,7 +2279,7 @@ export function adaptAtomChainToBakedFacets(
   let envelope: PeBakedFacetPayload["envelope"] = null;
   let envelopeCovered = false;
 
-  if (absenceKind === "no-zoning-stamp") {
+  if (noDistrictBasis && !hasDistrict) {
     // Align with cortex absentZoningHonesty / declineReason vocabulary.
     // P-167 wave 5 (OPS-23 R-4): the atom's own absence.reason (read into
     // absenceReason above) already carries a human sentence for the common
@@ -1998,6 +2290,18 @@ export function adaptAtomChainToBakedFacets(
     // the same envelopeHuman generically) and hauska-engine's PDF (author.ts
     // falls back to the identical envelopeHuman(kind) call) converge on one
     // string for this edge case too.
+    //
+    // P-303 (2026-09-17): the class predicate replaces the literal
+    // `absenceKind === "no-zoning-stamp"` test so a chain whose basis is one
+    // of the engine's cascade CODES (or a breadth-bake reason string) lands
+    // on the same class token instead of the adapter-only `zoning-absent`
+    // fallback. Both tokens render as an ABSENT zoning row and the fact sheet
+    // collapses them into one branch (`fact-sheet-resolver.ts`); the visible
+    // difference for a member whose zoning fact carried no absence kind is
+    // the row's absence LABEL, which becomes this branch's "no zoning stamp
+    // here" instead of "no zoning here" — the panel's own vocabulary for this
+    // cohort. Every chain that used to take THIS branch is unchanged: a
+    // zoning absence always implied `!hasDistrict` here.
     envelope = {
       status: "declined",
       declineReason: "no-zoning-stamp",
@@ -2009,6 +2313,50 @@ export function adaptAtomChainToBakedFacets(
         "No zoning stamp on this parcel — honest absence; no district invented.",
     };
     envelopeCovered = false;
+  } else if (noDistrictBasis && recordDistrict) {
+    // P-303 (2026-09-17) — THE STAMPED GAP. The chain declines on the zoning
+    // axis, but the payload's own record-composed zoning facet stamps a
+    // district for this parcel and the parcel record serves its setback
+    // table. The class is a stamp gap, not a zoning absence (see
+    // NO_DISTRICT_DECLINE_SOURCES), so the envelope takes the SAME P-249
+    // branch a district-bearing chain takes: `status: "ok"` so the live
+    // derive fetches the modelled polygon, the area figure withheld, and a
+    // disclosure that names the unverified atom and its own basis. Live XD-2
+    // (Waco `48309:103015`, 2026-09-17) is this case.
+    if (recordTable) {
+      const atomName = (envAtom?.atomDid ?? "").trim() || "the buildable-envelope atom";
+      const atomCode = (envAtom?.warmVerifyDeclineCode ?? "").trim();
+      envelope = envelopeUnverifiedBranch({
+        district: recordDistrict,
+        setbacks: recordTable,
+        setbackSource: "parcel-record",
+        basisClause:
+          `${atomName} is unverified for this parcel and declines on the zoning axis ` +
+          `(${noDistrictBasis.token}` +
+          (atomCode && atomCode !== noDistrictBasis.token ? `; envelope atom code ${atomCode}` : "") +
+          `) while the parcel record stamps district ${recordDistrict}` +
+          (recordStamp?.jurisdictionKey ? ` (${recordStamp.jurisdictionKey})` : "") +
+          " and serves the setback table this outline is modelled from",
+      });
+      envelopeCovered = true;
+    } else {
+      // District stamped, no complete primary-axis table served (yet, or only
+      // partially — see recordSetbackTable). An inset cannot be drawn without
+      // inventing the missing axes, so the decline stands — but the reason
+      // moves off `no-zoning-stamp`, which is no longer true once a district
+      // is on the payload.
+      envelope = {
+        status: "declined",
+        declineReason: "setback-rule-pending",
+        district: recordDistrict,
+        approximate: true,
+        provisional: true,
+        disclosure:
+          "Setbacks pending re-warm from city per-parcel record — verify with city. " +
+          "Repealed or pre-layer-23 sources are not served.",
+      };
+      envelopeCovered = false;
+    }
   } else if (!hasDistrict) {
     envelope = {
       status: "declined",
@@ -2123,21 +2471,16 @@ export function adaptAtomChainToBakedFacets(
     //     status is now "ok" — it is not a decline, and no reader that guards
     //     on `status === "declined"` (the card's decline row, the zoning
     //     decline stamp) treats it as one.
-    envelope = {
-      status: "ok",
-      declineReason: "envelope-unverified",
-      figureWithheld: true,
-      district: district ?? undefined,
+    // P-303 (2026-09-17): the branch SHAPE has one definition
+    // (`envelopeUnverifiedBranch`) shared with the record-stamped branch
+    // above, so the two cannot drift on status/declineReason/figureWithheld.
+    // The clause stays byte-identical to the text this branch has served
+    // since P-249 (the panel's card and the share brief print it verbatim).
+    envelope = envelopeUnverifiedBranch({
+      district: district as string,
       setbacks: effectiveSetbacks,
-      approximate: true,
-      provisional: true,
-      disclosure:
-        "Buildable area withheld — this parcel's buildable-envelope outcome has " +
-        "not passed ground-truth verification (no confirmed road-frontage edge " +
-        "labeling). The envelope outline is modelled from the setback table on " +
-        "record and drawn for reference; the area figure stays withheld until a " +
-        "verified atom backs it.",
-    };
+      basisClause: "no confirmed road-frontage edge labeling",
+    });
     // The setback distances and the modelled outline ARE served (the ruling
     // above), so the envelope facet is covered; only the figure is not.
     envelopeCovered = true;
