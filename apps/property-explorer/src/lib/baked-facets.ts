@@ -197,6 +197,17 @@ export interface BakedFacetPayload {
      * re-stamp its own independently-recomputed area onto the payload.
      */
     figureWithheld?: boolean;
+    /**
+     * P-303 (2026-09-17). Which source supplied this envelope's setback
+     * scalars — absent means the atom-chain path (the historical default, so
+     * every existing payload keeps its meaning). `"parcel-record"` marks the
+     * one branch where a chain in the no-district decline class was re-routed
+     * to the unverified draw by the parcel record's own stamp and table (live
+     * XD-2 Waco `48309:103015`): the panel draws the modelled outline with
+     * the area figure withheld, exactly as it does for an unverified atom
+     * that carries a district.
+     */
+    setbackSource?: "atom-chain" | "parcel-record";
   } | null;
   facetCoverage?: {
     baseFacts?: boolean;
