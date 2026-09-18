@@ -37,6 +37,10 @@ import {
   shouldSkipColdDerive,
 } from "./atom-chain-to-facets.js";
 import {
+  reconcileImperviousFigures,
+  disclosureWithImperviousGoverning,
+} from "./impervious-governing-figure.js";
+import {
   composeRecordPatch,
   composeZoningSetbackOverride,
   classifyRecordFetchFailure,
@@ -751,6 +755,69 @@ export async function applyRecordPatch(
   };
 }
 
+/**
+ * P-341 (OPS-24, ruling 16). One reader for the two impervious-cover figures a
+ * payload can carry, applied at the single point every served facets payload
+ * passes through so the record path and the atom-chain-only path cannot
+ * disagree about the same parcel.
+ *
+ * The two rails are distinct on purpose and are read as distinct: the setback
+ * rule's own `envelope.maxImperviousPct` and the top-level
+ * `maxImperviousCoverPctFact.percent`. Where both apply the STRICTER governs
+ * as the served figure and BOTH are cited with their own source. Neither
+ * figure is deleted, averaged, or replaced by the higher one.
+ */
+function applyImperviousGoverningFigure(
+  payload: PeBakedFacetsResponse,
+): PeBakedFacetsResponse {
+  const envelope = payload.facets?.envelope;
+  const fact = payload.maxImperviousCoverPctFact;
+  const factPresent =
+    fact?.state === "present" && typeof fact.percent === "number"
+      ? fact.percent
+      : null;
+  const zoningPct =
+    typeof envelope?.maxImperviousPct === "number"
+      ? envelope.maxImperviousPct
+      : null;
+
+  const reconciliation = reconcileImperviousFigures({
+    zoningMaxImperviousPct: zoningPct,
+    zoningCitationUrl: envelope?.citationUrl ?? null,
+    zoningSourceDate: envelope?.sourceDate ?? null,
+    watershedPercent: factPresent,
+    watershedType:
+      typeof fact?.watershedType === "string" ? fact.watershedType : null,
+    watershedCitationUrl:
+      typeof fact?.crosswalkCitation === "string" ? fact.crosswalkCitation : null,
+    watershedSourceVintage:
+      typeof fact?.sourceVintage === "string" ? fact.sourceVintage : null,
+  });
+
+  // One figure applies (or none): nothing to reconcile, nothing is written,
+  // and the payload stays byte-identical to what it was before this lane.
+  if (!envelope || reconciliation.sources.length < 2) return payload;
+
+  const disclosure = disclosureWithImperviousGoverning(
+    envelope.disclosure,
+    reconciliation,
+  );
+  return {
+    ...payload,
+    facets: {
+      ...payload.facets,
+      envelope: {
+        ...envelope,
+        ...(reconciliation.governing !== null
+          ? { maxImperviousPct: reconciliation.governing }
+          : {}),
+        maxImperviousPctSources: reconciliation.sources,
+        ...(disclosure !== undefined ? { disclosure } : {}),
+      },
+    },
+  };
+}
+
 /** Strip cortex envelope / tier2.envelope so zombie multiply cannot be product truth. */
 export function stripCortexEnvelopeProductTruth(body: unknown): unknown {
   if (!body || typeof body !== "object") return body;
@@ -984,6 +1051,10 @@ export async function handlePropertyAtomsFacets(
       // "record-unavailable", typed refusals on the rails this lane owns —
       // P152-RAILS item 3), never a silent no-op (R-6).
       payload = await applyRecordPatch(payload, parcelNodeId, recordResult);
+      // P-341 (OPS-24, ruling 16): the stricter of two applicable impervious
+      // figures governs and both are cited. Applied LAST so it reads exactly
+      // what is about to be served, whichever rail supplied each figure.
+      payload = applyImperviousGoverningFigure(payload);
       const readHeader: PeReadPathHeader =
         payload.readPath === "record"
           ? "record"

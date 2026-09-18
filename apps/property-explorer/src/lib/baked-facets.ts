@@ -31,7 +31,7 @@ import {
   setbackConflictNote,
   type SetbackConflictSecondSourceInput,
 } from "@empressaio/atom-contract/display";
-import type { SetbackCitationVintageRow } from "../../api/_lib/setback-citation-vintage";
+import type { SetbackCitationVintageDeclaration } from "../../api/_lib/setback-citation-vintage";
 import {
   SITUS_UNREADABLE_REASON,
   composeSitusLine,
@@ -192,8 +192,12 @@ export interface BakedFacetPayload {
     disclosure?: string;
     emptyReason?: string;
     citationUrl?: string;
-    /** P-270 (OPS-24 X11) — present only when a citation is served without a readable effective date. */
-    citationVintage?: SetbackCitationVintageRow | null;
+    /**
+     * P-270 (OPS-24 X11) — present when a citation must not be printed as a
+     * plain in-force citation: either its effective date could not be read, or
+     * it was read and has NOT ARRIVED YET (P-354, 2026-09-18).
+     */
+    citationVintage?: SetbackCitationVintageDeclaration | null;
     geojson?: unknown;
     /**
      * Forward-compat, type-only (no baked backend serves this today): the
@@ -834,7 +838,7 @@ export interface BakedCardModel {
    * both composed by the ONE module `setback-citation-vintage.ts` — never
    * retyped here, and byte-identical to legacy-design-tools' copy.
    */
-  setbackCitationVintage: SetbackCitationVintageRow | null;
+  setbackCitationVintage: SetbackCitationVintageDeclaration | null;
   /** The second source's own citation URL, when it published one. */
   setbackSecondSourceCitationUrl: string | null;
 }

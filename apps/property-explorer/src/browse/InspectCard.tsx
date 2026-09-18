@@ -1832,15 +1832,30 @@ function liveGovernedByFragment(
  * short and the exact one-sentence declaration is rendered beside it (see the
  * `inspect-setback-vintage` element), so the sentence itself is never retyped
  * into a second string here.
+ *
+ * P-354 (2026-09-18) added the OTHER way a dated citation lies: a rule whose
+ * effective date has been read and has NOT ARRIVED YET. Georgetown's rewrite
+ * (adopted 2026-08-11, effective 2026-11-01) is served today by ruling A-218,
+ * and this function used to fall through to `· effective 2026-11-01` for it —
+ * a date the rule does not yet have, printed as though it did. The
+ * future-effective marker is therefore checked BEFORE the `effective <date>`
+ * branch and prints the marker from the declaration (`adopted … , takes effect
+ * …`), which comes from `setbackFutureEffectiveCardMarker` — one place, not a
+ * second literal here.
  */
 export function setbackSourceClause(input: {
   citation: string | null;
   sourceDate: string | null;
-  citationVintage?: { note: string } | null;
+  citationVintage?: { note: string; state?: string; cardMarker?: string } | null;
 }): string | null {
   const citation = (input.citation ?? "").trim();
   const sourceDate = (input.sourceDate ?? "").trim();
-  const unreadable = !sourceDate && !!input.citationVintage;
+  const vintage = input.citationVintage ?? null;
+  if (vintage && vintage.state === "future-effective") {
+    const marker = (vintage.cardMarker ?? "").trim();
+    if (marker) return citation ? `${citation} · ${marker}` : marker;
+  }
+  const unreadable = !sourceDate && !!vintage;
   if (!citation && !sourceDate) return null;
   if (citation && sourceDate) return `${citation} · effective ${sourceDate}`;
   if (citation) return unreadable ? `${citation} · vintage unknown` : citation;

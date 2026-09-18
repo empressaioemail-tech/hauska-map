@@ -33,6 +33,7 @@ import { readEtjFact, resolveEtjDetermination } from "./pe-etj-determination.js"
 import {
   NEVER_LOOKED_DATE_READ,
   readSetbackDateFromRowAtSource,
+  todayIso,
   type SetbackDateRead,
 } from "./setback-citation-vintage.js";
 import type {
@@ -780,6 +781,24 @@ export function latestParseableDate(dates: ReadonlyArray<string | null | undefin
 const SETBACK_RULE_DATE_FIELD_KEYS = ["effectiveDate", "effective_date"] as const;
 
 /**
+ * P-354 (2026-09-18) — the rule's own ADOPTION date, in the same two
+ * spellings. Read at source beside the effective date, never inferred from it:
+ * the factory writer's companion row carries `adoptedDate` for a row that
+ * states one (Georgetown's rewrite rows: `2026-08-11`), and the whole point of
+ * carrying it is to name both dates when the effective date has not arrived.
+ */
+const SETBACK_RULE_ADOPTED_DATE_FIELD_KEYS = ["adoptedDate", "adopted_date"] as const;
+
+/**
+ * P-354 — the day being served, read ONCE per call so a facet build cannot
+ * straddle midnight. It is used ONLY to decide whether a read date has
+ * arrived; it is never a substituted date.
+ */
+function setbackVintageAsOf(): string {
+  return todayIso();
+}
+
+/**
  * setbackRules is the companion rail carrying the rule's effective date +
  * citation. Field names are the rail's own two spellings
  * (`effectiveDate`/`effective_date`, `citationUrl`/`citation_url`).
@@ -832,7 +851,13 @@ function companionSetbackRulesMeta(
     };
   }
   return {
-    dateRead: readSetbackDateFromRowAtSource(row, SETBACK_RULE_DATE_FIELD_KEYS),
+    // P-354 (2026-09-18): the read now also asks whether the date it found has
+    // ARRIVED. A readable future date is `future-effective`, not `read` -- the
+    // state that stops the card printing a rule as if it were already in force.
+    dateRead: readSetbackDateFromRowAtSource(row, SETBACK_RULE_DATE_FIELD_KEYS, {
+      adoptedKeys: SETBACK_RULE_ADOPTED_DATE_FIELD_KEYS,
+      asOf: setbackVintageAsOf(),
+    }),
     citationUrl: asNullableString(row.citationUrl) ?? asNullableString(row.citation_url),
     sourceLabel,
   };
