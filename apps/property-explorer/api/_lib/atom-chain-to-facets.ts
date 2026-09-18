@@ -26,10 +26,13 @@ import {
   type NotSpecifiedAxes,
 } from "./setback-not-specified.js";
 import {
+  applyFutureEffectiveState,
   disclosureWithCitationVintage,
   readSetbackDateAtSource,
   setbackCitationVintageRow,
   stateFromWireBasis,
+  todayIso,
+  type SetbackCitationVintageDeclaration,
   type SetbackCitationVintageRow,
   type SetbackDateRead,
 } from "./setback-citation-vintage.js";
@@ -408,7 +411,7 @@ export interface PeBakedFacetPayload {
      * carries is identical in legacy-design-tools' copy — see
      * `setback-citation-vintage.ts`'s module doc for the vocabulary law.
      */
-    citationVintage?: SetbackCitationVintageRow;
+    citationVintage?: SetbackCitationVintageDeclaration;
     geojson?: unknown;
     /**
      * P-249 (2026-09-16). Mirrors `BakedFacetPayload.envelope.figureWithheld`
@@ -2356,7 +2359,14 @@ export function adaptAtomChainToBakedFacets(
   // `dateBasis` on the wire) apart from "the source's own basis says
   // unreadable", and deliberately never invents a date.
   const dmDateRead: SetbackDateRead = dm?.sourceDate
-    ? readSetbackDateAtSource({ present: true, value: dm.sourceDate })
+    ? applyFutureEffectiveState(readSetbackDateAtSource({ present: true, value: dm.sourceDate }), {
+        // P-354 (2026-09-18): the atom chain's own displayMeta may carry the
+        // rule's adoption date; if the effective date it carries has not
+        // arrived, the declaration is the future-effective one, not a plain
+        // reading printed as if in force.
+        adoptedDate: (dm as { adoptedDate?: unknown }).adoptedDate,
+        asOf: todayIso(),
+      })
     : stateFromWireBasis(dm?.dateBasis);
   const dmCitationVintage = setbackCitationVintageRow({
     date: dmDateRead,
