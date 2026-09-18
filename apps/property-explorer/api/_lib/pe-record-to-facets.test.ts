@@ -376,3 +376,110 @@ describe("composeZoningSetbackOverride — real Bastrop parcel_record_cell fixtu
     expect(override.provenance).toBeUndefined();
   });
 });
+
+/**
+ * P-270 (OPS-24 X11). The `setbackRules` rail is the one that serves the
+ * citation the surface-probe's XD-11 grader reads (`facets.envelope.citationUrl`
+ * — written only from `override.setbackRulesCitationUrl`), and until this lane
+ * the composer read a date out of the row only when one happened to be there,
+ * publishing NO state when it was not. A citation whose vintage could not be
+ * read was therefore served plain: the silent pick the operator's
+ * most-current-wins ruling forbids.
+ */
+describe("composeZoningSetbackOverride — setback-rule citation vintage (P-270, OPS-24 X11)", () => {
+  const CITATION = "https://library.municode.com/tx/pflugerville/ordinances/2026-04-14";
+
+  function setbackRulesRail(row: Record<string, unknown> | null, cellSource = "pflugerville_udc"): RecordRail {
+    return rail(
+      "record",
+      { kind: "value", value: "rules-v1", source: cellSource, vintage: "2026-09-01T00:00:00.000Z" },
+      row ? [{ rowIndex: 0, payload: row, source: cellSource, vintage: "2026-09-01T00:00:00.000Z" }] : [],
+    );
+  }
+
+  it("`read` when the row's own date-bearing field holds a real date, and the date lands on setbackRulesEffectiveDate", () => {
+    const record = emptyRecord({
+      setbackRules: setbackRulesRail({ citationUrl: CITATION, effectiveDate: "2026-04-14" }),
+    });
+
+    const { override } = composeZoningSetbackOverride(record);
+
+    expect(override.setbackRulesEffectiveDate).toBe("2026-04-14");
+    expect(override.setbackRulesCitationUrl).toBe(CITATION);
+    expect(override.setbackRulesCitationDateRead).toEqual({
+      sourceDate: "2026-04-14",
+      state: "read",
+    });
+  });
+
+  it("`absent-at-source` when the row carries the citation but no date field, and the date is NOT defaulted", () => {
+    const record = emptyRecord({ setbackRules: setbackRulesRail({ citationUrl: CITATION }) });
+
+    const { override } = composeZoningSetbackOverride(record);
+
+    expect(override.setbackRulesCitationUrl).toBe(CITATION);
+    expect(override.setbackRulesEffectiveDate).toBeNull();
+    expect(override.setbackRulesCitationDateRead).toEqual({
+      sourceDate: null,
+      state: "unreadable-absent-at-source",
+    });
+    expect(override.setbackRulesSourceLabel).toBe("parcel_record setbackRules (pflugerville_udc)");
+  });
+
+  it("`unparseable` when the field exists and holds something that is not a strict date", () => {
+    const record = emptyRecord({
+      setbackRules: setbackRulesRail({ citationUrl: CITATION, effective_date: "April 2026" }),
+    });
+
+    const { override } = composeZoningSetbackOverride(record);
+
+    expect(override.setbackRulesCitationDateRead).toEqual({
+      sourceDate: null,
+      state: "unreadable-unparseable",
+    });
+    expect(override.setbackRulesEffectiveDate).toBeNull();
+  });
+
+  it("reads the row's snake_case spelling too, so the `parcel_record` writer's own field name is not a second silent omission", () => {
+    const record = emptyRecord({
+      setbackRules: setbackRulesRail({ citation_url: CITATION, effective_date: "2026-04-14" }),
+    });
+
+    const { override } = composeZoningSetbackOverride(record);
+
+    expect(override.setbackRulesCitationUrl).toBe(CITATION);
+    expect(override.setbackRulesCitationDateRead?.state).toBe("read");
+  });
+
+  it("DECLARES NOTHING when this rail is not record-served: the vintage of a citation this path did not serve is not this path's to announce", () => {
+    const record = emptyRecord({
+      setbackRules: rail("legacy-transitional", { kind: "value", value: "rules-v1" }),
+    });
+
+    const { override } = composeZoningSetbackOverride(record);
+
+    // Absent keys, not `never-looked`: the same shape as
+    // `setbackRulesCitationUrl` on a payload where nothing was served.
+    expect("setbackRulesCitationDateRead" in override).toBe(false);
+    expect("setbackRulesSourceLabel" in override).toBe(false);
+    expect(override.setbackRulesCitationUrl).toBeNull();
+  });
+
+  it("a whole-parcel refusal reads no rail at all, so it declares no date read", () => {
+    const refused = { ...emptyRecord(), refused: { code: "malformed-cell", reason: "no readable kind" } };
+
+    const { override } = composeZoningSetbackOverride(refused as never);
+
+    expect(override.setbackRulesCitationDateRead).toBeUndefined();
+    expect(override.setbackRulesEffectiveDate).toBeNull();
+  });
+
+  it("the rail's own refused cell leaves the citation undeclared rather than inventing a date", () => {
+    const record = emptyRecord({ setbackRules: rail("record", { kind: "refused", reason: "engine said no" }) });
+
+    const { override } = composeZoningSetbackOverride(record);
+
+    expect(override.setbackRulesCitationUrl).toBeNull();
+    expect(override.setbackRulesCitationDateRead).toBeUndefined();
+  });
+});

@@ -46,6 +46,10 @@ import {
   type ZoningSetbackOverride,
 } from "./pe-record-to-facets.js";
 import {
+  disclosureWithCitationVintage,
+  setbackCitationVintageRow,
+} from "./setback-citation-vintage.js";
+import {
   jurisdictionRequiresPerParcelSetbackRecord,
   type CodifiedSetbackScalars,
 } from "./codified-setback-from-zoning.js";
@@ -544,8 +548,39 @@ function applyEnvelopeSetbackOverride(
     axes && envelope.setbackSource !== "parcel-record"
       ? `Reader-composed axis override (parcel_record) applied to one or more setback axes; other axes remain atom-chain-sourced.${dateNote}`
       : "";
+  // P-270 (OPS-24 X11). The `citationUrl` below is the only writer of
+  // `facets.envelope.citationUrl` in this app, and until this lane it was
+  // served with NO statement of its vintage whenever the source carried no
+  // readable effective date — so the card printed a citation a reader had to
+  // assume was current. `citationVintage` is the conflict row the operator's
+  // most-current-wins ruling requires and the note is the one sentence a
+  // reader sees; both are null/absent when the date IS readable (the agreeing
+  // control) or when there is no citation at all, so an unchanged payload
+  // stays byte-identical to what it was before this lane.
+  const citationVintage = override.setbackRulesCitationDateRead
+    ? setbackCitationVintageRow({
+        date: override.setbackRulesCitationDateRead,
+        citationUrl: override.setbackRulesCitationUrl,
+        sourceLabel: override.setbackRulesSourceLabel,
+      })
+    : null;
+  const baseDisclosure = overrideNote
+    ? envelope.disclosure
+      ? `${envelope.disclosure} ${overrideNote}`
+      : overrideNote
+    : (envelope.disclosure ?? null);
+  const disclosure = disclosureWithCitationVintage(baseDisclosure, citationVintage);
+  // P-270: writing a citation here also means owning that citation's vintage
+  // declaration, so the envelope's own row must not survive the spread below
+  // when this override REPLACES the citation it described — a stale "vintage
+  // unknown" left on a newly dated citation would be a worse lie than no
+  // declaration at all. When no citation is written here the envelope's row
+  // still describes the envelope's own citation and is carried through.
+  const servesCitation = !!override.setbackRulesCitationUrl;
+  const inheritedCitationVintage = servesCitation ? undefined : envelope.citationVintage;
+  const { citationVintage: _supersededCitationVintage, ...envelopeBase } = envelope;
   return {
-    ...envelope,
+    ...envelopeBase,
     ...(hasDistrictOverride ? { district: override.district } : {}),
     setbacks: axes
       ? {
@@ -557,9 +592,10 @@ function applyEnvelopeSetbackOverride(
         }
       : envelope.setbacks,
     ...(override.setbackRulesCitationUrl ? { citationUrl: override.setbackRulesCitationUrl } : {}),
-    ...(overrideNote
-      ? { disclosure: envelope.disclosure ? `${envelope.disclosure} ${overrideNote}` : overrideNote }
+    ...(citationVintage ?? inheritedCitationVintage
+      ? { citationVintage: citationVintage ?? inheritedCitationVintage }
       : {}),
+    ...(disclosure !== undefined ? { disclosure } : {}),
   };
 }
 

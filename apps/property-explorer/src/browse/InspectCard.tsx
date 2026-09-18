@@ -1099,11 +1099,18 @@ export function InspectCard({
   // appear where the sources agree (wave-6 falsifier).
   const setbackConflictLine: string | null =
     baked?.setbackConflictNote ?? null;
+  // P-270 (OPS-24 X11). The declaration that travels with a citation whose
+  // effective date could not be read at source. Null on a readable date and on
+  // a payload with no citation, so no note can appear where the vintage is
+  // known — the same "no note on agreement" shape the conflict line above has.
+  const setbackVintageLine: string | null =
+    baked?.setbackCitationVintage?.note ?? null;
   const setbackSourceLine: string | null =
     source === "baked" && baked
       ? setbackSourceClause({
           citation: baked.setbackSourceCitation,
           sourceDate: baked.setbackSourceDate,
+          citationVintage: baked.setbackCitationVintage,
         })
       : null;
 
@@ -1450,6 +1457,17 @@ export function InspectCard({
           style={{ marginTop: 4, fontSize: 11.5, lineHeight: 1.45, color: TEXT }}
         >
           {setbackConflictLine}
+        </div>
+      )}
+      {/* P-270 (OPS-24 X11): the citation above is served undated; this is the
+          declaration that says so, in the one sentence both repos share. Shown
+          whenever the vintage is unreadable — never shown when it is known. */}
+      {setbackVintageLine && (
+        <div
+          data-testid="inspect-setback-vintage"
+          style={{ marginTop: 4, fontSize: 11.5, lineHeight: 1.45, color: MUTED }}
+        >
+          {setbackVintageLine}
         </div>
       )}
 
@@ -1803,18 +1821,31 @@ function liveGovernedByFragment(
  * have. The values themselves come from the Setbacks row above; this line is
  * what makes them attributable.
  */
+/**
+ * P-154 wave 6 (R-1) — the followed row's own citation and effective date.
+ *
+ * P-270 (OPS-24 X11) added `citationVintage`. When a citation is served whose
+ * effective date could not be read at source, this function must NOT return it
+ * as a bare citation: a reader who sees only a URL cannot tell a rule from
+ * this year from one from 2011, and presenting it plainly is the silent pick
+ * the operator's most-current-wins ruling forbids. The marker is deliberately
+ * short and the exact one-sentence declaration is rendered beside it (see the
+ * `inspect-setback-vintage` element), so the sentence itself is never retyped
+ * into a second string here.
+ */
 export function setbackSourceClause(input: {
   citation: string | null;
   sourceDate: string | null;
+  citationVintage?: { note: string } | null;
 }): string | null {
   const citation = (input.citation ?? "").trim();
   const sourceDate = (input.sourceDate ?? "").trim();
+  const unreadable = !sourceDate && !!input.citationVintage;
   if (!citation && !sourceDate) return null;
   if (citation && sourceDate) return `${citation} · effective ${sourceDate}`;
-  if (citation) return citation;
+  if (citation) return unreadable ? `${citation} · vintage unknown` : citation;
   return `effective ${sourceDate}`;
 }
-
 export function liveSetbackLine(env: EnvelopeState): string | null {
   const s = env.setbacks;
   if (!s || (s.front_ft == null && s.side_ft == null && s.rear_ft == null)) {

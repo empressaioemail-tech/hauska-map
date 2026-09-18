@@ -25,6 +25,14 @@ import {
   lookupNotSpecified,
   type NotSpecifiedAxes,
 } from "./setback-not-specified.js";
+import {
+  disclosureWithCitationVintage,
+  readSetbackDateAtSource,
+  setbackCitationVintageRow,
+  stateFromWireBasis,
+  type SetbackCitationVintageRow,
+  type SetbackDateRead,
+} from "./setback-citation-vintage.js";
 import { withVerdictLayerFields } from "./verdict-layer-merge.js";
 // P-272: one definition of a readable situs, shared with the client modules
 // (`fact-sheet-resolver.ts`, `live-envelope-augment.ts`, `baked-facets.ts`) and
@@ -379,6 +387,18 @@ export interface PeBakedFacetPayload {
     disclosure?: string;
     emptyReason?: string;
     citationUrl?: string;
+    /**
+     * P-270 (OPS-24 X11). The conflict row for a citation being served
+     * WITHOUT a readable effective date. Present only in that case; absent
+     * when the date was read at source (a readable date is not a conflict)
+     * and absent when there is no citation at all. Written by
+     * `companionSetbackRulesMeta` -> `applyEnvelopeSetbackOverride`
+     * (pe-record-to-facets.ts / pe-property-atoms.ts) on the record rail, and
+     * by the `dm` block below on the property atom chain. The sentence it
+     * carries is identical in legacy-design-tools' copy — see
+     * `setback-citation-vintage.ts`'s module doc for the vocabulary law.
+     */
+    citationVintage?: SetbackCitationVintageRow;
     geojson?: unknown;
     /**
      * P-249 (2026-09-16). Mirrors `BakedFacetPayload.envelope.figureWithheld`
@@ -2282,7 +2302,22 @@ export function adaptAtomChainToBakedFacets(
         ...(dm?.sourceDate ? { sourceDate: dm.sourceDate } : {}),
         ...(dm?.dateBasis ? { sourceDateBasis: dm.dateBasis } : {}),
       }
-    : {};
+      : {};
+  // P-270 (OPS-24 X11): the atom-chain producer's own copy of the vintage
+  // decision. Until this lane the two lines below wrote the date only when it
+  // existed and wrote NO state when it did not, so an atom-chain citation with
+  // no readable date rendered as a plain citation. `stateFromWireBasis` keeps
+  // "nobody consulted a date at all" (an atom minted before P-154 wave 6, no
+  // `dateBasis` on the wire) apart from "the source's own basis says
+  // unreadable", and deliberately never invents a date.
+  const dmDateRead: SetbackDateRead = dm?.sourceDate
+    ? readSetbackDateAtSource({ present: true, value: dm.sourceDate })
+    : stateFromWireBasis(dm?.dateBasis);
+  const dmCitationVintage = setbackCitationVintageRow({
+    date: dmDateRead,
+    citationUrl: dm?.citationUrl,
+    sourceLabel: dm?.citationUrl ? `property atom chain setback-rule (${dm.dateBasis ?? "no basis on wire"})` : null,
+  });
   const outcomeKind =
     envAtom?.outcome && typeof envAtom.outcome.kind === "string"
       ? envAtom.outcome.kind
@@ -2581,6 +2616,20 @@ export function adaptAtomChainToBakedFacets(
   // the card shows height/impervious/min-lot + the honest second-source callout).
   if (envelope && Object.keys(fullFields).length > 0) {
     envelope = { ...envelope, ...fullFields };
+  }
+  // P-270 (OPS-24 X11): applied HERE, once, after every branch above — so a
+  // citation the atom chain serves without a readable effective date is
+  // declared whichever branch produced the envelope, and the declaration
+  // cannot be forgotten by a branch added later. `dmCitationVintage` is null
+  // when the date was read at source (the agreeing control) or when the atom
+  // chain cites nothing, so the branch-neutral placement cannot add a note to
+  // a payload that has nothing to declare.
+  if (envelope && dmCitationVintage) {
+    envelope = {
+      ...envelope,
+      citationVintage: dmCitationVintage,
+      disclosure: disclosureWithCitationVintage(envelope.disclosure ?? null, dmCitationVintage),
+    };
   }
 
   return {
