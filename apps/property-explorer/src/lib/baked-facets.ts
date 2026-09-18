@@ -435,7 +435,8 @@ export type OwnerFactCardInput = {
 /** Cortex inspect GET city limits determination (P-76). Root sibling. */
 export type CityLimitsFactCardInput = {
   status?: string;
-  etjStatus?: string;
+  /** P-332: null when the wire served no ETJ state (distinct from "unresolved"). */
+  etjStatus?: string | null;
   source?: string;
   basis?: string;
   cityName?: string;

@@ -1249,7 +1249,8 @@ function cityLimitsFromInspectWire(
 ):
   | Fact<{
       display: string;
-      etjStatus: string;
+      /** One of the four served states, or null when the wire carried none. */
+      etjStatus: string | null;
     }>
   | undefined {
   if (
@@ -1273,7 +1274,21 @@ function cityLimitsFromInspectWire(
   if (source !== "tx_city_boundary") {
     return undefined;
   }
-  const etjStatus = str(fact.etjStatus) ?? "unresolved";
+  // P-332: this `?? "unresolved"` was a sixth literal in the panel path — a
+  // consumer-side default for a state the wire could not previously express.
+  // It is REMOVED rather than kept as a benign fallback: a payload that does
+  // not carry a state has not told this row that ETJ is unresolved, and
+  // defaulting it here would be a declaration wearing a default (the shape
+  // F2 pre-registered as a FAIL). The four served states render distinctly
+  // below; anything else makes no ETJ claim in the row at all.
+  const etjStatusRaw = str(fact.etjStatus);
+  const etjStatus =
+    etjStatusRaw === "present" ||
+    etjStatusRaw === "absent" ||
+    etjStatusRaw === "unresolved" ||
+    etjStatusRaw === "conflicting"
+      ? etjStatusRaw
+      : null;
   const basis = str(fact.basis);
   const prov = provenance({
     source: "tx_city_boundary",
@@ -1289,9 +1304,21 @@ function cityLimitsFromInspectWire(
     );
   }
 
+  // P-332: four states, four renderings. `conflicting` is the one that must
+  // never read as a clean fact — it names the disagreement in the row itself,
+  // because the row is what a customer reads, while the full declaration
+  // (both sources and both bases) travels on the served payload as
+  // `cityLimitsFact.etjConflict`.
   const etjSuffix =
-    etjStatus === "unresolved" ? " · ETJ unresolved" : "";
-
+    etjStatus === "unresolved"
+      ? " · ETJ unresolved"
+      : etjStatus === "present"
+        ? " · ETJ present"
+        : etjStatus === "absent"
+          ? " · ETJ absent"
+          : etjStatus === "conflicting"
+            ? " · ETJ conflict (city limits say incorporated, the ETJ read says present)"
+            : "";
   if (status === "incorporated") {
     const cityName = str(fact.cityName);
     const display = cityName

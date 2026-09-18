@@ -393,13 +393,17 @@ export function ownerFacetFromSheet(
 /**
  * City limits row from sheet.cityLimits, which the resolver fills from
  * cityLimitsFact only. Missing field → unknown (InspectCard hides the row).
- * Never invented from situsCity / bake city. ETJ unresolved is typed absence.
+ * Never invented from situsCity / bake city.
+ *
+ * P-332 (2026-09-18): `etjStatus` is `string | null` — `null` means the wire
+ * served no ETJ state, which is NOT the same as `"unresolved"` (a state the
+ * panel did serve, with a stated reason). Never default one to the other.
  */
 export function cityLimitsFacetFromSheet(
   cityLimits:
     | Fact<{
         display: string;
-        etjStatus: string;
+        etjStatus: string | null;
       }>
     | undefined,
 ): CardFacet<string> {

@@ -29,6 +29,7 @@
 // atom-chain / cortex-merge path already produced for that field untouched.
 
 import { interpretRecordCell, noSuchCellRefusal, type RecordCompanionRow } from "./pe-record-cell-interpret.js";
+import { readEtjFact, resolveEtjDetermination } from "./pe-etj-determination.js";
 import {
   NEVER_LOOKED_DATE_READ,
   readSetbackDateFromRowAtSource,
@@ -202,17 +203,20 @@ function toCompanionRows(rail: RecordRail): RecordCompanionRow[] {
 }
 
 /** cityLimits: parcel_record's own basis shape carries `disposition`, not `finding` (distinct from every other companion rail). */
-function composeCityLimits(placeKey: string, rail: RecordRail): CityLimitsFactWire | undefined {
+function composeCityLimits(
+  placeKey: string,
+  rail: RecordRail,
+  prior?: CityLimitsFactWire,
+): CityLimitsFactWire | undefined {
   const cell = rail.cell
     ? interpretRecordCell(placeKey, "cityLimits", rail.cell, [])
     : noSuchCellRefusal(placeKey, "cityLimits");
   if (cell.state === "refused") {
-    return {
+    return finishCityLimits({
       status: "unmeasured",
-      etjStatus: "unresolved",
-      source: "tx_city_boundary",
       basis: `parcel_record cityLimits refused (${cell.code}): ${cell.reason}`,
-    };
+      prior,
+    });
   }
   if (cell.state === "absent") {
     const rec = asRecord(cell.basis);
@@ -223,23 +227,60 @@ function composeCityLimits(placeKey: string, rail: RecordRail): CityLimitsFactWi
       : typeof cell.basis === "string"
         ? cell.basis
         : "parcel_record marked this parcel's jurisdiction absent-verified with no basis recorded.";
-    return { status: "unincorporated", etjStatus: "unresolved", source: "tx_city_boundary", basis };
+    return finishCityLimits({ status: "unincorporated", basis, prior });
   }
   const cityName = typeof cell.value === "string" ? cell.value : null;
   if (!cityName) {
-    return {
+    return finishCityLimits({
       status: "unmeasured",
-      etjStatus: "unresolved",
-      source: "tx_city_boundary",
       basis: `parcel_record_cell for ${placeKey}/cityLimits is kind=value but its value is not a usable city name (${JSON.stringify(cell.value)}). Refusing rather than inventing a city.`,
-    };
+      prior,
+    });
   }
-  return {
+  return finishCityLimits({
     status: "incorporated",
-    etjStatus: "unresolved",
-    source: "tx_city_boundary",
-    basis: `parcel_record cityLimits: incorporated, city '${cityName}' (source: ${cell.cellSource}, vintage: ${cell.vintage || "unknown"}).`,
     cityName,
+    basis: `parcel_record cityLimits: incorporated, city '${cityName}' (source: ${cell.cellSource}, vintage: ${cell.vintage || "unknown"}).`,
+    prior,
+  });
+}
+
+/**
+ * P-332 (OPS-24 wave 1): THE place this module writes `etjStatus` — one call,
+ * replacing the five literals (`etjStatus: "unresolved"`) that used to sit in
+ * `composeCityLimits`'s four branches and in `recordUnavailableCityLimits`.
+ *
+ * The record reader's `cityLimits` cell is a CITY-LIMITS read: it has no ETJ
+ * column and never did. The determination therefore comes from `prior` — the
+ * fact this module is about to replace, which is where cortex's own read
+ * (P-296) now lands since `isCityLimitsFactWire` stopped rejecting it. When
+ * there is no determination to carry, the state is `unresolved` and
+ * `etjReason` says why, rather than the ETJ status being silently invented
+ * from the city-limits status.
+ */
+function finishCityLimits(args: {
+  status: "incorporated" | "unincorporated" | "unmeasured";
+  basis: string;
+  cityName?: string;
+  prior?: CityLimitsFactWire;
+}): CityLimitsFactWire {
+  const determination = resolveEtjDetermination({
+    cityLimitsStatus: args.status,
+    cityName: args.cityName ?? null,
+    cityLimitsSource: "tx_city_boundary",
+    cityLimitsBasis: args.basis,
+    etjFact: readEtjFact(args.prior?.etjFact),
+    etjStatusInHand: args.prior?.etjStatus,
+  });
+  return {
+    status: args.status,
+    etjStatus: determination.etjStatus,
+    source: "tx_city_boundary",
+    basis: args.basis,
+    ...(args.cityName ? { cityName: args.cityName } : {}),
+    ...(determination.etjFact ? { etjFact: determination.etjFact } : {}),
+    ...(determination.etjConflict ? { etjConflict: determination.etjConflict } : {}),
+    ...(determination.etjReason ? { etjReason: determination.etjReason } : {}),
   };
 }
 
@@ -883,13 +924,15 @@ function recordUnavailableGenericFact(
   return { state: "refused", code: "parcel-record-unavailable", source, reason: unavailableMessage(failure) };
 }
 
-function recordUnavailableCityLimits(failure: RecordFetchFailure): CityLimitsFactWire {
-  return {
-    status: "unmeasured",
-    etjStatus: "unresolved",
-    source: "tx_city_boundary",
-    basis: unavailableMessage(failure),
-  };
+function recordUnavailableCityLimits(
+  failure: RecordFetchFailure,
+  prior?: CityLimitsFactWire,
+): CityLimitsFactWire {
+  // P-332: an outage of the CITY-LIMITS reader says nothing about the ETJ
+  // read, which came from a different source. A determination already in hand
+  // is carried rather than blanked by an unrelated outage; with none in hand
+  // the state stays `unresolved` and says why.
+  return finishCityLimits({ status: "unmeasured", basis: unavailableMessage(failure), prior });
 }
 
 /**
@@ -898,9 +941,12 @@ function recordUnavailableCityLimits(failure: RecordFetchFailure): CityLimitsFac
  * atoms.ts) in place of the normal `composeRecordPatch` output whenever the
  * `/record` fetch itself failed.
  */
-export function composeRecordUnavailablePatch(failure: RecordFetchFailure): RecordPatch {
+export function composeRecordUnavailablePatch(
+  failure: RecordFetchFailure,
+  priorCityLimits?: CityLimitsFactWire,
+): RecordPatch {
   return {
-    cityLimitsFact: recordUnavailableCityLimits(failure),
+    cityLimitsFact: recordUnavailableCityLimits(failure, priorCityLimits),
     floodHazardFact: recordUnavailableGenericFact(FLOOD_HAZARD_FACT_SOURCE, failure) as FloodHazardFactWire,
     specialDistrictFact: recordUnavailableGenericFact(SPECIAL_DISTRICT_FACT_SOURCE, failure) as SpecialDistrictFactWire,
     wellFact: recordUnavailableGenericFact(WELL_FACT_SOURCE, failure) as WellFactWire,
@@ -920,7 +966,17 @@ export function composeRecordUnavailablePatch(failure: RecordFetchFailure): Reco
  * the caller can attach it as an additive, non-breaking field (P-167's
  * vocabulary is not yet landed — see dispatch item 1).
  */
-export function composeRecordPatch(record: ParcelRecordResponse): {
+export function composeRecordPatch(
+  record: ParcelRecordResponse,
+  /**
+   * P-332: the city-limits fact this patch will REPLACE. The record reader has
+   * no ETJ column, so this is where the determination in hand comes from —
+   * cortex's own read, adopted (and normalised) by `withCityLimitsFact` before
+   * this runs. Omitted by direct callers/tests, in which case the ETJ state is
+   * honestly `unresolved` with a stated reason.
+   */
+  priorCityLimits?: CityLimitsFactWire,
+): {
   patch: RecordPatch;
   railStates: Record<string, RecordRailState>;
 } {
@@ -936,7 +992,7 @@ export function composeRecordPatch(record: ParcelRecordResponse): {
 
   const cityLimits = record.rails.cityLimits;
   if (cityLimits?.serve === "record") {
-    const fact = composeCityLimits(placeKey, cityLimits);
+    const fact = composeCityLimits(placeKey, cityLimits, priorCityLimits);
     if (fact) patch.cityLimitsFact = fact;
   }
   const flood = record.rails.flood;

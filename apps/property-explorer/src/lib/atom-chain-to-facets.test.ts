@@ -1805,7 +1805,15 @@ describe("mergeBakedBaseFacts — cityLimitsFact from cortex JSON ROOT (P-76)", 
       ...bakedCortexBody,
       cityLimitsFact: goldCityLimitsIncorporated,
     });
-    expect(merged.cityLimitsFact).toEqual(goldCityLimitsIncorporated);
+    expect(merged.cityLimitsFact).toEqual({
+      ...goldCityLimitsIncorporated,
+      // P-332: normalised on ADOPTION. The fixture carries no etjFact and a
+      // literal `unresolved`, so the served state stays `unresolved` and now
+      // carries the reason — the panel no longer adopts a bare state with no
+      // account of where it came from.
+      etjReason:
+        "no ETJ determination was served for this point; P-332: ETJ is never derived from city limits, nor city limits from ETJ.",
+    });
     expect(merged.cityLimitsFact?.source).toBe("tx_city_boundary");
     expect(merged.cityLimitsFact?.cityName).toBe("Bastrop");
     expect(JSON.stringify(merged.cityLimitsFact)).not.toMatch(/situsCity/);

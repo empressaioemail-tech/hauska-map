@@ -103,6 +103,11 @@ describe("fetchParcelRecordOnce / applyRecordPatch (P152-PANEL)", () => {
       basis:
         "parcel_record cityLimits: incorporated, city 'Bastrop' (source: landing_parcel_jurisdiction, vintage: 2026-09-02T18:13:56.751Z).",
       cityName: "Bastrop",
+      // P-332: the pre-existing fact on `basePayload()` carries no determination
+      // (etjStatus "unresolved", no etjFact), so the record composer serves
+      // `unresolved` and states why, instead of silently blanking the state.
+      etjReason:
+        "no ETJ determination was served for this point; P-332: ETJ is never derived from city limits, nor city limits from ETJ.",
     });
     expect(after.recordRailStates).toEqual({ cityLimits: { serve: "record", atomBacked: false } });
     // Nothing else on the payload moved.
@@ -203,6 +208,8 @@ describe("fetchParcelRecordOnce / applyRecordPatch (P152-PANEL)", () => {
       etjStatus: "unresolved",
       source: "tx_city_boundary",
       basis: "parcel_record reader unavailable (http-error 503): record HTTP 503",
+      etjReason:
+        "no ETJ determination was served for this point; P-332: ETJ is never derived from city limits, nor city limits from ETJ.",
     });
     expect(after.floodHazardFact).toEqual({
       state: "refused",
@@ -742,5 +749,130 @@ describe("bastropPerParcelSetbackIfNeeded", () => {
     });
 
     expect(result).toBeNull();
+  });
+});
+
+/**
+ * P-332 (OPS-24 wave 1), end-to-end through `applyRecordPatch` — the function
+ * the facets route actually calls. The unit-level falsifiers live in
+ * `pe-record-to-facets.test.ts` and `pe-etj-determination.test.ts`; these two
+ * prove the determination reaches the SERVED payload, which is the thing the
+ * dispatch's problem statement is about ("the panel is discarding accurate ETJ
+ * data ... and showing a generic unresolved status").
+ *
+ * `LIVE_48453_134392_CITY_LIMITS` is cortex's real served `cityLimitsFact` for
+ * that parcel, captured 2026-09-18 through the spine's own cortex proxy.
+ */
+const LIVE_48453_134392_CITY_LIMITS = {
+  status: "incorporated",
+  etjStatus: "present",
+  source: "tx_city_boundary",
+  basis:
+    "parcel_record cityLimits: incorporated, city 'Austin' (source: landing_parcel_jurisdiction, vintage: 2026-09-17T19:23:36.801Z). ETJ: point-in-polygon against tx_etj_boundary etj_id=austin-tx:39 (Austin: \"AUSTIN 2 MILE ETJ\", ring 39)",
+  cityName: "Austin",
+  queryPoint: { longitude: -97.85514, latitude: 30.35297 },
+  etjFact: {
+    status: "present",
+    source: "tx_etj_boundary",
+    basis: "point-in-polygon against tx_etj_boundary etj_id=austin-tx:39",
+    cityKey: "austin-tx",
+    ringLabel: "AUSTIN 2 MILE ETJ",
+    etjId: "austin-tx:39",
+    queryPoint: { longitude: -97.85514, latitude: 30.35297 },
+  },
+};
+
+describe("P-332 (OPS-24 wave 1) — the served payload carries the ETJ determination, not an unresolved literal", () => {
+  const RECORD_BODY = (value: string | null, kind: string, extra: Record<string, unknown> = {}) => ({
+    parcelNodeId: "48021:34049",
+    placeKey: "48021:34049",
+    countyFips: "48021",
+    railRegistrySha: "sha",
+    readAt: "2026-09-12T00:00:00.000Z",
+    rails: {
+      cityLimits: recordRail("record", { kind, ...(value ? { value, source: "landing_parcel_jurisdiction", vintage: "2026-09-02T18:13:56.751Z" } : {}), ...extra }),
+    },
+    refused: null,
+  });
+
+  it("F1+F3 (48453:134392, live shape): an incorporated record cell on top of cortex's present read serves DECLARED CONFLICT — not `unresolved`, and not a clean `present`", async () => {
+    vi.stubEnv("HAUSKA_RETRIEVAL_API_KEY", "test-key");
+    vi.stubGlobal(
+      "fetch",
+      vi.fn().mockResolvedValue(jsonResponse(RECORD_BODY("Austin", "value"))),
+    );
+
+    const before = basePayload();
+    before.cityLimitsFact = { ...LIVE_48453_134392_CITY_LIMITS } as never;
+
+    const after = await applyRecordPatch(before, "48021:34049");
+
+    expect(after.cityLimitsFact?.status).toBe("incorporated");
+    expect(after.cityLimitsFact?.etjStatus).toBe("conflicting");
+    expect(after.cityLimitsFact?.etjStatus).not.toBe("unresolved");
+    expect(after.cityLimitsFact?.etjStatus).not.toBe("present");
+    expect(after.cityLimitsFact?.etjConflict?.etj.etjId).toBe("austin-tx:39");
+    expect(after.cityLimitsFact?.etjConflict?.cityLimits.basis).toContain("landing_parcel_jurisdiction");
+    // and F21 is not regressed by the determination now being carried:
+    expect(after.cityLimitsFact?.queryPoint).toEqual({ longitude: -97.85514, latitude: 30.35297 });
+  });
+
+  it("F1 (coherent case): an unincorporated record cell on top of a present read serves `present` with its ring intact — the literal this lane removed", async () => {
+    vi.stubEnv("HAUSKA_RETRIEVAL_API_KEY", "test-key");
+    vi.stubGlobal(
+      "fetch",
+      vi.fn().mockResolvedValue(jsonResponse(RECORD_BODY(null, "absent-verified", { basis: { disposition: "unincorporated", source: "landing_parcel_jurisdiction" } }))),
+    );
+
+    const before = basePayload();
+    before.cityLimitsFact = { ...LIVE_48453_134392_CITY_LIMITS } as never;
+
+    const after = await applyRecordPatch(before, "48021:34049");
+
+    expect(after.cityLimitsFact?.status).toBe("unincorporated");
+    expect(after.cityLimitsFact?.etjStatus).toBe("present");
+    expect(after.cityLimitsFact?.etjReason).toBeUndefined();
+    expect(after.cityLimitsFact?.etjFact?.ringLabel).toBe("AUSTIN 2 MILE ETJ");
+  });
+
+  it("F2 (agreeing control, 48209:97658 live shape): a checked absence survives as `absent`, and generates no conflict", async () => {
+    vi.stubEnv("HAUSKA_RETRIEVAL_API_KEY", "test-key");
+    vi.stubGlobal("fetch", vi.fn().mockResolvedValue(jsonResponse(RECORD_BODY("San Marcos", "value"))));
+
+    const before = basePayload();
+    before.cityLimitsFact = {
+      status: "incorporated",
+      etjStatus: "absent",
+      source: "tx_city_boundary",
+      basis: "parcel_record cityLimits: incorporated, city 'San Marcos'. ETJ: no published ETJ ring contains it",
+      cityName: "San Marcos",
+      etjFact: {
+        status: "absent",
+        source: "tx_etj_boundary",
+        basis: "no published ETJ ring contains it",
+        coveredBy: ["san-marcos-tx"],
+        ringsConsulted: 1,
+      },
+    } as never;
+
+    const after = await applyRecordPatch(before, "48021:34049");
+
+    expect(after.cityLimitsFact?.etjStatus).toBe("absent");
+    expect(after.cityLimitsFact?.etjConflict).toBeUndefined();
+    expect(after.cityLimitsFact?.etjFact?.ringsConsulted).toBe(1);
+  });
+
+  it("F4 (never default): a payload with no determination in hand is served `unresolved` WITH a reason — the state is never a bare literal", async () => {
+    vi.stubEnv("HAUSKA_RETRIEVAL_API_KEY", "test-key");
+    vi.stubGlobal("fetch", vi.fn().mockResolvedValue(jsonResponse(RECORD_BODY("Bastrop", "value"))));
+
+    const before = basePayload(); // basePayload's cityLimitsFact carries no determination
+    const after = await applyRecordPatch(before, "48021:34049");
+
+    expect(after.cityLimitsFact?.etjStatus).toBe("unresolved");
+    expect(after.cityLimitsFact?.etjReason).toBe(
+      "no ETJ determination was served for this point; P-332: ETJ is never derived from city limits, nor city limits from ETJ.",
+    );
+    expect(after.cityLimitsFact?.etjFact).toBeUndefined();
   });
 });

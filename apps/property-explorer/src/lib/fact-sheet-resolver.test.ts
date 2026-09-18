@@ -2101,6 +2101,70 @@ describe("cityLimitsFact only (P-76)", () => {
     const sheet = await sheetOf(makeResolver(stub), NODE_ID);
     expect(sheet.cityLimits).toBeUndefined();
   });
+
+  /**
+   * P-332 (OPS-24 wave 1). The row is what a customer reads, and the served
+   * four-state vocabulary has to survive the trip to it: `conflicting` is the
+   * one that must never read as a clean fact, and a wire that does not carry a
+   * state must not have one invented for it.
+   */
+  async function cityLimitsRow(cityLimitsFact: Record<string, unknown>) {
+    const wire = facetsWire() as unknown as Record<string, unknown>;
+    wire.cityLimitsFact = { source: "tx_city_boundary", basis: "b", ...cityLimitsFact };
+    const stub = installFetchStub({ facets: wire, gisFeatures: [SUBJECT_FEATURE] });
+    const sheet = await sheetOf(makeResolver(stub), NODE_ID);
+    if (sheet.cityLimits?.state !== "present") throw new Error("unreachable");
+    return sheet.cityLimits.value;
+  }
+
+  it("etjStatus 'present' renders an ETJ present claim, not the unresolved literal", async () => {
+    const value = await cityLimitsRow({
+      status: "unincorporated",
+      etjStatus: "present",
+      cityName: null,
+      basis: "ETJ: point-in-polygon against tx_etj_boundary etj_id=austin-tx:39",
+    });
+    expect(value.display).toContain("ETJ present");
+    expect(value.display).not.toContain("ETJ unresolved");
+    expect(value.etjStatus).toBe("present");
+  });
+
+  it("etjStatus 'absent' renders an ETJ absent claim", async () => {
+    const value = await cityLimitsRow({
+      status: "incorporated",
+      etjStatus: "absent",
+      cityName: "San Marcos",
+    });
+    expect(value.display).toContain("ETJ absent");
+    expect(value.display).toContain("San Marcos");
+    expect(value.etjStatus).toBe("absent");
+  });
+
+  it("etjStatus 'conflicting' names the disagreement in the row rather than reading as a clean fact", async () => {
+    const value = await cityLimitsRow({
+      status: "incorporated",
+      etjStatus: "conflicting",
+      cityName: "Austin",
+    });
+    expect(value.display).toContain("ETJ conflict");
+    expect(value.display).toContain("incorporated");
+    expect(value.display).toContain("present");
+    expect(value.display).not.toContain("ETJ unresolved");
+    expect(value.etjStatus).toBe("conflicting");
+  });
+
+  it("a wire carrying NO etjStatus makes NO ETJ claim — the sixth literal is gone, and with it the fabricated 'unresolved'", async () => {
+    const value = await cityLimitsRow({ status: "incorporated", cityName: "Bastrop" });
+    expect(value.etjStatus).toBeNull();
+    expect(value.display).toContain("Bastrop");
+    expect(value.display).not.toContain("ETJ");
+  });
+
+  it("an unrecognised etjStatus is not coerced into a real state either", async () => {
+    const value = await cityLimitsRow({ status: "incorporated", cityName: "Bastrop", etjStatus: "probably" });
+    expect(value.etjStatus).toBeNull();
+    expect(value.display).not.toContain("ETJ");
+  });
 });
 
 describe("schoolDistrictFact only (acquire-wave12)", () => {
