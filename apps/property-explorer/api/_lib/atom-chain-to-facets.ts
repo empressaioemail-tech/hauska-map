@@ -310,6 +310,18 @@ export interface PeBakedFacetPayload {
     situsAddress?: string | null;
     situsCity?: string | null;
     situsState?: string | null;
+    /**
+     * P-270 ADDRESS HALF (2026-09-18). `situsZip` is the ledger's own ZIP for the
+     * situs. `situsCityBasis` says WHERE `situsCity` came from when there is one:
+     * `"cad-roll"` is the roll's own situs city, `"city-limits"` is the
+     * incorporated city whose LIMITS CONTAIN the parcel (used only when the roll
+     * states no city — see `pe-record-to-facets.ts`'s `composeBaseFactsSitus`).
+     * A renderer must never present a `"city-limits"` city as the roll's mailing
+     * city. Absent means the payload does not say, which is not the same as
+     * `"cad-roll"`.
+     */
+    situsZip?: string | null;
+    situsCityBasis?: "cad-roll" | "city-limits" | null;
     landUse?: { code: string; description?: string | null } | null;
     acreage?: { value: number; sqft?: number; method?: string } | null;
     /**
@@ -1841,6 +1853,14 @@ export function mergeBakedBaseFacts(
         situsAddress,
         situsCity: bakedBase.situsCity ?? null,
         situsState: bakedBase.situsState ?? null,
+        // P-270 address half: cortex's baked side is the only side that carries
+        // these today (the atom chain has no ZIP). Carried through unflattened,
+        // and only as strings — a malformed value becomes null, never a guess.
+        situsZip: typeof bakedBase.situsZip === "string" && bakedBase.situsZip.trim() ? bakedBase.situsZip : null,
+        situsCityBasis:
+          bakedBase.situsCityBasis === "cad-roll" || bakedBase.situsCityBasis === "city-limits"
+            ? bakedBase.situsCityBasis
+            : null,
         landUse,
         acreage,
         cadRoll:

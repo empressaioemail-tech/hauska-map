@@ -16,6 +16,8 @@
 // (brief-view-model.ts renders unknown sections generically and never
 // fabricates provenance).
 
+import { composeSitusLine } from "../../src/lib/situs-address.js";
+
 type JsonRecord = Record<string, unknown>
 
 export interface ShareBriefSection {
@@ -176,7 +178,18 @@ export function sharePropertyHeader(
   const county = root.countyName
   return {
     parcelNodeId,
-    situsAddress: typeof situs === 'string' && situs.trim() ? situs : null,
+    // P-270 ADDRESS HALF (2026-09-18): the header is a customer-readable ADDRESS
+    // LINE, so it goes through the one composer like every other line rather than
+    // passing the bare street through. Before this the share header showed
+    // `21404 GRAND NATIONAL AVE` for a payload that also carried the ZIP 78660 and
+    // an incorporated city — the same drop the card had, on the anonymous surface
+    // a share viewer reads. `composeSitusLine` returns the situs unchanged where it
+    // already spells out city/state/ZIP, so no existing header changes except by
+    // gaining the components it was dropping.
+    situsAddress:
+      typeof situs === 'string' && situs.trim()
+        ? (composeSitusLine({ ...baseFacts, situsAddress: situs as string }) ?? (situs as string))
+        : null,
     countyName: typeof county === 'string' && county.trim() ? county : null,
   }
 }

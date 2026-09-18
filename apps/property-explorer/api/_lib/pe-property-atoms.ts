@@ -730,8 +730,17 @@ export async function applyRecordPatch(
     facets: {
       ...facets,
       ...(snapshotAt ? { bakedAt: snapshotAt } : {}),
-      baseFacts: patch.baseFactsAcreage
-        ? { ...baseFacts, acreage: patch.baseFactsAcreage }
+      baseFacts: patch.baseFactsAcreage || patch.baseFactsSitus
+        ? {
+            ...baseFacts,
+            // P-270 address half: the record composers win over whatever the
+            // atom-chain/cortex merge put here — the reader was consulted for
+            // this response and its cell is the newer read. Spread first, so a
+            // key the patch does not own (apn, situsAddress, landUse) is left
+            // exactly as it was.
+            ...(patch.baseFactsSitus ?? {}),
+            ...(patch.baseFactsAcreage ? { acreage: patch.baseFactsAcreage } : {}),
+          }
         : baseFacts,
       livingAreaSqft: patch.livingAreaSqft ?? facets.livingAreaSqft,
       yearBuilt: patch.yearBuilt ?? facets.yearBuilt,

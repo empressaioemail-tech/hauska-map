@@ -34,6 +34,7 @@ import {
 import type { SetbackCitationVintageDeclaration } from "../../api/_lib/setback-citation-vintage";
 import {
   SITUS_UNREADABLE_REASON,
+  composeSitusLine,
   isUnreadableSitusAddress,
   isUsableSitusAddress,
 } from "./situs-address";
@@ -78,6 +79,16 @@ export interface BakedFacetPayload {
     situsAddress?: string | null;
     situsCity?: string | null;
     situsState?: string | null;
+    /**
+     * P-270 ADDRESS HALF (2026-09-18). Mirrors `PeBakedFacetPayload["baseFacts"]`
+     * in `api/_lib/atom-chain-to-facets.ts`: the ledger's own situs ZIP, and the
+     * basis of `situsCity` when there is one (`"cad-roll"` = the roll's city,
+     * `"city-limits"` = the incorporated city whose limits contain the parcel —
+     * never to be rendered as the roll's mailing city). Absent means unstated,
+     * never `"cad-roll"`.
+     */
+    situsZip?: string | null;
+    situsCityBasis?: "cad-roll" | "city-limits" | null;
     landUse?: {
       code: string;
       description?: string | null;
@@ -970,10 +981,16 @@ export function deriveBakedCardModel(payload: BakedFacetPayload): BakedCardModel
   // P-272: the roll carrying an unreadable situs (`, ,`) is a different fact
   // from the roll carrying none, and the card must say which. `absent()` with no
   // message read as "nothing here" over a parcel the county had addressed.
+  //
+  // P-270 ADDRESS HALF (2026-09-18): a USABLE situs is composed into the line the
+  // customer reads, from the same shared rule the resolver, the outbound geocode
+  // address and the live-derive POST use (`composeSitusLine`). A roll that
+  // already spells out city/state/ZIP yields the identical string.
+  const composedSitus = composeSitusLine(bf);
   const situsAddress = isUsableSitusAddress(
     typeof bf.situsAddress === "string" ? bf.situsAddress : null,
   )
-    ? present((bf.situsAddress as string).trim())
+    ? present((composedSitus ?? (bf.situsAddress as string)).trim())
     : isUnreadableSitusAddress(typeof bf.situsAddress === "string" ? bf.situsAddress : null)
       ? absent<string>(SITUS_UNREADABLE_REASON)
       : absent<string>();

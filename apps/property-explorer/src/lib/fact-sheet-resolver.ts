@@ -103,8 +103,10 @@ import { fetchGeocodeSuggestions } from "./geocodeClient";
 import {
   SITUS_ABSENT_REASON,
   SITUS_UNREADABLE_REASON,
+  composeSitusLine,
   isUnreadableSitusAddress,
   isUsableSitusAddress,
+  situsCityLimitsNote,
 } from "./situs-address";
 import { CORTEX_PROXY_BASE, PE_FACETS_PROXY_BASE } from "./config";
 import { isValidParcelNodeId, normalizeParcelNodeId } from "./parcel-node-id";
@@ -457,16 +459,7 @@ function taxValuationProvenance(
  * out "..., CITY, TX", and this must never double it up.
  */
 export function composedSitusAddress(facets: BakedFacetPayload): string | null {
-  const base = facets.baseFacts ?? {};
-  const address = str(base.situsAddress);
-  if (!address) return null;
-  const addressLower = address.toLowerCase();
-  const parts = [address];
-  const city = str(base.situsCity);
-  if (city && !addressLower.includes(city.toLowerCase())) parts.push(city);
-  const state = str(base.situsState);
-  if (state && !addressLower.includes(state.toLowerCase())) parts.push(state);
-  return parts.join(", ");
+  return composeSitusLine(facets.baseFacts ?? {});
 }
 
 function identityFacts(facets: BakedFacetPayload, parcelNodeId: string) {
@@ -492,8 +485,37 @@ function identityFacts(facets: BakedFacetPayload, parcelNodeId: string) {
   // address on the county roll" about a roll that plainly holds one. The
   // unusable string is still never served as the value.
   const rawSitus = str(base.situsAddress);
+  // P-270 ADDRESS HALF (2026-09-18): the card's line carries the city and ZIP
+  // the LEDGER holds for this parcel, not just whatever the roll's situs column
+  // happens to spell. Measured on Pflugerville `48453:445501`: the roll's
+  // `situsAddress` is the bare street `21404 GRAND NATIONAL AVE`, the ledger
+  // holds `situsZip` `78660`, and `cityLimits` names `Pflugerville` while the
+  // roll states no city — so the card showed no city and no ZIP it had. The join
+  // lives in ONE place (`./situs-address`'s `composeSitusLine`, shared with the
+  // outbound geocode address, the live-derive POST and the baked card model), and
+  // a roll whose situs already reads "…, CITY, TX 78602" comes back
+  // BYTE-IDENTICAL because every component is substring-checked before it is
+  // appended.
+  const composedLine = composeSitusLine(base);
+  const cityLimitsNote = situsCityLimitsNote(base);
   const situsAddress: Fact<string> = isUsableSitusAddress(rawSitus)
-    ? { state: "present", value: rawSitus as string, provenance: prov }
+    ? {
+        state: "present",
+        value: composedLine ?? (rawSitus as string),
+        // The city on this line may NOT be the roll's mailing city. Say what it
+        // is instead of letting a reader assume the roll stated it (dispatch
+        // item 2: a city the roll does not state may be named only as the city
+        // whose LIMITS CONTAIN the parcel).
+        provenance: cityLimitsNote
+          ? provenance({
+              source: prov.source,
+              sourceLabel: `${prov.sourceLabel} — ${cityLimitsNote}`,
+              vintage: prov.vintage,
+              retrievedAt: prov.retrievedAt,
+              method: "situs-line-composed",
+            })
+          : prov,
+      }
     : absentCovered(
         isUnreadableSitusAddress(rawSitus) ? SITUS_UNREADABLE_REASON : SITUS_ABSENT_REASON,
         prov,

@@ -85,3 +85,102 @@ export const SITUS_UNREADABLE_REASON =
 
 /** The wording kept for a roll that genuinely carries no situs (unchanged). */
 export const SITUS_ABSENT_REASON = "no situs address on the county roll for this parcel";
+
+/**
+ * P-270 ADDRESS HALF (2026-09-18): THE ONE composer for an address line the
+ * customer reads or a geocoder is asked about.
+ *
+ * Before this, the same "street + city + state" join existed in four places
+ * (`fact-sheet-resolver.ts`, `live-envelope-augment.ts`, the MCP's own
+ * `situsCompose.ts` in legacy-design-tools, and the probe's model of this one),
+ * and NONE of them carried the ZIP — so a parcel whose roll gives a bare street
+ * line ("21404 GRAND NATIONAL AVE") showed no city and no ZIP even when the
+ * ledger held both (Travis `48453:445501`: `situsZip` `78660`, `cityLimits`
+ * `Pflugerville`).
+ *
+ * The rule, exactly: the city is appended when it is not already a substring of
+ * the line, and the state + ZIP are appended as ONE trailing component ("TX
+ * 78660") when the line does not already carry them — with the ZIP alone as a
+ * space suffix ("…, TX 78660") when the state is already there but the ZIP is
+ * not. A roll that already spells out "…, BASTROP, TX 78602" is returned
+ * BYTE-IDENTICAL.
+ *
+ * `situsCityBasis` does NOT change the composed line: the city reads the same
+ * either way. It is what tells a renderer whether the city may be called the
+ * roll's city at all, and `situsCityLimitsNote` below is the sentence for the
+ * case where it may not.
+ */
+export interface SitusLineParts {
+  situsAddress?: string | null;
+  situsCity?: string | null;
+  situsState?: string | null;
+  situsZip?: string | null;
+  situsCityBasis?: "cad-roll" | "city-limits" | null;
+}
+
+/**
+ * The city-limits label. A city the ROLL does not state may be named on the
+ * line, but never as the roll's mailing city — this is the sentence that says
+ * what it is instead. Kept beside the composer so a renderer cannot invent its
+ * own wording (dispatch item 2: "say how you labelled it").
+ */
+export const SITUS_CITY_LIMITS_NOTE =
+  "city whose limits contain this parcel (the county roll states no situs city)";
+
+function partString(v: unknown): string | null {
+  return typeof v === "string" && v.trim() ? v.trim() : null;
+}
+
+/**
+ * Compose the address line from whatever parts the payload carries. Returns
+ * null only when there is no street line at all; a line already carrying its
+ * own city/state/ZIP comes back untouched.
+ *
+ * This does NOT decide whether the situs is READABLE — `isUsableSitusAddress` /
+ * `isUnusableEnvelopeAddress` above own that, and the callers that must refuse
+ * a malformed situs still do so themselves. Composing first and refusing after
+ * keeps every existing refusal decision byte-identical (P-272/XD-9).
+ */
+export function composeSitusLine(parts: SitusLineParts): string | null {
+  const address = partString(parts.situsAddress);
+  if (!address) return null;
+  const upper = address.toUpperCase();
+  const segments = upper.split(",").map((s) => s.trim()).filter(Boolean);
+  /** A city is a substring match: most rolls spell it inside the street line. */
+  const hasCity = (v: string) => upper.includes(v.toUpperCase());
+  /** State/ZIP are SEGMENT matches, so "1 TX AVE" is not read as a state "TX". */
+  const hasState = (v: string) => segments.some((s) => s === v.toUpperCase() || s.startsWith(`${v.toUpperCase()} `));
+  const hasZip = (v: string) => upper.includes(v.toUpperCase());
+
+  const out = [address];
+  const city = partString(parts.situsCity);
+  if (city && !hasCity(city)) out.push(city);
+
+  const state = partString(parts.situsState);
+  const zip = partString(parts.situsZip);
+
+  if (zip && !hasZip(zip)) {
+    // The ZIP is joined to its state as ONE component. When the line already
+    // carries the state, the ZIP is a SPACE suffix on the line ("…, TX 78660")
+    // rather than a new comma part — a bare ", 78660" part reads as a second
+    // address line and floats the ZIP free of its state.
+    if (state && hasState(state)) return `${out.join(", ")} ${zip}`;
+    out.push([state, zip].filter((v): v is string => !!v).join(" "));
+  } else if (state && !hasState(state)) {
+    out.push(state);
+  }
+
+  return out.join(", ");
+}
+
+/**
+ * The provenance sentence for a city the roll does not state, or null when the
+ * payload does not say the city came from city limits (including when it says
+ * `"cad-roll"`, and including when it says nothing at all — an unstated basis
+ * is never assumed to be the roll's).
+ */
+export function situsCityLimitsNote(parts: SitusLineParts): string | null {
+  return parts.situsCityBasis === "city-limits" && partString(parts.situsCity)
+    ? SITUS_CITY_LIMITS_NOTE
+    : null;
+}

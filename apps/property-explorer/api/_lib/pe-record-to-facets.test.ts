@@ -644,3 +644,110 @@ describe("P-332 — the ETJ determination survives the record patch (falsifier F
   });
 });
 
+// ---------------------------------------------------------------- P-270 address half
+/**
+ * Measured live 2026-09-18 on Pflugerville `48453:445501`: the ledger holds
+ * `situsZip` `78660` and names `cityLimits` `Pflugerville`, while the roll's
+ * `situsCity` is ABSENT-VERIFIED (both the cad-parcel-roll claim and the
+ * declared-vintage `cad_property.situs_city` are empty). The card served neither.
+ * These are the ledger → `baseFacts` carry rules, both directions.
+ */
+describe("composeRecordPatch — P-270 address half (baseFactsSitus)", () => {
+  const rollCarriesNoCity = {
+    kind: "absent-verified",
+    basis: { verdict: "absent-verified", authority: "Travis County CAD roll" },
+  };
+  const incorporated = {
+    kind: "value",
+    value: "Pflugerville",
+    source: "landing_parcel_jurisdiction",
+    vintage: "2026-09-17T19:23:36.801Z",
+  };
+
+  it("carries situsZip from a record-served value cell (the ledger ZIP the card dropped)", () => {
+    const record = emptyRecord({
+      situsZip: rail("record", { kind: "value", value: "78660", source: "cad-parcel-roll", vintage: "2026-09-17" }),
+    });
+    expect(composeRecordPatch(record).patch.baseFactsSitus).toEqual({ situsZip: "78660" });
+  });
+
+  it("names the roll's own city as the roll's city when the situsCity rail is a value", () => {
+    const record = emptyRecord({
+      situsCity: rail("record", { kind: "value", value: "Dripping Springs", source: "cad-parcel-roll", vintage: "2026-09-17" }),
+      cityLimits: rail("record", incorporated),
+    });
+    expect(composeRecordPatch(record).patch.baseFactsSitus).toEqual({
+      situsCity: "Dripping Springs",
+      situsCityBasis: "cad-roll",
+    });
+  });
+
+  it("falls back to the city whose LIMITS CONTAIN the parcel when the roll's city is absent-verified, and labels the basis (the 48453:445501 shape)", () => {
+    const record = emptyRecord({
+      situsCity: rail("record", rollCarriesNoCity),
+      situsState: rail("record", { kind: "value", value: "TX" }),
+      situsZip: rail("record", { kind: "value", value: "78660" }),
+      cityLimits: rail("record", incorporated),
+    });
+    expect(composeRecordPatch(record).patch.baseFactsSitus).toEqual({
+      situsCity: "Pflugerville",
+      situsCityBasis: "city-limits",
+      situsState: "TX",
+      situsZip: "78660",
+    });
+  });
+
+  it("names NO city when the roll's situsCity rail is unslated, refused or malformed — a city is never inferred from a rail that was never read", () => {
+    for (const absentRail of [
+      undefined,
+      rail("refused", null),
+      rail("legacy-transitional", { kind: "value", value: "Bastrop" }),
+      rail("record", { kind: "malformed" }),
+    ]) {
+      const record = emptyRecord({
+        ...(absentRail ? { situsCity: absentRail } : {}),
+        cityLimits: rail("record", incorporated),
+      });
+      expect(composeRecordPatch(record).patch.baseFactsSitus).toBeUndefined();
+    }
+  });
+
+  it("names no city for an unincorporated parcel the roll gives no city for (no cityLimits value to fall back to)", () => {
+    const record = emptyRecord({
+      situsCity: rail("record", rollCarriesNoCity),
+      cityLimits: rail("record", { kind: "absent-verified", basis: { disposition: "unincorporated" } }),
+      situsZip: rail("record", { kind: "value", value: "78602" }),
+    });
+    expect(composeRecordPatch(record).patch.baseFactsSitus).toEqual({ situsZip: "78602" });
+  });
+
+  it("does not invent a ZIP from an absent, refused or non-string cell", () => {
+    const record = emptyRecord({
+      situsZip: rail("record", { kind: "absent-verified", basis: { verdict: "absent-verified" } }),
+    });
+    expect(composeRecordPatch(record).patch.baseFactsSitus).toBeUndefined();
+  });
+
+  it("reports the three address rails in recordRailStates so the panel can tell 'the roll states none' from 'nobody looked'", () => {
+    const record = emptyRecord({
+      situsCity: rail("record", rollCarriesNoCity),
+      situsZip: rail("record", { kind: "value", value: "78660" }),
+      cityLimits: rail("record", incorporated),
+    });
+    const { railStates } = composeRecordPatch(record);
+    expect(railStates.situsCity).toEqual({ serve: "record", atomBacked: false });
+    expect(railStates.situsZip).toEqual({ serve: "record", atomBacked: false });
+  });
+
+  it("keeps P-332's ETJ behaviour untouched: the city fallback changes no ETJ field", () => {
+    const record = emptyRecord({
+      situsCity: rail("record", rollCarriesNoCity),
+      cityLimits: rail("record", incorporated),
+    });
+    const { patch } = composeRecordPatch(record);
+    expect(patch.cityLimitsFact?.status).toBe("incorporated");
+    expect(patch.cityLimitsFact?.cityName).toBe("Pflugerville");
+    expect(patch.cityLimitsFact?.etjStatus).toBe("unresolved");
+  });
+});
+
