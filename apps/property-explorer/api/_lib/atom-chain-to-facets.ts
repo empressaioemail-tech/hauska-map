@@ -19,6 +19,8 @@ import {
 } from "./codified-setback-from-zoning.js";
 import { plannedDevelopmentSetbackRefusal } from "./planned-development-district.js";
 import { setbackPendingDisclosure } from "./setback-decline-wording.js";
+/** P-339: the one composition site for the warm-verify-decline table sentence. */
+import { codifiedTableEnvelopeDisclosure } from "./setback-table-envelope-wording.js";
 import {
   anyNotSpecified,
   buildToLineDisclosure,
@@ -362,6 +364,23 @@ export interface PeBakedFacetPayload {
     /** R24 full-field parity — surfaced on the card. */
     maxHeightFt?: number;
     maxImperviousPct?: number;
+    /**
+     * P-341 (OPS-24, ruling 16). Every impervious-cover figure that applies to
+     * this parcel, each with the source it came from. Present only where two
+     * figures APPLY (the zoning rule's own sub-field beside the watershed
+     * fact's percent); absent where only one figure applies, where the two
+     * agree, or where this payload predates the lane — so an unaffected
+     * payload stays byte-identical. `maxImperviousPct` above is the STRICTER
+     * (lower) of these where two apply, never their average and never the
+     * higher.
+     */
+    maxImperviousPctSources?: Array<{
+      source: "zoning-setback-rule" | "max-impervious-cover-fact";
+      percent: number;
+      citationUrl?: string;
+      sourceDate?: string;
+      watershedType?: string;
+    }>;
     minLotSize?: string;
     /** R26 — dominant district + minor zones on a split-zoned parcel. */
     splitZoneMinorZones?: Array<{ districtCode: string | null; shapeArea?: number }>;
@@ -439,6 +458,18 @@ export interface PeBakedFacetPayload {
      * record.
      */
     setbackSource?: "atom-chain" | "parcel-record";
+    /**
+     * P-339 (OPS-24, ruling 15). Names the surface that OWNS this envelope's
+     * reason, so no reader has to infer it from the sentence. Set only where
+     * this payload is mirroring the drawing route's own answer
+     * (`POST /api/brokerage/v1/place/buildable-envelope`); absent everywhere
+     * this payload is still the composer of its own reason, which is the
+     * honest reading of an older payload.
+     *
+     * Nothing downstream may re-compose a reason for an envelope carrying this
+     * marker: the route's answer is the answer.
+     */
+    reasonOwner?: "place/buildable-envelope";
   } | null;
   facetCoverage?: {
     baseFacts?: boolean;
@@ -2503,17 +2534,22 @@ export function adaptAtomChainToBakedFacets(
       // setbacks when a GIS stamp + table row exist (~3% promoted geometry;
       // remainder still serves setback scalars).
       if (effectiveSetbacks) {
+        // P-339 (OPS-24, ruling 15): the drawing route owns this envelope's
+        // reason and this payload mirrors it. The sentence is composed by ONE
+        // exported function so its wording is testable against the probe's own
+        // phrase lists (see the test beside this file).
         envelope = {
           status: "ok",
           district: district ?? undefined,
           setbacks: effectiveSetbacks,
           approximate: true,
           provisional: true,
-          disclosure:
-            `Codified setback table (${jurisdictionKey ?? "unknown"}); depth-warm geometry withheld` +
-            (warmDecline.declineReason
-              ? ` — ${warmDecline.declineReason}`
-              : "."),
+          reasonOwner: "place/buildable-envelope",
+          disclosure: codifiedTableEnvelopeDisclosure({
+            jurisdictionKey,
+            servedFromAtomChainRule: setbacks !== null,
+            warmVerifyDeclineReason: warmDecline.declineReason ?? null,
+          }),
         };
         envelopeCovered = true;
       } else {

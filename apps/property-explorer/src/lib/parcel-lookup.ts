@@ -18,9 +18,15 @@ import {
   parsePlaceKey,
 } from "./buildable-envelope.js";
 import { CORTEX_PROXY_BASE } from "./config";
+import {
+  coverageMissFromWire,
+  coverageMissSentence,
+  isOutOfCoverage,
+  type CoverageMiss,
+} from "./coverage-miss";
 import { isValidParcelNodeId, normalizeParcelNodeId } from "./parcel-node-id";
 import { PE_SITUS_SEARCH_URL } from "./situs-search-client";
-import { situsHitsFromResponse, uniqueSitusPin } from "./situs-pin";
+import { situsHitsFromResponse, uniqueSitusPin, type SitusPinHit } from "./situs-pin";
 import {
   AMBIGUOUS_FIND_REASON,
   compactEnvelopeAddressQuery,
@@ -67,7 +73,24 @@ export type LookupResult =
       /** Backend-authoritative point from placeKey or caller bias. */
       resolvedPoint?: ResolvedLookupPoint;
     }
-  | { ok: false; reason: string };
+  | {
+      ok: false;
+      reason: string;
+      /**
+       * P-353. Present when the situs index answered with a miss class and
+       * the search still failed. `reason` is then the class's own sentence,
+       * and this carries the class so a caller can discriminate without
+       * parsing prose. Absent (undefined) means the situs index carried no
+       * class at all — never a defaulted one.
+       */
+      coverageMiss?: {
+        missClass: string;
+        countyName: string | null;
+        state: string | null;
+        unavailableReason: string | null;
+        sentence: string;
+      };
+    };
 
 const DEEP_LINK_PARAM_KEYS = [
   "parcelNodeId",
@@ -110,6 +133,32 @@ export type LookupSubjectHint = {
 
 export const HONEST_SEARCH_MISS =
   "Address not matched to a parcel. Search returned no hit.";
+
+/** P-353: the class-shaped failure, so the caller reads a class, not prose. */
+function coverageMissFailure(miss: CoverageMiss): {
+  ok: false;
+  reason: string;
+  coverageMiss: {
+    missClass: string;
+    countyName: string | null;
+    state: string | null;
+    unavailableReason: string | null;
+    sentence: string;
+  };
+} {
+  const sentence = coverageMissSentence(miss);
+  return {
+    ok: false,
+    reason: sentence,
+    coverageMiss: {
+      missClass: miss.missClass,
+      countyName: miss.county?.countyName ?? null,
+      state: miss.county?.state ?? miss.state ?? null,
+      unavailableReason: miss.unavailableReason,
+      sentence,
+    },
+  };
+}
 
 export function normalizeFindAddress(raw: string): string {
   return raw
@@ -182,10 +231,19 @@ export async function resolveLookupToParcelNodeId(
   }
 
   const fetchImpl = opts?.fetchImpl ?? fetch;
-  const pin = await fetchUniqueSitusPin(classified.value, {
+  const { pin, miss } = await fetchUniqueSitusPin(classified.value, {
     situsSearchUrl: opts?.situsSearchUrl ?? PE_SITUS_SEARCH_URL,
     fetchImpl,
   });
+
+  // P-353 item 3. An out-of-coverage class outranks the envelope ladder, and
+  // most of all its last rung. The ladder ends in a fuzzy geocode (see the
+  // P-172 note below), and a geocoded pin for an address in a county we do
+  // not cover is a worse answer than an empty list: it would look like a
+  // record match for a place we never had any data about. Stop here, named.
+  if (isOutOfCoverage(miss)) {
+    return coverageMissFailure(miss!);
+  }
 
   if (pin?.parcelNodeId && isValidParcelNodeId(pin.parcelNodeId)) {
     const resolvedPoint =
@@ -259,6 +317,13 @@ export async function resolveLookupToParcelNodeId(
         source: "situs",
       };
     }
+    // P-353 item 4. If the coverage check itself could not answer, the
+    // address not resolving is NOT a miss we may report — we cannot say
+    // whether the address is out of coverage or simply absent, and saying
+    // "not matched to a parcel" would be a claim nothing backed. The
+    // unavailable class is the honest answer; it is the only class whose
+    // sentence replaces the ladder's own.
+    if (miss) return coverageMissFailure(miss);
     return {
       ok: false,
       reason: honestSearchMissReason(env.reason ?? undefined, classified.value),
@@ -290,39 +355,60 @@ export async function resolveLookupToParcelNodeId(
   };
 }
 
+/**
+ * The situs index's answer for one query: the unique pin (if any) AND the
+ * coverage class (if any).
+ *
+ * P-353. These were one value (`null` for "no pin"), which fused three
+ * completely different situations — the index looked and found nothing, the
+ * index never had any business looking, and the index could not answer — into
+ * a single shape the caller could only read as "try the geocoder". [0] is the
+ * query as typed; a derived variant that strips the locality the coverage
+ * check needs must not answer a question only the typed query can.
+ */
 async function fetchUniqueSitusPin(
   query: string,
   opts: { situsSearchUrl: string; fetchImpl: typeof fetch },
-) {
+): Promise<{ pin: SitusPinHit | null; miss: CoverageMiss | null }> {
   try {
     const variants = situsQueryVariants(query);
     const batches = await Promise.all(
-      variants.map(async (q) => {
+      variants.map(async (q, index) => {
         const qs = new URLSearchParams({ q, limit: "7" });
         const res = await opts.fetchImpl(`${opts.situsSearchUrl}?${qs.toString()}`, {
           method: "GET",
         });
-        if (!res.ok) return [];
-        return situsHitsFromResponse(await res.json());
+        if (!res.ok) return { index, hits: [] as SitusPinHit[], miss: null };
+        const json = await res.json();
+        return {
+          index,
+          hits: situsHitsFromResponse(json),
+          miss: coverageMissFromWire(json),
+        };
       }),
     );
     const seen = new Set<string>();
     const hits = [];
     for (const batch of batches) {
-      for (const hit of batch) {
+      for (const hit of batch.hits) {
         const key = `${hit.parcelNodeId ?? ""}|${hit.situsAddress}`;
         if (seen.has(key)) continue;
         seen.add(key);
         hits.push(hit);
       }
     }
+    const ordered = [...batches].sort((a, b) => a.index - b.index);
+    const miss =
+      ordered.find((b) => b.index === 0 && b.miss)?.miss ??
+      ordered.find((b) => b.miss)?.miss ??
+      null;
     const cityHint = cityHintFromQuery(query);
     const filtered = cityHint
       ? hits.filter((h) => h.situsAddress.toLowerCase().includes(cityHint))
       : hits;
-    return uniqueSitusPin(cityHint ? filtered : hits);
+    return { pin: uniqueSitusPin(cityHint ? filtered : hits), miss };
   } catch {
-    return null;
+    return { pin: null, miss: null };
   }
 }
 
