@@ -68,6 +68,29 @@ function leadingDistrictToken(districtName: string): string {
   return (districtName.trim().split(/\s+/)[0] ?? "").toUpperCase();
 }
 
+/**
+ * Does this jurisdiction's own vendored table row this exact district code?
+ *
+ * P-257: this is the FIRST half of the planned-development gate's ordering —
+ * a real district row wins, and only a code with no row of its own is eligible
+ * to be read as a planned-development code. Deliberately exact-token only
+ * (this file's matcher has never had a prefix fallback, unlike
+ * legacy-design-tools' `mapDistrict`); an exact row is what "this table's own
+ * district" means.
+ */
+export function hasExactCodifiedDistrictRow(
+  jurisdictionKey: string | null | undefined,
+  district: string | null | undefined,
+): boolean {
+  const cityKey = normalizeCityKey(jurisdictionKey);
+  const districtCode =
+    typeof district === "string" && district.trim() ? district.trim() : null;
+  if (!cityKey || !districtCode) return false;
+  const table = SETBACK_TABLES[cityKey];
+  if (!table) return false;
+  return findDistrictRow(table, districtCode) !== null;
+}
+
 function findDistrictRow(
   table: AdapterSetbackTable,
   districtCode: string,

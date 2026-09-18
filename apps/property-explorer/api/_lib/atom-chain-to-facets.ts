@@ -17,6 +17,8 @@ import {
   resolveCodifiedSetbacksForStamp,
   type CodifiedSetbackScalars,
 } from "./codified-setback-from-zoning.js";
+import { plannedDevelopmentSetbackRefusal } from "./planned-development-district.js";
+import { setbackPendingDisclosure } from "./setback-decline-wording.js";
 import {
   anyNotSpecified,
   buildToLineDisclosure,
@@ -2218,32 +2220,54 @@ export function adaptAtomChainToBakedFacets(
     recordStamp.district.trim().length > 0
       ? recordStamp.district.trim()
       : null;
-  /**
-   * The record-served setback table (primary axes only — see
-   * {@link recordSetbackTable}). Computed only for a class member whose
-   * district came from the record, so no other branch in the tree can start
-   * consuming record scalars as a side effect of this lane.
-   */
-  const recordTable = recordDistrict ? recordSetbackTable(recordStamp?.setbackAxisOverrides) : null;
-
   const district = chainDistrict ?? recordDistrict;
   const hasDistrict = district !== null;
   // The stamped corpus jurisdiction key (from the zoning source adapter), so
   // chat atom-retrieval sends areaContext.jurisdictionKey and the answer can
   // carry cited atoms. Null when the adapter has no jurisdiction suffix.
   const jurisdictionKey = jurisdictionKeyFromSourceAdapter(zoningSourceAdapter);
+  /**
+   * P-257 — a planned-development code is not a Euclidean district (A-164).
+   *
+   * Computed HERE, before any scalar is read, so a `PD`/`PUD` code can reach no
+   * branch that serves a setback value: the codified table path, the
+   * per-parcel-record path (`recordTable`, which is where the measured defect's
+   * 20/100/100/100 came from) and the atom-chain path all read `null` for a
+   * member. The parcel's own stored record cannot launder a PUD back into a
+   * table row, because the gate keys on the DISTRICT CODE the payload carries
+   * rather than on where the numbers came from.
+   */
+  const plannedDevelopment = plannedDevelopmentSetbackRefusal({
+    districtCode: district,
+    jurisdictionKey,
+  });
+  /**
+   * The record-served setback table (primary axes only — see
+   * {@link recordSetbackTable}). Computed only for a class member whose
+   * district came from the record, so no other branch in the tree can start
+   * consuming record scalars as a side effect of this lane. Never for a
+   * planned-development district: the record's axes are Euclidean by
+   * construction, which is the whole defect.
+   */
+  const recordTable =
+    recordDistrict && !plannedDevelopment
+      ? recordSetbackTable(recordStamp?.setbackAxisOverrides)
+      : null;
 
-  const setbacks = mapSetbacks(rule, district);
+  const setbacks = plannedDevelopment ? null : mapSetbacks(rule, district);
   const tableSetbacks =
-    setbacks ??
-    (hasDistrict && jurisdictionKey
-      ? resolveCodifiedSetbacksForStamp(
-          jurisdictionKey,
-          district,
-          opts?.perParcelSetback,
-        )
-      : null);
-  const effectiveSetbacks = setbacks ?? tableSetbacks ?? undefined;
+    plannedDevelopment || setbacks
+      ? null
+      : hasDistrict && jurisdictionKey
+        ? resolveCodifiedSetbacksForStamp(
+            jurisdictionKey,
+            district,
+            opts?.perParcelSetback,
+          )
+        : null;
+  const effectiveSetbacks = plannedDevelopment
+    ? undefined
+    : (setbacks ?? tableSetbacks ?? undefined);
   const liveSetback = hasLiveAtomChainSetbackRule(
     parcelNodeId,
     rule,
@@ -2309,7 +2333,27 @@ export function adaptAtomChainToBakedFacets(
   let envelope: PeBakedFacetPayload["envelope"] = null;
   let envelopeCovered = false;
 
-  if (noDistrictBasis && !hasDistrict) {
+  if (plannedDevelopment) {
+    // P-257 / A-164 — a planned-development district is not a Euclidean
+    // district, so no setback table is emitted and nothing is drawn from one.
+    // This branch is placed FIRST among the envelope branches on purpose: it
+    // must win over the P-303 record-stamped branch below, which is the exact
+    // path the measured defect took (48021:70907: chain declines on the zoning
+    // axis, the record stamps district `PD` and supplies Euclidean axes, and
+    // the record's axes were computed through legacy-design-tools'
+    // `mapDistrict`, whose loose prefix matcher crossed the two-character code
+    // `PD` into Smithville's `PD-Z Zero Lot Line Garden Home District` row and
+    // served its not_specified sentinels as real feet: 20/100/100/100).
+    envelope = {
+      status: "declined",
+      declineReason: plannedDevelopment.declineReason,
+      district: plannedDevelopment.district,
+      approximate: true,
+      provisional: true,
+      disclosure: plannedDevelopment.reason,
+    };
+    envelopeCovered = false;
+  } else if (noDistrictBasis && !hasDistrict) {
     // Align with cortex absentZoningHonesty / declineReason vocabulary.
     // P-167 wave 5 (OPS-23 R-4): the atom's own absence.reason (read into
     // absenceReason above) already carries a human sentence for the common
@@ -2381,9 +2425,10 @@ export function adaptAtomChainToBakedFacets(
         district: recordDistrict,
         approximate: true,
         provisional: true,
-        disclosure:
-          "Setbacks pending re-warm from city per-parcel record — verify with city. " +
-          "Repealed or pre-layer-23 sources are not served.",
+        disclosure: setbackPendingDisclosure({
+          jurisdictionKey,
+          district: recordDistrict,
+        }),
       };
       envelopeCovered = false;
     }
@@ -2429,9 +2474,10 @@ export function adaptAtomChainToBakedFacets(
       district: district ?? undefined,
       approximate: true,
       provisional: true,
-      disclosure:
-        "Setbacks pending re-warm from city per-parcel record — verify with city. " +
-        "Repealed or pre-layer-23 sources are not served.",
+      disclosure: setbackPendingDisclosure({
+        jurisdictionKey,
+        district,
+      }),
     };
     envelopeCovered = false;
   } else if (!envelope && outcomeKind === "no-buildable-area" && silentAxes) {
