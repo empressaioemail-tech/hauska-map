@@ -28,12 +28,13 @@
  * is the ONE place that decides; the callers hand it a source value and a
  * rail name and then render what it returns.
  *
- * THE THREE STATES (dispatch item 3). "Absent at source", "present but
- * unparseable" and "never looked for" are three different situations and none
- * of them is the others, so they are three members of one union and never one
- * boolean. A FOURTH value is deliberately NOT here: see `stateFromWireBasis`
- * for the one wire on which the first two cannot be told apart, which is
- * bounded and named rather than papered over with a new member.
+ * THE STATES (dispatch item 3, extended by P-354). "Absent at source",
+ * "present but unparseable", "never looked for" and "read, but not yet in
+ * effect" are four different situations and none of them is the others, so
+ * they are members of one union and never one boolean. A FIFTH value is
+ * deliberately NOT here: see `stateFromWireBasis` for the one wire on which
+ * the first two cannot be told apart, which is bounded and named rather than
+ * papered over with a new member.
  *
  * THE TWO AUDIENCES. The customer gets ONE sentence, identical in both repos
  * (see `SETBACK_CITATION_VINTAGE_UNREADABLE_NOTE`), because three causes
@@ -56,8 +57,8 @@
 /**
  * How a setback citation's effective date was established, read AT SOURCE.
  *
- * `read` is the only member that means a date is on the wire. The other three
- * are the unreadable causes, kept apart on purpose:
+ * `read` is the only member that means a date is on the wire AND the rule is in
+ * force. The other members are the not-current causes, kept apart on purpose:
  *
  * - `unreadable-absent-at-source` — the source was consulted and its own
  *   date-bearing field carries no date: the key is missing, or it is present
@@ -70,16 +71,40 @@
  *   This is a statement about the RESOLVER, not about the source, and it is
  *   the state the vendored-table path was in until this lane: it read scalars
  *   and citation URLs and never had a date read in it.
+ * - `future-effective` — P-354 (2026-09-18). The date WAS read, it is a real
+ *   date, and it is LATER than the day being served: the rule is adopted but
+ *   not yet in force, and the operator ruled it served anyway (A-218,
+ *   Georgetown: adopted 2026-08-11, effective 2026-11-01). This is not
+ *   unreadable and it is not `read`; conflating it with either is the bug this
+ *   member exists to kill. Before it, a future-dated row hit `read` and the
+ *   card printed it as `effective 2026-11-01` — a date the rule does not yet
+ *   have — which is a rule printed as if already in force.
  */
 export type SetbackDateReadState =
   | "read"
+  | "future-effective"
   | "unreadable-absent-at-source"
   | "unreadable-unparseable"
   | "unreadable-never-looked";
 
+/** The three unreadable causes. Never `read`, never `future-effective`. */
+export type SetbackDateUnreadableState = Exclude<
+  SetbackDateReadState,
+  "read" | "future-effective"
+>;
+
 /** The wire token the conflict row below is published under (VOCABULARY). */
 export const SETBACK_CITATION_VINTAGE_TOKEN =
   "setback-citation-vintage-unreadable" as const;
+
+/**
+ * P-354. The token a FUTURE-EFFECTIVE citation's declaration is published
+ * under -- deliberately NOT the unreadable token, because a reader that
+ * switches on `kind` must not treat "adopted, takes effect later" as "we could
+ * not tell".
+ */
+export const SETBACK_CITATION_FUTURE_EFFECTIVE_TOKEN =
+  "setback-citation-future-effective" as const;
 
 /**
  * THE exact customer sentence. Byte-identical to legacy-design-tools'
@@ -99,10 +124,50 @@ export const SETBACK_CITATION_VINTAGE_TOKEN =
 export const SETBACK_CITATION_VINTAGE_UNREADABLE_NOTE =
   "Setback rule vintage unknown — the rule is served undated, not as current. Verify with the city.";
 
+/**
+ * P-354 (2026-09-18) — THE exact customer sentence for a rule that is ADOPTED
+ * BUT NOT YET IN FORCE, byte-identical to legacy-design-tools' copy and pinned
+ * by a test in each repo exactly as the unreadable sentence is.
+ *
+ * It exists so that a future-dated rule is never served under EITHER wrong
+ * sentence: not the unreadable one (the dates are known — "vintage unknown" is
+ * false) and not a bare `effective <date>` (which claims the rule already has
+ * that force). It names both dates because the ruling that admits the row
+ * (A-218) is explicitly priced in disclosure, and it keeps the same
+ * verify-with-the-city close so the card teaches one next step.
+ *
+ * `adoptedDate` may be null when the source's own adoption field was not
+ * readable; the sentence then names the effective date alone rather than
+ * inventing an adoption date.
+ */
+export function setbackFutureEffectiveNote(
+  adoptedDate: string | null,
+  effectiveDate: string,
+): string {
+  const adopted = adoptedDate ? `adopted ${adoptedDate}, ` : "";
+  return `Setback rule ${adopted}takes effect ${effectiveDate} — the rule is served ahead of its effective date, not as current. Verify with the city.`;
+}
+
+/** The terse form the card's own citation clause uses, from the same one place. */
+export function setbackFutureEffectiveCardMarker(
+  adoptedDate: string | null,
+  effectiveDate: string,
+): string {
+  const adopted = adoptedDate ? `adopted ${adoptedDate}, ` : "";
+  return `${adopted}takes effect ${effectiveDate}`;
+}
+
 /** A read of one source's own date-bearing field. `sourceDate` is only ever a value literally on the source. */
 export type SetbackDateRead = {
   sourceDate: string | null;
   state: SetbackDateReadState;
+  /**
+   * P-354 (2026-09-18). The rule's own adoption date, read at source, when the
+   * source carries one. Present only for `future-effective` today (it is what
+   * the future-effective sentence names first) and never inferred from the
+   * table's vintage or the source kind.
+   */
+  adoptedDate?: string | null;
 };
 
 /**
@@ -114,7 +179,7 @@ export type SetbackDateRead = {
 export type SetbackCitationVintageRow = {
   kind: typeof SETBACK_CITATION_VINTAGE_TOKEN;
   /** Which of the three unreadable causes. Never `"read"` — a readable date is not a conflict. */
-  state: Exclude<SetbackDateReadState, "read">;
+  state: SetbackDateUnreadableState;
   /** The source whose date could not be read, as the resolver knows it (rail + writer). */
   sourceLabel: string | null;
   /** The citation that is being served undated — the row is never published without one. */
@@ -122,6 +187,33 @@ export type SetbackCitationVintageRow = {
   /** The exact sentence every surface prints. Byte-identical across repos. */
   note: string;
 };
+
+/**
+ * P-354. The declaration published for a rule that IS dated and whose date has
+ * not arrived yet — a different thing from the conflict row above, with its
+ * own `kind`, so a reader that switches on `kind` cannot confuse "we do not
+ * know when this took effect" with "we know exactly when it takes effect, and
+ * it has not happened yet".
+ */
+export type SetbackCitationFutureEffectiveRow = {
+  kind: typeof SETBACK_CITATION_FUTURE_EFFECTIVE_TOKEN;
+  state: "future-effective";
+  /** Read at source from the rule's own adoption record; null if the source states none. */
+  adoptedDate: string | null;
+  /** The rule's own effective date, later than the day being served. */
+  effectiveDate: string;
+  sourceLabel: string | null;
+  citationUrl: string;
+  /** The full sentence, for the disclosure. Byte-identical across repos. */
+  note: string;
+  /** The terse form the card's citation clause prints after the URL. */
+  cardMarker: string;
+};
+
+/** Either declaration. A citation carries AT MOST ONE of these. */
+export type SetbackCitationVintageDeclaration =
+  | SetbackCitationVintageRow
+  | SetbackCitationFutureEffectiveRow;
 
 /**
  * Strict `yyyy-mm-dd`, and nothing else. Deliberately NOT `Date.parse`: that
@@ -172,6 +264,14 @@ export function readSetbackDateAtSource(field: {
   return { sourceDate: null, state: "unreadable-unparseable" };
 }
 
+/** Today as strict ISO. The ONE clock read on this path; never used to invent a date. */
+export function todayIso(now: Date = new Date()): string {
+  return now.toISOString().slice(0, 10);
+}
+
+/** The source's own spellings for a rule's ADOPTION date. */
+export const SETBACK_ADOPTED_DATE_FIELD_KEYS = ["adoptedDate", "adopted_date"] as const;
+
 /**
  * Read the first PRESENT key out of a companion row, at source. The keys are
  * the source's own spellings (`effectiveDate` and the snake_case
@@ -184,17 +284,70 @@ export function readSetbackDateAtSource(field: {
  * which only the caller knows, so the caller passes `NEVER_LOOKED_DATE_READ`
  * explicitly. Keeping that decision at the call site is what stops this
  * module from inventing a state it cannot see.
+ *
+ * P-354 (2026-09-18): when the row's date is READABLE and `opts.asOf` says
+ * that date has not arrived yet, this returns `future-effective` rather than
+ * `read`, and carries the row's own adoption date (from `opts.adoptedKeys`,
+ * never inferred). `asOf` defaults to today; passing an explicit `asOf` is how
+ * a test pins the state instead of depending on the wall clock. A row with no
+ * adopted field yields `adoptedDate: null` — the sentence then names the
+ * effective date alone rather than inventing an adoption date.
  */
 export function readSetbackDateFromRowAtSource(
   row: Record<string, unknown>,
   keys: readonly string[],
+  opts: { adoptedKeys?: readonly string[]; asOf?: string } = {},
 ): SetbackDateRead {
   for (const key of keys) {
     if (Object.prototype.hasOwnProperty.call(row, key)) {
-      return readSetbackDateAtSource({ present: true, value: row[key] });
+      const read = readSetbackDateAtSource({ present: true, value: row[key] });
+      if (read.state !== "read") return read;
+      const adopted = opts.adoptedKeys ? readAdoptedDateFromRowAtSource(row, opts.adoptedKeys) : null;
+      return applyFutureEffectiveState(read, { adoptedDate: adopted, asOf: opts.asOf });
     }
   }
   return { sourceDate: null, state: "unreadable-absent-at-source" };
+}
+
+/**
+ * P-354. Promote a plain `read` to `future-effective` when the date read is
+ * LATER than the day being served, carrying the source's own adoption date
+ * when one was read. An already-unreadable read passes through untouched, and
+ * a read that is in force today passes through untouched — so this is the ONE
+ * place the future question is asked, on every wire that reads a date, rather
+ * than a third state each caller has to remember to compute.
+ *
+ * `asOf` defaults to today; passing it explicitly is how a test pins the state
+ * instead of depending on the wall clock.
+ */
+export function applyFutureEffectiveState(
+  read: SetbackDateRead,
+  opts: { adoptedDate?: unknown; asOf?: string } = {},
+): SetbackDateRead {
+  if (read.state !== "read" || !read.sourceDate) return read;
+  const asOf = opts.asOf ?? todayIso();
+  if (read.sourceDate <= asOf) return read;
+  const adoptedDate = isStrictIsoDate(opts.adoptedDate) ? opts.adoptedDate.trim() : null;
+  return { sourceDate: read.sourceDate, state: "future-effective", adoptedDate };
+}
+
+/**
+ * The rule's own adoption date, read at source, or null. Read-only: never
+ * falls back to the effective date (an adoption is not an effective date) and
+ * never invents one.
+ */
+export function readAdoptedDateFromRowAtSource(
+  row: Record<string, unknown>,
+  adoptedKeys: readonly string[] = SETBACK_ADOPTED_DATE_FIELD_KEYS,
+): string | null {
+  for (const key of adoptedKeys) {
+    if (!Object.prototype.hasOwnProperty.call(row, key)) continue;
+    const raw = row[key];
+    if (raw === null || raw === undefined) return null;
+    if (isStrictIsoDate(raw)) return raw.trim();
+    return null;
+  }
+  return null;
 }
 
 /**
@@ -225,19 +378,24 @@ export function stateFromWireBasis(basis: string | null | undefined): SetbackDat
 }
 
 /**
- * The conflict row, or `null` when there is nothing to declare.
+ * The declaration for a citation, or `null` when there is nothing to declare.
  *
- * `null` in exactly two cases, both of them correct rather than convenient:
- * no citation is being served (there is no citation to qualify), and the date
- * was readable (a readable date is not a conflict — this is the dispatch's
- * agreeing control, asserted in this module's own test so a change that
- * refuses the readable case fails rather than ships).
+ * `null` in exactly three cases, all of them correct rather than convenient:
+ * no citation is being served (there is no citation to qualify); the date was
+ * readable AND in force (an in-force dated rule is not a declaration -- this is
+ * the dispatch's agreeing control, asserted in this module's own test so a
+ * change that refuses the readable case fails rather than ships); and nothing
+ * will be printed anyway.
+ *
+ * P-354 (2026-09-18): a `future-effective` read returns the SECOND kind, not
+ * `null`. That is the whole change — the card used to see `read` here and
+ * print `effective 2026-11-01` for a rule that does not have that force yet.
  */
 export function setbackCitationVintageRow(input: {
   date: SetbackDateRead;
   citationUrl: string | null | undefined;
   sourceLabel: string | null | undefined;
-}): SetbackCitationVintageRow | null {
+}): SetbackCitationVintageDeclaration | null {
   const url = typeof input.citationUrl === "string" ? input.citationUrl.trim() : "";
   if (!url) return null;
   if (input.date.state === "read") return null;
@@ -245,9 +403,31 @@ export function setbackCitationVintageRow(input: {
     typeof input.sourceLabel === "string" && input.sourceLabel.trim()
       ? input.sourceLabel.trim()
       : null;
+  if (input.date.state === "future-effective") {
+    const effectiveDate = (input.date.sourceDate ?? "").trim();
+    // A future-effective read always carries its date; if it somehow does not,
+    // fall back to the unreadable declaration rather than print a sentence with
+    // a hole in it.
+    if (effectiveDate) {
+      const adoptedDate =
+        typeof input.date.adoptedDate === "string" && isStrictIsoDate(input.date.adoptedDate)
+          ? input.date.adoptedDate.trim()
+          : null;
+      return {
+        kind: SETBACK_CITATION_FUTURE_EFFECTIVE_TOKEN,
+        state: "future-effective",
+        adoptedDate,
+        effectiveDate,
+        sourceLabel: label,
+        citationUrl: url,
+        note: setbackFutureEffectiveNote(adoptedDate, effectiveDate),
+        cardMarker: setbackFutureEffectiveCardMarker(adoptedDate, effectiveDate),
+      };
+    }
+  }
   return {
     kind: SETBACK_CITATION_VINTAGE_TOKEN,
-    state: input.date.state,
+    state: input.date.state === "future-effective" ? "unreadable-absent-at-source" : input.date.state,
     sourceLabel: label,
     citationUrl: url,
     note: SETBACK_CITATION_VINTAGE_UNREADABLE_NOTE,
@@ -256,13 +436,13 @@ export function setbackCitationVintageRow(input: {
 
 /**
  * Append the sentence to whatever disclosure the envelope already carries.
- * Returns the disclosure unchanged when there is no row, so a caller can call
- * this unconditionally and a payload that declares nothing is byte-identical
- * to what it was before this lane.
+ * Returns the disclosure unchanged when there is no declaration, so a caller
+ * can call this unconditionally and a payload that declares nothing is
+ * byte-identical to what it was before this lane.
  */
 export function disclosureWithCitationVintage(
   disclosure: string | null | undefined,
-  row: SetbackCitationVintageRow | null,
+  row: SetbackCitationVintageDeclaration | null,
 ): string | undefined {
   const existing = typeof disclosure === "string" ? disclosure.trim() : "";
   if (!row) return existing ? existing : undefined;
