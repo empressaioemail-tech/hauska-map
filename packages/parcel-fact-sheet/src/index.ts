@@ -472,12 +472,22 @@ export interface ParcelFactSheet {
    * ADDITIVE (P-76 / 2026-08-25). City limits from cortex-root
    * cityLimitsFact. Optional so existing sealed stubs stay valid.
    * Missing means the inspect payload did not carry the field (hide the
-   * row). Never populated from situsCity / bake city. ETJ is typed
-   * absence only — no buffer ring.
+   * row). Never populated from situsCity / bake city.
+   *
+   * P-332 (2026-09-18) — `etjStatus` WIDENED from `string` to `string | null`.
+   * The `string`-only carrier forced a consumer-side default (`?? "unresolved"`)
+   * onto a payload that had carried no ETJ state at all: a claim the payload
+   * never made, wearing the shape of a declaration. `null` IS that state — no
+   * ETJ state was served — and it is deliberately distinct from the four served
+   * states (`present` | `absent` | `unresolved` | `conflicting`) and from the
+   * whole row being absent. A WIDENING, not a break: every previously-valid
+   * sealed sheet still type-checks. (The old "ETJ is typed absence only — no
+   * buffer ring" note here went stale when P-296 put a real point-in-polygon
+   * ETJ read on the authoritative wire on 2026-09-17.)
    */
   cityLimits?: Fact<{
     display: string;
-    etjStatus: string;
+    etjStatus: string | null;
   }>;
   /**
    * ADDITIVE (acquire-wave12 / 2026-09-04). School district from cortex-root
