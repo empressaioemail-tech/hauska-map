@@ -1,0 +1,66 @@
+name: Cross-repo literal drift (P-331)
+
+# P-331 — the cross-repo pin that can fail on cross-repo drift.
+#
+# WHY THIS IS ITS OWN WORKFLOW AND NOT A STEP IN property-explorer-ci.yml.
+# property-explorer-ci.yml has a `paths:` filter, and a check that is
+# path-filtered away does not fail open: it never reports at all (measured
+# 2026-09-17 on #410, where a required context never ran and merge was blocked
+# by any honest path). This check's subject is the SIBLING repo's main, which
+# is independent of which paths a given PR touches — so it must not inherit
+# that filter. It also runs on a schedule, which is the only thing that sees
+# "legacy-design-tools changed and we did not push": a push to one repo does
+# not re-run the other repo's CI, and that direction is a named bypass in the
+# check's own header.
+#
+# WHAT FAILS: the drift step's exit code. 1 = the two repos disagree on a
+# shared literal; 2 = a declaration could not be read where it is expected
+# (never a pass). The selftest step runs FIRST and fails if the control cannot
+# be observed failing.
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  schedule:
+    # 07:17 UTC daily. Catches any one-sided edit the day after it lands.
+    - cron: "17 7 * * *"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  drift:
+    name: cross-repo literal drift
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: checkout legacy-design-tools main (the sibling copy)
+        uses: actions/checkout@v4
+        with:
+          repository: empressaioemail-tech/legacy-design-tools
+          ref: main
+          path: ldt-main
+          sparse-checkout: |
+            lib/cad-ingest/src/txgio/zoning-layers.ts
+            artifacts/api-server/src/lib/txgioAddressResolve.ts
+            artifacts/api-server/src/lib/buildableEnvelope/plannedDevelopmentSetback.ts
+            artifacts/api-server/src/lib/buildableEnvelope/setbackCitationVintage.ts
+            artifacts/api-server/src/lib/buildableEnvelope/__fixtures__/envelope-verification.json
+            artifacts/api-server/src/lib/floodHazardFactRead.ts
+            artifacts/api-server/src/lib/specialDistrictFactRead.ts
+            artifacts/api-server/src/lib/wellFactRead.ts
+            artifacts/api-server/src/lib/schoolDistrictFactRead.ts
+            artifacts/api-server/src/lib/utilityServiceFactRead.ts
+            artifacts/api-server/src/lib/overlayDistrictsFactRead.ts
+            artifacts/api-server/src/lib/agValuationFactRead.ts
+            artifacts/api-server/src/lib/maxImperviousCoverPctFactRead.ts
+          sparse-checkout-cone-mode: false
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+      - name: selftest (the control must be observed failing, not only passing)
+        run: node scripts/check-cross-repo-literal-drift.mjs --selftest
+      - name: drift against legacy-design-tools main
+        run: node scripts/check-cross-repo-literal-drift.mjs --side map --ldt-root ldt-main

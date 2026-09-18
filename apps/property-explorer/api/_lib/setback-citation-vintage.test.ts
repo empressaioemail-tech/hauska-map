@@ -5,9 +5,14 @@
 // The tests are grouped by the four questions the dispatch asks a lane to be
 // able to answer, and each group carries the falsifier it is meant to trip:
 //
-//   1. THE DECISION IS IN ONE PLACE — the exact sentence is pinned HERE, so a
-//      drift between this repo and legacy-design-tools' copy is a failing test
-//      rather than a silent difference in what the customer reads.
+//   1. THE DECISION IS IN ONE PLACE — the exact sentence is pinned HERE (a
+//      LOCAL pin: it fails when THIS module's constant changes away from the
+//      literal below, which catches an accidental edit early). It does NOT fail
+//      on drift with legacy-design-tools: both sides of that assertion live in
+//      this repo. The claim that a one-sided edit fails exactly one suite was
+//      FALSE (P-331, 2026-09-18). The cross-repo half is now watched from the
+//      defining modules by `scripts/check-cross-repo-literal-drift.mjs`, which
+//      reads legacy-design-tools' main and fails on disagreement.
 //   2. THE THREE STATES ARE THREE — absent-at-source, unparseable and
 //      never-looked are asserted apart from each other, so collapsing any two
 //      into one boolean fails.
@@ -34,11 +39,15 @@ const CITATION = "https://library.municode.com/tx/pflugerville/ordinances/2026-0
 
 describe("P-270 pin — the one customer sentence", () => {
   /**
-   * THE DRIFT GUARD. legacy-design-tools'
-   * `artifact/api-server/src/lib/buildableEnvelope/setbackCitationVintage.ts`
-   * pins this identical literal in its own test. If either repo edits the
-   * sentence alone, exactly one of the two suites fails: the customer cannot
-   * be told two different things about one rule.
+   * THE LOCAL PIN. It fails when THIS module's constant changes away from the
+   * literal below. It is NOT the cross-repo guard: legacy-design-tools pins its
+   * own copy in its own repo, so a one-sided edit with the literal updated here
+   * too would pass both suites (P-331, 2026-09-18 — this comment said the
+   * opposite until then). The cross-repo half is
+   * `scripts/check-cross-repo-literal-drift.mjs`, which reads
+   * legacy-design-tools' main on every push and nightly and fails on
+   * disagreement. Keep this exact anyway: the two controls fail on different
+   * things, and this one is the early warning.
    */
   it("is byte-identical to the literal legacy-design-tools pins", () => {
     expect(SETBACK_CITATION_VINTAGE_UNREADABLE_NOTE).toBe(

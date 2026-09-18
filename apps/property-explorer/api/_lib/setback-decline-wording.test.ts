@@ -13,10 +13,21 @@
  *     legacy-design-tools' packages, so the planned-development pattern, its
  *     flags and the refusal sentence travel as PINNED LITERALS asserted
  *     byte-for-byte. legacy-design-tools' own suite asserts its exported
- *     constants against the identical literals. Editing one side therefore
- *     fails that side's suite and points at the other; neither repo can drift
- *     alone. Do not soften these to `toMatch`/`toContain` — the point is exact
- *     bytes.
+ *     constants against the identical literals. Do not soften these to
+ *     `toMatch`/`toContain` — the point is exact bytes.
+ *
+ *     WHAT THIS BLOCK DOES AND DOES NOT PROVE (P-331, 2026-09-18). It is a
+ *     LOCAL pin: it fails when THIS module's constant changes away from the
+ *     literal typed above, which is what catches an accidental edit early. It
+ *     cannot fail on drift with legacy-design-tools, because both sides of the
+ *     assertion live in this repo and legacy-design-tools' suite asserts its own
+ *     copy in its own repo — the claim that "neither repo can drift alone" was
+ *     FALSE when it was written (a one-sided edit with this literal updated
+ *     passes both CIs). The cross-repo half is now watched from the defining
+ *     modules by `scripts/check-cross-repo-literal-drift.mjs` (workflow
+ *     `.github/workflows/cross-repo-literal-drift.yml`), which reads
+ *     legacy-design-tools' main and fails on disagreement. Keep this test AND
+ *     keep it exact: the two controls fail on different things.
  */
 
 import { describe, expect, it } from "vitest";

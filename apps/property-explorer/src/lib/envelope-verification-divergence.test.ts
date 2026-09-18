@@ -16,6 +16,13 @@
 // predicate edited ALONE fails here, on the case whose declared answer it now
 // contradicts — which is the whole point: the four cannot silently drift.
 //
+// P-331 (2026-09-18): "byte-identical" is now a CONTROL, not a claim — the
+// `envelope-verification-v1-fixture` row of
+// `scripts/check-cross-repo-literal-drift.mjs` hashes both files (CRLF
+// normalised, because the two repos apply different eol attributes on checkout)
+// and fails when they stop matching, which this repo's own suite cannot see.
+// This test keeps its own job: the predicates, not the bytes.
+//
 // A fixture that only agreed with one side would be worthless, so the cases
 // deliberately include both directions and the near misses (a version-shifted
 // marker, a citation substring that is one letter short) that a loose
