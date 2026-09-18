@@ -29,6 +29,19 @@ export const SUGGEST_DEBOUNCE_MS = 250;
 export const SUGGEST_MIN_CHARS = 2;
 export const SUGGEST_MAX_RESULTS = 7;
 
+/**
+ * P-353. A fetcher may answer with rows alone (the shape every existing
+ * caller and test uses) or with rows plus the reason there are none. The
+ * controller normalises both, so no call site is forced to change.
+ */
+export interface SuggestFetchResult {
+  suggestions: Suggestion[];
+  /** Set when the search declined because the PLACE is outside coverage. */
+  coverageNotice?: string | null;
+}
+
+export type SuggestFetchOutcome = Suggestion[] | SuggestFetchResult;
+
 export interface SuggestSnapshot {
   query: string;
   open: boolean;
@@ -44,12 +57,22 @@ export interface SuggestSnapshot {
   showingRecents: boolean;
   /** True when a completed fetch found nothing (honest empty state). */
   empty: boolean;
+  /**
+   * P-353. Why there is nothing to show, when the reason is a coverage
+   * answer rather than "keep typing". Rendered in place of the generic
+   * empty line, so the customer reads which kind of no-result this is.
+   * Null/absent = no coverage answer to give.
+   */
+  coverageNotice?: string | null;
   /** True after Arrow/hover — Find/Enter may pick. Default first row is not a choice. */
   highlightExplicit: boolean;
 }
 
 export interface SuggestControllerOpts {
-  fetchSuggestions: (query: string, signal: AbortSignal) => Promise<Suggestion[]>;
+  fetchSuggestions: (
+    query: string,
+    signal: AbortSignal,
+  ) => Promise<SuggestFetchOutcome>;
   onChange: (snap: SuggestSnapshot) => void;
   loadRecents?: () => RecentEntry[];
   saveRecents?: (recents: RecentEntry[]) => void;
@@ -93,6 +116,7 @@ export function createSuggestController(
     recents: opts.loadRecents ? opts.loadRecents() : [],
     showingRecents: false,
     empty: false,
+    coverageNotice: null,
     highlightExplicit: false,
   };
 
@@ -122,17 +146,29 @@ export function createSuggestController(
     const gen = ++generation;
     const ctrl = new AbortController();
     inflight = ctrl;
-    emit({ loading: true, unavailable: false, empty: false });
+    emit({ loading: true, unavailable: false, empty: false, coverageNotice: null });
     opts
       .fetchSuggestions(query, ctrl.signal)
-      .then((results) => {
+      .then((outcome) => {
         if (gen !== generation || ctrl.signal.aborted) return; // stale
+        // P-353: both shapes, one normalisation. A coverage notice explains
+        // the absence, so the row list is empty by construction — but the
+        // generic "keep typing" empty state is suppressed when a notice is
+        // present, because "No matches, try a fuller address" is a lie when
+        // the reason is that we do not cover the county.
+        const { suggestions: results, coverageNotice } = Array.isArray(outcome)
+          ? { suggestions: outcome, coverageNotice: null }
+          : {
+              suggestions: outcome?.suggestions ?? [],
+              coverageNotice: outcome?.coverageNotice ?? null,
+            };
         const items = groupSuggestions(results, maxResults, query);
         emit({
           loading: false,
           items,
-          empty: items.length === 0,
+          empty: items.length === 0 && !coverageNotice,
           unavailable: false,
+          coverageNotice,
           highlighted: items.length ? 0 : -1,
           highlightExplicit: false,
         });
@@ -145,6 +181,7 @@ export function createSuggestController(
           items: [],
           empty: false,
           unavailable: true,
+          coverageNotice: null,
           highlighted: -1,
           highlightExplicit: false,
         });
@@ -178,6 +215,7 @@ export function createSuggestController(
           loading: false,
           unavailable: false,
           empty: false,
+          coverageNotice: null,
           highlighted: -1,
           highlightExplicit: false,
         });
@@ -195,6 +233,7 @@ export function createSuggestController(
           loading: false,
           unavailable: false,
           empty: !fast,
+          coverageNotice: null,
           highlighted: fast ? 0 : -1,
           highlightExplicit: false,
         });
@@ -210,6 +249,7 @@ export function createSuggestController(
           loading: false,
           unavailable: false,
           empty: false,
+          coverageNotice: null,
           highlighted: -1,
         });
         return;
@@ -221,6 +261,7 @@ export function createSuggestController(
         showingRecents: false,
         loading: true,
         empty: false,
+        coverageNotice: null,
         highlightExplicit: false,
       });
       timer = setTimeout(() => {
@@ -231,7 +272,7 @@ export function createSuggestController(
 
     close() {
       cancelPending();
-      emit({ open: false, loading: false, highlighted: -1 });
+      emit({ open: false, loading: false, coverageNotice: null, highlighted: -1 });
     },
 
     moveHighlight(delta) {
@@ -261,7 +302,7 @@ export function createSuggestController(
       if (!chosen) return null;
       controller.recordSelection(chosen);
       cancelPending();
-      emit({ open: false, loading: false, highlighted: -1 });
+      emit({ open: false, loading: false, coverageNotice: null, highlighted: -1 });
       return chosen;
     },
 
@@ -287,6 +328,7 @@ export function createSuggestController(
         items: [],
         unavailable: false,
         empty: false,
+        coverageNotice: null,
         showingRecents: false,
       });
     },
