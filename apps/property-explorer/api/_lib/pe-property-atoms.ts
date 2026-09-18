@@ -634,6 +634,15 @@ function applyEnvelopeSetbackOverride(
  * `payload.cityLimitsFact` already held, in both branches below — never
  * invented when absent (an atom-chain-only response that never got a
  * cortex merge has no queryPoint to carry, and none is fabricated here).
+ *
+ * P-332 (2026-09-18): the SAME wholesale replacement was silently dropping
+ * the ETJ determination, and it is fixed at its source rather than here —
+ * `payload.cityLimitsFact` is now handed to the record composers as their
+ * `priorCityLimits` argument, so one owner (`pe-etj-determination.ts`) decides
+ * the served ETJ state in every branch. This helper still owns `queryPoint`
+ * alone: it is not part of the retrieval reader's cityLimits cell and has no
+ * determination to carry, so the two concerns stay separate rather than
+ * growing a second copy of the ETJ rule here.
  */
 function withPreservedQueryPoint(
   existing: PeBakedFacetsResponse["cityLimitsFact"],
@@ -664,7 +673,9 @@ export async function applyRecordPatch(
 
   if (!result.ok) {
     const failure = classifyRecordFetchFailure(result.reason);
-    const patch = composeRecordUnavailablePatch(failure);
+    // P-332: the pre-existing fact is handed in so an ETJ determination
+    // already in hand survives an unrelated city-limits outage.
+    const patch = composeRecordUnavailablePatch(failure, payload.cityLimitsFact);
     return {
       ...payload,
       readPath: "record-unavailable",
@@ -685,7 +696,7 @@ export async function applyRecordPatch(
     };
   }
 
-  const { patch, railStates } = composeRecordPatch(result.record);
+  const { patch, railStates } = composeRecordPatch(result.record, payload.cityLimitsFact);
   const { override: zsOverride, railStates: zsRailStates } = composeZoningSetbackOverride(result.record);
   // P-216 (2026-09-15): a setback-axis override is a genuinely newer read
   // than whatever atom-chain `snapshotAt` this payload started with — never

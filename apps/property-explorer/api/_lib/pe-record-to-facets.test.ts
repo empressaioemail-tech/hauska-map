@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 
 import {
   composeRecordPatch,
+  composeRecordUnavailablePatch,
   composeZoningSetbackOverride,
   COMPOSED_ZONING_SETBACK_RAIL_KEYS,
   type ParcelRecordResponse,
@@ -55,6 +56,12 @@ describe("composeRecordPatch", () => {
       basis:
         "parcel_record cityLimits: incorporated, city 'Bastrop' (source: landing_parcel_jurisdiction, vintage: 2026-09-02T18:13:56.751Z).",
       cityName: "Bastrop",
+      // P-332: no determination is in hand on this call (the caller passed no
+      // prior fact), so the ETJ state is `unresolved` AND says why. The literal
+      // is asserted, not read off the module's constant, so the test still
+      // fails if the reason is ever emptied.
+      etjReason:
+        "no ETJ determination was served for this point; P-332: ETJ is never derived from city limits, nor city limits from ETJ.",
     });
     expect(railStates.cityLimits).toEqual({ serve: "record", atomBacked: false });
   });
@@ -72,6 +79,8 @@ describe("composeRecordPatch", () => {
       etjStatus: "unresolved",
       source: "tx_city_boundary",
       basis: "parcel_record cityLimits: unincorporated (source: landing_parcel_jurisdiction).",
+      etjReason:
+        "no ETJ determination was served for this point; P-332: ETJ is never derived from city limits, nor city limits from ETJ.",
     });
   });
 
@@ -483,3 +492,155 @@ describe("composeZoningSetbackOverride — setback-rule citation vintage (P-270,
     expect(override.setbackRulesCitationDateRead).toBeUndefined();
   });
 });
+
+/**
+ * P-332 (OPS-24 wave 1). The record reader has no ETJ column — `rail.cell`
+ * carries a city name or an unincorporated disposition and nothing about the
+ * ETJ. So the determination the panel serves has exactly one place it can come
+ * from on this path: the city-limits fact the patch REPLACES. Pre-change, all
+ * four `composeCityLimits` branches wrote the literal `etjStatus:
+ * "unresolved"`, so a parcel whose cortex read said `present` was served
+ * `unresolved` the moment a record patch landed on it — the same wholesale-
+ * replacement defect F21 caught for `queryPoint` in 2026-09-13, unnoticed for
+ * the determination.
+ *
+ * `LIVE_48453_134392` below is the real `cityLimitsFact` cortex served for that
+ * parcel (captured 2026-09-18 via the spine's own cortex proxy) and is
+ * transcribed, not paraphrased.
+ */
+const LIVE_48453_134392_CITY_LIMITS = {
+  status: "incorporated",
+  etjStatus: "present",
+  source: "tx_city_boundary",
+  basis:
+    "parcel_record cityLimits: incorporated, city 'Austin' (source: landing_parcel_jurisdiction, vintage: 2026-09-17T19:23:36.801Z). ETJ: point-in-polygon against tx_etj_boundary etj_id=austin-tx:39 (Austin: \"AUSTIN 2 MILE ETJ\", ring 39)",
+  cityName: "Austin",
+  queryPoint: { longitude: -97.85514, latitude: 30.35297 },
+  etjFact: {
+    status: "present",
+    source: "tx_etj_boundary",
+    basis:
+      "point-in-polygon against tx_etj_boundary etj_id=austin-tx:39 (Austin: \"AUSTIN 2 MILE ETJ\", ring 39)",
+    cityKey: "austin-tx",
+    cityName: "Austin",
+    ringLabel: "AUSTIN 2 MILE ETJ",
+    etjId: "austin-tx:39",
+    sourceCitation:
+      "https://services.arcgis.com/0L95CJ0VTaxqcmED/arcgis/rest/services/BOUNDARIES_jurisdictions/FeatureServer/0",
+    queryPoint: { longitude: -97.85514, latitude: 30.35297 },
+  },
+};
+
+const RECORD_FAILURE = {
+  errorClass: "http-error" as const,
+  httpStatus: 503,
+  reason: "record HTTP 503",
+};
+
+describe("P-332 — the ETJ determination survives the record patch (falsifier F1)", () => {
+  it("F1: a record-served UNINCORPORATED cell does not blank a determination already in hand — the patch serves the real read, not the literal", () => {
+    const record = emptyRecord({
+      cityLimits: rail("record", { kind: "absent-verified", basis: { disposition: "unincorporated", source: "landing_parcel_jurisdiction" } }),
+    });
+
+    const { patch } = composeRecordPatch(record, LIVE_48453_134392_CITY_LIMITS as never);
+    const served = patch.cityLimitsFact!;
+
+    expect(served.status).toBe("unincorporated");
+    // The read is `present` on land the city limits reading now calls
+    // unincorporated. That is the coherent ETJ case, not a conflict — and it is
+    // NOT `unresolved`, which is what this returned before the change.
+    expect(served.etjStatus).toBe("present");
+    expect(served.etjStatus).not.toBe("unresolved");
+    expect(served.etjReason).toBeUndefined();
+    expect(served.etjFact?.etjId).toBe("austin-tx:39");
+    expect(served.etjFact?.ringLabel).toBe("AUSTIN 2 MILE ETJ");
+    expect(served.etjFact?.sourceCitation).toContain("BOUNDARIES_jurisdictions");
+  });
+
+  it("F1 control: with NO determination in hand the same composition still serves `unresolved` — and now says why", () => {
+    const record = emptyRecord({
+      cityLimits: rail("record", { kind: "absent-verified", basis: { disposition: "unincorporated", source: "landing_parcel_jurisdiction" } }),
+    });
+
+    const { patch } = composeRecordPatch(record);
+    const served = patch.cityLimitsFact!;
+
+    expect(served.etjStatus).toBe("unresolved");
+    expect(served.etjReason).toBe(
+      "no ETJ determination was served for this point; P-332: ETJ is never derived from city limits, nor city limits from ETJ.",
+    );
+  });
+
+  it("F3: a record-served INCORPORATED cell on top of a present read declares the conflict instead of serving `present` as a clean fact", () => {
+    const record = emptyRecord({
+      cityLimits: rail("record", {
+        kind: "value",
+        value: "Bastrop",
+        source: "landing_parcel_jurisdiction",
+        vintage: "2026-09-02T18:13:56.751Z",
+      }),
+    });
+
+    const { patch } = composeRecordPatch(record, LIVE_48453_134392_CITY_LIMITS as never);
+    const served = patch.cityLimitsFact!;
+
+    expect(served.status).toBe("incorporated");
+    expect(served.etjStatus).toBe("conflicting");
+    // The direction that would catch verbatim forwarding:
+    expect(served.etjStatus).not.toBe("present");
+    // Both sides, both bases, neither dropped:
+    expect(served.etjConflict?.cityLimits.basis).toContain("landing_parcel_jurisdiction");
+    expect(served.etjConflict?.cityLimits.cityName).toBe("Bastrop");
+    expect(served.etjConflict?.etj.basis).toContain("tx_etj_boundary");
+    expect(served.etjConflict?.etj.etjId).toBe("austin-tx:39");
+    expect(served.etjFact?.status).toBe("present");
+  });
+
+  it("a declared /record OUTAGE is not an ETJ event: the city-limits reader failing does not invalidate a determination from another source", () => {
+    const patch = composeRecordUnavailablePatch(RECORD_FAILURE, LIVE_48453_134392_CITY_LIMITS as never);
+    const served = patch.cityLimitsFact!;
+
+    expect(served.status).toBe("unmeasured");
+    expect(served.etjStatus).toBe("present");
+    expect(served.etjFact?.etjId).toBe("austin-tx:39");
+  });
+
+  it("...and with none in hand the outage serves `unresolved` with its reason, never a derivation", () => {
+    const patch = composeRecordUnavailablePatch(RECORD_FAILURE);
+    const served = patch.cityLimitsFact!;
+
+    expect(served.status).toBe("unmeasured");
+    expect(served.etjStatus).toBe("unresolved");
+    expect(served.etjReason).toBe(
+      "no ETJ determination was served for this point; P-332: ETJ is never derived from city limits, nor city limits from ETJ.",
+    );
+  });
+
+  it("stale residue does not survive: a prior fact that was already `conflicting` re-composes cleanly to `absent` when the read in hand is an absence", () => {
+    const conflicting = composeRecordPatch(
+      emptyRecord({
+        cityLimits: rail("record", { kind: "value", value: "Bastrop", source: "landing_parcel_jurisdiction", vintage: "v" }),
+      }),
+      LIVE_48453_134392_CITY_LIMITS as never,
+    ).patch.cityLimitsFact!;
+    expect(conflicting.etjStatus).toBe("conflicting");
+
+    const absentPrior = {
+      ...conflicting,
+      etjStatus: "absent",
+      etjFact: { status: "absent", source: "tx_etj_boundary", basis: "checked against published rings" },
+    };
+    const { patch } = composeRecordPatch(
+      emptyRecord({
+        cityLimits: rail("record", { kind: "absent-verified", basis: { disposition: "unincorporated", source: "landing_parcel_jurisdiction" } }),
+      }),
+      absentPrior as never,
+    );
+
+    expect(patch.cityLimitsFact?.etjStatus).toBe("absent");
+    expect(patch.cityLimitsFact?.etjConflict).toBeUndefined();
+    expect(patch.cityLimitsFact?.etjReason).toBeUndefined();
+  });
+});
+

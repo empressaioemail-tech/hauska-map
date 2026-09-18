@@ -34,6 +34,16 @@ import {
   type SetbackDateRead,
 } from "./setback-citation-vintage.js";
 import { withVerdictLayerFields } from "./verdict-layer-merge.js";
+// P-332 (OPS-24 wave 1): the ONE writer for the panel's ETJ state. Imported
+// rather than reimplemented here — see that module's header for why the
+// determination needed a single owner across both adoption points.
+import {
+  isEtjStatus,
+  normalizeAdoptedCityLimitsEtj,
+  type EtjConflictWire,
+  type EtjFactWire,
+  type EtjStatus,
+} from "./pe-etj-determination.js";
 // P-272: one definition of a readable situs, shared with the client modules
 // (`fact-sheet-resolver.ts`, `live-envelope-augment.ts`, `baked-facets.ts`) and
 // with `buildable-envelope.js`'s request-body guard. Re-exported below so this
@@ -634,8 +644,17 @@ export type BoundaryEdgeFactWire = {
  */
 /**
  * Cortex inspect GET sibling (P-76 / city-limits). PIP against
- * `tx_city_boundary`, not an atom. ETJ is typed absence (`etjStatus:
- * unresolved`). No ETJ buffer ring on this wire.
+ * `tx_city_boundary`, not an atom. No ETJ buffer ring on this wire.
+ *
+ * P-332 (OPS-24 wave 1, measured live 2026-09-18). Until this lane the type
+ * read `etjStatus: "unresolved"` — a single-member literal — and the guard
+ * below enforced it, so a cortex fact carrying a REAL ETJ determination was
+ * rejected whole (status, cityName, queryPoint and the nested `etjFact`
+ * block with it) one layer before the record composers ever saw it. The
+ * authoritative route has served a real determination since P-296
+ * (2026-09-17); the four states are now representable and the fact is
+ * normalised on adoption by `normalizeAdoptedCityLimitsEtj` rather than
+ * silently dropped or forwarded raw as a contradiction.
  *
  * `queryPoint` (F21, 2026-09-13): the point-in-polygon subject point cortex
  * stamps onto this fact — was already present on the wire (carried through
@@ -651,13 +670,30 @@ export type BoundaryEdgeFactWire = {
  */
 export type CityLimitsFactWire = {
   status: "incorporated" | "unincorporated" | "unmeasured";
-  etjStatus: "unresolved";
+  /**
+   * Four states, not a boolean (P-332). `conflicting` is DERIVED, never read:
+   * it is emitted only when `status` is `incorporated` and the ETJ read is
+   * `present`, because a Texas extraterritorial jurisdiction is by definition
+   * unincorporated land outside a city's limits. The rule lives in
+   * `pe-etj-determination.ts` and nowhere else.
+   */
+  etjStatus: EtjStatus;
   source: "tx_city_boundary";
   basis: string;
   cityName?: string;
   geoId?: string;
   gnis?: string | null;
   queryPoint?: { longitude: number; latitude: number } | null;
+  /**
+   * P-332: cortex's RAW ETJ determination (`etjFact` nested inside the root
+   * `cityLimitsFact` by P-296 — NOT a root sibling). Carried through
+   * untouched so `status` here never drifts, and so the reason/ring/vintage
+   * of the ETJ read survives the record path's wholesale replacement of this
+   * object.
+   */
+  etjFact?: EtjFactWire | null;
+  /** P-332: present only when `etjStatus === "conflicting"`. Names both sources and both bases. */
+  etjConflict?: EtjConflictWire | null;
 };
 
 export type OwnerFactWire = {
@@ -1536,7 +1572,10 @@ export function isCityLimitsFactWire(
   ) {
     return false;
   }
-  if (o.etjStatus !== "unresolved") return false;
+  // P-332: was `o.etjStatus !== "unresolved"`, which rejected any fact carrying
+  // a real determination. The guard now admits all four served states; the
+  // determination itself is validated where it is read (readEtjFact).
+  if (!isEtjStatus(o.etjStatus)) return false;
   if (o.source !== "tx_city_boundary") return false;
   return typeof o.basis === "string" && o.basis.length > 0;
 }
@@ -1561,7 +1600,13 @@ function withCityLimitsFact(
 ): PeBakedFacetsResponse {
   const fact = cityLimitsFactFromCortexRoot(bakedBody);
   if (fact === undefined) return atomResponse;
-  return { ...atomResponse, cityLimitsFact: fact };
+  // P-332: normalise on ADOPTION, not only on composition. A parcel whose
+  // `cityLimits` rail is not slated `record` gets no record patch at all, so
+  // this is the only place that can stop cortex's own
+  // `{status: "incorporated", etjStatus: "present"}` contradiction from being
+  // forwarded verbatim as two clean and contradictory facts. `basis` is left
+  // alone here — cortex's basis already ends with its own `ETJ: ...` segment.
+  return { ...atomResponse, cityLimitsFact: normalizeAdoptedCityLimitsEtj(fact) };
 }
 
 export function isStructuralFactWire(value: unknown): value is StructuralFactWire {
