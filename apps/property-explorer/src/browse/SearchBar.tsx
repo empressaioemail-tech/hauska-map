@@ -24,7 +24,7 @@ import {
   type SuggestSnapshot,
 } from "../lib/search-suggest";
 import {
-  fetchMergedSearchSuggestions,
+  fetchMergedSearchResult,
   type GeocodeBias,
 } from "../lib/geocodeClient";
 import {
@@ -346,6 +346,16 @@ export function SuggestDropdown({
         still open directly.
       </div>
     );
+  } else if (!snap.showingRecents && snap.coverageNotice) {
+    // P-353. The reason there is nothing to show, when the reason is a
+    // coverage answer. Sits exactly where "No matches, try a fuller address"
+    // used to sit — because for an uncovered county that sentence was the
+    // wrong kind of no-result.
+    body = (
+      <div data-testid="search-coverage-notice" style={infoRow}>
+        {snap.coverageNotice}
+      </div>
+    );
   } else if (!snap.showingRecents && snap.empty) {
     body = (
       <div data-testid="search-empty" style={infoRow}>
@@ -453,7 +463,7 @@ export function SearchBar({
         fetchSuggestions: (q, signal) =>
           fetchRef.current
             ? fetchRef.current(q, signal)
-            : fetchMergedSearchSuggestions(q, getBiasRef.current(), signal),
+            : fetchMergedSearchResult(q, getBiasRef.current(), signal),
         onChange: setSnap,
         loadRecents: () => loadRecents(),
         saveRecents: (r) => saveRecents(r),
