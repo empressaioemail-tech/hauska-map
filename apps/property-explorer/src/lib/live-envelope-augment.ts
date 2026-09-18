@@ -26,7 +26,7 @@ import {
 } from "./buildable-envelope.js";
 // P-272: the single definition, shared with fact-sheet-resolver.ts,
 // baked-facets.ts, buildable-envelope.js and the API's atom-chain-to-facets.ts.
-import { isUsableSitusAddress } from "./situs-address";
+import { isUsableSitusAddress, composeSitusLine } from "./situs-address";
 
 function str(v: unknown): string | null {
   return typeof v === "string" && v.trim() ? v.trim() : null;
@@ -37,25 +37,14 @@ function num(v: unknown): number | undefined {
 }
 
 /**
- * Duplicated from fact-sheet-resolver.ts's `composedSitusAddress` (P-151) —
- * importing back would be circular (fact-sheet-resolver.ts already imports FROM
- * this module's `facetsNeedLiveEnvelopeDerive`). P-272 moved
- * `isUsableSitusAddress` itself OUT of both files into `./situs-address`, where
- * it is shared with no cycle at all; only this compose helper stays local.
- * situsAddress + city + state, composed ONLY for the outbound live-derive
- * POST — never for what `baseFacts.situsAddress` displays elsewhere.
+ * P-151/P-270: the outbound live-derive POST's address. Now the SHARED composer
+ * in `./situs-address` (`composeSitusLine`) — P-272 moved `isUsableSitusAddress`
+ * out of these two files and left this join duplicated; P-270's address half
+ * moved the join too, because the ZIP was missing from every copy of it and the
+ * copies were the only thing keeping the drift invisible.
  */
 function composedSitusAddress(facets: BakedFacetPayload): string | null {
-  const base = facets.baseFacts ?? {};
-  const address = str(base.situsAddress);
-  if (!address) return null;
-  const addressLower = address.toLowerCase();
-  const parts = [address];
-  const city = str(base.situsCity);
-  if (city && !addressLower.includes(city.toLowerCase())) parts.push(city);
-  const state = str(base.situsState);
-  if (state && !addressLower.includes(state.toLowerCase())) parts.push(state);
-  return parts.join(", ");
+  return composeSitusLine(facets.baseFacts ?? {});
 }
 
 /** True when facets carry setbacks — geometry must come from live derive. */

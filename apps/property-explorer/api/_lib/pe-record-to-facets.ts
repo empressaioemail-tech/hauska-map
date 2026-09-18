@@ -28,7 +28,7 @@
 // the caller (`pe-property-atoms.ts`) leaves whatever the existing
 // atom-chain / cortex-merge path already produced for that field untouched.
 
-import { interpretRecordCell, noSuchCellRefusal, type RecordCompanionRow } from "./pe-record-cell-interpret.js";
+import { interpretRecordCell, noSuchCellRefusal, type RecordCellRead, type RecordCompanionRow } from "./pe-record-cell-interpret.js";
 import { readEtjFact, resolveEtjDetermination } from "./pe-etj-determination.js";
 import {
   NEVER_LOOKED_DATE_READ,
@@ -107,6 +107,15 @@ export const COMPOSED_RECORD_RAIL_KEYS = [
   "acreageMethod",
   "livingAreaSqft",
   "yearBuilt",
+  // P-270 ADDRESS HALF (2026-09-18): the address components the card's address
+  // line now takes from the ledger (see `composeBaseFactsSitus`). Listed here so
+  // `recordRailStates` reports what the reader actually served for each of them
+  // — the panel's honest-absence ledger is where a customer-facing "the roll
+  // states no city" is distinguishable from "nobody looked". `situsAddress`
+  // itself stays on the cortex path (P-151/P-172 own the situs family).
+  "situsState",
+  "situsZip",
+  "situsCity",
 ] as const;
 
 /**
@@ -146,6 +155,8 @@ export interface RecordPatch {
   agValuationFact?: AgValuationFactWire;
   maxImperviousCoverPctFact?: MaxImperviousCoverPctFactWire;
   baseFactsAcreage?: NonNullable<PeBakedFacetPayload["baseFacts"]>["acreage"];
+  /** P-270 address half: the address components the ledger serves, for `baseFacts`. */
+  baseFactsSitus?: BaseFactsSitus;
   livingAreaSqft?: { status: "populated"; value: number };
   yearBuilt?: { status: "populated"; value: number };
   yearBuiltSource?: string;
@@ -612,6 +623,93 @@ function composeAcreage(
   return { value, sqft, method };
 }
 
+/**
+ * P-270 ADDRESS HALF (2026-09-18): where the ledger's address components become
+ * `baseFacts` fields. Three scalar rails, read exactly as `composeAcreage` reads
+ * its three: `serve === "record"` and a present cell, or nothing at all.
+ *
+ * WHAT THE LEDGER ACTUALLY HOLDS (measured live 2026-09-18 on Pflugerville
+ * `48453:445501`): `situsZip` is a value (`78660`) and the roll's `situsCity` is
+ * ABSENT-VERIFIED — the CAD-parcel-roll claim for this parcel carries no
+ * situs city and the declared-vintage `cad_property.situs_city` is empty, so
+ * both sources agree the ROLL has none. The card served neither, so it dropped a
+ * ZIP its own ledger holds and named no city it could name.
+ *
+ * THE CITY IS LABELLED, NOT INVENTED. When the roll states no city and
+ * `cityLimits` names an incorporated one, the city is carried with
+ * `situsCityBasis: "city-limits"` — the city whose LIMITS CONTAIN the parcel,
+ * which is a different claim from "the roll's mailing city" and must never be
+ * rendered as one (dispatch item 2). `situsCityBasis: "cad-roll"` marks the
+ * roll's own city. An unincorporated parcel with no roll city yields NO city
+ * field at all rather than a guessed one. `cityLimits`'s own fact
+ * (`cityLimitsFact`) is untouched and keeps describing jurisdiction; this only
+ * lets an address line name the city a customer can recognise.
+ *
+ * WHAT THIS DOES NOT DO: it never writes `situsAddress` (P-151/P-172 own the
+ * situs family — see the module doc), never invents a ZIP, and never labels a
+ * city-limits city as the CAD roll's city.
+ */
+export type SitusCityBasis = "cad-roll" | "city-limits";
+
+export interface BaseFactsSitus {
+  situsState?: string;
+  situsZip?: string;
+  situsCity?: string;
+  situsCityBasis?: SitusCityBasis;
+}
+
+/** One scalar rail's cell, or null when the reader did not serve this rail at all. */
+function servedRecordCell(
+  placeKey: string,
+  railKey: string,
+  rail: RecordRail | undefined,
+): RecordCellRead | null {
+  if (!rail || rail.serve !== "record") return null;
+  return rail.cell
+    ? interpretRecordCell(placeKey, railKey, rail.cell, [])
+    : noSuchCellRefusal(placeKey, railKey);
+}
+
+/** A present cell's value as a non-empty string — never an absent/refused cell, never a non-string. */
+function cellString(cell: RecordCellRead | null): string | undefined {
+  return cell?.state === "present" ? (asNullableString(cell.value) ?? undefined) : undefined;
+}
+
+function composeBaseFactsSitus(
+  placeKey: string,
+  rails: ParcelRecordResponse["rails"],
+): BaseFactsSitus | undefined {
+  const out: BaseFactsSitus = {};
+
+  const state = cellString(servedRecordCell(placeKey, "situsState", rails.situsState));
+  if (state) out.situsState = state;
+
+  const zip = cellString(servedRecordCell(placeKey, "situsZip", rails.situsZip));
+  if (zip) out.situsZip = zip;
+
+  // The roll's own city first: it is the only one that may be rendered as the
+  // roll's city.
+  const rollCell = servedRecordCell(placeKey, "situsCity", rails.situsCity);
+  const rollCity = cellString(rollCell);
+  if (rollCity) {
+    out.situsCity = rollCity;
+    out.situsCityBasis = "cad-roll";
+  } else if (rollCell?.state === "absent" && rollCell.verdict === "absent-verified") {
+    // ONLY an ABSENT-VERIFIED roll city licenses the fallback. A rail that was
+    // never slated, refused, or served a malformed cell says nothing about
+    // whether the roll holds a city, and substituting the containing city there
+    // would be inventing one (dispatch item 2, and the `not-applicable` verdict
+    // is likewise not "the roll has none").
+    const limitsCity = cellString(servedRecordCell(placeKey, "cityLimits", rails.cityLimits));
+    if (limitsCity) {
+      out.situsCity = limitsCity;
+      out.situsCityBasis = "city-limits";
+    }
+  }
+
+  return Object.keys(out).length ? out : undefined;
+}
+
 function composeLivingAreaSqft(placeKey: string, rail: RecordRail): { status: "populated"; value: number } | undefined {
   if (!rail.cell) return undefined;
   const cell = interpretRecordCell(placeKey, "livingAreaSqft", rail.cell, []);
@@ -1038,6 +1136,11 @@ export function composeRecordPatch(
 
   const acreage = composeAcreage(placeKey, record.rails.acreageAcres, record.rails.acreageSqft, record.rails.acreageMethod);
   if (acreage) patch.baseFactsAcreage = acreage;
+
+  // P-270 address half. Independent of acreage: a parcel can serve either, both
+  // or neither, and each is composed only from rails that genuinely served.
+  const baseFactsSitus = composeBaseFactsSitus(placeKey, record.rails);
+  if (baseFactsSitus) patch.baseFactsSitus = baseFactsSitus;
 
   const livingAreaRail = record.rails.livingAreaSqft;
   if (livingAreaRail?.serve === "record") {
