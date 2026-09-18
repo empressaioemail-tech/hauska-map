@@ -138,4 +138,40 @@ describe('sharePropertyHeader', () => {
       countyName: null,
     })
   })
+  // P-270 ADDRESS HALF (2026-09-18). The share header is a customer-readable address line, so it
+  // goes through the one composer. Before this it passed the bare street through and dropped the
+  // city and ZIP the payload also carried — the same shape measured live on 48453:445501, on the
+  // anonymous surface a share viewer reads.
+  it('carries the ledger city and ZIP a bare street line drops (the 48453:445501 shape)', () => {
+    expect(
+      sharePropertyHeader('48453:445501', {
+        countyName: 'Travis',
+        baseFacts: {
+          situsAddress: '21404 GRAND NATIONAL AVE',
+          situsCity: 'Pflugerville',
+          situsState: 'TX',
+          situsZip: '78660',
+          situsCityBasis: 'city-limits',
+        },
+      }).situsAddress,
+    ).toBe('21404 GRAND NATIONAL AVE, Pflugerville, TX 78660')
+  })
+  it('leaves a situs that already reads in full byte-identical', () => {
+    expect(
+      sharePropertyHeader('48021:123', {
+        countyName: 'Bastrop',
+        baseFacts: {
+          situsAddress: '1109 Pecan St, Bastrop, TX 78602',
+          situsCity: 'Bastrop',
+          situsState: 'TX',
+          situsZip: '78602',
+        },
+      }).situsAddress,
+    ).toBe('1109 Pecan St, Bastrop, TX 78602')
+  })
+  it('composes nothing from a payload that carries no components beyond the street', () => {
+    expect(
+      sharePropertyHeader('48021:123', { baseFacts: { situsAddress: '414 SPILLER LN' } }).situsAddress,
+    ).toBe('414 SPILLER LN')
+  })
 })
