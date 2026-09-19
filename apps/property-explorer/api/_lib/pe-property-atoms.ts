@@ -55,8 +55,8 @@ import {
 } from "./setback-citation-vintage.js";
 import {
   jurisdictionRequiresPerParcelSetbackRecord,
-  type CodifiedSetbackScalars,
-} from "./codified-setback-from-zoning.js";
+} from "./setback-corpus-table.js";
+import { type CardSetbackScalars } from "./setback-resolution.js";
 import { fetchBastropPerParcelSetback } from "./pe-bastrop-per-parcel-setback.js";
 import {
   echoRequestedParcelNodeId,
@@ -894,14 +894,14 @@ function honestAtomPendingResponse(parcelNodeId: string): PeBakedFacetsResponse 
  * Bastrop city has no static setback table (per-parcel record only). When the
  * atom-chain doesn't already carry a trustworthy live layer-23 rule
  * (hasLiveAtomChainSetbackRule false — e.g. ingest hasn't baked one yet, or
- * it's stale), fetch the live record here so
- * resolveCodifiedSetbacksForStamp can serve it instead of hard-declining.
+ * it's stale), fetch the live record here so the shared corpus resolver
+ * (`setback-resolution.ts`) can serve it instead of hard-declining.
  * Every other jurisdiction short-circuits before any network call.
  */
 export async function bastropPerParcelSetbackIfNeeded(
   parcelNodeId: string,
   chain: PropertyAtomChain,
-): Promise<CodifiedSetbackScalars | null> {
+): Promise<CardSetbackScalars | null> {
   const zf = chain.zoningFact ?? null;
   const zoningSourceAdapter =
     zf && typeof zf.sourceAdapter === "string" ? zf.sourceAdapter : null;

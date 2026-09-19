@@ -20,7 +20,8 @@
  *
  * THE BRANCH IS NOT A CITY LIST. It reuses the fact this repo already keeps
  * for exactly this question — `PER_PARCEL_RECORD_ONLY_SETBACK_KEYS` in
- * `codified-setback-from-zoning.ts`, exported as
+ * `setback-corpus-table.ts` (P-340: moved there from the retired
+ * `codified-setback-from-zoning.ts`), exported as
  * `jurisdictionRequiresPerParcelSetbackRecord()` — which is the same set the
  * per-parcel fetch itself is gated on. A jurisdiction whose standards come
  * from a city per-parcel record gets that sentence; every other jurisdiction
@@ -36,7 +37,7 @@
  * cannot appear without failing a suite.
  */
 
-import { jurisdictionRequiresPerParcelSetbackRecord } from "./codified-setback-from-zoning.js";
+import { jurisdictionRequiresPerParcelSetbackRecord } from "./setback-corpus-table.js";
 
 /**
  * The per-parcel record's own name where the jurisdiction has one. Keyed by the

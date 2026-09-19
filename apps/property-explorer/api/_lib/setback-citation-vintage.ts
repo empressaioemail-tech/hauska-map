@@ -18,15 +18,18 @@
  * atom-chain-to-facets.ts (the property atom chain), the card's own
  * `setbackSourceClause` in src/browse/InspectCard.tsx (which returns a bare
  * citation when there is no date), and the vendored-table lookup in
- * codified-setback-from-zoning.ts. The last of the four is surveyed and
- * EXCLUDED rather than fixed: it reads scalars out of
- * `setback-tables/*.json` and serves no citation at all (its own
- * `AdapterSetbackTable` type does not even declare `citation_url`), so there
- * is no citation for it to qualify — it is named here so a later reader does
- * not have to re-derive that it was looked at. The other three all produce a
- * customer-visible citation and all three are now this module's callers. This
- * is the ONE place that decides; the callers hand it a source value and a
- * rail name and then render what it returns.
+ * codified-setback-from-zoning.ts. The last of the four was surveyed and
+ * EXCLUDED rather than fixed: it read scalars out of
+ * `setback-tables/*.json` and served no citation at all (its own
+ * `AdapterSetbackTable` type did not even declare `citation_url`), so there
+ * was no citation for it to qualify. **P-340 (OPS-24) has since RETIRED that
+ * module by decline** — the card now reads the published corpus through
+ * `setback-corpus-table.ts` and resolves through
+ * `@empressaio/setback-corpus/resolve` in `setback-resolution.ts`, so the
+ * excluded fourth copy no longer exists and the three remaining callers below
+ * are still this module's callers. This is the ONE place that decides; the
+ * callers hand it a source value and a rail name and then render what it
+ * returns.
  *
  * THE STATES (dispatch item 3, extended by P-354). "Absent at source",
  * "present but unparseable", "never looked for" and "read, but not yet in

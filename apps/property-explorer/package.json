@@ -18,6 +18,7 @@
     "@empressaio/atom-contract": "^1.36.0",
     "@empressaio/cortex-client": "^0.1.2",
     "@empressaio/cortex-tiles": "^0.1.4",
+    "@empressaio/setback-corpus": "^1.4.0",
     "@hauska/instrument-registry": "workspace:*",
     "@hauska/map-renderer": "workspace:*",
     "@empressaio/parcel-fact-sheet": "workspace:*",

@@ -125,6 +125,9 @@ importers:
       '@empressaio/parcel-fact-sheet':
         specifier: workspace:*
         version: link:../../packages/parcel-fact-sheet
+      '@empressaio/setback-corpus':
+        specifier: ^1.4.0
+        version: 1.4.0
       '@hauska/instrument-registry':
         specifier: workspace:*
         version: link:../../packages/instrument-registry
@@ -419,6 +422,10 @@ packages:
     peerDependencies:
       react: '>=18'
       react-dom: '>=18'
+
+  '@empressaio/setback-corpus@1.4.0':
+    resolution: {integrity: sha512-fjm0vbezOATvfeDh6U+fKDe66VTq38m8sVf2qfWtFzQQG8qU77kQdM2ctduQUYRB0Pcd/g6ImlDsYXG4Er9IMQ==}
+    engines: {node: '>=18.18.0'}
 
   '@empressaio/tile-shell@0.2.0':
     resolution: {integrity: sha512-FtHRmvQLbTKWADDJM4JYCJETpxByxurO5fmxOaLNEnQjsdwPKQJleUYD/7DcA5RsJ0fQQIQisSwetNDOMKCNpQ==}
@@ -2818,6 +2825,8 @@ snapshots:
       pdfjs-dist: 4.10.38
       react: 18.3.1
       react-dom: 18.3.1(react@18.3.1)
+
+  '@empressaio/setback-corpus@1.4.0': {}
 
   '@empressaio/tile-shell@0.2.0(react-dom@18.3.1(react@18.3.1))(react@18.3.1)':
     dependencies:
