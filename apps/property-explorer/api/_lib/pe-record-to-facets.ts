@@ -48,6 +48,10 @@ import type {
   UtilityServiceFactWire,
   WellFactWire,
 } from "./atom-chain-to-facets.js";
+import {
+  DECLARED_ABSENCE_VERDICT,
+  type SitusCityBasis,
+} from "../../src/lib/situs-address.js";
 
 /**
  * Fact-family `source` constants, vendored verbatim from legacy-design-tools'
@@ -649,9 +653,14 @@ function composeAcreage(
  * WHAT THIS DOES NOT DO: it never writes `situsAddress` (P-151/P-172 own the
  * situs family — see the module doc), never invents a ZIP, and never labels a
  * city-limits city as the CAD roll's city.
+ *
+ * P-331 (2026-09-19): the basis vocabulary is declared ONCE in this repo, in
+ * `src/lib/situs-address.ts` (the composer every reader shares), because a
+ * shared literal can only be pinned by a `type NAME = ...` declaration with a
+ * NAME. This module and `atom-chain-to-facets.ts` used to carry their own copies
+ * of the same two words — the exact drift P-331 exists to catch, one level down.
  */
-export type SitusCityBasis = "cad-roll" | "city-limits";
-
+export type { SitusCityBasis };
 export interface BaseFactsSitus {
   situsState?: string;
   situsZip?: string;
@@ -695,7 +704,7 @@ function composeBaseFactsSitus(
   if (rollCity) {
     out.situsCity = rollCity;
     out.situsCityBasis = "cad-roll";
-  } else if (rollCell?.state === "absent" && rollCell.verdict === "absent-verified") {
+  } else if (rollCell?.state === "absent" && rollCell.verdict === DECLARED_ABSENCE_VERDICT) {
     // ONLY an ABSENT-VERIFIED roll city licenses the fallback. A rail that was
     // never slated, refused, or served a malformed cell says nothing about
     // whether the roll holds a city, and substituting the containing city there

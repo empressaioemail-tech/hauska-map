@@ -64,6 +64,11 @@ import {
   parcelGrammarAlias,
 } from "./parcel-node-id.js";
 import { readPeSessionCookie } from "./session-cookie.js";
+import {
+  CITY_LIMITS_INCORPORATED_STATUS,
+  DECLARED_ABSENCE_VERDICT,
+  type SitusCityBasis,
+} from "../../src/lib/situs-address.js";
 
 export { parsePropertyAtomsPath, isPropertyAtomPathEnabled, shouldSkipColdDerive };
 
@@ -862,18 +867,21 @@ function applyImperviousGoverningFigure(
  *
  * The rule has three copies by construction — this one, LDT
  * `situsCompose.resolveSitusCity`, and `scripts/surface-probe.mjs`'s
- * `addressCarriesLedgerLine` (doc_repo). NAMED here rather than PINNED, and
- * the reason is measured rather than assumed: P-331's map half has merged
- * (hauska-map main 252a40f5, #425 — `scripts/check-cross-repo-literal-drift.mjs`
- * and its workflow exist here), but its LDT half has not reached LDT main, and
- * the DRIFT CHECK reads the SIBLING'S MAIN. A row comparing this rule's
- * declaration against LDT's would therefore exit 2 (REFUSE: a declaration could
- * not be read where it is expected) on every PR until that half lands. P-331's
- * own header states exactly this and defers P-270's address-rule row to a named
- * handover; the row, the two `export const` extractions it needs and the
- * sparse-checkout line it needs are written out in this lane's close so the pin
- * is one commit once LDT main carries the check. A rename on either side is a
- * drift this comment makes visible in the meantime.
+ * `addressCarriesLedgerLine` (doc_repo). P-331 (`check-cross-repo-literal-drift.mjs`)
+ * has now MERGED ON BOTH MAINS (hauska-map #425 and legacy-design-tools #725,
+ * 2026-09-19; the two copies of the check are byte-identical, sha256 b2755e6e),
+ * and the three literals this rule decides on are declared, NAMEABLE constants
+ * on both sides so a row can read them: `SitusCityBasis` (the basis vocabulary),
+ * `DECLARED_ABSENCE_VERDICT` and `CITY_LIMITS_INCORPORATED_STATUS`. The pin's
+ * ROWS are deliberately not in the table yet, and the reason is an ordering
+ * rule rather than an unmerged half: a row reads the SIBLING'S MAIN, so it can
+ * only go green once BOTH declarations are on both mains — landing the rows in
+ * this lane's two PRs would exit 2 (REFUSE) on whichever merges first, a red
+ * that no single merge could clear. The rows, the `MAP_FILES`/`LDT_FILES`
+ * entries and the two sparse-checkout lines they need are written out in this
+ * lane's close; landing them is one commit per repo once these two PRs are on
+ * main. The probe's copy is a THIRD repository's copy and stays outside the
+ * pair P-331 can read — named here, not pinned.
  *
  * Exported for tests; not a public seam (no other module calls it).
  */
@@ -896,7 +904,7 @@ export function applyCityLimitsSitusLicence(
       baseFacts: {
         ...baseFacts,
         situsCity: city,
-        situsCityBasis: "city-limits",
+        situsCityBasis: "city-limits" satisfies SitusCityBasis,
       },
     },
   };
@@ -915,14 +923,14 @@ function isDeclaredAbsentVerified(value: unknown): boolean {
   const r = value as Record<string, unknown>;
   const word = (v: unknown) =>
     typeof v === "string" && v.trim() ? v.trim() : null;
-  return (word(r.verdict) ?? word(r.status)) === "absent-verified";
+  return (word(r.verdict) ?? word(r.status)) === DECLARED_ABSENCE_VERDICT;
 }
 
 /** The licence's own gate: an INCORPORATED answer that actually names a city. */
 function incorporatedCityLimitsCity(
   fact: CityLimitsFactWire | undefined,
 ): string | null {
-  if (fact?.status !== "incorporated") return null;
+  if (fact?.status !== CITY_LIMITS_INCORPORATED_STATUS) return null;
   return typeof fact.cityName === "string" && fact.cityName.trim()
     ? fact.cityName.trim()
     : null;

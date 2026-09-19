@@ -55,6 +55,9 @@ import {
 // module's existing export surface is unchanged.
 import { isUsableSitusAddress } from "../../src/lib/situs-address.js";
 export { isUsableSitusAddress };
+// P-331 (2026-09-19): the situs-city basis vocabulary is declared once in this
+// repo, in `src/lib/situs-address.ts`, so a cross-repo row has one NAME to read.
+import type { SitusCityBasis } from "../../src/lib/situs-address.js";
 
 export interface AtomChainAbsence {
   kind?: string;
@@ -321,7 +324,7 @@ export interface PeBakedFacetPayload {
      * `"cad-roll"`.
      */
     situsZip?: string | null;
-    situsCityBasis?: "cad-roll" | "city-limits" | null;
+    situsCityBasis?: SitusCityBasis;
     landUse?: { code: string; description?: string | null } | null;
     acreage?: { value: number; sqft?: number; method?: string } | null;
     /**

@@ -38,6 +38,7 @@ import {
   isUnreadableSitusAddress,
   isUsableSitusAddress,
   situsCityLimitsNote,
+  type SitusCityBasis,
 } from "./situs-address";
 import { countyRowText } from "./county-grade";
 import type {
@@ -89,7 +90,8 @@ export interface BakedFacetPayload {
      * never `"cad-roll"`.
      */
     situsZip?: string | null;
-    situsCityBasis?: "cad-roll" | "city-limits" | null;
+    /** The one vocabulary declaration: `src/lib/situs-address.ts` (P-331). */
+    situsCityBasis?: SitusCityBasis;
     landUse?: {
       code: string;
       description?: string | null;

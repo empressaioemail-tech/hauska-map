@@ -56,6 +56,10 @@ jobs:
             artifacts/api-server/src/lib/overlayDistrictsFactRead.ts
             artifacts/api-server/src/lib/agValuationFactRead.ts
             artifacts/api-server/src/lib/maxImperviousCoverPctFactRead.ts
+            # P-270 city half (2026-09-19): the licence's declarations. Checked out
+            # now so the follow-up pin rows (see the check's header) need no
+            # workflow edit; the file exists on LDT main today.
+            artifacts/api-server/src/lib/situsCompose.ts
           sparse-checkout-cone-mode: false
       - uses: actions/setup-node@v4
         with:
