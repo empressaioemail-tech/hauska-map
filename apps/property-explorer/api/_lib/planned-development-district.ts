@@ -32,7 +32,7 @@
  * measured defect lives.
  */
 
-import { hasExactCodifiedDistrictRow } from "./codified-setback-from-zoning.js";
+import { hasExactCorpusDistrictRow } from "./setback-corpus-table.js";
 
 /**
  * Pinned copy of legacy-design-tools' `PLANNED_DEVELOPMENT_PATTERN`
@@ -115,9 +115,13 @@ export function plannedDevelopmentDisclosure(input: {
  * read as a planned-development code. Both halves are load-bearing and both
  * are measured:
  *
- *  - `hasExactCodifiedDistrictRow` keeps Smithville's real `PD-Z` and Grand
+ *  - `hasExactCorpusDistrictRow` keeps Smithville's real `PD-Z` and Grand
  *    County's real `PUD` rows resolving (2 of the 44 shipped tables row a code
- *    the pattern matches).
+ *    the pattern matches). P-340: this now reads the ONE published corpus
+ *    rather than the card's own four vendored tables, so the card's gate sees
+ *    the same table set the drawing route's gate does — before the change the
+ *    card refused Smithville's `PD-Z` as a planned development (it had no
+ *    Smithville table) while the route served its real row.
  *  - the pattern test is what makes `PD` — Smithville's measured defect
  *    (`48021:70907`, which resolved 20/100/100/100) — refuse instead of
  *    crossing into `PD-Z` by prefix.
@@ -151,7 +155,7 @@ export function plannedDevelopmentSetbackRefusal(input: {
   const hasExactRow =
     input.hasExactRow ??
     ((code: string, key: string | null) =>
-      hasExactCodifiedDistrictRow(key, code));
+      hasExactCorpusDistrictRow(key, code));
   if (hasExactRow(district, jurisdictionKey)) return null;
   return {
     declineReason: "pud-ordinance",

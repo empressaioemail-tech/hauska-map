@@ -39,7 +39,7 @@ import {
   isPlannedDevelopmentCode,
   plannedDevelopmentSetbackRefusal,
 } from "./planned-development-district";
-import { hasExactCodifiedDistrictRow } from "./codified-setback-from-zoning";
+import { hasExactCorpusDistrictRow } from "./setback-corpus-table";
 import { setbackPendingDisclosure } from "./setback-decline-wording";
 
 // ---------------------------------------------------------------------------
@@ -168,11 +168,17 @@ describe("the planned-development gate refuses a table, and only for a code with
     }
   });
 
-  it("the vendored-table exact-row lookup answers for real rows and not for a PUD pattern that has none", () => {
-    expect(hasExactCodifiedDistrictRow("austin-tx", "SF-3")).toBe(true);
-    expect(hasExactCodifiedDistrictRow("austin-tx", "PD")).toBe(false);
-    expect(hasExactCodifiedDistrictRow("smithville-tx", "PD-Z")).toBe(false);
-    expect(hasExactCodifiedDistrictRow(null, "PD")).toBe(false);
+  it("the corpus exact-row lookup answers for real rows and not for a PUD pattern that has none", () => {
+    // P-340: this reads the ONE published corpus, so the card's gate sees the
+    // same table set the drawing route's gate does. Smithville's `PD-Z` is a
+    // real row in that corpus (20/100/100/100), so the gate does NOT refuse it
+    // — before this lane the card's four vendored tables had no Smithville
+    // entry and refused it while the route served the row.
+    expect(hasExactCorpusDistrictRow("austin-tx", "SF-3")).toBe(true);
+    expect(hasExactCorpusDistrictRow("austin-tx", "PD")).toBe(false);
+    expect(hasExactCorpusDistrictRow("smithville-tx", "PD-Z")).toBe(true);
+    expect(hasExactCorpusDistrictRow("austin-tx", "SF")).toBe(false);
+    expect(hasExactCorpusDistrictRow(null, "PD")).toBe(false);
   });
 
   it("leaves an unrecognised code alone: no refusal, so it keeps today's decline", () => {

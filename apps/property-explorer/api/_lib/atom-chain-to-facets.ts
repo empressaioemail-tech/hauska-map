@@ -13,10 +13,25 @@ import {
   type SetbackConflictSecondSourceInput,
 } from "@empressaio/atom-contract/display";
 
+// P-340 (OPS-24): the card's codified table now comes from the ONE published
+// corpus and the four-tuple is decided by the ONE shared resolver. The
+// vendored `codified-setback-from-zoning.ts` + `setback-tables/*.json` pair is
+// RETIRED BY DECLINE — see `setback-corpus-table.ts`'s module doc. The guard
+// that keeps it retired is `setback-corpus-retirement.test.ts` beside this
+// file: it walks this app's whole source tree and fails if the module is
+// imported again, if `api/_lib/setback-tables/` exists, or if any second file
+// starts reading the bare `@empressaio/setback-corpus` root.
 import {
-  resolveCodifiedSetbacksForStamp,
-  type CodifiedSetbackScalars,
-} from "./codified-setback-from-zoning.js";
+  resolveCardSetbacks,
+  type AtomSetbackRuleWire,
+  type CardSetbackScalars,
+} from "./setback-resolution.js";
+import {
+  disclosureWithSourceConflict,
+  setbackSourceConflictRow,
+  setbackSourceConflictUnreadableState,
+  type SetbackSourceConflictRow,
+} from "./setback-source-conflict.js";
 import { plannedDevelopmentSetbackRefusal } from "./planned-development-district.js";
 import { setbackPendingDisclosure } from "./setback-decline-wording.js";
 /** P-339: the one composition site for the warm-verify-decline table sentence. */
@@ -446,6 +461,19 @@ export interface PeBakedFacetPayload {
      * `setback-citation-vintage.ts`'s module doc for the vocabulary law.
      */
     citationVintage?: SetbackCitationVintageDeclaration;
+    /**
+     * P-340 (OPS-24). The R-1 conflict row: the sources that can supply this
+     * parcel's setbacks DISAGREE and at least one of them states no readable
+     * effective date, so BOTH candidates are served and neither is settled
+     * (`setbackSourceConflictRow`). Present only on such a conflict — absent
+     * whenever the candidates agree, even when neither carries a readable
+     * date, because an agreeing pair is not a conflict. The sentence it
+     * carries is identical in legacy-design-tools' copy, exactly as the
+     * `citationVintage` pair above is; the two rows are siblings, not
+     * alternatives: `citationVintage` says the served citation is undated,
+     * this row says a second source disagreed about the values.
+     */
+    setbackSourceConflict?: SetbackSourceConflictRow;
     geojson?: unknown;
     /**
      * P-249 (2026-09-16). Mirrors `BakedFacetPayload.envelope.figureWithheld`
@@ -1142,6 +1170,66 @@ function mapSetbacks(
     ...(not_specified ? { not_specified } : {}),
     ...(fireCodeDeferral ? { side_fire_code_deferral: true } : {}),
     ...(sideCityLanguage ? { side_city_language: sideCityLanguage } : {}),
+  };
+}
+
+/**
+ * P-340 — overlay the DECIDED four-tuple onto the atom chain's own mapped
+ * setbacks, keeping the atom's non-axis carriers (`not_specified`,
+ * `side_fire_code_deferral`, `side_city_language`).
+ *
+ * The decided scalars are authoritative for the four axes and STRIP the atom's
+ * own ones: a codified row that wins on R-1 must not be shadowed by a stale
+ * atom axis, and an atom that wins must not inherit a corner the decision did
+ * not make. `side_corner_ft` is carried whenever the decision carries one —
+ * including when it equals the side yard, because the corner side yard is a
+ * real axis and the drawing route serves it in exactly that case; dropping it
+ * there is the measured 5-parcel defect. `side_interior_ft` (a DISPLAY-only
+ * split marker) is carried only when the corner genuinely differs, which is
+ * the condition `formatSetbackDisplay` prints a distinct corner under.
+ */
+function withDecidedScalars(
+  atomMapped: ReturnType<typeof mapSetbacks> | undefined,
+  decided: CardSetbackScalars,
+): NonNullable<ReturnType<typeof mapSetbacks>> {
+  const {
+    front_ft: _front,
+    side_ft: _side,
+    rear_ft: _rear,
+    side_interior_ft: _interior,
+    side_corner_ft: _corner,
+    ...carriers
+  } = atomMapped ?? {};
+  const cornerDistinct =
+    decided.side_corner_ft !== undefined && decided.side_corner_ft !== decided.side_ft;
+  return {
+    ...carriers,
+    front_ft: decided.front_ft,
+    side_ft: decided.side_ft,
+    rear_ft: decided.rear_ft,
+    ...(decided.side_corner_ft !== undefined
+      ? { side_corner_ft: decided.side_corner_ft }
+      : {}),
+    ...(cornerDistinct ? { side_interior_ft: decided.side_ft } : {}),
+  };
+}
+
+/**
+ * P-340 — attach the R-1 conflict row to a finished envelope, in ONE place,
+ * after every branch (the same branch-neutral placement the P-270 vintage
+ * declaration above uses, for the same reason). Returns the envelope
+ * untouched when there is no conflict, so an agreeing payload is
+ * byte-identical to what it was before this lane.
+ */
+function withSourceConflictDeclaration(
+  envelope: PeBakedFacetPayload["envelope"],
+  row: SetbackSourceConflictRow | null,
+): PeBakedFacetPayload["envelope"] {
+  if (!envelope || !row) return envelope;
+  return {
+    ...envelope,
+    setbackSourceConflict: row,
+    disclosure: disclosureWithSourceConflict(envelope.disclosure ?? null, row),
   };
 }
 
@@ -2243,7 +2331,7 @@ export function adaptAtomChainToBakedFacets(
   chain: PropertyAtomChain | null | undefined,
   opts?: {
     /** Live layer-23 scalars for a per-parcel-only jurisdiction (e.g. Bastrop city), pre-fetched by the caller. */
-    perParcelSetback?: CodifiedSetbackScalars | null;
+    perParcelSetback?: CardSetbackScalars | null;
     /**
      * P-303 (2026-09-17) — the parcel record's own zoning stamp and setback
      * axes for this parcel, fetched and composed by the caller BEFORE this
@@ -2356,20 +2444,39 @@ export function adaptAtomChainToBakedFacets(
       ? recordSetbackTable(recordStamp?.setbackAxisOverrides)
       : null;
 
+  /**
+   * P-340 (OPS-24) — the card's setbacks are DECIDED, not picked by
+   * precedence. Both eligible candidates (the codified corpus row and the
+   * atom-chain rule) are gathered and handed to the one shared resolver, which
+   * returns the most-current source or — where the dates cannot be read and
+   * the candidates disagree — a CONFLICT with every candidate. Before this
+   * lane the codified candidate was built ONLY when the atom chain carried no
+   * rule, so a parcel with an atom rule could neither be compared nor
+   * declared in conflict: that gate is the measured delta against the drawing
+   * route, which has resolved both candidates through this same function
+   * since LDT P-154.
+   */
+  const setbackResolution = plannedDevelopment
+    ? null
+    : resolveCardSetbacks({
+        jurisdictionKey,
+        districtCode: district,
+        atomRule: (rule as AtomSetbackRuleWire | null) ?? null,
+        perParcelSetback: opts?.perParcelSetback ?? null,
+      });
+  /**
+   * The atom-chain map (its own `not_specified` axes, deferral language and
+   * split-axis interior) with the DECIDED four-tuple overlaid. The extras stay
+   * attached when the atom chain is the winner; when the codified row wins,
+   * the atom's axis flags are still the honest carrier for a silent axis the
+   * district's own code leaves open, so they are kept rather than dropped.
+   */
   const setbacks = plannedDevelopment ? null : mapSetbacks(rule, district);
-  const tableSetbacks =
-    plannedDevelopment || setbacks
-      ? null
-      : hasDistrict && jurisdictionKey
-        ? resolveCodifiedSetbacksForStamp(
-            jurisdictionKey,
-            district,
-            opts?.perParcelSetback,
-          )
-        : null;
   const effectiveSetbacks = plannedDevelopment
     ? undefined
-    : (setbacks ?? tableSetbacks ?? undefined);
+    : setbackResolution
+      ? withDecidedScalars(setbacks, setbackResolution.scalars)
+      : (setbacks ?? undefined);
   const liveSetback = hasLiveAtomChainSetbackRule(
     parcelNodeId,
     rule,
@@ -2745,6 +2852,18 @@ export function adaptAtomChainToBakedFacets(
       disclosure: disclosureWithCitationVintage(envelope.disclosure ?? null, dmCitationVintage),
     };
   }
+  /**
+   * P-340 (OPS-24) — the R-1 conflict row, derived from the resolution above
+   * and applied to the finished envelope in the return below (one site, after
+   * every branch). The `state` member is the P-270 unreadable cause of the
+   * candidate whose date could not be read — which is not always the winner:
+   * a DATED winner that disagrees with an undated candidate is a conflict too,
+   * and the row must name the cause that keeps it unsettled.
+   */
+  const sourceConflictRow = setbackSourceConflictRow({
+    conflict: setbackResolution?.conflict ?? null,
+    state: setbackSourceConflictUnreadableState(setbackResolution),
+  });
 
   return {
     parcelNodeId,
@@ -2766,7 +2885,7 @@ export function adaptAtomChainToBakedFacets(
       zoning: district
         ? { district, ...(jurisdictionKey ? { jurisdictionKey } : {}) }
         : null,
-      envelope:
+      envelope: withSourceConflictDeclaration(
         envelope && depthWarm && effectiveSetbacks && !liveSetback && setbacks
           ? {
               ...envelope,
@@ -2774,6 +2893,8 @@ export function adaptAtomChainToBakedFacets(
                 "Atom-chain setback scalars; buildable envelope geometry from live derive (labelEdges+derive), not depth-warm ledger.",
             }
           : envelope,
+        sourceConflictRow,
+      ),
       facetCoverage: {
         baseFacts: !!apn,
         landUse: false,
