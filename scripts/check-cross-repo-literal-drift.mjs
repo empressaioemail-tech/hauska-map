@@ -44,12 +44,23 @@
  *   4. Deleting the workflow job. The control is the job, not this file.
  *   5. The two copies of THIS FILE are not compared with each other by a row.
  *      They are committed byte-identical (sha256 recorded in the close), but a
- *      row cannot read it: until both PRs merge, the sibling's main has no
- *      `scripts/check-cross-repo-literal-drift.mjs`, and a row that reads a
- *      file the sibling's main does not have yet REFUSES (exit 2) on every PR.
- *      The same constraint keeps P-270's address-rule fixture table out of the
- *      table for now — the handover in the close names the one-line row to add
- *      once the file exists on both mains.
+ *      row cannot read it: while one side's main lacks the file, a row that
+ *      reads it REFUSES (exit 2) on every PR. MEASURED 2026-09-19: both halves
+ *      have merged (hauska-map #425, legacy-design-tools #725) and the two
+ *      copies read byte-identical at sha256 b2755e6e (33941 bytes,
+ *      CRLF-normalised), so that particular window is closed.
+ *
+ * A ROW WHOSE DECLARATION IS NEW NEEDS TWO LANDINGS, IN ORDER. A row reads the
+ * sibling's MAIN, so a row shipped in the same pair of PRs that introduces its
+ * declaration exits 2 on BOTH PRs before either merges, and on whichever repo
+ * merges first after that — a required check that no single merge can clear,
+ * which is the dead gate this file exists to avoid. The P-270 city-half
+ * declarations (`SitusCityBasis`, `DECLARED_ABSENCE_VERDICT`,
+ * `CITY_LIMITS_INCORPORATED_STATUS` — in map's
+ * `apps/property-explorer/src/lib/situs-address.ts` and this repo's
+ * `artifacts/api-server/src/lib/situsCompose.ts`) therefore landed first, with
+ * the rows held to a follow-up commit the lane's close names row for row and
+ * file for file. Each landing is one commit per repo.
  *   6. The `union` extraction compares a `type NAME = ...` union's
  *      STRING-LITERAL members, resolving `typeof SOME_CONST` members through
  *      the same const reader. A member of any other shape (map's
