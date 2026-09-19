@@ -299,6 +299,15 @@ export type FactPresentation =
        * only: "whose number is this" has no meaning for an absence.
        */
       valuationBasis?: ValuationBasisPresentation;
+      /**
+       * P-270 CITY HALF (2026-09-19). The sentence that says the city on this
+       * line is the city whose LIMITS CONTAIN the parcel, not the county roll's
+       * mailing city. Carried on `present` only, from the deriver, and rendered
+       * on the card FACE in the same slot as the valuation-basis line: a
+       * qualifier nobody reads is a qualifier that does not exist, and without
+       * it a jurisdiction city reads as the roll's own.
+       */
+      situsCityLimitsNote?: string;
     }
   | {
       state: "absent-covered";
@@ -481,8 +490,19 @@ export function toFactPresentation(
     // CTX-B4: carried straight through, never re-derived here. This function
     // issues no lookup of its own (invariant I2), and a source the deriver
     // already resolved is not something a renderer gets to re-decide.
-    return facet.valuationBasis
-      ? { state: "present", value, provenance, valuationBasis: facet.valuationBasis }
+    //
+    // P-270 CITY HALF (2026-09-19): the same rule for the city on the situs
+    // line — the deriver resolved whether this city is the roll's or the one
+    // whose limits contain the parcel, and the renderer does not get to
+    // re-decide that either.
+    const carried = {
+      ...(facet.valuationBasis ? { valuationBasis: facet.valuationBasis } : {}),
+      ...(facet.situsCityLimitsNote
+        ? { situsCityLimitsNote: facet.situsCityLimitsNote }
+        : {}),
+    };
+    return Object.keys(carried).length
+      ? { state: "present", value, provenance, ...carried }
       : { state: "present", value, provenance };
   }
   // absent. The deriver's label choice carries the covered/uncovered signal.
@@ -2099,6 +2119,14 @@ export function FactRow({
   // silence would read as the strongest claim on the card.
   const valuationBasis =
     fact.state === "present" ? fact.valuationBasis : undefined;
+  /**
+   * P-270 CITY HALF (2026-09-19): same slot and same weight as the basis line
+   * above. Read off `fact`'s own carried field — this component derives
+   * nothing, so a row whose city is not the roll's cannot be silently rendered
+   * as if it were.
+   */
+  const situsCityLimitsNote =
+    fact.state === "present" ? fact.situsCityLimitsNote : undefined;
 
   let text: string;
   let style: CSSProperties = { margin: 0 };
@@ -2171,6 +2199,20 @@ export function FactRow({
             }}
           >
             {valuationBasis.line}
+          </div>
+        )}
+        {situsCityLimitsNote && (
+          <div
+            data-testid="situs-city-limits-note"
+            style={{
+              marginTop: 3,
+              fontSize: 11.5,
+              fontStyle: "normal",
+              fontWeight: 400,
+              color: MUTED,
+            }}
+          >
+            {situsCityLimitsNote}
           </div>
         )}
         {layerProv && (

@@ -110,12 +110,27 @@ export const SITUS_ABSENT_REASON = "no situs address on the county roll for this
  * roll's city at all, and `situsCityLimitsNote` below is the sentence for the
  * case where it may not.
  */
+/**
+ * WHICH CITY THE LINE'S CITY IS — the vocabulary the P-270 city half stamps and
+ * every reader keys off (`"cad-roll"` = the roll's own city; `"city-limits"` =
+ * the containing city, licensed only from a declared-absent roll city; `null` =
+ * no basis stated, which is never read as the roll's).
+ *
+ * NAMED rather than inlined for one reason: the licence has a copy in
+ * legacy-design-tools (`artifacts/api-server/src/lib/situsCompose.ts`,
+ * `SitusCityBasis` there) and a third in the probe, and P-331
+ * (`scripts/check-cross-repo-literal-drift.mjs`, merged on BOTH mains
+ * 2026-09-19, sha256 b2755e6e) pins shared literals by declaration NAME — an
+ * inline union in a property position has no name for a row to read.
+ */
+export type SitusCityBasis = "cad-roll" | "city-limits" | null;
+
 export interface SitusLineParts {
   situsAddress?: string | null;
   situsCity?: string | null;
   situsState?: string | null;
   situsZip?: string | null;
-  situsCityBasis?: "cad-roll" | "city-limits" | null;
+  situsCityBasis?: SitusCityBasis;
 }
 
 /**
@@ -126,6 +141,16 @@ export interface SitusLineParts {
  */
 export const SITUS_CITY_LIMITS_NOTE =
   "city whose limits contain this parcel (the county roll states no situs city)";
+
+/**
+ * THE TWO WORDS THE LICENCE READS — the verdict that makes the roll's silence
+ * licensable, and the city-limits answer that may then be named. Bytes on a
+ * wire the bake writes and legacy-design-tools re-reads, so they are declared
+ * constants (see `SitusCityBasis` above for why the pin needs a NAME) rather
+ * than literals sprinkled through the two conditions.
+ */
+export const DECLARED_ABSENCE_VERDICT = "absent-verified";
+export const CITY_LIMITS_INCORPORATED_STATUS = "incorporated";
 
 function partString(v: unknown): string | null {
   return typeof v === "string" && v.trim() ? v.trim() : null;
