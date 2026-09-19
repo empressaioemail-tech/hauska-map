@@ -1,6 +1,6 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 
-import { applyRecordPatch, bastropPerParcelSetbackIfNeeded, fetchParcelRecordOnce } from "./pe-property-atoms";
+import { applyCityLimitsSitusLicence, applyRecordPatch, bastropPerParcelSetbackIfNeeded, fetchParcelRecordOnce } from "./pe-property-atoms";
 import type { PeBakedFacetsResponse } from "./atom-chain-to-facets";
 import type { ParcelRecordResponse, RecordRail } from "./pe-record-to-facets";
 
@@ -874,5 +874,145 @@ describe("P-332 (OPS-24 wave 1) — the served payload carries the ETJ determina
       "no ETJ determination was served for this point; P-332: ETJ is never derived from city limits, nor city limits from ETJ.",
     );
     expect(after.cityLimitsFact?.etjFact).toBeUndefined();
+  });
+});
+
+/**
+ * P-270 CITY HALF (2026-09-19). The licence, on the payload shape the
+ * 2026-09-18 probe measured FAIL (`_inbox/2026-09-18_221332_surface_probe.json`,
+ * subject `48453:445501`): the record reader serves `situsCity`/`situsZip`/
+ * `situsState` as `legacy-transitional`, the payload's own `baseFacts.situsCity`
+ * carries the bake's declared `absent-verified`, and the served `cityLimitsFact`
+ * names `Pflugerville`.
+ *
+ * Both directions are asserted on every branch: the payload that MUST gain a
+ * city, and the payload that must stay byte-identical.
+ */
+describe("P-270 city half — the city-limits licence (applyCityLimitsSitusLicence)", () => {
+  /** The bake's declaration, verbatim from the live payload's baseFacts.situsCity. */
+  const ROLL_CITY_DECLARED_ABSENT = {
+    status: "absent",
+    verdict: "absent-verified",
+    authority: "Travis County CAD roll",
+  };
+
+  function declaredAbsencePayload(
+    cityLimitsFact: PeBakedFacetsResponse["cityLimitsFact"],
+    situsCity: unknown = ROLL_CITY_DECLARED_ABSENT,
+  ): PeBakedFacetsResponse {
+    const payload = basePayload();
+    return {
+      ...payload,
+      facets: {
+        ...payload.facets,
+        baseFacts: {
+          apn: "445501",
+          // Read off the live wire: the roll's situs column holds the bare
+          // street, `situsState` "TX" and `situsZip` "78660" arrive from the
+          // bake's own baseFacts, and the roll's city is a DECLARED absence.
+          situsAddress: "21404 GRAND NATIONAL AVE",
+          situsState: "TX",
+          situsZip: "78660",
+          situsCity,
+        } as unknown as PeBakedFacetsResponse["facets"]["baseFacts"],
+      },
+      cityLimitsFact,
+    };
+  }
+
+  const INCORPORATED = {
+    status: "incorporated" as const,
+    cityName: "Pflugerville",
+    etjStatus: "unresolved" as const,
+    source: "tx_city_boundary" as const,
+    basis: "parcel_record cityLimits: incorporated, city 'Pflugerville'.",
+  };
+
+  it("THE DEFECT, live shape: a declared absent-verified roll city plus an INCORPORATED city-limits answer serves the city, stamped `city-limits`", () => {
+    const after = applyCityLimitsSitusLicence(
+      declaredAbsencePayload(INCORPORATED),
+    );
+    const baseFacts = after.facets.baseFacts as unknown as Record<string, unknown>;
+    expect(baseFacts.situsCity).toBe("Pflugerville");
+    expect(baseFacts.situsCityBasis).toBe("city-limits");
+    // The components the line composes from are untouched: this licence names a
+    // city, it does not rewrite the street or the ZIP.
+    expect(baseFacts.situsAddress).toBe("21404 GRAND NATIONAL AVE");
+    expect(baseFacts.situsZip).toBe("78660");
+  });
+
+  it("...and the licence's own condition is load-bearing: the SAME payload with a bare null roll city names NO city", () => {
+    const after = applyCityLimitsSitusLicence(
+      declaredAbsencePayload(INCORPORATED, null),
+    );
+    const baseFacts = after.facets.baseFacts as unknown as Record<string, unknown>;
+    expect(baseFacts.situsCity).toBeNull();
+    expect(baseFacts.situsCityBasis).toBeUndefined();
+  });
+
+  it("FALSIFIER (the roll's own city): a readable roll city is NEVER replaced by the containing city", () => {
+    const after = applyCityLimitsSitusLicence(
+      declaredAbsencePayload(INCORPORATED, "Austin"),
+    );
+    const baseFacts = after.facets.baseFacts as unknown as Record<string, unknown>;
+    expect(baseFacts.situsCity).toBe("Austin");
+    expect(baseFacts.situsCityBasis).toBeUndefined();
+  });
+
+  it("FALSIFIER (unincorporated): no city is named, even against a declared absent-verified roll city", () => {
+    const after = applyCityLimitsSitusLicence(
+      declaredAbsencePayload({
+        ...INCORPORATED,
+        status: "unincorporated",
+        cityName: undefined,
+      }),
+    );
+    const baseFacts = after.facets.baseFacts as unknown as Record<string, unknown>;
+    expect(baseFacts.situsCity).toBe(ROLL_CITY_DECLARED_ABSENT);
+    expect(baseFacts.situsCityBasis).toBeUndefined();
+  });
+
+  it("FALSIFIER (could-not-look): `lookup-failed` beside `absent` is NOT a declared absence and names no city", () => {
+    const after = applyCityLimitsSitusLicence(
+      declaredAbsencePayload(INCORPORATED, {
+        status: "absent",
+        verdict: "lookup-failed",
+        authority: "Travis County CAD roll",
+      }),
+    );
+    const baseFacts = after.facets.baseFacts as unknown as Record<string, unknown>;
+    expect(baseFacts.situsCity).toEqual({
+      status: "absent",
+      verdict: "lookup-failed",
+      authority: "Travis County CAD roll",
+    });
+    expect(baseFacts.situsCityBasis).toBeUndefined();
+  });
+
+  it("FALSIFIER (no determination in hand): an unmeasured/absent city-limits answer names no city", () => {
+    for (const fact of [
+      { ...INCORPORATED, status: "unmeasured" as const },
+      { status: "absent" },
+    ]) {
+      const after = applyCityLimitsSitusLicence(
+        declaredAbsencePayload(fact as PeBakedFacetsResponse["cityLimitsFact"]),
+      );
+      const baseFacts = after.facets.baseFacts as unknown as Record<string, unknown>;
+      expect(baseFacts.situsCity).toBe(ROLL_CITY_DECLARED_ABSENT);
+      expect(baseFacts.situsCityBasis).toBeUndefined();
+    }
+  });
+
+  it("FALSIFIER (incorporated with no name): the gate is the name, not the status word", () => {
+    const after = applyCityLimitsSitusLicence(
+      declaredAbsencePayload({ ...INCORPORATED, cityName: "  " }),
+    );
+    const baseFacts = after.facets.baseFacts as unknown as Record<string, unknown>;
+    expect(baseFacts.situsCity).toBe(ROLL_CITY_DECLARED_ABSENT);
+  });
+
+  it("a payload with no cityLimitsFact at all (atom-chain-only path) is returned byte-identical", () => {
+    const before = declaredAbsencePayload(undefined);
+    expect(applyCityLimitsSitusLicence(before)).toBe(before);
   });
 });

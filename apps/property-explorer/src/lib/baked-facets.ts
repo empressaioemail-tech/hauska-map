@@ -37,6 +37,7 @@ import {
   composeSitusLine,
   isUnreadableSitusAddress,
   isUsableSitusAddress,
+  situsCityLimitsNote,
 } from "./situs-address";
 import { countyRowText } from "./county-grade";
 import type {
@@ -650,6 +651,21 @@ export interface CardFacet<T> {
    * ABSENT MEANS THE ROW MAKES NO SOURCE CLAIM. It never means county-assessed.
    */
   valuationBasis?: import("./valuation-basis").ValuationBasisPresentation;
+  /**
+   * P-270 CITY HALF (2026-09-19): WHICH city this line's city is, where the row
+   * would otherwise let a reader assume the roll stated it. Set only when the
+   * payload's `situsCityBasis` is `"city-limits"` — the city whose limits
+   * contain the parcel, NOT the county roll's mailing city (the roll declares
+   * none). The sentence is the composer module's own
+   * (`situs-address.ts`'s `SITUS_CITY_LIMITS_NOTE`), never re-worded here.
+   *
+   * Same optional side-channel shape as `valuationBasis` above, and for the same
+   * reason: `CardFacet<string>` carries a rendered string and drops the Fact's
+   * provenance sibling, so a row whose city name must not be read as the roll's
+   * has nowhere else to say so. ABSENT MEANS THE ROW MAKES NO CLAIM — it is not
+   * evidence the city is the roll's and not evidence it is city-limits.
+   */
+  situsCityLimitsNote?: string;
 }
 
 /** The inspect card's view-model, derived purely from a baked payload. */
@@ -987,10 +1003,23 @@ export function deriveBakedCardModel(payload: BakedFacetPayload): BakedCardModel
   // address and the live-derive POST use (`composeSitusLine`). A roll that
   // already spells out city/state/ZIP yields the identical string.
   const composedSitus = composeSitusLine(bf);
+  /**
+   * P-270 CITY HALF (2026-09-19): the city on this line may NOT be the roll's
+   * mailing city — `situsCityBasis: "city-limits"` means the city whose LIMITS
+   * CONTAIN the parcel (see `situs-address.ts`'s `situsCityLimitsNote`). The
+   * fact-sheet path already says so in the row's provenance label; this path
+   * composed the same line and said nothing, so a reader could take a
+   * jurisdiction city for the roll's. The sentence is owned by the composer's
+   * module, never re-worded here, and it is null for a roll city.
+   */
+  const cityLimitsNote = situsCityLimitsNote(bf);
   const situsAddress = isUsableSitusAddress(
     typeof bf.situsAddress === "string" ? bf.situsAddress : null,
   )
-    ? present((composedSitus ?? (bf.situsAddress as string)).trim())
+    ? {
+        ...present((composedSitus ?? (bf.situsAddress as string)).trim()),
+        ...(cityLimitsNote ? { situsCityLimitsNote: cityLimitsNote } : {}),
+      }
     : isUnreadableSitusAddress(typeof bf.situsAddress === "string" ? bf.situsAddress : null)
       ? absent<string>(SITUS_UNREADABLE_REASON)
       : absent<string>();

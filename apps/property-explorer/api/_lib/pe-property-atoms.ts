@@ -32,6 +32,7 @@ import {
   boundaryEdgeFactFromCortexRoot,
   ownerFactFromCortexRoot,
   parsePropertyAtomsPath,
+  type CityLimitsFactWire,
   type PeBakedFacetsResponse,
   type PropertyAtomChain,
   shouldSkipColdDerive,
@@ -818,6 +819,106 @@ function applyImperviousGoverningFigure(
   };
 }
 
+/**
+ * P-270 CITY HALF (2026-09-19): the city the ledger LICENSES, on whichever path
+ * served the roll's own `situsCity` cell.
+ *
+ * THE DEFECT THIS CLOSES. `composeBaseFactsSitus` (pe-record-to-facets.ts)
+ * licenses a city-limits city only when the RECORD path's own `situsCity` cell
+ * was served (`serve === "record"`) AND reads `absent-verified`. On the four
+ * subjects the 2026-09-18 probe failed (`48453:445501` "21404 GRAND NATIONAL
+ * AVE, TX 78660" and three siblings) the retrieval reader serves
+ * `situsCity`/`situsZip`/`situsState` as `legacy-transitional` — measured on the
+ * wire's own `recordRailStates` — so that branch never ran, while the payload's
+ * `baseFacts.situsCity` DID carry the same verdict from the bake (an object with
+ * `verdict: "absent-verified"`, its authority the county's CAD roll) and the
+ * served `cityLimitsFact` named "Pflugerville". The card dropped a city its own
+ * ledger holds.
+ *
+ * THE LICENCE — chosen over cutting the three situs rails over to the record
+ * path, which is a ledger decision this lane does not own (see CP1). A city is
+ * named here ONLY when BOTH hold:
+ *
+ *   1. the payload's OWN situs city is a DECLARED absence with verdict
+ *      `absent-verified`. A bare null, a `refused`/`lookup-failed`, a
+ *      `not-applicable`, or a rail that never served licenses NOTHING — the
+ *      roll's silence is not evidence that the roll has no city, and
+ *      substituting the containing city there would be inventing one.
+ *   2. the payload's OWN served `cityLimitsFact` is `incorporated` and names the
+ *      city. An `unincorporated` or `unmeasured` answer names no city.
+ *
+ * A roll city that IS readable is never touched: this can never replace the
+ * roll's mailing city with a jurisdiction city. The city it does name is stamped
+ * `situsCityBasis: "city-limits"`, so every renderer presents it as "the city
+ * whose limits contain this parcel" — the fact sheet's provenance note and the
+ * baked card model's note both read that field and say so.
+ *
+ * Applied at the single point every served facets payload passes through,
+ * beside `applyImperviousGoverningFigure` and for the same reason: the record
+ * path and the atom-chain-only path cannot disagree about the same parcel. It
+ * runs AFTER `applyRecordPatch` on purpose, so the licence reads the SAME
+ * `cityLimitsFact` the customer reads (where the record served that rail, the
+ * record's own read replaces the bake's before this runs).
+ *
+ * The rule has three copies by construction — this one, LDT
+ * `situsCompose.resolveSitusCity`, and `scripts/surface-probe.mjs`'s
+ * `addressCarriesLedgerLine` (doc_repo). P-331 has not merged, so they are
+ * named here rather than pinned; a rename on either side is a drift this
+ * comment would make visible.
+ *
+ * Exported for tests; not a public seam (no other module calls it).
+ */
+export function applyCityLimitsSitusLicence(
+  payload: PeBakedFacetsResponse,
+): PeBakedFacetsResponse {
+  const baseFacts = payload.facets?.baseFacts;
+  if (!baseFacts) return payload;
+  const served = baseFacts.situsCity as unknown;
+  // A readable roll city stands: `composeBaseFactsSitus` and the bake's own
+  // string both land here, and neither may be overridden by a jurisdiction city.
+  if (typeof served === "string" && served.trim()) return payload;
+  if (!isDeclaredAbsentVerified(served)) return payload;
+  const city = incorporatedCityLimitsCity(payload.cityLimitsFact);
+  if (!city) return payload;
+  return {
+    ...payload,
+    facets: {
+      ...payload.facets,
+      baseFacts: {
+        ...baseFacts,
+        situsCity: city,
+        situsCityBasis: "city-limits",
+      },
+    },
+  };
+}
+
+/**
+ * The declared-absence reader for `baseFacts.situsCity`. `verdict ?? status` is
+ * read in that order because it is the order the probe's own extractor reads
+ * (`surface-probe.mjs` `situsCityAbsenceVerdict`), so the licence cannot fire on
+ * a declaration the instrument would read differently. A `lookup-failed` verdict
+ * beside an `absent` status therefore licenses nothing — could-not-look is not
+ * found-nothing.
+ */
+function isDeclaredAbsentVerified(value: unknown): boolean {
+  if (!value || typeof value !== "object" || Array.isArray(value)) return false;
+  const r = value as Record<string, unknown>;
+  const word = (v: unknown) =>
+    typeof v === "string" && v.trim() ? v.trim() : null;
+  return (word(r.verdict) ?? word(r.status)) === "absent-verified";
+}
+
+/** The licence's own gate: an INCORPORATED answer that actually names a city. */
+function incorporatedCityLimitsCity(
+  fact: CityLimitsFactWire | undefined,
+): string | null {
+  if (fact?.status !== "incorporated") return null;
+  return typeof fact.cityName === "string" && fact.cityName.trim()
+    ? fact.cityName.trim()
+    : null;
+}
+
 /** Strip cortex envelope / tier2.envelope so zombie multiply cannot be product truth. */
 export function stripCortexEnvelopeProductTruth(body: unknown): unknown {
   if (!body || typeof body !== "object") return body;
@@ -1051,6 +1152,10 @@ export async function handlePropertyAtomsFacets(
       // "record-unavailable", typed refusals on the rails this lane owns —
       // P152-RAILS item 3), never a silent no-op (R-6).
       payload = await applyRecordPatch(payload, parcelNodeId, recordResult);
+      // P-270 CITY HALF (2026-09-19): the city-limits licence reads the payload
+      // the record patch just produced, so the licence and the customer read the
+      // same `cityLimitsFact`. See `applyCityLimitsSitusLicence`.
+      payload = applyCityLimitsSitusLicence(payload);
       // P-341 (OPS-24, ruling 16): the stricter of two applicable impervious
       // figures governs and both are cited. Applied LAST so it reads exactly
       // what is about to be served, whichever rail supplied each figure.

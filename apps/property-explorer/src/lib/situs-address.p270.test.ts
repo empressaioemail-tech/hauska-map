@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 
+import { deriveBakedCardModel } from "./baked-facets";
 import {
   SITUS_CITY_LIMITS_NOTE,
   composeSitusLine,
@@ -77,5 +78,80 @@ describe("composeSitusLine — P-270 address half", () => {
     // An unstated basis is never assumed to be the roll's city.
     expect(situsCityLimitsNote({ situsCity: "Bastrop" })).toBeNull();
     expect(situsCityLimitsNote({ situsCityBasis: "city-limits" })).toBeNull();
+  });
+});
+
+/**
+ * P-270 CITY HALF (2026-09-19), dispatch item 2: EVERY composing path carries
+ * the label. The fact-sheet path attaches `situsCityLimitsNote` to the row's
+ * provenance (`fact-sheet-resolver.ts`); the baked card model composed the very
+ * same line and said nothing, so a reader could take a jurisdiction city for the
+ * roll's. Both models are asserted here against the same payload, so the two
+ * paths cannot drift apart silently.
+ */
+describe("the baked card model says which city its city is — P-270 city half", () => {
+  const LICENSE_LINE = {
+    parcelNodeId: "48453:445501",
+    countyFips: "48453",
+    countyName: "Travis",
+    baseFacts: {
+      apn: "445501",
+      situsAddress: "21404 GRAND NATIONAL AVE",
+      situsCity: "Pflugerville",
+      situsCityBasis: "city-limits",
+      situsState: "TX",
+      situsZip: "78660",
+    },
+  };
+
+  it("carries the containing-city sentence on the composed line, and the line itself is unchanged by it", () => {
+    const model = deriveBakedCardModel(LICENSE_LINE as never);
+    expect(model.situsAddress.state).toBe("present");
+    expect(model.situsAddress.value).toBe(
+      "21404 GRAND NATIONAL AVE, Pflugerville, TX 78660",
+    );
+    expect(model.situsAddress.situsCityLimitsNote).toBe(SITUS_CITY_LIMITS_NOTE);
+  });
+
+  it("NEGATIVE (the roll's own city): a `cad-roll` basis adds NO sentence — a qualifier on a true statement would be noise", () => {
+    const model = deriveBakedCardModel({
+      ...LICENSE_LINE,
+      baseFacts: {
+        ...LICENSE_LINE.baseFacts,
+        situsCity: "Austin",
+        situsCityBasis: "cad-roll",
+      },
+    } as never);
+    expect(model.situsAddress.value).toBe("21404 GRAND NATIONAL AVE, Austin, TX 78660");
+    expect(model.situsAddress.situsCityLimitsNote).toBeUndefined();
+  });
+
+  it("NEGATIVE (unstated basis): a payload that does not say where its city came from makes NO claim either way", () => {
+    const model = deriveBakedCardModel({
+      ...LICENSE_LINE,
+      baseFacts: {
+        apn: "445501",
+        situsAddress: "21404 GRAND NATIONAL AVE",
+        situsCity: "Pflugerville",
+        situsState: "TX",
+        situsZip: "78660",
+      },
+    } as never);
+    expect(model.situsAddress.value).toBe("21404 GRAND NATIONAL AVE, Pflugerville, TX 78660");
+    expect(model.situsAddress.situsCityLimitsNote).toBeUndefined();
+  });
+
+  it("NEGATIVE (no street line): the note never rides an absence — there is no city to qualify", () => {
+    const model = deriveBakedCardModel({
+      ...LICENSE_LINE,
+      baseFacts: {
+        apn: "445501",
+        situsCity: "Pflugerville",
+        situsCityBasis: "city-limits",
+        situsZip: "78660",
+      },
+    } as never);
+    expect(model.situsAddress.state).toBe("absent");
+    expect(model.situsAddress.situsCityLimitsNote).toBeUndefined();
   });
 });
