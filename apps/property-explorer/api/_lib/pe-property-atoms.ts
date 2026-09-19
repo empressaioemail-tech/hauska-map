@@ -862,9 +862,18 @@ function applyImperviousGoverningFigure(
  *
  * The rule has three copies by construction — this one, LDT
  * `situsCompose.resolveSitusCity`, and `scripts/surface-probe.mjs`'s
- * `addressCarriesLedgerLine` (doc_repo). P-331 has not merged, so they are
- * named here rather than pinned; a rename on either side is a drift this
- * comment would make visible.
+ * `addressCarriesLedgerLine` (doc_repo). NAMED here rather than PINNED, and
+ * the reason is measured rather than assumed: P-331's map half has merged
+ * (hauska-map main 252a40f5, #425 — `scripts/check-cross-repo-literal-drift.mjs`
+ * and its workflow exist here), but its LDT half has not reached LDT main, and
+ * the DRIFT CHECK reads the SIBLING'S MAIN. A row comparing this rule's
+ * declaration against LDT's would therefore exit 2 (REFUSE: a declaration could
+ * not be read where it is expected) on every PR until that half lands. P-331's
+ * own header states exactly this and defers P-270's address-rule row to a named
+ * handover; the row, the two `export const` extractions it needs and the
+ * sparse-checkout line it needs are written out in this lane's close so the pin
+ * is one commit once LDT main carries the check. A rename on either side is a
+ * drift this comment makes visible in the meantime.
  *
  * Exported for tests; not a public seam (no other module calls it).
  */
