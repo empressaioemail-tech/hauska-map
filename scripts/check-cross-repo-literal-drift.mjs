@@ -42,13 +42,19 @@
  *      therefore a bypass by construction, and the factory's own check is the
  *      only control on that pair.
  *   4. Deleting the workflow job. The control is the job, not this file.
- *   5. The two copies of THIS FILE are not compared with each other by a row.
- *      They are committed byte-identical (sha256 recorded in the close), but a
- *      row cannot read it: while one side's main lacks the file, a row that
- *      reads it REFUSES (exit 2) on every PR. MEASURED 2026-09-19: both halves
- *      have merged (hauska-map #425, legacy-design-tools #725) and the two
- *      copies read byte-identical at sha256 b2755e6e (33941 bytes,
- *      CRLF-normalised), so that particular window is closed.
+ *   5. The two copies of THIS FILE ARE compared, by the `check-script-copies`
+ *      `file` row (P-369, in the table below). They are kept byte-identical,
+ *      and the row reads the SIBLING'S MAIN, so the two edits have to land as
+ *      one commit per repo: while either main lacks the edited file the job
+ *      reads FAIL on the PR in front of it. That window is safe because the
+ *      drift job is NOT a required status check on either main (checked
+ *      2026-09-19: map requires "No double-encoded source" and "test"; LDT
+ *      requires "Typecheck", "Test", "PR base is main", "SS-W16 tier2 flood
+ *      not served", "SS-W18 api-server boots"), so no landing is blocked by
+ *      it, and the post-merge push and the nightly schedule read the settled
+ *      pair. Before this row existed the two copies were already byte-
+ *      identical (P-331 measured it; P-369 re-measured 34691 bytes,
+ *      CRLF-normalised sha256 7bbbab6e... on both mains).
  *
  * A ROW WHOSE DECLARATION IS NEW NEEDS TWO LANDINGS, IN ORDER. A row reads the
  * sibling's MAIN, so a row shipped in the same pair of PRs that introduces its
@@ -107,6 +113,9 @@ const MAP_FILES = {
   peSitusSearchCore: "apps/property-explorer/api/_lib/pe-situs-search-core.ts",
   envelopeVerificationFixture:
     "apps/property-explorer/src/lib/__fixtures__/envelope-verification.json",
+  situsAddress: "apps/property-explorer/src/lib/situs-address.ts",
+  setbackSourceConflict:
+    "apps/property-explorer/api/_lib/setback-source-conflict.ts",
 };
 
 const LDT_FILES = {
@@ -131,6 +140,9 @@ const LDT_FILES = {
   factAgValuation: "artifacts/api-server/src/lib/agValuationFactRead.ts",
   factMaxImperviousCoverPct:
     "artifacts/api-server/src/lib/maxImperviousCoverPctFactRead.ts",
+  situsCompose: "artifacts/api-server/src/lib/situsCompose.ts",
+  setbackSourceConflict:
+    "artifacts/api-server/src/lib/buildableEnvelope/setbackSourceConflict.ts",
 };
 
 /**
@@ -292,6 +304,64 @@ export const LITERALS = [
     ldt: { file: LDT_FILES[ldtKey], why: "the one definition" },
     value,
   })),
+  // P-369 (2026-09-19). Rows owed by lanes that could not ship them: a row
+  // reads the SIBLING'S MAIN, so it cannot ride the same pair of PRs that
+  // introduces its declaration. All three sources had their declarations on
+  // both mains first (P-270 city half: map #426 / LDT #727; P-340: map #427 /
+  // LDT #729; P-331's own script: map #425 / LDT #725).
+  {
+    id: "check-script-copies",
+    kind: "file",
+    map: { file: "scripts/check-cross-repo-literal-drift.mjs" },
+    ldt: { file: "scripts/check-cross-repo-literal-drift.mjs" },
+  },
+  // P-270 CITY HALF (2026-09-19). The vocabulary the situs-city licence
+  // stamps and the two words it reads. Declared under these NAMES on both
+  // sides for exactly these rows. The probe's copy of the rule (doc_repo
+  // `scripts/surface-probe.mjs`) is a THIRD repository's copy and is outside
+  // the pair this check can read: named, not pinned.
+  {
+    id: "situs-city-basis-vocabulary",
+    kind: "union",
+    name: "SitusCityBasis",
+    map: { file: MAP_FILES.situsAddress, why: "the one declaration in hauska-map" },
+    ldt: { file: LDT_FILES.situsCompose, why: "the one declaration in legacy-design-tools" },
+    value: "cad-roll | city-limits",
+  },
+  {
+    id: "declared-absence-verdict",
+    kind: "const",
+    name: "DECLARED_ABSENCE_VERDICT",
+    map: { file: MAP_FILES.situsAddress, why: "the word the licence keys on" },
+    ldt: { file: LDT_FILES.situsCompose, why: "the word the licence keys on" },
+    value: "absent-verified",
+  },
+  {
+    id: "city-limits-incorporated-status",
+    kind: "const",
+    name: "CITY_LIMITS_INCORPORATED_STATUS",
+    map: { file: MAP_FILES.situsAddress, why: "the status the licence keys on" },
+    ldt: { file: LDT_FILES.situsCompose, why: "the status the licence keys on" },
+    value: "incorporated",
+  },
+  // P-340 (2026-09-19). The conflict row's served sentence and its wire token.
+  {
+    id: "setback-source-conflict-token",
+    kind: "const",
+    name: "SETBACK_SOURCE_CONFLICT_TOKEN",
+    map: { file: MAP_FILES.setbackSourceConflict, why: "served to the customer" },
+    ldt: { file: LDT_FILES.setbackSourceConflict, why: "served to the customer" },
+    value: "setback-source-conflict",
+  },
+  {
+    id: "setback-source-conflict-note",
+    kind: "const",
+    name: "SETBACK_SOURCE_CONFLICT_NOTE",
+    map: { file: MAP_FILES.setbackSourceConflict, why: "served to the customer" },
+    ldt: { file: LDT_FILES.setbackSourceConflict, why: "served to the customer" },
+    value:
+      "Setback sources disagree on this parcel and at least one source's effective date could not be read at source — both candidates are served and neither is settled. Verify with the city.",
+  },
 ];
 
 /* --------------------------------------------------------------- extraction */
