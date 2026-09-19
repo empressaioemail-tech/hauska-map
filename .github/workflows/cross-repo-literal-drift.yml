@@ -60,6 +60,10 @@ jobs:
             # now so the follow-up pin rows (see the check's header) need no
             # workflow edit; the file exists on LDT main today.
             artifacts/api-server/src/lib/situsCompose.ts
+            # P-369 (2026-09-19): the P-340 conflict literal's home, and the
+            # sibling's copy of this check itself (the check-script-copies row).
+            artifacts/api-server/src/lib/buildableEnvelope/setbackSourceConflict.ts
+            scripts/check-cross-repo-literal-drift.mjs
           sparse-checkout-cone-mode: false
       - uses: actions/setup-node@v4
         with:
